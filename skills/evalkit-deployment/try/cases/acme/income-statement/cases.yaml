@@ -1,0 +1,43 @@
+cases:
+- id: acme-revenue
+  input:
+    question: What was Acme Widgets' revenue in FY2025?
+  evaluators:
+    output:
+      answer_rubrics:
+        rubrics:
+        - rubric: States revenue of 48.2 million for FY2025.
+          type: factual_retrieval
+    trajectory:
+      required_tools_called:
+        tools: [lookup_financials]
+
+- id: acme-revenue-growth
+  input:
+    question: How much did Acme Widgets' revenue grow from FY2024 to FY2025?
+  evaluators:
+    output:
+      answer_rubrics:
+        rubrics:
+        - rubric: States FY2024 revenue of 41.5 million.
+          type: factual_retrieval
+        - rubric: States revenue growth of 16.1% (±0.1pp), or 6.7 million.
+          type: derived_computation
+    trajectory:
+      required_tools_called:
+        tools: [lookup_financials]
+
+- id: acme-gross-margin
+  input:
+    question: What were Acme Widgets' gross profit and gross margin in FY2025?
+  evaluators:
+    output:
+      answer_rubrics:
+        rubrics:
+        - rubric: States gross profit of 18.5 million.
+          type: factual_retrieval
+        - rubric: States a gross margin of 38.4% (±0.1pp).
+          type: derived_computation
+    trajectory:
+      required_tools_called:
+        tools: [lookup_financials]

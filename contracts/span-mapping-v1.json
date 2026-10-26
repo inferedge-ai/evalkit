@@ -1,0 +1,314 @@
+{
+  "$defs": {
+    "AttributeRule": {
+      "additionalProperties": false,
+      "properties": {
+        "attribute": {
+          "description": "The span attribute key to read.",
+          "title": "Attribute",
+          "type": "string"
+        },
+        "json": {
+          "default": false,
+          "description": "Parse the value with json.loads when it is a string; keep the string on failure.",
+          "title": "Json",
+          "type": "boolean"
+        },
+        "values": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Translate the read value through this table.",
+          "title": "Values"
+        },
+        "message_format": {
+          "anyOf": [
+            {
+              "enum": [
+                "openinference",
+                "gen_ai",
+                "openai"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Collect messages laid out per this format under the attribute key.",
+          "title": "Message Format"
+        }
+      },
+      "required": [
+        "attribute"
+      ],
+      "title": "AttributeRule",
+      "type": "object"
+    },
+    "TokenRules": {
+      "additionalProperties": false,
+      "properties": {
+        "prompt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributeRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "completion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributeRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cached": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributeRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cache_write": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributeRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "TokenRules",
+      "type": "object"
+    },
+    "ToolRules": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributeRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "call_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributeRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "arguments": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributeRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributeRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ToolRules",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "kind": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttributeRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttributeRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "model": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttributeRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "system_instructions": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttributeRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "System prompt kept outside the input messages: a string or a list of text parts. Read on llm spans and put first in the input messages."
+    },
+    "input_messages": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttributeRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "output_messages": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttributeRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tokens": {
+      "$ref": "#/$defs/TokenRules"
+    },
+    "cost_usd": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttributeRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tool": {
+      "$ref": "#/$defs/ToolRules"
+    },
+    "agent_name": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttributeRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The agent's name on agent spans; names the subagent trajectory. The span name is used when it is absent."
+    },
+    "input": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttributeRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "output": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AttributeRule"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "known_attributes": {
+      "description": "Attributes no rule reads that are expected and need nothing: not reported as unmapped. Glob patterns such as llm.tools.* are allowed.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Known Attributes",
+      "type": "array"
+    },
+    "answer": {
+      "default": "root",
+      "description": "Where the run's answer comes from: root, a span name, or <span name>.<output key>.",
+      "title": "Answer",
+      "type": "string"
+    },
+    "exclude_spans": {
+      "description": "Span names left out of the trajectory.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Exclude Spans",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version"
+  ],
+  "title": "MappingDocument",
+  "type": "object"
+}

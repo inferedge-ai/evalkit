@@ -1,0 +1,22 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.5
+    hooks:
+      - id: ruff-format
+      - id: ruff
+        args: [--fix]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  # pre-commit/mirrors-prettier is archived and stuck on prettier v2 —
+  # run the project-pinned prettier from ui/ instead.
+  - repo: local
+    hooks:
+      - id: prettier-ui
+        name: prettier (ui)
+        language: system
+        files: ^ui/.*\.(ts|tsx|css|json|md)$
+        exclude: ^ui/(package-lock\.json|dist/)
+        entry: npm --prefix ui exec --no -- prettier --write

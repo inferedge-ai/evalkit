@@ -1,0 +1,51 @@
+# Stage 1: build the UI
+FROM node:24-slim AS ui
+WORKDIR /build/ui
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+COPY ui/ ./
+COPY docs/user/ /build/docs/user/
+RUN npx tsc -b && npx vite build
+
+# Stage 2: the server image
+FROM python:3.13-slim
+# The base image's pip vendors old certifi, urllib3, msgpack and setuptools; uv replaces it.
+RUN python -m pip uninstall -y pip
+COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /usr/local/bin/
+
+WORKDIR /app
+# Dependency layer first: cached until the lockfile changes.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --extra server --no-dev --no-install-project
+
+# Content layers: skills, contracts. Must precede the project sync —
+# hatchling force-includes them into the wheel and fails if they are missing.
+COPY hatch_build.py ./
+COPY skills/ skills/
+COPY contracts/ contracts/
+COPY docs/user/ docs/user/
+
+# Project layer.
+COPY README.md ./
+COPY src/ src/
+# A local build gets its own version so `uv run` scripts and `uv tool` installs
+# notice a rebuilt wheel; CI has already stamped +g<sha>, which is kept.
+RUN v="$(uv version --short)" && case "$v" in *+*) ;; \
+    *) uv version --frozen "$v+local.$(date -u +%Y%m%d%H%M%S)" ;; esac
+RUN uv sync --frozen --extra server --no-dev
+
+# cost_map.json is not checked in; fetch it at build time so the image never fetches at runtime.
+COPY scripts/fetch_cost_map.py scripts/fetch_cost_map.py
+RUN uv run --no-sync python scripts/fetch_cost_map.py
+
+RUN uv build --wheel --out-dir /app/dist
+ENV EVALKIT_WHEEL_DIR=/app/dist
+
+COPY --from=ui /build/ui/dist ui/dist
+
+ENV PATH="/app/.venv/bin:$PATH"
+# OpenSSL in `cryptography` dies with SIGILL (exit 132) on Apple M4 under Docker when it
+# probes ARM CPU features; x86 ignores this.
+ENV OPENSSL_armcap=0
+EXPOSE 8020
+CMD ["evalkit", "serve", "--config", "/etc/evalkit/config.yaml", "--host", "0.0.0.0", "--port", "8020"]

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Evalkit mark: the InferEdge tri-color slash motif applied to an "E". -->
+  <rect width="64" height="64" rx="14" fill="#111827"/>
+  <text x="12" y="47" font-family="Helvetica, Arial, sans-serif" font-size="42" font-weight="400" fill="#6b9ae8">/</text>
+  <text x="26" y="47" font-family="Helvetica, Arial, sans-serif" font-size="42" font-weight="700" fill="#f9fafb">E</text>
+</svg>

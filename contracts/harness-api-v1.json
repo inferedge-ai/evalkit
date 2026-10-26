@@ -1,0 +1,938 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "evalkit Harness API",
+    "version": "v1",
+    "description": "The HTTP contract a client's agent harness implements so evalkit can drive it. evalkit is the caller; the harness is the server. Trajectories are ATIF documents \u2014 accepted schema_version values ship in atif-accepted.json."
+  },
+  "security": [
+    {
+      "apiKeyAuth": []
+    }
+  ],
+  "paths": {
+    "/capabilities": {
+      "get": {
+        "summary": "Self-declared capabilities, snapshotted per experiment",
+        "responses": {
+          "200": {
+            "description": "Capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs": {
+      "post": {
+        "summary": "Start one agent run in a fresh session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "description": "Used when the case has fixture files and the harness accepts `files` but not `file_urls`: a `payload` JSON part plus one part per file. When `accepts.file_urls`, the JSON body carries `files: [{name, url}]` instead and no bytes are uploaded.",
+                "properties": {
+                  "payload": {
+                    "$ref": "#/components/schemas/RunRequest"
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                },
+                "required": [
+                  "payload"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Run created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunCreated"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List runs/sessions (capability: run_listing)",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Free-text filter over runs. Text that looks like an id (8 or more hex characters; dashes and case ignored) matches runs whose id starts with it. Any other text matches runs whose title contains it, case-insensitive.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Filter to one user's runs.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Filter to one client's runs.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Page size.",
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Page start.",
+              "type": "integer"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Only runs created at or after this time (ISO 8601).",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "description": "Only runs created before this time (ISO 8601).",
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run listing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}": {
+      "get": {
+        "summary": "Poll run status until terminal",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Run status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/stop": {
+      "post": {
+        "summary": "Cancel a run (capability: accepts.stop; called on timeout)",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stop acknowledged"
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/trajectory": {
+      "get": {
+        "summary": "The run's trajectory as an ATIF document",
+        "description": "Only meaningful after a terminal status. evalkit fetches it once, validates it against the ATIF required subset, and persists it. Schema: ATIF (Harbor framework); accepted versions in atif-accepted.json.",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ATIF trajectory document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/files": {
+      "get": {
+        "summary": "Workspace listing (capability: workspace)",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runs/{run_id}/files/{path}": {
+      "get": {
+        "summary": "Workspace file bytes (capability: workspace)",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File bytes",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Accepts": {
+        "additionalProperties": true,
+        "properties": {
+          "files": {
+            "default": false,
+            "description": "POST /runs accepts multipart file attachments.",
+            "title": "Files",
+            "type": "boolean"
+          },
+          "file_urls": {
+            "default": false,
+            "description": "POST /runs (JSON body) accepts `files: [{name, url}]` and the harness fetches each url itself. Preferred over multipart when both are declared. The url is evalkit's blob store url plus the object key (e.g. s3://bucket/fixtures/<key>); the harness must have access to it.",
+            "title": "File Urls",
+            "type": "boolean"
+          },
+          "model_override": {
+            "default": false,
+            "description": "POST /runs honours the 'model' field.",
+            "title": "Model Override",
+            "type": "boolean"
+          },
+          "stop": {
+            "default": false,
+            "description": "POST /runs/{id}/stop is implemented.",
+            "title": "Stop",
+            "type": "boolean"
+          }
+        },
+        "title": "Accepts",
+        "type": "object"
+      },
+      "ArtifactRef": {
+        "additionalProperties": true,
+        "properties": {
+          "name": {
+            "description": "Artifact display name.",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Workspace path, fetchable via the files endpoint.",
+            "title": "Path"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "MIME type, if known.",
+            "title": "Content Type"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ArtifactRef",
+        "type": "object"
+      },
+      "Capabilities": {
+        "additionalProperties": true,
+        "properties": {
+          "contract_version": {
+            "default": "v1",
+            "description": "Harness API version this harness implements.",
+            "title": "Contract Version",
+            "type": "string"
+          },
+          "agent": {
+            "description": "Harness's own name for itself. Informational.",
+            "title": "Agent",
+            "type": "string"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional. Git commit SHA of the deployed harness; evalkit records it on the experiment so results are traceable to a build.",
+            "title": "Revision"
+          },
+          "branch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional. Git branch the deployed harness was built from.",
+            "title": "Branch"
+          },
+          "input_schema": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional. JSON Schema (draft 2020-12 unless `$schema` says otherwise) of the run input this agent accepts. Excludes `files`, which evalkit sends separately. When absent, evalkit assumes the default question-and-answer schema: an object with a required string `question`. evalkit checks case inputs against the declared or default schema before running an experiment and in `evalkit lint --agent`.",
+            "title": "Input Schema"
+          },
+          "check_input": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional. The run input `evalkit harness check` sends. Must pass input_schema, or the default question-and-answer schema when none is declared.",
+            "title": "Check Input"
+          },
+          "provides": {
+            "$ref": "#/components/schemas/Provides"
+          },
+          "accepts": {
+            "$ref": "#/components/schemas/Accepts"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          }
+        },
+        "required": [
+          "agent"
+        ],
+        "title": "Capabilities",
+        "type": "object"
+      },
+      "FileEntry": {
+        "additionalProperties": true,
+        "properties": {
+          "path": {
+            "description": "Workspace-relative path.",
+            "title": "Path",
+            "type": "string"
+          },
+          "size": {
+            "description": "Size in bytes.",
+            "title": "Size",
+            "type": "integer"
+          },
+          "content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "MIME type, if known.",
+            "title": "Content Type"
+          }
+        },
+        "required": [
+          "path",
+          "size"
+        ],
+        "title": "FileEntry",
+        "type": "object"
+      },
+      "FileList": {
+        "additionalProperties": true,
+        "properties": {
+          "files": {
+            "description": "Workspace listing.",
+            "items": {
+              "$ref": "#/components/schemas/FileEntry"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "FileList",
+        "type": "object"
+      },
+      "FileRef": {
+        "additionalProperties": true,
+        "properties": {
+          "name": {
+            "description": "File name to present to the agent \u2014 the fixture key.",
+            "title": "Name",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Where the harness fetches the bytes from. Present on a JSON request (accepts.file_urls); absent on multipart, where the bytes arrive as the part with this name. Opaque to evalkit's experiment runner; the UI still serves the same fixture via GET /api/fixtures/{name}.",
+            "title": "Url"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "What the file holds, from the suite's fixture registry. evalkit no longer prepends it to input.question; show it to the agent however suits it.",
+            "title": "Context"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "FileRef",
+        "type": "object"
+      },
+      "Limits": {
+        "additionalProperties": true,
+        "properties": {
+          "max_concurrent_runs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Harness-side cap. evalkit uses min(this, its own config).",
+            "title": "Max Concurrent Runs"
+          }
+        },
+        "title": "Limits",
+        "type": "object"
+      },
+      "Provides": {
+        "additionalProperties": true,
+        "properties": {
+          "trajectory": {
+            "default": false,
+            "description": "Can serve GET runs/{id}/trajectory at all.",
+            "title": "Trajectory",
+            "type": "boolean"
+          },
+          "tool_calls": {
+            "default": false,
+            "description": "Trajectory reliably contains tool calls.",
+            "title": "Tool Calls",
+            "type": "boolean"
+          },
+          "thinking": {
+            "default": false,
+            "description": "Trajectory reliably contains reasoning content.",
+            "title": "Thinking",
+            "type": "boolean"
+          },
+          "token_usage": {
+            "default": false,
+            "description": "Trajectory carries per-step token usage.",
+            "title": "Token Usage",
+            "type": "boolean"
+          },
+          "artifacts": {
+            "default": false,
+            "description": "Run status reports artifacts the agent produced.",
+            "title": "Artifacts",
+            "type": "boolean"
+          },
+          "workspace": {
+            "default": false,
+            "description": "Files endpoints are implemented.",
+            "title": "Workspace",
+            "type": "boolean"
+          },
+          "run_listing": {
+            "default": false,
+            "description": "GET /runs (list) is implemented. Powers the sessions browser.",
+            "title": "Run Listing",
+            "type": "boolean"
+          }
+        },
+        "title": "Provides",
+        "type": "object"
+      },
+      "RunCreated": {
+        "additionalProperties": true,
+        "properties": {
+          "run_id": {
+            "description": "The harness's own identifier \u2014 typically its session id. Key for every other endpoint.",
+            "title": "Run Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "RunCreated",
+        "type": "object"
+      },
+      "RunList": {
+        "additionalProperties": true,
+        "properties": {
+          "runs": {
+            "description": "Page of runs, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/RunListItem"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "total": {
+            "description": "Total runs matching the query.",
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "runs",
+          "total"
+        ],
+        "title": "RunList",
+        "type": "object"
+      },
+      "RunListItem": {
+        "additionalProperties": true,
+        "properties": {
+          "run_id": {
+            "description": "Usable with the other /runs/{id} endpoints.",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Display title for the run/session.",
+            "title": "Title"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional filter value; fixed dummy if no multi-tenancy.",
+            "title": "User Id"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional filter value; fixed dummy if no multi-tenancy.",
+            "title": "Client Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Run creation time.",
+            "title": "Created At"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The session this run belongs to, for a harness that keeps several of its own runs per session (for example one per chat message) and answers each of them with the whole session. evalkit's run is the session: items sharing a session_id are listed once, as the newest of them.",
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "run_id"
+        ],
+        "title": "RunListItem",
+        "type": "object"
+      },
+      "RunMetadata": {
+        "additionalProperties": true,
+        "properties": {
+          "experiment_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Experiment id, so eval traffic is distinguishable and traceable.",
+            "title": "Experiment Id"
+          },
+          "case_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Case id for the harness's records.",
+            "title": "Case Id"
+          },
+          "repetition": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Repetition number, 1-based.",
+            "title": "Repetition"
+          }
+        },
+        "title": "RunMetadata",
+        "type": "object"
+      },
+      "RunRequest": {
+        "additionalProperties": true,
+        "properties": {
+          "input": {
+            "additionalProperties": true,
+            "description": "The case input, verbatim; evalkit never rewrites it. Free-form object (see capabilities.input_schema); the harness maps it onto its own invocation.",
+            "title": "Input",
+            "type": "object"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional. Only sent if accepts.model_override.",
+            "title": "Model"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional, for the harness's own records. The harness may ignore it."
+          },
+          "files": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FileRef"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional. The case's fixture files, each with its context. On a JSON request (accepts.file_urls) each carries the url to fetch; on multipart it is in the payload part without urls, next to one file part per entry.",
+            "title": "Files"
+          }
+        },
+        "required": [
+          "input"
+        ],
+        "title": "RunRequest",
+        "type": "object"
+      },
+      "RunStatus": {
+        "additionalProperties": true,
+        "properties": {
+          "status": {
+            "description": "Run state. evalkit polls until terminal or timeout.",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Final user-visible answer. A completed run carries this, `output`, or both.",
+            "title": "Answer"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional. The agent's structured result, for agents that return typed data. A completed run carries this, `answer`, or both.",
+            "title": "Output"
+          },
+          "model": {
+            "description": "Required. The model this run executes on \u2014 the requested model when honoured, otherwise the harness's own default. evalkit records it as the experiment's model and prefers it over the request.",
+            "title": "Model",
+            "type": "string"
+          },
+          "artifacts": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ArtifactRef"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional. Files the agent produced as deliverables.",
+            "title": "Artifacts"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Message when status=failed. A completed run may also carry a non-fatal error (e.g. partial answer).",
+            "title": "Error"
+          }
+        },
+        "required": [
+          "status",
+          "model"
+        ],
+        "title": "RunStatus",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key"
+      }
+    }
+  }
+}

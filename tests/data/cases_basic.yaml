@@ -1,0 +1,42 @@
+defaults:
+  tags: [finance, equity]
+  max_response_time: 600
+  input:
+    locale: en
+
+cases:
+  - id: sample-case-one
+    tags: [starbucks]
+    input:
+      question: "How did the store count change?"
+    evaluators:
+      output:
+        answer_rubrics:
+          rubrics:
+            - rubric: "States that there were 17,133 company-operated stores at FY2021 year-end."
+              type: factual_retrieval
+              source: "FY2021 Form 10-K"
+            - rubric: "Calculates a four-year CAGR of 5.86%."
+              type: derived_computation
+      trajectory:
+        trajectory_rubrics:
+          rubrics:
+            - "Locates the store-count disclosures for each fiscal year."
+            - "Computes the CAGR from the endpoints."
+      custom:
+        required_tool_calls:
+          tools: [retrieve_passages]
+
+  - id: sample-case-two
+    input:
+      question: "What was FY24 revenue?"
+      locale: hi
+    fixtures: [some-doc.pdf]
+    evaluators:
+      output:
+        answer_rubrics:
+          rubrics:
+            - rubric: "States FY24 revenue of $1.2B."
+              type: factual_retrieval
+        max_response_time:
+          max_seconds: 120

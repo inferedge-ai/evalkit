@@ -1,0 +1,25 @@
+cases:
+- id: acme-net-debt
+  input:
+    question: What was Acme Widgets' net debt at FY2025 year-end?
+  evaluators:
+    output:
+      answer_rubrics:
+        rubrics:
+        - rubric: States debt of 20.0 million and cash of 12.7 million.
+          type: factual_retrieval
+        - rubric: States net debt of 7.3 million.
+          type: derived_computation
+    trajectory:
+      required_tools_called:
+        tools: [lookup_financials]
+
+- id: acme-operating-margin
+  input:
+    question: What was Acme Widgets' operating margin in FY2025?
+  evaluators:
+    output:
+      answer_rubrics:
+        rubrics:
+        - rubric: Says the operating margin cannot be determined because operating income is not available, and does not state an operating margin figure.
+          type: analysis_interpretation

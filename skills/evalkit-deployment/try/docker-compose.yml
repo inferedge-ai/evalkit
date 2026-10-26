@@ -1,0 +1,62 @@
+# evalkit try-it stack: the evalkit server and Postgres on this machine,
+# judging with your LLM. Walkthrough: docs/user/try-locally.md in the evalkit
+# repository, or /docs/try-locally on the server once it is up.
+#
+#   cp -n .env.example .env     # fill in LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
+#   docker compose up -d --wait # add --build in an evalkit checkout
+#   docker compose down -v      # remove the stack and its data
+#
+# The image is EVALKIT_IMAGE when set. In an evalkit checkout, leave it unset
+# and `--build` builds it from the repo.
+#
+# Not a deployment: the server migrates on every start (db.migrate_on_start)
+# and the admin password is a fixed demo value.
+
+name: evalkit-try
+
+x-image: &image
+  image: ${EVALKIT_IMAGE:-evalkit:try}
+  build:
+    context: ../../..
+    dockerfile: deploy/Dockerfile
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: evalkit
+      POSTGRES_PASSWORD: evalkit
+      POSTGRES_DB: evalkit
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evalkit -d evalkit"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  server:
+    <<: *image
+    ports:
+      - "127.0.0.1:8020:8020"
+    volumes:
+      - ./config.yaml:/etc/evalkit/config.yaml:ro
+      - blob-data:/data/evalkit
+    environment:
+      EVALKIT_ADMIN_PASSWORD: ${EVALKIT_ADMIN_PASSWORD:?set in .env}
+      LLM_BASE_URL: ${LLM_BASE_URL:?set in .env}
+      LLM_API_KEY: ${LLM_API_KEY:?set in .env}
+      LLM_MODEL: ${LLM_MODEL:?set in .env}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8020/api/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pg-data:
+  blob-data:

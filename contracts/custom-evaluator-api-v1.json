@@ -1,0 +1,243 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "evalkit Custom Evaluator API",
+    "version": "v1",
+    "description": "The HTTP contract a client implements to expose whitebox evaluators and gauges. One endpoint per named evaluator, registered in config.yaml; the path below is that configured endpoint. Synchronous; errors and timeouts are recorded as errored scores, never fatal. score=null means 'no reading'."
+  },
+  "security": [
+    {
+      "apiKeyAuth": []
+    }
+  ],
+  "paths": {
+    "/{configured-endpoint}": {
+      "post": {
+        "summary": "Score one run for one named evaluator",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Named scores",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "EvalCase": {
+        "additionalProperties": true,
+        "properties": {
+          "id": {
+            "description": "Case id.",
+            "title": "Id",
+            "type": "string"
+          },
+          "input": {
+            "additionalProperties": true,
+            "description": "Case input, verbatim.",
+            "title": "Input",
+            "type": "object"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Case expected block, if any.",
+            "title": "Expected"
+          },
+          "config": {
+            "additionalProperties": true,
+            "description": "This case's YAML config for this evaluator. Opaque to evalkit \u2014 passed through untouched.",
+            "title": "Config",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "input",
+          "config"
+        ],
+        "title": "EvalCase",
+        "type": "object"
+      },
+      "EvalRequest": {
+        "additionalProperties": true,
+        "properties": {
+          "schema_version": {
+            "default": "v1",
+            "description": "Custom Evaluator API version.",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "evaluator": {
+            "description": "The registered name being invoked.",
+            "title": "Evaluator",
+            "type": "string"
+          },
+          "kind": {
+            "description": "'evaluator' (scores) or 'gauge' (measures).",
+            "enum": [
+              "evaluator",
+              "gauge"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "case": {
+            "$ref": "#/components/schemas/EvalCase"
+          },
+          "run": {
+            "$ref": "#/components/schemas/EvalRun"
+          }
+        },
+        "required": [
+          "evaluator",
+          "kind",
+          "case",
+          "run"
+        ],
+        "title": "EvalRequest",
+        "type": "object"
+      },
+      "EvalResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "scores": {
+            "description": "Named scores produced by this evaluator.",
+            "items": {
+              "$ref": "#/components/schemas/ScoreItem"
+            },
+            "title": "Scores",
+            "type": "array"
+          }
+        },
+        "required": [
+          "scores"
+        ],
+        "title": "EvalResponse",
+        "type": "object"
+      },
+      "EvalRun": {
+        "additionalProperties": true,
+        "properties": {
+          "answer": {
+            "description": "The agent's final answer. When the harness sent only a structured output, this is that output as canonical JSON (sorted keys).",
+            "title": "Answer",
+            "type": "string"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The agent's structured output, parsed, or null when the harness sent none.",
+            "title": "Output"
+          },
+          "trajectory": {
+            "additionalProperties": true,
+            "description": "The persisted ATIF trajectory document.",
+            "title": "Trajectory",
+            "type": "object"
+          }
+        },
+        "required": [
+          "answer",
+          "trajectory"
+        ],
+        "title": "EvalRun",
+        "type": "object"
+      },
+      "ScoreItem": {
+        "additionalProperties": true,
+        "properties": {
+          "name": {
+            "description": "Score name. Multi-score is first-class: one call may return several named scores.",
+            "title": "Name",
+            "type": "string"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "null means 'no reading' \u2014 recorded but excluded from aggregates.",
+            "title": "Score"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional short label.",
+            "title": "Label"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional. Shown in the UI and EDD bundles.",
+            "title": "Explanation"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ScoreItem",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key"
+      }
+    }
+  }
+}

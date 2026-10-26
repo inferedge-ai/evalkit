@@ -1,0 +1,42 @@
+{
+  "schema_version": "1",
+  "kind": {
+    "attribute": "gen_ai.operation.name",
+    "values": {
+      "chat": "llm", "text_completion": "llm", "generate_content": "llm",
+      "embeddings": "other", "execute_tool": "tool", "invoke_agent": "agent",
+      "create_agent": "other"
+    }
+  },
+  "session_id": {"attribute": "gen_ai.conversation.id"},
+  "model": {"attribute": "gen_ai.request.model"},
+  "system_instructions": {"attribute": "gen_ai.system_instructions", "json": true},
+  "input_messages": {"attribute": "gen_ai.input.messages", "message_format": "gen_ai"},
+  "output_messages": {"attribute": "gen_ai.output.messages", "message_format": "gen_ai"},
+  "tokens": {
+    "prompt": {"attribute": "gen_ai.usage.input_tokens"},
+    "completion": {"attribute": "gen_ai.usage.output_tokens"},
+    "cached": {"attribute": "gen_ai.usage.cache_read.input_tokens"},
+    "cache_write": {"attribute": "gen_ai.usage.cache_creation.input_tokens"}
+  },
+  "cost_usd": null,
+  "tool": {
+    "name": {"attribute": "gen_ai.tool.name"},
+    "call_id": {"attribute": "gen_ai.tool.call.id"},
+    "arguments": {"attribute": "gen_ai.tool.call.arguments", "json": true},
+    "result": {"attribute": "gen_ai.tool.call.result"}
+  },
+  "agent_name": {"attribute": "gen_ai.agent.name"},
+  "input": {"attribute": "gen_ai.input.messages", "json": true},
+  "output": {"attribute": "gen_ai.output.messages", "json": true},
+  "known_attributes": [
+    "gen_ai.system", "gen_ai.provider.name", "gen_ai.agent.*", "gen_ai.main_agent.*",
+    "gen_ai.conversation.id", "gen_ai.conversation.compacted", "gen_ai.data_source.id",
+    "gen_ai.operation.name", "gen_ai.output.type", "gen_ai.prompt.*", "gen_ai.request.*",
+    "gen_ai.response.*", "gen_ai.skill.*", "gen_ai.system_instructions",
+    "gen_ai.token.modality", "gen_ai.tool.definitions", "gen_ai.tool.description",
+    "gen_ai.tool.type", "gen_ai.usage.reasoning.output_tokens", "gen_ai.usage.audio.*",
+    "gen_ai.usage.image.*", "gen_ai.usage.text.*", "gen_ai.workflow.name",
+    "server.address", "server.port", "error.type"
+  ]
+}

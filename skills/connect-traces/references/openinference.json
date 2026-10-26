@@ -1,0 +1,35 @@
+{
+  "schema_version": "1",
+  "kind": {
+    "attribute": "openinference.span.kind",
+    "values": {"LLM": "llm", "TOOL": "tool", "AGENT": "agent", "CHAIN": "chain", "RETRIEVER": "retriever"}
+  },
+  "session_id": {"attribute": "session.id"},
+  "model": {"attribute": "llm.model_name"},
+  "input_messages": {"attribute": "llm.input_messages", "message_format": "openinference"},
+  "output_messages": {"attribute": "llm.output_messages", "message_format": "openinference"},
+  "tokens": {
+    "prompt": {"attribute": "llm.token_count.prompt"},
+    "completion": {"attribute": "llm.token_count.completion"},
+    "cached": {"attribute": "llm.token_count.prompt_details.cache_read"},
+    "cache_write": {"attribute": "llm.token_count.prompt_details.cache_write"}
+  },
+  "cost_usd": {"attribute": "llm.cost.total"},
+  "tool": {
+    "name": {"attribute": "tool.name"},
+    "call_id": {"attribute": "tool.id"},
+    "arguments": {"attribute": "input.value", "json": true},
+    "result": {"attribute": "output.value"}
+  },
+  "agent_name": {"attribute": "agent.name"},
+  "input": {"attribute": "input.value", "json": true},
+  "output": {"attribute": "output.value", "json": true},
+  "known_attributes": [
+    "openinference.span.kind", "session.id", "user.id", "metadata", "tag.tags",
+    "input.mime_type", "output.mime_type", "llm.provider", "llm.system",
+    "llm.invocation_parameters", "llm.finish_reason", "llm.tools.*",
+    "llm.token_count.total", "llm.token_count.prompt_details.*",
+    "llm.token_count.completion_details.*", "llm.cost.*", "tool.description",
+    "tool.parameters", "tool.json_schema", "agent.name", "graph.node.*"
+  ]
+}

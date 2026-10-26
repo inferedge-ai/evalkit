@@ -1,0 +1,92 @@
+[project]
+name = "evalkit"
+version = "0.1.0"
+description = "Standalone agent-eval product: server, CLI, UI, finance eval suite, and EDD skills"
+readme = "README.md"
+authors = [
+    { name = "InferEdge Tech", email = "tech@inferedge.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "httpx>=0.28.1",
+    "httpx-retries>=0.6.0",
+    "jsonschema>=4.26.0",
+    "opentelemetry-api>=1.44.0",
+    "pydantic>=2",
+    "python-dotenv>=1.2.4",
+    "pyyaml>=6.0.3",
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+evalkit = "evalkit.cli.main:app"
+
+[project.optional-dependencies]
+server = [
+    "alembic>=1.19.1",
+    "bcrypt>=5.0.0",
+    "cryptography>=50.0.2",
+    "fastapi>=0.141.1",
+    "fastmcp>=4.0.0,<5.0.0",
+    "greenlet>=3.5.5",
+    "obstore>=0.11.1",
+    "opentelemetry-proto>=1.44.0",
+    "psycopg[binary]>=3.3.6",
+    "python-multipart>=0.0.32",
+    "sqlalchemy>=2",
+    "uvicorn>=0.52.4",
+]
+otel = [
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0",
+    "opentelemetry-sdk>=1.44.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.3.1",
+    "pre-commit>=4.7.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-xdist>=3.8.0",
+    "respx>=0.23.1",
+    "ruff>=0.16.5",
+    "testcontainers[postgres]>=4.15.0",
+]
+
+[tool.ruff]
+line-length = 100
+exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/evalkit/cli/*.py" = ["B008"]
+"src/evalkit/api/*" = ["B008"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = ["e2e: end-to-end tests needing live services (excluded by default)"]
+addopts = "-m 'not e2e'"
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+
+# gitignored (fetched at build time); artifacts overrides hatchling's VCS-ignore
+# exclusion. Must apply to the sdist too — uv build assembles the wheel from it.
+[tool.hatch.build]
+artifacts = ["src/evalkit/core/data/cost_map.json"]
+
+# hatch_build.py adds skills/ file by file, leaving out .env files, wheels and
+# bytecode, so a filled-in try-it .env never ships in a wheel.
+[tool.hatch.build.targets.wheel.hooks.custom]
+
+[tool.hatch.build.targets.wheel.force-include]
+"contracts" = "evalkit/bundled/contracts"
+"docs/user" = "evalkit/bundled/docs"

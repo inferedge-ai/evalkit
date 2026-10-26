@@ -1,0 +1,21 @@
+name: Feature request
+description: Something evalkit should do that it doesn't.
+labels: [feature-request]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you're trying to do, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you'd like
+      description: How you'd want it to work. A command, a screen or a config example helps.
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround today
+      description: What you do now instead, if anything.

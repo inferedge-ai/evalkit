@@ -1,0 +1,1366 @@
+@import "tailwindcss";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+
+@theme {
+  --color-brand: rgb(46 103 200);
+  --color-brand-hover: rgb(32 72 140);
+  --color-brand-ring: rgb(46 103 200 / 0.24);
+
+  --color-n-0: rgb(255 255 255);
+  --color-n-25: rgb(249 250 251);
+  --color-n-50: rgb(243 244 246);
+  --color-n-100: rgb(229 231 235);
+  --color-n-200: rgb(209 213 219);
+  --color-n-300: rgb(156 163 175);
+  --color-n-400: rgb(107 114 128);
+  --color-n-500: rgb(75 85 99);
+  --color-n-700: rgb(31 41 55);
+  --color-n-800: rgb(17 24 39);
+
+  --color-ok: rgb(21 128 61);
+  --color-ok-bg: rgb(22 163 74 / 0.1);
+  --color-err: rgb(220 38 38);
+  --color-err-text: rgb(185 28 28);
+  --color-err-bg: rgb(220 38 38 / 0.1);
+  --color-warn: rgb(180 83 9);
+  --color-warn-bg: rgb(245 158 11 / 0.1);
+  --color-info-bg: rgb(46 103 200 / 0.1);
+
+  --color-kind-system: rgb(100 116 139);
+  --color-kind-user: rgb(21 128 61);
+  --color-kind-agent: rgb(37 99 235);
+  --color-kind-tool: rgb(124 58 237);
+  --color-kind-subagent: rgb(13 148 136);
+
+  /* Chrome runs on the platform UI face; the data face is the one we ship.
+     Ids, paths, case ids, scores and durations are most of the content here,
+     so that is where a real typeface earns its download. */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Absolute steps, so a size is never a guess. Tailwind's rem sizes still
+     resolve sanely (text-xs 12px, text-sm 14px) off a 16px root. */
+  --text-micro: 11px;
+  --text-micro--line-height: 15px;
+  --text-meta: 12px;
+  --text-meta--line-height: 17px;
+  --text-body: 13px;
+  --text-body--line-height: 19px;
+  --text-lede: 14px;
+  --text-lede--line-height: 21px;
+  --text-head: 16px;
+  --text-head--line-height: 22px;
+  --text-title: 19px;
+  --text-title--line-height: 26px;
+
+  /* Roles, not ramp steps. Components name what a colour is for; the ramp
+     above (and the dark/prod overrides below) decide what it looks like. */
+  --color-canvas: var(--color-n-25);
+  --color-surface: var(--color-n-0);
+  --color-fill: var(--color-n-50);
+  --color-hover: var(--color-n-25);
+  --color-line: var(--color-n-100);
+  --color-line-soft: var(--color-n-50);
+  --color-line-strong: var(--color-n-200);
+  --color-ink: var(--color-n-800);
+  --color-ink-2: var(--color-n-500);
+  --color-ink-3: var(--color-n-400);
+  --color-ink-4: var(--color-n-300);
+}
+
+/* A deploy can pick its own accent (server.accent_color, applied as --accent
+   by loadMeta) so prod, staging and dev are told apart at a glance. Every
+   brand shade derives from that one colour. */
+[data-accent] {
+  --color-brand: var(--accent);
+  --color-brand-hover: color-mix(in srgb, var(--accent) 72%, black);
+  --color-brand-ring: color-mix(in srgb, var(--accent) 24%, transparent);
+  --color-info-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* Dark theme: the neutral ramp inverts, accents lighten for contrast. All
+   component styles read these variables, so this block is the whole theme. */
+[data-theme="dark"] {
+  --color-brand: rgb(107 154 232);
+  --color-brand-hover: rgb(144 181 243);
+  --color-brand-ring: rgb(107 154 232 / 0.3);
+
+  --color-n-0: rgb(23 30 44);
+  --color-n-25: rgb(15 21 33);
+  --color-n-50: rgb(33 42 58);
+  --color-n-100: rgb(50 61 80);
+  --color-n-200: rgb(71 83 104);
+  --color-n-300: rgb(112 125 148);
+  --color-n-400: rgb(148 161 182);
+  --color-n-500: rgb(190 200 215);
+  --color-n-700: rgb(226 232 240);
+  --color-n-800: rgb(241 245 249);
+
+  --color-ok: rgb(74 210 130);
+  --color-ok-bg: rgb(34 197 94 / 0.14);
+  --color-err: rgb(244 106 106);
+  --color-err-text: rgb(248 133 133);
+  --color-err-bg: rgb(239 68 68 / 0.16);
+  --color-warn: rgb(240 176 76);
+  --color-warn-bg: rgb(245 158 11 / 0.14);
+  --color-info-bg: rgb(107 154 232 / 0.15);
+
+  --color-kind-system: rgb(148 163 184);
+  --color-kind-user: rgb(74 210 130);
+  --color-kind-agent: rgb(96 165 250);
+  --color-kind-tool: rgb(167 139 250);
+  --color-kind-subagent: rgb(45 212 191);
+}
+
+[data-theme="dark"][data-accent] {
+  --color-brand: color-mix(in srgb, var(--accent) 70%, white);
+  --color-brand-hover: color-mix(in srgb, var(--accent) 55%, white);
+  --color-brand-ring: color-mix(in srgb, var(--accent) 30%, transparent);
+  --color-info-bg: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+body {
+  margin: 0;
+  color: var(--color-ink);
+  background: var(--color-canvas);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  -webkit-font-smoothing: antialiased;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Numbers in the data face are read in columns — never proportional. */
+.font-mono,
+code,
+pre {
+  font-variant-numeric: tabular-nums;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-brand-ring);
+  border-radius: 3px;
+}
+
+/* Inputs that fill a popover or dialog edge to edge; a ring would clip. */
+.select-filter:focus-visible,
+.select-list:focus-visible,
+.palette-input:focus-visible {
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Rendered markdown bodies (marked / react-markdown output). */
+.md-body {
+  line-height: 1.55;
+  overflow-wrap: break-word;
+}
+.md-body > :first-child {
+  margin-top: 0;
+}
+/* Bare URLs are autolinked (GFM), so without this they read as plain text —
+   an answer's citations must be visibly clickable. */
+.md-body a {
+  color: var(--color-brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.md-body a:hover {
+  color: var(--color-brand-hover);
+}
+.md-body > :last-child {
+  margin-bottom: 0;
+}
+.md-body h1,
+.md-body h2,
+.md-body h3 {
+  font-size: 1.05em;
+  margin: 0.9em 0 0.4em;
+}
+.md-body p,
+.md-body ul,
+.md-body ol {
+  margin: 0.45em 0;
+}
+.md-body ul,
+.md-body ol {
+  padding-left: 1.4em;
+}
+.md-body ul {
+  list-style: disc;
+}
+.md-body ol {
+  list-style: decimal;
+}
+.md-body ul ul {
+  list-style: circle;
+}
+.md-body code {
+  background: var(--color-n-50);
+  border: 1px solid var(--color-n-100);
+  border-radius: 3px;
+  padding: 0 3px;
+  font-size: 0.92em;
+  font-family: var(--font-mono);
+}
+.md-body pre {
+  background: var(--color-n-50);
+  border: 1px solid var(--color-n-100);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+}
+.md-body pre code {
+  border: none;
+  background: none;
+  padding: 0;
+}
+.md-body table {
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  font-variant-numeric: tabular-nums;
+}
+.md-body th,
+.md-body td {
+  border: 1px solid var(--color-n-100);
+  padding: 3px 8px;
+  text-align: left;
+}
+.md-body th {
+  background: var(--color-n-50);
+}
+.docs-body h1 {
+  font-size: 1.6em;
+  font-weight: 600;
+  margin: 0 0 0.6em;
+}
+.docs-body h2 {
+  font-size: 1.2em;
+  font-weight: 600;
+  margin: 1.6em 0 0.5em;
+}
+.docs-body h3 {
+  font-size: 1.05em;
+  font-weight: 600;
+  margin: 1.2em 0 0.4em;
+}
+.md-body blockquote {
+  border-left: 3px solid var(--color-n-200);
+  margin: 0.6em 0;
+  padding-left: 10px;
+  color: var(--color-n-500);
+}
+
+/* ── Shared component classes (transcript rows, badges, data tables) ────── */
+@layer components {
+  /* ── Page frame ─────────────────────────────────────────────────────── */
+  .page {
+    width: 100%;
+    padding: 18px 20px 28px;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 30px;
+  }
+  .page-title {
+    font-size: var(--text-head);
+    line-height: var(--text-head--line-height);
+    font-weight: 600;
+    color: var(--color-ink);
+  }
+  /* Prose past ~80 characters stops being read and starts being skimmed —
+     cap the measure on every block of authored text. */
+  .prose {
+    max-width: 82ch;
+  }
+
+  /* ── Controls ───────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 9px;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-ink-2);
+    font-size: var(--text-meta);
+    line-height: 1;
+    white-space: nowrap;
+    transition:
+      color 120ms,
+      background-color 120ms,
+      border-color 120ms;
+  }
+  .btn:hover:not(:disabled) {
+    color: var(--color-brand);
+    border-color: var(--color-brand);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .btn-primary {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+    color: var(--color-n-0);
+    font-weight: 500;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-brand-hover);
+    border-color: var(--color-brand-hover);
+    color: var(--color-n-0);
+  }
+  .btn-quiet {
+    border-color: transparent;
+    background: transparent;
+  }
+  .btn-quiet:hover:not(:disabled) {
+    background: var(--color-fill);
+    border-color: transparent;
+  }
+  .btn-sm {
+    height: 22px;
+    padding: 0 6px;
+    font-size: var(--text-micro);
+    border-radius: 4px;
+  }
+  .btn-lg {
+    height: 36px;
+    padding: 0 16px;
+    font-size: var(--text-body);
+    font-weight: 500;
+  }
+  .btn-approve {
+    background: var(--color-ok-bg);
+    border-color: var(--color-ok);
+    color: var(--color-ok);
+  }
+  .btn-approve:hover:not(:disabled) {
+    background: var(--color-ok);
+    border-color: var(--color-ok);
+    color: var(--color-n-0);
+  }
+  .btn-reject {
+    background: var(--color-err-bg);
+    border-color: var(--color-err);
+    color: var(--color-err-text);
+  }
+  .btn-reject:hover:not(:disabled) {
+    background: var(--color-err);
+    border-color: var(--color-err);
+    color: var(--color-n-0);
+  }
+
+  .input {
+    height: 30px;
+    padding: 0 9px;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-family: inherit;
+    font-size: var(--text-body);
+  }
+  .input::placeholder {
+    color: var(--color-ink-4);
+  }
+  .select {
+    position: relative;
+    display: inline-flex;
+  }
+  .select-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    min-width: 7rem;
+    padding-right: 7px;
+    text-align: left;
+    transition: border-color 120ms;
+  }
+  .select-trigger:hover:not(:disabled) {
+    border-color: var(--color-n-300);
+  }
+  .select-trigger[aria-expanded="true"] {
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 3px var(--color-brand-ring);
+  }
+  .select-trigger:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .select-chevron {
+    flex-shrink: 0;
+    margin-left: auto;
+    color: var(--color-ink-3);
+  }
+  .select-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 45;
+    min-width: 100%;
+    width: max-content;
+    max-width: min(28rem, 80vw);
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    background: var(--color-surface);
+    box-shadow:
+      0 8px 24px rgb(0 0 0 / 0.12),
+      0 1px 3px rgb(0 0 0 / 0.06);
+    overflow: hidden;
+  }
+  .select-filter {
+    width: 100%;
+    height: 30px;
+    padding: 0 10px;
+    border: none;
+    border-bottom: 1px solid var(--color-line);
+    background: transparent;
+    color: var(--color-ink);
+    font-size: var(--text-meta);
+    outline: none;
+  }
+  .select-list {
+    max-height: 16rem;
+    overflow-y: auto;
+    padding: 4px;
+    outline: none;
+  }
+  .select-option {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 8px;
+    border-radius: 5px;
+    color: var(--color-ink-2);
+    font-size: var(--text-meta);
+    cursor: pointer;
+    user-select: none;
+  }
+  .select-option.active {
+    background: var(--color-fill);
+    color: var(--color-ink);
+  }
+  .select-option[aria-selected="true"] {
+    color: var(--color-brand);
+    font-weight: 500;
+  }
+  .select-option[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .select-more {
+    border-top: 1px solid var(--color-line-soft);
+    color: var(--color-ink-3);
+  }
+  .select-check {
+    flex-shrink: 0;
+    color: var(--color-brand);
+  }
+  .select-hint {
+    margin-left: auto;
+    padding-left: 12px;
+    color: var(--color-ink-4);
+    font-size: var(--text-micro);
+    font-variant-numeric: tabular-nums;
+  }
+  .select-empty {
+    padding: 6px 8px;
+    color: var(--color-ink-4);
+    font-size: var(--text-meta);
+  }
+  textarea.input {
+    height: auto;
+    padding: 6px 9px;
+    resize: vertical;
+  }
+
+  .dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 10vh 16px 16px;
+    background: rgb(17 24 39 / 0.3);
+  }
+  .dialog {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+    max-height: 80vh;
+    border: 1px solid var(--color-line);
+    border-radius: 10px;
+    background: var(--color-surface);
+    box-shadow: 0 16px 48px rgb(0 0 0 / 0.18);
+  }
+  .dialog-head,
+  .dialog-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+  }
+  .dialog-head {
+    border-bottom: 1px solid var(--color-line);
+  }
+  .dialog-foot {
+    border-top: 1px solid var(--color-line);
+  }
+  .dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    overflow-y: auto;
+  }
+  .form-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .form-label {
+    flex-shrink: 0;
+    width: 6rem;
+    color: var(--color-ink-3);
+    font-size: var(--text-meta);
+  }
+  .picker {
+    border: 1px solid var(--color-line-strong);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .picker-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px;
+    border-bottom: 1px solid var(--color-line);
+    background: var(--color-canvas);
+  }
+  .picker-list {
+    max-height: 15rem;
+    overflow-y: auto;
+  }
+  .picker-row {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+    padding: 5px 8px;
+  }
+  .picker-row + .picker-row {
+    border-top: 1px solid var(--color-line-soft);
+  }
+  .picker-row:hover {
+    background: var(--color-hover);
+  }
+  .cli-preview {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--color-fill);
+  }
+  .cli-preview > code {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    color: var(--color-ink-2);
+  }
+
+  /* One-of-N filters. */
+  .segment {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 6px;
+    background: var(--color-surface);
+    overflow: hidden;
+  }
+  .segment > button {
+    padding: 0 10px;
+    height: 28px;
+    border: none;
+    background: none;
+    color: var(--color-ink-3);
+    font-size: var(--text-meta);
+    transition:
+      color 120ms,
+      background-color 120ms;
+  }
+  .segment > button + button {
+    border-left: 1px solid var(--color-line);
+  }
+  .segment > button:hover {
+    background: var(--color-hover);
+    color: var(--color-ink-2);
+  }
+  .segment > button[aria-pressed="true"] {
+    background: var(--color-info-bg);
+    color: var(--color-brand);
+    font-weight: 500;
+  }
+
+  /* Checkbox filters sit next to these controls, so they get the same
+     border, radius and focus ring instead of the platform default. */
+  .check {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--color-ink-2);
+    font-size: var(--text-meta);
+    user-select: none;
+    cursor: pointer;
+  }
+  .check > input {
+    flex-shrink: 0;
+    appearance: none;
+    width: 13px;
+    height: 13px;
+    margin: 0;
+    border: 1px solid var(--color-line-strong);
+    border-radius: 3px;
+    background: var(--color-surface);
+    transition:
+      background-color 120ms,
+      border-color 120ms;
+  }
+  .check > input:checked {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+  }
+  .check > input:checked::after {
+    content: "";
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--color-n-0);
+    clip-path: polygon(
+      21% 47%,
+      35% 47%,
+      45% 61%,
+      74% 25%,
+      86% 25%,
+      47% 76%,
+      36% 76%
+    );
+  }
+
+  /* ── Surfaces & rows ────────────────────────────────────────────────── */
+  .card {
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
+    background: var(--color-surface);
+    overflow: hidden;
+  }
+  .card-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--color-line-soft);
+    background: var(--color-surface);
+  }
+  .rows > * + * {
+    border-top: 1px solid var(--color-line-soft);
+  }
+  /* Grid, not ml-auto: metadata lines up down the list instead of drifting
+     with the length of each title. */
+  .row {
+    display: grid;
+    align-items: baseline;
+    column-gap: 12px;
+    row-gap: 1px;
+    padding: 6px 12px;
+    transition: background-color 120ms;
+  }
+  a.row:hover,
+  button.row:hover {
+    background: var(--color-hover);
+  }
+  .row-strong {
+    font-size: var(--text-lede);
+    font-weight: 500;
+    color: var(--color-ink);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .row-meta {
+    font-size: var(--text-meta);
+    color: var(--color-ink-3);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  /* Column headings for the aligned list grids: shares each list's
+     grid-template-columns with its data rows so cells line up top to bottom. */
+  .row-head {
+    font-size: var(--text-micro);
+    line-height: var(--text-micro--line-height);
+    text-transform: uppercase;
+    letter-spacing: 0.045em;
+    font-weight: 600;
+    color: var(--color-ink-3);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-line);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  .row-head > .num,
+  .row-head > .text-right {
+    text-align: right;
+  }
+
+  /* ── Metric tiles ───────────────────────────────────────────────────── */
+  .tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+    gap: 6px;
+  }
+  .tile {
+    border: 1px solid var(--color-line);
+    border-radius: 7px;
+    background: var(--color-surface);
+    padding: 7px 10px 8px;
+    min-width: 0;
+  }
+  .tile-label {
+    font-size: var(--text-micro);
+    line-height: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.045em;
+    color: var(--color-ink-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tile-value {
+    margin-top: 3px;
+    font-size: var(--text-head);
+    line-height: 20px;
+    font-variant-numeric: tabular-nums;
+  }
+  .tile-sub {
+    font-size: var(--text-micro);
+    line-height: 14px;
+    color: var(--color-ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  /* The headline numbers. Bigger, and marked by the brand rule so the eye
+     lands here before the gauge grid. */
+  .tile-hero {
+    border-left: 3px solid var(--color-brand);
+    padding: 9px 12px 10px;
+  }
+  .tile-hero .tile-value {
+    font-size: 26px;
+    line-height: 30px;
+    font-weight: 600;
+  }
+  .bucket-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 8px;
+  }
+  .bucket-members {
+    margin-top: 6px;
+    font-size: var(--text-meta);
+  }
+  .bucket-members li,
+  .bucket-members button {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+  }
+  .bucket-members li {
+    padding: 1px 0;
+  }
+  .member-name {
+    flex: 1;
+    min-width: 0;
+  }
+  .bucket-members button {
+    text-align: left;
+    border-radius: 4px;
+  }
+  .bucket-members button:hover {
+    background: var(--color-hover);
+  }
+
+  /* Magnitude bar behind a numeric cell: share of the column's max. Reads as
+     a shape first, a number second. */
+  .bar {
+    position: relative;
+    isolation: isolate;
+  }
+  .bar::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 2px auto 2px 0;
+    width: calc(var(--bar) * 100%);
+    background: var(--color-info-bg);
+    border-radius: 2px;
+  }
+
+  .skeleton {
+    background: var(--color-fill);
+    border-radius: 4px;
+    animation: evalkit-pulse 1.4s ease-in-out infinite;
+  }
+
+  .badge {
+    display: inline-block;
+    border-radius: 3px;
+    padding: 0 5px;
+    font-size: var(--text-micro);
+    font-weight: 600;
+    line-height: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--color-fill);
+    color: var(--color-ink-3);
+    flex-shrink: 0;
+  }
+  .badge-result {
+    background: var(--color-info-bg);
+    color: var(--color-brand);
+  }
+  .badge-thinking {
+    background: var(--color-warn-bg);
+    color: var(--color-warn);
+  }
+  .badge-error {
+    background: var(--color-err-bg);
+    color: var(--color-err-text);
+  }
+
+  /* Trajectory block kinds: each kind sets --kind, and badges, step cards
+     and tool blocks all read it, so one colour names one kind everywhere. */
+  .kind-system,
+  .badge-system {
+    --kind: var(--color-kind-system);
+  }
+  .kind-user,
+  .badge-user {
+    --kind: var(--color-kind-user);
+  }
+  .kind-agent,
+  .badge-agent {
+    --kind: var(--color-kind-agent);
+  }
+  .kind-tool,
+  .badge-tool {
+    --kind: var(--color-kind-tool);
+  }
+  .kind-subagent,
+  .badge-subagent {
+    --kind: var(--color-kind-subagent);
+  }
+  .kind-error {
+    --kind: var(--color-err-text);
+  }
+  .badge-system,
+  .badge-user,
+  .badge-agent,
+  .badge-tool,
+  .badge-subagent {
+    background: color-mix(in srgb, var(--kind) 14%, transparent);
+    color: var(--kind);
+  }
+  .step-card {
+    border: 1px solid var(--color-n-100);
+    border-left: 3px solid var(--kind);
+    border-radius: 8px;
+    background: var(--color-n-0);
+  }
+  .step-card-head {
+    background: color-mix(in srgb, var(--kind) 7%, transparent);
+    border-bottom: 1px solid var(--color-n-50);
+    border-top-right-radius: 7px;
+  }
+  .tool-block {
+    border-left: 2px solid color-mix(in srgb, var(--kind) 60%, transparent);
+    border-radius: 6px;
+  }
+  .badge-sidechain {
+    background: var(--color-n-50);
+    color: var(--color-n-400);
+  }
+
+  /* Closed rows read as one continuous stream; opening one lifts it into a
+     card so the body is unmistakably attached to its header. */
+  .collapsible {
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    overflow: hidden;
+  }
+  .collapsible.is-open {
+    border-color: var(--color-line);
+    background: var(--color-surface);
+    margin: 3px 0;
+  }
+  .collapsible-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: var(--text-meta);
+    color: var(--color-ink-2);
+    user-select: none;
+    border-radius: 5px;
+    transition: background-color 120ms;
+  }
+  .collapsible-header:hover {
+    background: var(--color-hover);
+  }
+  .collapsible-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-meta);
+  }
+  .collapsible-body {
+    border-top: 1px solid var(--color-line-soft);
+    padding: 6px 8px;
+  }
+
+  .data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--text-meta);
+    font-variant-numeric: tabular-nums;
+  }
+  .data-table th {
+    text-align: left;
+    font-size: var(--text-micro);
+    text-transform: uppercase;
+    letter-spacing: 0.045em;
+    font-weight: 600;
+    color: var(--color-ink-3);
+    border-bottom: 1px solid var(--color-line);
+    padding: 4px 10px;
+  }
+  .data-table td {
+    border-bottom: 1px solid var(--color-line-soft);
+    padding: 3px 10px;
+  }
+  .data-table tbody tr:hover {
+    background: var(--color-hover);
+  }
+  /* A long table loses its header on the first scroll — pin it. */
+  .data-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--color-surface);
+  }
+  .data-table .col-num {
+    text-align: right;
+  }
+
+  /* ── List tables (DataTable) ────────────────────────────────────────── */
+  /* Columns size to their content and nothing is cut off: short values stay
+     on one line, long text and chip lists wrap inside their column. */
+  .grid-table {
+    font-size: var(--text-lede);
+  }
+  .grid-table th {
+    position: relative;
+    white-space: nowrap;
+    padding: 6px 10px;
+    user-select: none;
+  }
+  .grid-table td {
+    padding: 6px 10px;
+    vertical-align: top;
+    white-space: nowrap;
+  }
+  .grid-table td.cell-wrap {
+    white-space: normal;
+    min-width: 8rem;
+    max-width: 28rem;
+  }
+  .grid-table td.cell-wrap > .flex {
+    flex-wrap: wrap;
+  }
+  .grid-table td.cell-wrap .row-meta {
+    white-space: normal;
+  }
+  /* A column the user narrowed wraps everything inside it, chips included. */
+  .grid-table td.cell-sized,
+  .grid-table td.cell-sized * {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .grid-table td.cell-sized .flex {
+    flex-wrap: wrap;
+  }
+  .grid-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .grid-table .col-num > * {
+    justify-content: flex-end;
+  }
+  .th-sortable {
+    cursor: pointer;
+  }
+  .th-sortable:hover {
+    color: var(--color-ink);
+  }
+  .th-resizer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    touch-action: none;
+  }
+  .th-resizer:hover,
+  .th-resizer.active {
+    background: var(--color-brand);
+  }
+  .columns-menu {
+    min-width: 14rem;
+  }
+  .columns-menu .select-list {
+    max-height: min(32rem, 70vh);
+  }
+  .columns-menu-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 6px;
+    font-size: var(--text-meta);
+    color: var(--color-ink-2);
+  }
+
+  /* ── Score matrix ───────────────────────────────────────────────────── */
+  /* The case column is the row's identity; it stays put while the evaluator
+     columns scroll sideways. */
+  .matrix .col-case {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-line);
+  }
+  /* Every column hugs its content and this last one eats the leftover width,
+     so scores sit next to the case that earned them instead of being flung
+     to the far edge of a wide screen. */
+  .matrix .col-slack {
+    width: 100%;
+    padding: 0;
+  }
+  /* Two-row header: `.data-table thead th` pins every header cell at top 0,
+     which stacks the column row on top of the group row. Pin the group row
+     there and offset the column row by its height. */
+  .matrix {
+    --matrix-group-h: 24px;
+  }
+  .matrix thead tr:first-child th {
+    height: var(--matrix-group-h);
+    line-height: var(--text-micro--line-height);
+  }
+  .matrix thead tr:nth-child(2) th {
+    top: var(--matrix-group-h);
+  }
+  .matrix thead .col-case {
+    z-index: 3;
+  }
+  .matrix tbody tr:hover .col-case {
+    background: var(--color-hover);
+  }
+  .matrix td.score {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    padding: 3px 10px;
+  }
+  .matrix tfoot td {
+    position: sticky;
+    bottom: 0;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-line);
+    vertical-align: top;
+  }
+  .matrix tfoot .col-case {
+    z-index: 3;
+  }
+  .heat-pass {
+    background: color-mix(in srgb, var(--color-ok) 12%, transparent);
+  }
+  .heat-partial {
+    background: color-mix(in srgb, var(--color-warn) 16%, transparent);
+  }
+  .heat-fail {
+    background: color-mix(in srgb, var(--color-err) 16%, transparent);
+  }
+  /* Distribution strip under a column header: how that evaluator did across
+     every case, so a weak column is visible before reading a single number. */
+  .dist {
+    display: flex;
+    height: 3px;
+    margin-top: 4px;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--color-fill);
+  }
+
+  .pane-status {
+    padding: 20px;
+    font-size: var(--text-body);
+    color: var(--color-ink-3);
+  }
+  .pane-status.error {
+    color: var(--color-err-text);
+  }
+  /* Nothing selected yet is an invitation, not a dead end — centre it in the
+     pane it belongs to instead of stranding one line in the top corner. */
+  .pane-empty {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 24px;
+    color: var(--color-ink-3);
+    font-size: var(--text-body);
+    text-align: center;
+  }
+
+  .chip {
+    display: inline-block;
+    border-radius: 999px;
+    background: var(--color-info-bg);
+    color: var(--color-brand);
+    font-size: var(--text-micro);
+    line-height: 16px;
+    padding: 0 7px;
+    white-space: nowrap;
+  }
+  .chip.muted {
+    background: var(--color-fill);
+    color: var(--color-ink-3);
+  }
+  .chip-info {
+    background: var(--color-info-bg);
+    color: var(--color-brand);
+  }
+
+  /* Glossary ⓘ. The bubble is a styled tooltip: native title= only shows on a
+     delayed mouse hover, never on focus or touch, and can't wrap or be themed. */
+  .infotip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: -1px;
+    color: var(--color-ink-4);
+    cursor: help;
+    outline: none;
+  }
+  .infotip:hover,
+  .infotip:focus-visible {
+    color: var(--color-brand);
+  }
+  .infotip-bubble {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 40;
+    width: max-content;
+    max-width: min(280px, 70vw);
+    padding: 5px 8px;
+    border: 1px solid var(--color-line);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-ink-2);
+    box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
+    /* Hosts include uppercase micro tile labels and bold table headers — the
+       bubble resets to plain body text regardless. */
+    font-family: var(--font-sans);
+    font-size: var(--text-micro);
+    line-height: var(--text-micro--line-height);
+    font-weight: 400;
+    font-variant-numeric: normal;
+    letter-spacing: normal;
+    text-transform: none;
+    text-align: left;
+    white-space: normal;
+  }
+  .infotip:hover .infotip-bubble,
+  .infotip:focus-visible .infotip-bubble {
+    display: block;
+  }
+
+  .tab-button {
+    border: none;
+    background: none;
+    padding: 5px 10px;
+    font-size: var(--text-body);
+    color: var(--color-ink-3);
+    border-bottom: 2px solid transparent;
+    transition: color 120ms;
+  }
+  .tab-button:hover:not(:disabled) {
+    color: var(--color-ink-2);
+  }
+  .tab-button.active {
+    color: var(--color-brand);
+    border-bottom-color: var(--color-brand);
+    font-weight: 500;
+  }
+  .tab-button:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  .sev-fg-pass {
+    color: var(--color-ok);
+  }
+  .sev-fg-partial {
+    color: var(--color-warn);
+  }
+  .sev-fg-fail {
+    color: var(--color-err-text);
+    font-weight: 600;
+  }
+  .sev-fg-none {
+    color: var(--color-n-300);
+  }
+
+  .chip-pass {
+    background: var(--color-ok-bg);
+    color: var(--color-ok);
+  }
+  .chip-partial {
+    background: var(--color-warn-bg);
+    color: var(--color-warn);
+  }
+  .chip-fail {
+    background: var(--color-err-bg);
+    color: var(--color-err-text);
+  }
+  .chip-none {
+    background: var(--color-n-50);
+    color: var(--color-n-400);
+  }
+
+  .iv-satisfied {
+    color: var(--color-ok);
+  }
+  .iv-partial {
+    color: var(--color-warn);
+  }
+  .iv-missing {
+    color: var(--color-err-text);
+  }
+  /* Absent is a gap (never addressed) — warn; incorrect is a wrong answer — red. */
+  .iv-absent {
+    color: var(--color-warn);
+  }
+  .iv-incorrect {
+    color: var(--color-err-text);
+  }
+  .iv-other {
+    color: var(--color-n-400);
+  }
+
+  .sev-bg-pass {
+    background: var(--color-ok);
+  }
+  .sev-bg-partial {
+    background: var(--color-warn);
+  }
+  .sev-bg-fail {
+    background: var(--color-err);
+  }
+  .sev-bg-none {
+    background: var(--color-n-200);
+  }
+
+  /* Section label. Earns its place by naming a real section of the record —
+     never used as decoration. */
+  .eyebrow {
+    margin: 16px 0 5px;
+    font-size: var(--text-micro);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .eyebrow:first-child {
+    margin-top: 0;
+  }
+  /* A rule that runs to the end of the line, so the label reads as the head
+     of a section rather than a floating caption. */
+  .eyebrow-rule::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-line);
+  }
+}
+
+.ws-switched {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+  animation: evalkit-pulse 0.75s ease-in-out 2;
+}
+
+@keyframes evalkit-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}

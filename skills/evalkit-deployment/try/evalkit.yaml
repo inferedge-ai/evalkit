@@ -1,0 +1,4 @@
+cases: cases
+credentials:
+  judges:
+    env:LLM_BASE_URL: env:LLM_API_KEY

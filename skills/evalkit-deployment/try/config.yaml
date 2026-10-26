@@ -1,0 +1,22 @@
+# Server config for the try-it stack. See ../config.example.yaml for a real one.
+server:
+  base_url: http://localhost:8020
+
+db:
+  url: postgresql+psycopg://evalkit:evalkit@postgres/evalkit
+  migrate_on_start: true
+
+blob:
+  url: file:///data/evalkit
+
+judge_default: # your LLM, from .env; any OpenAI-compatible endpoint with structured output
+  base_url: env:LLM_BASE_URL
+  model: env:LLM_MODEL
+  concurrency: 4
+
+cost_map:
+  source: bundled
+
+credentials:
+  judges:
+    env:LLM_BASE_URL: env:LLM_API_KEY

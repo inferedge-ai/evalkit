@@ -1,0 +1,52 @@
+server:
+  base_url: https://evalkit.internal # used in links the CLI prints
+
+db:
+  url: env:EVALKIT_DATABASE_URL # Postgres: users, workspaces, agents, cases, experiments, scores
+  # migrate_on_start: true # run `evalkit db upgrade` at startup (default false); see references/config-and-deploy.md
+
+blob:
+  url: s3://client-bucket/evalkit # or file:///data/evalkit
+
+judge_default: # the judge an experiment uses unless it picks its own
+  base_url: https://llm.internal/v1 # any OpenAI-compatible endpoint; its key is credentials.judges[base_url]
+  model: vertex_ai/gemini-3.6-flash # must be reproducibility-tested
+  reasoning_effort: high
+  max_tokens: 32768
+  concurrency: 16
+
+cost_map:
+  source: bundled # or a path/URL override
+
+credentials: # the only place API keys are configured; values are env:NAME, read when used
+  # Uncomment and fill in one entry per shared agent and remote evaluator that needs a key,
+  # and switch its line in docker-compose.yml to `:?` so a missing key stops compose.
+  # agents: # keyed by agent reference (name@workspace); agents themselves are created with `evalkit agents create`
+  #   ouragent@dev: env:OURAGENT_DEV_KEY
+  # evaluators: # keyed by remote evaluator reference (name@workspace); create them with `evalkit evaluators create`
+  #   required_tool_calls@dev: env:AGENT_EVALUATOR_KEY
+  judges: # keyed by judge base_url
+    https://llm.internal/v1: env:JUDGE_LLM_API_KEY
+
+auth:
+  token_ttl_hours: 720
+
+# mcp: # optional; /mcp takes evalkit login tokens without it
+#   oauth: # also accept an OAuth identity provider's JWTs carrying `scope`
+#     issuer: https://id.example.com
+#     jwks_uri: https://id.example.com/.well-known/jwks.json
+#     scope: evalkit:read # the provider's name for read access (default)
+
+otel: # optional block; the OTLP collector at /api/otel/v1/traces
+  settle_seconds: 10 # a session is settled when its newest span arrived longer ago than this
+  max_batch_bytes: 16777216 # one export request; 413 beyond it
+  max_session_bytes: 402653184 # span attributes one session read loads; 413 beyond it (size with the server's memory)
+  import_page_traces: 25 # traces per request to a trace source during an import (size with the server's memory)
+
+limits: # optional block; request body caps, 413 beyond them
+  fixture_upload_bytes: 524288000 # one fixture file uploaded by evalkit sync (500 MB)
+  experiment_blob_bytes: 524288000 # one trajectory or artifact written by a local run (500 MB)
+  case_upload_bytes: 52428800 # the case YAML files of one evalkit sync or lint (50 MB)
+  request_bytes: 10485760 # any other request body (10 MB); the collector uses otel.max_batch_bytes
+
+encryption_key: env:EVALKIT_ENCRYPTION_KEY # Fernet key; encrypts trace source API keys (`evalkit trace-sources create`); the server refuses to start without it once any exist

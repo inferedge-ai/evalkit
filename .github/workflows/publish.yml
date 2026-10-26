@@ -1,0 +1,138 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+      - main
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+concurrency:
+  group: publish-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # workflow_dispatch and branch creation have no base to diff against: build everything.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$BEFORE" HEAD | grep -qE '^(src/|ui/|docs/user/|skills/|contracts/|scripts/fetch_cost_map.py|pyproject.toml|uv.lock|deploy/Dockerfile|.github/workflows/publish.yml)'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  image:
+    name: Build and push image
+    needs: changes
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.ref_name != 'main' || github.repository == 'inferedge-ai/evalkit')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - name: Stamp build id into the version
+        id: version
+        run: |
+          echo "plain=$(uv version --short)" >> "$GITHUB_OUTPUT"
+          uv version "$(uv version --short)+g${GITHUB_SHA::7}"
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: Build and push
+        env:
+          VERSION: ${{ steps.version.outputs.plain }}
+        run: |
+          TAGS="-t $IMAGE:$GITHUB_SHA -t $IMAGE:$GITHUB_REF_NAME"
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            TAGS="$TAGS -t $IMAGE:$VERSION -t $IMAGE:latest"
+          fi
+          docker buildx build \
+            --cache-from type=registry,ref=$IMAGE:buildcache \
+            --cache-to   type=registry,ref=$IMAGE:buildcache,mode=max \
+            --push $TAGS \
+            -f deploy/Dockerfile .
+
+  wheel:
+    name: Build CLI wheel
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+      - name: Stamp build id into the version
+        run: uv version "$(uv version --short)+g${GITHUB_SHA::7}"
+      - run: uv run python scripts/fetch_cost_map.py
+      - run: uv build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: evalkit-wheel-${{ github.sha }}
+          path: dist/*.whl
+
+  # main only: the merge is a release (ci.yml's `version` job made sure the
+  # version rose), so tag it once the image is published and attach the wheel.
+  github-release:
+    name: GitHub release
+    needs: [changes, image, wheel]
+    if: >-
+      !cancelled()
+      && github.ref_name == 'main'
+      && github.repository == 'inferedge-ai/evalkit'
+      && needs.wheel.result == 'success'
+      && (needs.image.result == 'success' || needs.image.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: evalkit-wheel-${{ github.sha }}
+          path: dist
+      - name: Release notes from the changelog section
+        id: notes
+        run: |
+          VERSION=$(python3 -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          awk -v v="$VERSION" '$0 == "## " v {on=1; next} /^## / {if (on) exit} on' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "::error::CHANGELOG.md has no '## $VERSION' section"
+            exit 1
+          fi
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.notes.outputs.version }}
+        run: |
+          gh release create "v$VERSION" dist/*.whl \
+            --target "$GITHUB_SHA" \
+            --title "evalkit $VERSION" \
+            --notes-file notes.md

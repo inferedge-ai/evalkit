@@ -1,0 +1,59 @@
+# evalkit self-hosted deployment: server + Postgres.
+#
+# The server image is prebuilt and pulled from your registry — set
+# EVALKIT_IMAGE to the image you were given, e.g.
+#   EVALKIT_IMAGE=<registry>/evalkit:<tag>
+# (registries differ per client, so there is no default).
+#
+# The server verifies the schema and exits when it is missing or outdated.
+# With `db.migrate_on_start: true` in config.yaml it migrates first, so
+# `docker compose up -d` is the whole start. Without it, bring up postgres,
+# run `evalkit db upgrade`, then start the server
+# (see references/config-and-deploy.md).
+#
+# Using an existing Postgres instead? Remove the `postgres` service and the
+# `depends_on`, and set `db.url` in config.yaml to your instance
+# (postgresql+psycopg://user:pass@host/dbname).
+
+services:
+  server:
+    image: ${EVALKIT_IMAGE:?set EVALKIT_IMAGE to the evalkit server image, e.g. <registry>/evalkit:<tag>}
+    ports:
+      - "8020:8020"
+    volumes:
+      - ./config.yaml:/etc/evalkit/config.yaml:ro
+      # For a file:// blob URL, mount a volume at the configured path:
+      - blob-data:/data/evalkit
+    environment:
+      EVALKIT_DATABASE_URL: postgresql+psycopg://evalkit:${POSTGRES_PASSWORD:?set in .env}@postgres/evalkit
+      EVALKIT_ADMIN_PASSWORD: ${EVALKIT_ADMIN_PASSWORD:-}
+      EVALKIT_ENCRYPTION_KEY: ${EVALKIT_ENCRYPTION_KEY:?set in .env}
+      # One line per env: reference in config.yaml. Use :? for every key the
+      # deployment uses, so a forgotten one stops compose instead of sending
+      # an empty key.
+      JUDGE_LLM_API_KEY: ${JUDGE_LLM_API_KEY:?set in .env}
+      # Examples for the commented-out agent and evaluator entries under
+      # credentials: in config.yaml. Switch to :? when you uncomment them.
+      OURAGENT_DEV_KEY: ${OURAGENT_DEV_KEY:-}
+      AGENT_EVALUATOR_KEY: ${AGENT_EVALUATOR_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: evalkit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: evalkit
+    volumes:
+      - auth-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evalkit -d evalkit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  auth-db:
+  blob-data:

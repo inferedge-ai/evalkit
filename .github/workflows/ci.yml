@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, ready_for_review, synchronize, reopened]
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  # A PR into main is a release: pyproject.toml's version must be bumped above
+  # main's and CHANGELOG.md must have a section for it. Branch protection on
+  # main requires this check, so the merge button stays grey until the bump
+  # lands. An `## Unreleased` section may remain: feature PRs keep adding to it
+  # while the release PR is open. Drafts are skipped, like every other job.
+  version:
+    if: >-
+      github.event_name == 'pull_request'
+      && github.base_ref == 'main'
+      && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      - name: Version was bumped and the changelog names it
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          read_version() { python3 -c 'import sys,tomllib;print(tomllib.loads(sys.stdin.read())["project"]["version"])'; }
+          BASE=$(git show "$BASE_SHA:pyproject.toml" | read_version)
+          HEAD=$(read_version < pyproject.toml)
+          if ! uv run --no-project --with packaging python -c "from packaging.version import Version as V; import sys; sys.exit(0 if V('$HEAD') > V('$BASE') else 1)"; then
+            echo "::error::pyproject.toml version $HEAD is not above main's $BASE; bump it in the release PR"
+            exit 1
+          fi
+          if ! grep -qx "## $HEAD" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## $HEAD' section; rename '## Unreleased' in the release PR"
+            exit 1
+          fi
+
+  changes:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    outputs:
+      needs_py_ci: ${{ steps.filter.outputs.needs_py_ci }}
+      needs_ts_ci: ${{ steps.filter.outputs.needs_ts_ci }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        # Pure git, no API/token. needs_py_ci: anything outside the
+        # standalone ui/ tree changed. needs_ts_ci: the ui/ tree or the docs/user/
+        # pages it renders changed.
+        # On workflow_dispatch there is no base to diff against — run everything.
+        run: |
+          if [ -z "$BASE_SHA" ]; then
+            echo "needs_py_ci=true" >> "$GITHUB_OUTPUT"
+            echo "needs_ts_ci=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed() { git diff --name-only "$BASE_SHA" HEAD; }
+          if changed | grep -qvE '^ui/'; then
+            echo "needs_py_ci=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_py_ci=false" >> "$GITHUB_OUTPUT"
+          fi
+          if changed | grep -qE '^(ui|docs/user)/'; then
+            echo "needs_ts_ci=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_ts_ci=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  python:
+    needs: changes
+    if: needs.changes.outputs.needs_py_ci == 'true'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      EVALKIT_TEST_PG_URL: postgresql+psycopg://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - run: uv sync --frozen --extra server --extra otel
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src/evalkit
+      - run: uv run pytest -n 4
+
+  ui:
+    needs: changes
+    if: needs.changes.outputs.needs_ts_ci == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+        working-directory: ui
+      - run: npm run format:check
+        working-directory: ui
+      - run: npx tsc -b
+        working-directory: ui
+      - run: npx vitest run
+        working-directory: ui
+      - run: npx vite build
+        working-directory: ui

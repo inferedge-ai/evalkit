@@ -1,0 +1,15 @@
+{
+  "schema_version": "ATIF-v1.8",
+  "steps": [
+    {
+      "step_id": 1,
+      "source": "user",
+      "message": "What was the revenue in FY24?"
+    },
+    {
+      "step_id": 2,
+      "source": "agent",
+      "message": "Revenue in FY24 was $1.2B."
+    }
+  ]
+}

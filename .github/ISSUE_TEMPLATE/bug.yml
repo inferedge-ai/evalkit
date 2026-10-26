@@ -1,0 +1,46 @@
+name: Bug
+description: Something in evalkit doesn't work as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead. Include the exact error.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The smallest set of steps, commands or case YAML that shows the bug.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `evalkit --version`, and the server version (the `X-Evalkit-Version` response header).
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CLI
+        - SDK
+        - Server API
+        - Web UI
+        - Skills
+        - Deployment
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant server or CLI logs. Remove API keys, tokens and private data first.
+      render: text

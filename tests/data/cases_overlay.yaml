@@ -1,0 +1,11 @@
+overlays:
+  - extends: sample-case-one
+    agents: [support-bot]
+    tags: [client-priority]
+    evaluators:
+      custom:
+        required_tool_calls:
+          tools: [retrieve_passages]
+        tool_trajectory_match:
+          expected:
+            - name: retrieve_passages
