@@ -31,7 +31,6 @@ from evalkit.core.access import (
 from evalkit.core.agents import AgentDefinition, explicit, server_may_drive
 from evalkit.core.blob import trajectory_key
 from evalkit.core.costmap import load_cost_map
-from evalkit.core.review import NoApprovedCases
 from evalkit.core.runner import (
     ACTIVE,
     REFETCHABLE,
@@ -278,7 +277,7 @@ async def create_experiment(
             if body.cases is not None
             else await _last_git_revision(session, body.dataset),
         )
-    except (NoApprovedCases, InvalidCaseInputs, NothingRunnable) as exc:
+    except (InvalidCaseInputs, NothingRunnable) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"could not start experiment: {exc}") from exc

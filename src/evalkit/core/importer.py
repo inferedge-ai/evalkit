@@ -65,7 +65,7 @@ class CaseCatalog(Protocol):
 
 
 class ReviewReport(BaseModel):
-    now_draft: list[str] = Field(default_factory=list)
+    now_unreviewed: list[str] = Field(default_factory=list)
     carried: list[CarriedReview] = Field(default_factory=list)
 
 
@@ -220,7 +220,7 @@ async def import_cases(
         deleted=len(result.removed),
         overlays_applied=result.overlays,
         findings=findings,
-        review=ReviewReport(now_draft=result.now_draft, carried=result.carried),
+        review=ReviewReport(now_unreviewed=result.now_unreviewed, carried=result.carried),
     )
 
 

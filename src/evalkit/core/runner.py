@@ -69,7 +69,6 @@ from evalkit.core.harness import HarnessClient, RunTimeout
 from evalkit.core.paths import is_safe_path
 from evalkit.core.python_eval import PythonEvaluator, score_with_python_evaluator
 from evalkit.core.remote_evaluators import EvaluatorLookup, RemoteEvaluator
-from evalkit.core.review import NoApprovedCases, is_reviewable
 from evalkit.core.traces.poll import poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
 from evalkit.core.trajectory import (
@@ -123,7 +122,6 @@ class ExperimentRequest(BaseModel):
     selection: Selection = Selection(all=True)
     repetitions: int = 1
     model: str | None = None
-    include_drafts: bool = False
     capabilities: Capabilities | None = None
     cases: GitRevision | None = None
     evalkit_version: str | None = None
@@ -156,7 +154,7 @@ class ExperimentFactory(Protocol):
     async def dataset(self, ref: str) -> DatasetRow: ...
 
     async def cases_for(
-        self, dataset: str, selection: Selection, *, agent: str | None, approved_only: bool
+        self, dataset: str, selection: Selection, *, agent: str | None
     ) -> list[CaseView]: ...
 
     async def create_experiment(self, req: NewExperiment) -> Experiment: ...
@@ -509,26 +507,15 @@ async def prepare_experiment(
         )
         model = None
     dataset = await factory.dataset(req.dataset)
-    reviewed = is_reviewable(dataset)
-    approved_only = reviewed and not req.include_drafts
-    cases = await factory.cases_for(
-        dataset.ref, req.selection, agent=agent.ref, approved_only=approved_only
-    )
-    if approved_only and not cases:
-        raise NoApprovedCases(dataset.ref)
+    cases = await factory.cases_for(dataset.ref, req.selection, agent=agent.ref)
     cases, dropped = runnable(cases, caps)
     if not cases:
         raise NothingRunnable(dataset.ref, dropped)
     _check_inputs(req.agent, caps, cases)
-    review_scope: Literal["approved", "all"] | None = (
-        None if not reviewed else ("all" if req.include_drafts else "approved")
-    )
     config = ExperimentConfig(
         model=model,
         judge=judge,
         selection=req.selection,
-        include_drafts=req.include_drafts,
-        review_scope=review_scope,
         revision=req.cases or revision,
         snapshot=ExperimentSnapshot(
             capabilities=caps.model_dump(),

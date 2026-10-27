@@ -47,7 +47,7 @@ Deployment:
 - [ ] 6. evalkit sync a suite of your cases
 - [ ] 7. Wire `evalkit lint` / `evalkit sync` into the client's CI
 - [ ] 8. (3b/3c) evalkit harness check <name>@dev — all declared capabilities pass
-- [ ] 9. first experiment completes: (3a) `run_experiment(..., include_drafts=True)` from the client's script, (3b/3c) evalkit run finance@dev --agent <name>@dev --include-drafts
+- [ ] 9. first experiment completes: (3a) `run_experiment(...)` from the client's script, (3b/3c) evalkit run finance@dev --agent <name>@dev
 - [ ] 10. Hand off: server URL, usernames, and the evalkit-usage skill to the team
 ```
 
@@ -74,8 +74,8 @@ There are two types:
 - **Personal:** one per user, named after them. Only the owner writes to it.
   Nobody reviews cases there.
 - **Shared:** created by an admin. Admins and its writers write to it. Its
-  reviewers approve cases, and `evalkit run` on its datasets runs only
-  Approved cases unless `--include-drafts`.
+  reviewers approve cases. Review never filters a run: `evalkit run` on its
+  datasets runs every case.
 
 Every user can read every workspace, including other users' personal
 workspaces: datasets, cases, experiments, runs, trajectories, spans and
@@ -300,17 +300,12 @@ input file attached by url when `accepts.file_urls`, or uploaded when only
 `accepts.files`) and exercises every declared
 capability, printing a per-capability pass/fail table — fix fails before
 moving on. Then run the first real experiment:
-`evalkit run finance@dev --agent <name>@dev --include-drafts` (start with
+`evalkit run finance@dev --agent <name>@dev` (start with
 `--case-id` for one case if agent runs are expensive). On the SDK path (3a)
 the first experiment is
-`run_experiment(dataset="finance@dev", include_drafts=True, ...)` from the
+`run_experiment(dataset="finance@dev", ...)` from the
 client's script, with `dry_run=True` first; `evalkit traces check` on the
 printed session id is the equivalent of the harness check.
-
-A freshly synced shared dataset has no approved cases yet: every case starts
-as a draft, and without `--include-drafts` (`include_drafts=True`) the run
-stops with "no approved cases in finance@dev match the selection". Drop the
-flag once reviewers have approved the cases (evalkit-usage, "Case review").
 
 ## 10. Hand off
 

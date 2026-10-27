@@ -92,7 +92,7 @@ evalkit harness check myagent    # exercises every capability the harness declar
 evalkit run smoke --agent myagent
 ```
 
-`smoke` is in your own workspace, so every case runs. A dataset in a shared workspace, such as `smoke@dev`, runs only the cases a reviewer has approved. Add `--include-drafts` (`include_drafts=True` in the SDK) to run the rest, for example on the first run after a sync.
+A run executes every case it selects, whether the dataset is in your own workspace (`smoke`) or a shared one (`smoke@dev`). Review state never filters a run.
 
 ## 5. Read the results
 
@@ -132,7 +132,7 @@ evalkit evaluate <experiment-id>        # re-score the same runs after an evalua
 evalkit runs pull --experiment <experiment-id>   # download every run (trajectory, case, scores) to diagnose failures
 ```
 
-Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as `dev`, where they start as drafts; a reviewer of that workspace approves them, and from then on they run by default.
+Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as `dev`, where they start Unreviewed; a reviewer of that workspace approves them, and if `dev` is linked to `prod`, approval promotes them there.
 
 ```bash
 evalkit review request finance@dev --case-id net-debt-fy2025 --reviewer <user>

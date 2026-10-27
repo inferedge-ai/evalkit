@@ -21,7 +21,6 @@ __all__ = [
     "CaseVersion",
     "NewCaseComment",
     "NewCaseEvent",
-    "NoApprovedCases",
     "NotReviewable",
     "ReviewLogProtocol",
     "ensure_reviewable",
@@ -39,7 +38,7 @@ class CaseEventKind(StrEnum):
 
 
 class CaseState(StrEnum):
-    DRAFT = "draft"
+    UNREVIEWED = "unreviewed"
     REVIEW_REQUESTED = "review_requested"
     CHANGES_REQUESTED = "changes_requested"
     APPROVED = "approved"
@@ -124,7 +123,7 @@ class CaseReview:
 
     def state(self) -> CaseState:
         if self.last_event is None:
-            return CaseState.DRAFT
+            return CaseState.UNREVIEWED
         return _CASE_STATE_FOR[self.last_event.kind]
 
     def synced(self, actor: str) -> NewCaseEvent:
@@ -204,14 +203,6 @@ def group_threads(comments: list[CaseComment]) -> list[dict[str, Any]]:
         if comment.parent_id is not None:
             by_id[comment.parent_id]["replies"].append(comment.model_dump())
     return roots
-
-
-class NoApprovedCases(Exception):
-    def __init__(self, dataset: str):
-        super().__init__(
-            f"no approved cases in {dataset} match the selection; "
-            "pass --include-drafts to run drafts"
-        )
 
 
 class NotReviewable(Exception):

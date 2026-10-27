@@ -682,6 +682,25 @@ def test_offline_lint_unused_warning_only_when_registry_is_in_scope(tmp_path):
     assert "W-FIXTURE-UNUSED" in result.output and "other-suite.pdf" in result.output
 
 
+def test_server_lint_uploads_nearest_registry_with_scope(tmp_path, monkeypatch):
+    sent = _capture_post_files(monkeypatch, {"findings": [], "errors": 0, "warnings": 0})
+    root = tmp_path / "datasets"
+    (root / "finance").mkdir(parents=True)
+    _write_registry(root / "fixtures.yaml", "doc.pdf", b"x")
+    (root / "finance" / "one.yaml").write_text(
+        "- id: a\n  input: {question: 'q as of 2024-01-01'}\n  fixtures: [doc.pdf]\n"
+    )
+    result = runner.invoke(cli_app, ["lint", str(root / "finance")])
+    assert result.exit_code == 0, result.output
+    assert sent["names"] == ["fixtures.yaml", "one.yaml"]
+    assert sent["params"] == {"warn_unused_fixtures": "false"}
+
+    result = runner.invoke(cli_app, ["lint", str(root)])
+    assert result.exit_code == 0, result.output
+    assert sent["names"] == ["finance/one.yaml", "fixtures.yaml"]
+    assert sent["params"] == {"warn_unused_fixtures": "true"}
+
+
 def test_lint_passes_dataset_to_server(tmp_path, monkeypatch):
     sent = _capture_post_files(monkeypatch, {"findings": [], "errors": 0, "warnings": 0})
     case_dir = tmp_path / "cases"
@@ -1086,8 +1105,8 @@ def test_datasets_list_shows_a_canonical_datasets_cases(env, module_db_url):
     _seed_canonical(module_db_url, "listed")
     result = runner.invoke(cli_app, ["datasets", "list", "listed@canonical"])
     assert result.exit_code == 0, result.output
-    assert re.search(r"listed-1\s+draft\s+tags=plain fixtures=-", result.output)
-    assert re.search(r"listed-2\s+draft\s+tags=filed fixtures=doc.pdf", result.output)
+    assert re.search(r"listed-1\s+unreviewed\s+tags=plain fixtures=-", result.output)
+    assert re.search(r"listed-2\s+unreviewed\s+tags=filed fixtures=doc.pdf", result.output)
     assert "2 case(s) in listed" in result.output
     listing = ["datasets", "list", "listed@canonical"]
     approved = runner.invoke(cli_app, [*listing, "--state", "approved"])
@@ -1131,7 +1150,7 @@ def test_canonical_local_run_without_cases_or_fixtures(
     monkeypatch.chdir(tmp_path)
     _seed_canonical(module_db_url, "shared")
     args = ["run", "shared@canonical", "--agent", "fake", "--case-id", "shared-1"]
-    result = runner.invoke(cli_app, [*args, "--include-drafts"])
+    result = runner.invoke(cli_app, args)
     assert result.exit_code == 0, result.output
     own = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
     assert own.exit_code == 1 and "set `cases:` in evalkit.yaml" in own.output

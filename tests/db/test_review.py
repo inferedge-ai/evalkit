@@ -30,8 +30,8 @@ def log(session_factory, world) -> ReviewLog:
 
 async def test_load_returns_draft_without_decisive_events(log):
     loaded = await log.load("finance@canonical", [CaseVersion("c1", H1), CaseVersion("c9", "h9")])
-    assert loaded["c1"].state() is CaseState.DRAFT
-    assert loaded["c9"].state() is CaseState.DRAFT
+    assert loaded["c1"].state() is CaseState.UNREVIEWED
+    assert loaded["c9"].state() is CaseState.UNREVIEWED
     assert loaded["c1"].content_hash == H1
     assert await log.load("finance@canonical", []) == {}
 
@@ -75,7 +75,7 @@ async def test_same_transaction_ties_break_on_id(log):
 async def test_review_state_is_per_dataset(log):
     await log.append([CaseReview.unreviewed("finance@canonical", "c1", H1).approve("akshat")])
     dev = await log.load("finance@dev", [CaseVersion("c1", H1)])
-    assert dev["c1"].state() is CaseState.DRAFT
+    assert dev["c1"].state() is CaseState.UNREVIEWED
 
 
 async def test_history_spans_versions_newest_first(log):

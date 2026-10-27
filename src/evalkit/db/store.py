@@ -38,13 +38,11 @@ class PgStore:
             return await cases.dataset_by_ref(s, ref)
 
     async def cases_for(
-        self, dataset: str, selection: Selection, *, agent: str | None, approved_only: bool
+        self, dataset: str, selection: Selection, *, agent: str | None
     ) -> list[CaseView]:
         async with self._sf() as s:
             row = await cases.dataset_by_ref(s, dataset)
             selected = select_cases(await cases.current_cases(s, row, agent=agent), selection)
-        if approved_only:
-            return [case for case in selected if case.review_state == "approved"]
         return selected
 
     async def create_experiment(self, req: NewExperiment) -> Experiment:

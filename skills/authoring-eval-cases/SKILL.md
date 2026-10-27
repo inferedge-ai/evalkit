@@ -356,25 +356,25 @@ to your workspace and runs it; CI, logged in as `admin`, runs `evalkit sync
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Draft: sync
-    Draft --> ReviewRequested: request review
+    [*] --> Unreviewed: sync
+    Unreviewed --> ReviewRequested: request review
     ReviewRequested --> Approved: reviewer approves
     ReviewRequested --> ChangesRequested: reviewer requests changes
     ChangesRequested --> ReviewRequested: edit and re-sync
-    Approved --> Draft: edit and re-sync
+    Approved --> Unreviewed: edit and re-sync
     Approved --> ChangesRequested: reviewer requests changes
     Approved --> [*]: promoted to the target workspace (if linked)
 ```
 
 Review applies to datasets in a shared workspace (e.g. `finance@dev`);
-datasets in your personal workspace have no review state and run every case.
-In a shared dataset a synced case is a draft, and experiments skip drafts
-unless run with `--include-drafts`. When the case is right, request review:
+datasets in your personal workspace have no review state. Review never
+filters a run: experiments run every case, whatever its state. In a shared
+dataset a synced case starts Unreviewed. When the case is right, request review:
 `evalkit review request finance@dev --case-id <id> --reviewer <user>`, or
 use the case page in the UI. Reviewers are the
 workspace's members with the reviewer role. A reviewer approves it or
 requests changes with a comment; `evalkit review show <slug> <id>` prints the
-state, changelog and comments. Editing an approved case makes it a draft
+state, changelog and comments. Editing an approved case makes it Unreviewed
 again.
 
 If an admin has linked the workspace to a promotion target (for example

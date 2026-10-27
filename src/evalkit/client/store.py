@@ -33,7 +33,7 @@ class HttpStore:
         await self._api.aclose()
 
     async def cases_for(
-        self, dataset: str, selection: Selection, *, agent: str | None, approved_only: bool
+        self, dataset: str, selection: Selection, *, agent: str | None
     ) -> list[CaseView]:
         rows = (
             await self._api.post(
@@ -41,7 +41,6 @@ class HttpStore:
                 json={
                     "selection": selection.model_dump(exclude_none=True),
                     "agent": agent,
-                    "approved_only": approved_only,
                 },
                 retry=True,
             )

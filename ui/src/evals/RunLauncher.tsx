@@ -4,7 +4,6 @@ import { api, apiJson } from "../lib/api";
 import { questionText } from "../lib/format";
 import { stateClass, stateLabel } from "../lib/review";
 import {
-  approvedCount,
   casesInScope,
   cliCommand,
   selectionFor,
@@ -54,7 +53,6 @@ export function RunLauncher({
   });
   const [runs, setRuns] = useState(1);
   const [model, setModel] = useState("");
-  const [includeDrafts, setIncludeDrafts] = useState(false);
   const [judgeDefault, setJudgeDefault] = useState<JudgeSettings | null>(null);
   const [judge, setJudge] = useState<JudgeChoice>({
     model: "",
@@ -107,8 +105,6 @@ export function RunLauncher({
 
   const inScope = casesInScope(examples ?? [], choice);
   const selection = selectionFor(examples ?? [], choice);
-  const approved = approvedCount(inScope);
-  const runnable = isSuite && !includeDrafts ? approved : inScope.length;
   const request: LaunchRequest | null =
     selection && agent
       ? {
@@ -117,7 +113,6 @@ export function RunLauncher({
           repetitions: runs,
           selection,
           model: model.trim() || null,
-          include_drafts: isSuite && includeDrafts,
           judge: judgeOverride(judgeDefault, judge),
         }
       : null;
@@ -299,25 +294,10 @@ export function RunLauncher({
               <span className="row-meta">
                 {examples === null
                   ? "Loading cases…"
-                  : isSuite
-                    ? `${inScope.length} case${inScope.length === 1 ? "" : "s"} · ${approved} approved`
-                    : `${inScope.length} case${inScope.length === 1 ? "" : "s"}`}
+                  : `${inScope.length} case${inScope.length === 1 ? "" : "s"}`}
               </span>
             </div>
           </div>
-          {isSuite && (
-            <div className="form-row">
-              <span className="form-label">Drafts</span>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={includeDrafts}
-                  onChange={(e) => setIncludeDrafts(e.target.checked)}
-                />
-                Include cases that are not approved
-              </label>
-            </div>
-          )}
           <div className="form-row">
             <span className="form-label">Repetitions</span>
             <input
@@ -377,22 +357,17 @@ export function RunLauncher({
         </div>
         <div className="dialog-foot">
           {error && <span className="text-meta text-err-text">{error}</span>}
-          {!error && isSuite && !includeDrafts && examples && !approved && (
-            <span className="text-meta text-warn">
-              No approved cases in this selection — include drafts to run them.
-            </span>
-          )}
           <button className="btn btn-quiet ml-auto" onClick={onClose}>
             Cancel
           </button>
           <button
             className="btn btn-primary"
-            disabled={busy || !request || runnable === 0}
+            disabled={busy || !request || inScope.length === 0}
             onClick={launch}
           >
             {busy
               ? "Starting…"
-              : `Start ${runnable * runs} run${runnable * runs === 1 ? "" : "s"}`}
+              : `Start ${inScope.length * runs} run${inScope.length * runs === 1 ? "" : "s"}`}
           </button>
         </div>
       </div>

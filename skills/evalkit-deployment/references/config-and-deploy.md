@@ -54,7 +54,7 @@ evalkit workspaces members add dev <teammate> --role writer   # or --role review
 evalkit agents create <name> --workspace dev --harness-url https://agent-dev.internal/evalkit/v1
 evalkit sync <cases-dir>/<suite> --workspace dev   # your case YAML; uploads its fixtures too
 evalkit harness check <name>@dev                 # all declared capabilities must pass
-evalkit run <suite>@dev --agent <name>@dev --include-drafts   # first experiment; synced cases are drafts until approved
+evalkit run <suite>@dev --agent <name>@dev                   # first experiment
 ```
 
 The UI serves at the server root (http://localhost:8020); the server's own

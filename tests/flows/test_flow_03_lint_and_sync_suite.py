@@ -96,12 +96,12 @@ def test_flow_03_shared_sync_returns_approved_cases_to_draft_and_keeps_reviews(c
             + cases_yaml("rv3-3").removeprefix("cases:\n")
         )
         out = cli.ok("sync", "rv3", "--workspace", "dev")
-        assert "1 approved case(s) changed and are now draft: rv3-1" in out
+        assert "1 approved case(s) changed and are now unreviewed: rv3-1" in out
         assert "1 case(s) updated and still under review: rv3-2 (ravi)" in out
         states = {
             c["case_id"]: c["review_state"] for c in ravi.get("/api/datasets/rv3@dev/cases").json()
         }
-        assert states == {"rv3-1": "draft", "rv3-2": "review_requested", "rv3-3": "draft"}
+        assert states == {"rv3-1": "unreviewed", "rv3-2": "review_requested", "rv3-3": "unreviewed"}
         kinds = [
             e["kind"] for e in ravi.get("/api/datasets/rv3@dev/cases/rv3-1/events").json()["events"]
         ]

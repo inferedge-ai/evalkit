@@ -196,9 +196,7 @@ async def test_ui_create_without_cases_records_the_last_git_sync(api):
         files=[("files", ("c.yaml", CASES))],
     )
     assert resp.status_code == 200, resp.text
-    created = await client.post(
-        "/api/experiments", json={"dataset": FINANCE, "agent": AGENT, "include_drafts": True}
-    )
+    created = await client.post("/api/experiments", json={"dataset": FINANCE, "agent": AGENT})
     assert created.status_code == 200, created.text
     assert created.json()["config"]["revision"] == {"sha": "abc123", "branch": "dev", "dirty": None}
     await wait_for(client, created.json()["id"])
@@ -289,6 +287,37 @@ def overlay_yaml(target: str) -> bytes:
         f"- extends: {target}\n  agents: [fake]\n  evaluators:\n    custom:\n"
         "      required_tool_calls: {tools: [retrieve_passages]}\n"
     ).encode()
+
+
+async def test_lint_endpoint_runs_fixture_checks_when_registry_uploaded(api):
+    client, *_ = api
+    digest = hashlib.sha256(b"x").hexdigest()
+    registry = (
+        "fixtures:\n"
+        f"- key: used.pdf\n  sha256: {digest}\n  context: u\n"
+        f"- key: spare.pdf\n  sha256: {digest}\n  context: s\n"
+    ).encode()
+    case = b"- id: a\n  input: {question: 'q as of 2024-01-01'}\n  fixtures: [used.pdf, nope.pdf]\n"
+    files = [("files", ("c.yaml", case)), ("files", ("fixtures.yaml", registry))]
+
+    body = (await client.post("/api/lint", files=files)).json()
+    assert any(
+        f["code"] == "E-FIXTURE-UNKNOWN-KEY" and "nope.pdf" in f["message"]
+        for f in body["findings"]
+    )
+    assert not any(f["code"] == "W-FIXTURE-UNUSED" for f in body["findings"])
+
+    body = (
+        await client.post("/api/lint", params={"warn_unused_fixtures": True}, files=files)
+    ).json()
+    assert any(
+        f["code"] == "W-FIXTURE-UNUSED" and "spare.pdf" in f["message"] for f in body["findings"]
+    )
+
+    no_registry = (await client.post("/api/lint", files=files[:1])).json()
+    assert not any(
+        f["code"].startswith(("E-FIXTURE", "W-FIXTURE")) for f in no_registry["findings"]
+    )
 
 
 async def test_lint_endpoint_with_dataset_checks_overlay_targets(api):

@@ -146,8 +146,6 @@ export interface ExperimentConfig {
   model: string | null;
   judge: JudgeSettings;
   selection: { all?: boolean; tag?: string | null; case_ids?: string[] | null };
-  include_drafts: boolean;
-  review_scope: "approved" | "all" | null;
   revision: GitRevision | null;
   snapshot: {
     capabilities: Record<string, unknown>;
@@ -509,7 +507,7 @@ export interface LintFinding {
 
 // ── Review ───────────────────────────────────────────────────────────────
 export type ReviewState =
-  "draft" | "review_requested" | "changes_requested" | "approved";
+  "unreviewed" | "review_requested" | "changes_requested" | "approved";
 
 export interface ReviewSummary {
   state: ReviewState;

@@ -497,7 +497,7 @@ async def test_unchanged_resync_records_nothing(tmp_path, ctx):
     assert report.patched == 0 and await synced_count(ctx) == before
 
 
-async def test_edit_of_approved_case_reports_now_draft(tmp_path, ctx):
+async def test_edit_of_approved_case_reports_now_unreviewed(tmp_path, ctx):
     sf, _, _ = ctx
     review = ReviewLog(sf)
     files = sorted(write_suite(tmp_path).glob("*.yaml"))
@@ -512,11 +512,11 @@ async def test_edit_of_approved_case_reports_now_draft(tmp_path, ctx):
 
     files = sorted(write_suite(tmp_path, rubric2="Computes the CAGR to FY2023.").glob("*.yaml"))
     report = await do_import(ctx, files)
-    assert report.review.now_draft == ["case-1"] and report.review.carried == []
+    assert report.review.now_unreviewed == ["case-1"] and report.review.carried == []
     loaded = await review.load(
         "finance@canonical", [CaseVersion("case-1", await current_hash_of(ctx, "case-1"))]
     )
-    assert loaded["case-1"].state() is CaseState.DRAFT
+    assert loaded["case-1"].state() is CaseState.UNREVIEWED
 
 
 async def test_edit_under_review_carries_the_request_over(tmp_path, ctx):

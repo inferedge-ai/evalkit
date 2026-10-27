@@ -16,7 +16,7 @@ tester runs) and error cases.
 | 06 | [Server run](06-server-run.md) | Any user, agent harness |
 | 07 | [Local harness run](07-local-harness-run.md) | Developer, local harness |
 | 08 | [SDK run with OTel traces](08-sdk-run-with-otel.md) | Developer's script |
-| 09 | [Browse an experiment, scorecard and pull runs](09-browse-experiment-scorecard-collect.md) | Viewer, developer |
+| 09 | [Browse an experiment, scorecard and pull runs](09-browse-experiment-scorecard-pull.md) | Viewer, developer |
 | 10 | [Compare experiments](10-compare-experiments.md) | Viewer, developer |
 | 12 | [Agent tokens, the collector, and the Runs browser](12-agent-tokens-collector-runs-browser.md) | Developer, deployed agent |
 | 13 | [Trace mappings and checks](13-trace-mappings-and-checks.md) | Developer |

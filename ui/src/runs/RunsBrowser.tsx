@@ -114,6 +114,7 @@ export function RunsBrowser() {
     )
       return;
     let stale = false;
+    setError(null);
     api<AgentInfo[]>(`/agents${qs({ workspace: workspace.name })}`)
       .then((list) => {
         if (stale) return;
@@ -134,8 +135,8 @@ export function RunsBrowser() {
   useEffect(() => {
     let stale = false;
     setRuns(null);
-    if (!agent) return;
     setError(null);
+    if (!agent) return;
     api<RunList>(
       `/agents/${encodeURIComponent(agent)}/runs${qs({
         query: query || undefined,

@@ -21,7 +21,6 @@ router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 class CaseSelection(BaseModel):
     selection: Selection
     agent: str | None = None
-    approved_only: bool = False
 
 
 def _dataset(row: DatasetRow) -> dict:
@@ -105,9 +104,7 @@ async def get_case(ref: str, case_id: str, session: SessionDep, review_log: Revi
 
 @router.post("/{ref}/cases/select")
 async def select(ref: str, body: CaseSelection, store: PgStoreDep) -> list[dict]:
-    cases = await store.cases_for(
-        ref, body.selection, agent=body.agent, approved_only=body.approved_only
-    )
+    cases = await store.cases_for(ref, body.selection, agent=body.agent)
     return [case.model_dump(mode="json") for case in cases]
 
 

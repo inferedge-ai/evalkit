@@ -37,7 +37,6 @@ def test_flow_06_shared_run_lives_in_the_shared_workspace(cli):
         "sv6@dev",
         "--agent",
         "ouragent@dev",
-        "--include-drafts",
         "--runs",
         "2",
         "--case-id",
@@ -69,7 +68,7 @@ def test_flow_06_shared_run_lives_in_the_shared_workspace(cli):
         assert len(alice.get(f"/api/experiments/{exp_id}/runs").json()) == 2
         ui = alice.post(
             "/api/experiments",
-            json={"dataset": "sv6@dev", "agent": "ouragent@dev", "include_drafts": True},
+            json={"dataset": "sv6@dev", "agent": "ouragent@dev"},
         ).json()
         assert ui["config"]["revision"]["sha"] == "abc123"
         assert ui["config"]["revision"]["branch"] == "main"
@@ -80,7 +79,7 @@ def test_flow_06_shared_run_lives_in_the_shared_workspace(cli):
 
 def test_flow_06_only_members_start_experiments_in_a_shared_workspace(cli):
     shared_dataset(cli, "mb6", "mb6-1")
-    body = {"dataset": "mb6@dev", "agent": "ouragent@dev", "include_drafts": True}
+    body = {"dataset": "mb6@dev", "agent": "ouragent@dev"}
     with api(cli.live, "akshat") as akshat:
         refused = akshat.post("/api/experiments", json=body)
     assert refused.status_code == 403
@@ -112,18 +111,14 @@ def test_flow_06_personal_dataset_with_a_shared_agent_lives_with_the_runner(cli)
 def test_flow_06_model_override_is_passed_only_when_accepted(cli):
     shared_dataset(cli, "md6", "md6-1")
     cli.as_user("alice")
-    exp_id = experiment_id(
-        cli.ok("run", "md6@dev", "--agent", "ouragent@dev", "--include-drafts", "--model", "gpt-x")
-    )
+    exp_id = experiment_id(cli.ok("run", "md6@dev", "--agent", "ouragent@dev", "--model", "gpt-x"))
     with api(cli.live, "alice") as alice:
         assert alice.get(f"/api/experiments/{exp_id}").json()["config"]["model"] == "gpt-x"
     accepts = cli.live.fake.capabilities["accepts"]
     accepts["model_override"] = False
     try:
         exp_id = experiment_id(
-            cli.ok(
-                "run", "md6@dev", "--agent", "ouragent@dev", "--include-drafts", "--model", "gpt-y"
-            )
+            cli.ok("run", "md6@dev", "--agent", "ouragent@dev", "--model", "gpt-y")
         )
     finally:
         accepts["model_override"] = True
@@ -153,7 +148,7 @@ def test_flow_06_fixture_cases_are_dropped_when_the_harness_takes_no_files(cli):
         with api(cli.live, "alice") as alice:
             created = alice.post(
                 "/api/experiments",
-                json={"dataset": "fx6@dev", "agent": "ouragent@dev", "include_drafts": True},
+                json={"dataset": "fx6@dev", "agent": "ouragent@dev"},
             )
             assert created.status_code == 200, created.text
             assert created.json()["dropped_cases"] == ["fx6-2"]
@@ -164,12 +159,11 @@ def test_flow_06_fixture_cases_are_dropped_when_the_harness_takes_no_files(cli):
                 json={
                     "dataset": "fx6@dev",
                     "agent": "ouragent@dev",
-                    "include_drafts": True,
                     "selection": {"case_ids": ["fx6-2"]},
                 },
             )
         cli.as_user("alice")
-        out = cli.ok("run", "fx6@dev", "--agent", "ouragent@dev", "--include-drafts")
+        out = cli.ok("run", "fx6@dev", "--agent", "ouragent@dev")
     finally:
         accepts["files"] = True
     assert [c["case_id"] for c in cases] == ["fx6-1"]
@@ -183,15 +177,12 @@ def test_flow_06_start_errors(cli):
     shared_dataset(cli, "er6", "er6-1")
     fake = cli.live.fake
     with api(cli.live, "alice") as alice:
-        body = {"dataset": "er6@dev", "agent": "ouragent@dev", "include_drafts": True}
+        body = {"dataset": "er6@dev", "agent": "ouragent@dev"}
         caps = alice.post("/api/experiments", json={**body, "capabilities": fake.capabilities})
         assert caps.status_code == 400
         assert "capabilities are fetched by the server" in caps.json()["detail"]
         unknown = alice.post("/api/experiments", json={**body, "agent": "nobody@dev"})
         assert unknown.status_code == 404
-        drafts = alice.post("/api/experiments", json={**body, "include_drafts": False})
-        assert drafts.status_code == 400
-        assert "no approved cases in er6@dev match the selection" in drafts.json()["detail"]
 
         fake.capabilities["input_schema"] = {
             "type": "object",
@@ -234,9 +225,7 @@ def test_flow_06_resume_reruns_only_missing_runs_and_reevaluate_keeps_scores(cli
     fake.fail_run = True
     try:
         cli.as_user("alice")
-        exp_id = experiment_id(
-            cli.ok("run", "rs6@dev", "--agent", "ouragent@dev", "--include-drafts")
-        )
+        exp_id = experiment_id(cli.ok("run", "rs6@dev", "--agent", "ouragent@dev"))
     finally:
         fake.fail_run = False
     with api(cli.live, "ravi") as ravi:
@@ -285,7 +274,7 @@ def test_flow_06_reevaluate_during_a_live_run_on_the_same_pod_conflicts(cli):
         with api(cli.live, "alice") as alice:
             created = alice.post(
                 "/api/experiments",
-                json={"dataset": "lv6@dev", "agent": "ouragent@dev", "include_drafts": True},
+                json={"dataset": "lv6@dev", "agent": "ouragent@dev"},
             ).json()
             evaluate = alice.post(f"/api/experiments/{created['id']}/evaluate")
             resume = alice.post(f"/api/experiments/{created['id']}/resume")
@@ -299,7 +288,7 @@ def test_flow_06_reevaluate_during_a_live_run_on_the_same_pod_conflicts(cli):
 def test_flow_06_experiments_pin_case_versions(cli):
     shared_dataset(cli, "pn6", "pn6-1")
     cli.as_user("alice")
-    exp_id = experiment_id(cli.ok("run", "pn6@dev", "--agent", "ouragent@dev", "--include-drafts"))
+    exp_id = experiment_id(cli.ok("run", "pn6@dev", "--agent", "ouragent@dev"))
     with api(cli.live, "alice") as alice:
         [pinned] = alice.get(f"/api/experiments/{exp_id}/cases").json()
     cli.as_user("admin")

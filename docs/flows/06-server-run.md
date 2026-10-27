@@ -24,17 +24,17 @@ sequenceDiagram
   participant S as evalkit server
   participant H as Agent harness
   alt CLI
-    U->>C: evalkit run finance@dev --agent research-agent@dev [--runs N] [--case-id c…] [--model m] [--include-drafts] [--judge-model …]
+    U->>C: evalkit run finance@dev --agent research-agent@dev [--runs N] [--case-id c…] [--model m] [--judge-model …]
     opt dataset is your own (bare name) and on disk
       C->>S: sync it first (flow 03)
     end
   else UI
-    U->>C: shared dataset page → Run experiment<br/>(agent: shared agents only, scope: all / split / file / picked cases, drafts, repetitions, model, judge)
+    U->>C: shared dataset page → Run experiment<br/>(agent: shared agents only, scope: all / split / file / picked cases, repetitions, model, judge)
   end
-  C->>S: POST /api/experiments {dataset, agent, repetitions, selection, model, include_drafts, cases(git sha), judge, evalkit_version}
+  C->>S: POST /api/experiments {dataset, agent, repetitions, selection, model, cases(git sha), judge, evalkit_version}
   S->>S: check access, pick the experiment's workspace
   S->>H: GET capabilities
-  S->>S: suite in a shared workspace → keep only Approved cases (unless include_drafts)<br/>check every selected case's input against the agent's input schema<br/>pin each case version and its evaluators (incl. overlays)
+  S->>S: check every selected case's input against the agent's input schema<br/>pin each case version and its evaluators (incl. overlays)
   S->>S: create experiment (status running), take the lease, start a background task
   S-->>C: {id, dropped_cases}
 ```
@@ -93,7 +93,7 @@ sequenceDiagram
   - Otherwise in the personal workspace of the user who starts it (`evalkit run finance --agent research-agent@dev` → `@you`).
 - **Who may start one:** any user may use a shared agent. An experiment that lands in a shared workspace needs a `writer` or `reviewer` role there, or admin. There is no per-agent grant.
 - **Who may change one** (resume, re-evaluate): admins and `writer` members of the experiment's workspace, plus its creator. Admins can't change another user's personal experiments.
-- **Approved-only:** for suite datasets in shared workspaces, only Approved cases run unless include-drafts is set. Other datasets run every selected case.
+- **Review state:** never filters a run. Every selected case runs, in personal and shared datasets alike.
 - **Selection:**
   - `--case-id` (repeatable), a split tag, a case file or picked cases.
   - The UI shows the run count on the Start button: "Start N runs" = cases × repetitions.
@@ -119,7 +119,6 @@ sequenceDiagram
 
 ## Error cases
 
-- **No approved cases:** 400 "no approved cases in X match the selection; pass --include-drafts to run drafts". The UI disables Start and explains why.
 - **Nothing to run:** 400 "nothing to run in X: no cases match the selection" (or "every selected case needs fixture files and the harness accepts none: …").
 - **Case inputs don't match the agent's input schema:** 400, listing each failing case. Nothing runs.
 - **No start rights in the shared workspace:** 403 "experiments of D with A belong to @W; only its writers, reviewers and admins may start them".

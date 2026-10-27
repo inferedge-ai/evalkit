@@ -43,7 +43,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Bucket | A scorecard grouping of evaluator scores: content, trajectory, presentation, efficiency, custom. |
 | Split | A selectable subset of a dataset, built from case tags. |
 | Overlay | A client extension of a case in another suite: extra evaluator config attached by case id, scored only for the agents it names. |
-| Review state | Draft, Review requested, Changes requested or Approved. Derived from a case's current content hash and the latest decisive event at that hash; never stored as a column. On shared datasets `evalkit run` executes Approved cases unless `--include-drafts`; personal datasets have no review state. |
+| Review state | Unreviewed, Review requested, Changes requested or Approved. Derived from a case's current content hash and the latest decisive event at that hash; never stored as a column. Never filters a run: `evalkit run` executes every selected case. Approval in a promotion source promotes the case; personal datasets have no review state. |
 | Reviewer | A member with the `reviewer` role on a shared workspace. Only reviewers approve or request changes there. |
 | Changelog | The per-case list of events: synced, review requested, approved, changes requested. |
 | Promotion | Approving a case in a suite of a promotion source adds that version, approved, to the same-named suite of the promotion target, with the source workspace's overlays for it. Recorded as a `dataset_syncs` row with source `promotion`. |

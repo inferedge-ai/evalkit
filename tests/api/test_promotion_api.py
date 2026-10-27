@@ -65,7 +65,7 @@ async def test_approve_promotes_and_rejection_does_not(env):
     clients, ctx = env
     resp = await _decide(clients["sme"], DEV, "case-1", "approve")
     assert resp.status_code == 409 and "finance@prod" in resp.json()["detail"]
-    assert (await _cases(clients["sme"], DEV))["case-1"]["review"]["state"] == "draft"
+    assert (await _cases(clients["sme"], DEV))["case-1"]["review"]["state"] == "unreviewed"
 
     assert (
         await clients["admin"].post("/api/datasets", json={"name": "finance", "workspace": "prod"})
@@ -128,7 +128,7 @@ async def test_prod_stays_on_last_approved_version(env):
 
     await sync_cases(ctx, [suite_case("case-1", "q1 v2")], workspace="dev")
     dev = await _cases(clients["sme"], DEV)
-    assert dev["case-1"]["review"]["state"] == "draft"
+    assert dev["case-1"]["review"]["state"] == "unreviewed"
     assert (await _cases(clients["sme"], PROD))["case-1"]["content_hash"] == first
 
     resp = await _decide(clients["sme"], DEV, "case-1", "approve")
@@ -166,7 +166,7 @@ async def test_twin_on_both_sides(env):
     await sync_cases(ctx, [suite_case("case-1", "q1 v2")], workspace="dev")
     assert (await _cases(sme, DEV))["case-1"]["twin"]["state"] == "differs"
     back = (await _cases(sme, PROD))["case-1"]["twin"]
-    assert back["state"] == "differs" and back["review"]["state"] == "draft"
+    assert back["state"] == "differs" and back["review"]["state"] == "unreviewed"
 
     await sync_cases(ctx, [suite_case("case-2", "q2")], workspace="dev", full=True)
     assert (await _cases(sme, PROD))["case-1"]["twin"]["state"] == "absent"

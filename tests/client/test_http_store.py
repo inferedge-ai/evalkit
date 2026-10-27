@@ -27,9 +27,7 @@ async def test_store_round_trip_over_http(ctx):
     api, env = ctx
     store = HttpStore(api)
     holder = local_holder("admin")
-    picked = await store.cases_for(
-        "finance@canonical", Selection(case_ids=["case-2"]), agent=None, approved_only=True
-    )
+    picked = await store.cases_for("finance@canonical", Selection(case_ids=["case-2"]), agent=None)
     assert [c.case_id for c in picked] == ["case-2"]
     exp, _ = await store.start_experiment(
         ExperimentRequest(

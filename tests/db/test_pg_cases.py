@@ -198,7 +198,7 @@ async def test_review_state_only_on_shared_suites(session_factory, world):
         await s.commit()
         shared = await current_cases(s, await get_dataset(s, "dev", "finance"))
         personal = await current_cases(s, await get_dataset(s, "akshat", "finance"))
-    assert shared[0].review_state == "draft"
+    assert shared[0].review_state == "unreviewed"
     assert personal[0].review_state is None
 
 
@@ -233,9 +233,9 @@ async def test_new_content_resets_approved_to_draft(session_factory, world):
         after = await current_cases(s, await get_dataset(s, "dev", "finance"))
         await s.commit()
     assert approved[0].review_state == "approved"
-    assert result.now_draft == ["q-1"]
+    assert result.now_unreviewed == ["q-1"]
     assert result.carried == []
-    assert after[0].review_state == "draft"
+    assert after[0].review_state == "unreviewed"
 
 
 async def test_requested_review_carries_to_new_content(session_factory, world):
@@ -246,7 +246,7 @@ async def test_requested_review_carries_to_new_content(session_factory, world):
         after = await current_cases(s, await get_dataset(s, "dev", "finance"))
         await s.commit()
     assert [(c.case_id, c.reviewer) for c in result.carried] == [("q-1", "akshat")]
-    assert result.now_draft == []
+    assert result.now_unreviewed == []
     assert after[0].review_state == "review_requested"
 
 
@@ -259,4 +259,4 @@ async def test_review_state_is_per_dataset(session_factory, world):
         prod = await current_cases(s, await get_dataset(s, "prod", "finance"))
         await s.commit()
     assert dev[0].review_state == "approved"
-    assert prod[0].review_state == "draft"
+    assert prod[0].review_state == "unreviewed"

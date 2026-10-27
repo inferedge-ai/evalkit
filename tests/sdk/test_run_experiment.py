@@ -633,11 +633,10 @@ async def test_canonical_run_needs_no_cases_or_fixtures_in_evalkit_yaml(env, tmp
         agent="pushed",
         task=lambda q: RunResult(answer="x", trajectory=DEFAULT_TRAJECTORY),
         case_ids=["case-1"],
-        include_drafts=True,
         trajectory_wait_seconds=0,
     )
     exp, _ = await srv.experiment(created.experiment_id)
-    assert exp.status == "completed" and exp.config.include_drafts is True
+    assert exp.status == "completed"
     assert [run.status for run in created.runs] == ["completed"]
 
 
