@@ -126,7 +126,7 @@ class SyncResult(BaseModel):
     unchanged: int = 0
     overlays: int = 0
     carried: list[CarriedReview] = Field(default_factory=list)
-    now_draft: list[str] = Field(default_factory=list)
+    now_unreviewed: list[str] = Field(default_factory=list)
 
 
 class GitRevision(BaseModel):
@@ -148,8 +148,6 @@ class ExperimentConfig(BaseModel):
     model: str | None = None
     judge: JudgeSettings
     selection: Selection
-    include_drafts: bool = False
-    review_scope: Literal["approved", "all"] | None = None
     revision: GitRevision | None = None
     snapshot: ExperimentSnapshot
 
@@ -304,7 +302,7 @@ class ScoreRow(BaseModel):
 
 class Store(Protocol):
     async def cases_for(
-        self, dataset: str, selection: Selection, *, agent: str | None, approved_only: bool
+        self, dataset: str, selection: Selection, *, agent: str | None
     ) -> list[CaseView]: ...
 
     async def get_experiment(self, exp_id: int) -> Experiment: ...

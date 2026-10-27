@@ -306,9 +306,9 @@ def lint(
     offline: bool = typer.Option(
         False,
         "--offline",
-        help="Lint locally without a server. Skips the checks that need server "
-        "state (registered custom evaluators, overlay targets) — use in CI "
-        "for schema/content rules.",
+        help="Lint locally without a server: the no-server subset of the server lint. "
+        "Skips the checks that need server state (registered custom evaluators, "
+        "overlay targets).",
     ),
     dataset: str | None = typer.Option(
         None,
@@ -324,6 +324,9 @@ def lint(
     ),
 ):
     """Lint case YAML without importing it (server-side by default).
+
+    The server lint also checks fixture keys against the nearest fixtures.yaml,
+    so it covers everything --offline does.
 
     Example: evalkit lint ./eval-cases --dataset client-cases · evalkit lint --offline datasets
     · evalkit lint ./eval-cases --agent support-triage
@@ -368,7 +371,12 @@ def lint(
             except (httpx.HTTPError, ValueError, ApiRequestError) as exc:
                 raise ApiError(f"harness {definition.ref}: {exc}") from exc
             form["input_schema"] = json.dumps(schema)
-    body = _client().post_files("/api/lint", _yaml_files(path), params=params, data=form).json()
+    files = _yaml_files(path)
+    registry = _nearest_registry(path)
+    if registry is not None:
+        files.append((REGISTRY_FILENAME, registry))
+        params["warn_unused_fixtures"] = str(registry.parent == path).lower()
+    body = _client().post_files("/api/lint", files, params=params, data=form).json()
     _print_findings(body["findings"])
     typer.echo(f"{body['errors']} error(s), {body['warnings']} warning(s)")
     if body["errors"]:
@@ -408,10 +416,10 @@ def _sync_and_report(
         f"overlays_applied={report['overlays_applied']}"
     )
     review = report.get("review") or {}
-    if review.get("now_draft"):
+    if review.get("now_unreviewed"):
         typer.echo(
-            f"{len(review['now_draft'])} approved case(s) changed and are now draft: "
-            + ", ".join(review["now_draft"])
+            f"{len(review['now_unreviewed'])} approved case(s) changed and are now unreviewed: "
+            + ", ".join(review["now_unreviewed"])
         )
     if review.get("carried"):
         typer.echo(
@@ -552,7 +560,6 @@ def _run_on_server(
     repetitions: int,
     model: str | None,
     resume: int | None,
-    include_drafts: bool,
     revision: GitRevision,
     judge: dict | None,
 ) -> int:
@@ -566,7 +573,6 @@ def _run_on_server(
             "repetitions": repetitions,
             "selection": selection.model_dump(exclude_none=True),
             "model": model,
-            "include_drafts": include_drafts,
             "cases": revision.model_dump(exclude_none=True) or None,
             "evalkit_version": version.current(),
             "judge": judge,
@@ -605,11 +611,6 @@ def run(
     case_id: list[str] = typer.Option(None, "--case-id", help="Run only these case ids."),
     model: str = typer.Option(None, "--model", help="Model override (if the harness accepts it)."),
     resume: int = typer.Option(None, "--resume", help="Resume an experiment by id."),
-    include_drafts: bool = typer.Option(
-        False,
-        "--include-drafts",
-        help="Also run cases that are not approved (shared workspaces only).",
-    ),
     judge_model: str | None = typer.Option(
         None, "--judge-model", help="Judge model for this experiment; default: the server's."
     ),
@@ -620,12 +621,11 @@ def run(
 ):
     """Run an experiment. Your own agent runs from this machine; results land on the server.
 
-    Against a dataset in a shared workspace, runs only Approved cases unless --include-drafts
-    and refuses when none in the selection are approved; workspace datasets run
-    every case. Checks every selected case's input against the agent's
-    input_schema (or, when it declares none, the default: a required string
-    `question`) and refuses the whole experiment if any case fails, listing each
-    one. `evalkit lint <dir> --agent <name>` shows the same errors before you sync.
+    Runs every selected case, whatever its review state. Checks every selected
+    case's input against the agent's input_schema (or, when it declares none,
+    the default: a required string `question`) and refuses the whole experiment
+    if any case fails, listing each one. `evalkit lint <dir> --agent <name>`
+    shows the same errors before you sync.
 
     Example: evalkit run finance --agent research-agent ·
     evalkit run finance@dev/statement-analysis --agent ouragent@dev
@@ -671,7 +671,6 @@ def run(
             runs,
             model,
             resume,
-            include_drafts,
             revision,
             judge,
         )
@@ -689,7 +688,6 @@ def run(
                     selection=selection,
                     repetitions=runs,
                     model=model,
-                    include_drafts=include_drafts,
                     resume=resume,
                     revision=revision,
                     progress=progress,

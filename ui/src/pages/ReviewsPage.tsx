@@ -83,6 +83,7 @@ export function ReviewsPage() {
   useEffect(() => {
     let stale = false;
     setItems(null);
+    setError(null);
     api<{ items: QueueItem[] }>(
       `/review/queue${qs({
         reviewer: view === "mine" ? me.username : undefined,
@@ -106,8 +107,6 @@ export function ReviewsPage() {
     getRowId: (i) => `${i.dataset}/${i.case_id}`,
   });
 
-  if (error) return <div className="pane-status error">{error}</div>;
-
   return (
     <div className="page">
       <div className="toolbar mb-2">
@@ -125,22 +124,27 @@ export function ReviewsPage() {
           ))}
         </div>
         <span className="row-meta num ml-auto">
-          {items
-            ? `${items.length} ${changes ? "awaiting an edit" : "waiting"}`
-            : "Loading…"}
+          {error
+            ? ""
+            : items
+              ? `${items.length} ${changes ? "awaiting an edit" : "waiting"}`
+              : "Loading…"}
         </span>
       </div>
-      <DataTable
-        table={table}
-        loading={!items}
-        empty={
-          workspace.type === "personal"
-            ? "Personal datasets have no review state."
-            : changes
-              ? "No cases are waiting on their author."
-              : "Nothing waiting for review."
-        }
-      />
+      {error && <div className="pane-status error">{error}</div>}
+      {!error && (
+        <DataTable
+          table={table}
+          loading={!items}
+          empty={
+            workspace.type === "personal"
+              ? "Personal datasets have no review state."
+              : changes
+                ? "No cases are waiting on their author."
+                : "Nothing waiting for review."
+          }
+        />
+      )}
     </div>
   );
 }

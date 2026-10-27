@@ -187,8 +187,17 @@ export function RunPage() {
             }))}
           />
         )}
+        {status?.config.judge?.model && (
+          <Link
+            className="row-meta ml-auto font-mono hover:underline"
+            to={`/experiments/${encodeURIComponent(experimentId)}#judge`}
+            title="one judge scores the whole experiment; its settings are on the experiment page"
+          >
+            judge {status.config.judge.model}
+          </Link>
+        )}
         <Link
-          className="btn btn-quiet ml-auto text-brand"
+          className={`btn btn-quiet text-brand ${status?.config.judge?.model ? "" : "ml-auto"}`}
           to={`/experiments/${encodeURIComponent(experimentId)}`}
         >
           Experiment ↗

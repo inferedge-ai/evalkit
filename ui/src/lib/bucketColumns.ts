@@ -25,6 +25,20 @@ export const BUCKET_COLUMNS: BucketColumn[] = [
   },
 ];
 
+const LIST_BUCKET_COLUMNS: BucketColumn[] = [
+  ...BUCKET_COLUMNS,
+  { bucket: "efficiency", label: "efficiency", short: "eff" },
+  { bucket: "custom", label: "custom", short: "custom" },
+];
+
+export function scoredBucketColumns(
+  rows: { scores: Record<string, number | null> }[],
+): BucketColumn[] {
+  return LIST_BUCKET_COLUMNS.filter((column) =>
+    rows.some((row) => scoreValue(row.scores, column.bucket) !== null),
+  );
+}
+
 export const EXPERIMENT_COST_KEY = "gauge_agent_cost_usd";
 
 export function scoreValue(

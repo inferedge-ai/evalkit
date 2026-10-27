@@ -101,8 +101,8 @@ The agent's exporter needs its own token. Mint one with `evalkit tokens create -
 ## Datasets and workspaces
 
 - `dataset="finance"` runs your own workspace's copy; if `finance` is a directory under `cases` it is synced first.
-- `dataset="finance@dev"` or `dataset="finance", workspace="dev"` runs the shared cases (Approved ones only, unless `include_drafts`).
-- `case_ids=[...]`, `split="..."`, `repetitions`, `model`, `resume=<experiment id>` and `include_drafts` mean what the same options mean on `evalkit run`.
+- `dataset="finance@dev"` or `dataset="finance", workspace="dev"` runs the shared cases, every review state included.
+- `case_ids=[...]`, `split="..."`, `repetitions`, `model` and `resume=<experiment id>` mean what the same options mean on `evalkit run`.
 - `dry_run=True` runs one case (`dry_run=N` runs N) without creating an experiment and prints the answer and what the server made of the session. If the server cannot read a session, that case prints a `trajectory read failed` line and the dry run goes on. Use it while wiring up tracing; the session shows on the Runs page with its case question and case id.
 
 ## Notebooks
@@ -151,7 +151,7 @@ A published benchmark is a suite plus a Python evaluator:
 2. `evalkit sync <dir>` puts it in a dataset like any suite.
 3. Write the grader as an `@evaluator` with that name. It reads the grading data from `case.config`, and calls its own judge models if it needs any. Pass it to `run_experiment`.
 
-`evalkit lint` and `evalkit sync` warn with `W-CUSTOM-UNKNOWN` for the grader name, because the server can't see a Python evaluator. That warning is expected. In a shared workspace the synced cases stay Draft until reviewed, so pass `include_drafts=True` to run them unreviewed.
+`evalkit lint` and `evalkit sync` warn with `W-CUSTOM-UNKNOWN` for the grader name, because the server can't see a Python evaluator. That warning is expected.
 
 ## Re-scoring
 

@@ -11,7 +11,6 @@ import {
 } from "../lib/experimentStatus";
 import { splitLabel } from "../lib/format";
 import { agentCommitUrl } from "../lib/meta";
-import { countRequested, scopeLabel } from "../lib/review";
 import { hasColumn, rowFailing } from "../lib/scorecard";
 import { BY_TYPE, gaugeGroup, scoreGroups } from "../lib/scoreSummary";
 import type { AgentInfo, CaseView, ExperimentInfo, Report } from "../lib/types";
@@ -79,7 +78,6 @@ export function ExperimentPage() {
   const [status, setStatus] = useState<ExperimentInfo | null>(null);
   useFollowWorkspace(status?.workspace);
   const [pinned, setPinned] = useState<CaseView[] | null>(null);
-  const [datasetCases, setDatasetCases] = useState<CaseView[] | null>(null);
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failingOnly, setFailingOnly] = useState(false);
@@ -127,15 +125,6 @@ export function ExperimentPage() {
       .catch(() => setDriver(null));
   }, [agentRef]);
 
-  const dataset = status?.dataset;
-  useEffect(() => {
-    if (!dataset) return;
-    setDatasetCases(null);
-    api<CaseView[]>(`/datasets/${encodeURIComponent(dataset)}/cases`)
-      .then(setDatasetCases)
-      .catch(() => {});
-  }, [dataset]);
-
   // An active experiment refreshes itself until it settles.
   useEffect(() => {
     if (!status || !isActive(status.status)) return;
@@ -177,14 +166,6 @@ export function ExperimentPage() {
       />
     );
   const config = status?.config;
-  const scope =
-    status && config && datasetCases
-      ? scopeLabel(
-          config,
-          status.progress.total,
-          countRequested(datasetCases, config.selection),
-        )
-      : null;
   const tag = status ? agentTag(status) : null;
   const split = config ? splitLabel({ selection: config.selection }) : null;
   const rev = status ? agentRevision(status) : {};
@@ -254,11 +235,6 @@ export function ExperimentPage() {
             split: {split}
           </span>
         )}
-        {scope && (
-          <span className="chip muted" title="which cases this experiment ran">
-            {scope}
-          </span>
-        )}
         <RevisionChip
           sha={rev.sha}
           branch={rev.branch}
@@ -271,6 +247,29 @@ export function ExperimentPage() {
           >
             cases {cases.sha.slice(0, 8)}
             {cases.dirty ? "*" : ""}
+          </span>
+        )}
+        {config?.judge?.model && (
+          <span
+            id="judge"
+            className="chip muted font-mono"
+            title={[
+              `judge ${config.judge.model}`,
+              config.judge.base_url,
+              config.judge.reasoning_effort &&
+                `effort ${config.judge.reasoning_effort}`,
+              config.judge.max_tokens != null &&
+                `max tokens ${config.judge.max_tokens}`,
+              config.judge.concurrency != null &&
+                `concurrency ${config.judge.concurrency}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          >
+            judge {config.judge.model}
+            {config.judge.reasoning_effort
+              ? ` · ${config.judge.reasoning_effort}`
+              : ""}
           </span>
         )}
         {config?.snapshot.evalkit_version && (

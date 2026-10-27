@@ -18,7 +18,6 @@ export interface LaunchRequest {
   repetitions: number;
   selection: Selection;
   model: string | null;
-  include_drafts: boolean;
   judge: JudgeSettings | null;
 }
 
@@ -63,10 +62,6 @@ export function selectionFor(
   return ids.length ? { case_ids: ids } : null;
 }
 
-export function approvedCount(examples: CaseView[]): number {
-  return examples.filter((ex) => ex.review?.state === "approved").length;
-}
-
 const quote = (value: string) =>
   /^[\w./:@=+-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
 
@@ -80,7 +75,6 @@ export function cliCommand(req: LaunchRequest): string {
   if ("case_ids" in req.selection)
     parts.push(...req.selection.case_ids.map((id) => `--case-id ${quote(id)}`));
   if (req.model) parts.push(`--model ${quote(req.model)}`);
-  if (req.include_drafts) parts.push("--include-drafts");
   if (req.judge)
     parts.push(
       `--judge-model ${quote(req.judge.model)}`,

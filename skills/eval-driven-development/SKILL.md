@@ -177,9 +177,8 @@ from this machine. For a tight loop, run only the relevant cases
 (`evalkit run <dataset>/<file>.yaml`, `evalkit run <dataset>/<subfolder>`, or
 `--case-id`, repeatable) rather than the whole dataset.
 
-Runs on your personal datasets execute every case. Against a shared dataset
-such as `<dataset>@dev`, `evalkit run` executes approved cases only; a synced case starts as a draft, so pass
-`--include-drafts` there until the case is approved.
+`evalkit run` executes every selected case, in personal and shared datasets
+alike; review state never filters a run.
 When you are confident the case is correct and it has reached a shared
 dataset, ask for review:
 `evalkit review request <dataset>@dev --case-id <id> --reviewer <user>`. If `dev` is
@@ -423,7 +422,7 @@ For each pattern the developer picked:
 3. `evalkit sync <dataset dir>` (with `--workspace <ws>` for a shared
    workspace you write to).
 4. On a shared dataset, `evalkit review request <dataset>@<ws> --case-id <id>
-   --reviewer <user>`. The cases start as drafts.
+   --reviewer <user>`. The cases start Unreviewed.
 
 Loop 2 ends here. It does not run the new cases; that is Loop 1's job.
 
@@ -442,8 +441,7 @@ Two handoffs, nothing else:
 
 1. **Loop 2 → Loop 1.** After M5 the developer may ask to fix the agent for
    the new cases. Enter Loop 1 at **C** (new cases, red expected) with the new
-   case ids as the working set. Against a shared dataset, pass
-   `--include-drafts` until the cases are approved.
+   case ids as the working set.
 2. **Loop 1 → authoring.** A diagnosis may find that a failure shows a scenario
    no case covers, or that the case itself is wrong (`coverage_gap` on the
    finding). `synthesize.md` lists these as "Case proposals" in

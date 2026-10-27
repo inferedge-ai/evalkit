@@ -108,20 +108,14 @@ def test_flow_05_reviewers_are_per_workspace(cli):
         assert any(m["username"] == "ravi" and m["role"] == "reviewer" for m in members)
 
 
-def test_flow_05_runs_use_only_approved_cases_unless_drafts(cli):
+def test_flow_05_runs_ignore_review_state(cli):
     shared_suite(cli, "ap5", "ap5-1", "ap5-2")
-    cli.as_user("alice")
-    out = cli.fails("run", "ap5@dev", "--agent", "ouragent@dev")
-    assert "no approved cases in ap5@dev match the selection" in out
-    assert "--include-drafts" in out
     with api(cli.live, "ravi") as ravi:
         ravi.post("/api/datasets/ap5@dev/cases/ap5-1/review", json={"action": "approve"})
+    cli.as_user("alice")
     exp = experiment_id(cli.ok("run", "ap5@dev", "--agent", "ouragent@dev"))
-    drafts = experiment_id(cli.ok("run", "ap5@dev", "--agent", "ouragent@dev", "--include-drafts"))
     with api(cli.live, "alice") as alice:
-        assert [c["case_id"] for c in alice.get(f"/api/experiments/{exp}/cases").json()] == [
-            "ap5-1"
+        assert sorted(c["case_id"] for c in alice.get(f"/api/experiments/{exp}/cases").json()) == [
+            "ap5-1",
+            "ap5-2",
         ]
-        assert sorted(
-            c["case_id"] for c in alice.get(f"/api/experiments/{drafts}/cases").json()
-        ) == ["ap5-1", "ap5-2"]

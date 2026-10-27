@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  approvedCount,
   casesInScope,
   cliCommand,
   selectionFor,
@@ -13,7 +12,7 @@ const ex = (
   case_id: string,
   source: string | undefined,
   tags: string[],
-  state?: "approved" | "draft",
+  state?: "approved" | "unreviewed",
 ): CaseView =>
   ({
     case_id,
@@ -26,7 +25,7 @@ const ex = (
 
 const examples = [
   ex("a", "tcs.yaml", ["tcs"], "approved"),
-  ex("b", "tcs.yaml", ["tcs", "ratios"], "draft"),
+  ex("b", "tcs.yaml", ["tcs", "ratios"], "unreviewed"),
   ex("c", "infy.yaml", ["ratios"], "approved"),
   ex("d", undefined, []),
 ];
@@ -81,12 +80,6 @@ describe("casesInScope / selectionFor", () => {
   });
 });
 
-describe("approvedCount", () => {
-  it("counts approved cases only", () => {
-    expect(approvedCount(examples)).toBe(2);
-  });
-});
-
 describe("cliCommand", () => {
   it("names a shared workspace agent and the judge override", () => {
     expect(
@@ -96,7 +89,6 @@ describe("cliCommand", () => {
         repetitions: 1,
         selection: { all: true },
         model: null,
-        include_drafts: false,
         judge: {
           base_url: "https://llm/v1",
           model: "other",
@@ -118,11 +110,10 @@ describe("cliCommand", () => {
         repetitions: 3,
         selection: { case_ids: ["a", "b c"] },
         model: "claude-opus-5-5",
-        include_drafts: true,
         judge: null,
       }),
     ).toBe(
-      "evalkit run finance@dev --agent research-agent@dev --runs 3 --case-id a --case-id 'b c' --model claude-opus-5-5 --include-drafts",
+      "evalkit run finance@dev --agent research-agent@dev --runs 3 --case-id a --case-id 'b c' --model claude-opus-5-5",
     );
   });
 
@@ -134,7 +125,6 @@ describe("cliCommand", () => {
         repetitions: 1,
         selection: { all: true },
         model: null,
-        include_drafts: false,
         judge: null,
       }),
     ).toBe("evalkit run finance@dev --agent research-agent@dev");
@@ -148,7 +138,6 @@ describe("cliCommand", () => {
         repetitions: 1,
         selection: { tag: "starbucks" },
         model: null,
-        include_drafts: false,
         judge: null,
       }),
     ).toBe("evalkit run finance@dev/starbucks --agent research-agent@dev");

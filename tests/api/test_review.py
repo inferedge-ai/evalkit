@@ -64,7 +64,7 @@ async def test_sync_records_actor_from_principal(env):
         "/api/sync", params={"dataset": "finance", "workspace": "canonical"}, files=upload()
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json()["review"] == {"now_draft": [], "carried": []}
+    assert resp.json()["review"] == {"now_unreviewed": [], "carried": []}
     synced = [
         e for e in await ctx.review.history("finance@canonical", "case-1") if e.kind == "synced"
     ]
@@ -90,10 +90,10 @@ async def test_cases_list_carries_review_state(env):
     rows = (await clients["alice"].get(f"{BASE}/cases")).json()
     by_id = {r["case_id"]: r["review"] for r in rows}
     assert by_id["case-1"]["state"] == "approved"
-    assert by_id["case-2"] == {"state": "draft", "requested_to": None, "updated_at": None}
+    assert by_id["case-2"] == {"state": "unreviewed", "requested_to": None, "updated_at": None}
     assert {r["case_id"]: r["review_state"] for r in rows} == {
         "case-1": "approved",
-        "case-2": "draft",
+        "case-2": "unreviewed",
     }
 
 
@@ -112,7 +112,7 @@ async def test_request_review_by_selection(env):
     assert loaded["case-1"].state() is CaseState.REVIEW_REQUESTED
     assert loaded["case-1"].requested_to == "sme"
     assert loaded["case-1"].last_event.actor == "alice"
-    assert loaded["case-2"].state() is CaseState.DRAFT
+    assert loaded["case-2"].state() is CaseState.UNREVIEWED
 
     bad = await clients["alice"].post(
         f"{BASE}/review-requests",
@@ -223,15 +223,6 @@ async def test_queue_filters_by_reviewer_and_current_state(env):
     assert after["items"] == []
 
 
-async def test_create_experiment_without_approved_cases_is_400(env):
-    clients, *_ = env
-    resp = await clients["sme"].post(
-        "/api/experiments", json={"dataset": FINANCE, "agent": "fake@canonical"}
-    )
-    assert resp.status_code == 400
-    assert "--include-drafts" in resp.json()["detail"]
-
-
 async def test_queue_can_list_changes_requested(env):
     clients, *_ = env
     await clients["sme"].post(
@@ -251,5 +242,5 @@ async def test_queue_can_list_changes_requested(env):
     waiting = (await clients["alice"].get("/api/review/queue")).json()
     assert [i["case_id"] for i in waiting["items"]] == ["case-2"]
     assert (
-        await clients["alice"].get("/api/review/queue", params={"state": "draft"})
+        await clients["alice"].get("/api/review/queue", params={"state": "unreviewed"})
     ).status_code == 422

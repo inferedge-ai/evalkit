@@ -459,11 +459,7 @@ async def _dry_run(
     poll_interval: float,
 ) -> ExperimentResult:
     store = HttpStore(api)
-    cases = (
-        await store.cases_for(
-            slug(dataset_ref), selection, agent=slug(agent_ref), approved_only=False
-        )
-    )[:count]
+    cases = (await store.cases_for(slug(dataset_ref), selection, agent=slug(agent_ref)))[:count]
     blob = HttpBlobStore(api, None)
     deps = RunnerDeps(
         cfg=local,
@@ -535,7 +531,6 @@ async def arun_experiment(
     concurrency: int | None = None,
     case_ids: Sequence[str] | None = None,
     split: str | None = None,
-    include_drafts: bool = False,
     model: str | None = None,
     resume: int | None = None,
     dry_run: bool | int = False,
@@ -615,7 +610,6 @@ async def arun_experiment(
                 slug(dataset_ref),
                 _selection(case_ids, split),
                 agent=slug(agent_ref),
-                approved_only=False,
             )
             judge_key_for(credentials, resolved_judge, selected)
             revision = git_revision(on_disk) if on_disk is not None and on_disk.is_dir() else None
@@ -626,7 +620,6 @@ async def arun_experiment(
                     selection=_selection(case_ids, split),
                     repetitions=repetitions,
                     model=model,
-                    include_drafts=include_drafts,
                     capabilities=sdk_capabilities(definition),
                     cases=revision,
                     evalkit_version=version.current(),
@@ -805,7 +798,6 @@ def run_experiment(
     concurrency: int | None = None,
     case_ids: Sequence[str] | None = None,
     split: str | None = None,
-    include_drafts: bool = False,
     model: str | None = None,
     resume: int | None = None,
     dry_run: bool | int = False,
@@ -828,7 +820,6 @@ def run_experiment(
             concurrency=concurrency,
             case_ids=case_ids,
             split=split,
-            include_drafts=include_drafts,
             model=model,
             resume=resume,
             dry_run=dry_run,

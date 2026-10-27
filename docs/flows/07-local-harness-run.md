@@ -32,7 +32,6 @@ sequenceDiagram
   end
   CLI->>H: GET capabilities
   CLI->>S: POST experiment (dataset, agent, selection, repetitions, capabilities, judge, git sha/branch, lease holder)
-  S->>S: shared dataset → keep Approved cases only (unless --include-drafts)
   S->>S: check every case input against the agent's input_schema
   S->>S: pin case versions
   S-->>CLI: experiment id
@@ -107,7 +106,7 @@ sequenceDiagram
 
 - `evalkit run <dir-or-name> --agent research-agent` syncs the local cases into `<dataset>@<me>` first, then runs; the experiment appears under that dataset in the UI.
 - Progress lines: `experiment <id> (#<n> of <dataset>)`, one `run <case> #<rep> <status>` per run, one `scored …` per run, then the summary table.
-- Personal datasets run every case; datasets in shared workspaces (e.g. `finance@dev`) run only Approved cases unless `--include-drafts`.
+- Every selected case runs, whatever its review state, in personal and shared datasets (e.g. `finance@dev`) alike.
 - `--case-id` limits the selection; `--runs N` gives N repetitions per case.
 - `--model` is recorded on the experiment; if the harness doesn't accept a model override the server logs a warning and still runs.
 - If the harness accepts neither files nor file URLs, fixture cases are dropped with `skipped <n> case(s) with fixture files; …` and the expected-run count shrinks to match.
@@ -128,7 +127,6 @@ sequenceDiagram
 - No `evalkit.yaml` above the current dir: `no evalkit.yaml found above the current directory`.
 - Code-driven agent (no `harness_url`): `<agent> is a code-driven agent (no harness_url); run it with evalkit.sdk.run_experiment, or if it serves the Harness API, set its URL: evalkit agents edit <agent> --harness-url URL`.
 - Unknown agent: `unknown agent: <ref> — create it with evalkit agents create`.
-- Shared dataset with no Approved case in the selection: `no approved cases in <dataset> match the selection; pass --include-drafts to run drafts`; nothing runs.
 - Nothing left to run (no case matches, or every case needs fixtures the harness can't take): `nothing to run in <dataset>: …`.
 - Case inputs that fail the agent's `input_schema`: `<n> case input(s) fail agent <agent>'s input_schema:` listing every bad case; nothing runs.
 - A judge `base_url` with no `credentials` entry: `no credentials.judges entry for <url>`, before the run.

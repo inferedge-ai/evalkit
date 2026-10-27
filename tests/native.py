@@ -181,7 +181,7 @@ async def approve(
     env: Env, dataset: str = "finance@canonical", case_ids: Iterable[str] | None = None
 ) -> None:
     wanted = None if case_ids is None else set(case_ids)
-    cases = await env.store.cases_for(dataset, Selection(all=True), agent=None, approved_only=False)
+    cases = await env.store.cases_for(dataset, Selection(all=True), agent=None)
     await env.review.append(
         [
             CaseReview.unreviewed(dataset, case.case_id, case.content_hash).approve("admin")

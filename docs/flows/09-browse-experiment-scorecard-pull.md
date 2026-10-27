@@ -79,7 +79,7 @@ sequenceDiagram
     CLI->>S: POST agent runs pull (experiment id, limit, offset)
     S-->>CLI: zip: index.json, runs/#lt;run_id#gt;/run.json, trajectory.json, case.json, evaluations.json
   end
-  CLI-->>D: "pulled N run(s) to ./evalkit-runs/experiment-#lt;id#gt;"
+  CLI-->>D: "pulled N run(s) to #lt;absolute path#gt;/evalkit-runs/experiment-#lt;id#gt;"
 
   D->>CLI: evalkit runs files #lt;dir#gt; #lt;run_id#gt; [--path P]
   CLI->>S: GET run files (list, or fetch each chosen path)

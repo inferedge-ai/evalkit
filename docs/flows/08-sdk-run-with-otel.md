@@ -87,7 +87,7 @@ sequenceDiagram
 - The experiment appears in the UI under the dataset; each run shows its trajectory built from spans.
 - A code-driven agent is always personal, so the experiment lives in the personal workspace of the user who starts it.
 - The task may return a `str` (answer), a `dict` (structured output) or a `RunResult`; a `RunResult` may carry its own `session_id` or a pushed ATIF trajectory.
-- `split=` and `case_ids=` narrow the selection; `repetitions`, `concurrency`, `model` and `include_drafts` behave like the CLI.
+- `split=` and `case_ids=` narrow the selection; `repetitions`, `concurrency` and `model` behave like the CLI.
 - `model=` with a task that has no `model` parameter prints a warning; the model is still recorded.
 - `dry_run=N` creates no experiment and writes no runs; it prints a per-case report for wiring checks.
 - The status moves `running` → `evaluating` → `completed`, or `failed`. The script holds a lease while it works; a script that dies leaves the experiment `failed` once the lease expires.
@@ -112,5 +112,5 @@ sequenceDiagram
 - OTel extra missing: `evalkit tracing needs the otel extra: uv add 'evalkit[otel]'`.
 - Spans for an unknown agent: the collector answers 404 `unknown agent: <ref> — create it with evalkit agents create`.
 - A second resume or evaluate on an experiment whose lease is live: 409.
-- Scoring fails: the exception carries `experiment <id> is not fully scored; finish it with evalkit.sdk.evaluate_experiment(...)` (or `evalkit evaluate <id>` when no Python evaluators).
+- Scoring fails: the exception carries `experiment <id> is not fully scored; finish it with evalkit.sdk.evaluate_experiment(experiment_id=<id>, evaluators=[...]) passing <names>`. With no Python evaluators it ends ``evalkit.sdk.evaluate_experiment(experiment_id=<id>) or `evalkit evaluate <id>` ``.
 - `evaluate_experiment` with an evaluator not declared at run time: `python evaluators <names> were not part of experiment <id> (declared: …)`.

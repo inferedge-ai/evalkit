@@ -1,6 +1,6 @@
 # 05. Case review
 
-How a case in a suite dataset of a shared workspace (e.g. `finance@dev`) moves from Draft to Approved, and how review affects runs.
+How a case in a suite dataset of a shared workspace (e.g. `finance@dev`) moves from Unreviewed to Approved. Review never filters a run; it decides what gets promoted.
 
 ## Actors
 
@@ -14,9 +14,9 @@ How a case in a suite dataset of a shared workspace (e.g. `finance@dev`) moves f
   - `/reviews` (queue)
 - **evalkit server**: `src/evalkit/api/review.py`.
 
-**Review state** is one of Draft, Review requested, Changes requested or Approved.
+**Review state** is one of Unreviewed, Review requested, Changes requested or Approved.
 - It is worked out from the case's current content hash in that dataset and the latest decisive event recorded at that hash (`src/evalkit/core/review.py`). It is never stored.
-- A case with no decision at its current content is Draft.
+- A case with no decision at its current content is Unreviewed.
 
 ## Sequence
 
@@ -60,10 +60,10 @@ sequenceDiagram
   actor Any as Any user
   Au->>Au: edit the case, merge PR
   CI->>S: evalkit sync datasets/finance --workspace dev
-  S->>S: content changed → "synced" event<br/>open review → re-requested at the new content (same reviewer)<br/>approved → Draft
-  S-->>CI: "… still under review: c (R)" / "… now draft: c"
+  S->>S: content changed → "synced" event<br/>open review → re-requested at the new content (same reviewer)<br/>approved → Unreviewed
+  S-->>CI: "… still under review: c (R)" / "… now unreviewed: c"
   Any->>S: run finance@dev against a shared agent (flow 06)
-  S->>S: only Approved cases run, unless include_drafts
+  S->>S: every selected case runs, whatever its review state
 ```
 
 ### Read state and history
@@ -86,7 +86,7 @@ sequenceDiagram
 - **Where review applies:** suite datasets in shared workspaces. Datasets in personal workspaces have none:
   - their state shows as `-`;
   - review endpoints return 409.
-- **Review state is per dataset:** the same case id can be Approved in `finance@prod` and Draft in `finance@dev`, because each dataset holds its own version of the case.
+- **Review state is per dataset:** the same case id can be Approved in `finance@prod` and Unreviewed in `finance@dev`, because each dataset holds its own version of the case.
 - **Request review:**
   - Records a "review requested" event per selected case, at its current content.
   - With no selector it covers every case.
@@ -107,13 +107,10 @@ sequenceDiagram
   - Removed cases keep their history.
   - An archived user still shows by name.
 - **When a sync changes a case's content:**
-  - Approved → Draft.
+  - Approved → Unreviewed.
   - Review requested or Changes requested → Review requested again at the new content, to the same reviewer (or the last actor).
   - Unchanged content keeps its state.
-- **Runs against a suite dataset in a shared workspace:**
-  - Only Approved cases in the selection run.
-  - If none are approved, the run is refused, unless `--include-drafts` (CLI) or the UI's Drafts checkbox is used.
-  - The UI launcher shows "No approved cases in this selection — include drafts to run them." and disables Start.
+- **Runs:** every case in the selection runs, whatever its review state, in every workspace. A promotion target may hold cases that are not Approved there (synced before the link); they run too.
 - **`datasets list finance@dev --state approved`** filters cases by review state (flow 03).
 
 ## Error cases
@@ -127,4 +124,3 @@ sequenceDiagram
 - Bad reply: 400 "parent comment is not on this case", "replies nest one level only".
 - Empty comment: 400 "comment body is empty".
 - Resolving someone else's comment as a non-reviewer: 403 "only a reviewer or the author may resolve".
-- Running with no approved cases: 400 "no approved cases in X match the selection; pass --include-drafts to run drafts".

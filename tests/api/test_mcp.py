@@ -616,7 +616,7 @@ async def test_oauth_tokens_reach_mcp_and_evalkit_tokens_still_do(
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
             meta = (await http.get("/.well-known/oauth-protected-resource/mcp")).json()
             assert meta["resource"] == RESOURCE
-            assert meta["authorization_servers"] == [f"{ISSUER}/"]
+            assert meta["authorization_servers"] == [ISSUER]
             assert meta["scopes_supported"] == ["evalkit:read"]
 
             unauthenticated = await http.post("/mcp", json={})

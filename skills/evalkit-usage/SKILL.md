@@ -71,7 +71,9 @@ and how case review works.
    wait for each server call; it does not change the server's limits on
    its own calls to a harness. Every server
    call needs a login, lint included; only `evalkit lint --offline` runs
-   without one, and it skips the checks that need server state. Log in as
+   without one, and it skips the checks that need server state. The server
+   lint covers everything `--offline` does, fixture keys included, so CI
+   needs only the server lint. Log in as
    `admin` (the deployer's `EVALKIT_ADMIN_PASSWORD`) in both the lint job
    and the sync job. The sync job targets a shared workspace
    (`--workspace dev`) and passes `--actor <merge author>` so the changelog
@@ -236,8 +238,8 @@ Rules of the road:
 - `run_experiment` is a push model: your process runs the task once per case
   and repetition, exports the agent's OpenTelemetry spans to the server,
   waits for each session to settle, and records runs and scores through the
-  API. `dataset`, `case_ids`, `split`, `repetitions`, `model`, `resume` and
-  `include_drafts` mean what they mean on `evalkit run` (see `evalkit --help`).
+  API. `dataset`, `case_ids`, `split`, `repetitions`, `model` and `resume` mean
+  what they mean on `evalkit run` (see `evalkit --help`).
 - The task's parameters bind **by name** from `input`, `files`, `model` and
   `metadata`, in any order; any other required parameter is an error, and
   a task with one parameter of another name (`def task(q)`) gets the input.
@@ -382,20 +384,22 @@ register the file and upload its bytes before you sync.
 ## Case review
 
 Review applies to datasets in shared workspaces. Datasets in a personal
-workspace have no review state, and every case runs.
+workspace have no review state. Review never filters a run: `evalkit run`
+executes every case the selection picks, whatever its state. Review decides
+what gets promoted (below).
 
 Every case in a shared suite dataset is in exactly one review state, derived from
 its current content hash and the latest decisive event recorded at that
-hash. Editing a case changes the hash, so an edit resets it to Draft on the
+hash. Editing a case changes the hash, so an edit resets it to Unreviewed on the
 next sync unless carry-over applies (below).
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Draft: sync creates case
+    [*] --> Unreviewed: sync creates case
 
-    Draft --> ReviewRequested: request review
-    Draft --> Approved: approve
-    Draft --> ChangesRequested: request changes
+    Unreviewed --> ReviewRequested: request review
+    Unreviewed --> Approved: approve
+    Unreviewed --> ChangesRequested: request changes
 
     ReviewRequested --> Approved: approve
     ReviewRequested --> ChangesRequested: request changes
@@ -407,34 +411,29 @@ stateDiagram-v2
     Approved --> ChangesRequested: request changes (retrospective)
     Approved --> ReviewRequested: request review (retrospective)
 
-    Approved --> Draft: edit and sync
-    Draft --> Draft: edit and sync
+    Approved --> Unreviewed: edit and sync
+    Unreviewed --> Unreviewed: edit and sync
     ReviewRequested --> ReviewRequested: edit and sync (carry-over)
     ChangesRequested --> ReviewRequested: edit and sync (carry-over)
 
     Approved --> [*]: promoted to the target workspace (if linked)
 ```
 
-| State | Meaning | Runs by default |
-|---|---|---|
-| Draft | No decisive event at the current content. Every new or edited case starts here. | No |
-| Review requested | Someone asked a reviewer to look at this content. | No |
-| Changes requested | A reviewer looked and wants an edit. | No |
-| Approved | A reviewer approved this exact content. | Yes |
-
-`--include-drafts` on `evalkit run` (`include_drafts=True` in the SDK) runs
-cases in every state. Use it for the first run on a freshly synced shared
-dataset: all its cases are drafts, so a run without it stops with "no
-approved cases in <dataset> match the selection".
+| State | Meaning |
+|---|---|
+| Unreviewed | No decisive event at the current content. Every new or edited case starts here. |
+| Review requested | Someone asked a reviewer to look at this content. |
+| Changes requested | A reviewer looked and wants an edit. |
+| Approved | A reviewer approved this exact content. In a promotion source, approving promotes it. |
 
 Rules the diagram encodes:
 
 - Any decisive event may be recorded from any state; the latest one wins.
   Requesting review or changes on an Approved case is a retrospective
-  re-review: the case stops running until approved again.
+  re-review.
 - An edit is not an event. Re-syncing a case that was in Review requested or
   Changes requested carries the request over to the new content, so a fix
-  goes straight back to the reviewer instead of silently becoming a Draft.
+  goes straight back to the reviewer instead of silently becoming Unreviewed.
 - Only **reviewers** of that workspace (`evalkit workspaces members list
   <ws> --role reviewer`) may approve or request changes. Everyone can author,
   sync to their own workspace, request review and comment; a comment is
@@ -459,7 +458,8 @@ it. Nothing else reaches the target:
   overlays, which are refreshed.
 - The target dataset must exist first: `evalkit datasets create finance@prod`
   (a writer of `prod`). Datasets synced into the target *before* the link
-  keep their cases; those stay Draft there until re-approved in the source.
+  keep their cases; those stay Unreviewed there, and still run, until a
+  version is approved in the source.
 
 Both case pages show the twin: on the source, "prod: same version · approved
 …" / "ahead of prod" / "not in prod"; on the target, "newer in dev" / "removed

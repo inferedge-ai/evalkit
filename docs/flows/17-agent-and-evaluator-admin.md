@@ -79,9 +79,11 @@ sequenceDiagram
   S-->>SDK: agent record
   D->>CLI: evalkit run finance@dev --agent research-agent@dev
   CLI->>S: start server run
-  S->>H: harness call, x-api-key from credentials.agents[research-agent@dev] (no header if no entry)
-  H-->>S: 401 if a key was required and missing
-  S-->>CLI: run fails with the harness's 401 in the run error
+  alt no credentials.agents entry
+    S-->>CLI: 400 no credentials.agents entry for research-agent@dev in the server config
+  else
+    S->>H: harness call, x-api-key from credentials.agents[research-agent@dev]
+  end
 ```
 
 ## Expected outcomes
@@ -135,10 +137,14 @@ sequenceDiagram
   - Looked up by reference in the driver's `credentials` map (server config for
     server runs, `evalkit.yaml` + `.env` for local runs).
   - There's no shared fallback key.
-  - **Missing agent or evaluator entry:** no key header is sent, and a service
-    that needs a key answers 401. That surfaces as a run or evaluator error.
-  - **Missing judge entry for the experiment's judge `base_url`:** the run fails
-    before any case starts: `no credentials.judges entry for <base_url>`.
+  - **Missing agent entry:** a server run is refused with 400 `no credentials.agents
+    entry for <ref> in the server config`. In a local run no key header is sent,
+    and a harness that needs a key answers 401, which surfaces as a run error.
+  - **Missing evaluator entry:** no key header is sent, and an evaluator that needs
+    a key answers 401, which surfaces as an evaluator error.
+  - **Missing judge entry for the experiment's judge `base_url`:** starting the
+    experiment is refused (400 for a server run): `no credentials.judges entry
+    for <base_url>`.
 - **Nothing creates an agent implicitly:** not experiment creation,
   `tokens create --agent`, or an OTel export.
 

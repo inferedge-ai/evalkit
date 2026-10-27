@@ -37,7 +37,7 @@ def review(last=None, requested_to=None, hash_="h1"):
 
 
 def test_state_is_draft_without_decisive_event():
-    assert review().state() is CaseState.DRAFT
+    assert review().state() is CaseState.UNREVIEWED
 
 
 @pytest.mark.parametrize(
@@ -94,7 +94,11 @@ def test_review_summary_shape():
         "requested_to": "sme",
         "updated_at": datetime(2026, 9, 22, 0, 0, 5, tzinfo=UTC),
     }
-    assert review_summary(review()) == {"state": "draft", "requested_to": None, "updated_at": None}
+    assert review_summary(review()) == {
+        "state": "unreviewed",
+        "requested_to": None,
+        "updated_at": None,
+    }
 
 
 def cm(id_, parent_id=None, resolved=False):
