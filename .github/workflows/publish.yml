@@ -46,7 +46,6 @@ jobs:
     needs: changes
     if: >-
       needs.changes.outputs.code == 'true'
-      && (github.ref_name != 'main' || github.repository == 'inferedge-ai/evalkit')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -105,7 +104,6 @@ jobs:
     if: >-
       !cancelled()
       && github.ref_name == 'main'
-      && github.repository == 'inferedge-ai/evalkit'
       && needs.wheel.result == 'success'
       && (needs.image.result == 'success' || needs.image.result == 'skipped')
     runs-on: ubuntu-latest
