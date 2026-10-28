@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict
@@ -64,6 +65,13 @@ class OtelConfig(ConfigModel):
     import_page_traces: int = 25
 
 
+class SentryConfig(ConfigModel):
+    dsn: str
+    environment: str | None = None
+    traces_sample_rate: float = 0.0
+    max_request_body_size: Literal["never", "small", "medium", "always"] = "never"
+
+
 MB = 1024 * 1024
 
 
@@ -87,6 +95,7 @@ class Config(RunnerConfig):
     mcp: McpConfig = McpConfig()
     otel: OtelConfig = OtelConfig()
     limits: LimitsConfig = LimitsConfig()
+    sentry: SentryConfig | None = None
     encryption_key: str | None = None
     judge_default: JudgeSettings
 

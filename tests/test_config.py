@@ -130,6 +130,17 @@ def test_server_config_reads_otel_and_encryption_key(tmp_path, monkeypatch):
     assert cfg.encryption_key == "k"
 
 
+def test_server_config_reads_sentry(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "pk")
+    monkeypatch.setenv("SENTRY_DSN", "https://key@o1.ingest.sentry.io/1")
+    assert load_config(write(tmp_path, BASIC)).sentry is None
+    cfg = load_config(write(tmp_path, BASIC + "sentry:\n  dsn: env:SENTRY_DSN\n"))
+    assert cfg.sentry is not None
+    assert cfg.sentry.dsn == "https://key@o1.ingest.sentry.io/1"
+    assert cfg.sentry.traces_sample_rate == 0.0
+    assert cfg.sentry.max_request_body_size == "never"
+
+
 LOCAL = """
 cases: eval/cases
 fixtures: eval/fixtures

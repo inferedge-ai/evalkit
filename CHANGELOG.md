@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- The server can report errors to Sentry. Add a `sentry:` block to the
+  server config with `dsn` (e.g. `env:SENTRY_DSN`), and optionally
+  `environment`, `traces_sample_rate` (default `0.0`) and
+  `max_request_body_size` (default `never`). Without the block,
+  nothing is sent.
+
 ## 0.2.0
 
 - Review state no longer filters runs. `evalkit run`, `run_experiment` and

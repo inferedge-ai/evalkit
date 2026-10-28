@@ -33,6 +33,7 @@ server = [
     "opentelemetry-proto>=1.44.0",
     "psycopg[binary]>=3.3.6",
     "python-multipart>=0.0.32",
+    "sentry-sdk[fastapi]>=2.73.0",
     "sqlalchemy>=2",
     "uvicorn>=0.52.4",
 ]

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -650,3 +651,22 @@ async def test_oauth_tokens_reach_mcp_and_evalkit_tokens_still_do(
             )
             async with mcp_client(app, login.json()["token"]) as mcp:
                 assert len(await mcp.list_tools()) == 10
+
+
+async def test_expected_tool_errors_log_as_warnings_and_bugs_as_errors(api, monkeypatch, caplog):
+    client, _ = api
+
+    async def broken(*args, **kwargs):
+        raise RuntimeError("bug")
+
+    async with mcp_client(client.app, bearer(client)) as mcp:  # type: ignore[attr-defined]
+        with caplog.at_level(logging.WARNING, logger="fastmcp"):
+            with pytest.raises(ToolError, match="^not_found: "):
+                await mcp.call_tool("find_runs", {"agent": "missing@canonical"})
+            with pytest.raises(ToolError, match="^invalid_limit: "):
+                await mcp.call_tool("find_runs", {"agent": "fake@canonical", "limit": 0})
+            monkeypatch.setattr(client.app.state.agents, "list_agents", broken)
+            with pytest.raises(ToolError):
+                await mcp.call_tool("find_agents", {})
+    levels = [r.levelno for r in caplog.records if r.message.startswith("Error calling tool")]
+    assert levels == [logging.WARNING, logging.WARNING, logging.ERROR]
