@@ -33,12 +33,14 @@ all welcome.
 You need [uv](https://docs.astral.sh/uv/), Docker (the tests start
 Postgres in a container) and Node.js 24 for the UI.
 
-    uv sync --extra server --extra otel
-    uv run pytest              # tests
-    uv run ruff check          # lint
-    uv run ruff format         # format
-    uv run mypy src/evalkit    # types
-    cd ui && npm ci && npm test
+```bash
+uv sync --extra server --extra otel
+uv run pytest              # tests
+uv run ruff check          # lint
+uv run ruff format         # format
+uv run mypy src/evalkit    # types
+cd ui && npm ci && npm test
+```
 
 To run against your own Postgres instead of a container, set
 `EVALKIT_TEST_PG_URL`. To run the server and UI locally, see "Local server"
