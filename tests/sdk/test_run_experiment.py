@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -793,3 +794,32 @@ async def test_a_finished_run_prints_its_scorecard(env):
     )
     assert any(line.startswith(f"\nexperiment {result.experiment_id} ") for line in lines)
     assert "evaluators:" in lines
+
+
+async def test_sdk_runs_name_evaluators_without_a_local_key(env):
+    srv, blob, provider = env
+    created = httpx.post(
+        f"{srv.base_url}/api/evaluators",
+        headers={"Authorization": f"Bearer {os.environ['EVALKIT_TOKEN']}"},
+        json={
+            "workspace": "admin",
+            "name": "nokey_eval",
+            "kind": "score",
+            "settings": {"endpoint": "http://e"},
+        },
+    )
+    assert created.status_code == 200, created.text
+    lines: list[str] = []
+    await arun_experiment(
+        dataset="finance",
+        workspace="canonical",
+        agent="pushed",
+        task=lambda q: RunResult(answer="x", trajectory=DEFAULT_TRAJECTORY),
+        case_ids=["case-1"],
+        tracer_provider=provider,
+        progress=lines.append,
+    )
+    assert (
+        "no credentials.evaluators entry for nokey_eval@admin in evalkit.yaml; "
+        "calling it without x-api-key"
+    ) in lines

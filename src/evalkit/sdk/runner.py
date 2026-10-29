@@ -44,6 +44,7 @@ from evalkit.core.runner import (
     evaluate_experiment,
     judge_key,
     judge_key_for,
+    missing_local_keys,
     rescore_experiment,
     run_leased,
 )
@@ -647,6 +648,8 @@ async def arun_experiment(
             sessions=HttpSessionReader(api),
             python_evaluators=python_evaluators,
         )
+        for line in await missing_local_keys(deps, definition):
+            progress(line)
         cases = {case.case_id: case for case in await store.pinned_cases(exp.id)}
         judge_key(deps, exp.config.judge, cases.values())
         slots = asyncio.Semaphore(max(concurrency or definition.settings.max_concurrent_runs, 1))

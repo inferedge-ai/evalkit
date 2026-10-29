@@ -80,7 +80,7 @@ service. The CLI side (`evalkit.yaml` + `.env`) keeps them.
 | K7 | Keys are write-only. Reads return `has_api_key: bool`, never the value. | Standard practice for secrets: a key that is never returned cannot leak through the API, the UI, logs or a screenshot. Trace source keys already work this way. |
 | K8 | The server refuses endpoints of shared agents, shared evaluators and LLM providers that resolve to a non-public address (`not is_global`, multicast or reserved, which covers loopback, private, link-local, CGNAT and NAT64), unless server config sets `allow_private_endpoints: true`. Personal endpoints are not checked: the CLI calls them, not the server. | Writers can now set URLs the server calls, and the server stores the response where users can read it (SSRF). |
 | K9 | A server call to an endpoint with no stored key goes ahead without the key header, and the create, resume or re-evaluate response lists it under `warnings` (the server also logs it). | Endpoints inside the server's network may have no auth, e.g. an in-cluster harness or a local LLM. The warning makes a forgotten key easy to spot when a 401 follows. |
-| K10 | A local run with no `evalkit.yaml` entry for its agent or an evaluator prints one warning line and calls without the key header. | Local endpoints often have no auth; the person who forgot the key is watching the terminal. |
+| K10 | A local run (CLI or SDK) with no `evalkit.yaml` entry for its agent or an evaluator prints one warning line and calls without the key header. | Local endpoints often have no auth; the person who forgot the key is watching the terminal. |
 | K11 | A server-driven experiment may only use a judge whose base URL is a registered, active LLM provider. Create, resume and re-evaluate all check it. | The judge prompt holds cases and answers; a writer must not be able to send them to an arbitrary URL with the server's help. |
 | K12 | `evalkit.yaml` renames `credentials.judges` to `credentials.llm_providers`. The old name fails to load with a message naming the new one. | Same word in the CLI, the server and the docs. |
 | K13 | Every UI form and CLI command that takes an endpoint shows a short note: the server at that URL receives the key entered here and the data evalkit sends it. Text only. | Users should know what they are trusting when they paste a URL. |
@@ -163,10 +163,22 @@ API:
 | `PATCH` | `/api/llm-providers/{name}` | admin |
 | `POST` | `/api/llm-providers/{name}/archive`, `/restore` | admin |
 | `GET` | `/api/judge-default` | everyone (already exists; now reads the DB) |
-| `PUT` | `/api/judge-default` | admin |
+| `PUT` | `/api/judge-default` | admin (replaces the default judge) |
+| `PATCH` | `/api/judge-default` | admin (merges the fields sent over the current judge) |
 
 `GET /api/judge-default` returns 404 `no default judge; an admin sets one with
 evalkit judge-default set` until one is set.
+
+```python
+def patch_judge_default(fields):                  # fields left out are None
+    base = current_default_judge or {}            # JudgeSettings defaults fill the rest
+    judge = JudgeSettings(**base, **{k: v for k, v in fields if v is not None})
+    require judge.base_url is an active provider
+    save(judge)
+```
+
+`"api_key": ""` and `"api_key": null` both clear a stored key, on agents,
+evaluators and LLM providers alike.
 
 Experiment create (`api/experiments.py`):
 
@@ -208,7 +220,9 @@ evalkit judge-default show
 evalkit judge-default set --provider openai --model gpt-5 [--effort high] [--max-tokens N] [--concurrency N]
 ```
 
-`judge-default set --provider` resolves the name to its base URL.
+`judge-default set --provider` resolves the name to its base URL and sends a
+`PATCH`, so options left out (`--effort`, `--max-tokens`, `--concurrency`) keep
+their current value.
 
 `evalkit.yaml`:
 
@@ -232,11 +246,14 @@ credentials:
   "no key". Create shows only when `canWrite`. Editing an endpoint or key and
   restoring stay CLI-only.
 - **LLM providers** (new admin page, beside Users and Trace sources): list,
-  create, edit, archive, restore, same key field, and a "Default judge" form.
-  Shown only to admins.
+  create, archive, restore, a "replace key" action per row, and a "Default
+  judge" form. Shown only to admins. Changing a provider's base URL stays
+  CLI-only.
 - **Experiment start** (where the UI starts server runs): the judge picker
   lists registered providers, then a model field; it defaults to the default
-  judge.
+  judge. With no default judge (the API returns 404), the picker drops the
+  "server default" option, says so, and sends a full judge once a provider and
+  a model are picked. Other errors from the API show as errors.
 
 ## Endpoint note (K13)
 
@@ -260,23 +277,29 @@ with the same interface.
 
 ```python
 class KeySource(Protocol):                       # src/evalkit/credentials.py
-    def key_for(kind, ref) -> str | None         # kind: agent | evaluator | llm_provider
+    def key_for(kind, ref, url=None) -> str | None   # kind: agent | evaluator | llm_provider
     def require_judge_key(base_url) -> str | None
 
-# CLI / SDK: CredentialRegistry (evalkit.yaml + .env).
+# CLI / SDK: CredentialRegistry (evalkit.yaml + .env); ignores url.
 
-class StoredKeys:                                 # server only, src/evalkit/db/
-    keys: dict[(kind, ref), str]                  # opened from the DB
+class StoredKeys:                                 # server only, src/evalkit/db/keys.py
+    keys: dict[(kind, ref), (key, url_it_was_stored_for)]
 
-    def key_for(kind, ref):
-        return keys.get((kind, ref))
+    def key_for(kind, ref, url=None):
+        key, stored_url = keys.get((kind, ref)) or (None, None)
+        return key if url is None or url == stored_url else None   # K6, mid-run
 
-async def stored_keys(agent_ref, evaluator_refs, judge_base_url) -> StoredKeys:
-    rows = agents[agent_ref] ∪ remote_evaluators[evaluator_refs]
+async def KeyLoader.load(agent, judge_base_url) -> StoredKeys:
+    if agent's workspace is personal: return StoredKeys({})
+    rows = agents[agent.ref] ∪ remote_evaluators[in agent.workspace]
            ∪ llm_providers[base_url = judge_base_url]
-    return StoredKeys({(kind, r.ref): box.open(r.api_key_encrypted)
+    return StoredKeys({(kind, r.ref): (box.open(r.api_key_encrypted), r.url)
                        for r in rows if r.api_key_encrypted is not None})
 ```
+
+The runner passes the URL it is about to call: the agent's `harness_url` and
+the evaluator's current endpoint. So if a writer changes an evaluator's
+endpoint while an experiment runs, scoring calls the new URL with no key.
 
 `require_judge_key` returns `None` when the provider has no key (K9); the judge
 client then sends no `Authorization` header.
@@ -293,8 +316,14 @@ Every server call site that uses `deps.credentials` today builds a
       warn f"{ref} has no API key; calling it without one"
   ```
 
-- re-evaluate, the harness check (`api/harness_check.py`), imports
-  (`api/imports.py`) and agent runs (`api/runs.py`).
+- re-evaluate and the harness check (`api/harness_check.py`).
+
+Harness reads outside an experiment (the runs browser in `api/runs.py`,
+`api/pull.py`, the MCP tools, and imports in `api/imports.py`) need only the
+agent key. They get it through `RunnerDeps.agent_keys` (`KeyLoader.agent_key`),
+which the app sets at startup. The app's default `RunnerDeps.credentials` is
+`NoKeysLoaded`, which raises if used, so a call site that skips loading keys
+fails loudly.
 
 A running experiment keeps the keys it loaded. A key change applies on the
 next create, resume or re-evaluate.
@@ -302,15 +331,17 @@ next create, resume or re-evaluate.
 ## Endpoint check (K8)
 
 ```python
-BLOCKED = loopback ∪ private (RFC 1918, fc00::/7) ∪ link-local (incl. 169.254.169.254)
-          ∪ unspecified ∪ multicast
+def blocked(addr):
+    return not addr.is_global or addr.is_multicast or addr.is_reserved
+    # covers loopback, RFC 1918, fc00::/7, link-local (169.254.169.254),
+    # unspecified, CGNAT 100.64.0.0/10 and NAT64 64:ff9b::/96
 
-def check_endpoint(url, allow_private):
-    if allow_private: return
+def check_endpoint(url, allow_private, workspace):
+    if allow_private or workspace is personal: return
     addrs = resolve(host(url))                    # every A / AAAA record
     if addrs fail to resolve:
         400 f"{url}: cannot resolve {host}"
-    if any(a ∈ BLOCKED for a in addrs):
+    if any(blocked(a) for a in addrs):
         400 f"{url} resolves to a private address; the operator can allow it "
             f"with allow_private_endpoints: true"
 ```
@@ -328,11 +359,13 @@ def check_endpoint(url, allow_private):
 
 ## Local runs (K10)
 
-Before the first case, for the agent and each remote evaluator without an
-`evalkit.yaml` entry:
+Before the first case of a CLI run (`evalkit run`) or an SDK run
+(`run_experiment`), for the agent (when it has a harness URL) and each remote
+evaluator in the agent's workspace without an `evalkit.yaml` entry:
 
 ```text
-no credentials.agents entry for myagent in evalkit.yaml; calling the harness without x-api-key
+no credentials.agents entry for myagent@akshat in evalkit.yaml; calling the harness without x-api-key
+no credentials.evaluators entry for compliance@akshat in evalkit.yaml; calling it without x-api-key
 ```
 
 The judge keeps today's rule: a missing `credentials.llm_providers` entry fails
@@ -351,6 +384,11 @@ before the first case, since hosted LLM APIs always need a key.
     evalkit agents edit ouragent@dev --api-key-env OURAGENT_DEV_KEY
     evalkit evaluators edit compliance@dev --api-key-env COMPLIANCE_KEY
   ```
+
+  A value that is still `env:NAME` in the old config (the credentials map is
+  never resolved) prints as `$NAME`, so the command can be pasted as is.
+- Renaming a shared workspace no longer asks the admin to rename server-config
+  credential entries: stored keys belong to the row and follow the rename.
 
 - `evalkit.yaml` with `credentials.judges` fails to load: `credentials.judges
   is now credentials.llm_providers`.
@@ -386,6 +424,10 @@ a one-shot `setup` service that waits for the server, logs in as `admin` with
 `EVALKIT_ADMIN_PASSWORD`, and runs `llm-providers create` and `judge-default
 set` from the same three env vars. The stack sets `allow_private_endpoints:
 true` so a local LLM works. `try/evalkit.yaml` renames its map per K12.
+
+
+The compose file sets a fixed demo `EVALKIT_ENCRYPTION_KEY` on the server, like
+its fixed demo admin password.
 
 ## Docs and changelog
 
