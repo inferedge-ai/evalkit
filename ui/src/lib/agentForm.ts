@@ -1,3 +1,4 @@
+import type { ApiKeyValue } from "./ApiKeyField";
 import type { AgentInfo, AgentSettings } from "./types";
 
 export interface AgentFormValues {
@@ -7,6 +8,7 @@ export interface AgentFormValues {
   trajectory_source: "atif" | "otel";
   repo_url: string;
   mapping: string;
+  api_key: ApiKeyValue;
   settings: Record<keyof Omit<AgentSettings, "provides">, string>;
 }
 
@@ -38,6 +40,7 @@ export function emptyAgentForm(workspace: string): AgentFormValues {
     trajectory_source: "atif",
     repo_url: "",
     mapping: "",
+    api_key: { key: "", clear: false },
     settings: { ...DEFAULTS },
   };
 }
@@ -53,6 +56,7 @@ export function agentFormFrom(agent: AgentInfo): AgentFormValues {
     trajectory_source: agent.trajectory_source,
     repo_url: agent.repo_url ?? "",
     mapping: "",
+    api_key: { key: "", clear: false },
     settings,
   };
 }
@@ -106,10 +110,23 @@ function settingsOf(values: AgentFormValues): Omit<AgentSettings, "provides"> {
   return out;
 }
 
+export function urlClearsKey(
+  values: AgentFormValues,
+  current: AgentInfo,
+): boolean {
+  return (
+    current.has_api_key &&
+    (values.harness_url.trim() || null) !== current.harness_url &&
+    !values.api_key.key
+  );
+}
+
 export function createAgentBody(
   values: AgentFormValues,
 ): Record<string, unknown> {
+  const key = values.api_key.key ? { api_key: values.api_key.key } : {};
   return {
+    ...key,
     workspace: values.workspace,
     name: values.name.trim(),
     harness_url: values.harness_url.trim() || null,
@@ -134,5 +151,7 @@ export function editAgentBody(
     body.trajectory_source = values.trajectory_source;
   if (values.trajectory_source === "otel" && values.mapping.trim())
     body.mapping = parseMapping(values.mapping);
+  if (values.api_key.key) body.api_key = values.api_key.key;
+  else if (values.api_key.clear) body.api_key = null;
   return body;
 }

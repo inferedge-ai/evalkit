@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { api, apiJson } from "../lib/api";
+import { ENDPOINT_NOTE } from "../lib/endpoint";
 import type { TraceSourceInfo } from "../lib/types";
 
 export function TraceSourcesPage() {
@@ -79,6 +80,7 @@ export function TraceSourcesPage() {
         />
         <button className="btn btn-primary">Add trace source</button>
       </form>
+      <p className="row-meta mb-3">{ENDPOINT_NOTE}</p>
       {error && <div className="pane-status error">{error}</div>}
       <div className="card rows">
         {rows?.map((row) => (

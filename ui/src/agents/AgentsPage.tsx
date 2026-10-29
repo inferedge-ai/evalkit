@@ -103,6 +103,7 @@ export function AgentsPage() {
       {creating && (
         <AgentForm
           workspace={workspace.name}
+          shared={workspace.type === "shared"}
           onSaved={(agent) =>
             navigate(`/agents/${encodeURIComponent(agent.ref)}/overview`)
           }

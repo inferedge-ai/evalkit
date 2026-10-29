@@ -4,6 +4,7 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { canManageMembers, canWrite, groupMembers } from "../lib/access";
 import { api, apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
+import { ENDPOINT_NOTE, PERSONAL_KEY_NOTE } from "../lib/endpoint";
 import { Select } from "../lib/Select";
 import type {
   MemberRow,
@@ -36,6 +37,7 @@ function EvaluatorsTab({
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [kind, setKind] = useState<"score" | "gauge">("score");
+  const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(() => {
     api<RemoteEvaluatorInfo[]>(
@@ -55,9 +57,11 @@ function EvaluatorsTab({
         name: name.trim(),
         kind,
         settings: { endpoint: endpoint.trim() },
+        ...(apiKey ? { api_key: apiKey } : {}),
       });
       setName("");
       setEndpoint("");
+      setApiKey("");
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -76,9 +80,10 @@ function EvaluatorsTab({
   return (
     <>
       <p className="row-meta mb-2">
-        Runs of this workspace's agents are scored with these evaluators. Their
-        API keys go in the driver's{" "}
-        <span className="font-mono">credentials.evaluators</span>.
+        Runs of this workspace's agents are scored with these evaluators.{" "}
+        {ws.type === "shared"
+          ? "Their API keys are stored encrypted on the server and never shown again."
+          : PERSONAL_KEY_NOTE}
       </p>
       {writable && !ws.archived && (
         <form className="toolbar mb-2" onSubmit={create}>
@@ -96,6 +101,17 @@ function EvaluatorsTab({
             onChange={(e) => setEndpoint(e.target.value)}
             required
           />
+          {ws.type === "shared" && (
+            <input
+              className="input"
+              type="password"
+              aria-label="API key"
+              placeholder="API key (optional)"
+              autoComplete="off"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+            />
+          )}
           <Select
             ariaLabel="kind"
             value={kind}
@@ -108,15 +124,25 @@ function EvaluatorsTab({
           <button className="btn btn-primary">Add evaluator</button>
         </form>
       )}
+      {writable && !ws.archived && (
+        <p className="row-meta mb-2">{ENDPOINT_NOTE}</p>
+      )}
       {error && <div className="pane-status error">{error}</div>}
       <div className="card rows">
         {rows?.map((row) => (
           <div
             key={row.ref}
-            className="row grid-cols-[minmax(0,1fr)_auto_minmax(0,2fr)_auto]"
+            className="row grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,2fr)_auto]"
           >
             <span className="row-strong">{row.name}</span>
             <span className="chip muted">{row.kind}</span>
+            <span className="chip muted">
+              {ws.type === "shared"
+                ? row.has_api_key
+                  ? "key set"
+                  : "no key"
+                : ""}
+            </span>
             <span className="row-meta truncate font-mono">
               {row.settings.endpoint}
             </span>
