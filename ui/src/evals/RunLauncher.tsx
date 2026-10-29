@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, apiJson } from "../lib/api";
+import { api, apiJson, NotFoundError } from "../lib/api";
 import { questionText } from "../lib/format";
 import { stateClass, stateLabel } from "../lib/review";
 import {
@@ -81,7 +81,10 @@ export function RunLauncher({
         setJudgeDefault(settings);
         setJudge(judgeChoice(settings));
       })
-      .catch(() => setJudgeDefault(null));
+      .catch((e) => {
+        setJudgeDefault(null);
+        if (!(e instanceof NotFoundError)) setError(String(e));
+      });
     api<CaseView[]>(`/datasets/${encodeURIComponent(dataset)}/cases`)
       .then(setExamples)
       .catch((e) => setError(String(e)));

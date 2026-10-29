@@ -1,8 +1,7 @@
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from evalkit.api.access import ActorDep
-from evalkit.api.agents import sealed, writable, writable_endpoint
+from evalkit.api.access import ActorDep, writable, writable_endpoint
 from evalkit.api.deps import ConfigDep, KeysDep, SessionDep
 from evalkit.contracts.enums import EvaluatorKind
 from evalkit.contracts.settings import RemoteEvaluatorSettings
@@ -60,7 +59,7 @@ async def create_evaluator(
         body.name,
         body.kind,
         body.settings,
-        sealed(keys, body.api_key),
+        keys.seal(body.api_key),
     )
     return _view(created)
 
@@ -93,7 +92,7 @@ async def edit_evaluator(
     edited = await _store(request).edit(
         ref,
         body.settings,
-        api_key_encrypted=sealed(keys, body.api_key),
+        api_key_encrypted=keys.seal(body.api_key),
         clear_api_key="api_key" in body.model_fields_set and not body.api_key,
     )
     return _view(edited)

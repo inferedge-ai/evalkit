@@ -6,8 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from evalkit.api.auth import CurrentUser
 from evalkit.api.deps import SessionDep
+from evalkit.config import Config
 from evalkit.contracts.enums import WorkspaceRole
-from evalkit.core.access import Actor, WorkspaceRef
+from evalkit.core.access import Actor, WorkspaceRef, can_write
+from evalkit.core.endpoints import check_endpoint
 from evalkit.db.models import User, WorkspaceMember
 from evalkit.db.workspaces import load_ref, workspace_row
 
@@ -45,3 +47,30 @@ def require(allowed: bool, detail: str) -> None:
 def ensure_active(ws: WorkspaceRef) -> None:
     if ws.archived:
         raise HTTPException(status_code=409, detail=f"workspace {ws.name} is archived")
+
+
+PERSONAL_KEY = "personal agents and evaluators read their key from evalkit.yaml"
+
+
+async def writable_endpoint(
+    session: SessionDep,
+    actor: ActorDep,
+    cfg: Config,
+    workspace: str,
+    *,
+    api_key: bool = False,
+    url: str | None = None,
+) -> None:
+    ws = await workspace_ref(session, workspace)
+    require(can_write(actor, ws), f"you cannot write to @{workspace}")
+    ensure_active(ws)
+    if api_key and not ws.is_shared:
+        raise HTTPException(status_code=400, detail=PERSONAL_KEY)
+    if url is not None and ws.is_shared:
+        await check_endpoint(url, allow_private=cfg.allow_private_endpoints)
+
+
+async def writable(session: SessionDep, actor: ActorDep, workspace: str) -> None:
+    ws = await workspace_ref(session, workspace)
+    require(can_write(actor, ws), f"you cannot write to @{workspace}")
+    ensure_active(ws)

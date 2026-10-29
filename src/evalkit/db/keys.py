@@ -44,7 +44,9 @@ class KeyLoader:
             raise EncryptionKeyMissing()
         return self._box.open(sealed)
 
-    def seal(self, plain: str) -> bytes:
+    def seal(self, plain: str | None) -> bytes | None:
+        if not plain:
+            return None
         if self._box is None:
             raise EncryptionKeyMissing()
         return self._box.seal(plain)

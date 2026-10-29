@@ -1,18 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import AfterValidator, BaseModel
 
-from evalkit.api.access import ActorDep, ensure_active, require, workspace_ref
+from evalkit.api.access import ActorDep, writable, writable_endpoint
 from evalkit.api.deps import AgentStoreDep, ConfigDep, KeysDep, SessionDep
-from evalkit.config import Config
 from evalkit.contracts.enums import TrajectorySource
 from evalkit.contracts.settings import AgentSettings
-from evalkit.core.access import can_write
 from evalkit.core.agents import AgentDefinition, driver
-from evalkit.core.endpoints import check_endpoint
 from evalkit.core.workspace import Reference, slug
-from evalkit.db.keys import KeyLoader
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -70,37 +66,6 @@ class CreateAgent(BaseModel):
     api_key: str | None = None
 
 
-PERSONAL_KEY = "personal agents and evaluators read their key from evalkit.yaml"
-
-
-async def writable_endpoint(
-    session: SessionDep,
-    actor: ActorDep,
-    cfg: Config,
-    workspace: str,
-    *,
-    api_key: bool = False,
-    url: str | None = None,
-) -> None:
-    ws = await workspace_ref(session, workspace)
-    require(can_write(actor, ws), f"you cannot write to @{workspace}")
-    ensure_active(ws)
-    if api_key and not ws.is_shared:
-        raise HTTPException(status_code=400, detail=PERSONAL_KEY)
-    if url is not None and ws.is_shared:
-        await check_endpoint(url, allow_private=cfg.allow_private_endpoints)
-
-
-async def writable(session: SessionDep, actor: ActorDep, workspace: str) -> None:
-    ws = await workspace_ref(session, workspace)
-    require(can_write(actor, ws), f"you cannot write to @{workspace}")
-    ensure_active(ws)
-
-
-def sealed(keys: KeyLoader, api_key: str | None) -> bytes | None:
-    return keys.seal(api_key) if api_key else None
-
-
 @router.post("")
 async def create_agent(
     body: CreateAgent,
@@ -127,7 +92,7 @@ async def create_agent(
         settings=body.settings,
         created_by=actor.id,
         mapping=body.mapping,
-        api_key_encrypted=sealed(keys, body.api_key),
+        api_key_encrypted=keys.seal(body.api_key),
     )
     return agent_view(created)
 
@@ -171,7 +136,7 @@ async def edit_agent(
         trajectory_source=body.trajectory_source,
         mapping=body.mapping,
         edited_by=actor.id,
-        api_key_encrypted=sealed(keys, body.api_key),
+        api_key_encrypted=keys.seal(body.api_key),
     )
     return agent_view(edited)
 
