@@ -113,8 +113,10 @@ export function RunLauncher({
 
   const inScope = casesInScope(examples ?? [], choice);
   const selection = selectionFor(examples ?? [], choice);
+  const judgeReady =
+    judgeDefault !== null || judgeOverride(null, judge) !== null;
   const request: LaunchRequest | null =
-    selection && agent
+    selection && agent && judgeReady
       ? {
           dataset,
           agent,

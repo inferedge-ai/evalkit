@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { api, apiJson } from "../lib/api";
-import { ENDPOINT_NOTE } from "../lib/endpoint";
+import { api, apiJson, NotFoundError } from "../lib/api";
+import { useMe } from "../shell/capabilities";
+import { LlmProviderForm } from "./LlmProviderForm";
 import { Select } from "../lib/Select";
 import type { JudgeSettings, LlmProviderInfo } from "../lib/types";
 
-function DefaultJudge({ providers }: { providers: LlmProviderInfo[] }) {
-  const [judge, setJudge] = useState<JudgeSettings | null>(null);
+function DefaultJudge({
+  providers,
+  editable,
+}: {
+  providers: LlmProviderInfo[];
+  editable: boolean;
+}) {
   const [baseUrl, setBaseUrl] = useState("");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("high");
@@ -15,31 +21,43 @@ function DefaultJudge({ providers }: { providers: LlmProviderInfo[] }) {
   useEffect(() => {
     api<JudgeSettings>("/judge-default")
       .then((current) => {
-        setJudge(current);
         setBaseUrl(current.base_url);
         setModel(current.model);
         setEffort(current.reasoning_effort);
       })
-      .catch(() => setStatus("No default judge yet."));
+      .catch((e) =>
+        setStatus(
+          e instanceof NotFoundError ? "No default judge yet." : String(e),
+        ),
+      );
   }, []);
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
     setStatus(null);
     try {
-      const saved = await apiJson<JudgeSettings>("/judge-default", "PUT", {
-        ...(judge ?? { max_tokens: 32768, concurrency: 16 }),
+      const saved = await apiJson<JudgeSettings>("/judge-default", "PATCH", {
         base_url: baseUrl,
         model: model.trim(),
         reasoning_effort: effort.trim(),
       });
-      setJudge(saved);
+      setModel(saved.model);
       setStatus("Saved.");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
     }
   };
 
+  if (!editable) {
+    const provider = providers.find((p) => p.base_url === baseUrl);
+    return (
+      <p className="row-meta mb-3 whitespace-normal">
+        Default judge:{" "}
+        {status ??
+          `${model} on ${provider?.name ?? baseUrl} (effort ${effort})`}
+      </p>
+    );
+  }
   return (
     <form className="toolbar mb-3" onSubmit={save}>
       <span className="form-label">Default judge</span>
@@ -72,13 +90,10 @@ function DefaultJudge({ providers }: { providers: LlmProviderInfo[] }) {
 }
 
 export function LlmProvidersPage() {
+  const me = useMe();
   const [rows, setRows] = useState<LlmProviderInfo[] | null>(null);
-  const [name, setName] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [keyFor, setKeyFor] = useState<string | null>(null);
-  const [newKey, setNewKey] = useState("");
+  const [editing, setEditing] = useState<LlmProviderInfo | "new" | null>(null);
 
   const load = () => {
     api<LlmProviderInfo[]>("/llm-providers?include_archived=true")
@@ -87,138 +102,75 @@ export function LlmProvidersPage() {
   };
   useEffect(load, []);
 
-  const run = async (call: () => Promise<unknown>) => {
+  const toggleArchive = async (row: LlmProviderInfo) => {
     setError(null);
     try {
-      await call();
+      await apiJson(
+        `/llm-providers/${encodeURIComponent(row.name)}/${row.archived ? "restore" : "archive"}`,
+        "POST",
+      );
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
 
-  const create = (e: FormEvent) => {
-    e.preventDefault();
-    void run(async () => {
-      await apiJson("/llm-providers", "POST", {
-        name: name.trim(),
-        base_url: baseUrl.trim(),
-        ...(apiKey ? { api_key: apiKey } : {}),
-      });
-      setName("");
-      setBaseUrl("");
-      setApiKey("");
-    });
-  };
-  const path = (provider: string, action = "") =>
-    `/llm-providers/${encodeURIComponent(provider)}${action}`;
-  const openKey = (provider: string) => {
-    setKeyFor(provider);
-    setNewKey("");
-  };
-  const saveKey = (e: FormEvent) => {
-    e.preventDefault();
-    if (!keyFor) return;
-    const provider = keyFor;
-    void run(async () => {
-      await apiJson(path(provider), "PATCH", { api_key: newKey || null });
-      setKeyFor(null);
-      setNewKey("");
-    });
-  };
-
   const active = rows?.filter((r) => !r.archived) ?? [];
   return (
     <div className="page">
-      <h1 className="page-title">LLM providers</h1>
-      <p className="row-meta mt-1">
+      <div className="toolbar mb-1">
+        <h1 className="page-title">LLM providers</h1>
+        {me.is_admin && (
+          <button
+            className="btn btn-sm ml-auto"
+            onClick={() => setEditing("new")}
+          >
+            New provider
+          </button>
+        )}
+      </div>
+      <p className="row-meta mb-3 whitespace-normal">
         OpenAI-compatible endpoints the server judges with. Server runs only use
         a judge from this list. Keys are stored encrypted and never shown again.
       </p>
-      <form className="toolbar mt-3 mb-1" onSubmit={create}>
-        <input
-          className="input"
-          placeholder="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <input
-          className="input min-w-0 flex-1"
-          placeholder="base URL, e.g. https://api.openai.com/v1"
-          value={baseUrl}
-          onChange={(e) => setBaseUrl(e.target.value)}
-          required
-        />
-        <input
-          className="input"
-          type="password"
-          aria-label="API key"
-          placeholder="API key"
-          autoComplete="off"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-        />
-        <button className="btn btn-primary">Add provider</button>
-      </form>
-      <p className="row-meta mb-3 whitespace-normal">{ENDPOINT_NOTE}</p>
-      {rows && <DefaultJudge providers={active} />}
+      {rows && <DefaultJudge providers={active} editable={me.is_admin} />}
       {error && <div className="pane-status error">{error}</div>}
       <div className="card rows">
         {rows?.map((row) => (
-          <div key={row.name}>
-            <div className="row grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto_auto]">
-              <span className="row-strong">{row.name}</span>
-              <span className="row-meta truncate font-mono">
-                {row.base_url}
-              </span>
-              <span className="chip muted">
-                {row.has_api_key ? "key set" : "no key"}
-              </span>
-              <button
-                className="btn btn-sm"
-                disabled={row.archived}
-                onClick={() => openKey(row.name)}
-              >
-                replace key
-              </button>
-              <button
-                className="btn btn-sm"
-                onClick={() =>
-                  void run(() =>
-                    apiJson(
-                      path(row.name, row.archived ? "/restore" : "/archive"),
-                      "POST",
-                    ),
-                  )
-                }
-              >
-                {row.archived ? "restore" : "archive"}
-              </button>
-            </div>
-            {keyFor === row.name && (
-              <form className="toolbar px-3 pb-2" onSubmit={saveKey}>
-                <input
-                  className="input min-w-0 flex-1"
-                  type="password"
-                  aria-label={`new API key for ${row.name}`}
-                  placeholder="new API key, or leave empty to remove the stored key"
-                  autoComplete="off"
-                  autoFocus
-                  value={newKey}
-                  onChange={(e) => setNewKey(e.target.value)}
-                />
-                <button className="btn btn-primary btn-sm">
-                  {newKey ? "Save key" : "Remove key"}
+          <div
+            key={row.name}
+            className="row grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto_auto]"
+          >
+            <span className="row-strong">{row.name}</span>
+            <span className="row-meta truncate font-mono">{row.base_url}</span>
+            <span className="chip muted">
+              {row.archived
+                ? "archived"
+                : row.has_api_key
+                  ? "key set"
+                  : "no key"}
+            </span>
+            {me.is_admin ? (
+              <>
+                <button
+                  className="btn btn-sm"
+                  disabled={row.archived}
+                  onClick={() => setEditing(row)}
+                >
+                  edit
                 </button>
                 <button
-                  type="button"
                   className="btn btn-sm"
-                  onClick={() => setKeyFor(null)}
+                  onClick={() => toggleArchive(row)}
                 >
-                  Cancel
+                  {row.archived ? "restore" : "archive"}
                 </button>
-              </form>
+              </>
+            ) : (
+              <>
+                <span />
+                <span />
+              </>
             )}
           </div>
         ))}
@@ -226,6 +178,16 @@ export function LlmProvidersPage() {
           <div className="pane-status">No LLM providers.</div>
         )}
       </div>
+      {editing && (
+        <LlmProviderForm
+          provider={editing === "new" ? undefined : editing}
+          onSaved={() => {
+            setEditing(null);
+            load();
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }
