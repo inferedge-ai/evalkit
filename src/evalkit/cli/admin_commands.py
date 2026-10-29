@@ -20,6 +20,25 @@ trace_sources_app = typer.Typer(
 evaluators_app = typer.Typer(
     no_args_is_help=True, help="Remote evaluators (Custom Evaluator API endpoints) per workspace."
 )
+llm_providers_app = typer.Typer(
+    no_args_is_help=True,
+    help="LLM providers: OpenAI-compatible endpoints the server's judge calls (admin only).",
+)
+judge_default_app = typer.Typer(
+    no_args_is_help=True, help="The judge experiments use unless they pick their own."
+)
+
+ENDPOINT_NOTE = (
+    "Check this URL before saving. The server at this address receives the API key you "
+    "enter here and the data evalkit sends it: cases, answers and trajectories."
+)
+API_KEY_ENV = typer.Option(
+    None,
+    "--api-key-env",
+    help="Env var on this machine that holds the API key; the key is sent once and "
+    "stored encrypted.",
+)
+CLEAR_API_KEY = typer.Option(False, "--clear-api-key", help="Remove the stored API key.")
 
 ROLE = typer.Option(..., "--role", help="writer or reviewer.")
 
@@ -51,6 +70,8 @@ def _print_agent(agent: dict) -> None:
     typer.echo(f"  repo_url           {agent['repo_url'] or '-'}")
     for key, value in agent["settings"].items():
         typer.echo(f"  {key:<18} {'-' if value is None else value}")
+    if agent["workspace_type"] == "shared":
+        typer.echo(f"  api key            {'set' if agent['has_api_key'] else 'not set'}")
     if agent["archived"]:
         typer.echo("  archived")
 
@@ -62,6 +83,8 @@ def register(
     app.add_typer(agents_app, name="agents")
     app.add_typer(evaluators_app, name="evaluators")
     app.add_typer(trace_sources_app, name="trace-sources")
+    app.add_typer(llm_providers_app, name="llm-providers")
+    app.add_typer(judge_default_app, name="judge-default")
 
     def env_value(name: str | None) -> str | None:
         if name is None:
@@ -70,10 +93,19 @@ def register(
             raise ApiError(f"--api-key-env names {name}, which is not set")
         return os.environ[name]
 
+    def key_change(api_key_env: str | None, clear: bool) -> dict:
+        if api_key_env is not None and clear:
+            raise ApiError("pass --api-key-env or --clear-api-key, not both")
+        if clear:
+            return {"api_key": None}
+        if api_key_env is not None:
+            return {"api_key": env_value(api_key_env)}
+        return {}
+
     @trace_sources_app.command("create")
     def trace_sources_create(
         name: str,
-        url: str = typer.Option(..., "--url"),
+        url: str = typer.Option(..., "--url", help=ENDPOINT_NOTE),
         provider: str = typer.Option("phoenix", "--provider"),
         api_key_env: str | None = typer.Option(
             None, "--api-key-env", help="Env var on this machine that holds the API key."
@@ -90,7 +122,7 @@ def register(
     @trace_sources_app.command("edit")
     def trace_sources_edit(
         name: str,
-        url: str | None = typer.Option(None, "--url"),
+        url: str | None = typer.Option(None, "--url", help=ENDPOINT_NOTE),
         api_key_env: str | None = typer.Option(None, "--api-key-env"),
     ):
         """Change a trace source's URL or key.
@@ -116,14 +148,17 @@ def register(
     @evaluators_app.command("create")
     def evaluators_create(
         name: str,
-        endpoint: str = typer.Option(..., "--endpoint"),
+        endpoint: str = typer.Option(..., "--endpoint", help=ENDPOINT_NOTE),
         kind: str = typer.Option("score", "--kind", help="score or gauge."),
         timeout: int = typer.Option(120, "--timeout", help="Seconds."),
         workspace: str | None = typer.Option(
             None, "--workspace", help="Default: your personal workspace."
         ),
+        api_key_env: str | None = API_KEY_ENV,
     ):
-        """Register a remote evaluator. Its API key goes in credentials.evaluators.
+        """Register a remote evaluator. In a shared workspace its key is stored on the
+        server (--api-key-env); in your personal workspace it goes in evalkit.yaml
+        credentials.evaluators.
 
         Runs score with the evaluators in the agent's workspace.
         Example: evalkit evaluators create compliance --workspace dev --endpoint https://x/eval
@@ -133,6 +168,7 @@ def register(
             "name": name,
             "kind": kind,
             "settings": {"endpoint": endpoint, "timeout_seconds": timeout},
+            **key_change(api_key_env, False),
         }
         created = client_factory().post("/api/evaluators", json=body).json()
         typer.echo(f"created {created['ref']} ({created['kind']})")
@@ -140,19 +176,19 @@ def register(
     @evaluators_app.command("edit")
     def evaluators_edit(
         ref: str,
-        endpoint: str | None = typer.Option(None, "--endpoint"),
+        endpoint: str | None = typer.Option(None, "--endpoint", help=ENDPOINT_NOTE),
         timeout: int | None = typer.Option(None, "--timeout"),
+        api_key_env: str | None = API_KEY_ENV,
+        clear_api_key: bool = CLEAR_API_KEY,
     ):
-        """Change a remote evaluator's endpoint or timeout.
+        """Change a remote evaluator's endpoint, timeout or API key. A new endpoint clears
+        the stored key unless --api-key-env sets one in the same call.
 
-        Example: evalkit evaluators edit compliance@dev --timeout 300
+        Example: evalkit evaluators edit compliance@dev --api-key-env COMPLIANCE_KEY
         """
         resolved = ref_of(ref)
         client = client_factory()
-        rows = client.get("/api/evaluators", params={"workspace": resolved.partition("@")[2]})
-        current = next((r for r in rows.json() if r["ref"] == resolved), None)
-        if current is None:
-            raise ApiError(f"unknown evaluator: {resolved}")
+        current = client.get(f"/api/evaluators/{encode(resolved)}").json()
         settings = {
             **current["settings"],
             **{
@@ -161,8 +197,22 @@ def register(
                 if v is not None
             },
         }
-        edited = client.patch(f"/api/evaluators/{encode(resolved)}", json={"settings": settings})
+        edited = client.patch(
+            f"/api/evaluators/{encode(resolved)}",
+            json={"settings": settings, **key_change(api_key_env, clear_api_key)},
+        )
         typer.echo(f"edited {edited.json()['ref']}")
+
+    @evaluators_app.command("show")
+    def evaluators_show(ref: str):
+        """Show a remote evaluator. Example: evalkit evaluators show compliance@dev"""
+        row = client_factory().get(f"/api/evaluators/{encode(ref_of(ref))}").json()
+        typer.echo(f"{row['ref']}  ({row['kind']})")
+        typer.echo(f"  endpoint  {row['settings']['endpoint']}")
+        typer.echo(f"  timeout   {row['settings']['timeout_seconds']}s")
+        typer.echo(f"  api key   {'set' if row['has_api_key'] else 'not set'}")
+        if row["archived"]:
+            typer.echo("  archived")
 
     @evaluators_app.command("list")
     def evaluators_list(workspace: str | None = typer.Option(None, "--workspace")):
@@ -178,6 +228,112 @@ def register(
         client_factory().post(f"/api/evaluators/{encode(resolved)}/archive")
         typer.echo(f"archived {resolved}")
 
+    @evaluators_app.command("restore")
+    def evaluators_restore(ref: str):
+        """Restore an archived remote evaluator.
+
+        Example: evalkit evaluators restore compliance@dev
+        """
+        resolved = ref_of(ref)
+        client_factory().post(f"/api/evaluators/{encode(resolved)}/restore")
+        typer.echo(f"restored {resolved}")
+
+    @llm_providers_app.command("create")
+    def llm_providers_create(
+        name: str,
+        base_url: str = typer.Option(..., "--base-url", help=ENDPOINT_NOTE),
+        api_key_env: str | None = API_KEY_ENV,
+    ):
+        """Register an OpenAI-compatible LLM provider (admin).
+
+        Example: evalkit llm-providers create openai --base-url https://api.openai.com/v1
+        """
+        body = {"name": name, "base_url": base_url, **key_change(api_key_env, False)}
+        created = client_factory().post("/api/llm-providers", json=body).json()
+        typer.echo(f"created LLM provider {created['name']} ({created['base_url']})")
+
+    @llm_providers_app.command("edit")
+    def llm_providers_edit(
+        name: str,
+        base_url: str | None = typer.Option(None, "--base-url", help=ENDPOINT_NOTE),
+        api_key_env: str | None = API_KEY_ENV,
+        clear_api_key: bool = CLEAR_API_KEY,
+    ):
+        """Change a provider's base URL or API key (admin). A new base URL clears the
+        stored key unless --api-key-env sets one in the same call.
+
+        Example: evalkit llm-providers edit openai --api-key-env OPENAI_API_KEY
+        """
+        body = {"base_url": base_url, **key_change(api_key_env, clear_api_key)}
+        client_factory().patch(f"/api/llm-providers/{encode(name)}", json=body)
+        typer.echo(f"edited LLM provider {name}")
+
+    @llm_providers_app.command("list")
+    def llm_providers_list(
+        archived: bool = typer.Option(False, "--archived", help="Include archived providers."),
+    ):
+        """List LLM providers; keys are never shown. Example: evalkit llm-providers list"""
+        rows = client_factory().get("/api/llm-providers", params={"include_archived": archived})
+        for row in rows.json():
+            key = "key set" if row["has_api_key"] else "no key"
+            state = "archived" if row["archived"] else ""
+            typer.echo(f"{row['name']:<24} {row['base_url']:<40} {key:<8} {state}")
+
+    @llm_providers_app.command("show")
+    def llm_providers_show(name: str):
+        """Show an LLM provider. Example: evalkit llm-providers show openai"""
+        row = client_factory().get(f"/api/llm-providers/{encode(name)}").json()
+        typer.echo(row["name"])
+        typer.echo(f"  base_url  {row['base_url']}")
+        typer.echo(f"  api key   {'set' if row['has_api_key'] else 'not set'}")
+        if row["archived"]:
+            typer.echo("  archived")
+
+    @llm_providers_app.command("archive")
+    def llm_providers_archive(name: str):
+        """Archive an LLM provider (admin). Example: evalkit llm-providers archive openai"""
+        client_factory().post(f"/api/llm-providers/{encode(name)}/archive")
+        typer.echo(f"archived LLM provider {name}")
+
+    @llm_providers_app.command("restore")
+    def llm_providers_restore(name: str):
+        """Restore an archived LLM provider (admin).
+
+        Example: evalkit llm-providers restore openai
+        """
+        client_factory().post(f"/api/llm-providers/{encode(name)}/restore")
+        typer.echo(f"restored LLM provider {name}")
+
+    @judge_default_app.command("show")
+    def judge_default_show():
+        """Show the default judge. Example: evalkit judge-default show"""
+        for key, value in client_factory().get("/api/judge-default").json().items():
+            typer.echo(f"{key:<18} {value}")
+
+    @judge_default_app.command("set")
+    def judge_default_set(
+        provider: str = typer.Option(..., "--provider", help="An LLM provider name."),
+        model: str = typer.Option(..., "--model"),
+        effort: str = typer.Option("high", "--effort", help="Reasoning effort."),
+        max_tokens: int = typer.Option(32768, "--max-tokens"),
+        concurrency: int = typer.Option(16, "--concurrency"),
+    ):
+        """Set the judge experiments use unless they pick their own (admin).
+
+        Example: evalkit judge-default set --provider openai --model gpt-5
+        """
+        client = client_factory()
+        base_url = client.get(f"/api/llm-providers/{encode(provider)}").json()["base_url"]
+        judge = {
+            "base_url": base_url,
+            "model": model,
+            "reasoning_effort": effort,
+            "max_tokens": max_tokens,
+            "concurrency": concurrency,
+        }
+        client.put("/api/judge-default", json=judge)
+        typer.echo(f"default judge: {model} on {provider} ({base_url})")
+
     def ref_of(text: str) -> str:
         try:
             return explicit(parse_reference(text, whoami()))
@@ -191,7 +347,9 @@ def register(
             None, "--workspace", help="Default: your personal workspace."
         ),
         harness_url: str | None = typer.Option(
-            None, "--harness-url", help="Omit for a code-driven agent (SDK runs only)."
+            None,
+            "--harness-url",
+            help=f"Omit for a code-driven agent (SDK runs only). {ENDPOINT_NOTE}",
         ),
         trajectory_source: str = typer.Option("atif", "--trajectory-source", help="atif or otel."),
         mapping: Path | None = typer.Option(
@@ -208,8 +366,11 @@ def register(
         stop_grace: int | None = typer.Option(None, "--stop-grace"),
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
+        api_key_env: str | None = API_KEY_ENV,
     ):
-        """Create an agent. Its API key goes in credentials.agents, never here.
+        """Create an agent. In a shared workspace its key is stored on the server
+        (--api-key-env); in your personal workspace it goes in evalkit.yaml
+        credentials.agents.
 
         Example: evalkit agents create ouragent --workspace dev --harness-url https://agent/evalkit/v1
         """
@@ -231,6 +392,7 @@ def register(
             "repo_url": repo_url,
             "settings": settings,
             "mapping": json.loads(mapping.read_text()) if mapping else None,
+            **key_change(api_key_env, False),
         }
         _print_agent(client_factory().post("/api/agents", json=body).json())
         if mapping:
@@ -239,7 +401,7 @@ def register(
     @agents_app.command("edit")
     def agents_edit(
         ref: str,
-        harness_url: str | None = typer.Option(None, "--harness-url"),
+        harness_url: str | None = typer.Option(None, "--harness-url", help=ENDPOINT_NOTE),
         repo_url: str | None = typer.Option(None, "--repo-url"),
         trajectory_source: str | None = typer.Option(
             None, "--trajectory-source", help="atif or otel."
@@ -258,10 +420,14 @@ def register(
         stop_grace: int | None = typer.Option(None, "--stop-grace"),
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
+        api_key_env: str | None = API_KEY_ENV,
+        clear_api_key: bool = CLEAR_API_KEY,
     ):
-        """Change an agent's harness URL, repo URL, trajectory source or settings; other
-        values stay. Switching the trajectory source is refused while one of the agent's
-        experiments is running; experiments that already ran keep the source they ran with.
+        """Change an agent's harness URL, API key, repo URL, trajectory source or settings;
+        other values stay. A new harness URL clears the stored key unless --api-key-env
+        sets one in the same call. Switching the trajectory source is refused while one of
+        the agent's experiments is running; experiments that already ran keep the source
+        they ran with.
 
         Example: evalkit agents edit mybot --trajectory-source otel --mapping gen_ai.json
         """
@@ -287,6 +453,7 @@ def register(
             body["trajectory_source"] = trajectory_source
         if mapping is not None:
             body["mapping"] = json.loads(mapping.read_text())
+        body.update(key_change(api_key_env, clear_api_key))
         _print_agent(client.patch(path, json=body).json())
 
     @agents_app.command("show")

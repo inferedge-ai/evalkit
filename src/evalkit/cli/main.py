@@ -13,7 +13,6 @@ import typer
 
 from evalkit import version
 from evalkit.cli.admin_commands import register as register_admin
-from evalkit.cli.admin_commands import trace_sources_app
 from evalkit.cli.client import ApiClient, ApiError
 from evalkit.cli.local_run import (
     check_local,
@@ -1047,29 +1046,28 @@ def db_upgrade(
     typer.echo(f"migrations applied up to {revision}")
 
 
-@trace_sources_app.command("rekey")
-def trace_sources_rekey(
+@db_app.command("rekey")
+def db_rekey(
     config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),
     old_key_env: str = typer.Option(..., "--old-key-env", help="Env var with the old key."),
     new_key_env: str = typer.Option(..., "--new-key-env", help="Env var with the new key."),
 ):
-    """Re-encrypt every trace source key after an encryption_key change (server-side).
+    """Re-encrypt every stored API key (agents, remote evaluators, LLM providers, trace
+    sources) after an encryption_key change (server-side).
 
-    Example: evalkit trace-sources rekey --config config.yaml --old-key-env OLD --new-key-env NEW
+    Example: evalkit db rekey --config config.yaml --old-key-env OLD --new-key-env NEW
     """
     if server_commands is None:
-        raise ApiError(
-            "`trace-sources rekey` needs the server extra — pip install 'evalkit[server]'"
-        )
+        raise ApiError("`db rekey` needs the server extra — pip install 'evalkit[server]'")
     missing = [name for name in (old_key_env, new_key_env) if name not in os.environ]
     if missing:
         raise ApiError(f"set {', '.join(missing)} first")
     count = asyncio.run(
-        server_commands.rekey_trace_sources(
+        server_commands.rekey(
             _server_config(config), os.environ[old_key_env], os.environ[new_key_env]
         )
     )
-    typer.echo(f"re-encrypted {count} trace source key(s)")
+    typer.echo(f"re-encrypted {count} stored API key(s)")
 
 
 if __name__ == "__main__":

@@ -352,7 +352,7 @@ before the first case, since hosted LLM APIs always need a key.
   is now credentials.llm_providers`.
 - Startup refuses to run when any row has a stored key and `encryption_key` is
   not set (as it does today for trace sources).
-- `evalkit trace-sources rekey` is replaced by `evalkit server rekey`, which
+- `evalkit trace-sources rekey` is replaced by `evalkit db rekey`, which
   re-encrypts trace sources, agents, remote evaluators and LLM providers in one
   transaction.
 
@@ -393,7 +393,7 @@ true` so a local LLM works. `try/evalkit.yaml` renames its map per K12.
   "LLM provider", "Default judge", "Stored key".
 - `CHANGELOG.md` `## Unreleased`: the new commands, flags, fields and pages;
   the removed server config keys and the startup error; the `evalkit.yaml`
-  rename; `server rekey`; writers can now set URLs; K11.
+  rename; `db rekey`; writers can now set URLs; K11.
 
 ## Testing
 
@@ -412,7 +412,7 @@ true` so a local LLM works. `try/evalkit.yaml` renames its map per K12.
 - Config with `credentials` or `judge_default` fails to load and lists the
   commands. `evalkit.yaml` with `credentials.judges` fails with the rename
   message.
-- `server rekey` re-encrypts all four tables.
+- `db rekey` re-encrypts all four tables.
 - Local run without an agent entry prints the warning and sends no header.
 - UI: Evaluators page hides create and edit for non-writers; LLM providers page
   is admin-only; the endpoint note renders on every endpoint field.

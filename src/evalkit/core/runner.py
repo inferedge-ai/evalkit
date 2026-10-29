@@ -559,6 +559,22 @@ async def _agent_for(deps: RunnerDeps, exp: Experiment) -> AgentDefinition:
     return agent
 
 
+async def missing_local_keys(deps: RunnerDeps, agent: AgentDefinition) -> list[str]:
+    lines = []
+    if agent.harness_url is not None and deps.credentials.key_for("agent", agent.ref) is None:
+        lines.append(
+            f"no credentials.agents entry for {agent.ref} in evalkit.yaml; "
+            "calling the harness without x-api-key"
+        )
+    for evaluator in (await deps.evaluators.in_workspace(agent.workspace)).values():
+        if deps.credentials.key_for("evaluator", evaluator.ref) is None:
+            lines.append(
+                f"no credentials.evaluators entry for {evaluator.ref} in evalkit.yaml; "
+                "calling it without x-api-key"
+            )
+    return lines
+
+
 async def drive_experiment(deps: RunnerDeps, exp_id: int, holder: str | None = None) -> None:
     exp = await deps.store.get_experiment(exp_id)
     agent = await _agent_for(deps, exp)

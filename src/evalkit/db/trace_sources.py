@@ -134,18 +134,3 @@ class TraceSourceStore:
             url=row.config["url"],
             api_key=SecretStr(api_key) if api_key is not None else None,
         )
-
-    async def rekey(self, old: SecretBox, new: SecretBox) -> int:
-        async with self._sessions() as session:
-            rows = (
-                await session.scalars(
-                    select(models.TraceSource).where(
-                        models.TraceSource.api_key_encrypted.is_not(None)
-                    )
-                )
-            ).all()
-            for row in rows:
-                assert row.api_key_encrypted is not None
-                row.api_key_encrypted = new.seal(old.open(row.api_key_encrypted))
-            await session.commit()
-            return len(rows)

@@ -243,3 +243,64 @@ def test_flow_17_server_keys_come_from_the_database(live):
     assert judged.json()["detail"].startswith(
         "http://nokey-judge.test is not a registered LLM provider"
     )
+
+
+def test_flow_17_key_commands_store_keys_and_providers(live):
+    live.monkeypatch.setenv("NEW_AGENT_KEY", "client-key")
+    live.monkeypatch.setenv("OPENAI_KEY", "sk")
+    live.http().post(f"/api/workspaces/{DEV}/members", json={"username": "alice", "role": "writer"})
+    live.as_user("alice")
+    assert "Check this URL before saving" in live.run("agents", "create", "--help").output
+    created = live.run(
+        "agents",
+        "create",
+        "keyed",
+        "--workspace",
+        DEV,
+        "--harness-url",
+        live.harness_url,
+        "--api-key-env",
+        "NEW_AGENT_KEY",
+    )
+    assert created.exit_code == 0, created.output
+    assert "api key            set" in created.output
+    cleared = live.run("agents", "edit", f"keyed@{DEV}", "--clear-api-key")
+    assert "api key            not set" in cleared.output
+    missing = live.run("agents", "edit", f"keyed@{DEV}", "--api-key-env", "NOT_SET_ANYWHERE")
+    assert missing.exit_code == 1 and "NOT_SET_ANYWHERE" in missing.output
+    evaluator = live.run(
+        "evaluators",
+        "create",
+        "keyed_eval",
+        "--workspace",
+        DEV,
+        "--endpoint",
+        "http://e",
+        "--api-key-env",
+        "NEW_AGENT_KEY",
+    )
+    assert evaluator.exit_code == 0, evaluator.output
+    assert "api key   set" in live.run("evaluators", "show", f"keyed_eval@{DEV}").output
+    assert live.run("evaluators", "archive", f"keyed_eval@{DEV}").exit_code == 0
+    assert live.run("evaluators", "restore", f"keyed_eval@{DEV}").exit_code == 0
+    refused = live.run("llm-providers", "create", "openai", "--base-url", "http://o/v1")
+    assert refused.exit_code == 1
+
+    live.as_user("admin")
+    provider = live.run(
+        "llm-providers",
+        "create",
+        "openai",
+        "--base-url",
+        "http://o/v1",
+        "--api-key-env",
+        "OPENAI_KEY",
+    )
+    assert provider.exit_code == 0, provider.output
+    listed = live.run("llm-providers", "list").output
+    assert "openai" in listed and "key set" in listed and "sk" not in listed.split()
+    judge = live.run("judge-default", "set", "--provider", "openai", "--model", "gpt-5")
+    assert judge.exit_code == 0, judge.output
+    shown = live.run("judge-default", "show").output
+    assert "http://o/v1" in shown and "gpt-5" in shown
+    assert live.run("llm-providers", "archive", "openai").exit_code == 1
