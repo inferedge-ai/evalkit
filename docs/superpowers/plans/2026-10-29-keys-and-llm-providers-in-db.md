@@ -19,8 +19,7 @@ SDK keep `CredentialRegistry` over `evalkit.yaml`.
 ## Global constraints
 
 - Column name for sealed keys: `api_key_encrypted`, to match
-  `trace_sources.api_key_encrypted` (the spec says `api_key_sealed`; the
-  existing name wins).
+  `trace_sources.api_key_encrypted`.
 - No try/except unless the spec calls for it. No local imports. `X | None`.
   f-strings except stdlib logging. No new docstrings or comments.
 - Layering: `core` never imports `db`, `api`, `client`, `sdk`. The endpoint
@@ -130,8 +129,8 @@ class KeyLoader:
 - `create_experiment` / `resume` / `evaluate`: judge = body.judge or
   `default_judge()` (400 when neither); server-driven → K11 check, endpoint
   checks for harness, evaluators and provider, load keys, K9 warnings returned
-  in the response as `warnings: list[str]` and stored on the experiment config
-  snapshot (`snapshot.warnings`); run with `replace(deps, credentials=keys)`.
+  in the response as `warnings: list[str]` and logged; run with
+  `replace(deps, credentials=keys)`.
 - `harness_check`, `imports`, `runs`: load keys for the agent.
 - `GET /api/judge-default` → DB (404 when unset); `PUT` (admin).
 
@@ -156,7 +155,7 @@ Test: `tests/api/test_api_keys.py`.
 `src/evalkit/sdk/runner.py`
 - `--api-key-env NAME` / `--clear-api-key` on agents and evaluators create/edit;
   `evaluators show|restore`; `llm-providers create|edit|list|show|archive|restore`;
-  `judge-default show|set`; `server rekey` replaces `trace-sources rekey`.
+  `judge-default show|set`; `db rekey` replaces `trace-sources rekey`.
 - K13 note in the help of every URL option.
 - K10 warning line for local runs.
 
@@ -164,8 +163,8 @@ Test: `tests/cli/test_key_commands.py`.
 
 ### Task 7: UI
 
-**Files:** `ui/src/agents/AgentForm.tsx`, `ui/src/lib/agentForm.ts`, new
-`ui/src/evaluators/EvaluatorsPage.tsx`, new `ui/src/pages/LlmProvidersPage.tsx`,
+**Files:** `ui/src/agents/AgentForm.tsx`, `ui/src/lib/agentForm.ts`, the Settings → Evaluators tab
+(`ui/src/pages/WorkspacePage.tsx`), new `ui/src/pages/LlmProvidersPage.tsx`,
 `ui/src/evals/RunLauncher.tsx`, `ui/src/pages/TraceSourcesPage.tsx`, routes and
 nav in `ui/src/app.tsx` / `ui/src/shell/Shell.tsx`, a shared
 `ui/src/lib/EndpointNote.tsx` and `ApiKeyField.tsx`.

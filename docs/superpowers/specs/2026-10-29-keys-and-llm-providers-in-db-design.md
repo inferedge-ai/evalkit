@@ -79,7 +79,7 @@ service. The CLI side (`evalkit.yaml` + `.env`) keeps them.
 | K6 | Changing a URL clears the stored key, unless the same request sets a new one. Applies to agents, evaluators and LLM providers. | Otherwise writer A could redirect a key that writer B entered. |
 | K7 | Keys are write-only. Reads return `has_api_key: bool`, never the value. | Standard practice for secrets: a key that is never returned cannot leak through the API, the UI, logs or a screenshot. Trace source keys already work this way. |
 | K8 | The server refuses endpoints that resolve to loopback, private, link-local or unspecified addresses, unless server config sets `allow_private_endpoints: true`. | Writers can now set URLs the server calls, and the server stores the response where users can read it (SSRF). |
-| K9 | A server call to an endpoint with no stored key goes ahead without the key header, and the experiment (and its create response) carries a warning. | Endpoints inside the server's network may have no auth, e.g. an in-cluster harness or a local LLM. The warning makes a forgotten key easy to spot when a 401 follows. |
+| K9 | A server call to an endpoint with no stored key goes ahead without the key header, and the create, resume or re-evaluate response lists it under `warnings` (the server also logs it). | Endpoints inside the server's network may have no auth, e.g. an in-cluster harness or a local LLM. The warning makes a forgotten key easy to spot when a 401 follows. |
 | K10 | A local run with no `evalkit.yaml` entry for its agent or an evaluator prints one warning line and calls without the key header. | Local endpoints often have no auth; the person who forgot the key is watching the terminal. |
 | K11 | A server-driven experiment may only use a judge whose base URL is a registered LLM provider. | The judge prompt holds cases and answers; a writer must not be able to send them to an arbitrary URL with the server's help. |
 | K12 | `evalkit.yaml` renames `credentials.judges` to `credentials.llm_providers`. The old name fails to load with a message naming the new one. | Same word in the CLI, the server and the docs. |
@@ -90,14 +90,14 @@ service. The CLI side (`evalkit.yaml` + `.env`) keeps them.
 One alembic migration (the operator runs it):
 
 ```text
-agents             + api_key_sealed bytea NULL
-remote_evaluators  + api_key_sealed bytea NULL
+agents             + api_key_encrypted bytea NULL
+remote_evaluators  + api_key_encrypted bytea NULL
 
 llm_providers                      (new; AuditMixin)
   id              int PK
   name            text UNIQUE      -- "openai"; a label for the CLI and UI
   base_url        text UNIQUE      -- how judges and evalkit.yaml refer to it
-  api_key_sealed  bytea NULL
+  api_key_encrypted  bytea NULL
   archived_at     timestamptz NULL
 
 server_settings                    (new; one row)
@@ -146,10 +146,10 @@ def save(row, body, ws):
 
     if new_url(body) != row.url:
         check_endpoint(new_url(body), cfg.allow_private_endpoints)   # K8
-        row.api_key_sealed = None                                    # K6
+        row.api_key_encrypted = None                                    # K6
 
     if "api_key" in body.fields_set:
-        row.api_key_sealed = box.seal(body.api_key) if body.api_key else None
+        row.api_key_encrypted = box.seal(body.api_key) if body.api_key else None
 ```
 
 ## LLM providers and the default judge
@@ -227,8 +227,10 @@ credentials:
   "New agent" and "Edit" buttons already show only for writers
   (`canWrite`, `ui/src/agents/AgentsPage.tsx`); with K5 a writer's
   `harness_url` is no longer refused.
-- **Evaluators** (new page per workspace, beside Agents): list, create, edit,
-  archive, restore, same key field. Create and edit show only when `canWrite`.
+- **Evaluators** (the existing Settings → Evaluators tab): the create form
+  gains a key field in shared workspaces, and each row shows "key set" or
+  "no key". Create shows only when `canWrite`. Editing an endpoint or key and
+  restoring stay CLI-only.
 - **LLM providers** (new admin page, beside Users and Trace sources): list,
   create, edit, archive, restore, same key field, and a "Default judge" form.
   Shown only to admins.
@@ -272,8 +274,8 @@ class StoredKeys:                                 # server only, src/evalkit/db/
 async def stored_keys(agent_ref, evaluator_refs, judge_base_url) -> StoredKeys:
     rows = agents[agent_ref] ∪ remote_evaluators[evaluator_refs]
            ∪ llm_providers[base_url = judge_base_url]
-    return StoredKeys({(kind, r.ref): box.open(r.api_key_sealed)
-                       for r in rows if r.api_key_sealed is not None})
+    return StoredKeys({(kind, r.ref): box.open(r.api_key_encrypted)
+                       for r in rows if r.api_key_encrypted is not None})
 ```
 
 `require_judge_key` returns `None` when the provider has no key (K9); the judge
@@ -313,8 +315,10 @@ def check_endpoint(url, allow_private):
             f"with allow_private_endpoints: true"
 ```
 
-- Runs on save when the URL changes, and again on experiment create, resume,
-  re-evaluate and harness check, because DNS can change between save and use.
+- Runs on save when the URL changes. The harness URL and the judge base URL
+  are checked again on experiment create, resume, re-evaluate and harness
+  check, because DNS can change between save and use. Evaluator endpoints are
+  checked on save only, so one broken evaluator does not block every run.
 - It does not run on every HTTP request in a run. A DNS change during a run
   (rebinding) is not covered; operators who need that run the server in a
   network without access to internal services.
