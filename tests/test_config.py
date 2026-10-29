@@ -18,12 +18,15 @@ db:
   url: env:DB_URL
 blob:
   url: file:///data/evalkit
-judge_default:
+"""
+OLD_KEYS = """judge_default:
   base_url: https://llm.internal
   model: vertex_ai/gemini-3.6-flash
 credentials:
   agents:
     ouragent@dev: env:OURAGENT_KEY
+  evaluators:
+    rtc@dev: env:RTC_KEY
   judges:
     https://llm.internal: env:JUDGE_KEY
 """
@@ -49,21 +52,27 @@ def test_missing_env_raises(tmp_path, monkeypatch):
     assert str(missing.value) == (f"{path}: db.url needs env DB_URL (or env:DB_URL:<default>)")
 
 
-def test_credentials_stay_env_refs_until_used(tmp_path, monkeypatch):
+def test_server_keys_and_judge_moved_to_the_database(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_URL", "pk")
-    monkeypatch.delenv("OURAGENT_KEY", raising=False)
-    cfg = load_config(write(tmp_path, BASIC))
-    assert cfg.credentials.agents == {"ouragent@dev": "env:OURAGENT_KEY"}
-    registry = CredentialRegistry(cfg.credentials, {"JUDGE_KEY": "jk"})
-    assert registry.require_judge_key("https://llm.internal") == "jk"
+    with pytest.raises(ValidationError) as raised:
+        load_config(write(tmp_path, BASIC + OLD_KEYS))
+    message = str(raised.value)
+    assert "credentials and judge_default moved to the database" in message
+    assert (
+        "evalkit llm-providers create <name> --base-url https://llm.internal "
+        "--api-key-env JUDGE_KEY" in message
+    )
+    assert "evalkit judge-default set --provider <name> --model vertex_ai/gemini-3.6-flash" in (
+        message
+    )
+    assert "evalkit agents edit ouragent@dev --api-key-env OURAGENT_KEY" in message
+    assert "evalkit evaluators edit rtc@dev --api-key-env RTC_KEY" in message
 
 
 def test_defaults(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_URL", "pk")
     cfg = load_config(write(tmp_path, BASIC))
-    assert cfg.judge_default.reasoning_effort == "high"
-    assert cfg.judge_default.max_tokens == 32768
-    assert cfg.judge_default.concurrency == 16
+    assert cfg.allow_private_endpoints is False
     assert cfg.auth.token_ttl_hours == 720
     assert cfg.cost_map.source == "bundled"
     assert cfg.encryption_key is None
@@ -81,28 +90,24 @@ def test_validation_errors_never_echo_resolved_secrets(tmp_path, monkeypatch):
     assert "sk-proj-SECRET" not in str(raised.value)
 
 
-def test_credentials_must_be_plain_env_names(tmp_path, monkeypatch):
-    monkeypatch.setenv("DB_URL", "pk")
+def test_local_credentials_must_be_plain_env_names(tmp_path):
     for bad in ("env:", "env:NAME:default", "env:1X"):
-        text = BASIC + f"credentials:\n  agents:\n    a@dev: '{bad}'\n"
+        (tmp_path / "evalkit.yaml").write_text(f"credentials:\n  agents:\n    a@dev: '{bad}'\n")
         with pytest.raises(ValidationError, match="no defaults"):
-            load_config(write(tmp_path, text))
+            LocalConfig.find(tmp_path)
 
 
-def test_api_keys_on_entries_are_rejected(tmp_path, monkeypatch):
-    monkeypatch.setenv("DB_URL", "pk")
-    judge_key = BASIC.replace("  model: vertex_ai", "  api_key: k\n  model: vertex_ai")
-    with pytest.raises(ValidationError):
-        load_config(write(tmp_path, judge_key))
+def test_local_judges_map_was_renamed(tmp_path):
+    (tmp_path / "evalkit.yaml").write_text("credentials:\n  judges:\n    http://j: env:K\n")
+    with pytest.raises(ValidationError, match="now credentials.llm_providers"):
+        LocalConfig.find(tmp_path)
 
 
 def test_example_config_loads(monkeypatch):
     for var in ["EVALKIT_DATABASE_URL", "EVALKIT_ENCRYPTION_KEY"]:
         monkeypatch.setenv(var, "x")
     example = Path(__file__).parent.parent / "skills/evalkit-deployment/config.example.yaml"
-    cfg = load_config(example)
-    assert cfg.credentials.agents == {} and cfg.credentials.evaluators == {}
-    assert cfg.credentials.judges == {cfg.judge_default.base_url: "env:JUDGE_LLM_API_KEY"}
+    assert load_config(example).encryption_key == "x"
 
 
 def test_accent_color(tmp_path, monkeypatch):
@@ -147,7 +152,7 @@ fixtures: eval/fixtures
 credentials:
   agents:
     research-agent: env:RESEARCH_AGENT_KEY
-  judges:
+  llm_providers:
     http://litellm.local: env:LITELLM_KEY
 """
 

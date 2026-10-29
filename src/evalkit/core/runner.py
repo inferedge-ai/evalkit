@@ -78,7 +78,7 @@ from evalkit.core.trajectory import (
     derive_metrics,
 )
 from evalkit.core.workspace import parse_slug
-from evalkit.credentials import CredentialRegistry
+from evalkit.credentials import KeySource
 from evalkit.store.base import (
     AgentRunRecord,
     CaseView,
@@ -135,6 +135,10 @@ def _no_progress(message: str) -> None:
     return None
 
 
+class AgentKeySource(Protocol):
+    async def agent_key(self, agent: AgentDefinition) -> str | None: ...
+
+
 @dataclass
 class RunnerDeps:
     cfg: RunnerConfig
@@ -142,12 +146,13 @@ class RunnerDeps:
     blob_store: BlobStore
     agents: AgentLookup
     evaluators: EvaluatorLookup
-    credentials: CredentialRegistry
+    credentials: KeySource
     harness_transport: httpx.AsyncBaseTransport | None = None
     custom_eval_transport: httpx.AsyncBaseTransport | None = None
     progress: Callable[[str], None] = _no_progress
     sessions: SessionReader | None = None
     python_evaluators: dict[str, PythonEvaluator] = field(default_factory=dict)
+    agent_keys: AgentKeySource | None = None
 
 
 class ExperimentFactory(Protocol):
@@ -657,7 +662,7 @@ async def rescore_experiment(
 
 
 def judge_key_for(
-    credentials: CredentialRegistry, judge: JudgeSettings, cases: Iterable[CaseView]
+    credentials: KeySource, judge: JudgeSettings, cases: Iterable[CaseView]
 ) -> str | None:
     needed = any(
         BUILTIN_EVALUATORS[name].uses_judge

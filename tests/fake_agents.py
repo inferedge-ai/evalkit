@@ -7,6 +7,7 @@ from evalkit.contracts.settings import AgentSettings, RemoteEvaluatorSettings
 from evalkit.core.agents import AgentDefinition, UnknownAgent
 from evalkit.core.remote_evaluators import RemoteEvaluator
 from evalkit.credentials import CredentialRegistry, CredentialsConfig
+from evalkit.db.crypto import SecretBox
 
 FAKE_HARNESS_URL = "http://fake/evalkit/v1"
 MAPPINGS_DIR = Path(__file__).parent.parent / "skills" / "connect-traces" / "references"
@@ -22,9 +23,11 @@ TEST_CREDENTIALS_CONFIG = CredentialsConfig(
         "required_tool_calls@canonical": "env:CUSTOM_EVAL_KEY",
         "broken_eval@canonical": "env:CUSTOM_EVAL_KEY",
     },
-    judges={JUDGE_URL: "env:JUDGE_KEY", "http://j": "env:JUDGE_KEY"},
+    llm_providers={JUDGE_URL: "env:JUDGE_KEY", "http://j": "env:JUDGE_KEY"},
 )
 TEST_ENV = {"FAKE_AGENT_KEY": "client-key", "CUSTOM_EVAL_KEY": "client-key", "JUDGE_KEY": "jk"}
+TEST_ENCRYPTION_KEY = "6lq9yMcTJhmV4V9Yb2tBz9b0d5uTn1V7hWkJr6m1dGc="
+TEST_BOX = SecretBox(TEST_ENCRYPTION_KEY)
 
 
 def fake_agent(

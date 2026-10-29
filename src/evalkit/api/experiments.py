@@ -14,12 +14,13 @@ from starlette.responses import Response, StreamingResponse
 from evalkit.api.access import ActorDep, ensure_active, require, workspace_ref
 from evalkit.api.deps import (
     AgentStoreDep,
-    ConfigDep,
     HolderDep,
     PgStoreDep,
     RunnerDepsDep,
     SessionDep,
 )
+from evalkit.api.llm_providers import NO_DEFAULT_JUDGE
+from evalkit.api.server_keys import server_keys, with_keys
 from evalkit.contracts.atif import validate_trajectory
 from evalkit.contracts.enums import ExperimentStatus, SyncSource
 from evalkit.core.access import (
@@ -217,7 +218,6 @@ async def create_experiment(
     agents: AgentStoreDep,
     session: SessionDep,
     actor: ActorDep,
-    cfg: ConfigDep,
     pod: HolderDep,
 ) -> dict:
     agent = await agents.get(explicit(slug_or_400(body.agent)))
@@ -249,16 +249,24 @@ async def create_experiment(
             status_code=400,
             detail="capabilities and holder are required for agents the server does not drive",
         )
-    judge = body.judge or cfg.judge_default
+    providers = request.app.state.llm_providers
+    judge = body.judge or await providers.default_judge()
+    if judge is None:
+        raise HTTPException(status_code=400, detail=f"{NO_DEFAULT_JUDGE}, or pass a judge")
     api_key: str | None = None
+    warnings: list[str] = []
+    run_deps = deps
     if server_driven:
-        api_key = deps.credentials.key_for("agent", agent.ref)
-        if api_key is None:
+        if await providers.active_by_base_url(judge.base_url) is None:
+            registered = ", ".join(p.base_url for p in await providers.list_providers())
             raise HTTPException(
                 status_code=400,
-                detail=f"no credentials.agents entry for {agent.ref} in the server config",
+                detail=f"{judge.base_url} is not a registered LLM provider; "
+                f"registered: {registered or 'none'}",
             )
-        deps.credentials.require_judge_key(judge.base_url)
+        keys, warnings = await server_keys(request, agent, judge.base_url)
+        api_key = keys.key_for("agent", agent.ref)
+        run_deps = with_keys(deps, keys)
     holder = task_holder(pod) if server_driven else str(body.holder)
     try:
         caps = body.capabilities or await harness_capabilities(
@@ -282,8 +290,8 @@ async def create_experiment(
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"could not start experiment: {exc}") from exc
     if server_driven:
-        _track(request, exp.id, holder, f"run:{exp.id}", run_experiment(deps, exp.id, holder))
-    return {**exp.model_dump(mode="json"), "dropped_cases": dropped}
+        _track(request, exp.id, holder, f"run:{exp.id}", run_experiment(run_deps, exp.id, holder))
+    return {**exp.model_dump(mode="json"), "dropped_cases": dropped, "warnings": warnings}
 
 
 async def with_progress(session: AsyncSession, experiments: list[Experiment]) -> list[dict]:
@@ -469,11 +477,18 @@ async def evaluate(
     pod: HolderDep,
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
-    await _server_driven(deps, exp, "evaluate")
+    agent = await _server_driven(deps, exp, "evaluate")
+    keys, warnings = await server_keys(request, agent, exp.config.judge.base_url)
     holder = task_holder(pod)
     exp = await store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
-    _track(request, exp_id, holder, f"evaluate:{exp_id}", rescore_experiment(deps, exp_id, holder))
-    return exp.model_dump(mode="json")
+    _track(
+        request,
+        exp_id,
+        holder,
+        f"evaluate:{exp_id}",
+        rescore_experiment(with_keys(deps, keys), exp_id, holder),
+    )
+    return {**exp.model_dump(mode="json"), "warnings": warnings}
 
 
 @router.post("/{exp_id}/resume")
@@ -488,15 +503,17 @@ async def resume(
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
     agent = await _server_driven(deps, exp, "resume")
-    if deps.credentials.key_for("agent", agent.ref) is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"no credentials.agents entry for {agent.ref} in the server config",
-        )
+    keys, warnings = await server_keys(request, agent, exp.config.judge.base_url)
     holder = task_holder(pod)
     exp = await store.transition(exp_id, ExperimentStatus.RUNNING, holder)
-    _track(request, exp_id, holder, f"run:{exp_id}", run_experiment(deps, exp_id, holder))
-    return exp.model_dump(mode="json")
+    _track(
+        request,
+        exp_id,
+        holder,
+        f"run:{exp_id}",
+        run_experiment(with_keys(deps, keys), exp_id, holder),
+    )
+    return {**exp.model_dump(mode="json"), "warnings": warnings}
 
 
 @router.get("/{exp_id}/runs/{run_id}/trajectory")

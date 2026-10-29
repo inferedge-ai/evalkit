@@ -306,6 +306,8 @@ BLOCKED = loopback ∪ private (RFC 1918, fc00::/7) ∪ link-local (incl. 169.25
 def check_endpoint(url, allow_private):
     if allow_private: return
     addrs = resolve(host(url))                    # every A / AAAA record
+    if addrs fail to resolve:
+        400 f"{url}: cannot resolve {host}"
     if any(a ∈ BLOCKED for a in addrs):
         400 f"{url} resolves to a private address; the operator can allow it "
             f"with allow_private_endpoints: true"

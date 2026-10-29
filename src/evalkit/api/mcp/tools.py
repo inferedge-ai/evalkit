@@ -334,7 +334,9 @@ class Runs:
         cost_map = await self.cost_map()
         deps = self.state.runner_deps
         client = (
-            runs_api.harness_client(deps, record) if runs_api.server_may_drive(record) else None
+            await runs_api.harness_client(deps, record)
+            if runs_api.server_may_drive(record)
+            else None
         )
 
         call_gate = asyncio.Semaphore(FETCH_CONCURRENCY)

@@ -6,9 +6,8 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
-from evalkit.contracts.settings import JudgeSettings
 from evalkit.credentials import CredentialsConfig, load_dotenv_beside
 
 
@@ -84,7 +83,29 @@ class LimitsConfig(ConfigModel):
 
 class RunnerConfig(ConfigModel):
     cost_map: CostMapConfig = CostMapConfig()
-    credentials: CredentialsConfig = CredentialsConfig()
+
+
+def _moved_to_db_commands(data: dict) -> list[str]:
+    credentials = data.get("credentials") or {}
+    judge = data.get("judge_default") or {}
+    commands = [
+        f"evalkit llm-providers create <name> --base-url {url} "
+        f"--api-key-env {str(ref).removeprefix('env:')}"
+        for url, ref in (credentials.get("judges") or {}).items()
+    ]
+    if judge:
+        commands.append(
+            f"evalkit judge-default set --provider <name> --model {judge.get('model', '<model>')}"
+        )
+    commands += [
+        f"evalkit agents edit {ref} --api-key-env {str(env).removeprefix('env:')}"
+        for ref, env in (credentials.get("agents") or {}).items()
+    ]
+    commands += [
+        f"evalkit evaluators edit {ref} --api-key-env {str(env).removeprefix('env:')}"
+        for ref, env in (credentials.get("evaluators") or {}).items()
+    ]
+    return commands
 
 
 class Config(RunnerConfig):
@@ -97,7 +118,19 @@ class Config(RunnerConfig):
     limits: LimitsConfig = LimitsConfig()
     sentry: SentryConfig | None = None
     encryption_key: str | None = None
-    judge_default: JudgeSettings
+    allow_private_endpoints: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _keys_moved_to_db(cls, data: object) -> object:
+        if isinstance(data, dict) and ("credentials" in data or "judge_default" in data):
+            commands = "\n".join(f"  {c}" for c in _moved_to_db_commands(data))
+            raise ValueError(
+                "credentials and judge_default moved to the database. Remove them from the "
+                "config, start the server, then run (as an admin, with the keys in your env):\n"
+                f"{commands}"
+            )
+        return data
 
 
 LOCAL_CONFIG_FILENAME = "evalkit.yaml"
@@ -105,6 +138,7 @@ LOCAL_CONFIG_FILENAME = "evalkit.yaml"
 
 class LocalConfig(RunnerConfig):
     path: Path
+    credentials: CredentialsConfig = CredentialsConfig()
     cases: Path | None = None
     fixtures: Path | None = None
 

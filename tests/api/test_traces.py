@@ -80,6 +80,7 @@ def with_encryption(api) -> None:
 
 async def test_trace_sources_are_admin_rows_and_hide_keys(api):
     body = {"name": "phx", "provider": "phoenix", "url": "u", "api_key": "secret"}
+    api.app.state.trace_sources = TraceSourceStore(api.app.state.session_factory, None)
     refused = await api.post("/api/trace-sources", json=body)
     assert refused.status_code == 400 and "encryption_key" in refused.json()["detail"]
     with_encryption(api)

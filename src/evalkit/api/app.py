@@ -25,6 +25,7 @@ from evalkit.api import (
     fixtures,
     harness_check,
     imports,
+    llm_providers,
     meta,
     otel,
     pull,
@@ -44,6 +45,7 @@ from evalkit.api.mcp.server import mcp_running, mount_mcp
 from evalkit.config import Config
 from evalkit.core.agents import UnknownAgent
 from evalkit.core.blob import BlobStore
+from evalkit.core.endpoints import BlockedEndpoint
 from evalkit.core.remote_evaluators import UnknownEvaluator
 from evalkit.core.runner import (
     LEASE_SECONDS,
@@ -54,13 +56,21 @@ from evalkit.core.runner import (
 )
 from evalkit.core.traces.sessions import SessionTooLarge
 from evalkit.core.workspace import BareReference
-from evalkit.credentials import CredentialRegistry, MissingCredential
+from evalkit.credentials import MissingCredential
 from evalkit.db.agents import AgentExists, AgentStore, InvalidAgent
 from evalkit.db.cases import DatasetExists
 from evalkit.db.crypto import SecretBox
 from evalkit.db.evaluators import EvaluatorExists, InvalidEvaluator, RemoteEvaluatorStore
 from evalkit.db.experiments import reap
+from evalkit.db.keys import KeyLoader, NoKeysLoaded
+from evalkit.db.llm_providers import (
+    LlmProviderExists,
+    LlmProviderStore,
+    ProviderInUse,
+    UnknownLlmProvider,
+)
 from evalkit.db.mappings import MappingStore
+from evalkit.db.rekey import count_sealed
 from evalkit.db.review import ReviewLog
 from evalkit.db.session import make_session_factory, migrate_under_lock, verify_schema
 from evalkit.db.sessions import DbSessionReader
@@ -73,7 +83,6 @@ from evalkit.db.trace_sources import (
     TraceSourceExists,
     TraceSourceStore,
     UnknownTraceSource,
-    count_trace_sources,
 )
 from evalkit.db.users import InvalidName, InvalidPassword, LastAdmin, NameTaken, UnknownUser
 from evalkit.db.workspaces import PromotionLinkError, SharedOnly, UnknownWorkspace
@@ -180,12 +189,16 @@ def create_app(
             blob_store=resolved_blob_store,
             agents=resolved_agents,
             evaluators=RemoteEvaluatorStore(session_factory),
-            credentials=CredentialRegistry(cfg.credentials, os.environ),
+            credentials=NoKeysLoaded(),
             sessions=resolved_sessions,
         )
     )
     if resolved_deps.sessions is None:
         resolved_deps.sessions = resolved_sessions
+    box = SecretBox(cfg.encryption_key) if cfg.encryption_key else None
+    key_loader = KeyLoader(session_factory, box)
+    if resolved_deps.agent_keys is None:
+        resolved_deps.agent_keys = key_loader
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -197,9 +210,9 @@ def create_app(
             await migrate_under_lock(cfg.db.url)
         if check_schema:
             await verify_schema(cfg.db.url)
-        if cfg.encryption_key is None and await count_trace_sources(app.state.session_factory):
+        if cfg.encryption_key is None and await count_sealed(app.state.session_factory):
             raise RuntimeError(
-                "trace sources exist but encryption_key is not configured; "
+                "stored API keys exist but encryption_key is not configured; "
                 "set encryption_key: env:EVALKIT_ENCRYPTION_KEY in the server config"
             )
         await bootstrap_admin(app.state.session_factory, os.environ.get("EVALKIT_ADMIN_PASSWORD"))
@@ -229,9 +242,9 @@ def create_app(
     app.state.mappings = resolved_mappings
     app.state.sessions = resolved_sessions
     app.state.session_factory = session_factory
-    app.state.trace_sources = TraceSourceStore(
-        session_factory, SecretBox(cfg.encryption_key) if cfg.encryption_key else None
-    )
+    app.state.trace_sources = TraceSourceStore(session_factory, box)
+    app.state.keys = key_loader
+    app.state.llm_providers = LlmProviderStore(session_factory)
     app.state.tasks = {}
     app.state.trace_imports = TraceImportStore(session_factory)
     app.state.import_tasks = {}
@@ -255,6 +268,7 @@ def create_app(
     @app.exception_handler(UnknownEvaluator)
     @app.exception_handler(UnknownTraceSource)
     @app.exception_handler(UnknownTraceImport)
+    @app.exception_handler(UnknownLlmProvider)
     async def unknown_name(request: Request, exc: KeyError) -> JSONResponse:
         return JSONResponse(status_code=404, content={"detail": exc.args[0]})
 
@@ -268,6 +282,8 @@ def create_app(
     @app.exception_handler(LeaseLost)
     @app.exception_handler(PromotionLinkError)
     @app.exception_handler(DatasetExists)
+    @app.exception_handler(LlmProviderExists)
+    @app.exception_handler(ProviderInUse)
     async def conflict(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
@@ -279,6 +295,7 @@ def create_app(
     @app.exception_handler(InvalidAgent)
     @app.exception_handler(MissingCredential)
     @app.exception_handler(EncryptionKeyMissing)
+    @app.exception_handler(BlockedEndpoint)
     async def bad_request(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
 
@@ -303,12 +320,12 @@ def create_app(
     wall = [Depends(current_user)]
     app.include_router(datasets.router, dependencies=wall)
     app.include_router(meta.router, dependencies=wall)
-    app.include_router(meta.judge_router, dependencies=wall)
     app.include_router(experiments.router, dependencies=wall)
     app.include_router(experiments.runs_router, dependencies=wall)
     app.include_router(agents_api.router, dependencies=wall)
     app.include_router(evaluators.router, dependencies=wall)
     app.include_router(trace_sources.router, dependencies=wall)
+    app.include_router(llm_providers.router, dependencies=wall)
     app.include_router(runs.router, dependencies=wall)
     app.include_router(pull.router, dependencies=wall)
     app.include_router(harness_check.router, dependencies=wall)

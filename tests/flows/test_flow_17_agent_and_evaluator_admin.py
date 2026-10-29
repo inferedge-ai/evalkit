@@ -221,29 +221,25 @@ def test_flow_17_trace_sources_are_admin_only_and_hide_keys(live, monkeypatch):
     assert live.run("trace-sources", "archive", "phx").exit_code == 0
 
 
-def test_flow_17_credentials_come_from_the_drivers_map(live):
+def test_flow_17_server_keys_come_from_the_database(live):
     admin = live.http()
-    assert (
-        admin.post(
-            "/api/agents", json={"workspace": DEV, "name": "nokey", "harness_url": live.harness_url}
-        ).status_code
-        == 200
+    created = admin.post(
+        "/api/agents", json={"workspace": DEV, "name": "nokey", "harness_url": live.harness_url}
     )
-    no_key = admin.post(
-        "/api/experiments",
-        json={"dataset": f"finance@{DEV}", "agent": f"nokey@{DEV}"},
-    )
-    assert no_key.status_code == 400
-    assert no_key.json()["detail"] == (
-        f"no credentials.agents entry for nokey@{DEV} in the server config"
-    )
+    assert created.status_code == 200 and created.json()["has_api_key"] is False
+    run = {"dataset": f"finance@{DEV}", "agent": f"nokey@{DEV}"}
+    no_key = admin.post("/api/experiments", json=run)
+    assert no_key.status_code == 502 and "401" in no_key.json()["detail"]
+    keyed = admin.patch(f"/api/agents/nokey@{DEV}", json={"api_key": "client-key"})
+    assert keyed.json()["has_api_key"] is True
+    started = admin.post("/api/experiments", json=run)
+    assert started.status_code == 200, started.text
+    assert not any("nokey" in w for w in started.json()["warnings"])
     judged = admin.post(
         "/api/experiments",
-        json={
-            "dataset": f"finance@{DEV}",
-            "agent": f"ouragent@{DEV}",
-            "judge": {"base_url": "http://nokey-judge.test", "model": "m"},
-        },
+        json={**run, "judge": {"base_url": "http://nokey-judge.test", "model": "m"}},
     )
     assert judged.status_code == 400
-    assert judged.json()["detail"] == "no credentials.judges entry for http://nokey-judge.test"
+    assert judged.json()["detail"].startswith(
+        "http://nokey-judge.test is not a registered LLM provider"
+    )

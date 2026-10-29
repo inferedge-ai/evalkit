@@ -111,7 +111,7 @@ def env(server, tmp_path, monkeypatch, module_db_url):
     (tmp_path / "evalkit.yaml").write_text(
         f"cases: eval/cases\nfixtures: eval/fixtures\ncost_map:\n  source: {cost_map}\n"
         "credentials:\n  evaluators:\n    http_eval: env:SDK_EVAL_KEY\n"
-        "  judges:\n    http://judge.test: env:SDK_JUDGE_KEY\n"
+        "  llm_providers:\n    http://judge.test: env:SDK_JUDGE_KEY\n"
     )
     (tmp_path / ".env").write_text("SDK_EVAL_KEY=k\nSDK_JUDGE_KEY=jk\n")
     monkeypatch.chdir(tmp_path)

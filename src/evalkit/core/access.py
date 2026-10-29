@@ -44,8 +44,10 @@ def can_write(actor: Actor, ws: WorkspaceRef) -> bool:
 
 
 def can_set_endpoint(actor: Actor, ws: WorkspaceRef) -> bool:
-    if not ws.is_shared:
-        return ws.owner_user_id == actor.id
+    return can_write(actor, ws)
+
+
+def can_manage_llm_providers(actor: Actor) -> bool:
     return actor.is_admin
 
 

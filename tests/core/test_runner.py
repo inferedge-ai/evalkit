@@ -986,7 +986,8 @@ async def test_missing_judge_key_fails_before_any_harness_call(
     fake = FakeHarness()
     env = await seed_env(session_factory, tmp_path, fake)
     env.deps.credentials = CredentialRegistry(
-        TEST_CREDENTIALS_CONFIG.model_copy(update={"judges": {}}), {"FAKE_AGENT_KEY": "client-key"}
+        TEST_CREDENTIALS_CONFIG.model_copy(update={"llm_providers": {}}),
+        {"FAKE_AGENT_KEY": "client-key"},
     )
     exp = await prepare(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     with pytest.raises(MissingCredential, match=JUDGE_URL):

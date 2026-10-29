@@ -46,7 +46,7 @@ async def test_creating_without_a_box_is_refused(session_factory):
 
 async def test_server_refuses_to_start_with_sources_but_no_key(tmp_path, session_factory):
     await TraceSourceStore(session_factory, box()).create("phx", TraceProvider.PHOENIX, "u", "pk")
-    cfg = make_cfg(tmp_path)
+    cfg = make_cfg(tmp_path).model_copy(update={"encryption_key": None})
     store = PgStore(session_factory)
     app = create_app(
         cfg,

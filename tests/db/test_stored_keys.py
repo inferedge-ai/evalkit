@@ -14,6 +14,7 @@ from evalkit.db.llm_providers import (
 )
 from evalkit.db.rekey import count_sealed, rekey_all
 from evalkit.db.trace_sources import TraceSourceStore
+from tests.fake_agents import TEST_BOX
 from tests.identity import seed_agent, seed_identity
 
 
@@ -92,14 +93,14 @@ async def test_llm_providers_and_the_default_judge(session_factory):
 async def test_rekey_covers_every_sealed_table(session_factory):
     await seed_identity(session_factory, {"admin": "password1"})
     await seed_agent(session_factory)
-    old, new = box(), box()
+    old, new = TEST_BOX, box()
     await TraceSourceStore(session_factory, old).create(
         "phx", TraceProvider.PHOENIX, "https://p", "pk"
     )
     await AgentStore(session_factory).edit("fake@canonical", api_key_encrypted=old.seal("ak"))
     await LlmProviderStore(session_factory).create("openai", "https://o/v1", old.seal("lk"))
-    assert await count_sealed(session_factory) == 3
-    assert await rekey_all(session_factory, old, new) == 3
+    assert await count_sealed(session_factory) == 4
+    assert await rekey_all(session_factory, old, new) == 4
     assert new.open(await AgentStore(session_factory).sealed_key("fake@canonical") or b"") == "ak"
     assert (
         new.open(await LlmProviderStore(session_factory).sealed_key("https://o/v1") or b"") == "lk"
