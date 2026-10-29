@@ -34,7 +34,7 @@ fixtures: eval/fixtures
 credentials:
   agents:
     myagent: env:MYAGENT_API_KEY # only for a Harness API agent that needs a key
-  judges:
+  llm_providers:
     https://litellm.example.com: env:LITELLM_API_KEY # the server's judge base URL
 ```
 

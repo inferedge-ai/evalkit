@@ -153,7 +153,7 @@ Do the same in your own repository:
    ([Mappings](mappings.md)).
 2. **Setup.** Put an `evalkit.yaml` at the root of your repository, with
    `cases:` pointing at your cases directory and the judge's key under
-   `credentials.judges`. That map is keyed by the judge's base URL, which must
+   `credentials.llm_providers`. That map is keyed by the judge's base URL, which must
    match the judge the run uses: the server's default judge
    (`{{origin}}/api/judge-default` shows its `base_url`), or the one you pass to
    `run_experiment(judge=...)`. This kit keys it with `env:LLM_BASE_URL` so the

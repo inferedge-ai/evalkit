@@ -135,6 +135,8 @@ run_experiment(dataset="finance", agent="myagent-sdk", task=task,
                judge=Judge(base_url="https://litellm.example.com", model="gpt-5"))
 ```
 
+An admin sets the default judge with `evalkit judge-default set`. Either way, the SDK reads the judge's key from `credentials.llm_providers` in `evalkit.yaml`, keyed by the judge's base URL.
+
 ## Capabilities
 
 A code-driven agent has no `GET /capabilities`, so evalkit writes its capabilities onto each experiment itself: `trajectory`, `tool_calls`, `token_usage` and `run_listing` are true; `thinking`, `artifacts` and `workspace` are false. Evaluators gated on a capability skip when it is false. evalkit does not read capabilities from the spans. Set `provides` on the agent (`evalkit agents create --provides`, or `evalkit agents edit`) to declare what it really does, for example `thinking: true` when its spans carry the model's reasoning. Declare only what works: a false `true` produces failing scores blamed on the agent.
