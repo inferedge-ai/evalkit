@@ -26,6 +26,8 @@ all welcome.
   endpoint, field, UI control), add an entry under `## Unreleased` in
   `CHANGELOG.md`.
 - Don't bump the version in `pyproject.toml`; releases do that.
+- If your change touches the UI, run it locally, click through what changed,
+  and add screenshots to the pull request description.
 - CI must pass before a pull request can merge.
 
 ## Development setup

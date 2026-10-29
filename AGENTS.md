@@ -114,6 +114,18 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - The try-it stack (`skills/evalkit-deployment/try/`, walkthrough in `docs/user/try-locally.md`) builds the image from this checkout: `docker compose up -d --wait --build`.
 - `tests/e2e/services.py` serves a fake harness, custom evaluator and judge on ports 18080, 19000 and 19090 for e2e runs against a built image.
 
+### UI changes in a PR
+
+- Run the server and UI locally (see "Local server"; a throwaway Postgres,
+  dummy keys and the fake services in `tests/e2e/services.py` are enough).
+- Click through every page and flow the PR changes and take screenshots.
+- Add them to the PR description under "Screenshots". Push the images to a
+  branch named `pr-assets/pr-<number>` and link their raw URLs, so they never
+  land in `develop`.
+- `tsc`, `vitest` and `vite build` passing is not a UI test.
+- No browser `alert()`, `confirm()` or `prompt()` in new UI code: use inline
+  fields or dialogs.
+
 ## CI
 
 `.github/workflows/ci.yml` runs on PRs to `develop`/`main` (non-draft; jobs are
