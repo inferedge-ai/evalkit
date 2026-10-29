@@ -77,6 +77,8 @@ export function LlmProvidersPage() {
   const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [keyFor, setKeyFor] = useState<string | null>(null);
+  const [newKey, setNewKey] = useState("");
 
   const load = () => {
     api<LlmProviderInfo[]>("/llm-providers?include_archived=true")
@@ -110,12 +112,19 @@ export function LlmProvidersPage() {
   };
   const path = (provider: string, action = "") =>
     `/llm-providers/${encodeURIComponent(provider)}${action}`;
-  const replaceKey = (provider: string) => {
-    const key = window.prompt(
-      `New API key for ${provider} (leave empty to remove the stored key)`,
-    );
-    if (key === null) return;
-    void run(() => apiJson(path(provider), "PATCH", { api_key: key || null }));
+  const openKey = (provider: string) => {
+    setKeyFor(provider);
+    setNewKey("");
+  };
+  const saveKey = (e: FormEvent) => {
+    e.preventDefault();
+    if (!keyFor) return;
+    const provider = keyFor;
+    void run(async () => {
+      await apiJson(path(provider), "PATCH", { api_key: newKey || null });
+      setKeyFor(null);
+      setNewKey("");
+    });
   };
 
   const active = rows?.filter((r) => !r.archived) ?? [];
@@ -152,40 +161,65 @@ export function LlmProvidersPage() {
         />
         <button className="btn btn-primary">Add provider</button>
       </form>
-      <p className="row-meta mb-3">{ENDPOINT_NOTE}</p>
+      <p className="row-meta mb-3 whitespace-normal">{ENDPOINT_NOTE}</p>
       {rows && <DefaultJudge providers={active} />}
       {error && <div className="pane-status error">{error}</div>}
       <div className="card rows">
         {rows?.map((row) => (
-          <div
-            key={row.name}
-            className="row grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto_auto]"
-          >
-            <span className="row-strong">{row.name}</span>
-            <span className="row-meta truncate font-mono">{row.base_url}</span>
-            <span className="chip muted">
-              {row.has_api_key ? "key set" : "no key"}
-            </span>
-            <button
-              className="btn btn-sm"
-              disabled={row.archived}
-              onClick={() => replaceKey(row.name)}
-            >
-              replace key
-            </button>
-            <button
-              className="btn btn-sm"
-              onClick={() =>
-                void run(() =>
-                  apiJson(
-                    path(row.name, row.archived ? "/restore" : "/archive"),
-                    "POST",
-                  ),
-                )
-              }
-            >
-              {row.archived ? "restore" : "archive"}
-            </button>
+          <div key={row.name}>
+            <div className="row grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto_auto]">
+              <span className="row-strong">{row.name}</span>
+              <span className="row-meta truncate font-mono">
+                {row.base_url}
+              </span>
+              <span className="chip muted">
+                {row.has_api_key ? "key set" : "no key"}
+              </span>
+              <button
+                className="btn btn-sm"
+                disabled={row.archived}
+                onClick={() => openKey(row.name)}
+              >
+                replace key
+              </button>
+              <button
+                className="btn btn-sm"
+                onClick={() =>
+                  void run(() =>
+                    apiJson(
+                      path(row.name, row.archived ? "/restore" : "/archive"),
+                      "POST",
+                    ),
+                  )
+                }
+              >
+                {row.archived ? "restore" : "archive"}
+              </button>
+            </div>
+            {keyFor === row.name && (
+              <form className="toolbar px-3 pb-2" onSubmit={saveKey}>
+                <input
+                  className="input min-w-0 flex-1"
+                  type="password"
+                  aria-label={`new API key for ${row.name}`}
+                  placeholder="new API key, or leave empty to remove the stored key"
+                  autoComplete="off"
+                  autoFocus
+                  value={newKey}
+                  onChange={(e) => setNewKey(e.target.value)}
+                />
+                <button className="btn btn-primary btn-sm">
+                  {newKey ? "Save key" : "Remove key"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => setKeyFor(null)}
+                >
+                  Cancel
+                </button>
+              </form>
+            )}
           </div>
         ))}
         {rows && !rows.length && (

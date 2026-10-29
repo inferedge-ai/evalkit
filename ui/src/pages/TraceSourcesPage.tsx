@@ -80,7 +80,7 @@ export function TraceSourcesPage() {
         />
         <button className="btn btn-primary">Add trace source</button>
       </form>
-      <p className="row-meta mb-3">{ENDPOINT_NOTE}</p>
+      <p className="row-meta mb-3 whitespace-normal">{ENDPOINT_NOTE}</p>
       {error && <div className="pane-status error">{error}</div>}
       <div className="card rows">
         {rows?.map((row) => (

@@ -110,7 +110,7 @@ export function AgentForm({
               onChange={(e) => set("harness_url", e.target.value)}
             />
           </div>
-          <p className="row-meta">{ENDPOINT_NOTE}</p>
+          <p className="row-meta whitespace-normal">{ENDPOINT_NOTE}</p>
           {shared ? (
             <div className="form-row">
               <span className="form-label">API key</span>
@@ -121,10 +121,10 @@ export function AgentForm({
               />
             </div>
           ) : (
-            <p className="row-meta">{PERSONAL_KEY_NOTE}</p>
+            <p className="row-meta whitespace-normal">{PERSONAL_KEY_NOTE}</p>
           )}
           {agent && urlClearsKey(values, agent) && (
-            <p className="row-meta text-err-text">
+            <p className="row-meta whitespace-normal text-err-text">
               Saving a new harness URL removes the stored API key. Enter the key
               for the new URL above.
             </p>

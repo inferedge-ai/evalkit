@@ -348,7 +348,7 @@ export function RunLauncher({
             />
           </div>
           {!judgeDefault && (
-            <p className="row-meta">
+            <p className="row-meta whitespace-normal">
               This server has no default judge yet. Pick a provider and a judge
               model.
             </p>

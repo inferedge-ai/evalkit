@@ -79,7 +79,7 @@ function EvaluatorsTab({
 
   return (
     <>
-      <p className="row-meta mb-2">
+      <p className="row-meta mb-2 whitespace-normal">
         Runs of this workspace's agents are scored with these evaluators.{" "}
         {ws.type === "shared"
           ? "Their API keys are stored encrypted on the server and never shown again."
@@ -125,7 +125,7 @@ function EvaluatorsTab({
         </form>
       )}
       {writable && !ws.archived && (
-        <p className="row-meta mb-2">{ENDPOINT_NOTE}</p>
+        <p className="row-meta mb-2 whitespace-normal">{ENDPOINT_NOTE}</p>
       )}
       {error && <div className="pane-status error">{error}</div>}
       <div className="card rows">
