@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from pydantic import AfterValidator, BaseModel
 
 from evalkit.api.access import ActorDep, ensure_active, require, workspace_ref
-from evalkit.api.deps import AgentStoreDep, ConfigDep, SessionDep
+from evalkit.api.deps import AgentStoreDep, ConfigDep, KeysDep, SessionDep
+from evalkit.config import Config
 from evalkit.contracts.enums import TrajectorySource
 from evalkit.contracts.settings import AgentSettings
 from evalkit.core.access import can_write
@@ -72,32 +73,51 @@ class CreateAgent(BaseModel):
 PERSONAL_KEY = "personal agents and evaluators read their key from evalkit.yaml"
 
 
-async def _writable(
-    session: SessionDep, actor: ActorDep, workspace: str, *, api_key: bool = False
+async def writable_endpoint(
+    session: SessionDep,
+    actor: ActorDep,
+    cfg: Config,
+    workspace: str,
+    *,
+    api_key: bool = False,
+    url: str | None = None,
 ) -> None:
     ws = await workspace_ref(session, workspace)
     require(can_write(actor, ws), f"you cannot write to @{workspace}")
     ensure_active(ws)
     if api_key and not ws.is_shared:
         raise HTTPException(status_code=400, detail=PERSONAL_KEY)
+    if url is not None and ws.is_shared:
+        await check_endpoint(url, allow_private=cfg.allow_private_endpoints)
 
 
-def _keys(request: Request) -> KeyLoader:
-    return request.app.state.keys
+async def writable(session: SessionDep, actor: ActorDep, workspace: str) -> None:
+    ws = await workspace_ref(session, workspace)
+    require(can_write(actor, ws), f"you cannot write to @{workspace}")
+    ensure_active(ws)
+
+
+def sealed(keys: KeyLoader, api_key: str | None) -> bytes | None:
+    return keys.seal(api_key) if api_key else None
 
 
 @router.post("")
 async def create_agent(
     body: CreateAgent,
-    request: Request,
+    keys: KeysDep,
     agents: AgentStoreDep,
     session: SessionDep,
     actor: ActorDep,
     cfg: ConfigDep,
 ) -> dict:
-    await _writable(session, actor, body.workspace, api_key="api_key" in body.model_fields_set)
-    if body.harness_url is not None:
-        await check_endpoint(body.harness_url, allow_private=cfg.allow_private_endpoints)
+    await writable_endpoint(
+        session,
+        actor,
+        cfg,
+        body.workspace,
+        api_key="api_key" in body.model_fields_set,
+        url=body.harness_url,
+    )
     created = await agents.create(
         body.workspace,
         body.name,
@@ -107,7 +127,7 @@ async def create_agent(
         settings=body.settings,
         created_by=actor.id,
         mapping=body.mapping,
-        api_key_encrypted=_keys(request).seal(body.api_key) if body.api_key else None,
+        api_key_encrypted=sealed(keys, body.api_key),
     )
     return agent_view(created)
 
@@ -125,7 +145,7 @@ class EditAgent(BaseModel):
 async def edit_agent(
     ref: str,
     body: EditAgent,
-    request: Request,
+    keys: KeysDep,
     agents: AgentStoreDep,
     session: SessionDep,
     actor: ActorDep,
@@ -133,9 +153,14 @@ async def edit_agent(
 ) -> dict:
     current = await agents.get(ref)
     url_changes = "harness_url" in body.model_fields_set and body.harness_url != current.harness_url
-    await _writable(session, actor, current.workspace, api_key="api_key" in body.model_fields_set)
-    if url_changes and body.harness_url is not None:
-        await check_endpoint(body.harness_url, allow_private=cfg.allow_private_endpoints)
+    await writable_endpoint(
+        session,
+        actor,
+        cfg,
+        current.workspace,
+        api_key="api_key" in body.model_fields_set,
+        url=body.harness_url if url_changes else None,
+    )
     clear = {k for k in ("harness_url", "repo_url", "api_key") if k in body.model_fields_set}
     edited = await agents.edit(
         ref,
@@ -146,7 +171,7 @@ async def edit_agent(
         trajectory_source=body.trajectory_source,
         mapping=body.mapping,
         edited_by=actor.id,
-        api_key_encrypted=_keys(request).seal(body.api_key) if body.api_key else None,
+        api_key_encrypted=sealed(keys, body.api_key),
     )
     return agent_view(edited)
 
@@ -156,7 +181,7 @@ async def archive_agent(
     ref: str, agents: AgentStoreDep, session: SessionDep, actor: ActorDep
 ) -> dict:
     current = await agents.get(ref)
-    await _writable(session, actor, current.workspace)
+    await writable(session, actor, current.workspace)
     return agent_view(await agents.archive(ref))
 
 
@@ -165,5 +190,5 @@ async def restore_agent(
     ref: str, agents: AgentStoreDep, session: SessionDep, actor: ActorDep
 ) -> dict:
     current = await agents.get(ref)
-    await _writable(session, actor, current.workspace)
+    await writable(session, actor, current.workspace)
     return agent_view(await agents.restore(ref))

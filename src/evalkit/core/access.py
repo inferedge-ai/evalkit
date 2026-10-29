@@ -43,14 +43,6 @@ def can_write(actor: Actor, ws: WorkspaceRef) -> bool:
     return actor.is_admin or actor.has(ws, WorkspaceRole.WRITER)
 
 
-def can_set_endpoint(actor: Actor, ws: WorkspaceRef) -> bool:
-    return can_write(actor, ws)
-
-
-def can_manage_llm_providers(actor: Actor) -> bool:
-    return actor.is_admin
-
-
 def can_review(actor: Actor, ws: WorkspaceRef) -> bool:
     return ws.is_shared and actor.has(ws, WorkspaceRole.REVIEWER)
 

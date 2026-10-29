@@ -14,6 +14,8 @@ from evalkit.core.endpoints import BlockedEndpoint, check_endpoint
         "http://[fc00::1]/v1",
         "http://0.0.0.0/v1",
         "http://localhost/v1",
+        "http://100.64.0.1/v1",
+        "http://[64:ff9b::a00:1]/v1",
     ],
 )
 async def test_private_addresses_are_refused(url):

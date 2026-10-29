@@ -108,9 +108,13 @@ class RemoteEvaluatorStore:
             await session.commit()
             return _view(row, ref.partition("@")[2])
 
-    async def sealed_keys(self, workspace: str) -> dict[str, bytes]:
+    async def sealed_keys(self, workspace: str) -> dict[str, tuple[str, bytes]]:
         query = (
-            select(models.RemoteEvaluator.name, models.RemoteEvaluator.api_key_encrypted)
+            select(
+                models.RemoteEvaluator.name,
+                models.RemoteEvaluator.config,
+                models.RemoteEvaluator.api_key_encrypted,
+            )
             .join(models.Workspace, models.Workspace.id == models.RemoteEvaluator.workspace_id)
             .where(
                 models.Workspace.name == workspace,
@@ -118,7 +122,10 @@ class RemoteEvaluatorStore:
             )
         )
         async with self._sessions() as session:
-            return {name: sealed for name, sealed in (await session.execute(query)).all()}
+            return {
+                name: (config["endpoint"], sealed)
+                for name, config, sealed in (await session.execute(query)).all()
+            }
 
     async def archive(self, ref: str) -> RemoteEvaluator:
         async with self._sessions() as session:

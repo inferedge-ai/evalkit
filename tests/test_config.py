@@ -203,3 +203,18 @@ def test_local_config_without_cases_or_fixtures(tmp_path):
     assert cfg is not None
     assert cfg.cases is None and cfg.fixtures is None
     assert cfg.resolve_env().cases is None
+
+
+def test_the_moved_to_db_hint_names_env_refs_as_shell_variables(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "pk")
+    monkeypatch.setenv("LLM_BASE_URL", "http://llm/v1")
+    monkeypatch.setenv("LLM_MODEL", "m1")
+    old = (
+        "judge_default:\n  base_url: env:LLM_BASE_URL\n  model: env:LLM_MODEL\n"
+        "credentials:\n  judges:\n    env:LLM_BASE_URL: env:LLM_API_KEY\n"
+    )
+    with pytest.raises(ValidationError) as raised:
+        load_config(write(tmp_path, BASIC + old))
+    message = str(raised.value)
+    assert "--base-url $LLM_BASE_URL --api-key-env LLM_API_KEY" in message
+    assert "--model m1" in message

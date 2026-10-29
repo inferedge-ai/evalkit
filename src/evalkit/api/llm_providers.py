@@ -1,11 +1,11 @@
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from evalkit.api.agents import sealed
 from evalkit.api.auth import AdminUser
-from evalkit.config import Config
+from evalkit.api.deps import ConfigDep, KeysDep
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.endpoints import check_endpoint
-from evalkit.db.keys import KeyLoader
 from evalkit.db.llm_providers import LlmProviderStore
 
 router = APIRouter(tags=["llm providers"])
@@ -17,12 +17,14 @@ def _store(request: Request) -> LlmProviderStore:
     return request.app.state.llm_providers
 
 
-def _keys(request: Request) -> KeyLoader:
-    return request.app.state.keys
-
-
-def _cfg(request: Request) -> Config:
-    return request.app.state.cfg
+async def require_registered_judge(providers: LlmProviderStore, base_url: str) -> None:
+    if await providers.active_by_base_url(base_url) is None:
+        registered = ", ".join(p.base_url for p in await providers.list_providers())
+        raise HTTPException(
+            status_code=400,
+            detail=f"{base_url} is not a registered LLM provider; "
+            f"registered: {registered or 'none'}",
+        )
 
 
 @router.get("/api/llm-providers")
@@ -43,10 +45,11 @@ class CreateLlmProvider(BaseModel):
 
 
 @router.post("/api/llm-providers")
-async def create_llm_provider(body: CreateLlmProvider, request: Request, admin: AdminUser) -> dict:
-    await check_endpoint(body.base_url, allow_private=_cfg(request).allow_private_endpoints)
-    sealed = _keys(request).seal(body.api_key) if body.api_key else None
-    created = await _store(request).create(body.name, body.base_url, sealed)
+async def create_llm_provider(
+    body: CreateLlmProvider, request: Request, keys: KeysDep, cfg: ConfigDep, admin: AdminUser
+) -> dict:
+    await check_endpoint(body.base_url, allow_private=cfg.allow_private_endpoints)
+    created = await _store(request).create(body.name, body.base_url, sealed(keys, body.api_key))
     return created.model_dump(mode="json")
 
 
@@ -57,16 +60,21 @@ class EditLlmProvider(BaseModel):
 
 @router.patch("/api/llm-providers/{name}")
 async def edit_llm_provider(
-    name: str, body: EditLlmProvider, request: Request, admin: AdminUser
+    name: str,
+    body: EditLlmProvider,
+    request: Request,
+    keys: KeysDep,
+    cfg: ConfigDep,
+    admin: AdminUser,
 ) -> dict:
     current = await _store(request).get(name)
     if body.base_url is not None and body.base_url != current.base_url:
-        await check_endpoint(body.base_url, allow_private=_cfg(request).allow_private_endpoints)
+        await check_endpoint(body.base_url, allow_private=cfg.allow_private_endpoints)
     edited = await _store(request).edit(
         name,
         base_url=body.base_url,
-        api_key_encrypted=_keys(request).seal(body.api_key) if body.api_key else None,
-        clear_api_key="api_key" in body.model_fields_set and body.api_key is None,
+        api_key_encrypted=sealed(keys, body.api_key),
+        clear_api_key="api_key" in body.model_fields_set and not body.api_key,
     )
     return edited.model_dump(mode="json")
 
@@ -92,3 +100,22 @@ async def get_judge_default(request: Request) -> dict:
 @router.put("/api/judge-default")
 async def set_judge_default(body: JudgeSettings, request: Request, admin: AdminUser) -> dict:
     return (await _store(request).set_default_judge(body)).model_dump()
+
+
+class JudgePatch(BaseModel):
+    base_url: str | None = None
+    model: str | None = None
+    reasoning_effort: str | None = None
+    max_tokens: int | None = None
+    concurrency: int | None = None
+
+
+@router.patch("/api/judge-default")
+async def patch_judge_default(body: JudgePatch, request: Request, admin: AdminUser) -> dict:
+    current = await _store(request).default_judge()
+    merged = {
+        **(current.model_dump() if current is not None else {}),
+        **body.model_dump(exclude_none=True),
+    }
+    judge = JudgeSettings.model_validate(merged)
+    return (await _store(request).set_default_judge(judge)).model_dump()

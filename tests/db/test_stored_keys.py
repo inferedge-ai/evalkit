@@ -6,6 +6,7 @@ from evalkit.contracts.settings import JudgeSettings, RemoteEvaluatorSettings
 from evalkit.db.agents import AgentStore
 from evalkit.db.crypto import SecretBox
 from evalkit.db.evaluators import RemoteEvaluatorStore
+from evalkit.db.keys import StoredKeys
 from evalkit.db.llm_providers import (
     LlmProviderExists,
     LlmProviderStore,
@@ -50,7 +51,7 @@ async def test_evaluator_key_follows_its_endpoint(session_factory):
     sealed = box().seal("k")
     created = await store.create("canonical", "rtc", EvaluatorKind.SCORE, settings, sealed)
     assert created.has_api_key
-    assert await store.sealed_keys("canonical") == {"rtc": sealed}
+    assert await store.sealed_keys("canonical") == {"rtc": ("https://e/rtc", sealed)}
     kept = await store.edit("rtc@canonical", settings.model_copy(update={"timeout_seconds": 5}))
     assert kept.has_api_key
     moved = await store.edit("rtc@canonical", RemoteEvaluatorSettings(endpoint="https://f/rtc"))
@@ -105,3 +106,10 @@ async def test_rekey_covers_every_sealed_table(session_factory):
     assert (
         new.open(await LlmProviderStore(session_factory).sealed_key("https://o/v1") or b"") == "lk"
     )
+
+
+def test_a_loaded_key_only_goes_to_the_url_it_was_stored_for():
+    keys = StoredKeys({("evaluator", "rtc@dev"): ("k", "https://e/rtc")})
+    assert keys.key_for("evaluator", "rtc@dev", "https://e/rtc") == "k"
+    assert keys.key_for("evaluator", "rtc@dev", "https://attacker/eval") is None
+    assert keys.key_for("evaluator", "other@dev", "https://e/rtc") is None

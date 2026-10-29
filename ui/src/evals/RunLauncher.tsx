@@ -81,7 +81,7 @@ export function RunLauncher({
         setJudgeDefault(settings);
         setJudge(judgeChoice(settings));
       })
-      .catch((e) => setError(String(e)));
+      .catch(() => setJudgeDefault(null));
     api<CaseView[]>(`/datasets/${encodeURIComponent(dataset)}/cases`)
       .then(setExamples)
       .catch((e) => setError(String(e)));
@@ -333,7 +333,9 @@ export function RunLauncher({
               value={judge.base_url}
               onChange={(base_url) => setJudge((j) => ({ ...j, base_url }))}
               options={[
-                { value: "", label: "server default" },
+                ...(judgeDefault
+                  ? [{ value: "", label: "server default" }]
+                  : []),
                 ...providers.map((p) => ({
                   value: p.base_url,
                   label: `${p.name} (${p.base_url})`,
@@ -342,6 +344,12 @@ export function RunLauncher({
               title="LLM providers an admin registered; server runs only judge with these"
             />
           </div>
+          {!judgeDefault && (
+            <p className="row-meta">
+              This server has no default judge yet. Pick a provider and a judge
+              model.
+            </p>
+          )}
           {(["model", "reasoning_effort"] as const).map((key) => (
             <div key={key} className="form-row">
               <span className="form-label">

@@ -19,7 +19,7 @@ from evalkit.api.deps import (
     RunnerDepsDep,
     SessionDep,
 )
-from evalkit.api.llm_providers import NO_DEFAULT_JUDGE
+from evalkit.api.llm_providers import NO_DEFAULT_JUDGE, require_registered_judge
 from evalkit.api.server_keys import server_keys, with_keys
 from evalkit.contracts.atif import validate_trajectory
 from evalkit.contracts.enums import ExperimentStatus, SyncSource
@@ -257,13 +257,7 @@ async def create_experiment(
     warnings: list[str] = []
     run_deps = deps
     if server_driven:
-        if await providers.active_by_base_url(judge.base_url) is None:
-            registered = ", ".join(p.base_url for p in await providers.list_providers())
-            raise HTTPException(
-                status_code=400,
-                detail=f"{judge.base_url} is not a registered LLM provider; "
-                f"registered: {registered or 'none'}",
-            )
+        await require_registered_judge(providers, judge.base_url)
         keys, warnings = await server_keys(request, agent, judge.base_url)
         api_key = keys.key_for("agent", agent.ref)
         run_deps = with_keys(deps, keys)
@@ -478,6 +472,7 @@ async def evaluate(
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
     agent = await _server_driven(deps, exp, "evaluate")
+    await require_registered_judge(request.app.state.llm_providers, exp.config.judge.base_url)
     keys, warnings = await server_keys(request, agent, exp.config.judge.base_url)
     holder = task_holder(pod)
     exp = await store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
@@ -503,6 +498,7 @@ async def resume(
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
     agent = await _server_driven(deps, exp, "resume")
+    await require_registered_judge(request.app.state.llm_providers, exp.config.judge.base_url)
     keys, warnings = await server_keys(request, agent, exp.config.judge.base_url)
     holder = task_holder(pod)
     exp = await store.transition(exp_id, ExperimentStatus.RUNNING, holder)

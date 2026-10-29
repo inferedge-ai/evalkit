@@ -85,17 +85,23 @@ class RunnerConfig(ConfigModel):
     cost_map: CostMapConfig = CostMapConfig()
 
 
+def _shell(value: object) -> str:
+    text = str(value)
+    return f"${text.removeprefix('env:')}" if text.startswith("env:") else text
+
+
 def _moved_to_db_commands(data: dict) -> list[str]:
     credentials = data.get("credentials") or {}
     judge = data.get("judge_default") or {}
     commands = [
-        f"evalkit llm-providers create <name> --base-url {url} "
+        f"evalkit llm-providers create <name> --base-url {_shell(url)} "
         f"--api-key-env {str(ref).removeprefix('env:')}"
         for url, ref in (credentials.get("judges") or {}).items()
     ]
     if judge:
         commands.append(
-            f"evalkit judge-default set --provider <name> --model {judge.get('model', '<model>')}"
+            f"evalkit judge-default set --provider <name> "
+            f"--model {_shell(judge.get('model', '<model>'))}"
         )
     commands += [
         f"evalkit agents edit {ref} --api-key-env {str(env).removeprefix('env:')}"

@@ -579,7 +579,9 @@ async def drive_experiment(deps: RunnerDeps, exp_id: int, holder: str | None = N
     exp = await deps.store.get_experiment(exp_id)
     agent = await _agent_for(deps, exp)
     client = HarnessClient(
-        agent, deps.credentials.key_for("agent", agent.ref), transport=deps.harness_transport
+        agent,
+        deps.credentials.key_for("agent", agent.ref, agent.harness_url),
+        transport=deps.harness_transport,
     )
     # Runs execute under the experiment's snapshotted contract (capabilities,
     # model, pinned cases), never a fresh harness call, so resumed runs are
@@ -883,7 +885,9 @@ async def _evaluate_run(
             continue
         result = await score_with_custom_evaluator(
             evaluator_cfg,
-            deps.credentials.key_for("evaluator", evaluator_cfg.ref),
+            deps.credentials.key_for(
+                "evaluator", evaluator_cfg.ref, evaluator_cfg.settings.endpoint
+            ),
             case=eval_case.model_copy(update={"config": config}),
             answer=answer,
             output=structured,

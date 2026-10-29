@@ -10,14 +10,7 @@ class BlockedEndpoint(ValueError):
 
 
 def blocked(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    return (
-        addr.is_loopback
-        or addr.is_private
-        or addr.is_link_local
-        or addr.is_unspecified
-        or addr.is_multicast
-        or addr.is_reserved
-    )
+    return not addr.is_global or addr.is_multicast or addr.is_reserved
 
 
 async def check_endpoint(url: str, *, allow_private: bool) -> None:

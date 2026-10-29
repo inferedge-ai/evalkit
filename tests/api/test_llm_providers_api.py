@@ -91,3 +91,58 @@ async def test_private_endpoints_are_refused_unless_allowed(api):
         "/api/llm-providers", json={"name": "local", "base_url": "http://127.0.0.1:11434/v1"}
     )
     assert provider.status_code == 400
+
+
+async def test_judge_default_patch_keeps_unset_fields(api):
+    await api.put(
+        "/api/judge-default",
+        json={"base_url": JUDGE_URL, "model": "judge-model", "concurrency": 4},
+    )
+    patched = await api.patch("/api/judge-default", json={"model": "bigger"})
+    assert patched.json()["model"] == "bigger" and patched.json()["concurrency"] == 4
+
+
+async def test_an_empty_key_clears_it_everywhere(api):
+    await api.post(
+        "/api/evaluators",
+        json={
+            "workspace": "canonical",
+            "name": "keyed",
+            "kind": "score",
+            "settings": {"endpoint": "http://e"},
+            "api_key": "k",
+        },
+    )
+    evaluator = await api.patch("/api/evaluators/keyed@canonical", json={"api_key": ""})
+    assert evaluator.json()["has_api_key"] is False
+    provider = await api.patch("/api/llm-providers/judge", json={"api_key": ""})
+    assert provider.json()["has_api_key"] is False
+    agent = await api.patch("/api/agents/fake@canonical", json={"api_key": ""})
+    assert agent.json()["has_api_key"] is False
+
+
+async def test_personal_endpoints_skip_the_private_address_check(api):
+    api._transport.app.state.cfg.allow_private_endpoints = False  # type: ignore[attr-defined]
+    local = {"workspace": "admin", "name": "local", "harness_url": "http://localhost:8080/v1"}
+    assert (await api.post("/api/agents", json=local)).status_code == 200
+    evaluator = {
+        "workspace": "admin",
+        "name": "local_eval",
+        "kind": "score",
+        "settings": {"endpoint": "http://localhost:9000/evaluate"},
+    }
+    assert (await api.post("/api/evaluators", json=evaluator)).status_code == 200
+
+
+async def test_resume_and_evaluate_refuse_a_judge_that_is_no_longer_registered(api):
+    await api.post("/api/llm-providers", json={"name": "other", "base_url": "http://other/v1"})
+    started = await api.post(
+        "/api/experiments", json={**RUN, "judge": {"base_url": "http://other/v1", "model": "m"}}
+    )
+    assert started.status_code == 200, started.text
+    await api.post("/api/llm-providers/other/archive")
+    exp_id = started.json()["id"]
+    for action in ("resume", "evaluate"):
+        refused = await api.post(f"/api/experiments/{exp_id}/{action}")
+        assert refused.status_code == 400
+        assert "http://other/v1 is not a registered LLM provider" in refused.json()["detail"]

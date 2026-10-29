@@ -314,11 +314,12 @@ def register(
     def judge_default_set(
         provider: str = typer.Option(..., "--provider", help="An LLM provider name."),
         model: str = typer.Option(..., "--model"),
-        effort: str = typer.Option("high", "--effort", help="Reasoning effort."),
-        max_tokens: int = typer.Option(32768, "--max-tokens"),
-        concurrency: int = typer.Option(16, "--concurrency"),
+        effort: str | None = typer.Option(None, "--effort", help="Reasoning effort."),
+        max_tokens: int | None = typer.Option(None, "--max-tokens"),
+        concurrency: int | None = typer.Option(None, "--concurrency"),
     ):
-        """Set the judge experiments use unless they pick their own (admin).
+        """Set the judge experiments use unless they pick their own (admin). Options you
+        leave out keep their current value.
 
         Example: evalkit judge-default set --provider openai --model gpt-5
         """
@@ -331,7 +332,7 @@ def register(
             "max_tokens": max_tokens,
             "concurrency": concurrency,
         }
-        client.put("/api/judge-default", json=judge)
+        client.patch("/api/judge-default", json=judge)
         typer.echo(f"default judge: {model} on {provider} ({base_url})")
 
     def ref_of(text: str) -> str:

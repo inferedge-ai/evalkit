@@ -49,7 +49,7 @@ class CredentialsConfig(BaseModel):
 
 
 class KeySource(Protocol):
-    def key_for(self, kind: Kind, ref: str) -> str | None: ...
+    def key_for(self, kind: Kind, ref: str, url: str | None = None) -> str | None: ...
 
     def require_judge_key(self, base_url: str) -> str | None: ...
 
@@ -92,7 +92,7 @@ class CredentialRegistry:
             return table.get(name)
         return None
 
-    def key_for(self, kind: Kind, ref: str) -> str | None:
+    def key_for(self, kind: Kind, ref: str, url: str | None = None) -> str | None:
         entry = self._entry(kind, ref)
         if entry is None:
             return None

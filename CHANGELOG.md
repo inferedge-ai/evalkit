@@ -20,14 +20,16 @@
   - Admins register LLM providers with `evalkit llm-providers
     create|edit|list|show|archive|restore` (or Admin → LLM providers in
     the UI) and set the default judge with `evalkit judge-default set
-    --provider <name> --model <model>`. Server runs only judge with a
-    registered provider; another base URL is refused with 400.
+    --provider <name> --model <model>` (options you leave out keep their
+    current value). Server runs, resumes and re-evaluations only judge with
+    a registered provider; another base URL is refused with 400.
   - A server run whose agent, evaluator or provider has no key no longer
     fails with 400: it calls without a key, and the response lists
     `warnings`. Local runs print one line per agent or evaluator without
     an `evalkit.yaml` entry.
-  - The server refuses URLs that resolve to private, loopback or
-    link-local addresses. Set `allow_private_endpoints: true` in the
+  - The server refuses shared agent, evaluator and LLM provider URLs that
+    resolve to private, loopback, link-local or other non-public addresses.
+    Personal agents and evaluators are not checked: your CLI calls them. Set `allow_private_endpoints: true` in the
     server config when your harness, evaluator or LLM runs in the same
     cluster or on `host.docker.internal`.
   - `evalkit.yaml`: `credentials.judges` is now
