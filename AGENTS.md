@@ -119,9 +119,10 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - Run the server and UI locally (see "Local server"; a throwaway Postgres,
   dummy keys and the fake services in `tests/e2e/services.py` are enough).
 - Click through every page and flow the PR changes and take screenshots.
-- Add them to the PR description under "Screenshots". Push the images to a
-  branch named `pr-assets/pr-<number>` and link their raw URLs, so they never
-  land in `develop`.
+- Add them to the PR description under "Screenshots" with
+  `gh pr edit <n> --body-file body.md --attach ./shot.png ...`: write
+  `![caption](./shot.png)` in `body.md` and gh uploads each file to GitHub and
+  rewrites the link. Never commit screenshots to the repo.
 - `tsc`, `vitest` and `vite build` passing is not a UI test.
 - No browser `alert()`, `confirm()` or `prompt()` in new UI code: use inline
   fields or dialogs.
