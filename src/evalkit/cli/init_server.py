@@ -54,7 +54,10 @@ QUESTIONS = (
     Question(
         "admin_password",
         "EVALKIT_ADMIN_PASSWORD",
-        "Admin password: for the `admin` user created on the first `evalkit serve`",
+        (
+            "Admin password: you log in to the web UI and the CLI as `admin` with it; "
+            "admin can add users and workspaces and change any setting"
+        ),
         DEFAULT_ADMIN_PASSWORD,
         secret=True,
     ),
