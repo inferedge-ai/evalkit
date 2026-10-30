@@ -114,9 +114,9 @@ export EVALKIT_TOKEN=$(curl -fsSL -X POST http://localhost:8020/api/auth/login \
 
 `run.py` declares its own dependencies at the top of the file, so
 `uv run run.py` installs what it needs on the first run. The kit pins evalkit
-to the server's version when `evalkit init-server` copies it; in an evalkit
-checkout, run it with `uv run --with-editable ../../.. run.py` so it uses the
-checkout.
+to the server's version when `evalkit init-server` copies it. In an evalkit
+checkout, run the kit's scripts with the checkout instead:
+`uv run --project ../../.. --extra otel python run.py`.
 
 ## 2. Connect the agent's traces
 

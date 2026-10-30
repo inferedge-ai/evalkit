@@ -212,7 +212,8 @@ replace '"evalkit-py[otel]"' in run.py with the requirement
 ```
 
 So `uv run run.py` installs exactly the evalkit the server runs: the PyPI release or dev build, or the
-checkout itself.
+checkout itself. Inside a checkout the kit's `run.py` (unpinned) runs with the checkout's environment:
+`uv run --project ../../.. --extra otel python run.py`.
 
 ### 2.3 Creating the database
 
@@ -320,8 +321,10 @@ block in `docs/site/overrides/main.html` shows a banner on any version that is n
 
 Fixing an old version: `git checkout vX.Y.Z && uv run mike deploy --push X.Y.Z`.
 
-Workflow `.github/workflows/docs.yml`, `contents: write`, `fetch-depth: 0` (mike commits to
-`gh-pages`). Manual, by an admin: Settings → Pages → Source "Deploy from a branch", `gh-pages`, `/`.
+The deploy is the `docs` job in `publish.yml` (`contents: write`, `fetch-depth: 0`, one `gh-pages`
+concurrency group), not a separate workflow: in the same run as the `wheel` job, `GITHUB_RUN_NUMBER`
+is the same, so `{{version}}` on the `dev` docs is exactly the `.devN` on PyPI. `ci.yml`'s `python` job
+runs `mkdocs build --strict` as the PR check. Manual steps are listed at the end.
 
 ## Compatibility and release
 
@@ -342,5 +345,49 @@ Workflow `.github/workflows/docs.yml`, `contents: write`, `fetch-depth: 0` (mike
   `load_config` accepts with the `.env` loaded.
 - `tests/test_build.py`: a built wheel contains `evalkit/bundled/ui/index.html` (skipped when
   `ui/dist` is absent locally; CI's wheel job builds it).
-- Docs: `tests/test_docs_site.py` for the nav check; `mkdocs build --strict` in `docs.yml`.
+- Docs: `tests/test_docs_site.py` for the nav check; `mkdocs build --strict` in `ci.yml`.
 - `ui`: `docs.ts` values drop `filename`/`sha256`.
+
+## Manual steps (admin)
+
+Nothing publishes until these are done. Do them before merging, or the first `develop` push after the
+merge fails its `pypi` and `docs` jobs.
+
+### PyPI
+
+1. Sign in to https://pypi.org with the account that should own the project (enable 2FA; PyPI
+   requires it).
+2. Account settings → Publishing → "Add a new pending publisher" (the project does not exist yet; the
+   first upload creates it):
+   - PyPI project name: `evalkit-py`
+   - Owner: `inferedge-ai`
+   - Repository name: `evalkit`
+   - Workflow name: `publish.yml`
+   - Environment name: `pypi`
+3. After the first upload, add co-maintainers under the project's Collaborators, so the project does
+   not depend on one account.
+
+### GitHub: the `pypi` environment
+
+4. Repository → Settings → Environments → New environment `pypi`.
+5. Deployment branches and tags → "Selected branches": add `develop` and `main`. Only those branches
+   can then publish. A required reviewer is optional; it would pause every `develop` publish.
+
+### GitHub Pages
+
+6. The first `develop` push after the merge creates the `gh-pages` branch (the `docs` job).
+7. Repository → Settings → Pages → Build and deployment → Source "Deploy from a branch", branch
+   `gh-pages`, folder `/ (root)`. The site is then https://inferedge-ai.github.io/evalkit/.
+8. Until the first release from `main`, only `dev` exists and the site root does not redirect: use
+   https://inferedge-ai.github.io/evalkit/dev/. The first `main` release adds its version, `latest` and
+   the root redirect.
+9. Optional: a custom domain (Pages → Custom domain, plus a `CNAME` DNS record).
+
+### Deploys and clients
+
+10. Deploy only images built after the merge: their version is on PyPI (`X.Y.Z.devN` or `X.Y.Z`).
+11. After the first such deploy, every developer reinstalls once (old CLIs ask for the removed
+    `/api/cli/wheel`): `uv tool install --reinstall "evalkit-py==<version>"`.
+12. Projects that vendored the wheel (for example mind) move to PyPI once:
+    `uv remove evalkit && uv add "evalkit-py[otel]==<version>"`, and drop `vendor/`.
+13. A proxy in front of a server must still pass `GET /api/cli` without auth.
