@@ -1,7 +1,7 @@
 [project]
 name = "evalkit-py"
 version = "0.3.0"
-description = "Standalone agent-eval product: server, CLI, UI, finance eval suite, and EDD skills"
+description = "Self-hosted system for improving AI agents: server, CLI, web UI, Python SDK and agent skills"
 readme = "README.md"
 authors = [
     { name = "InferEdge Tech", email = "tech@inferedge.com" }
