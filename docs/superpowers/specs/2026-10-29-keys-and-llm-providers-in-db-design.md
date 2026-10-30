@@ -241,14 +241,18 @@ credentials:
   "New agent" and "Edit" buttons already show only for writers
   (`canWrite`, `ui/src/agents/AgentsPage.tsx`); with K5 a writer's
   `harness_url` is no longer refused.
-- **Evaluators** (the existing Settings → Evaluators tab): the create form
-  gains a key field in shared workspaces, and each row shows "key set" or
-  "no key". Create shows only when `canWrite`. Editing an endpoint or key and
-  restoring stay CLI-only.
-- **LLM providers** (new admin page, beside Users and Trace sources): list,
-  create, archive, restore, a "replace key" action per row, and a "Default
-  judge" form. Shown only to admins. Changing a provider's base URL stays
-  CLI-only.
+- **Evaluators** (the Settings → Evaluators tab): a "New evaluator" button
+  and an "edit" action open a modal like the agent form: name and kind
+  (create only), endpoint, timeout and the key field (shared workspaces; a
+  personal workspace shows a note pointing to `evalkit.yaml`). Changing the
+  endpoint warns that saving removes the key. Archived evaluators stay in the
+  list with a restore action. Create, edit, archive and restore show only when
+  `canWrite`.
+- **LLM providers** (new admin page, beside Users and Trace sources): list
+  with key status, a "New provider" button and an "edit" action that open a
+  modal (name on create, base URL, key field, and the URL-change warning),
+  archive and restore, and a "Default judge" form. Non-admins see the page
+  read-only, with the default judge as text.
 - **Experiment start** (where the UI starts server runs): the judge picker
   lists registered providers, then a model field; it defaults to the default
   judge. With no default judge (the API returns 404), the picker drops the

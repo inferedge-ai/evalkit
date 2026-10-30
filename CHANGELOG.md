@@ -37,6 +37,9 @@
   - `evalkit trace-sources rekey` is now `evalkit db rekey`, and
     re-encrypts every stored key.
   - New `evalkit evaluators show` and `evalkit evaluators restore`.
+  - The UI's Settings → Evaluators tab can now edit an evaluator (endpoint,
+    timeout, API key) and restore an archived one, in a modal like the
+    agent form.
   - Run `evalkit db upgrade` for migration `0013`.
 
 - The server can report errors to Sentry. Add a `sentry:` block to the
