@@ -1,6 +1,6 @@
 [project]
 name = "evalkit-py"
-version = "0.2.0"
+version = "0.3.0"
 description = "Standalone agent-eval product: server, CLI, UI, finance eval suite, and EDD skills"
 readme = "README.md"
 authors = [

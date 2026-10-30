@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - evalkit is on PyPI as **`evalkit-py`** (the command and the Python module
   are still `evalkit`). Install the version your server runs:
