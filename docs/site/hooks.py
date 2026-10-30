@@ -14,7 +14,8 @@ GENERATED = {
 }
 PLACEHOLDER = re.compile(r"\{\{(origin|version)\}\}")
 REPO_LINK = re.compile(r"\]\((?!https?:|mailto:|#)([^)]+)\)")
-REPO_BLOB = "https://github.com/inferedge-ai/evalkit/blob/develop/"
+REPO_BLOB = "https://github.com/inferedge-ai/evalkit/blob/"
+GITHUB_ONLY = "On GitHub, `{{origin}}` in the docs stands for your server's URL.\n"
 
 
 def _version() -> str:
@@ -26,11 +27,11 @@ def _version() -> str:
 def _site_link(target: str) -> str:
     if target.startswith("docs/user/"):
         return target.removeprefix("docs/user/")
-    return f"{REPO_BLOB}{target}"
+    return f"{REPO_BLOB}{os.environ.get('DOCS_REF', 'develop')}/{target}"
 
 
 def _home_page() -> str:
-    readme = (ROOT / "README.md").read_text()
+    readme = (ROOT / "README.md").read_text().replace(GITHUB_ONLY, "")
     return REPO_LINK.sub(lambda match: f"]({_site_link(match.group(1))})", readme)
 
 
