@@ -27,33 +27,26 @@ and how case review works.
 
 ## Install and log in
 
-1. Install the CLI from the server. The server is a Python package index at
-   `<server url>/api/cli/simple`; uv's `--index` checks it before PyPI, so
-   `evalkit` comes from the server and its dependencies from PyPI:
+1. Install the CLI from PyPI at the server's version. evalkit is on PyPI as
+   `evalkit-py`; `curl <server url>/api/cli` prints the server's version:
 
    ```bash
-   uv tool install --reinstall evalkit --index <server url>/api/cli/simple
+   uv tool install --reinstall "evalkit-py==<version>"
    ```
 
-   Run the same command to update after a server deploy (`evalkit update`
-   also works). With pipx, install the wheel file instead:
-   `curl -fsSL <server url>/api/cli/wheel -o <filename> && pipx install
-   --force ./<filename>`, with `<filename>` from `curl <server url>/api/cli`.
-   `<server url>/docs/install` in the web UI shows every command with the URL
-   filled in. `evalkit --version` prints what you have.
+   With pipx: `pipx install --force "evalkit-py==<version>"`.
+   `<server url>/docs/install` in the web UI shows every command with the
+   version filled in. `evalkit --version` prints what you have.
 
-   For SDK runs in a project that adds evalkit as a dependency, vendor the
-   wheel: the server serves only its current wheel, so a lock that points at
-   the index breaks after the next deploy. `evalkit update --vendor vendor`
-   downloads the wheel into `vendor/` (checksum checked) and prints the
-   `uv add "./vendor/<wheel>[otel]"` line; `uv.lock` then pins a file in the
-   repo. To keep evalkit out of the app's dependencies, run the eval script
-   with `uv run --with "evalkit[otel]" --index <server url>/api/cli/simple
-   python eval/run.py` instead; it locks nothing and picks up a new server
-   wheel by itself. After a server deploy, local and SDK runs refuse to start
-   until the versions match: run `evalkit update` from the project root,
-   which reinstalls the CLI, replaces the wheel in `./vendor` and refreshes
-   the skills `evalkit skills install` put in your repos, in one step.
+   For SDK runs, add evalkit to the project at the same version:
+   `uv add "evalkit-py[otel]==<version>"`; `uv.lock` pins it. To keep evalkit
+   out of the app's dependencies, run the eval script with
+   `uv run --with "evalkit-py[otel]==<version>" python eval/run.py` instead.
+   After a server deploy, local and SDK runs refuse to start until the
+   versions match: run `evalkit update` from the project root, which
+   reinstalls the CLI, moves the `evalkit-py` pin in `pyproject.toml` (and
+   runs `uv sync`) and refreshes the skills `evalkit skills install` put in
+   your repos, in one step.
 2. `evalkit login --url <url>` with your username, e.g. `evalkit login
    --url https://evalkit.internal`. The login is stored in
    `~/.evalkit/config.toml`. The CLI talks to one server at a time; logging
@@ -81,7 +74,7 @@ and how case review works.
    the CLI at the start of the job so CI always runs the server's build:
 
    ```bash
-   uv tool install --reinstall evalkit --index "$EVALKIT_SERVER_URL/api/cli/simple"
+   uv tool install --reinstall "evalkit-py==$(curl -fsSL "$EVALKIT_SERVER_URL/api/cli" | jq -r .version)"
    ```
 
 The web UI serves at the server URL with the same credentials.
@@ -197,8 +190,8 @@ runs that split. Local runs require the CLI and server versions to match.
 
 An agent that is a library, a notebook, or a service with its own job runner
 does not need a Harness API. Install the SDK into the project (the web UI's
-Docs → Install page has the exact command for your server; it is the same
-wheel with the `otel` extra), create a code-driven agent (no `--harness-url`),
+Docs → Install page has the exact command for your server; it is
+`evalkit-py` with the `otel` extra), create a code-driven agent (no `--harness-url`),
 and run the experiment from your own code. A local run uses
 your own login for the API calls (the one from `evalkit login`, or
 `EVALKIT_SERVER_URL` and `EVALKIT_TOKEN`), and for the exported traces when
@@ -375,8 +368,8 @@ Harness API page has the full table.
 | Mint, list or revoke a collector token for a deployed agent | `evalkit tokens` |
 | Move cases through review | `evalkit review` (subcommands below) |
 | Ask about runs, failures, usage or experiments from Claude, Cursor or Codex | the MCP server at `{{origin}}/mcp` (below) |
-| Update the CLI and a project's vendored wheel to the server's build | `evalkit update` |
-| Add the SDK to a project (vendored, so `uv.lock` survives deploys) | `evalkit update --vendor vendor`, then `uv add "./vendor/<wheel>[otel]"` |
+| Update the CLI and a project's `evalkit-py` pin to the server's version | `evalkit update` |
+| Add the SDK to a project | `uv add "evalkit-py[otel]==<server version>"` |
 | Vendor these skills into a repo | `evalkit skills install` |
 
 Read `evalkit <command> --help` before you run a command. It is the source of

@@ -26,23 +26,16 @@ COPY skills/ skills/
 COPY contracts/ contracts/
 COPY docs/user/ docs/user/
 
-# Project layer.
+# Project layer. evalkit installs as a regular (not editable) package, the
+# way pip installs it: the web UI and cost_map.json must be in place first,
+# because the wheel bundles them.
 COPY README.md ./
 COPY src/ src/
-# A local build gets its own version so `uv run` scripts and `uv tool` installs
-# notice a rebuilt wheel; CI has already stamped +g<sha>, which is kept.
-RUN v="$(uv version --short)" && case "$v" in *+*) ;; \
-    *) uv version --frozen "$v+local.$(date -u +%Y%m%d%H%M%S)" ;; esac
-RUN uv sync --frozen --extra server --no-dev
-
 # cost_map.json is not checked in; fetch it at build time so the image never fetches at runtime.
 COPY scripts/fetch_cost_map.py scripts/fetch_cost_map.py
-RUN uv run --no-sync python scripts/fetch_cost_map.py
-
-RUN uv build --wheel --out-dir /app/dist
-ENV EVALKIT_WHEEL_DIR=/app/dist
-
+RUN PYTHONPATH=src uv run --no-sync python scripts/fetch_cost_map.py
 COPY --from=ui /build/ui/dist ui/dist
+RUN uv sync --frozen --extra server --no-dev --no-editable
 
 ENV PATH="/app/.venv/bin:$PATH"
 # OpenSSL in `cryptography` dies with SIGILL (exit 132) on Apple M4 under Docker when it

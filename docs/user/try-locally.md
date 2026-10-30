@@ -7,23 +7,59 @@ evalkit, evalkit turns them into a trajectory, and your LLM judges the
 answers. The kit includes a small sample agent that calls your LLM, so you
 get a real scorecard before you touch your own agent.
 
-It is not a deployment. It runs migrations on every start and uses a fixed
-admin password. For a real deployment, follow the evalkit-deployment skill.
+It is not a deployment: it uses a demo admin password and keeps everything
+on one machine. For a real deployment, follow the evalkit-deployment skill.
 
 ## What you need
 
-- Docker with Compose v2, `uv`, and port 8020 free. The first `--build`
-  takes a few minutes (it builds the web UI and installs the server); later
-  starts take seconds.
-- Either the evalkit repository, or the evalkit server image (the same one a
-  deployment uses).
+- `uv` and port 8020 free.
 - An OpenAI-compatible LLM endpoint (OpenAI, a LiteLLM proxy, vLLM, Ollama,
   ...) that supports tool calls and structured output, with its base URL, API
   key and model name. The sample agent and the judge both use it.
+- Either Postgres 15 or newer running on this machine (without Docker), or
+  Docker with Compose v2 (with Docker).
 
-## Start the stack
+## Start the server
 
-The kit is `skills/evalkit-deployment/try/` in the evalkit repository, and the server image holds a copy.
+Pick one way. Both end with the server on http://localhost:8020 and the try
+kit in a folder, and the steps after this section are the same.
+
+### Without Docker
+
+evalkit is on PyPI as `evalkit-py`. Install it with the server extra, then
+let `evalkit init-server` set up the rest:
+
+```bash
+uv tool install "evalkit-py[server]"   # or: pip install "evalkit-py[server]"
+evalkit init-server
+cd evalkit-try
+evalkit serve
+```
+
+`init-server` asks for the Postgres URL (default
+`postgresql+psycopg://localhost/evalkit`), your LLM's base URL, model and API
+key, and the admin password (default `evalkit-admin`). A question is skipped
+when its flag or environment variable is set (`evalkit init-server --help`
+lists both); `--yes` never asks. It then:
+
+- creates the database when it does not exist, and migrates it
+- registers your LLM as the LLM provider `try` and makes it the default judge,
+  with its API key stored encrypted in the database
+- copies the try kit into `./evalkit-try`
+- writes `config.yaml` there, with blobs stored under `evalkit-try/data`
+- writes `.env` beside it, with your LLM settings, the admin password and the
+  key that encrypts stored API keys; `evalkit serve` reads it. Keep `.env`:
+  without that key the server cannot read the stored LLM key
+
+Leave `evalkit serve` running and use another terminal for the steps below,
+from the `evalkit-try` folder. The CLI is already installed, so skip the
+install command in step 1.
+
+### With Docker
+
+The kit is `skills/evalkit-deployment/try/` in the evalkit repository, and the
+server image holds a copy. The first `--build` takes a few minutes (it builds
+the web UI and installs the server); later starts take seconds.
 
 From an evalkit checkout, compose builds the image:
 
@@ -38,16 +74,17 @@ With the server image instead, copy the kit out of it first:
 ```bash
 export EVALKIT_IMAGE=<registry>/evalkit:<tag>
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/out" "$EVALKIT_IMAGE" \
-  cp -r /app/skills/evalkit-deployment/try /out/evalkit-try
+  evalkit init-server --kit-only --dir /out/evalkit-try
 cd evalkit-try
 cp -n .env.example .env          # fill in LLM_BASE_URL, LLM_API_KEY, LLM_MODEL
 docker compose up -d --wait
 ```
 
 Compose starts Postgres and the evalkit server, with your LLM as the judge.
-`--wait` returns once the server is healthy.
+`--wait` returns once the server is healthy. The server runs migrations on
+every start.
 
-What's in the kit:
+### What's in the kit
 
 | File | What it is |
 | -- | -- |
@@ -56,13 +93,18 @@ What's in the kit:
 | `mapping.json` | The span mapping: which span attribute holds the model, the messages, the tokens and each tool call. It starts as the connect-traces skill's `gen_ai.json`. |
 | `cases/acme/` | Five cases in two folders (tags), with answer rubrics and a tool check. |
 | `evalkit.yaml`, `.env` | Where the cases are, and the judge's key. |
+| `config.yaml` | The server's config. |
+| `docker-compose.yml`, `.env.example` | With Docker only: the stack, and the template for its `.env`. `init-server` leaves them out. |
 
 ## 1. Install the CLI and log in
 
 ```bash
-uv tool install --reinstall evalkit --index http://localhost:8020/api/cli/simple
+uv tool install --reinstall "evalkit-py=={{version}}"   # with Docker only
 evalkit login --url http://localhost:8020 --username admin --password evalkit-admin
 ```
+
+`{{version}}` is the server's version; `curl http://localhost:8020/api/cli`
+prints it.
 
 `evalkit login` replaces any login you already saved. To keep it, skip
 `evalkit login` and point this shell at the try-it server instead (this needs
@@ -74,9 +116,11 @@ export EVALKIT_TOKEN=$(curl -fsSL -X POST http://localhost:8020/api/auth/login \
   -H 'content-type: application/json' -d '{"username": "admin", "password": "evalkit-admin"}' | jq -r .token)
 ```
 
-`run.py` declares its own dependencies at the top of the file, including
-evalkit from this server's package index, so `uv run run.py` installs what it
-needs on the first run.
+`run.py` declares its own dependencies at the top of the file, so
+`uv run run.py` installs what it needs on the first run. The kit pins evalkit
+to the server's version when `evalkit init-server` copies it. In an evalkit
+checkout, run the kit's scripts with the checkout instead:
+`uv run --project ../../.. --extra otel python run.py`.
 
 ## 2. Connect the agent's traces
 
@@ -125,7 +169,7 @@ The `answer_rubric_*` rows by rubric type (`factual_retrieval`,
 `derived_computation`, `analysis_interpretation`) count only the cases that
 have a rubric of that type, so their case counts differ.
 
-Open http://localhost:8020, log in as `admin` / `evalkit`, and open the
+Open http://localhost:8020, log in as `admin` with the admin password, and open the
 experiment under the `acme` dataset. Each run shows its trajectory, the
 judge's verdict on every rubric and the tool check. The Runs page lists the
 raw sessions.
@@ -158,13 +202,14 @@ Do the same in your own repository:
    (`{{origin}}/api/judge-default` shows its `base_url`), or the one you pass to
    `run_experiment(judge=...)`. This kit keys it with `env:LLM_BASE_URL` so the
    URL comes from `.env`. Keep the keys in a `.env` beside `evalkit.yaml`.
-3. **Script.** Copy `run.py`. Change the index URL in its header to your
-   evalkit server's (`{{origin}}/api/cli/simple`), call
+3. **Script.** Copy `run.py`. Pin evalkit in its header to your evalkit
+   server's version (`evalkit-py[otel]==<version>`), call
    `tracing.register(agent="myagent")`, and write a `task` that calls your
    agent with the case input. `uv run run.py` builds an environment from the
    header alone, so add your agent's packages to its `dependencies`. If your
    agent lives in a uv project, you can instead add evalkit to the project
-   (see the Install page) and run the script with `uv run python run.py`.
+   (see the [Install](install.md) page) and run the script with
+   `uv run python run.py`.
 4. **Cases.** Add a folder under your cases directory, for example
    `mine/`, and run with `dataset="mine"`. The authoring-eval-cases skill
    covers the format. See [Concepts](concepts.md) for the terms.
@@ -201,6 +246,12 @@ Once the server runs, your teammates start from its own `/docs` page.
 
 ## Stop and clean up
 
+Without Docker: stop `evalkit serve` with Ctrl-C. To delete everything, drop
+the database you gave `init-server` (`dropdb evalkit` with the default URL)
+and remove the `evalkit-try` folder.
+
+With Docker:
+
 ```bash
 docker compose down        # stop; data stays in the volumes
 docker compose down -v     # stop and delete all data
@@ -208,6 +259,20 @@ docker compose down -v     # stop and delete all data
 
 ## When something fails
 
+- `uv run run.py` cannot find `evalkit-py==<version>`: that version is not
+  on PyPI yet (a source build, or a build whose publish job has not finished).
+  Run it with the wheel you installed instead:
+  `uv run --no-project --with "<path to the wheel>[otel]" python run.py`, or
+  from an evalkit checkout: `uv run --project <checkout> --extra otel python run.py`.
+  Or wait for the publish.
+- `init-server` cannot connect: start Postgres (`brew services start
+  postgresql@17`, `sudo systemctl start postgresql`, or Postgres.app), or
+  pass `--database-url` with the user and password your Postgres needs, e.g.
+  `postgresql+psycopg://me:secret@localhost:5432/evalkit`.
+- `init-server` says `config.yaml` exists: you already set up that folder.
+  Run `evalkit serve` there, or pass `--force` to write it again.
+- `evalkit serve` says a variable is not set: check `.env` beside
+  `config.yaml`.
 - Compose says a variable is not set: fill in `.env` (copied from
   `.env.example`).
 - Compose cannot find `evalkit:try`: outside a checkout, set `EVALKIT_IMAGE`;

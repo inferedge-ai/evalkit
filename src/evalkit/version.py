@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import re
 from enum import StrEnum
 from typing import NamedTuple
 
@@ -18,14 +19,20 @@ class VersionComparison(StrEnum):
     INCOMPATIBLE = "incompatible"
 
 
+DISTRIBUTION = "evalkit-py"
+_VERSION = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:\.(dev\d+))?(?:\+(.+))?")
+
+
 def current() -> str:
-    return importlib.metadata.version("evalkit")
+    return importlib.metadata.version(DISTRIBUTION)
 
 
 def parse(version: str) -> ParsedVersion:
-    public, _, local = version.partition("+")
-    major, minor, patch = (int(part) for part in public.split("."))
-    return ParsedVersion(major, minor, patch, local or None)
+    match = _VERSION.fullmatch(version)
+    if match is None:
+        raise ValueError(f"not an evalkit version: {version}")
+    major, minor, patch, dev, local = match.groups()
+    return ParsedVersion(int(major), int(minor), int(patch), dev or local)
 
 
 def compare(local: str, remote: str) -> VersionComparison:
@@ -35,7 +42,3 @@ def compare(local: str, remote: str) -> VersionComparison:
     if local == remote:
         return VersionComparison.SAME
     return VersionComparison.DIFFERENT
-
-
-def version_from_wheel_filename(name: str) -> str:
-    return name.removesuffix(".whl").split("-")[1]

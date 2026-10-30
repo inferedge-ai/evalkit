@@ -1,11 +1,10 @@
-import hashlib
 import os
-import shutil
+import re
 import subprocess
 import sys
 from collections.abc import Callable
+from importlib.util import find_spec
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import typer
 
@@ -13,15 +12,16 @@ from evalkit import version
 from evalkit.cli import skill_targets
 from evalkit.cli.client import ApiClient, ApiError
 
-DEFAULT_VENDOR_DIR = "vendor"
+PINNED = re.compile(r'"(evalkit-py(?:\[[^\]]*\])?)==([^"]+)"')
+VENDORED = re.compile(r"evalkit-[^\s\"']+\.whl")
 
 
-def install_command(prefix: Path, wheel: Path) -> list[str] | None:
+def install_command(prefix: Path, requirement: str) -> list[str] | None:
     parts = prefix.parts
     if "uv" in parts and "tools" in parts:
-        return ["uv", "tool", "install", "--reinstall", str(wheel)]
+        return ["uv", "tool", "install", "--reinstall", requirement]
     if "pipx" in parts and "venvs" in parts:
-        return ["pipx", "install", "--force", str(wheel)]
+        return ["pipx", "install", "--force", requirement]
     return None
 
 
@@ -33,91 +33,53 @@ def _run_checked(command: list[str]) -> None:
     subprocess.run(command, check=True)
 
 
-def vendored_wheel(vendor: Path) -> Path | None:
-    wheels = sorted(vendor.glob("evalkit-*.whl")) if vendor.is_dir() else []
-    return wheels[0] if wheels else None
-
-
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _replace_vendored(
-    cwd: Path, old: Path, wheel: Path, run: Callable[[list[str]], object]
-) -> bool:
-    target = old.parent / wheel.name
-    shutil.copy(wheel, target)
-    if target != old:
-        old.unlink()
+def update_project_pin(cwd: Path, target: str, run: Callable[[list[str]], object]) -> bool:
     pyproject = cwd / "pyproject.toml"
-    synced = pyproject.is_file() and old.name in pyproject.read_text()
-    if synced:
-        pyproject.write_text(pyproject.read_text().replace(old.name, wheel.name))
-        run(["uv", "sync"])
-    typer.echo(f"updated {target}")
-    return synced
-
-
-def _vendor_first_time(cwd: Path, vendor: Path, wheel: Path) -> None:
-    vendor.mkdir(parents=True, exist_ok=True)
-    target = vendor / wheel.name
-    shutil.copy(wheel, target)
-    shown = Path(os.path.relpath(target.resolve(), cwd.resolve())).as_posix()
-    shown = shown if shown.startswith(".") else f"./{shown}"
-    typer.echo(f"downloaded {target}")
-    typer.echo(f'add it to the project:     uv add "{shown}[otel]"')
-    typer.echo(f'or run one script with it: uv run --with "{shown}[otel]" python eval/run.py')
+    if not pyproject.is_file():
+        return False
+    text = pyproject.read_text()
+    if PINNED.search(text):
+        moved = PINNED.sub(lambda m: f'"{m.group(1)}=={target}"', text)
+        if moved != text:
+            pyproject.write_text(moved)
+            run(["uv", "sync"])
+            typer.echo(f"updated {pyproject}")
+            return True
+    elif VENDORED.search(text):
+        typer.echo("this project uses a vendored evalkit wheel; move it to PyPI:")
+        typer.echo(f'  uv remove evalkit && uv add "{version.DISTRIBUTION}[otel]=={target}"')
+    return False
 
 
 def run_update(
     client: ApiClient,
     *,
-    vendor: Path | None = None,
     prefix: Path | None = None,
     run: Callable[[list[str]], object] = _run_checked,
     cwd: Path | None = None,
     skills: bool = True,
     targets_path: Path | None = None,
+    server_extra: bool = find_spec("uvicorn") is not None,
 ) -> None:
-    info = client.get("/api/cli").json()
+    target = client.get("/api/cli").json()["version"]
     project = cwd or Path.cwd()
-    vendor_dir = vendor if vendor is not None else project / DEFAULT_VENDOR_DIR
-    vendored = vendored_wheel(vendor_dir)
+    synced = update_project_pin(project, target, run)
     local = version.current()
-    cli_stale = version.compare(local, info["version"]) is not version.VersionComparison.SAME
-    vendor_stale = (vendor is not None and vendored is None) or (
-        vendored is not None and _sha256(vendored) != info["sha256"]
-    )
-    if not cli_stale and not vendor_stale:
+    if local == target:
         typer.echo(f"evalkit {local} is already current")
         return
-    with TemporaryDirectory() as tmp:
-        wheel = Path(tmp) / info["filename"]
-        wheel.write_bytes(client.get("/api/cli/wheel").content)
-        actual = _sha256(wheel)
-        if actual != info["sha256"]:
-            raise ApiError(f"checksum mismatch: server says {info['sha256']}, downloaded {actual}")
-        synced = False
-        if vendor_stale and vendored is None:
-            _vendor_first_time(project, vendor_dir, wheel)
-        elif vendor_stale and vendored is not None:
-            synced = _replace_vendored(project, vendored, wheel, run)
-        if not cli_stale:
-            return
-        install_prefix = prefix or Path(sys.prefix)
-        command = install_command(install_prefix, wheel)
-        if command is None:
-            if synced:
-                return
-            kept = project / wheel.name
-            shutil.copy(wheel, kept)
-            typer.echo(f"downloaded {kept}")
-            typer.echo(f"  uv tool install --reinstall {kept}")
-            typer.echo(f"  pipx install --force {kept}")
-            raise ApiError(
-                "could not tell how evalkit was installed; run one of the commands above"
-            )
-        run(command)
-    typer.echo(f"installed evalkit {info['version']}")
+    install_prefix = prefix or Path(sys.prefix)
+    if synced and install_prefix.resolve() == (project / ".venv").resolve():
+        typer.echo(f"installed evalkit {target} into {install_prefix}")
+        return
+    extra = "[server]" if server_extra else ""
+    requirement = f"{version.DISTRIBUTION}{extra}=={target}"
+    command = install_command(install_prefix, requirement)
+    if command is None:
+        typer.echo(f'  uv tool install --reinstall "{requirement}"')
+        typer.echo(f'  pipx install --force "{requirement}"')
+        raise ApiError("could not tell how evalkit was installed; run one of the commands above")
+    run(command)
+    typer.echo(f"installed evalkit {target}")
     if skills:
         skill_targets.refresh(project, installed_cli(install_prefix), run, targets_path)

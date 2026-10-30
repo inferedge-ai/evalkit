@@ -24,3 +24,10 @@ def docs_root() -> Path:
     if repo.is_dir():
         return repo
     return _PACKAGE / "bundled" / "docs"
+
+
+def ui_root() -> Path:
+    repo = _REPO / "ui" / "dist"
+    if repo.is_dir():
+        return repo
+    return _PACKAGE / "bundled" / "ui"

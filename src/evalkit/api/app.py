@@ -86,6 +86,7 @@ from evalkit.db.trace_sources import (
 )
 from evalkit.db.users import InvalidName, InvalidPassword, LastAdmin, NameTaken, UnknownUser
 from evalkit.db.workspaces import PromotionLinkError, SharedOnly, UnknownWorkspace
+from evalkit.paths import ui_root
 from evalkit.store.base import Conflict, UnknownDataset, UnknownExperiment
 from evalkit.store.blob import Obstore
 
@@ -165,7 +166,6 @@ def create_app(
     session_factory=None,
     check_schema: bool = True,
     ui_dist: Path | None = None,
-    wheel_dir: Path | None = None,
     holder: str | None = None,
     mcp_jwt_verifier: TokenVerifier | None = None,
 ) -> FastAPI:
@@ -249,11 +249,7 @@ def create_app(
     app.state.trace_imports = TraceImportStore(session_factory)
     app.state.import_tasks = {}
 
-    env_wheel_dir = os.environ.get("EVALKIT_WHEEL_DIR")
-    if wheel_dir is None and env_wheel_dir:
-        wheel_dir = Path(env_wheel_dir)
     running_version = version.current()
-    app.state.served_wheel = cli_dist.load_wheel(wheel_dir, running_version)
 
     app.add_exception_handler(SessionTooLarge, traces.session_too_large)
 
@@ -341,7 +337,7 @@ def create_app(
     mcp_app = mount_mcp(app, mcp_jwt_verifier)
 
     if ui_dist is None:
-        ui_dist = Path(__file__).resolve().parents[3] / "ui" / "dist"
+        ui_dist = ui_root()
     if ui_dist.is_dir():
         assets = ui_dist / "assets"
         if assets.is_dir():

@@ -161,14 +161,13 @@ def test_kit_mapping_starts_as_the_connect_traces_gen_ai_mapping():
     assert json.loads(KIT_MAPPING.read_text()) == json.loads(GEN_AI.read_text())
 
 
-def test_kit_server_migrates_on_start_and_run_py_installs_from_the_server(monkeypatch):
+def test_kit_server_migrates_on_start_and_run_py_is_pinned_on_copy(monkeypatch):
     monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
     assert load_config(KIT / "config.yaml").db.migrate_on_start is True
     assert "migrate:" not in (KIT / "docker-compose.yml").read_text()
     header = (KIT / "run.py").read_text().split("# ///\n")[0]
-    assert 'dependencies = ["evalkit[otel]"]' in header
-    assert 'url = "http://localhost:8020/api/cli/simple"' in header
-    assert 'upgrade-package = ["evalkit"]' in header
+    assert 'dependencies = ["evalkit-py[otel]"]' in header
+    assert "tool.uv" not in header
 
 
 def test_run_py_help_prints_usage_without_starting_a_run(tmp_path):
