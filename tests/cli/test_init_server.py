@@ -170,3 +170,17 @@ def test_an_existing_kit_is_kept_without_force(tmp_path):
     forced = CliRunner().invoke(app, ["init-server", "--kit-only", "--force", "--dir", str(kit)])
     assert forced.exit_code == 0
     assert (kit / "run.py").read_text() != "mine\n"
+
+
+def test_an_existing_llm_setup_gets_no_new_encryption_key(tmp_path, monkeypatch):
+    monkeypatch.setattr(server_commands, "init_database", lambda url: False)
+    monkeypatch.setattr(server_commands, "has_llm_setup", lambda url: True)
+    registered: list[tuple] = []
+    monkeypatch.setattr(server_commands, "register_default_judge", lambda *a: registered.append(a))
+    kit = tmp_path / "kit"
+    result = CliRunner().invoke(app, ["init-server", "--dir", str(kit), "--yes", *LLM_FLAGS])
+    assert result.exit_code == 0, result.output
+    assert registered == []
+    assert "EVALKIT_ENCRYPTION_KEY" not in dotenv_values(kit / ".env")
+    assert "# EVALKIT_ENCRYPTION_KEY=<the encryption_key" in (kit / ".env").read_text()
+    assert "commented out" in result.output

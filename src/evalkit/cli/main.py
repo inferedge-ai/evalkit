@@ -1091,13 +1091,13 @@ def init_server_command(
         if created
         else "the database already existed; migrated it"
     )
-    encryption_key = (
-        init_server.existing_encryption_key(directory) or server_commands.new_encryption_key()
-    )
+    saved_key = init_server.existing_encryption_key(directory)
+    new_key = saved_key or server_commands.new_encryption_key()
+    encryption_key: str | None = new_key
     if created or not server_commands.has_llm_setup(answers.database_url):
         server_commands.register_default_judge(
             answers.database_url,
-            encryption_key,
+            new_key,
             answers.llm_base_url,
             answers.llm_api_key,
             answers.llm_model,
@@ -1110,6 +1110,13 @@ def init_server_command(
             "using this database needs the encryption_key it was set up with.",
             fg="yellow",
         )
+        if saved_key is None:
+            encryption_key = None
+            typer.secho(
+                f"set EVALKIT_ENCRYPTION_KEY in {directory / '.env'} to that key before "
+                "`evalkit serve`; the line is there, commented out.",
+                fg="yellow",
+            )
     init_server.copy_kit(directory, docker=False)
     init_server.write_server_files(directory, answers, encryption_key)
     typer.echo(f"set up {directory}: config.yaml, .env and the try kit")
