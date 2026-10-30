@@ -952,21 +952,21 @@
 
 <h1 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h1>
 <p>evalkit is one Python package on PyPI, <code>evalkit-py</code>. It holds the <code>evalkit</code> command (the CLI), the <code>evalkit.sdk</code> module for SDK runs and, with the <code>server</code> extra, the server itself.</p>
-<p>Your CLI and SDK must run the <strong>same version as the evalkit server</strong> you use: local runs and SDK runs refuse to start otherwise. The commands on this page pin version <strong>0.3.0.dev14</strong>. On your server's own <code>/docs/install</code> page, that is the server's version; <code>curl &lt;server url&gt;/api/cli</code> prints it anywhere.</p>
+<p>Your CLI and SDK must run the <strong>same version as the evalkit server</strong> you use: local runs and SDK runs refuse to start otherwise. The commands on this page pin version <strong>0.3.0.dev15</strong>. On your server's own <code>/docs/install</code> page, that is the server's version; <code>curl &lt;server url&gt;/api/cli</code> prints it anywhere.</p>
 <h2 id="the-cli-as-a-global-tool">The CLI, as a global tool<a class="headerlink" href="#the-cli-as-a-global-tool" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev14"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev15"</span>
 </code></pre></div>
-<p>With pipx instead: <code>pipx install --force "evalkit-py==0.3.0.dev14"</code>.</p>
+<p>With pipx instead: <code>pipx install --force "evalkit-py==0.3.0.dev15"</code>.</p>
 <p><code>curl http://localhost:8020/api/cli</code> prints the server's version, for scripts and CI:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==</span><span class="k">$(</span>curl<span class="w"> </span>-fsSL<span class="w"> </span>http://localhost:8020/api/cli<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.version<span class="k">)</span><span class="s2">"</span>
 </code></pre></div>
 <h2 id="the-sdk-into-a-project">The SDK, into a project<a class="headerlink" href="#the-sdk-into-a-project" title="Permanent link">&para;</a></h2>
 <p><code>run_experiment</code> and <code>tracing.register</code> live in the same package as the CLI. The <code>otel</code> extra brings the OpenTelemetry SDK and the OTLP exporter. Pin the server's version; <code>uv.lock</code> records it:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py[otel]==0.3.0.dev14"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py[otel]==0.3.0.dev15"</span>
 </code></pre></div>
-<p>With pip instead: <code>pip install "evalkit-py[otel]==0.3.0.dev14"</code>.</p>
+<p>With pip instead: <code>pip install "evalkit-py[otel]==0.3.0.dev15"</code>.</p>
 <p>To keep evalkit out of the app's dependencies, run the eval script with it instead:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--with<span class="w"> </span><span class="s2">"evalkit-py[otel]==0.3.0.dev14"</span><span class="w"> </span>python<span class="w"> </span>eval/run.py
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--with<span class="w"> </span><span class="s2">"evalkit-py[otel]==0.3.0.dev15"</span><span class="w"> </span>python<span class="w"> </span>eval/run.py
 </code></pre></div>
 <h2 id="the-server">The server<a class="headerlink" href="#the-server" title="Permanent link">&para;</a></h2>
 <p><code>pip install "evalkit-py[server]"</code> installs the server too: the API, the web UI and migrations. To run one on your machine against a Postgres you already have:</p>
@@ -979,7 +979,7 @@
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>update
 </code></pre></div>
 <p>It reinstalls the CLI at the server's version and, when <code>pyproject.toml</code> pins <code>evalkit-py==…</code>, moves the pin and runs <code>uv sync</code>. It then refreshes the skills in every directory <code>evalkit skills install</code> wrote to on this machine (listed in <code>~/.evalkit/skills-targets</code>), and in <code>./.claude/skills</code> or <code>./.agents/skills</code> if they hold an earlier install; commit the changes in repos that track the skills. Pass <code>--no-skills</code> to skip that.</p>
-<p>A project that vendored an evalkit wheel before evalkit was on PyPI moves to PyPI once: <code>uv remove evalkit &amp;&amp; uv add "evalkit-py[otel]==0.3.0.dev14"</code>.</p>
+<p>A project that vendored an evalkit wheel before evalkit was on PyPI moves to PyPI once: <code>uv remove evalkit &amp;&amp; uv add "evalkit-py[otel]==0.3.0.dev15"</code>.</p>
 <p>Next: <a href="../login/">Login</a>.</p>
 
 
