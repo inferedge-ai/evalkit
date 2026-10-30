@@ -198,3 +198,50 @@
   border-radius: 3px;
   padding: 0 0.2em;
 }
+
+/* Code blocks use the app's highlighting: prism's `github` theme in light,
+   `nightOwl` in dark (ui/src/pages/DocsPage.tsx). */
+[data-md-color-scheme="default"] {
+  --ek-pre-bg: #f6f8fa;
+  --ek-pre-fg: #393a34;
+  --md-code-hl-comment-color: #999988;
+  --md-code-hl-string-color: #e3116c;
+  --md-code-hl-number-color: #36acaa;
+  --md-code-hl-constant-color: #36acaa;
+  --md-code-hl-variable-color: #36acaa;
+  --md-code-hl-special-color: #36acaa;
+  --md-code-hl-keyword-color: #00009f;
+  --md-code-hl-function-color: #d73a49;
+  --md-code-hl-name-color: #393a34;
+  --md-code-hl-operator-color: #393a34;
+  --md-code-hl-punctuation-color: #393a34;
+  --md-code-hl-generic-color: #393a34;
+}
+
+[data-md-color-scheme="slate"] {
+  --ek-pre-bg: #011627;
+  --ek-pre-fg: #d6deeb;
+  --md-code-hl-comment-color: rgb(99 119 119);
+  --md-code-hl-string-color: rgb(173 219 103);
+  --md-code-hl-number-color: rgb(247 140 108);
+  --md-code-hl-constant-color: rgb(130 170 255);
+  --md-code-hl-variable-color: rgb(214 222 235);
+  --md-code-hl-special-color: rgb(130 170 255);
+  --md-code-hl-keyword-color: rgb(127 219 202);
+  --md-code-hl-function-color: rgb(130 170 255);
+  --md-code-hl-name-color: #d6deeb;
+  --md-code-hl-operator-color: rgb(127 219 202);
+  --md-code-hl-punctuation-color: rgb(199 146 234);
+  --md-code-hl-generic-color: #d6deeb;
+}
+
+.md-typeset pre > code {
+  background-color: var(--ek-pre-bg);
+  color: var(--ek-pre-fg);
+}
+
+.md-typeset .highlight .c,
+.md-typeset .highlight .c1,
+.md-typeset .highlight .cm {
+  font-style: italic;
+}
