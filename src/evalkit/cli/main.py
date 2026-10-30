@@ -10,6 +10,7 @@ from pathlib import Path
 
 import httpx
 import typer
+from dotenv import load_dotenv
 
 from evalkit import version
 from evalkit.cli.admin_commands import register as register_admin
@@ -176,6 +177,7 @@ def _with_secrets(local: LocalConfig, *, scoring: bool) -> LocalConfig:
 
 
 def _server_config(path: Path) -> Config:
+    load_dotenv(path.parent / ".env", override=False)
     try:
         return load_config(path)
     except ValueError as exc:
