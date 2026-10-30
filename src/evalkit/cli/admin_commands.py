@@ -7,6 +7,7 @@ import typer
 
 from evalkit.cli.client import ApiClient, ApiError
 from evalkit.client.api import encode
+from evalkit.contracts.notes import ENDPOINT_NOTE
 from evalkit.core.agents import explicit
 from evalkit.core.workspace import parse_reference
 
@@ -28,10 +29,6 @@ judge_default_app = typer.Typer(
     no_args_is_help=True, help="The judge experiments use unless they pick their own."
 )
 
-ENDPOINT_NOTE = (
-    "Check this URL before saving. The server at this address receives the API key you "
-    "enter here and the data evalkit sends it: cases, answers and trajectories."
-)
 API_KEY_ENV = typer.Option(
     None,
     "--api-key-env",

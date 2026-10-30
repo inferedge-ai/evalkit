@@ -17,6 +17,7 @@ function DefaultJudge({
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("high");
   const [status, setStatus] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     api<JudgeSettings>("/judge-default")
@@ -29,7 +30,8 @@ function DefaultJudge({
         setStatus(
           e instanceof NotFoundError ? "No default judge yet." : String(e),
         ),
-      );
+      )
+      .finally(() => setLoaded(true));
   }, []);
 
   const save = async (e: FormEvent) => {
@@ -48,6 +50,7 @@ function DefaultJudge({
     }
   };
 
+  if (!loaded) return null;
   if (!editable) {
     const provider = providers.find((p) => p.base_url === baseUrl);
     return (

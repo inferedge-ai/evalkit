@@ -8,6 +8,7 @@ from evalkit.api.auth import CurrentUser
 from evalkit.api.deps import SessionDep
 from evalkit.config import Config
 from evalkit.contracts.enums import WorkspaceRole
+from evalkit.contracts.notes import PERSONAL_KEY_NOTE
 from evalkit.core.access import Actor, WorkspaceRef, can_write
 from evalkit.core.endpoints import check_endpoint
 from evalkit.db.models import User, WorkspaceMember
@@ -49,9 +50,6 @@ def ensure_active(ws: WorkspaceRef) -> None:
         raise HTTPException(status_code=409, detail=f"workspace {ws.name} is archived")
 
 
-PERSONAL_KEY = "personal agents and evaluators read their key from evalkit.yaml"
-
-
 async def writable_endpoint(
     session: SessionDep,
     actor: ActorDep,
@@ -65,7 +63,7 @@ async def writable_endpoint(
     require(can_write(actor, ws), f"you cannot write to @{workspace}")
     ensure_active(ws)
     if api_key and not ws.is_shared:
-        raise HTTPException(status_code=400, detail=PERSONAL_KEY)
+        raise HTTPException(status_code=400, detail=PERSONAL_KEY_NOTE)
     if url is not None and ws.is_shared:
         await check_endpoint(url, allow_private=cfg.allow_private_endpoints)
 

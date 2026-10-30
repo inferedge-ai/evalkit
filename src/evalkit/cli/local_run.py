@@ -109,7 +109,9 @@ async def run_local(
             exp = await store.transition(resume, ExperimentStatus.RUNNING, holder)
         progress(f"experiment {exp.id} (#{exp.number} of {exp.dataset})")
         deps = _deps(local, conn, api, exp.id, progress, transport, custom_eval_transport)
-        for line in await missing_local_keys(deps, await deps.agents.get(explicit(agent))):
+        for line in await missing_local_keys(
+            deps, await deps.agents.get(explicit(agent)), await store.pinned_cases(exp.id)
+        ):
             progress(line)
         await run_experiment(deps, exp.id, holder)
         return exp.id

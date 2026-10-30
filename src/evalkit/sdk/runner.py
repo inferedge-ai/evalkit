@@ -648,9 +648,9 @@ async def arun_experiment(
             sessions=HttpSessionReader(api),
             python_evaluators=python_evaluators,
         )
-        for line in await missing_local_keys(deps, definition):
-            progress(line)
         cases = {case.case_id: case for case in await store.pinned_cases(exp.id)}
+        for line in await missing_local_keys(deps, definition, cases.values()):
+            progress(line)
         judge_key(deps, exp.config.judge, cases.values())
         slots = asyncio.Semaphore(max(concurrency or definition.settings.max_concurrent_runs, 1))
         summaries: list[RunSummary] = []

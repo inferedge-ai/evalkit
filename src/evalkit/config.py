@@ -85,6 +85,8 @@ class RunnerConfig(ConfigModel):
     cost_map: CostMapConfig = CostMapConfig()
 
 
+# TODO: remove in 0.5.0, two minor versions after 0.3.0 moved credentials and
+# judge_default to the database; _shell and _moved_to_db_commands only serve that check.
 def _shell(value: object) -> str:
     text = str(value)
     return f"${text.removeprefix('env:')}" if text.startswith("env:") else text
@@ -126,6 +128,8 @@ class Config(RunnerConfig):
     encryption_key: str | None = None
     allow_private_endpoints: bool = False
 
+    # TODO: remove in 0.5.0, two minor versions after 0.3.0 moved credentials and
+    # judge_default to the database.
     @model_validator(mode="before")
     @classmethod
     def _keys_moved_to_db(cls, data: object) -> object:

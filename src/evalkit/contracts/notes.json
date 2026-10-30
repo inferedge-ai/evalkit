@@ -1,0 +1,4 @@
+{
+  "endpoint_note": "Check this URL before saving. The server at this address receives the API key you enter here and the data evalkit sends it: cases, answers and trajectories.",
+  "personal_key_note": "Personal agents and evaluators read their API key from your evalkit.yaml (credentials:), never from the server."
+}

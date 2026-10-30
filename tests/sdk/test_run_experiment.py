@@ -796,7 +796,7 @@ async def test_a_finished_run_prints_its_scorecard(env):
     assert "evaluators:" in lines
 
 
-async def test_sdk_runs_name_evaluators_without_a_local_key(env):
+async def test_sdk_runs_skip_keyless_evaluators_their_cases_do_not_use(env):
     srv, blob, provider = env
     created = httpx.post(
         f"{srv.base_url}/api/evaluators",
@@ -819,7 +819,5 @@ async def test_sdk_runs_name_evaluators_without_a_local_key(env):
         tracer_provider=provider,
         progress=lines.append,
     )
-    assert (
-        "no credentials.evaluators entry for nokey_eval@admin in evalkit.yaml; "
-        "calling it without x-api-key"
-    ) in lines
+    assert "experiment" in lines[0]
+    assert not any("nokey_eval" in line for line in lines)

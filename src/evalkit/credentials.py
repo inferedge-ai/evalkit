@@ -24,6 +24,8 @@ class CredentialsConfig(BaseModel):
     evaluators: dict[str, str] = {}
     llm_providers: dict[str, str] = {}
 
+    # TODO: remove in 0.5.0, two minor versions after 0.3.0 renamed credentials.judges
+    # to credentials.llm_providers.
     @model_validator(mode="before")
     @classmethod
     def _judges_renamed(cls, data: object) -> object:

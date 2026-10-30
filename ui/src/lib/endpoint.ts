@@ -1,5 +1,9 @@
-export const ENDPOINT_NOTE =
-  "Check this URL before saving. The server at this address receives the API key you enter here and the data evalkit sends it: cases, answers and trajectories.";
+import raw from "../../../src/evalkit/contracts/notes.json?raw";
 
-export const PERSONAL_KEY_NOTE =
-  "Personal agents and evaluators read their API key from your evalkit.yaml (credentials:), never from the server.";
+const notes = JSON.parse(raw) as {
+  endpoint_note: string;
+  personal_key_note: string;
+};
+
+export const ENDPOINT_NOTE = notes.endpoint_note;
+export const PERSONAL_KEY_NOTE = notes.personal_key_note;
