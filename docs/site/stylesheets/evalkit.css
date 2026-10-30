@@ -41,7 +41,7 @@
   --md-accent-fg-color: var(--ek-brand-hover);
   --md-accent-fg-color--transparent: color-mix(in srgb, var(--ek-brand) 10%, transparent);
 
-  --md-default-bg-color: var(--ek-surface);
+  --md-default-bg-color: var(--ek-canvas);
   --md-default-fg-color: var(--ek-ink);
   --md-default-fg-color--light: var(--ek-ink-2);
   --md-default-fg-color--lighter: var(--ek-ink-3);
@@ -50,6 +50,7 @@
   --md-typeset-color: var(--ek-ink);
   --md-typeset-a-color: var(--ek-brand);
   --md-code-bg-color: var(--ek-fill);
+  --md-code-hl-color: color-mix(in srgb, var(--ek-brand) 15%, transparent);
   --md-code-fg-color: var(--ek-ink);
   --md-typeset-table-color: var(--ek-line);
   --md-footer-bg-color: var(--ek-canvas);
@@ -136,4 +137,64 @@
 
 .doc-signature {
   font-family: var(--md-code-font-family);
+}
+
+/* The web UI's header: the InferEdge lockup, then "Evalkit" in the brand colour. */
+.md-header__button.md-logo {
+  margin-right: 0.4rem;
+  padding: 0.4rem 0;
+}
+
+.ek-lockup {
+  font-family: var(--md-code-font-family);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ek-infer {
+  color: var(--ek-ink-3);
+}
+
+.ek-slash {
+  color: var(--ek-brand);
+}
+
+.ek-edge {
+  color: var(--ek-ink);
+  font-weight: 700;
+}
+
+.md-header__topic:first-child {
+  font-family: var(--md-code-font-family);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ek-brand);
+}
+
+.md-header__topic .md-ellipsis {
+  font-size: 0.8rem;
+}
+
+/* Links, inline code and code blocks as the UI's markdown renders them. */
+.md-typeset a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md-typeset a:hover {
+  color: var(--ek-brand-hover);
+}
+
+.md-typeset .headerlink,
+.md-typeset .md-nav a,
+.md-typeset .doc-heading a {
+  text-decoration: none;
+}
+
+.md-typeset :not(pre) > code {
+  border: 1px solid var(--ek-line);
+  border-radius: 3px;
+  padding: 0 0.2em;
 }

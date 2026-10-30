@@ -1,4 +1,4 @@
-site_name: evalkit
+site_name: Evalkit
 site_description: Make your AI agent better, end to end.
 site_url: https://inferedge-ai.github.io/evalkit/
 repo_url: https://github.com/inferedge-ai/evalkit
@@ -10,6 +10,7 @@ strict: true
 theme:
   name: material
   custom_dir: docs/site/overrides
+  favicon: favicon.svg
   font: false
   palette:
     - media: "(prefers-color-scheme: light)"

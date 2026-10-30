@@ -7,7 +7,7 @@ from mkdocs.structure.files import File, Files
 
 SITE = Path(__file__).parent
 ROOT = SITE.parent.parent
-GENERATED = ("sdk-reference.md", "stylesheets/evalkit.css")
+GENERATED = ("sdk-reference.md", "stylesheets/evalkit.css", "favicon.svg")
 PLACEHOLDER = re.compile(r"\{\{(origin|version)\}\}")
 
 
