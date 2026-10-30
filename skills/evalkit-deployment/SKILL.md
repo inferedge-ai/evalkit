@@ -16,9 +16,9 @@ cases, running experiments, reviewing cases — is the **evalkit-usage** skill.
 Every developer on the client's team needs that one; only the deployer needs
 this one. You need no CLI before the server is up: the image contains one
 (`docker compose run --rm server evalkit …`). Once the server runs, install
-it on your machine from the server, like everyone after you:
-`uv tool install --reinstall evalkit --index <server url>/api/cli/simple`
-(see evalkit-usage).
+it on your machine from PyPI at the server's version, like everyone after you:
+`uv tool install --reinstall "evalkit-py==<version>"`, where
+`curl <server url>/api/cli` prints the version (see evalkit-usage).
 
 `evalkit skills install` puts the evalkit user docs in `evalkit-docs/`
 beside this skill; links to `../evalkit-docs/` point there. In the evalkit
@@ -26,8 +26,9 @@ repository the same pages are in `docs/user/`, and every evalkit server shows
 them under `/docs`. In the docs, `{{origin}}` means your evalkit server's URL.
 
 Just trying evalkit out? Start with the try-it stack in [`try/`](try/),
-following [Try locally](../evalkit-docs/try-locally.md): one `docker compose
-up` runs the server on this machine with your LLM as the judge, and a sample
+following [Try locally](../evalkit-docs/try-locally.md): `evalkit init-server`
+(no Docker, a local Postgres) or one `docker compose up` runs the server on
+this machine with your LLM as the judge, and a sample
 agent shows the default path (3a, an SDK run with traces) end to end. Come
 back here for a real deployment.
 

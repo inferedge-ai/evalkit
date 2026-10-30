@@ -21,9 +21,9 @@ External services are first-class:
 The **UI is part of the same server image** and served at the server root —
 there is no separate UI deployment. At runtime the FastAPI app serves
 `/assets` and returns `index.html` for every non-`/api` path (so client-side
-routes survive a refresh); deploying the image deploys the UI. Note it ships
-only in the image, not the CLI wheel — a server run from the wheel serves the
-API but 404s at `/`.
+routes survive a refresh); deploying the image deploys the UI. The PyPI
+wheel (`evalkit-py`) bundles the UI too, so `pip install "evalkit-py[server]"`
+and `evalkit serve` also serve it.
 
 ## Setup sequence (exact commands)
 
@@ -46,7 +46,7 @@ docker compose up -d
 #   docker compose up -d postgres
 #   docker compose run --rm --no-deps server evalkit db upgrade --config /etc/evalkit/config.yaml
 #   docker compose up -d
-uv tool install --reinstall evalkit --index http://localhost:8020/api/cli/simple   # the CLI, from the server
+uv tool install --reinstall "evalkit-py==$(curl -fsSL http://localhost:8020/api/cli | jq -r .version)"   # the CLI, from PyPI at the server's version
 evalkit login --url http://localhost:8020   # admin / $EVALKIT_ADMIN_PASSWORD
 evalkit users add <teammate>                    # optional, admin only
 evalkit workspaces create dev                    # admin only; then prod
@@ -223,19 +223,18 @@ express a limit (concurrency), evalkit takes the minimum.
 Pull the new image → back up the database → with `migrate_on_start`, start
 the new server (it migrates first); without it, stop or hold the new server →
 `evalkit db upgrade` (same compose-run pattern as setup) → start the server → developers update the CLI with the install command
-or `evalkit update` (every CLI call nudges them until they do), which also refreshes the skills in client repos that
-vendor them.
+or `evalkit update` (every CLI call nudges them until they do), which also moves a project's `evalkit-py` pin and
+refreshes the skills in client repos that vendor them. Deploy only builds that are on PyPI: every `develop`
+(`X.Y.Z.devN`) and `main` (`X.Y.Z`) build of the publish workflow is.
 
 ## CLI for the deployer
 
 The server image already contains the CLI — `docker compose run --rm server
-evalkit …` works with no local install. The image also serves its own wheel,
-all unauthenticated: as a Python package index at `/api/cli/simple` (so
-`uv tool install --reinstall evalkit --index <server url>/api/cli/simple`
-installs or updates the CLI in one command), as a file at `GET /api/cli/wheel`
-(checksum at `GET /api/cli`), and on the `/docs/install` page in the UI with
-copyable commands. A proxy in front of the server must pass `/api/cli/*`
-without auth. For what to hand every other developer on the team, follow the
+evalkit …` works with no local install. Everyone else installs `evalkit-py`
+from PyPI at the server's version: `GET /api/cli` (unauthenticated) returns
+`{"version": …, "package": "evalkit-py"}`, and the `/docs/install` page in the
+UI shows the commands with the version filled in. A proxy in front of the
+server must pass `/api/cli` without auth. For what to hand every other developer on the team, follow the
 **evalkit-usage** skill.
 Client suites that need input files register them per that skill's
 `references/suite-fixtures.md`.

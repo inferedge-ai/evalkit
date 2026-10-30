@@ -121,9 +121,11 @@ print(result.url)  # the scorecard in the web UI
 
 ## Run your own evalkit
 
-1. **Try it locally.** [Try locally](docs/user/try-locally.md) starts the
-   server on your machine with Docker, judges with your LLM, and runs a
-   sample agent through an SDK run with traces.
+1. **Try it locally.** `pip install "evalkit-py[server]"`, then
+   `evalkit init-server` against a local Postgres, or use Docker.
+   [Try locally](docs/user/try-locally.md) starts the server on your machine,
+   judges with your LLM, and runs a sample agent through an SDK run with
+   traces.
 2. **Deploy it for your team.** The
    [evalkit-deployment skill](skills/evalkit-deployment/SKILL.md) covers the
    server image, Postgres, blob storage, the judge, migrations, users and
@@ -144,6 +146,9 @@ with your server's URL filled in. Start with the
 On GitHub, `{{origin}}` in the docs stands for your server's URL.
 
 ## Reference
+
+The docs and the Python SDK reference are published at
+[inferedge-ai.github.io/evalkit](https://inferedge-ai.github.io/evalkit/).
 
 - [Concepts](docs/user/concepts.md): the terms
 - [Install](docs/user/install.md), [Login](docs/user/login.md),
