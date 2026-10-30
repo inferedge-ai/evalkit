@@ -77,6 +77,7 @@ from evalkit.db.trace_sources import (
 )
 from evalkit.db.users import InvalidName, InvalidPassword, LastAdmin, NameTaken, UnknownUser
 from evalkit.db.workspaces import PromotionLinkError, SharedOnly, UnknownWorkspace
+from evalkit.paths import ui_root
 from evalkit.store.base import Conflict, UnknownDataset, UnknownExperiment
 from evalkit.store.blob import Obstore
 
@@ -319,7 +320,7 @@ def create_app(
     mcp_app = mount_mcp(app, mcp_jwt_verifier)
 
     if ui_dist is None:
-        ui_dist = Path(__file__).resolve().parents[3] / "ui" / "dist"
+        ui_dist = ui_root()
     if ui_dist.is_dir():
         assets = ui_dist / "assets"
         if assets.is_dir():
