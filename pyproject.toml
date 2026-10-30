@@ -57,6 +57,11 @@ dev = [
     "ruff>=0.16.5",
     "testcontainers[postgres]>=4.15.0",
 ]
+docs = [
+    "mike>=2.2.0",
+    "mkdocs-material>=9.8.0",
+    "mkdocstrings[python]>=1.0.8",
+]
 
 [tool.ruff]
 line-length = 100

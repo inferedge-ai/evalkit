@@ -130,6 +130,43 @@ jobs:
         with:
           skip-existing: true
 
+  # The docs site on GitHub Pages, versioned with mike on the gh-pages
+  # branch: develop replaces `dev`; main adds its version and moves `latest`.
+  # It lives here so {{version}} in the docs is this run's PyPI version.
+  docs:
+    name: Publish the docs
+    needs: changes
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+      - name: Deploy with mike
+        env:
+          NO_MKDOCS_2_WARNING: "1"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages:gh-pages || echo "no gh-pages branch yet"
+          PLAIN=$(uv version --short)
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            export DOCS_VERSION="$PLAIN"
+            uv run --frozen --group docs mike deploy --push --update-aliases "$PLAIN" latest
+            uv run --frozen --group docs mike set-default --push latest
+          else
+            export DOCS_VERSION="$PLAIN.dev$GITHUB_RUN_NUMBER"
+            uv run --frozen --group docs mike deploy --push dev
+          fi
+
   # main only: the merge is a release (ci.yml's `version` job made sure the
   # version rose), so tag it once the image is published and attach the wheel.
   github-release:

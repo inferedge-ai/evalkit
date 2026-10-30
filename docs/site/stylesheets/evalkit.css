@@ -1,0 +1,139 @@
+/* The web UI's tokens (ui/src/theme.css) mapped onto Material's variables. */
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap");
+
+:root {
+  --md-text-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --md-code-font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+[data-md-color-scheme="default"] {
+  --ek-brand: rgb(46 103 200);
+  --ek-brand-hover: rgb(32 72 140);
+  --ek-surface: rgb(255 255 255);
+  --ek-canvas: rgb(249 250 251);
+  --ek-fill: rgb(243 244 246);
+  --ek-line: rgb(229 231 235);
+  --ek-ink: rgb(17 24 39);
+  --ek-ink-2: rgb(75 85 99);
+  --ek-ink-3: rgb(107 114 128);
+}
+
+[data-md-color-scheme="slate"] {
+  --ek-brand: rgb(107 154 232);
+  --ek-brand-hover: rgb(144 181 243);
+  --ek-surface: rgb(23 30 44);
+  --ek-canvas: rgb(15 21 33);
+  --ek-fill: rgb(33 42 58);
+  --ek-line: rgb(50 61 80);
+  --ek-ink: rgb(241 245 249);
+  --ek-ink-2: rgb(190 200 215);
+  --ek-ink-3: rgb(148 161 182);
+  --md-hue: 220;
+}
+
+[data-md-color-scheme="default"],
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: var(--ek-surface);
+  --md-primary-fg-color--light: var(--ek-surface);
+  --md-primary-fg-color--dark: var(--ek-surface);
+  --md-primary-bg-color: var(--ek-ink);
+  --md-primary-bg-color--light: var(--ek-ink-2);
+  --md-accent-fg-color: var(--ek-brand-hover);
+  --md-accent-fg-color--transparent: color-mix(in srgb, var(--ek-brand) 10%, transparent);
+
+  --md-default-bg-color: var(--ek-surface);
+  --md-default-fg-color: var(--ek-ink);
+  --md-default-fg-color--light: var(--ek-ink-2);
+  --md-default-fg-color--lighter: var(--ek-ink-3);
+  --md-default-fg-color--lightest: var(--ek-line);
+
+  --md-typeset-color: var(--ek-ink);
+  --md-typeset-a-color: var(--ek-brand);
+  --md-code-bg-color: var(--ek-fill);
+  --md-code-fg-color: var(--ek-ink);
+  --md-typeset-table-color: var(--ek-line);
+  --md-footer-bg-color: var(--ek-canvas);
+  --md-footer-bg-color--dark: var(--ek-canvas);
+  --md-footer-fg-color: var(--ek-ink-2);
+  --md-footer-fg-color--light: var(--ek-ink-3);
+}
+
+.md-header {
+  border-bottom: 1px solid var(--ek-line);
+  box-shadow: none;
+}
+
+.md-header[data-md-state="shadow"],
+.md-header--shadow {
+  box-shadow: none;
+}
+
+.md-tabs {
+  background-color: var(--ek-surface);
+  color: var(--ek-ink-2);
+}
+
+.md-search__input {
+  background-color: var(--ek-fill);
+  color: var(--ek-ink);
+}
+
+.md-search__input::placeholder,
+.md-search__icon {
+  color: var(--ek-ink-3);
+}
+
+.md-nav__link--active,
+.md-nav__item .md-nav__link--active {
+  color: var(--ek-brand);
+}
+
+.md-typeset {
+  font-size: 0.7rem;
+  line-height: 1.55;
+}
+
+.md-typeset h1 {
+  color: var(--ek-ink);
+  font-weight: 600;
+  font-size: 1.5rem;
+}
+
+.md-typeset h2,
+.md-typeset h3 {
+  font-weight: 600;
+}
+
+.md-typeset code {
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.md-typeset pre > code {
+  border: 1px solid var(--ek-line);
+  border-radius: 6px;
+}
+
+.md-typeset table:not([class]) {
+  border: 1px solid var(--ek-line);
+  border-radius: 6px;
+  font-size: 0.68rem;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--ek-fill);
+  color: var(--ek-ink-2);
+}
+
+.md-banner {
+  background-color: color-mix(in srgb, var(--ek-brand) 12%, var(--ek-surface));
+  color: var(--ek-ink);
+}
+
+.md-banner a {
+  color: var(--ek-brand);
+}
+
+.doc-signature {
+  font-family: var(--md-code-font-family);
+}
