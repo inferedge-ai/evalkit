@@ -54,21 +54,23 @@ async def rekey_trace_sources(config: Config, old_key: str, new_key: str) -> int
     return count
 
 
-def create_database_if_missing(url: str) -> None:
+def create_database_if_missing(url: str) -> bool:
     parsed = make_url(url).set(drivername="postgresql")
     if not parsed.database:
         raise ValueError(f"{url} names no database")
     try:
         psycopg.connect(parsed.render_as_string(hide_password=False)).close()
-        return
+        return False
     except psycopg.OperationalError as exc:
         if "does not exist" not in str(exc):
             raise
     admin = parsed.set(database="postgres").render_as_string(hide_password=False)
     with psycopg.connect(admin, autocommit=True) as conn:
         conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(parsed.database)))
+    return True
 
 
-def init_database(url: str) -> None:
-    create_database_if_missing(url)
+def init_database(url: str) -> bool:
+    created = create_database_if_missing(url)
     run_migrations(url, "head")
+    return created

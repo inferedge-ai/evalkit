@@ -33,17 +33,36 @@ class Question:
 
 
 QUESTIONS = (
-    Question("database_url", "EVALKIT_DATABASE_URL", "Postgres URL", DEFAULT_DATABASE_URL),
-    Question("llm_base_url", "LLM_BASE_URL", "LLM base URL (OpenAI-compatible)"),
-    Question("llm_model", "LLM_MODEL", "LLM model"),
-    Question("llm_api_key", "LLM_API_KEY", "LLM API key", secret=True),
+    Question(
+        "database_url",
+        "EVALKIT_DATABASE_URL",
+        "Postgres URL: where evalkit stores users, cases, experiments and scores",
+        DEFAULT_DATABASE_URL,
+    ),
+    Question(
+        "llm_base_url",
+        "LLM_BASE_URL",
+        "LLM base URL: an OpenAI-compatible endpoint the judge and the sample agent call",
+    ),
+    Question("llm_model", "LLM_MODEL", "LLM model: the model name at that endpoint"),
+    Question(
+        "llm_api_key",
+        "LLM_API_KEY",
+        "LLM API key: kept in .env, never in config.yaml",
+        secret=True,
+    ),
     Question(
         "admin_password",
         "EVALKIT_ADMIN_PASSWORD",
-        "Admin password",
+        "Admin password: for the `admin` user created on the first `evalkit serve`",
         DEFAULT_ADMIN_PASSWORD,
         secret=True,
     ),
+)
+
+DATABASE_NOTICE = (
+    "evalkit init-server creates the database named in the Postgres URL on that Postgres "
+    "server if it does not exist yet, and creates evalkit's tables in it."
 )
 
 
@@ -57,6 +76,7 @@ class Answers:
 
 
 def resolve(flags: dict[str, str | None], *, yes: bool) -> Answers:
+    typer.echo(DATABASE_NOTICE)
     values = {}
     for question in QUESTIONS:
         given = flags.get(question.key)

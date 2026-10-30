@@ -1,6 +1,8 @@
 # Install
 
-This server runs evalkit **{{version}}**. evalkit is on PyPI as `evalkit-py`; the package installs the `evalkit` command and the `evalkit` Python module. Install the version this server runs, so your client always matches it.
+evalkit is one Python package on PyPI, `evalkit-py`. It holds the `evalkit` command (the CLI), the `evalkit.sdk` module for SDK runs and, with the `server` extra, the server itself.
+
+Your CLI and SDK must run the **same version as the evalkit server** you use: local runs and SDK runs refuse to start otherwise. The commands on this page pin version **{{version}}**. On your server's own `/docs/install` page, that is the server's version; `curl <server url>/api/cli` prints it anywhere.
 
 ## The CLI, as a global tool
 

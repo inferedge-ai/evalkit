@@ -52,6 +52,8 @@ def test_missing_values_are_prompted(tmp_path, monkeypatch):
     assert "LLM_BASE_URL=https://llm.test/v1\n" in env
     assert "LLM_API_KEY=key\n" in env
     assert f"EVALKIT_ADMIN_PASSWORD={init_server.DEFAULT_ADMIN_PASSWORD}\n" in env
+    assert "Postgres URL: where evalkit stores" in result.output
+    assert "LLM API key: kept in .env" in result.output
 
 
 def test_kit_only_copies_the_kit_and_pins_run_py(tmp_path):
@@ -106,6 +108,8 @@ def test_init_server_creates_and_migrates_the_database(tmp_path, pg_server_url):
     assert cfg.judge_default.base_url == "https://llm.test/v1"
     assert (kit / ".env").stat().st_mode & 0o777 == 0o600
     assert "evalkit serve" in result.output
+    assert "creates the database named in the Postgres URL" in result.output
+    assert "created the database and migrated it" in result.output
 
 
 def test_direct_url_reads_installed_metadata():

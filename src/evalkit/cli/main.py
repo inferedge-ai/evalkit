@@ -1061,10 +1061,15 @@ def init_server_command(
         f"connecting to {answers.database_url} (is Postgres running? brew services start "
         "postgresql@17, sudo systemctl start postgresql, or Postgres.app)"
     )
-    server_commands.init_database(answers.database_url)
+    created = server_commands.init_database(answers.database_url)
+    typer.echo(
+        "created the database and migrated it"
+        if created
+        else "the database already existed; migrated it"
+    )
     init_server.copy_kit(directory)
     init_server.write_server_files(directory, answers)
-    typer.echo(f"set up {directory}: config.yaml, .env, the try kit; database migrated")
+    typer.echo(f"set up {directory}: config.yaml, .env and the try kit")
     typer.echo("next:")
     typer.echo(f"  cd {directory} && evalkit serve")
     typer.echo("  then open http://localhost:8020 and follow Try it locally from step 1")
