@@ -81,6 +81,7 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
 
 nav:
+  - Home: index.md
   - Get started:
       - Quickstart: quickstart.md
       - Concepts: concepts.md

@@ -35,5 +35,6 @@ def test_site_nav_lists_the_ui_docs_pages_in_order():
     config = yaml.load((ROOT / "mkdocs.yml").read_text(), Loader=_Loader)
     assert config["docs_dir"] == "docs/user"
     pages = _nav_pages(config["nav"])
-    assert [page for page in pages if page != "sdk-reference.md"] == _ui_pages()
-    assert "sdk-reference.md" in pages
+    site_only = {"index.md", "sdk-reference.md"}
+    assert [page for page in pages if page not in site_only] == _ui_pages()
+    assert site_only <= set(pages)
