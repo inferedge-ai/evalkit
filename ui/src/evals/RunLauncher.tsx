@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, apiJson } from "../lib/api";
+import { api, apiJson, NotFoundError } from "../lib/api";
 import { questionText } from "../lib/format";
 import { stateClass, stateLabel } from "../lib/review";
 import {
@@ -17,6 +17,7 @@ import type {
   AgentInfo,
   Dataset,
   JudgeSettings,
+  LlmProviderInfo,
   SplitInfo,
   CaseView,
 } from "../lib/types";
@@ -54,6 +55,7 @@ export function RunLauncher({
   const [runs, setRuns] = useState(1);
   const [model, setModel] = useState("");
   const [judgeDefault, setJudgeDefault] = useState<JudgeSettings | null>(null);
+  const [providers, setProviders] = useState<LlmProviderInfo[]>([]);
   const [judge, setJudge] = useState<JudgeChoice>({
     model: "",
     base_url: "",
@@ -71,12 +73,18 @@ export function RunLauncher({
         setAgent((a) => a || list[0]?.ref || "");
       })
       .catch((e) => setError(String(e)));
+    api<LlmProviderInfo[]>("/llm-providers")
+      .then(setProviders)
+      .catch((e) => setError(String(e)));
     api<JudgeSettings>("/judge-default")
       .then((settings) => {
         setJudgeDefault(settings);
         setJudge(judgeChoice(settings));
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => {
+        setJudgeDefault(null);
+        if (!(e instanceof NotFoundError)) setError(String(e));
+      });
     api<CaseView[]>(`/datasets/${encodeURIComponent(dataset)}/cases`)
       .then(setExamples)
       .catch((e) => setError(String(e)));
@@ -105,8 +113,10 @@ export function RunLauncher({
 
   const inScope = casesInScope(examples ?? [], choice);
   const selection = selectionFor(examples ?? [], choice);
+  const judgeReady =
+    judgeDefault !== null || judgeOverride(null, judge) !== null;
   const request: LaunchRequest | null =
-    selection && agent
+    selection && agent && judgeReady
       ? {
           dataset,
           agent,
@@ -321,14 +331,34 @@ export function RunLauncher({
               title="Used only if the harness accepts a model override"
             />
           </div>
-          {(["model", "base_url", "reasoning_effort"] as const).map((key) => (
+          <div className="form-row">
+            <span className="form-label">Judge provider</span>
+            <Select
+              ariaLabel="judge provider"
+              value={judge.base_url}
+              onChange={(base_url) => setJudge((j) => ({ ...j, base_url }))}
+              options={[
+                ...(judgeDefault
+                  ? [{ value: "", label: "server default" }]
+                  : []),
+                ...providers.map((p) => ({
+                  value: p.base_url,
+                  label: `${p.name} (${p.base_url})`,
+                })),
+              ]}
+              title="LLM providers an admin registered; server runs only judge with these"
+            />
+          </div>
+          {!judgeDefault && (
+            <p className="row-meta whitespace-normal">
+              This server has no default judge yet. Pick a provider and a judge
+              model.
+            </p>
+          )}
+          {(["model", "reasoning_effort"] as const).map((key) => (
             <div key={key} className="form-row">
               <span className="form-label">
-                {key === "model"
-                  ? "Judge model"
-                  : key === "base_url"
-                    ? "Judge URL"
-                    : "Judge effort"}
+                {key === "model" ? "Judge model" : "Judge effort"}
               </span>
               <input
                 className="input w-72"
@@ -337,11 +367,7 @@ export function RunLauncher({
                 onChange={(e) =>
                   setJudge((j) => ({ ...j, [key]: e.target.value }))
                 }
-                title={
-                  key === "base_url"
-                    ? "Defaults to the server's judge. Another URL needs a matching credentials.judges entry in the server config, or the run fails at the judge."
-                    : "Defaults to the server's judge; the experiment records the judge it used"
-                }
+                title="Defaults to the server's judge; the experiment records the judge it used"
               />
             </div>
           ))}

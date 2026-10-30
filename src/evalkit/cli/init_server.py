@@ -7,12 +7,14 @@ from pathlib import Path
 
 import typer
 import yaml
+from dotenv import dotenv_values
 
 from evalkit import version
 from evalkit.cli.client import ApiError
 from evalkit.paths import skills_root
 
 DEFAULT_DIR = Path("evalkit-try")
+ENCRYPTION_KEY_ENV = "EVALKIT_ENCRYPTION_KEY"
 DEFAULT_DATABASE_URL = "postgresql+psycopg://localhost/evalkit"
 DEFAULT_ADMIN_PASSWORD = "evalkit-admin"
 KIT_REQUIREMENT = '"evalkit-py[otel]"'
@@ -141,7 +143,11 @@ def server_config(database_url: str, data_dir: Path) -> dict:
     return data
 
 
-def write_server_files(target: Path, answers: Answers) -> None:
+def existing_encryption_key(target: Path) -> str | None:
+    return dotenv_values(target / ".env").get(ENCRYPTION_KEY_ENV)
+
+
+def write_server_files(target: Path, answers: Answers, encryption_key: str) -> None:
     config = server_config(answers.database_url, target / "data")
     (target / "config.yaml").write_text(yaml.safe_dump(config, sort_keys=False))
     env = target / ".env"
@@ -150,5 +156,6 @@ def write_server_files(target: Path, answers: Answers) -> None:
         f"LLM_MODEL={answers.llm_model}\n"
         f"LLM_API_KEY={answers.llm_api_key}\n"
         f"EVALKIT_ADMIN_PASSWORD={answers.admin_password}\n"
+        f"{ENCRYPTION_KEY_ENV}={encryption_key}\n"
     )
     env.chmod(0o600)

@@ -119,14 +119,16 @@ def test_sample_agent_spans_convert_to_a_trajectory_with_its_tool_call(monkeypat
     assert trajectory.final_metrics.total_prompt_tokens == 200
 
 
-def test_kit_server_config_judges_with_the_llm_from_env(monkeypatch):
-    for name, value in LLM_ENV.items():
-        monkeypatch.setenv(name, value)
+def test_kit_setup_registers_the_llm_as_the_default_judge(monkeypatch):
+    monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
+    compose = (KIT / "docker-compose.yml").read_text()
+    assert (
+        'evalkit llm-providers create try --base-url "$$LLM_BASE_URL" --api-key-env LLM_API_KEY'
+        in compose
+    )
+    assert 'evalkit judge-default set --provider try --model "$$LLM_MODEL"' in compose
     cfg = load_config(KIT / "config.yaml")
-    assert cfg.judge_default.base_url == LLM_ENV["LLM_BASE_URL"]
-    assert cfg.judge_default.model == LLM_ENV["LLM_MODEL"]
-    registry = CredentialRegistry(cfg.credentials, LLM_ENV)
-    assert registry.require_judge_key(cfg.judge_default.base_url) == "k"
+    assert cfg.allow_private_endpoints is True and cfg.encryption_key
 
 
 def test_kit_local_config_reads_the_same_llm(monkeypatch):
@@ -160,8 +162,7 @@ def test_kit_mapping_starts_as_the_connect_traces_gen_ai_mapping():
 
 
 def test_kit_server_migrates_on_start_and_run_py_is_pinned_on_copy(monkeypatch):
-    for name, value in LLM_ENV.items():
-        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
     assert load_config(KIT / "config.yaml").db.migrate_on_start is True
     assert "migrate:" not in (KIT / "docker-compose.yml").read_text()
     header = (KIT / "run.py").read_text().split("# ///\n")[0]

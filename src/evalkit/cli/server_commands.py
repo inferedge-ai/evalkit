@@ -5,9 +5,12 @@ alembic). The base CLI install stays a thin HTTP client; `main.py` imports this
 module only when the server extra is present and points users at it otherwise.
 """
 
+import asyncio
+
 import psycopg
 import sentry_sdk
 import uvicorn
+from cryptography.fernet import Fernet
 from psycopg import sql
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
@@ -17,9 +20,11 @@ from evalkit import version
 from evalkit.api.app import create_app
 from evalkit.cli.client import ApiError
 from evalkit.config import Config
+from evalkit.contracts.settings import JudgeSettings
 from evalkit.db.crypto import SecretBox
+from evalkit.db.llm_providers import LlmProviderStore
+from evalkit.db.rekey import rekey_all
 from evalkit.db.session import make_session_factory, run_migrations
-from evalkit.db.trace_sources import TraceSourceStore
 
 
 def init_sentry(config: Config) -> None:
@@ -48,9 +53,9 @@ def db_upgrade(config: Config, revision: str) -> None:
     run_migrations(config.db.url, revision)
 
 
-async def rekey_trace_sources(config: Config, old_key: str, new_key: str) -> int:
+async def rekey(config: Config, old_key: str, new_key: str) -> int:
     factory = make_session_factory(config.db.url)
-    count = await TraceSourceStore(factory, None).rekey(SecretBox(old_key), SecretBox(new_key))
+    count = await rekey_all(factory, SecretBox(old_key), SecretBox(new_key))
     await factory.kw["bind"].dispose()
     return count
 
@@ -81,3 +86,32 @@ def init_database(url: str) -> bool:
     created = create_database_if_missing(url)
     run_migrations(url, "head")
     return created
+
+
+TRY_PROVIDER = "try"
+
+
+def new_encryption_key() -> str:
+    return Fernet.generate_key().decode()
+
+
+async def _register_default_judge(
+    url: str, encryption_key: str, base_url: str, api_key: str, model: str
+) -> None:
+    factory = make_session_factory(url)
+    store = LlmProviderStore(factory)
+    sealed = SecretBox(encryption_key).seal(api_key)
+    existing = await store.active_by_base_url(base_url)
+    if existing is None:
+        await store.create(TRY_PROVIDER, base_url, sealed)
+    else:
+        await store.edit(existing.name, api_key_encrypted=sealed)
+    judge = JudgeSettings.model_validate({"base_url": base_url, "model": model, "concurrency": 4})
+    await store.set_default_judge(judge)
+    await factory.kw["bind"].dispose()
+
+
+def register_default_judge(
+    url: str, encryption_key: str, base_url: str, api_key: str, model: str
+) -> None:
+    asyncio.run(_register_default_judge(url, encryption_key, base_url, api_key, model))

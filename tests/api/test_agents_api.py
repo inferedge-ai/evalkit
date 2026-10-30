@@ -194,26 +194,35 @@ async def test_invalid_settings_are_refused(api):
     assert resp.status_code == 400 and "provides" in resp.json()["detail"]
 
 
-async def test_only_admins_point_shared_agents_at_a_url(api):
+async def test_writers_set_shared_agent_urls_and_keys(api):
     await api.post("/api/workspaces/dev/members", json={"username": "bob", "role": "writer"})
     bob = await login_as(api, "bob", "password")
-    with_url = {"workspace": "dev", "name": "ouragent", "harness_url": "http://ouragent"}
-    refused = await bob.post("/api/agents", json=with_url)
-    assert refused.status_code == 403 and "only an admin" in refused.json()["detail"]
-    code_driven = await bob.post("/api/agents", json={"workspace": "dev", "name": "sdkagent"})
-    assert code_driven.status_code == 200, code_driven.text
-    assert (await api.post("/api/agents", json=with_url)).status_code == 200
-    moved = await bob.patch("/api/agents/ouragent@dev", json={"harness_url": "http://evil"})
-    assert moved.status_code == 403
-    cleared = await bob.patch("/api/agents/ouragent@dev", json={"harness_url": None})
-    assert cleared.status_code == 403
+    with_url = {
+        "workspace": "dev",
+        "name": "ouragent",
+        "harness_url": "http://ouragent",
+        "api_key": "secret",
+    }
+    created = await bob.post("/api/agents", json=with_url)
+    assert created.status_code == 200, created.text
+    assert created.json()["has_api_key"] is True and "secret" not in created.text
+    assert "secret" not in (await api.get("/api/agents/ouragent@dev")).text
     same = await bob.patch(
         "/api/agents/ouragent@dev", json={"harness_url": "http://ouragent", "repo_url": "https://r"}
     )
-    assert same.status_code == 200
-    assert (await api.get("/api/agents/ouragent@dev")).json()["harness_url"] == "http://ouragent"
+    assert same.status_code == 200 and same.json()["has_api_key"] is True
+    moved = await bob.patch("/api/agents/ouragent@dev", json={"harness_url": "http://moved"})
+    assert moved.status_code == 200 and moved.json()["has_api_key"] is False
+    rekeyed = await bob.patch(
+        "/api/agents/ouragent@dev", json={"harness_url": "http://third", "api_key": "k2"}
+    )
+    assert rekeyed.json()["has_api_key"] is True
+    cleared = await bob.patch("/api/agents/ouragent@dev", json={"api_key": None})
+    assert cleared.json()["has_api_key"] is False
     own = await bob.post(
         "/api/agents", json={"workspace": "bob", "name": "mine", "harness_url": "http://h"}
     )
     assert own.status_code == 200
+    personal_key = await bob.patch("/api/agents/mine@bob", json={"api_key": "k"})
+    assert personal_key.status_code == 400 and "evalkit.yaml" in personal_key.json()["detail"]
     await bob.aclose()

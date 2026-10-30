@@ -3,6 +3,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from dotenv import dotenv_values
 from sqlalchemy import create_engine, text
 from typer.testing import CliRunner
 
@@ -25,8 +26,11 @@ def clean_env(monkeypatch):
 
 def test_a_flag_beats_the_env_which_beats_the_default(tmp_path, monkeypatch):
     seen: list[init_server.Answers] = []
-    monkeypatch.setattr(init_server, "write_server_files", lambda d, answers: seen.append(answers))
+    monkeypatch.setattr(
+        init_server, "write_server_files", lambda d, answers, key: seen.append(answers)
+    )
     monkeypatch.setattr(server_commands, "init_database", lambda url: True)
+    monkeypatch.setattr(server_commands, "register_default_judge", lambda *args: None)
     monkeypatch.setenv("LLM_MODEL", "env-model")
     monkeypatch.setenv("LLM_BASE_URL", "https://env.test/v1")
     monkeypatch.setenv("LLM_API_KEY", "k")
@@ -61,6 +65,7 @@ def test_an_unreachable_postgres_says_how_to_fix_it(tmp_path):
 
 def test_missing_values_are_prompted(tmp_path, monkeypatch):
     monkeypatch.setattr(server_commands, "init_database", lambda url: None)
+    monkeypatch.setattr(server_commands, "register_default_judge", lambda *args: None)
     result = CliRunner().invoke(
         app,
         ["init-server", "--dir", str(tmp_path / "kit")],
@@ -97,6 +102,7 @@ def test_the_pin_follows_a_release(monkeypatch):
 
 def test_an_existing_config_is_kept_without_force(tmp_path, monkeypatch):
     monkeypatch.setattr(server_commands, "init_database", lambda url: None)
+    monkeypatch.setattr(server_commands, "register_default_judge", lambda *args: None)
     kit = tmp_path / "kit"
     kit.mkdir()
     (kit / "config.yaml").write_text("mine: true\n")
@@ -114,17 +120,29 @@ def test_init_server_creates_and_migrates_the_database(tmp_path, pg_server_url):
         app, ["init-server", "--dir", str(kit), "--database-url", url, "--yes", *LLM_FLAGS]
     )
     assert result.exit_code == 0, result.output
+    key = dotenv_values(kit / ".env")["EVALKIT_ENCRYPTION_KEY"]
+    rerun = CliRunner().invoke(
+        app,
+        ["init-server", "--dir", str(kit), "--database-url", url, "--yes", "--force"] + LLM_FLAGS,
+    )
+    assert rerun.exit_code == 0, rerun.output
+    assert "the database already existed" in rerun.output
+    assert dotenv_values(kit / ".env")["EVALKIT_ENCRYPTION_KEY"] == key
     engine = create_engine(url)
     with engine.connect() as conn:
         assert conn.execute(text("select version_num from alembic_version")).scalar()
+        providers = conn.execute(text("select name, base_url from llm_providers")).all()
+        judge = conn.execute(text("select default_judge from server_settings")).scalar()
     engine.dispose()
     _admin(pg_server_url, f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+    assert [tuple(row) for row in providers] == [("try", "https://llm.test/v1")]
+    assert judge["base_url"] == "https://llm.test/v1" and judge["model"] == "m"
 
     cfg = _server_config(kit / "config.yaml")
     assert cfg.db.url == url
     assert cfg.db.migrate_on_start is False
     assert cfg.blob.url == (kit / "data").resolve().as_uri()
-    assert cfg.judge_default.base_url == "https://llm.test/v1"
+    assert cfg.encryption_key == key
     assert (kit / ".env").stat().st_mode & 0o777 == 0o600
     assert not (kit / "docker-compose.yml").exists()
     assert not (kit / ".env.example").exists()

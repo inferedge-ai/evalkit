@@ -208,7 +208,7 @@ def test_flow_06_start_errors(cli):
             json={**body, "judge": {"base_url": "http://unknown-judge", "model": "j"}},
         )
         assert no_judge.status_code == 400
-        assert "no credentials.judges entry for http://unknown-judge" in no_judge.json()["detail"]
+        assert "http://unknown-judge is not a registered LLM provider" in no_judge.json()["detail"]
         zero = alice.post(
             "/api/experiments",
             json={

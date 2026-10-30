@@ -43,10 +43,13 @@ when its flag or environment variable is set (`evalkit init-server --help`
 lists both); `--yes` never asks. It then:
 
 - creates the database when it does not exist, and migrates it
+- registers your LLM as the LLM provider `try` and makes it the default judge,
+  with its API key stored encrypted in the database
 - copies the try kit into `./evalkit-try`
 - writes `config.yaml` there, with blobs stored under `evalkit-try/data`
-- writes `.env` beside it, with your LLM settings and the admin password;
-  `evalkit serve` reads it
+- writes `.env` beside it, with your LLM settings, the admin password and the
+  key that encrypts stored API keys; `evalkit serve` reads it. Keep `.env`:
+  without that key the server cannot read the stored LLM key
 
 Leave `evalkit serve` running and use another terminal for the steps below,
 from the `evalkit-try` folder. The CLI is already installed, so skip the
@@ -194,7 +197,7 @@ Do the same in your own repository:
    ([Mappings](mappings.md)).
 2. **Setup.** Put an `evalkit.yaml` at the root of your repository, with
    `cases:` pointing at your cases directory and the judge's key under
-   `credentials.judges`. That map is keyed by the judge's base URL, which must
+   `credentials.llm_providers`. That map is keyed by the judge's base URL, which must
    match the judge the run uses: the server's default judge
    (`{{origin}}/api/judge-default` shows its `base_url`), or the one you pass to
    `run_experiment(judge=...)`. This kit keys it with `env:LLM_BASE_URL` so the

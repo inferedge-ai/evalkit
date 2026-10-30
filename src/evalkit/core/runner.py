@@ -78,7 +78,7 @@ from evalkit.core.trajectory import (
     derive_metrics,
 )
 from evalkit.core.workspace import parse_slug
-from evalkit.credentials import CredentialRegistry
+from evalkit.credentials import KeySource
 from evalkit.store.base import (
     AgentRunRecord,
     CaseView,
@@ -135,6 +135,10 @@ def _no_progress(message: str) -> None:
     return None
 
 
+class AgentKeySource(Protocol):
+    async def agent_key(self, agent: AgentDefinition) -> str | None: ...
+
+
 @dataclass
 class RunnerDeps:
     cfg: RunnerConfig
@@ -142,12 +146,13 @@ class RunnerDeps:
     blob_store: BlobStore
     agents: AgentLookup
     evaluators: EvaluatorLookup
-    credentials: CredentialRegistry
+    credentials: KeySource
     harness_transport: httpx.AsyncBaseTransport | None = None
     custom_eval_transport: httpx.AsyncBaseTransport | None = None
     progress: Callable[[str], None] = _no_progress
     sessions: SessionReader | None = None
     python_evaluators: dict[str, PythonEvaluator] = field(default_factory=dict)
+    agent_keys: AgentKeySource | None = None
 
 
 class ExperimentFactory(Protocol):
@@ -554,11 +559,32 @@ async def _agent_for(deps: RunnerDeps, exp: Experiment) -> AgentDefinition:
     return agent
 
 
+async def missing_local_keys(
+    deps: RunnerDeps, agent: AgentDefinition, cases: Iterable[CaseView]
+) -> list[str]:
+    used = {name for case in cases for name in case.effective_evaluators.get("custom") or {}}
+    lines = []
+    if agent.harness_url is not None and deps.credentials.key_for("agent", agent.ref) is None:
+        lines.append(
+            f"no credentials.agents entry for {agent.ref} in evalkit.yaml; "
+            "calling the harness without x-api-key"
+        )
+    for name, evaluator in (await deps.evaluators.in_workspace(agent.workspace)).items():
+        if name in used and deps.credentials.key_for("evaluator", evaluator.ref) is None:
+            lines.append(
+                f"no credentials.evaluators entry for {evaluator.ref} in evalkit.yaml; "
+                "calling it without x-api-key"
+            )
+    return lines
+
+
 async def drive_experiment(deps: RunnerDeps, exp_id: int, holder: str | None = None) -> None:
     exp = await deps.store.get_experiment(exp_id)
     agent = await _agent_for(deps, exp)
     client = HarnessClient(
-        agent, deps.credentials.key_for("agent", agent.ref), transport=deps.harness_transport
+        agent,
+        deps.credentials.key_for("agent", agent.ref, agent.harness_url),
+        transport=deps.harness_transport,
     )
     # Runs execute under the experiment's snapshotted contract (capabilities,
     # model, pinned cases), never a fresh harness call, so resumed runs are
@@ -657,7 +683,7 @@ async def rescore_experiment(
 
 
 def judge_key_for(
-    credentials: CredentialRegistry, judge: JudgeSettings, cases: Iterable[CaseView]
+    credentials: KeySource, judge: JudgeSettings, cases: Iterable[CaseView]
 ) -> str | None:
     needed = any(
         BUILTIN_EVALUATORS[name].uses_judge
@@ -862,7 +888,9 @@ async def _evaluate_run(
             continue
         result = await score_with_custom_evaluator(
             evaluator_cfg,
-            deps.credentials.key_for("evaluator", evaluator_cfg.ref),
+            deps.credentials.key_for(
+                "evaluator", evaluator_cfg.ref, evaluator_cfg.settings.endpoint
+            ),
             case=eval_case.model_copy(update={"config": config}),
             answer=answer,
             output=structured,

@@ -12,8 +12,15 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: 5180,
       allowedHosts: ["evalkit.local"],
-      // The docs pages are ../docs/user/*.md, outside the UI root.
-      fs: { allow: [searchForWorkspaceRoot(process.cwd()), "../docs/user"] },
+      // The docs pages (../docs/user/*.md) and the shared UI/CLI notes
+      // (../src/evalkit/contracts/notes.json) live outside the UI root.
+      fs: {
+        allow: [
+          searchForWorkspaceRoot(process.cwd()),
+          "../docs/user",
+          "../src/evalkit/contracts/notes.json",
+        ],
+      },
       proxy: {
         "/api": {
           target: env.VITE_API_PROXY ?? "http://localhost:8020",

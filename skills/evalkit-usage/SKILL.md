@@ -154,25 +154,33 @@ credentials:                 # env:NAME references only, never the key itself
     myagent: env:MYAGENT_API_KEY             # bare name = your workspace
   evaluators:
     citation_check: env:CITATION_API_KEY
-  judges:
+  llm_providers:
     https://litellm.example.com: env:LITELLM_API_KEY   # keyed by judge base URL
 ```
 
 - `credentials.agents` here is only for your personal Harness API agents.
-  The server drives shared agents (`ouragent@dev`) with the keys in its own
-  config, so an entry for one here is never read.
+  The server drives shared agents (`ouragent@dev`) with keys stored in its
+  database (`evalkit agents create|edit … --api-key-env NAME`, by an admin or
+  a writer), so an entry for one here is never read. The same holds for
+  shared remote evaluators.
 - Keys come from the environment or from a `.env` file next to
   `evalkit.yaml`. A variable set in the environment wins over `.env`.
-- An agent or evaluator with no `credentials` entry gets no auth header.
-- A judge with no entry for its base URL fails the run before it starts.
+- An agent or evaluator with no `credentials` entry gets no auth header, and
+  the run prints one line saying so.
+- A judge with no entry for its base URL fails the run before it starts:
+  `no credentials.llm_providers entry for <url>`.
+- `credentials.judges` was renamed to `credentials.llm_providers`; the old
+  name fails to load.
 - `cases` and `fixtures` are only needed to sync your own datasets by name.
 
 ### The judge
 
 The judge is chosen per experiment. By default it is the server's
-`judge_default`; `evalkit run` takes `--judge-model`, `--judge-base-url` and
+default judge, which an admin sets with `evalkit judge-default set`
+(`evalkit judge-default show` prints it); `evalkit run` takes `--judge-model`, `--judge-base-url` and
 `--judge-effort` to change it for one experiment. `evalkit evaluate` reuses
-the experiment's judge.
+the experiment's judge. A server run may only use a judge whose base URL is a
+registered LLM provider (`evalkit llm-providers list`).
 
 Inside a dataset directory, subfolders become tags (`finance/statement-analysis/x.yaml`
 gets the tag `statement-analysis`), and `evalkit run finance/statement-analysis`

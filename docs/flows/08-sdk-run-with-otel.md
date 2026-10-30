@@ -8,7 +8,7 @@ A developer runs a code-driven agent (no Harness API) from their own Python scri
 - **Script (SDK)**: the developer's Python process. It calls the task once per case and repetition, scores, and writes results through the evalkit API. It reads `evalkit.yaml` for `cases`, `fixtures` and the `credentials` map (a `.env` beside it is loaded).
 - **Agent code**: whatever the task calls; it emits OTel spans (e.g. via an OpenInference or `gen_ai` instrumentor).
 - **evalkit server**: holds the agent, its mapping, the dataset and the experiment. Its collector (`/api/otel/v1/traces`) receives spans; the server serves each session as an ATIF trajectory, built with the agent's mapping.
-- **Judge / custom evaluator**: the judge from `judge=Judge(...)` or the server's `judge_default`; remote evaluators from the agent's workspace.
+- **Judge / custom evaluator**: the judge from `judge=Judge(...)` or the server's default judge (set by an admin; its key comes from `credentials.llm_providers`); remote evaluators from the agent's workspace.
 
 ## Sequence
 

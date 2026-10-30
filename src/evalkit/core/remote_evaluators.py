@@ -12,6 +12,7 @@ class RemoteEvaluator(BaseModel):
     kind: EvaluatorKind
     settings: RemoteEvaluatorSettings
     archived: bool = False
+    has_api_key: bool = False
 
     @property
     def ref(self) -> str:

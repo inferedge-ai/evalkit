@@ -221,29 +221,86 @@ def test_flow_17_trace_sources_are_admin_only_and_hide_keys(live, monkeypatch):
     assert live.run("trace-sources", "archive", "phx").exit_code == 0
 
 
-def test_flow_17_credentials_come_from_the_drivers_map(live):
+def test_flow_17_server_keys_come_from_the_database(live):
     admin = live.http()
-    assert (
-        admin.post(
-            "/api/agents", json={"workspace": DEV, "name": "nokey", "harness_url": live.harness_url}
-        ).status_code
-        == 200
+    created = admin.post(
+        "/api/agents", json={"workspace": DEV, "name": "nokey", "harness_url": live.harness_url}
     )
-    no_key = admin.post(
-        "/api/experiments",
-        json={"dataset": f"finance@{DEV}", "agent": f"nokey@{DEV}"},
-    )
-    assert no_key.status_code == 400
-    assert no_key.json()["detail"] == (
-        f"no credentials.agents entry for nokey@{DEV} in the server config"
-    )
+    assert created.status_code == 200 and created.json()["has_api_key"] is False
+    run = {"dataset": f"finance@{DEV}", "agent": f"nokey@{DEV}"}
+    no_key = admin.post("/api/experiments", json=run)
+    assert no_key.status_code == 502 and "401" in no_key.json()["detail"]
+    keyed = admin.patch(f"/api/agents/nokey@{DEV}", json={"api_key": "client-key"})
+    assert keyed.json()["has_api_key"] is True
+    started = admin.post("/api/experiments", json=run)
+    assert started.status_code == 200, started.text
+    assert not any("nokey" in w for w in started.json()["warnings"])
     judged = admin.post(
         "/api/experiments",
-        json={
-            "dataset": f"finance@{DEV}",
-            "agent": f"ouragent@{DEV}",
-            "judge": {"base_url": "http://nokey-judge.test", "model": "m"},
-        },
+        json={**run, "judge": {"base_url": "http://nokey-judge.test", "model": "m"}},
     )
     assert judged.status_code == 400
-    assert judged.json()["detail"] == "no credentials.judges entry for http://nokey-judge.test"
+    assert judged.json()["detail"].startswith(
+        "http://nokey-judge.test is not a registered LLM provider"
+    )
+
+
+def test_flow_17_key_commands_store_keys_and_providers(live):
+    live.monkeypatch.setenv("NEW_AGENT_KEY", "client-key")
+    live.monkeypatch.setenv("OPENAI_KEY", "sk")
+    live.http().post(f"/api/workspaces/{DEV}/members", json={"username": "alice", "role": "writer"})
+    live.as_user("alice")
+    assert "Check this URL before saving" in live.run("agents", "create", "--help").output
+    created = live.run(
+        "agents",
+        "create",
+        "keyed",
+        "--workspace",
+        DEV,
+        "--harness-url",
+        live.harness_url,
+        "--api-key-env",
+        "NEW_AGENT_KEY",
+    )
+    assert created.exit_code == 0, created.output
+    assert "api key            set" in created.output
+    cleared = live.run("agents", "edit", f"keyed@{DEV}", "--clear-api-key")
+    assert "api key            not set" in cleared.output
+    missing = live.run("agents", "edit", f"keyed@{DEV}", "--api-key-env", "NOT_SET_ANYWHERE")
+    assert missing.exit_code == 1 and "NOT_SET_ANYWHERE" in missing.output
+    evaluator = live.run(
+        "evaluators",
+        "create",
+        "keyed_eval",
+        "--workspace",
+        DEV,
+        "--endpoint",
+        "http://e",
+        "--api-key-env",
+        "NEW_AGENT_KEY",
+    )
+    assert evaluator.exit_code == 0, evaluator.output
+    assert "api key   set" in live.run("evaluators", "show", f"keyed_eval@{DEV}").output
+    assert live.run("evaluators", "archive", f"keyed_eval@{DEV}").exit_code == 0
+    assert live.run("evaluators", "restore", f"keyed_eval@{DEV}").exit_code == 0
+    refused = live.run("llm-providers", "create", "openai", "--base-url", "http://o/v1")
+    assert refused.exit_code == 1
+
+    live.as_user("admin")
+    provider = live.run(
+        "llm-providers",
+        "create",
+        "openai",
+        "--base-url",
+        "http://o/v1",
+        "--api-key-env",
+        "OPENAI_KEY",
+    )
+    assert provider.exit_code == 0, provider.output
+    listed = live.run("llm-providers", "list").output
+    assert "openai" in listed and "key set" in listed and "sk" not in listed.split()
+    judge = live.run("judge-default", "set", "--provider", "openai", "--model", "gpt-5")
+    assert judge.exit_code == 0, judge.output
+    shown = live.run("judge-default", "show").output
+    assert "http://o/v1" in shown and "gpt-5" in shown
+    assert live.run("llm-providers", "archive", "openai").exit_code == 1

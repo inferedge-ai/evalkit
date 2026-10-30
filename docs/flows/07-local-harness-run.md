@@ -8,7 +8,7 @@ A developer runs their own agent, served by a harness on their machine, against 
 - **CLI**: the `evalkit` command on the developer's machine. It reads `evalkit.yaml` (`cases` / `fixtures` dirs and the `credentials` map; a `.env` beside it is loaded).
 - **Harness**: the developer's agent behind the Harness API. The agent lives in the developer's personal workspace (`evalkit agents create research-agent --harness-url http://localhost:8000`); its `harness_url` is often `localhost`.
 - **Custom evaluator**: optional, a remote evaluator in the agent's workspace (`evalkit evaluators create`).
-- **Judge**: the LLM used by built-in evaluators. Set per experiment with `--judge-*` flags, otherwise the server's `judge_default`.
+- **Judge**: the LLM used by built-in evaluators. Set per experiment with `--judge-*` flags, otherwise the default judge an admin set on the server (`GET /api/judge-default`).
 - **evalkit server**: stores the dataset, experiment, runs, scores and trajectories.
 
 ## Sequence
@@ -129,9 +129,9 @@ sequenceDiagram
 - Unknown agent: `unknown agent: <ref> — create it with evalkit agents create`.
 - Nothing left to run (no case matches, or every case needs fixtures the harness can't take): `nothing to run in <dataset>: …`.
 - Case inputs that fail the agent's `input_schema`: `<n> case input(s) fail agent <agent>'s input_schema:` listing every bad case; nothing runs.
-- A judge `base_url` with no `credentials` entry: `no credentials.judges entry for <url>`, before the run.
+- A judge `base_url` with no `credentials` entry: `no credentials.llm_providers entry for <url>`, before the run.
 - A `credentials` entry whose env var is unset: `credentials.<kind>s['<ref>'] needs env var <NAME>`, before the run.
-- No `credentials.agents` entry for the agent: the CLI sends no key header; a harness that needs one returns 401, which shows as a run error.
+- No `credentials.agents` entry for the agent: the CLI prints "no credentials.agents entry for X in evalkit.yaml; calling the harness without x-api-key" and sends no key header. A harness that needs one returns 401, which shows as a run error. A missing `credentials.evaluators` entry prints the same kind of line.
 - CLI / server version mismatch: refused before any work.
 - A second `--resume` or `evaluate` on an experiment whose lease is live: 409.
 - Harness run timeout: the run is recorded with status `timeout` and error `run timed out after <n>s`.

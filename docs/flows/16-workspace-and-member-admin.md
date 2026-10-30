@@ -31,8 +31,9 @@ shared workspace.
 
 - **Grants are per workspace.** There's no per-agent grant. Rules about an
   agent look at the agent's workspace.
-- **Endpoints in shared workspaces:** only admins set an agent's `harness_url`
-  or a remote evaluator's endpoint there. Writers can change other settings.
+- **Endpoints in shared workspaces:** writers and admins set an agent's
+  `harness_url`, a remote evaluator's endpoint and their API keys there.
+  Changing a URL clears the stored key unless the same request sets a new one.
 - **Reviewing:** only `reviewer` grant holders review, and only datasets in
   shared workspaces. Admins have no implicit review right.
 - **Starting an experiment (and a harness check) against an agent:**
@@ -103,8 +104,8 @@ sequenceDiagram
     archived state. `--archived` includes archived ones.
   - **`workspaces rename OLD NEW`:** shared workspaces only. References follow
     the new name, e.g. `finance@staging`, and data stays attached. The command
-    prints what to update by hand: `credentials` keys ending in `@OLD` in server
-    config and `evalkit.yaml`, CI and scripts, bookmarked UI links.
+    prints what to update by hand: `credentials` keys ending in `@OLD` in
+    `evalkit.yaml`, CI and scripts, bookmarked UI links.
   - **`workspaces archive|restore NAME`:** archive hides it from default lists
     and blocks writes. Its data stays readable. Admins archive shared
     workspaces; a user may archive their own. A workspace's archived state is
