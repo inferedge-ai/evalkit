@@ -105,7 +105,7 @@ def test_flow_16_members_and_what_grants_allow(live):
     agent = {"workspace": DEV, "name": "alices"}
     assert alice.post("/api/agents", json=agent).status_code == 200
     with_url = alice.post("/api/agents", json={**agent, "name": "urls", "harness_url": "http://h"})
-    assert with_url.status_code == 403 and "only an admin" in with_url.json()["detail"]
+    assert with_url.status_code == 200, with_url.text
     denied = akshat.post("/api/agents", json={**agent, "name": "nope"})
     assert denied.status_code == 403 and DEV in denied.json()["detail"]
     evaluator = {
@@ -114,9 +114,7 @@ def test_flow_16_members_and_what_grants_allow(live):
         "kind": "score",
         "settings": {"endpoint": "http://e"},
     }
-    refused = alice.post("/api/evaluators", json=evaluator)
-    assert refused.status_code == 403 and "only an admin" in refused.json()["detail"]
-    assert live.http().post("/api/evaluators", json=evaluator).status_code == 200
+    assert alice.post("/api/evaluators", json=evaluator).status_code == 200
     assert akshat.post("/api/evaluators", json={**evaluator, "name": "x"}).status_code == 403
     assert akshat.post("/api/workspaces", json={"name": "mine"}).status_code == 403
     assert (

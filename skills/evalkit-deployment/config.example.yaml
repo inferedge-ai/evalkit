@@ -8,25 +8,8 @@ db:
 blob:
   url: s3://client-bucket/evalkit # or file:///data/evalkit
 
-judge_default: # the judge an experiment uses unless it picks its own
-  base_url: https://llm.internal/v1 # any OpenAI-compatible endpoint; its key is credentials.judges[base_url]
-  model: vertex_ai/gemini-3.6-flash # must be reproducibility-tested
-  reasoning_effort: high
-  max_tokens: 32768
-  concurrency: 16
-
 cost_map:
   source: bundled # or a path/URL override
-
-credentials: # the only place API keys are configured; values are env:NAME, read when used
-  # Uncomment and fill in one entry per shared agent and remote evaluator that needs a key,
-  # and switch its line in docker-compose.yml to `:?` so a missing key stops compose.
-  # agents: # keyed by agent reference (name@workspace); agents themselves are created with `evalkit agents create`
-  #   ouragent@dev: env:OURAGENT_DEV_KEY
-  # evaluators: # keyed by remote evaluator reference (name@workspace); create them with `evalkit evaluators create`
-  #   required_tool_calls@dev: env:AGENT_EVALUATOR_KEY
-  judges: # keyed by judge base_url
-    https://llm.internal/v1: env:JUDGE_LLM_API_KEY
 
 auth:
   token_ttl_hours: 720
@@ -49,4 +32,18 @@ limits: # optional block; request body caps, 413 beyond them
   case_upload_bytes: 52428800 # the case YAML files of one evalkit sync or lint (50 MB)
   request_bytes: 10485760 # any other request body (10 MB); the collector uses otel.max_batch_bytes
 
-encryption_key: env:EVALKIT_ENCRYPTION_KEY # Fernet key; encrypts trace source API keys (`evalkit trace-sources create`); the server refuses to start without it once any exist
+# sentry: # optional; report server errors to Sentry
+#   dsn: env:SENTRY_DSN
+#   environment: production
+#   traces_sample_rate: 0.0 # share of requests traced for performance (0.0-1.0)
+#   max_request_body_size: never # request bodies attached to events: never, small (1 KB), medium (10 KB), always; bodies can hold client case data
+
+encryption_key: env:EVALKIT_ENCRYPTION_KEY # Fernet key; encrypts the API keys of agents, remote evaluators, LLM providers and trace sources; the server refuses to start without it once any exist
+
+# allow_private_endpoints: true # let agents, evaluators and LLM providers point at loopback, private or link-local addresses (default false); set it when they run in the same cluster or on host.docker.internal
+
+# LLM providers, the default judge and the API keys of shared agents and remote evaluators
+# live in the database. Set them after the first start:
+#   evalkit llm-providers create openai --base-url https://api.openai.com/v1 --api-key-env OPENAI_API_KEY
+#   evalkit judge-default set --provider openai --model gpt-5
+#   evalkit agents edit ouragent@dev --api-key-env OURAGENT_DEV_KEY

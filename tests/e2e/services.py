@@ -11,8 +11,8 @@ import threading
 import uvicorn
 from fastapi import FastAPI, Request
 
-from tests.core.test_runner import custom_eval_app
 from tests.fake_harness import FakeHarness
+from tests.native import custom_eval_app
 
 
 def _fill(schema: dict, defs: dict, count: int, index: int = 1) -> object:

@@ -14,4 +14,5 @@ export const MORE_NAV = [
 export const ADMIN_NAV = [
   { to: "/users", label: "Users" },
   { to: "/admin/trace-sources", label: "Trace sources" },
+  { to: "/admin/llm-providers", label: "LLM providers" },
 ];

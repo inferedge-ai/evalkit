@@ -1,12 +1,6 @@
 # /// script
 # requires-python = ">=3.13"
-# dependencies = ["evalkit[otel]"]
-#
-# [[tool.uv.index]]
-# url = "http://localhost:8020/api/cli/simple"
-#
-# [tool.uv]
-# upgrade-package = ["evalkit"]
+# dependencies = ["evalkit-py[otel]"]
 # ///
 import argparse
 from pathlib import Path

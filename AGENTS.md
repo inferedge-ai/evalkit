@@ -24,7 +24,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Reference | How a dataset, agent or evaluator is named: `name@workspace`. The API and UI always use the full form; the CLI also takes a bare `name`, meaning your personal workspace. |
 | Local run | An experiment whose agent is in a personal workspace: the user's CLI drives the harness, runs evaluators and the judge, and writes results to the server. |
 | Server run | An experiment whose agent is shared: the server's own runner drives it. |
-| Developer config | `evalkit.yaml` in the client's repo: the `credentials:` map, the `cases` / `fixtures` directories. Keys come from env or a `.env` beside it. |
+| Developer config | `evalkit.yaml` in the client's repo: the `credentials:` map (keys for personal agents and evaluators and the judge's LLM provider), the `cases` / `fixtures` directories. Keys come from env or a `.env` beside it. |
 | Experiment | One run of one dataset against one agent (× N repetitions). |
 | Run | One case executed once against the agent, in a fresh session. |
 | App run | A run of an agent outside any experiment: production, staging, or a developer using the agent by hand. Never "production run" when you mean "not an eval run". |
@@ -38,8 +38,11 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Remote evaluator | A client-hosted evaluator reached through the Custom Evaluator API, stored in a workspace (`evalkit evaluators create`). |
 | Evaluation | One evaluator's output on one run: a `score` or a `gauge` reading. |
 | Gauge | A measurement, not a score: tokens, cost, time, tool-call counts. |
-| Judge | An LLM used by an evaluator to grade an answer. Chosen per experiment; the server's `judge_default` applies when the run doesn't set one. |
-| Credential registry | The lookup from a reference to an API key, built from the `credentials:` map in server config or `evalkit.yaml`. The only place API keys are configured; the database never holds them. |
+| Judge | An LLM used by an evaluator to grade an answer. Chosen per experiment; the default judge applies when the run doesn't set one. A server run's judge must use a registered LLM provider. |
+| LLM provider | An OpenAI-compatible endpoint evalkit may call: a name (`openai`), a base URL and a stored key. Today only judges use providers. Admins manage them (`evalkit llm-providers`). |
+| Default judge | The judge (provider, model, effort, limits) an experiment uses when it does not set its own. Set by an admin in the database (`evalkit judge-default set`). |
+| Stored key | An API key saved in the database, encrypted with the server's `encryption_key`, never returned (reads show `has_api_key`). Shared agents, shared remote evaluators, LLM providers and trace sources have one. |
+| Credential registry | The CLI and SDK lookup from a reference (or a judge base URL) to an API key, built from the `credentials:` map in `evalkit.yaml` (`agents`, `evaluators`, `llm_providers`). Used by local and SDK runs only; the server uses stored keys. |
 | Bucket | A scorecard grouping of evaluator scores: content, trajectory, presentation, efficiency, custom. |
 | Split | A selectable subset of a dataset, built from case tags. |
 | Overlay | A client extension of a case in another suite: extra evaluator config attached by case id, scored only for the agents it names. |
@@ -82,14 +85,15 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - `src/evalkit/db/` — Postgres and the server's `Store` (`PgStore`): users, workspaces and members, tokens, agents, remote evaluators, trace sources, cases and case versions, datasets and syncs, overlays, fixture blobs, review events and comments, experiments, agent runs, experiment runs, evaluations, SQL scorecard aggregation, spans and mappings + alembic
 - `src/evalkit/api/` — FastAPI server (`api/otel.py` is the collector, `api/traces.py` sessions and mappings, `api/tokens.py` agent tokens, `api/runs.py` and `api/pull.py` an agent's runs, `api/mcp/` the read-only MCP server at `/mcp`); `src/evalkit/cli/` — typer CLI (local runs, thin HTTP calls for everything else)
 - `docs/user/` — the user pages (Try it locally, Quickstart, Concepts and the web UI's docs pages). The UI imports these files directly, the wheel bundles them, and `evalkit skills install` copies them to `evalkit-docs/` beside the skills, so skills link to `../evalkit-docs/<page>.md`; there is no second copy. Pages link to each other as `page.md`
-- `ui/` — React web UI; `skills/` — distributable skills
+- `ui/` — React web UI, bundled into the wheel as `evalkit/bundled/ui` (`paths.ui_root()`); `skills/` — distributable skills
+- `mkdocs.yml`, `docs/site/` — the GitHub Pages site: MkDocs Material over `docs/user/`, plus `docs/site/sdk-reference.md` (mkdocstrings), hooks, theme and overrides; `mike` versions it
 - `deploy/` — Dockerfile (server image build; clients deploy via the evalkit-deployment skill's bundled compose); `contracts/` — generated OpenAPI/JSON Schemas
 
 ## Layering rules
 
 - `api → core → store`; `db` may import `core`, `store/base.py` and `contracts`; `cli → client → core`; `sdk → client → core`. Arrows never reverse; `core` imports neither `sdk`, `client` nor `api`; `sdk` imports nothing from `cli`. `core/traces` has no database or HTTP-server imports; the runner reaches sessions only through the `SessionReader` on `RunnerDeps`.
 - Only `store/blob.py` imports obstore. `store/` never imports `core` or `db`. `client` and `cli` may import `store/base.py` (pure models and the `Store` protocol) but never `db`, `store/blob`, or any server-only package (server-only commands live behind the `evalkit[server]` extra boundary in `cli/server_commands.py`).
-- The CLI never holds database or blob credentials: local runs reach the store and blob through the evalkit API. API keys live only in `credentials:` maps (server config or `evalkit.yaml`) and env; the database holds none, except trace source keys, stored encrypted.
+- The CLI never holds database or blob credentials: local runs reach the store and blob through the evalkit API. The server's API keys are stored keys, encrypted in the database with `encryption_key`; the CLI's keys live in `evalkit.yaml` `credentials:` and env.
 - The base package depends on `opentelemetry-api` only; the OTel SDK and the OTLP exporter are the `evalkit[otel]` extra, `opentelemetry-proto` is in `server`.
 - evalkit code has zero knowledge of any client's agent internals: no client tool names, paths, buckets, or env vars.
 
@@ -100,6 +104,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - `uv run mypy src/evalkit` — types
 - `cd ui && npm test` — UI tests
 - `uv run python scripts/gen_schemas.py` — regenerate the OpenAPI contract docs under `contracts/` (a drift test fails CI when they're stale)
+- `uv run --group docs mkdocs serve` — the docs site on :8000 (`mkdocs build --strict` is the CI check)
 - `uv run python scripts/fetch_cost_map.py` — fetch the LiteLLM cost map (gitignored; the Docker build and the wheel build fetch it, and the server fetches it at runtime when missing)
 
 ### Local server
@@ -107,9 +112,24 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - `uv sync --extra server`, a Postgres database, and `skills/evalkit-deployment/config.example.yaml` copied to `config.yaml` and filled in.
 - `uv run evalkit db upgrade --config config.yaml`, then `EVALKIT_ADMIN_PASSWORD=<password> uv run evalkit serve --config config.yaml` (API and UI on :8020). The password creates `admin` on the first start. It listens on 127.0.0.1; pass `--host 0.0.0.0` when an agent or harness in Docker must reach it through `host.docker.internal`.
 - `cd ui && npm run dev` serves a hot-reloading UI on :5180 that proxies `/api` to :8020.
-- A source checkout reports the plain semver and serves no wheel: `/api/cli` is 404 unless `EVALKIT_WHEEL_DIR` points at a directory holding one wheel of the same version.
+- Without a checkout: `pip install "evalkit-py[server]"`, then `evalkit init-server` (creates the database, writes `config.yaml` + `.env`, migrates) and `evalkit serve` in the folder it made.
+- `serve` and `db upgrade` load the `.env` beside `config.yaml`; the environment wins.
+- A source checkout reports the plain semver; `GET /api/cli` returns `{"version", "package"}`.
 - The try-it stack (`skills/evalkit-deployment/try/`, walkthrough in `docs/user/try-locally.md`) builds the image from this checkout: `docker compose up -d --wait --build`.
 - `tests/e2e/services.py` serves a fake harness, custom evaluator and judge on ports 18080, 19000 and 19090 for e2e runs against a built image.
+
+### UI changes in a PR
+
+- Run the server and UI locally (see "Local server"; a throwaway Postgres,
+  dummy keys and the fake services in `tests/e2e/services.py` are enough).
+- Click through every page and flow the PR changes and take screenshots.
+- Add them to the PR description under "Screenshots" with
+  `gh pr edit <n> --body-file body.md --attach ./shot.png ...`: write
+  `![caption](./shot.png)` in `body.md` and gh uploads each file to GitHub and
+  rewrites the link. Never commit screenshots to the repo.
+- `tsc`, `vitest` and `vite build` passing is not a UI test.
+- No browser `alert()`, `confirm()` or `prompt()` in new UI code: use inline
+  fields or dialogs.
 
 ## CI
 
@@ -125,15 +145,19 @@ path-filtered against the PR base) and on pushes to those branches:
   When code changed (`src/`, `ui/`, `docs/user/`, `skills/`, `contracts/`,
   packaging, Dockerfile), it builds the server image and pushes it to
   `ghcr.io/inferedge-ai/evalkit`, tagged with the full git sha and the branch
-  name. It always builds the CLI wheel as a workflow artifact.
+  name. It always builds the wheel (web UI included) as a workflow artifact,
+  and when code changed it publishes it to PyPI as `evalkit-py` (job `pypi`,
+  trusted publishing through the `pypi` environment).
 - `main` only: the image is also tagged with the version, and the workflow
   creates GitHub release `vX.Y.Z` with the wheel attached and the version's
   `CHANGELOG.md` section as notes.
 - Deploying an image is the operator's job; nothing here deploys.
-- Version string: `MAJOR.MINOR.PATCH+g<short sha>`. Git holds the plain
-  semver in `pyproject.toml`; the workflow stamps the build id with
-  `uv version` before building the image and the wheel. Feature PRs never
-  bump it: `develop` builds carry the last released semver plus their sha.
+- Version string: `main` builds are `MAJOR.MINOR.PATCH`; every other build is
+  the PEP 440 pre-release `MAJOR.MINOR.PATCH.dev<run number>`. Git holds the
+  plain semver in `pyproject.toml`; the workflow stamps `.devN` with
+  `uv version` before building the image and the wheel, so both share one
+  version. Feature PRs never bump it: `develop` builds carry the last
+  released semver plus `.devN`.
 - Releasing: a PR into `develop` bumps `pyproject.toml` and renames the
   `## Unreleased` changelog section to the new version; then a
   `develop → main` PR (merge commit, not squash) ships it. CI's `version`
@@ -145,10 +169,13 @@ path-filtered against the PR base) and on pushes to those branches:
   endpoints or fields, PATCH otherwise.
   While evalkit is on `0.x`, a MINOR difference also counts as incompatible:
   the CLI refuses every command except `evalkit update --server <url>`.
-- The image builds its wheel into `/app/dist` and serves it at
-  `/api/cli/wheel` (metadata at `/api/cli`, UI page `/docs/install`). Every
-  response carries `X-Evalkit-Version`; the CLI compares it to its own
-  version on every call and `evalkit update` reinstalls from the server.
+- PyPI is the only package index. `GET /api/cli` returns the server's
+  version; every response carries `X-Evalkit-Version`. The CLI compares it to
+  its own version on every call, and `evalkit update` reinstalls
+  `evalkit-py==<server version>` from PyPI.
+- The docs site: `ci.yml`'s `python` job runs `mkdocs build --strict` on PRs;
+  `publish.yml`'s `docs` job deploys it with `mike` to the `gh-pages` branch,
+  `dev` from `develop` and `X.Y.Z` (alias `latest`) from `main`.
 
 ## Changelog
 
@@ -162,7 +189,7 @@ not need an entry.
 
 ## Code style
 
-- No new docstrings or inline comments unless they state a constraint the code cannot show. Code is the single source of truth.
+- No new docstrings or inline comments unless they state a constraint the code cannot show. Code is the single source of truth. The one exception: the public `evalkit.sdk` API (`evalkit.sdk.__all__`) has Google-style docstrings, because they are its published reference.
 - f-strings everywhere except stdlib logging (`%s` placeholders); structlog uses plain kwargs.
 - `X | None`, never `Optional[X]`. No local imports. No try/except unless the spec calls for it (fail fast).
 - Manage deps with `uv add` / `uv remove`; run tooling via `uv run`.

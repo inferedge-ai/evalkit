@@ -43,12 +43,6 @@ def can_write(actor: Actor, ws: WorkspaceRef) -> bool:
     return actor.is_admin or actor.has(ws, WorkspaceRole.WRITER)
 
 
-def can_set_endpoint(actor: Actor, ws: WorkspaceRef) -> bool:
-    if not ws.is_shared:
-        return ws.owner_user_id == actor.id
-    return actor.is_admin
-
-
 def can_review(actor: Actor, ws: WorkspaceRef) -> bool:
     return ws.is_shared and actor.has(ws, WorkspaceRole.REVIEWER)
 

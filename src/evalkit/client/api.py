@@ -63,7 +63,7 @@ class VersionMismatch(Exception):
         super().__init__(
             f"evalkit {local} does not match server {remote}; local runs need the same "
             "version. Run `evalkit update` from the project directory: it reinstalls the CLI "
-            "and replaces the wheel in ./vendor (add --vendor DIR if the wheel lives elsewhere)"
+            "and moves the evalkit-py pin in ./pyproject.toml"
         )
 
 

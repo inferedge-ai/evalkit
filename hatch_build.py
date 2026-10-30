@@ -22,3 +22,11 @@ class CustomBuildHook(BuildHookInterface):
             if bundled(path):
                 target = f"evalkit/bundled/skills/{path.relative_to(skills).as_posix()}"
                 build_data["force_include"][str(path)] = target
+        if self.target_name == "wheel" and version == "standard":
+            dist = Path(self.root) / "ui" / "dist"
+            if not (dist / "index.html").is_file():
+                raise RuntimeError("ui/dist is missing; run `npm ci && npx vite build` in ui/")
+            for path in sorted(dist.rglob("*")):
+                if path.is_file():
+                    target = f"evalkit/bundled/ui/{path.relative_to(dist).as_posix()}"
+                    build_data["force_include"][str(path)] = target

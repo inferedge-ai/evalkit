@@ -59,6 +59,14 @@ export interface RemoteEvaluatorInfo {
   kind: "score" | "gauge";
   settings: { endpoint: string; timeout_seconds: number };
   archived: boolean;
+  has_api_key: boolean;
+}
+
+export interface LlmProviderInfo {
+  name: string;
+  base_url: string;
+  has_api_key: boolean;
+  archived: boolean;
 }
 
 export interface TraceSourceInfo {
@@ -320,6 +328,8 @@ export interface AgentInfo {
   // Who drives the agent: the server, its owner's CLI, or the SDK.
   driver: "server" | "cli" | "sdk";
   archived: boolean;
+  // A key is stored on the server (shared agents only); its value is never returned.
+  has_api_key: boolean;
 }
 
 // ── Traces (mirrors db/mappings.py and core/traces/sessions.py) ──────────
@@ -553,7 +563,5 @@ export interface QueueItem {
 
 export type CliInfo = {
   version: string;
-  filename: string;
-  sha256: string;
-  size: number;
+  package: string;
 };

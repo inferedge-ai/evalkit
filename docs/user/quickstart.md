@@ -17,7 +17,7 @@ The Workspace tab on a run lists the files the agent wrote. evalkit reads them t
 ## 2. Install and log in
 
 ```bash
-uv tool install --reinstall evalkit --index {{origin}}/api/cli/simple
+uv tool install --reinstall "evalkit-py=={{version}}"
 evalkit login --url {{origin}}
 ```
 
@@ -34,7 +34,7 @@ fixtures: eval/fixtures
 credentials:
   agents:
     myagent: env:MYAGENT_API_KEY # only for a Harness API agent that needs a key
-  judges:
+  llm_providers:
     https://litellm.example.com: env:LITELLM_API_KEY # the server's judge base URL
 ```
 

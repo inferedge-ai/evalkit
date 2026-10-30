@@ -1,4 +1,3 @@
-import hashlib
 from datetime import UTC, datetime, timedelta
 
 import httpx
@@ -10,16 +9,10 @@ from tests.flows.helpers_01_06 import api, cli, live, stub_judges_module
 __all__ = ["cli", "live", "stub_judges_module"]
 
 
-def test_flow_01_cli_wheel_is_public_and_responses_carry_the_version(live):
+def test_flow_01_cli_info_is_public_and_responses_carry_the_version(live):
     info = httpx.get(f"{live.url}/api/cli")
     assert info.status_code == 200
-    body = info.json()
-    data = live.wheel.read_bytes()
-    assert body["version"] == version.current()
-    assert body["filename"] == live.wheel.name
-    assert body["sha256"] == hashlib.sha256(data).hexdigest()
-    wheel = httpx.get(f"{live.url}/api/cli/wheel")
-    assert wheel.status_code == 200 and wheel.content == data
+    assert info.json() == {"version": version.current(), "package": "evalkit-py"}
     assert info.headers["X-Evalkit-Version"] == version.current()
     assert httpx.get(f"{live.url}/api/nope").headers["X-Evalkit-Version"] == version.current()
 

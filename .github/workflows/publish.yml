@@ -19,14 +19,27 @@ permissions:
 
 jobs:
   # workflow_dispatch and branch creation have no base to diff against: build everything.
+  # `version` is the one version of this run: main publishes the plain semver,
+  # every other build the .devN pre-release. Image, wheel and docs all use it.
   changes:
     runs-on: ubuntu-latest
     outputs:
       code: ${{ steps.filter.outputs.code }}
+      plain: ${{ steps.version.outputs.plain }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+      - id: version
+        run: |
+          PLAIN=$(python3 -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
+          echo "plain=$PLAIN" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            echo "version=$PLAIN" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$PLAIN.dev$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+          fi
       - id: filter
         env:
           BEFORE: ${{ github.event.before }}
@@ -35,7 +48,7 @@ jobs:
             echo "code=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if git diff --name-only "$BEFORE" HEAD | grep -qE '^(src/|ui/|docs/user/|skills/|contracts/|scripts/fetch_cost_map.py|pyproject.toml|uv.lock|deploy/Dockerfile|.github/workflows/publish.yml)'; then
+          if git diff --name-only "$BEFORE" HEAD | grep -qE '^(src/|ui/|docs/user/|skills/|contracts/|mkdocs.yml|docs/site/|README.md|scripts/fetch_cost_map.py|pyproject.toml|uv.lock|deploy/Dockerfile|.github/workflows/publish.yml)'; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"
@@ -46,7 +59,6 @@ jobs:
     needs: changes
     if: >-
       needs.changes.outputs.code == 'true'
-      && (github.ref_name != 'main' || github.repository == 'inferedge-ai/evalkit')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -54,11 +66,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-      - name: Stamp build id into the version
-        id: version
-        run: |
-          echo "plain=$(uv version --short)" >> "$GITHUB_OUTPUT"
-          uv version "$(uv version --short)+g${GITHUB_SHA::7}"
+      - name: Stamp the version
+        run: uv version "${{ needs.changes.outputs.version }}"
       - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
         with:
           registry: ghcr.io
@@ -67,7 +76,7 @@ jobs:
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Build and push
         env:
-          VERSION: ${{ steps.version.outputs.plain }}
+          VERSION: ${{ needs.changes.outputs.plain }}
         run: |
           TAGS="-t $IMAGE:$GITHUB_SHA -t $IMAGE:$GITHUB_REF_NAME"
           if [ "$GITHUB_REF_NAME" = "main" ]; then
@@ -88,14 +97,87 @@ jobs:
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           python-version: "3.13"
-      - name: Stamp build id into the version
-        run: uv version "$(uv version --short)+g${GITHUB_SHA::7}"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Build the web UI (bundled in the wheel)
+        working-directory: ui
+        run: npm ci && npx tsc -b && npx vite build
+      - name: Stamp the version
+        run: uv version "${{ needs.changes.outputs.version }}"
       - run: uv run python scripts/fetch_cost_map.py
-      - run: uv build
+      - run: uv build --wheel
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: evalkit-wheel-${{ github.sha }}
           path: dist/*.whl
+
+  # Every run that pushes an image publishes its wheel to PyPI as evalkit-py,
+  # so a server's version is always installable. Trusted publishing through
+  # the `pypi` environment; no token secret.
+  pypi:
+    name: Publish to PyPI
+    needs: [changes, wheel]
+    if: >-
+      needs.changes.outputs.code == 'true'
+      && (github.ref_name == 'develop' || github.ref_name == 'main')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: evalkit-wheel-${{ github.sha }}
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          skip-existing: true
+
+  # The docs site on GitHub Pages, versioned with mike on the gh-pages
+  # branch: develop replaces `dev`; main adds its version and moves `latest`.
+  # It lives here so {{version}} in the docs is this run's PyPI version.
+  docs:
+    name: Publish the docs
+    needs: [changes, pypi]
+    if: >-
+      github.event_name == 'push'
+      && needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+      - name: Deploy with mike
+        env:
+          NO_MKDOCS_2_WARNING: "1"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin gh-pages:gh-pages || echo "no gh-pages branch yet"
+          export DOCS_VERSION="${{ needs.changes.outputs.version }}"
+          export DOCS_REF="$GITHUB_REF_NAME"
+          if [ "$GITHUB_REF_NAME" = "main" ]; then
+            uv run --frozen --group docs mike deploy --push --update-aliases "$DOCS_VERSION" latest
+            uv run --frozen --group docs mike set-default --push latest
+          else
+            uv run --frozen --group docs mike deploy --push dev
+            # Until the first release adds `latest`, the site root opens `dev`.
+            if ! uv run --frozen --group docs mike list latest >/dev/null 2>&1 \
+              && ! git show gh-pages:index.html 2>/dev/null | grep -q 'dev/'; then
+              uv run --frozen --group docs mike set-default --push dev
+            fi
+          fi
 
   # main only: the merge is a release (ci.yml's `version` job made sure the
   # version rose), so tag it once the image is published and attach the wheel.
@@ -105,7 +187,6 @@ jobs:
     if: >-
       !cancelled()
       && github.ref_name == 'main'
-      && github.repository == 'inferedge-ai/evalkit'
       && needs.wheel.result == 'success'
       && (needs.image.result == 'success' || needs.image.result == 'skipped')
     runs-on: ubuntu-latest

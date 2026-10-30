@@ -3,11 +3,10 @@ from typing import Annotated
 from fastapi import APIRouter
 from pydantic import AfterValidator, BaseModel
 
-from evalkit.api.access import ActorDep, ensure_active, require, workspace_ref
-from evalkit.api.deps import AgentStoreDep, SessionDep
+from evalkit.api.access import ActorDep, writable, writable_endpoint
+from evalkit.api.deps import AgentStoreDep, ConfigDep, KeysDep, SessionDep
 from evalkit.contracts.enums import TrajectorySource
 from evalkit.contracts.settings import AgentSettings
-from evalkit.core.access import can_set_endpoint, can_write
 from evalkit.core.agents import AgentDefinition, driver
 from evalkit.core.workspace import Reference, slug
 
@@ -37,6 +36,7 @@ def agent_view(agent: AgentDefinition) -> dict:
         "settings": agent.settings.model_dump(),
         "driver": driver(agent),
         "archived": agent.archived,
+        "has_api_key": agent.has_api_key,
     }
 
 
@@ -63,25 +63,26 @@ class CreateAgent(BaseModel):
     repo_url: HttpUrlStr | None = None
     settings: AgentSettings = AgentSettings()
     mapping: dict | None = None
-
-
-async def _writable(
-    session: SessionDep, actor: ActorDep, workspace: str, *, endpoint: bool = False
-) -> None:
-    ws = await workspace_ref(session, workspace)
-    require(can_write(actor, ws), f"you cannot write to @{workspace}")
-    require(
-        not endpoint or can_set_endpoint(actor, ws),
-        f"only an admin may set an agent's harness_url in the shared workspace @{workspace}",
-    )
-    ensure_active(ws)
+    api_key: str | None = None
 
 
 @router.post("")
 async def create_agent(
-    body: CreateAgent, agents: AgentStoreDep, session: SessionDep, actor: ActorDep
+    body: CreateAgent,
+    keys: KeysDep,
+    agents: AgentStoreDep,
+    session: SessionDep,
+    actor: ActorDep,
+    cfg: ConfigDep,
 ) -> dict:
-    await _writable(session, actor, body.workspace, endpoint=body.harness_url is not None)
+    await writable_endpoint(
+        session,
+        actor,
+        cfg,
+        body.workspace,
+        api_key="api_key" in body.model_fields_set,
+        url=body.harness_url,
+    )
     created = await agents.create(
         body.workspace,
         body.name,
@@ -91,6 +92,7 @@ async def create_agent(
         settings=body.settings,
         created_by=actor.id,
         mapping=body.mapping,
+        api_key_encrypted=keys.seal(body.api_key),
     )
     return agent_view(created)
 
@@ -101,24 +103,40 @@ class EditAgent(BaseModel):
     settings: AgentSettings | None = None
     trajectory_source: TrajectorySource | None = None
     mapping: dict | None = None
+    api_key: str | None = None
 
 
 @router.patch("/{ref}")
 async def edit_agent(
-    ref: str, body: EditAgent, agents: AgentStoreDep, session: SessionDep, actor: ActorDep
+    ref: str,
+    body: EditAgent,
+    keys: KeysDep,
+    agents: AgentStoreDep,
+    session: SessionDep,
+    actor: ActorDep,
+    cfg: ConfigDep,
 ) -> dict:
     current = await agents.get(ref)
     url_changes = "harness_url" in body.model_fields_set and body.harness_url != current.harness_url
-    await _writable(session, actor, current.workspace, endpoint=url_changes)
+    await writable_endpoint(
+        session,
+        actor,
+        cfg,
+        current.workspace,
+        api_key="api_key" in body.model_fields_set,
+        url=body.harness_url if url_changes else None,
+    )
+    clear = {k for k in ("harness_url", "repo_url", "api_key") if k in body.model_fields_set}
     edited = await agents.edit(
         ref,
         harness_url=body.harness_url,
         repo_url=body.repo_url,
         settings=body.settings,
-        clear=frozenset(k for k in ("harness_url", "repo_url") if k in body.model_fields_set),
+        clear=frozenset(clear),
         trajectory_source=body.trajectory_source,
         mapping=body.mapping,
         edited_by=actor.id,
+        api_key_encrypted=keys.seal(body.api_key),
     )
     return agent_view(edited)
 
@@ -128,7 +146,7 @@ async def archive_agent(
     ref: str, agents: AgentStoreDep, session: SessionDep, actor: ActorDep
 ) -> dict:
     current = await agents.get(ref)
-    await _writable(session, actor, current.workspace)
+    await writable(session, actor, current.workspace)
     return agent_view(await agents.archive(ref))
 
 
@@ -137,5 +155,5 @@ async def restore_agent(
     ref: str, agents: AgentStoreDep, session: SessionDep, actor: ActorDep
 ) -> dict:
     current = await agents.get(ref)
-    await _writable(session, actor, current.workspace)
+    await writable(session, actor, current.workspace)
     return agent_view(await agents.restore(ref))

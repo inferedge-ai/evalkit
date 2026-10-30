@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 from pydantic import BaseModel, SecretStr
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import TraceProvider
@@ -49,11 +49,6 @@ def _view(row: models.TraceSource) -> TraceSourceView:
         url=row.config["url"],
         archived=row.archived_at is not None,
     )
-
-
-async def count_trace_sources(session_factory: async_sessionmaker[AsyncSession]) -> int:
-    async with session_factory() as session:
-        return int(await session.scalar(select(func.count()).select_from(models.TraceSource)) or 0)
 
 
 class TraceSourceStore:
@@ -134,18 +129,3 @@ class TraceSourceStore:
             url=row.config["url"],
             api_key=SecretStr(api_key) if api_key is not None else None,
         )
-
-    async def rekey(self, old: SecretBox, new: SecretBox) -> int:
-        async with self._sessions() as session:
-            rows = (
-                await session.scalars(
-                    select(models.TraceSource).where(
-                        models.TraceSource.api_key_encrypted.is_not(None)
-                    )
-                )
-            ).all()
-            for row in rows:
-                assert row.api_key_encrypted is not None
-                row.api_key_encrypted = new.seal(old.open(row.api_key_encrypted))
-            await session.commit()
-            return len(rows)

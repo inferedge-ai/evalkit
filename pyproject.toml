@@ -1,7 +1,7 @@
 [project]
-name = "evalkit"
-version = "0.2.0"
-description = "Standalone agent-eval product: server, CLI, UI, finance eval suite, and EDD skills"
+name = "evalkit-py"
+version = "0.3.0"
+description = "Self-hosted system for improving AI agents: server, CLI, web UI, Python SDK and agent skills"
 readme = "README.md"
 authors = [
     { name = "InferEdge Tech", email = "tech@inferedge.com" }
@@ -33,6 +33,7 @@ server = [
     "opentelemetry-proto>=1.44.0",
     "psycopg[binary]>=3.3.6",
     "python-multipart>=0.0.32",
+    "sentry-sdk[fastapi]>=2.73.0",
     "sqlalchemy>=2",
     "uvicorn>=0.52.4",
 ]
@@ -55,6 +56,11 @@ dev = [
     "respx>=0.23.1",
     "ruff>=0.16.5",
     "testcontainers[postgres]>=4.15.0",
+]
+docs = [
+    "mike>=2.2.0",
+    "mkdocs-material>=9.8.0",
+    "mkdocstrings[python]>=1.0.8",
 ]
 
 [tool.ruff]
@@ -85,6 +91,9 @@ artifacts = ["src/evalkit/core/data/cost_map.json"]
 
 # hatch_build.py adds skills/ file by file, leaving out .env files, wheels and
 # bytecode, so a filled-in try-it .env never ships in a wheel.
+[tool.hatch.build.targets.wheel]
+packages = ["src/evalkit"]
+
 [tool.hatch.build.targets.wheel.hooks.custom]
 
 [tool.hatch.build.targets.wheel.force-include]

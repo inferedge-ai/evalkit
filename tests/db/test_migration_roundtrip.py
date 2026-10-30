@@ -13,7 +13,7 @@ def tables(url: str) -> set[str]:
 def test_baseline_downgrades_to_an_empty_schema_and_back(fresh_db_url):
     run_migrations(fresh_db_url)
     created = tables(fresh_db_url)
-    assert head_revision() == "0012"
+    assert head_revision() == "0013"
     downgrade_migrations(fresh_db_url, "base")
     assert tables(fresh_db_url) == set()
     run_migrations(fresh_db_url)

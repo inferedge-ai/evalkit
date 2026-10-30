@@ -1,41 +1,49 @@
 # Install
 
-This server runs evalkit **{{version}}**. The wheel it serves is `{{filename}}` (sha256 `{{sha256}}`). Install from the server so your client always matches it.
+evalkit is one Python package on PyPI, `evalkit-py`. It holds the `evalkit` command (the CLI), the `evalkit.sdk` module for SDK runs and, with the `server` extra, the server itself.
 
-The server is also a Python package index at `{{origin}}/api/cli/simple`. uv's `--index` adds it next to PyPI and checks it first, so `evalkit` comes from this server and its dependencies come from PyPI.
+Your CLI and SDK must run the **same version as the evalkit server** you use: local runs and SDK runs refuse to start otherwise. The commands on this page pin version **{{version}}**. On your server's own `/docs/install` page, that is the server's version; `curl <server url>/api/cli` prints it anywhere.
 
 ## The CLI, as a global tool
 
 ```bash
-uv tool install --reinstall evalkit --index {{origin}}/api/cli/simple
+uv tool install --reinstall "evalkit-py=={{version}}"
 ```
 
-The same command updates it after a server deploy.
+With pipx instead: `pipx install --force "evalkit-py=={{version}}"`.
 
-With pipx instead of uv, install the wheel file:
+`curl {{origin}}/api/cli` prints the server's version, for scripts and CI:
 
 ```bash
-curl -fsSL {{origin}}/api/cli/wheel -o {{filename}} && pipx install --force ./{{filename}}
+uv tool install --reinstall "evalkit-py==$(curl -fsSL {{origin}}/api/cli | jq -r .version)"
 ```
 
 ## The SDK, into a project
 
-`run_experiment` and `tracing.register` live in the same package as the CLI. The `otel` extra brings the OpenTelemetry SDK and the OTLP exporter.
-
-A project that adds evalkit as a dependency vendors the wheel, because the server serves only its current wheel, so a lock that points at the index breaks after the next deploy. From the project's root, let the CLI download the wheel into `vendor/` and check its sha256, then add it; `uv.lock` pins the file in the repository:
+`run_experiment` and `tracing.register` live in the same package as the CLI. The `otel` extra brings the OpenTelemetry SDK and the OTLP exporter. Pin the server's version; `uv.lock` records it:
 
 ```bash
-evalkit update --vendor vendor
-uv add "./vendor/{{filename}}[otel]"
+uv add "evalkit-py[otel]=={{version}}"
 ```
 
-With pip instead: `pip install "./vendor/{{filename}}[otel]"`. Without the CLI, `mkdir -p vendor && curl -fsSL {{origin}}/api/cli/wheel -o vendor/{{filename}}` downloads the same file.
+With pip instead: `pip install "evalkit-py[otel]=={{version}}"`.
 
-To keep evalkit out of the app's dependencies, run the eval script with it from the index instead. Nothing is locked, and each run picks up the server's current wheel:
+To keep evalkit out of the app's dependencies, run the eval script with it instead:
 
 ```bash
-uv run --with "evalkit[otel]" --index {{origin}}/api/cli/simple python eval/run.py
+uv run --with "evalkit-py[otel]=={{version}}" python eval/run.py
 ```
+
+## The server
+
+`pip install "evalkit-py[server]"` installs the server too: the API, the web UI and migrations. To run one on your machine against a Postgres you already have:
+
+```bash
+evalkit init-server   # creates the database, writes config.yaml and .env in ./evalkit-try
+cd evalkit-try && evalkit serve
+```
+
+[Try locally](try-locally.md) walks through it with a sample agent; the evalkit-deployment skill covers running a server for a team.
 
 ## Updating
 
@@ -45,6 +53,8 @@ Every API response carries `X-Evalkit-Version`. The CLI warns when it differs fr
 evalkit update
 ```
 
-It reinstalls the CLI, replaces the wheel in `./vendor` (pass `--vendor DIR` for another directory) and, when `pyproject.toml` names that wheel, points it at the new one and runs `uv sync`. It then refreshes the skills in every directory `evalkit skills install` wrote to on this machine (listed in `~/.evalkit/skills-targets`), and in `./.claude/skills` or `./.agents/skills` if they hold an earlier install; commit the changes in repos that track the skills. Pass `--no-skills` to skip that. Running the CLI install command again also updates the CLI. A `uv run --with … --index …` script needs nothing.
+It reinstalls the CLI at the server's version and, when `pyproject.toml` pins `evalkit-py==…`, moves the pin and runs `uv sync`. It then refreshes the skills in every directory `evalkit skills install` wrote to on this machine (listed in `~/.evalkit/skills-targets`), and in `./.claude/skills` or `./.agents/skills` if they hold an earlier install; commit the changes in repos that track the skills. Pass `--no-skills` to skip that.
+
+A project that vendored an evalkit wheel before evalkit was on PyPI moves to PyPI once: `uv remove evalkit && uv add "evalkit-py[otel]=={{version}}"`.
 
 Next: [Login](login.md).

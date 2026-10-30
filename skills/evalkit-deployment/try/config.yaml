@@ -9,14 +9,9 @@ db:
 blob:
   url: file:///data/evalkit
 
-judge_default: # your LLM, from .env; any OpenAI-compatible endpoint with structured output
-  base_url: env:LLM_BASE_URL
-  model: env:LLM_MODEL
-  concurrency: 4
-
 cost_map:
   source: bundled
 
-credentials:
-  judges:
-    env:LLM_BASE_URL: env:LLM_API_KEY
+allow_private_endpoints: true # your LLM may run on this machine (host.docker.internal)
+
+encryption_key: env:EVALKIT_ENCRYPTION_KEY # seals the LLM provider key the setup service stores

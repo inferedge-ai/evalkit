@@ -1,5 +1,7 @@
 import asyncio
+import functools
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import date, datetime, timedelta, tzinfo
 from typing import Any, get_args
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -53,7 +55,7 @@ from evalkit.api.mcp.models import (
 )
 from evalkit.contracts.atif import Step, Trajectory
 from evalkit.contracts.enums import ExperimentStatus
-from evalkit.core.agents import AgentDefinition
+from evalkit.core.agents import AgentDefinition, UnknownAgent
 from evalkit.core.costmap import load_cost_map
 from evalkit.core.paths import is_safe_run_id
 from evalkit.core.run_digest import (
@@ -75,6 +77,7 @@ from evalkit.core.workspace import parse_slug
 from evalkit.db import experiments as db_experiments
 from evalkit.db import scorecard as db_scorecard
 from evalkit.db.runs import RunSource, trajectory_keys
+from evalkit.db.workspaces import UnknownWorkspace
 from evalkit.store.base import UnknownExperiment
 
 
@@ -115,8 +118,44 @@ RUN_SOURCES: tuple[str, ...] = get_args(RunSource)
 EXPERIMENT_INCLUDES = frozenset({"scorecard"})
 
 
-def fail(code: str, detail: str) -> ToolError:
-    return ToolError(f"{code}: {detail}")
+STATUS_CODES = {
+    400: "invalid_request",
+    401: "forbidden",
+    403: "forbidden",
+    404: "not_found",
+    409: "conflict",
+    413: "invalid_request",
+}
+
+
+def fail(code: str, detail: str, log_level: int = logging.WARNING) -> ToolError:
+    return ToolError(f"{code}: {detail}", log_level=log_level)
+
+
+def translate(exc: Exception) -> ToolError | None:
+    if isinstance(exc, HTTPException):
+        code = STATUS_CODES.get(exc.status_code, "upstream_failed")
+        level = logging.ERROR if exc.status_code == 500 else logging.WARNING
+        return fail(code, str(exc.detail), level)
+    if isinstance(exc, (UnknownAgent, UnknownExperiment, UnknownWorkspace)):
+        return fail("not_found", exc.args[0])
+    return None
+
+
+# FastMCP logs any exception other than ToolError at ERROR before middleware
+# sees it, so expected errors become ToolError inside the tool.
+def expected_errors[**P, R](tool: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+    @functools.wraps(tool)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            return await tool(*args, **kwargs)
+        except Exception as exc:
+            translated = translate(exc)
+            if translated is None:
+                raise
+            raise translated from exc
+
+    return wrapper
 
 
 def deadline() -> float:
@@ -295,7 +334,9 @@ class Runs:
         cost_map = await self.cost_map()
         deps = self.state.runner_deps
         client = (
-            runs_api.harness_client(deps, record) if runs_api.server_may_drive(record) else None
+            await runs_api.harness_client(deps, record)
+            if runs_api.server_may_drive(record)
+            else None
         )
 
         call_gate = asyncio.Semaphore(FETCH_CONCURRENCY)
@@ -414,6 +455,7 @@ def register(mcp: FastMCP, state: State) -> None:
     runs = Runs(state)
 
     @mcp.tool(description=d.FIND_AGENTS, **READ_TOOL)
+    @expected_errors
     async def find_agents(
         workspace: str | None = None, include_archived: bool = False
     ) -> FindAgentsResponse:
@@ -437,6 +479,7 @@ def register(mcp: FastMCP, state: State) -> None:
         return FindAgentsResponse(data=rows, meta=PlainMeta(count=len(rows)))
 
     @mcp.tool(description=d.FIND_RUNS, **HARNESS_READ_TOOL)
+    @expected_errors
     async def find_runs(
         agent: str,
         start_date: str | None = None,
@@ -521,6 +564,7 @@ def register(mcp: FastMCP, state: State) -> None:
         return FindRunsResponse(data=rows, meta=meta)
 
     @mcp.tool(description=d.GET_RUNS, **HARNESS_READ_TOOL)
+    @expected_errors
     async def get_runs(
         agent: str, run_ids: list[str], include: list[str] | None = None
     ) -> GetRunsResponse:
@@ -548,6 +592,7 @@ def register(mcp: FastMCP, state: State) -> None:
         return GetRunsResponse(data=rows, meta=meta)
 
     @mcp.tool(description=d.GET_RUN_STATS, **HARNESS_READ_TOOL)
+    @expected_errors
     async def get_run_stats(
         agent: str,
         start_date: str | None = None,
@@ -616,6 +661,7 @@ def register(mcp: FastMCP, state: State) -> None:
         return GetRunStatsResponse(data=rows, meta=meta)
 
     @mcp.tool(description=d.GET_TRAJECTORY, **HARNESS_READ_TOOL)
+    @expected_errors
     async def get_trajectory(
         agent: str,
         run_id: str,
@@ -661,6 +707,7 @@ def register(mcp: FastMCP, state: State) -> None:
         return GetTrajectoryResponse(data=steps, meta=meta)
 
     @mcp.tool(description=d.GET_RUN_FILES, **HARNESS_READ_TOOL)
+    @expected_errors
     async def get_run_files(agent: str, run_id: str) -> GetRunFilesResponse:
         check_run_ids([run_id])
         listing = await runs_api.list_files(
@@ -670,6 +717,7 @@ def register(mcp: FastMCP, state: State) -> None:
         return GetRunFilesResponse(data=rows, meta=PlainMeta(count=len(rows)))
 
     @mcp.tool(description=d.DOWNLOAD_RUN_FILE, **HARNESS_READ_TOOL)
+    @expected_errors
     async def download_run_file(
         agent: str, run_id: str, path: str, max_chars: int = FILE_CHARS, offset: int = 0
     ) -> DownloadRunFileResponse:
@@ -702,6 +750,7 @@ def register(mcp: FastMCP, state: State) -> None:
         )
 
     @mcp.tool(description=d.FIND_EXPERIMENTS, **READ_TOOL)
+    @expected_errors
     async def find_experiments(
         workspace: str | None = None,
         status: str | None = None,
@@ -725,6 +774,7 @@ def register(mcp: FastMCP, state: State) -> None:
         return FindExperimentsResponse(data=rows, meta=meta)
 
     @mcp.tool(description=d.GET_EXPERIMENTS, **READ_TOOL)
+    @expected_errors
     async def get_experiments(
         experiment_ids: list[int], include: list[str] | None = None
     ) -> GetExperimentsResponse:
@@ -751,6 +801,7 @@ def register(mcp: FastMCP, state: State) -> None:
         return GetExperimentsResponse(data=rows, meta=meta)
 
     @mcp.tool(description=d.GET_EXPERIMENT_RUNS, **READ_TOOL)
+    @expected_errors
     async def get_experiment_runs(
         experiment_id: int, failed_only: bool = False, limit: int = 50, offset: int = 0
     ) -> GetExperimentRunsResponse:

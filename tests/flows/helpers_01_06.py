@@ -9,19 +9,17 @@ import pytest
 from click.testing import Result
 from typer.testing import CliRunner
 
-from evalkit import version
 from evalkit.api.app import create_app
 from evalkit.cli.main import app as cli_app
 from evalkit.client import connection
 from evalkit.core.runner import RunnerDeps
-from evalkit.credentials import CredentialRegistry, CredentialsConfig
 from evalkit.db.agents import AgentStore
 from evalkit.db.evaluators import RemoteEvaluatorStore
+from evalkit.db.keys import NoKeysLoaded
 from evalkit.db.session import make_session_factory
 from evalkit.db.store import PgStore
 from evalkit.db.workspaces import WorkspaceStore
 from tests.cli.test_cli import _serve, stub_judges_module
-from tests.fake_agents import JUDGE_URL, TEST_ENV
 from tests.fake_blob import DictBlobStore
 from tests.fake_harness import FakeHarness
 from tests.identity import seed_agent, seed_evaluators, seed_identity
@@ -30,11 +28,6 @@ from tests.native import HOLDER, custom_eval_app, make_cfg
 __all__ = ["stub_judges_module"]
 
 USERS = {"admin": "hunter2-pw", "alice": "password", "akshat": "password", "ravi": "password"}
-CREDENTIALS = CredentialsConfig(
-    agents={"ouragent@dev": "env:FAKE_AGENT_KEY", "ouragent@prod": "env:FAKE_AGENT_KEY"},
-    evaluators={"required_tool_calls@dev": "env:CUSTOM_EVAL_KEY"},
-    judges={JUDGE_URL: "env:JUDGE_KEY"},
-)
 RUBRICS = (
     "    evaluators:\n      output:\n        answer_rubrics:\n          rubrics:\n"
     "          - rubric: 'Says 42.'\n            type: factual_retrieval\n"
@@ -48,7 +41,6 @@ class Live:
     db_url: str
     fake: FakeHarness
     blob: DictBlobStore
-    wheel: Path
 
 
 def cases_yaml(*case_ids: str, question: str = "What is the answer as of 2024-01-01?") -> str:
@@ -62,10 +54,6 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
     tmp = tmp_path_factory.mktemp("flows")
     harness = fake or FakeHarness()
     blob = DictBlobStore()
-    wheel_dir = tmp / "wheel"
-    wheel_dir.mkdir()
-    wheel = wheel_dir / f"evalkit-{version.current()}-py3-none-any.whl"
-    wheel.write_bytes(b"PK\x03\x04flow wheel")
 
     async def setup():
         factory = make_session_factory(db_url)
@@ -78,14 +66,14 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
         return factory
 
     factory = asyncio.run(setup())
-    cfg = make_cfg(tmp).model_copy(update={"credentials": CREDENTIALS})
+    cfg = make_cfg(tmp)
     deps = RunnerDeps(
         cfg=cfg,
         store=PgStore(factory),
         blob_store=blob,
         agents=AgentStore(factory),
         evaluators=RemoteEvaluatorStore(factory),
-        credentials=CredentialRegistry(CREDENTIALS, TEST_ENV),
+        credentials=NoKeysLoaded(),
         harness_transport=httpx.ASGITransport(app=harness.app),
         custom_eval_transport=httpx.ASGITransport(app=custom_eval_app()),
     )
@@ -95,11 +83,10 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
         runner_deps=deps,
         session_factory=factory,
         check_schema=False,
-        wheel_dir=wheel_dir,
         holder=HOLDER,
     )
     server, thread, port = _serve(application)
-    yield Live(f"http://127.0.0.1:{port}", db_url, harness, blob, wheel)
+    yield Live(f"http://127.0.0.1:{port}", db_url, harness, blob)
     server.should_exit = True
     thread.join(timeout=5)
 

@@ -1,0 +1,247 @@
+/* The web UI's tokens (ui/src/theme.css) mapped onto Material's variables. */
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap");
+
+:root {
+  --md-text-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --md-code-font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+[data-md-color-scheme="default"] {
+  --ek-brand: rgb(46 103 200);
+  --ek-brand-hover: rgb(32 72 140);
+  --ek-surface: rgb(255 255 255);
+  --ek-canvas: rgb(249 250 251);
+  --ek-fill: rgb(243 244 246);
+  --ek-line: rgb(229 231 235);
+  --ek-ink: rgb(17 24 39);
+  --ek-ink-2: rgb(75 85 99);
+  --ek-ink-3: rgb(107 114 128);
+}
+
+[data-md-color-scheme="slate"] {
+  --ek-brand: rgb(107 154 232);
+  --ek-brand-hover: rgb(144 181 243);
+  --ek-surface: rgb(23 30 44);
+  --ek-canvas: rgb(15 21 33);
+  --ek-fill: rgb(33 42 58);
+  --ek-line: rgb(50 61 80);
+  --ek-ink: rgb(241 245 249);
+  --ek-ink-2: rgb(190 200 215);
+  --ek-ink-3: rgb(148 161 182);
+  --md-hue: 220;
+}
+
+[data-md-color-scheme="default"],
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: var(--ek-surface);
+  --md-primary-fg-color--light: var(--ek-surface);
+  --md-primary-fg-color--dark: var(--ek-surface);
+  --md-primary-bg-color: var(--ek-ink);
+  --md-primary-bg-color--light: var(--ek-ink-2);
+  --md-accent-fg-color: var(--ek-brand-hover);
+  --md-accent-fg-color--transparent: color-mix(in srgb, var(--ek-brand) 10%, transparent);
+
+  --md-default-bg-color: var(--ek-canvas);
+  --md-default-fg-color: var(--ek-ink);
+  --md-default-fg-color--light: var(--ek-ink-2);
+  --md-default-fg-color--lighter: var(--ek-ink-3);
+  --md-default-fg-color--lightest: var(--ek-line);
+
+  --md-typeset-color: var(--ek-ink);
+  --md-typeset-a-color: var(--ek-brand);
+  --md-code-bg-color: var(--ek-fill);
+  --md-code-hl-color: color-mix(in srgb, var(--ek-brand) 15%, transparent);
+  --md-code-fg-color: var(--ek-ink);
+  --md-typeset-table-color: var(--ek-line);
+  --md-footer-bg-color: var(--ek-canvas);
+  --md-footer-bg-color--dark: var(--ek-canvas);
+  --md-footer-fg-color: var(--ek-ink-2);
+  --md-footer-fg-color--light: var(--ek-ink-3);
+}
+
+.md-header {
+  border-bottom: 1px solid var(--ek-line);
+  box-shadow: none;
+}
+
+.md-header[data-md-state="shadow"],
+.md-header--shadow {
+  box-shadow: none;
+}
+
+.md-tabs {
+  background-color: var(--ek-surface);
+  color: var(--ek-ink-2);
+}
+
+.md-search__input {
+  background-color: var(--ek-fill);
+  color: var(--ek-ink);
+}
+
+.md-search__input::placeholder,
+.md-search__icon {
+  color: var(--ek-ink-3);
+}
+
+.md-nav__link--active,
+.md-nav__item .md-nav__link--active {
+  color: var(--ek-brand);
+}
+
+.md-typeset {
+  font-size: 0.7rem;
+  line-height: 1.55;
+}
+
+.md-typeset h1 {
+  color: var(--ek-ink);
+  font-weight: 600;
+  font-size: 1.5rem;
+}
+
+.md-typeset h2,
+.md-typeset h3 {
+  font-weight: 600;
+}
+
+.md-typeset code {
+  border-radius: 4px;
+  font-size: 0.85em;
+}
+
+.md-typeset pre > code {
+  border: 1px solid var(--ek-line);
+  border-radius: 6px;
+}
+
+.md-typeset table:not([class]) {
+  border: 1px solid var(--ek-line);
+  border-radius: 6px;
+  font-size: 0.68rem;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--ek-fill);
+  color: var(--ek-ink-2);
+}
+
+.md-banner {
+  background-color: color-mix(in srgb, var(--ek-brand) 12%, var(--ek-surface));
+  color: var(--ek-ink);
+}
+
+.md-banner a {
+  color: var(--ek-brand);
+}
+
+.doc-signature {
+  font-family: var(--md-code-font-family);
+}
+
+/* The web UI's header: the InferEdge lockup, then "Evalkit" in the brand colour. */
+.md-header__button.md-logo {
+  margin-right: 0.4rem;
+  padding: 0.4rem 0;
+}
+
+.ek-lockup {
+  font-family: var(--md-code-font-family);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ek-infer {
+  color: var(--ek-ink-3);
+}
+
+.ek-slash {
+  color: var(--ek-brand);
+}
+
+.ek-edge {
+  color: var(--ek-ink);
+  font-weight: 700;
+}
+
+.md-header__topic:first-child {
+  font-family: var(--md-code-font-family);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ek-brand);
+}
+
+.md-header__topic .md-ellipsis {
+  font-size: 0.8rem;
+}
+
+/* Links, inline code and code blocks as the UI's markdown renders them. */
+.md-typeset a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md-typeset a:hover {
+  color: var(--ek-brand-hover);
+}
+
+.md-typeset .headerlink,
+.md-typeset .md-nav a,
+.md-typeset .doc-heading a {
+  text-decoration: none;
+}
+
+.md-typeset :not(pre) > code {
+  border: 1px solid var(--ek-line);
+  border-radius: 3px;
+  padding: 0 0.2em;
+}
+
+/* Code blocks use the app's highlighting: prism's `github` theme in light,
+   `nightOwl` in dark (ui/src/pages/DocsPage.tsx). */
+[data-md-color-scheme="default"] {
+  --ek-pre-bg: #f6f8fa;
+  --ek-pre-fg: #393a34;
+  --md-code-hl-comment-color: #999988;
+  --md-code-hl-string-color: #e3116c;
+  --md-code-hl-number-color: #36acaa;
+  --md-code-hl-constant-color: #36acaa;
+  --md-code-hl-variable-color: #36acaa;
+  --md-code-hl-special-color: #36acaa;
+  --md-code-hl-keyword-color: #00009f;
+  --md-code-hl-function-color: #d73a49;
+  --md-code-hl-name-color: #393a34;
+  --md-code-hl-operator-color: #393a34;
+  --md-code-hl-punctuation-color: #393a34;
+  --md-code-hl-generic-color: #393a34;
+}
+
+[data-md-color-scheme="slate"] {
+  --ek-pre-bg: #011627;
+  --ek-pre-fg: #d6deeb;
+  --md-code-hl-comment-color: rgb(99 119 119);
+  --md-code-hl-string-color: rgb(173 219 103);
+  --md-code-hl-number-color: rgb(247 140 108);
+  --md-code-hl-constant-color: rgb(130 170 255);
+  --md-code-hl-variable-color: rgb(214 222 235);
+  --md-code-hl-special-color: rgb(130 170 255);
+  --md-code-hl-keyword-color: rgb(127 219 202);
+  --md-code-hl-function-color: rgb(130 170 255);
+  --md-code-hl-name-color: #d6deeb;
+  --md-code-hl-operator-color: rgb(127 219 202);
+  --md-code-hl-punctuation-color: rgb(199 146 234);
+  --md-code-hl-generic-color: #d6deeb;
+}
+
+.md-typeset pre > code {
+  background-color: var(--ek-pre-bg);
+  color: var(--ek-pre-fg);
+}
+
+.md-typeset .highlight .c,
+.md-typeset .highlight .c1,
+.md-typeset .highlight .cm {
+  font-style: italic;
+}

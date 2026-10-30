@@ -102,7 +102,6 @@ async def test_route_caps_are_larger_than_the_general_cap():
             "server": {"base_url": "http://x"},
             "db": {"url": "postgresql://x"},
             "blob": {"url": "memory://"},
-            "judge_default": {"model": "m", "base_url": "http://j"},
         }
     )
     assert body_limit(config, "PUT", "/api/fixtures/sha256/abc").limit == 500 * 1024 * 1024

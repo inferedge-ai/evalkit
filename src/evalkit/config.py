@@ -3,11 +3,11 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
-from evalkit.contracts.settings import JudgeSettings
 from evalkit.credentials import CredentialsConfig, load_dotenv_beside
 
 
@@ -64,6 +64,13 @@ class OtelConfig(ConfigModel):
     import_page_traces: int = 25
 
 
+class SentryConfig(ConfigModel):
+    dsn: str
+    environment: str | None = None
+    traces_sample_rate: float = 0.0
+    max_request_body_size: Literal["never", "small", "medium", "always"] = "never"
+
+
 MB = 1024 * 1024
 
 
@@ -76,7 +83,37 @@ class LimitsConfig(ConfigModel):
 
 class RunnerConfig(ConfigModel):
     cost_map: CostMapConfig = CostMapConfig()
-    credentials: CredentialsConfig = CredentialsConfig()
+
+
+# TODO: remove in 0.5.0, two minor versions after 0.3.0 moved credentials and
+# judge_default to the database; _shell and _moved_to_db_commands only serve that check.
+def _shell(value: object) -> str:
+    text = str(value)
+    return f"${text.removeprefix('env:')}" if text.startswith("env:") else text
+
+
+def _moved_to_db_commands(data: dict) -> list[str]:
+    credentials = data.get("credentials") or {}
+    judge = data.get("judge_default") or {}
+    commands = [
+        f"evalkit llm-providers create <name> --base-url {_shell(url)} "
+        f"--api-key-env {str(ref).removeprefix('env:')}"
+        for url, ref in (credentials.get("judges") or {}).items()
+    ]
+    if judge:
+        commands.append(
+            f"evalkit judge-default set --provider <name> "
+            f"--model {_shell(judge.get('model', '<model>'))}"
+        )
+    commands += [
+        f"evalkit agents edit {ref} --api-key-env {str(env).removeprefix('env:')}"
+        for ref, env in (credentials.get("agents") or {}).items()
+    ]
+    commands += [
+        f"evalkit evaluators edit {ref} --api-key-env {str(env).removeprefix('env:')}"
+        for ref, env in (credentials.get("evaluators") or {}).items()
+    ]
+    return commands
 
 
 class Config(RunnerConfig):
@@ -87,8 +124,23 @@ class Config(RunnerConfig):
     mcp: McpConfig = McpConfig()
     otel: OtelConfig = OtelConfig()
     limits: LimitsConfig = LimitsConfig()
+    sentry: SentryConfig | None = None
     encryption_key: str | None = None
-    judge_default: JudgeSettings
+    allow_private_endpoints: bool = False
+
+    # TODO: remove in 0.5.0, two minor versions after 0.3.0 moved credentials and
+    # judge_default to the database.
+    @model_validator(mode="before")
+    @classmethod
+    def _keys_moved_to_db(cls, data: object) -> object:
+        if isinstance(data, dict) and ("credentials" in data or "judge_default" in data):
+            commands = "\n".join(f"  {c}" for c in _moved_to_db_commands(data))
+            raise ValueError(
+                "credentials and judge_default moved to the database. Remove them from the "
+                "config, start the server, then run (as an admin, with the keys in your env):\n"
+                f"{commands}"
+            )
+        return data
 
 
 LOCAL_CONFIG_FILENAME = "evalkit.yaml"
@@ -96,6 +148,7 @@ LOCAL_CONFIG_FILENAME = "evalkit.yaml"
 
 class LocalConfig(RunnerConfig):
     path: Path
+    credentials: CredentialsConfig = CredentialsConfig()
     cases: Path | None = None
     fixtures: Path | None = None
 

@@ -10,10 +10,11 @@ from pathlib import Path
 
 import httpx
 import typer
+from dotenv import load_dotenv
 
 from evalkit import version
+from evalkit.cli import init_server
 from evalkit.cli.admin_commands import register as register_admin
-from evalkit.cli.admin_commands import trace_sources_app
 from evalkit.cli.client import ApiClient, ApiError
 from evalkit.cli.local_run import (
     check_local,
@@ -51,7 +52,7 @@ from evalkit.credentials import MissingCredential
 from evalkit.paths import contracts_root, docs_root, skills_root
 from evalkit.store.base import GitRevision, Selection
 
-# `serve` and `db upgrade` need the `evalkit[server]` extra; the base install
+# `serve` and `db upgrade` need the `evalkit-py[server]` extra; the base install
 # is a thin HTTP client. The boundary is explicit here rather than hidden in
 # per-command imports.
 if find_spec("uvicorn") and find_spec("sqlalchemy"):
@@ -176,6 +177,7 @@ def _with_secrets(local: LocalConfig, *, scoring: bool) -> LocalConfig:
 
 
 def _server_config(path: Path) -> Config:
+    load_dotenv(path.parent / ".env", override=False)
     try:
         return load_config(path)
     except ValueError as exc:
@@ -272,12 +274,6 @@ def update(
     server: str = typer.Option(
         None, "--server", help="Server base URL; defaults to the one you logged in to."
     ),
-    vendor: Path | None = typer.Option(
-        None,
-        "--vendor",
-        help="Also put the server's wheel in this directory for a project's evalkit.sdk "
-        "scripts (the first time too). Without it, a wheel already in ./vendor is replaced.",
-    ),
     skills: bool = typer.Option(
         True,
         "--skills/--no-skills",
@@ -285,19 +281,18 @@ def update(
         "`evalkit skills install` wrote to.",
     ),
 ):
-    """Download the server's matching wheel, verify its checksum and reinstall the CLI.
+    """Reinstall the CLI from PyPI at the server's version.
 
-    Run it from the project directory: it also replaces the evalkit wheel in ./vendor
-    (and the pyproject.toml line that names it), so the CLI and the SDK match the
-    server again after a deploy. --vendor DIR downloads the wheel into a project that
-    has none yet and prints the `uv add` line. After a reinstall it runs the new
+    Run it from the project directory: it also moves an `evalkit-py==…` pin in
+    ./pyproject.toml to the server's version and runs `uv sync`, so the CLI and the SDK
+    match the server again after a deploy. After a reinstall it runs the new
     `evalkit skills install` again in every skills directory installed before, and in
     ./.claude/skills or ./.agents/skills if an earlier install put skills there.
 
-    Example: evalkit update · evalkit update --vendor vendor · evalkit update --no-skills
+    Example: evalkit update · evalkit update --no-skills
     """
     server_url = server or _active_connection().url
-    run_update(ApiClient(server_url, check_version=False), vendor=vendor, skills=skills)
+    run_update(ApiClient(server_url, check_version=False), skills=skills)
 
 
 @app.command()
@@ -1015,6 +1010,124 @@ def contracts_export(
         typer.echo(f"exported {file.name} → {target / file.name}")
 
 
+@app.command("init-server")
+def init_server_command(
+    directory: Path = typer.Option(
+        init_server.DEFAULT_DIR, "--dir", help="Directory for the try kit, config.yaml and .env."
+    ),
+    database_url: str | None = typer.Option(
+        None,
+        "--database-url",
+        envvar="EVALKIT_DATABASE_URL",
+        help="Postgres URL; the database is created when missing.",
+    ),
+    llm_base_url: str | None = typer.Option(
+        None,
+        "--llm-base-url",
+        envvar="LLM_BASE_URL",
+        help="OpenAI-compatible endpoint for the judge and the sample agent.",
+    ),
+    llm_model: str | None = typer.Option(
+        None, "--llm-model", envvar="LLM_MODEL", help="Model name at that endpoint."
+    ),
+    llm_api_key: str | None = typer.Option(
+        None, "--llm-api-key", envvar="LLM_API_KEY", help="API key for that endpoint."
+    ),
+    admin_password: str | None = typer.Option(
+        None,
+        "--admin-password",
+        envvar="EVALKIT_ADMIN_PASSWORD",
+        help="Password of the `admin` user you log in as.",
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Never prompt; use flags, env, defaults."),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite an existing kit in --dir: config.yaml, .env and the kit's files, "
+        "including your edits to its cases and scripts.",
+    ),
+    kit_only: bool = typer.Option(
+        False, "--kit-only", help="Only copy the try kit; no database, config.yaml or .env."
+    ),
+):
+    """Set up an evalkit server on this machine, against a Postgres you already run.
+
+    Copies the try kit (sample agent, cases, run.py) into --dir.
+
+    Creates the database when missing and migrates it.
+
+    Writes config.yaml (blobs under <dir>/data) and .env (your LLM, the admin password).
+
+    Each value comes from its flag or env var; anything missing is prompted for.
+
+    Example: evalkit init-server · evalkit init-server --kit-only --dir ./evalkit-try
+    """
+    existing = init_server.kit_files_in(directory)
+    if existing and not force:
+        raise ApiError(
+            f"{directory} already holds a try kit ({', '.join(existing)}); "
+            "pass --force to overwrite it, edits included"
+        )
+    if kit_only:
+        init_server.copy_kit(directory, docker=True)
+        typer.echo(f"copied the try kit to {directory}")
+        return
+    if server_commands is None:
+        raise ApiError(
+            "`evalkit init-server` needs the server extra — pip install 'evalkit-py[server]'"
+        )
+    flags = {
+        "database_url": database_url,
+        "llm_base_url": llm_base_url,
+        "llm_model": llm_model,
+        "llm_api_key": llm_api_key,
+        "admin_password": admin_password,
+    }
+    answers = init_server.resolve(flags, yes=yes)
+    typer.echo(init_server.DATABASE_NOTICE)
+    created = server_commands.init_database(answers.database_url)
+    typer.echo(
+        "created the database and migrated it"
+        if created
+        else "the database already existed; migrated it"
+    )
+    saved_key = init_server.existing_encryption_key(directory)
+    new_key = saved_key or server_commands.new_encryption_key()
+    encryption_key: str | None = new_key
+    if created or not server_commands.has_llm_setup(answers.database_url):
+        server_commands.register_default_judge(
+            answers.database_url,
+            new_key,
+            answers.llm_base_url,
+            answers.llm_api_key,
+            answers.llm_model,
+        )
+        typer.echo(f"registered {answers.llm_base_url} as the default judge ({answers.llm_model})")
+    else:
+        typer.secho(
+            "the database already has LLM providers or a default judge; left them as they are. "
+            "Change them with `evalkit llm-providers` and `evalkit judge-default set`. A server "
+            "using this database needs the encryption_key it was set up with.",
+            fg="yellow",
+        )
+        if saved_key is None:
+            encryption_key = None
+            typer.secho(
+                f"set EVALKIT_ENCRYPTION_KEY in {directory / '.env'} to that key before "
+                "`evalkit serve`; the line is there, commented out.",
+                fg="yellow",
+            )
+    init_server.copy_kit(directory, docker=False)
+    init_server.write_server_files(directory, answers, encryption_key)
+    typer.echo(f"set up {directory}: config.yaml, .env and the try kit")
+    typer.echo("next, start the server:")
+    typer.echo(f"  cd {directory} && evalkit serve")
+    typer.echo("then, in another terminal from the same folder, log in:")
+    typer.echo("  evalkit login --url http://localhost:8020 --username admin")
+    typer.echo("  (this replaces a login you saved; Try it locally step 1 shows how to keep it)")
+    typer.echo("and follow Try it locally from step 2 (the CLI is already installed)")
+
+
 @app.command()
 def serve(
     config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),
@@ -1026,7 +1139,7 @@ def serve(
     Example: evalkit serve --config /etc/evalkit/config.yaml
     """
     if server_commands is None:
-        raise ApiError("`evalkit serve` needs the server extra — pip install 'evalkit[server]'")
+        raise ApiError("`evalkit serve` needs the server extra — pip install 'evalkit-py[server]'")
     server_commands.serve(_server_config(config), host, port)
 
 
@@ -1041,35 +1154,34 @@ def db_upgrade(
     """
     if server_commands is None:
         raise ApiError(
-            "`evalkit db upgrade` needs the server extra — pip install 'evalkit[server]'"
+            "`evalkit db upgrade` needs the server extra — pip install 'evalkit-py[server]'"
         )
     server_commands.db_upgrade(_server_config(config), revision)
     typer.echo(f"migrations applied up to {revision}")
 
 
-@trace_sources_app.command("rekey")
-def trace_sources_rekey(
+@db_app.command("rekey")
+def db_rekey(
     config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),
     old_key_env: str = typer.Option(..., "--old-key-env", help="Env var with the old key."),
     new_key_env: str = typer.Option(..., "--new-key-env", help="Env var with the new key."),
 ):
-    """Re-encrypt every trace source key after an encryption_key change (server-side).
+    """Re-encrypt every stored API key (agents, remote evaluators, LLM providers, trace
+    sources) after an encryption_key change (server-side).
 
-    Example: evalkit trace-sources rekey --config config.yaml --old-key-env OLD --new-key-env NEW
+    Example: evalkit db rekey --config config.yaml --old-key-env OLD --new-key-env NEW
     """
     if server_commands is None:
-        raise ApiError(
-            "`trace-sources rekey` needs the server extra — pip install 'evalkit[server]'"
-        )
+        raise ApiError("`db rekey` needs the server extra — pip install 'evalkit-py[server]'")
     missing = [name for name in (old_key_env, new_key_env) if name not in os.environ]
     if missing:
         raise ApiError(f"set {', '.join(missing)} first")
     count = asyncio.run(
-        server_commands.rekey_trace_sources(
+        server_commands.rekey(
             _server_config(config), os.environ[old_key_env], os.environ[new_key_env]
         )
     )
-    typer.echo(f"re-encrypted {count} trace source key(s)")
+    typer.echo(f"re-encrypted {count} stored API key(s)")
 
 
 if __name__ == "__main__":

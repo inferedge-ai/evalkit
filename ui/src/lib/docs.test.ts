@@ -24,15 +24,10 @@ describe("docs", () => {
 
   it("fills server values into a template", () => {
     const out = fillTemplate(
-      "curl {{origin}}/api/cli/wheel -o {{filename}} # {{sha256}} {{version}}",
-      {
-        origin: "https://e",
-        filename: "w.whl",
-        sha256: "abc",
-        version: "0.9.0",
-      },
+      'evalkit login --url {{origin}} # "evalkit-py=={{version}}"',
+      { origin: "https://e", version: "0.9.0" },
     );
-    expect(out).toBe("curl https://e/api/cli/wheel -o w.whl # abc 0.9.0");
+    expect(out).toBe('evalkit login --url https://e # "evalkit-py==0.9.0"');
   });
 
   it("every tab body has a heading", () => {

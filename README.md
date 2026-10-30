@@ -16,7 +16,7 @@ in; a better agent comes out, with evals your domain experts signed off on.
 
 ```mermaid
 flowchart LR
-  T["Your agent's<br/>real runs"] -->|mine| C["Draft cases"]
+  T["Your agent's<br/>real runs"] -->|mine| C["New cases"]
   C -->|review| R["Approved cases"]
   R -->|run| S["Scores +<br/>trajectories"]
   S -->|diagnose| F["File-cited fixes"]
@@ -32,7 +32,8 @@ flowchart LR
    one, groups the failure patterns and drafts eval cases.
 2. **Agree on what right looks like.** Domain experts read each case as a
    question and the facts a right answer must contain, then approve it,
-   comment, or send it back with changes. Only approved cases count.
+   comment, or send it back with changes. Approved cases are promoted to
+   your production suite.
 3. **Measure it.** evalkit runs the cases against your agent, keeps the full
    trajectory of every run (messages, reasoning, tool calls, tokens, cost,
    timing) and scores it with LLM-judged rubrics, built-in tool-call checks
@@ -60,11 +61,11 @@ same cases.
   year-end." An expert can read and judge it without reading code. The
   case-authoring skill interviews the expert in their own terms and writes
   the YAML.
-- **Review in the web UI.** Draft → Review requested → Approved, or Changes
-  requested with a comment. Threaded comments sit on the case, and each
-  case keeps a changelog of every sync and decision. Runs on shared
-  datasets use approved cases by default, so a half-written case never
-  moves the score.
+- **Review in the web UI.** Unreviewed → Review requested → Approved, or
+  Changes requested with a comment. Threaded comments sit on the case, and
+  each case keeps a changelog of every sync and decision. Review never
+  filters a run: every case runs, and approval decides which version is
+  promoted.
 - **Workspaces.** Each developer has a personal workspace to iterate in
   without touching anyone's results. Shared workspaces such as `dev` and
   `prod` hold the team's datasets, agents and experiments, with `writer`
@@ -121,9 +122,11 @@ print(result.url)  # the scorecard in the web UI
 
 ## Run your own evalkit
 
-1. **Try it locally.** [Try locally](docs/user/try-locally.md) starts the
-   server on your machine with Docker, judges with your LLM, and runs a
-   sample agent through an SDK run with traces.
+1. **Try it locally.** `pip install "evalkit-py[server]"`, then
+   `evalkit init-server` against a local Postgres, or use Docker.
+   [Try locally](docs/user/try-locally.md) starts the server on your machine,
+   judges with your LLM, and runs a sample agent through an SDK run with
+   traces.
 2. **Deploy it for your team.** The
    [evalkit-deployment skill](skills/evalkit-deployment/SKILL.md) covers the
    server image, Postgres, blob storage, the judge, migrations, users and
@@ -144,6 +147,9 @@ with your server's URL filled in. Start with the
 On GitHub, `{{origin}}` in the docs stands for your server's URL.
 
 ## Reference
+
+The docs and the Python SDK reference are published at
+[inferedge-ai.github.io/evalkit](https://inferedge-ai.github.io/evalkit/).
 
 - [Concepts](docs/user/concepts.md): the terms
 - [Install](docs/user/install.md), [Login](docs/user/login.md),

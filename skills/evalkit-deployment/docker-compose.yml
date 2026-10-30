@@ -28,14 +28,6 @@ services:
       EVALKIT_DATABASE_URL: postgresql+psycopg://evalkit:${POSTGRES_PASSWORD:?set in .env}@postgres/evalkit
       EVALKIT_ADMIN_PASSWORD: ${EVALKIT_ADMIN_PASSWORD:-}
       EVALKIT_ENCRYPTION_KEY: ${EVALKIT_ENCRYPTION_KEY:?set in .env}
-      # One line per env: reference in config.yaml. Use :? for every key the
-      # deployment uses, so a forgotten one stops compose instead of sending
-      # an empty key.
-      JUDGE_LLM_API_KEY: ${JUDGE_LLM_API_KEY:?set in .env}
-      # Examples for the commented-out agent and evaluator entries under
-      # credentials: in config.yaml. Switch to :? when you uncomment them.
-      OURAGENT_DEV_KEY: ${OURAGENT_DEV_KEY:-}
-      AGENT_EVALUATOR_KEY: ${AGENT_EVALUATOR_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
