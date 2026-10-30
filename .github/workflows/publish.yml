@@ -171,6 +171,10 @@ jobs:
             uv run --frozen --group docs mike set-default --push latest
           else
             uv run --frozen --group docs mike deploy --push dev
+            # Until the first release adds `latest`, the site root opens `dev`.
+            if ! uv run --frozen --group docs mike list | grep -q "\[latest\]"; then
+              uv run --frozen --group docs mike set-default --push dev
+            fi
           fi
 
   # main only: the merge is a release (ci.yml's `version` job made sure the

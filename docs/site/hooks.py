@@ -13,6 +13,8 @@ GENERATED = {
     "favicon.svg": ROOT / "ui" / "public" / "favicon.svg",
 }
 PLACEHOLDER = re.compile(r"\{\{(origin|version)\}\}")
+REPO_LINK = re.compile(r"\]\((?!https?:|mailto:|#)([^)]+)\)")
+REPO_BLOB = "https://github.com/inferedge-ai/evalkit/blob/develop/"
 
 
 def _version() -> str:
@@ -21,12 +23,26 @@ def _version() -> str:
     )["project"]["version"]
 
 
+def _site_link(target: str) -> str:
+    if target.startswith("docs/user/"):
+        return target.removeprefix("docs/user/")
+    return f"{REPO_BLOB}{target}"
+
+
+def _home_page() -> str:
+    readme = (ROOT / "README.md").read_text()
+    return REPO_LINK.sub(lambda match: f"]({_site_link(match.group(1))})", readme)
+
+
 def on_files(files: Files, config) -> Files:
     for name, source in GENERATED.items():
         files.append(File.generated(config, name, abs_src_path=str(source)))
+    files.append(File.generated(config, "index.md", content=_home_page()))
     return files
 
 
 def on_page_markdown(markdown: str, page, config, files) -> str:
+    if page.file.src_uri == "index.md":
+        return markdown
     values = {"origin": "http://localhost:8020", "version": _version()}
     return PLACEHOLDER.sub(lambda match: values[match.group(1)], markdown)
