@@ -1,0 +1,1284 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Make your AI agent better, end to end.">
+      
+      
+      
+        <link rel="canonical" href="https://inferedge-ai.github.io/evalkit/dev/sdk-runs/">
+      
+      
+        <link rel="prev" href="../workspaces/">
+      
+      
+        <link rel="next" href="../tracing/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>SDK runs - Evalkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../stylesheets/evalkit.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#sdk-runs" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+          <aside class="md-banner md-banner--warning">
+            <div class="md-banner__inner md-grid md-typeset">
+              
+  You're viewing docs for an older or unreleased version.
+  <a href="../..">
+    <strong>Go to latest.</strong>
+  </a>
+
+            </div>
+            <script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL(".."),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>
+          </aside>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Evalkit" class="md-header__button md-logo" aria-label="Evalkit" data-md-component="logo">
+      <span class="ek-lockup" aria-label="InferEdge"><span class="ek-infer">Infer</span><span class="ek-slash" aria-hidden="true">/</span><span class="ek-edge">Edge</span></span>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Evalkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              SDK runs
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Dark"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Light"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inferedge-ai/evalkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inferedge-ai/evalkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Evalkit" class="md-nav__button md-logo" aria-label="Evalkit" data-md-component="logo">
+      <span class="ek-lockup" aria-label="InferEdge"><span class="ek-infer">Infer</span><span class="ek-slash" aria-hidden="true">/</span><span class="ek-edge">Edge</span></span>
+    </a>
+    Evalkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inferedge-ai/evalkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inferedge-ai/evalkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../try-locally/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Try locally
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../login/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Login
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workspaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workspaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Traces
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK runs
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The task
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#an-agent-in-another-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An agent in another process
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datasets-and-workspaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Datasets and workspaces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notebooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notebooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-agent-and-the-judge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The agent and the judge
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-evaluators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python evaluators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bring-your-own-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bring your own benchmark
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#re-scoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-scoring
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mappings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mappings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../harness-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Harness API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sdk-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The task
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#an-agent-in-another-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An agent in another process
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#datasets-and-workspaces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Datasets and workspaces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notebooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notebooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-agent-and-the-judge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The agent and the judge
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#python-evaluators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python evaluators
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bring-your-own-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bring your own benchmark
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#re-scoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Re-scoring
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="sdk-runs">SDK runs<a class="headerlink" href="#sdk-runs" title="Permanent link">&para;</a></h1>
+<p><code>run_experiment</code> runs an experiment from your own code: it calls your task once per case and repetition, stores the runs on this server, and scores them with the judge, the remote evaluators of the agent's workspace and any Python evaluators you pass. The agent is a code-driven agent on the server (no harness URL), created once with <code>evalkit agents create</code>. Invoking the agent, timeouts and stopping are your code.</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># eval/run.py — uv run python eval/run.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_experiment</span><span class="p">,</span> <span class="n">RunResult</span><span class="p">,</span> <span class="n">evaluator</span><span class="p">,</span> <span class="n">tracing</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">myagent</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyAgent</span><span class="p">,</span> <span class="n">setup_tracing</span>
+
+<span class="n">setup_tracing</span><span class="p">()</span>                          <span class="c1"># your own OpenTelemetry provider and instrumentors</span>
+<span class="n">tracing</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">agent</span><span class="o">=</span><span class="s2">"myagent-sdk"</span><span class="p">)</span>   <span class="c1"># add this server as an export destination</span>
+<span class="n">agent</span> <span class="o">=</span> <span class="n">MyAgent</span><span class="p">()</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">task</span><span class="p">(</span><span class="nb">input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">files</span><span class="p">:</span> <span class="nb">list</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">agent</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="nb">input</span><span class="p">[</span><span class="s2">"question"</span><span class="p">],</span> <span class="n">attachments</span><span class="o">=</span><span class="p">[</span><span class="n">f</span><span class="o">.</span><span class="n">path</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span><span class="p">])</span>
+
+<span class="nd">@evaluator</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">"citation_check"</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">citation_check</span><span class="p">(</span><span class="n">case</span><span class="p">,</span> <span class="n">run</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+    <span class="n">cited</span> <span class="o">=</span> <span class="p">{</span><span class="n">c</span><span class="p">[</span><span class="s2">"url"</span><span class="p">]</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="p">(</span><span class="n">run</span><span class="o">.</span><span class="n">output</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"citations"</span><span class="p">,</span> <span class="p">[])}</span>
+    <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">cited</span> <span class="o">&gt;=</span> <span class="nb">set</span><span class="p">(</span><span class="n">case</span><span class="o">.</span><span class="n">config</span><span class="p">[</span><span class="s2">"required"</span><span class="p">])</span> <span class="k">else</span> <span class="mf">0.0</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">run_experiment</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="s2">"finance"</span><span class="p">,</span> <span class="n">agent</span><span class="o">=</span><span class="s2">"myagent-sdk"</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">,</span>
+                            <span class="n">evaluators</span><span class="o">=</span><span class="p">[</span><span class="n">citation_check</span><span class="p">],</span> <span class="n">concurrency</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="the-task">The task<a class="headerlink" href="#the-task" title="Permanent link">&para;</a></h2>
+<p>A sync or async callable. Parameters bind <strong>by name</strong> from this set, so their order does not matter; any other required parameter is an error before the first call, and an optional one keeps its default.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>input</code></td>
+<td>the case input, verbatim, minus <code>files</code></td>
+</tr>
+<tr>
+<td><code>files</code></td>
+<td><code>list[Fixture]</code>, the case's fixture files, downloaded before the call</td>
+</tr>
+<tr>
+<td><code>model</code></td>
+<td>the <code>model</code> argument of <code>run_experiment</code>, or <code>None</code></td>
+</tr>
+<tr>
+<td><code>metadata</code></td>
+<td>a dict with the keys below</td>
+</tr>
+</tbody>
+</table>
+<p>A <code>Fixture</code> has:</p>
+<ul>
+<li><code>name</code>: the fixture key the case names.</li>
+<li><code>path</code>: where the file sits on this machine.</li>
+<li><code>context</code>: the file's description from the fixture registry, or <code>None</code>. A Harness API agent gets the same text with each file; show it to your agent the same way (for example an "Attached files" block ahead of the question).</li>
+</ul>
+<p><code>metadata</code> holds:</p>
+<ul>
+<li><code>session_id</code>: the SDK's session id for this run, the <code>session.id</code> of its <code>evalkit.run</code> span.</li>
+<li><code>experiment_id</code>: the experiment, or <code>None</code> on a dry run.</li>
+<li><code>case_id</code>: the case.</li>
+<li><code>repetition</code>: 1 for the first repetition, 2 for the second, and so on.</li>
+<li><code>tags</code>: the case's tags.</li>
+</ul>
+<p><code>model</code> is the only way <code>run_experiment(model=...)</code> reaches your agent. The experiment records the requested model either way, so a task without a <code>model</code> parameter would silently run the agent's default; <code>run_experiment</code> prints a warning before the first call when that happens.</p>
+<p>A task with exactly one parameter whose name is not in the table (<code>def task(q)</code>) receives the input. Return a <code>str</code> (the answer), a <code>dict</code> (the structured output) or a <code>RunResult</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">RunResult</span>
+
+<span class="n">RunResult</span><span class="p">(</span><span class="n">answer</span><span class="o">=</span><span class="s2">"…"</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="p">{</span><span class="s2">"citations"</span><span class="p">:</span> <span class="p">[]},</span> <span class="n">model</span><span class="o">=</span><span class="s2">"gpt-5"</span><span class="p">,</span>
+          <span class="n">session_id</span><span class="o">=</span><span class="s2">"…"</span><span class="p">,</span>          <span class="c1"># override the session the SDK polls</span>
+          <span class="n">trajectory</span><span class="o">=</span><span class="p">{</span><span class="o">...</span><span class="p">})</span>        <span class="c1"># push an ATIF document instead of tracing</span>
+</code></pre></div>
+<p>A task that raises records the run as <code>failed</code> with the exception and the experiment continues.</p>
+<h2 id="an-agent-in-another-process">An agent in another process<a class="headerlink" href="#an-agent-in-another-process" title="Permanent link">&para;</a></h2>
+<p>The SDK stamps <code>session.id</code> and the <code>evalkit.*</code> attributes only on spans made in this Python process. An agent behind HTTP or a job queue, or written in another language, joins the run in one of two ways. Pick one, not both.</p>
+<ul>
+<li><strong>Continue the trace.</strong> Inject the W3C trace context into the request and have the agent start its spans from it. Every span in a trace belongs to the session of the trace's root, the SDK's <code>evalkit.run</code> span, even if the agent stamps its own <code>session.id</code> or <code>gen_ai.conversation.id</code>.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">opentelemetry</span><span class="w"> </span><span class="kn">import</span> <span class="n">propagate</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">task</span><span class="p">(</span><span class="nb">input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">headers</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">propagate</span><span class="o">.</span><span class="n">inject</span><span class="p">(</span><span class="n">headers</span><span class="p">)</span>            <span class="c1"># adds traceparent</span>
+    <span class="k">return</span> <span class="n">httpx</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="n">AGENT_URL</span><span class="p">,</span> <span class="n">json</span><span class="o">=</span><span class="nb">input</span><span class="p">,</span> <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()[</span><span class="s2">"answer"</span><span class="p">]</span>
+</code></pre></div>
+<ul>
+<li><strong>Return the agent's session.</strong> The agent puts its own session id on its root span as <code>session.id</code>, and the task returns it. Use this when the trace context cannot reach the agent, for example through a queue. The SDK moves its <code>evalkit.run</code> span into that session, so no empty session is left behind, and the trajectory is built from the agent's trace.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">task</span><span class="p">(</span><span class="nb">input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RunResult</span><span class="p">:</span>
+    <span class="n">job</span> <span class="o">=</span> <span class="n">agent_api</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="nb">input</span><span class="p">[</span><span class="s2">"question"</span><span class="p">])</span>           <span class="c1"># your API returns the session it opened</span>
+    <span class="k">return</span> <span class="n">RunResult</span><span class="p">(</span><span class="n">answer</span><span class="o">=</span><span class="n">job</span><span class="o">.</span><span class="n">wait</span><span class="p">(),</span> <span class="n">session_id</span><span class="o">=</span><span class="n">job</span><span class="o">.</span><span class="n">session_id</span><span class="p">)</span>
+</code></pre></div>
+<p>If your API cannot tell you the session id, send it one instead: pass <code>metadata["session_id"]</code> along with the job and have the agent use it as its session id (or wrap the job in <code>tracing.eval_run(metadata)</code>, see <a href="../tracing/">Tracing</a>). Its spans then join the SDK's session and the task returns only the answer.</p>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">task</span><span class="p">(</span><span class="nb">input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">metadata</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">queue</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="nb">input</span><span class="p">[</span><span class="s2">"question"</span><span class="p">],</span> <span class="n">session_id</span><span class="o">=</span><span class="n">metadata</span><span class="p">[</span><span class="s2">"session_id"</span><span class="p">])</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+</code></pre></div>
+<p>Either way the Runs page links the session to its experiment and case.</p>
+<p>The agent's exporter needs its own token. Mint one with <code>evalkit tokens create --agent &lt;name&gt;</code>; it never expires. Your login token expires, and an exporter that holds it then drops every span with nothing but a line in its own log.</p>
+<h2 id="datasets-and-workspaces">Datasets and workspaces<a class="headerlink" href="#datasets-and-workspaces" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>dataset="finance"</code> runs your own workspace's copy; if <code>finance</code> is a directory under <code>cases</code> it is synced first.</li>
+<li><code>dataset="finance@dev"</code> or <code>dataset="finance", workspace="dev"</code> runs the shared cases, every review state included.</li>
+<li><code>case_ids=[...]</code>, <code>split="..."</code>, <code>repetitions</code>, <code>model</code> and <code>resume=&lt;experiment id&gt;</code> mean what the same options mean on <code>evalkit run</code>.</li>
+<li><code>dry_run=True</code> runs one case (<code>dry_run=N</code> runs N) without creating an experiment and prints the answer and what the server made of the session. If the server cannot read a session, that case prints a <code>trajectory read failed</code> line and the dry run goes on. Use it while wiring up tracing; the session shows on the Runs page with its case question and case id.</li>
+</ul>
+<h2 id="notebooks">Notebooks<a class="headerlink" href="#notebooks" title="Permanent link">&para;</a></h2>
+<p><code>run_experiment</code> refuses to run inside a running event loop. In a notebook use the async form:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">arun_experiment</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">arun_experiment</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="s2">"finance"</span><span class="p">,</span> <span class="n">agent</span><span class="o">=</span><span class="s2">"myagent-sdk"</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="the-agent-and-the-judge">The agent and the judge<a class="headerlink" href="#the-agent-and-the-judge" title="Permanent link">&para;</a></h2>
+<p><code>agent="myagent-sdk"</code> names an agent on the server; a bare name means your own workspace. Create it once:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>myagent-sdk<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>openinference.json<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--max-concurrent-runs<span class="w"> </span><span class="m">4</span><span class="w"> </span>--provides<span class="w"> </span><span class="nv">thinking</span><span class="o">=</span><span class="nb">true</span>
+</code></pre></div>
+<p>Its <code>answer</code> rule and <code>exclude_spans</code> live in its span mapping. <code>evalkit.yaml</code> is still required; it holds the cases, fixtures and credentials.</p>
+<p>The judge is the server's default unless you pass one:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">Judge</span><span class="p">,</span> <span class="n">run_experiment</span>
+
+<span class="n">run_experiment</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="s2">"finance"</span><span class="p">,</span> <span class="n">agent</span><span class="o">=</span><span class="s2">"myagent-sdk"</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">,</span>
+               <span class="n">judge</span><span class="o">=</span><span class="n">Judge</span><span class="p">(</span><span class="n">base_url</span><span class="o">=</span><span class="s2">"https://litellm.example.com"</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="s2">"gpt-5"</span><span class="p">))</span>
+</code></pre></div>
+<p>An admin sets the default judge with <code>evalkit judge-default set</code>. Either way, the SDK reads the judge's key from <code>credentials.llm_providers</code> in <code>evalkit.yaml</code>, keyed by the judge's base URL.</p>
+<h2 id="capabilities">Capabilities<a class="headerlink" href="#capabilities" title="Permanent link">&para;</a></h2>
+<p>A code-driven agent has no <code>GET /capabilities</code>, so evalkit writes its capabilities onto each experiment itself: <code>trajectory</code>, <code>tool_calls</code>, <code>token_usage</code> and <code>run_listing</code> are true; <code>thinking</code>, <code>artifacts</code> and <code>workspace</code> are false. Evaluators gated on a capability skip when it is false. evalkit does not read capabilities from the spans. Set <code>provides</code> on the agent (<code>evalkit agents create --provides</code>, or <code>evalkit agents edit</code>) to declare what it really does, for example <code>thinking: true</code> when its spans carry the model's reasoning. Declare only what works: a false <code>true</code> produces failing scores blamed on the agent.</p>
+<h2 id="python-evaluators">Python evaluators<a class="headerlink" href="#python-evaluators" title="Permanent link">&para;</a></h2>
+<p><code>@evaluator(name=..., kind="evaluator" | "gauge", requires_trajectory=False)</code> turns a function into an evaluator. It receives the same <code>EvalCase</code> and <code>EvalRun</code> the HTTP Custom Evaluator API sends: the case id, input, expected block and this evaluator's config from the case YAML; the answer, structured output and the ATIF trajectory as a dict. Return a float, a <code>ScoreItem</code>, or a list of them. A case selects it by name under <code>evaluators.custom</code>, exactly like an HTTP evaluator.</p>
+<h2 id="bring-your-own-benchmark">Bring your own benchmark<a class="headerlink" href="#bring-your-own-benchmark" title="Permanent link">&para;</a></h2>
+<p>A published benchmark is a suite plus a Python evaluator:</p>
+<ol>
+<li>Write a script that turns the benchmark's file into case YAML. Each case gets the question as <code>input</code>. Its grading data (rubrics, reference answer) goes under <code>evaluators.custom.&lt;grader name&gt;</code>.</li>
+<li><code>evalkit sync &lt;dir&gt;</code> puts it in a dataset like any suite.</li>
+<li>Write the grader as an <code>@evaluator</code> with that name. It reads the grading data from <code>case.config</code>, and calls its own judge models if it needs any. Pass it to <code>run_experiment</code>.</li>
+</ol>
+<p><code>evalkit lint</code> and <code>evalkit sync</code> warn with <code>W-CUSTOM-UNKNOWN</code> for the grader name, because the server can't see a Python evaluator. That warning is expected.</p>
+<h2 id="re-scoring">Re-scoring<a class="headerlink" href="#re-scoring" title="Permanent link">&para;</a></h2>
+<p>Python evaluators live in your script, so a re-score that needs them starts from the script:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">evaluate_experiment</span>
+
+<span class="n">evaluate_experiment</span><span class="p">(</span><span class="n">experiment_id</span><span class="o">=</span><span class="s2">"…"</span><span class="p">,</span> <span class="n">evaluators</span><span class="o">=</span><span class="p">[</span><span class="n">citation_check</span><span class="p">],</span>
+                    <span class="n">refetch_trajectories</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+<p><code>refetch_trajectories</code> polls the collector again for runs whose trajectory was <code>partial</code> or <code>unavailable</code> and re-scores them. <code>evalkit evaluate</code> refuses experiments that used Python evaluators and points here.</p>
+<p>Next: <a href="../tracing/">Tracing</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../workspaces/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Workspaces">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Workspaces
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../tracing/" class="md-footer__link md-footer__link--next" aria-label="Next: Tracing">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Tracing
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.footer", "navigation.sections", "navigation.top", "search.highlight", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>
