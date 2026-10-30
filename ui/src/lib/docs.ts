@@ -50,20 +50,16 @@ export const DOC_GROUPS = [...new Set(DOC_TABS.map((t) => t.group))];
 
 export type DocTab = (typeof DOC_TABS)[number]["id"];
 
-export type DocValues = Record<
-  "origin" | "filename" | "sha256" | "version",
-  string
->;
+export type DocValues = Record<"origin" | "version", string>;
 
 export function isDocTab(value: string | undefined): value is DocTab {
   return DOC_TABS.some((t) => t.id === value);
 }
 
-// Every tab is a markdown file with {{origin}}, {{filename}}, {{sha256}} and
-// {{version}} placeholders filled from GET /api/cli, so snippets paste as-is.
+// Every tab is a markdown file with {{origin}} and {{version}} placeholders filled from GET /api/cli, so snippets paste as-is.
 export function fillTemplate(markdown: string, values: DocValues): string {
   return markdown.replace(
-    /\{\{(origin|filename|sha256|version)\}\}/g,
+    /\{\{(origin|version)\}\}/g,
     (_, key: keyof DocValues) => values[key],
   );
 }

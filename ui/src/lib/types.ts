@@ -553,7 +553,5 @@ export interface QueueItem {
 
 export type CliInfo = {
   version: string;
-  filename: string;
-  sha256: string;
-  size: number;
+  package: string;
 };

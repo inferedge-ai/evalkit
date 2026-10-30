@@ -9,7 +9,6 @@ import pytest
 from click.testing import Result
 from typer.testing import CliRunner
 
-from evalkit import version
 from evalkit.api.app import create_app
 from evalkit.cli.main import app as cli_app
 from evalkit.client import connection
@@ -48,7 +47,6 @@ class Live:
     db_url: str
     fake: FakeHarness
     blob: DictBlobStore
-    wheel: Path
 
 
 def cases_yaml(*case_ids: str, question: str = "What is the answer as of 2024-01-01?") -> str:
@@ -62,10 +60,6 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
     tmp = tmp_path_factory.mktemp("flows")
     harness = fake or FakeHarness()
     blob = DictBlobStore()
-    wheel_dir = tmp / "wheel"
-    wheel_dir.mkdir()
-    wheel = wheel_dir / f"evalkit-{version.current()}-py3-none-any.whl"
-    wheel.write_bytes(b"PK\x03\x04flow wheel")
 
     async def setup():
         factory = make_session_factory(db_url)
@@ -95,11 +89,10 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
         runner_deps=deps,
         session_factory=factory,
         check_schema=False,
-        wheel_dir=wheel_dir,
         holder=HOLDER,
     )
     server, thread, port = _serve(application)
-    yield Live(f"http://127.0.0.1:{port}", db_url, harness, blob, wheel)
+    yield Live(f"http://127.0.0.1:{port}", db_url, harness, blob)
     server.should_exit = True
     thread.join(timeout=5)
 
