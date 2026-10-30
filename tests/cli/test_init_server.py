@@ -31,6 +31,7 @@ def test_a_flag_beats_the_env_which_beats_the_default(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(server_commands, "init_database", lambda url: True)
     monkeypatch.setattr(server_commands, "register_default_judge", lambda *args: None)
+    monkeypatch.setattr(server_commands, "has_llm_setup", lambda url: False)
     monkeypatch.setenv("LLM_MODEL", "env-model")
     monkeypatch.setenv("LLM_BASE_URL", "https://env.test/v1")
     monkeypatch.setenv("LLM_API_KEY", "k")
@@ -66,6 +67,7 @@ def test_an_unreachable_postgres_says_how_to_fix_it(tmp_path):
 def test_missing_values_are_prompted(tmp_path, monkeypatch):
     monkeypatch.setattr(server_commands, "init_database", lambda url: None)
     monkeypatch.setattr(server_commands, "register_default_judge", lambda *args: None)
+    monkeypatch.setattr(server_commands, "has_llm_setup", lambda url: False)
     result = CliRunner().invoke(
         app,
         ["init-server", "--dir", str(tmp_path / "kit")],
@@ -103,6 +105,7 @@ def test_the_pin_follows_a_release(monkeypatch):
 def test_an_existing_config_is_kept_without_force(tmp_path, monkeypatch):
     monkeypatch.setattr(server_commands, "init_database", lambda url: None)
     monkeypatch.setattr(server_commands, "register_default_judge", lambda *args: None)
+    monkeypatch.setattr(server_commands, "has_llm_setup", lambda url: False)
     kit = tmp_path / "kit"
     kit.mkdir()
     (kit / "config.yaml").write_text("mine: true\n")
@@ -127,6 +130,7 @@ def test_init_server_creates_and_migrates_the_database(tmp_path, pg_server_url):
     )
     assert rerun.exit_code == 0, rerun.output
     assert "the database already existed" in rerun.output
+    assert "left them as they are" in rerun.output
     assert dotenv_values(kit / ".env")["EVALKIT_ENCRYPTION_KEY"] == key
     engine = create_engine(url)
     with engine.connect() as conn:

@@ -1094,14 +1094,22 @@ def init_server_command(
     encryption_key = (
         init_server.existing_encryption_key(directory) or server_commands.new_encryption_key()
     )
-    server_commands.register_default_judge(
-        answers.database_url,
-        encryption_key,
-        answers.llm_base_url,
-        answers.llm_api_key,
-        answers.llm_model,
-    )
-    typer.echo(f"registered {answers.llm_base_url} as the default judge ({answers.llm_model})")
+    if created or not server_commands.has_llm_setup(answers.database_url):
+        server_commands.register_default_judge(
+            answers.database_url,
+            encryption_key,
+            answers.llm_base_url,
+            answers.llm_api_key,
+            answers.llm_model,
+        )
+        typer.echo(f"registered {answers.llm_base_url} as the default judge ({answers.llm_model})")
+    else:
+        typer.secho(
+            "the database already has LLM providers or a default judge; left them as they are. "
+            "Change them with `evalkit llm-providers` and `evalkit judge-default set`. A server "
+            "using this database needs the encryption_key it was set up with.",
+            fg="yellow",
+        )
     init_server.copy_kit(directory, docker=False)
     init_server.write_server_files(directory, answers, encryption_key)
     typer.echo(f"set up {directory}: config.yaml, .env and the try kit")

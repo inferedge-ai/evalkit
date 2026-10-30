@@ -95,6 +95,19 @@ def new_encryption_key() -> str:
     return Fernet.generate_key().decode()
 
 
+async def _has_llm_setup(url: str) -> bool:
+    factory = make_session_factory(url)
+    store = LlmProviderStore(factory)
+    providers = await store.list_providers(include_archived=True)
+    judge = await store.default_judge()
+    await factory.kw["bind"].dispose()
+    return bool(providers) or judge is not None
+
+
+def has_llm_setup(url: str) -> bool:
+    return asyncio.run(_has_llm_setup(url))
+
+
 async def _register_default_judge(
     url: str, encryption_key: str, base_url: str, api_key: str, model: str
 ) -> None:
