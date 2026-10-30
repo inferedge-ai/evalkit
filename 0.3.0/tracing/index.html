@@ -1,0 +1,1348 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Make your AI agent better, end to end.">
+      
+      
+      
+        <link rel="canonical" href="https://inferedge-ai.github.io/evalkit/0.3.0/tracing/">
+      
+      
+        <link rel="prev" href="../sdk-runs/">
+      
+      
+        <link rel="next" href="../mappings/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Tracing - Evalkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../stylesheets/evalkit.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#tracing" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+          <aside class="md-banner md-banner--warning">
+            <div class="md-banner__inner md-grid md-typeset">
+              
+  You're viewing docs for an older or unreleased version.
+  <a href="../..">
+    <strong>Go to latest.</strong>
+  </a>
+
+            </div>
+            <script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL(".."),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>
+          </aside>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Evalkit" class="md-header__button md-logo" aria-label="Evalkit" data-md-component="logo">
+      <span class="ek-lockup" aria-label="InferEdge"><span class="ek-infer">Infer</span><span class="ek-slash" aria-hidden="true">/</span><span class="ek-edge">Edge</span></span>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Evalkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Tracing
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Dark"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Light"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inferedge-ai/evalkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inferedge-ai/evalkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Evalkit" class="md-nav__button md-logo" aria-label="Evalkit" data-md-component="logo">
+      <span class="ek-lockup" aria-label="InferEdge"><span class="ek-infer">Infer</span><span class="ek-slash" aria-hidden="true">/</span><span class="ek-edge">Edge</span></span>
+    </a>
+    Evalkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inferedge-ai/evalkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inferedge-ai/evalkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../try-locally/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Try locally
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../login/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Login
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workspaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workspaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Traces
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sdk-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#from-python-with-the-sdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From Python with the SDK
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="From Python with the SDK">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#an-existing-span-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An existing span pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-what-a-shared-worker-exports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing what a shared worker exports
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#from-any-opentelemetry-sdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From any OpenTelemetry SDK
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployed-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployed agents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#size-limits-and-large-spans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Size limits and large spans
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exporting-to-evalkit-and-another-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exporting to evalkit and another backend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-main-agent-and-subagents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The main agent and subagents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#harness-agents-with-traces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Harness agents with traces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#importing-history-from-a-trace-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing history from a trace source
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-a-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking a session
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mappings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mappings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../harness-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Harness API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sdk-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#from-python-with-the-sdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From Python with the SDK
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="From Python with the SDK">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#an-existing-span-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An existing span pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-what-a-shared-worker-exports" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing what a shared worker exports
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#from-any-opentelemetry-sdk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        From any OpenTelemetry SDK
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployed-agents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployed agents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#size-limits-and-large-spans" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Size limits and large spans
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exporting-to-evalkit-and-another-backend" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exporting to evalkit and another backend
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-main-agent-and-subagents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The main agent and subagents
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#harness-agents-with-traces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Harness agents with traces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#importing-history-from-a-trace-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Importing history from a trace source
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-a-session" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking a session
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="tracing">Tracing<a class="headerlink" href="#tracing" title="Permanent link">&para;</a></h1>
+<p>The collector is an OTLP/HTTP endpoint on this server:</p>
+<div class="highlight"><pre><span></span><code>POST http://localhost:8020/api/otel/v1/traces
+</code></pre></div>
+<p>It accepts <code>application/x-protobuf</code> and <code>application/json</code>, gzip or not, from any OpenTelemetry SDK. Spans are stored as received and converted to ATIF with the agent's mapping when a run or the Runs page asks for them.</p>
+<h2 id="from-python-with-the-sdk">From Python with the SDK<a class="headerlink" href="#from-python-with-the-sdk" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracing</span>
+
+<span class="n">tracing</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">agent</span><span class="o">=</span><span class="s2">"myagent-sdk"</span><span class="p">)</span>
+</code></pre></div>
+<p><code>register</code> adds an exporter for this server to your global tracer provider, creating one if none is set. Your existing exporters keep running. The exporter carries an <code>X-Evalkit-Agent</code> header, which names the agent on the server; the <code>evalkit.agent</code> resource attribute is only set when <code>register</code> creates the provider itself. It reads the server URL from <code>EVALKIT_SERVER_URL</code> or your <code>evalkit login</code>, and the token from <code>EVALKIT_OTEL_TOKEN</code> (an agent token), then <code>EVALKIT_TOKEN</code>, then your <code>evalkit login</code>. It needs the <code>otel</code> extra.</p>
+<h3 id="an-existing-span-pipeline">An existing span pipeline<a class="headerlink" href="#an-existing-span-pipeline" title="Permanent link">&para;</a></h3>
+<p><code>register</code> changes the global provider. When you build your own pipeline, take evalkit's parts and put them where you need them:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracing</span>
+
+<span class="n">exporter</span> <span class="o">=</span> <span class="n">tracing</span><span class="o">.</span><span class="n">exporter</span><span class="p">(</span><span class="n">agent</span><span class="o">=</span><span class="s2">"myagent-sdk"</span><span class="p">)</span>    <span class="c1"># OTLPSpanExporter: URL, token and X-Evalkit-Agent set</span>
+<span class="n">processor</span> <span class="o">=</span> <span class="n">tracing</span><span class="o">.</span><span class="n">processor</span><span class="p">(</span><span class="n">agent</span><span class="o">=</span><span class="s2">"myagent-sdk"</span><span class="p">)</span>  <span class="c1"># batch processor around that exporter</span>
+<span class="n">provider</span><span class="o">.</span><span class="n">add_span_processor</span><span class="p">(</span><span class="n">processor</span><span class="p">)</span>              <span class="c1"># what register does for you</span>
+<span class="n">headers</span> <span class="o">=</span> <span class="n">tracing</span><span class="o">.</span><span class="n">headers</span><span class="p">(</span><span class="n">agent</span><span class="o">=</span><span class="s2">"myagent-sdk"</span><span class="p">)</span>      <span class="c1"># the same headers, for an exporter you build yourself</span>
+</code></pre></div>
+<p>All three resolve the server and token the same way <code>register</code> does. <code>processor</code> also stamps the run's <code>session.id</code> and <code>evalkit.*</code> attributes on spans that start under a task call (or under <code>tracing.eval_run</code>, below).</p>
+<p>Spans handed straight to a processor or exporter, for example by a bridge that converts another tool's spans, never pass through the provider, so <code>register</code> cannot see them. Hand them to <code>tracing.processor(...)</code> too: give the bridge that processor, or one processor that fans out to all of yours and evalkit's (OpenTelemetry's <code>SynchronousMultiSpanProcessor</code>). Those spans are already finished, so <code>processor</code> cannot stamp them: the bridge copies <code>session.id</code> onto each span it converts. How eval-only export treats them is below.</p>
+<h3 id="choosing-what-a-shared-worker-exports">Choosing what a shared worker exports<a class="headerlink" href="#choosing-what-a-shared-worker-exports" title="Permanent link">&para;</a></h3>
+<p>A worker that serves both app runs (production, staging or manual use) and eval runs exports every span it makes, so every app turn also becomes a session on this server, which you can browse on the Runs page and pull with <code>evalkit runs pull &lt;agent&gt; --source app</code>. Whether to send app traffic is your choice. <code>eval_run</code> marks eval runs either way, and to send only those, filter on the mark:</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracing</span>
+
+<span class="n">provider</span><span class="o">.</span><span class="n">add_span_processor</span><span class="p">(</span><span class="n">tracing</span><span class="o">.</span><span class="n">processor</span><span class="p">(</span><span class="n">agent</span><span class="o">=</span><span class="s2">"myagent"</span><span class="p">,</span> <span class="n">only</span><span class="o">=</span><span class="n">tracing</span><span class="o">.</span><span class="n">is_eval_span</span><span class="p">))</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">handle_job</span><span class="p">(</span><span class="n">job</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">job</span><span class="o">.</span><span class="n">evalkit</span><span class="p">:</span>                           <span class="c1"># the task's metadata, sent along with the job</span>
+        <span class="k">with</span> <span class="n">tracing</span><span class="o">.</span><span class="n">eval_run</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">evalkit</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">run_agent</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">run_agent</span><span class="p">(</span><span class="n">job</span><span class="p">)</span>
+</code></pre></div>
+<p>The task passes its <code>metadata</code> argument along with the job (see <a href="../sdk-runs/">SDK runs</a>). <code>eval_run</code> stamps <code>session.id</code> (the SDK's session id), <code>evalkit.case_id</code>, <code>evalkit.experiment_id</code> and <code>evalkit.repetition</code> on every span started inside it, so the worker's spans join the run's session and the task returns only the answer. <code>is_eval_span</code> is true for a span that carries <code>evalkit.case_id</code>. The stamp lives in a context variable: spans started in another thread need that thread to run inside <code>eval_run</code> too.</p>
+<p>A harness agent learns that a run is an eval run from the <code>metadata</code> of <code>POST /runs</code>: <code>experiment_id</code>, <code>case_id</code> and <code>repetition</code>. That is what it passes to <code>eval_run</code>, with the <code>run_id</code> it returns as the session id: <code>tracing.eval_run({**metadata, "session_id": run_id})</code>.</p>
+<p><code>only</code> decides by trace, not by span. It is any function that takes a span and returns a bool, and it runs on each span as the span starts and again as it ends. Once it is true for one span, the processor keeps every span of that span's trace that reaches it: spans started inside <code>eval_run</code>, the job's own spans started before <code>eval_run</code> in the same trace, and finished spans a bridge hands straight to the processor. Spans of other traces are dropped. A custom <code>only</code> picks whole traces the same way.</p>
+<p>The rule for order: a span is kept when its trace is already marked by the time the span ends. The first span started inside <code>eval_run</code> marks its trace as it starts, before anything under it ends, so spans that end before it and spans a bridge hands over later are both kept. A span that ends before any span of its trace was marked is dropped. A bridge that may hand spans over that early can copy the <code>evalkit.*</code> attributes onto them, so each one marks its own trace. A bridge should copy <code>session.id</code> either way: the server takes a trace's session from its root span when the root reaches it, and from each span's own <code>session.id</code> otherwise.</p>
+<p>The processor remembers the 10,000 most recently used eval traces and forgets the oldest. Each kept span refreshes its trace, so a trace is only forgotten once 10,000 other eval traces have been used since its last span.</p>
+<p>Spans from another process in the same trace, such as an MCP gateway pod the agent calls, never reach this processor. They go through that process's own exporter, so that process makes its own choice: either it continues the trace, wraps its work in <code>eval_run</code> with the run's metadata sent along with the request, and filters with <code>only=tracing.is_eval_span</code> too, or it exports everything.</p>
+<p>Do not use a sampler for this: a sampler drops spans for every exporter, your own backend included.</p>
+<p>Around every task call the SDK opens a root span named <code>evalkit.run</code> with <code>session.id</code> set to the run id, and stamps <code>session.id</code>, <code>evalkit.experiment_id</code>, <code>evalkit.case_id</code> and <code>evalkit.repetition</code> onto every span your code starts underneath it. That is what groups a trace into one session. When the task returns <code>RunResult(session_id=...)</code>, the root span takes that session id instead, so it joins the agent's session rather than sitting alone; see <a href="../sdk-runs/">SDK runs</a> for agents in another process.</p>
+<h2 id="from-any-opentelemetry-sdk">From any OpenTelemetry SDK<a class="headerlink" href="#from-any-opentelemetry-sdk" title="Permanent link">&para;</a></h2>
+<p>Point the exporter at the collector and name the agent, either with a header or an attribute:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">OTEL_EXPORTER_OTLP_TRACES_ENDPOINT</span><span class="o">=</span>http://localhost:8020/api/otel/v1/traces
+<span class="nb">export</span><span class="w"> </span><span class="nv">OTEL_EXPORTER_OTLP_HEADERS</span><span class="o">=</span><span class="s2">"Authorization=Bearer &lt;token&gt;,X-Evalkit-Agent=myagent"</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">OTEL_RESOURCE_ATTRIBUTES</span><span class="o">=</span><span class="s2">"evalkit.agent=myagent"</span><span class="w">   </span><span class="c1"># alternative to the header</span>
+</code></pre></div>
+<p>The collector picks the agent per span: the span's <code>evalkit.agent</code> attribute first, then the resource's, then the <code>X-Evalkit-Agent</code> header. One process that serves several agents can therefore share one exporter and set <code>evalkit.agent</code> on each agent's spans. The value is an agent reference (<code>myagent</code> or <code>myagent@workspace</code>). Every agent a batch names is checked as if it came in the header: an agent token writes only its own agent, a login token only agents in workspaces you can write to (your own, or a shared one where you are a writer). If any span names an agent the token may not write, the whole batch is refused.</p>
+<p>Put the session id on the root span of each trace, in the attribute your mapping's <code>session_id</code> rule names (<code>session.id</code> in <code>openinference.json</code>, <code>gen_ai.conversation.id</code> in <code>gen_ai.json</code>). Every span in a trace belongs to the session of the trace's root, even one that carries a session attribute of its own. Only when the root has no session do child spans keep theirs.</p>
+<h2 id="deployed-agents">Deployed agents<a class="headerlink" href="#deployed-agents" title="Permanent link">&para;</a></h2>
+<p>A service cannot carry a person's token. Mint an agent token, bound to one agent and valid only for the collector:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>tokens<span class="w"> </span>create<span class="w"> </span>--agent<span class="w"> </span>ouragent@dev<span class="w">     </span><span class="c1"># needs writer on dev</span>
+evalkit<span class="w"> </span>tokens<span class="w"> </span>list
+evalkit<span class="w"> </span>tokens<span class="w"> </span>revoke<span class="w"> </span>&lt;id&gt;
+</code></pre></div>
+<p>Set it on the deployment as <code>EVALKIT_OTEL_TOKEN</code> next to <code>EVALKIT_SERVER_URL</code>; <code>tracing.register</code>, <code>tracing.exporter</code> and <code>tracing.processor</code> pick both up. For a non-Python exporter put it in <code>OTEL_EXPORTER_OTLP_HEADERS</code>. Use an agent token for any exporter outside the process that calls <code>run_experiment</code> too, even on your laptop: the login token expires under a long-running worker.</p>
+<p>The collector logs every refused export as <code>otel export rejected</code> with the status, the reason (<code>expired token</code>, <code>invalid token</code>, <code>unknown agent</code>, <code>forbidden</code>, <code>too large</code>, <code>malformed</code>) and the agent. OpenTelemetry exporters only log a failed export on their side, so a silent agent is worth checking in both logs.</p>
+<h2 id="size-limits-and-large-spans">Size limits and large spans<a class="headerlink" href="#size-limits-and-large-spans" title="Permanent link">&para;</a></h2>
+<p>LLM spans from OpenInference and GenAI instrumentations carry the full input of each call: the messages so far, the system prompt and the tool schemas. Every turn repeats the whole context, so a long agent session grows with roughly the square of its turns. A 14-minute chat with subagents can store hundreds of MB of span attributes.</p>
+<p>The server has two limits, both set in its config:</p>
+<table>
+<thead>
+<tr>
+<th>Limit</th>
+<th>Default</th>
+<th>What happens past it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>otel.max_batch_bytes</code></td>
+<td>16 MiB</td>
+<td>One export request (after gzip is undone) gets <code>413</code> and its spans are dropped. Exporters do not split a refused batch, so keep batches small.</td>
+</tr>
+<tr>
+<td><code>otel.max_session_bytes</code></td>
+<td>384 MiB</td>
+<td>Reading the session (a run's trajectory, <code>evalkit traces check</code>, the Mappings tab) gets <code>413</code> with the session's size and the limit. A run records the trajectory as <code>unavailable</code> and logs the message. <code>--dump spans.json</code> still works.</td>
+</tr>
+</tbody>
+</table>
+<p><code>otel.max_session_bytes</code> counts the span attributes a trajectory build loads, not everything stored. evalkit reads the input messages (and system prompt) of an LLM span only for the first LLM call of each agent and subagent; later calls add only their output, tool calls and tokens to the trajectory. So the build leaves the input of every later LLM call in the database and does not count it. The limit keeps one session from using up the server's memory, so raise it only together with the server's memory limit.</p>
+<p>For agents with large spans, send fewer spans per export and give each export more time. For the Python SDK, <code>tracing.register</code> included:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">OTEL_BSP_MAX_EXPORT_BATCH_SIZE</span><span class="o">=</span><span class="m">16</span><span class="w">   </span><span class="c1"># spans per export; default 512</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">OTEL_BSP_MAX_QUEUE_SIZE</span><span class="o">=</span><span class="m">2048</span><span class="w">        </span><span class="c1"># spans waiting for export; raise it if the exporter logs "Queue full"</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">OTEL_EXPORTER_OTLP_TIMEOUT</span><span class="o">=</span><span class="m">60</span><span class="w">       </span><span class="c1"># seconds per export in Python; default 10</span>
+</code></pre></div>
+<p>Other SDKs follow the OpenTelemetry spec and read <code>OTEL_EXPORTER_OTLP_TIMEOUT</code> in milliseconds (<code>60000</code>). A 10 MB span can take more than 10 s to upload, longer than the default timeout. In an OpenTelemetry Collector, set <code>send_batch_max_size</code> on the <code>batch</code> processor and <code>timeout</code> on the <code>otlphttp</code> exporter instead.</p>
+<h2 id="exporting-to-evalkit-and-another-backend">Exporting to evalkit and another backend<a class="headerlink" href="#exporting-to-evalkit-and-another-backend" title="Permanent link">&para;</a></h2>
+<p>The standard OTLP variables name one endpoint. To keep exporting to your tracing backend and send the same spans here, either:</p>
+<ul>
+<li>add a second <code>otlphttp</code> exporter to the OpenTelemetry Collector the agent already exports to (recommended for deployed agents), or</li>
+<li>add a second span processor and exporter in code. <code>tracing.register</code> does this for Python.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="nt">exporters</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">otlphttp/evalkit</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">traces_endpoint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://localhost:8020/api/otel/v1/traces</span>
+<span class="w">    </span><span class="nt">headers</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">Authorization</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Bearer ${env:EVALKIT_OTEL_TOKEN}</span>
+<span class="w">      </span><span class="nt">X-Evalkit-Agent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ouragent@dev</span>
+<span class="nt">service</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">pipelines</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">traces</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">exporters</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">otlp/existing</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">otlphttp/evalkit</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p>The collector speaks OTLP over HTTP only, not gRPC. Bodies may be chunked with no <code>Content-Length</code> (the JavaScript exporter sends them that way); a proxy in front of the collector must allow that.</p>
+<h2 id="the-main-agent-and-subagents">The main agent and subagents<a class="headerlink" href="#the-main-agent-and-subagents" title="Permanent link">&para;</a></h2>
+<p>Mark the agent's top-level span as an AGENT span (<code>openinference.span.kind=AGENT</code>, or <code>gen_ai.operation.name=invoke_agent</code>). evalkit builds the main trajectory from it, and every AGENT span inside it becomes a subagent trajectory named by the span's <code>agent.name</code> (<code>gen_ai.agent.name</code>), or by the span name when that is missing. When the root span is not an AGENT span, as with the SDK's <code>evalkit.run</code> span, evalkit takes the earliest AGENT span that is not inside another one as the main agent. If that span is a tool call that starts a subagent partway through the run, the subagent's steps land in the main trajectory and the call has no result, so mark the top-level span as an AGENT span rather than relying on this.</p>
+<h2 id="harness-agents-with-traces">Harness agents with traces<a class="headerlink" href="#harness-agents-with-traces" title="Permanent link">&para;</a></h2>
+<p>A harness agent created with <code>--trajectory-source otel</code> keeps the whole Harness API flow and skips <code>GET /runs/{id}/trajectory</code>: it puts the run id it returned on its spans, in the attribute its mapping's <code>session_id</code> rule names, and evalkit polls the session until it settles. The harness declares <code>provides.trajectory: false</code>; evalkit still runs the trajectory evaluators because the trajectory comes from the collector.</p>
+<p>The session evalkit polls is the <code>run_id</code> that <code>POST /runs</code> returns, so there is no separate session field. A queue-backed agent whose worker picks its own session id returns that id as <code>run_id</code>, or puts the <code>run_id</code> it returned on its spans in that session attribute. To export only eval runs from a harness that also serves production, see Choosing what a shared worker exports above.</p>
+<h2 id="importing-history-from-a-trace-source">Importing history from a trace source<a class="headerlink" href="#importing-history-from-a-trace-source" title="Permanent link">&para;</a></h2>
+<p>An admin registers a trace source (a Phoenix server) once. After that, any
+user can import traces from it into an OTel agent they can write, with
+<code>evalkit traces import</code> or the agent page's Import tab.</p>
+<ul>
+<li>The trace source's API key is shared with every user in effect: anyone can
+  import any project that key can read.</li>
+<li>Imported traces land in the agent's workspace. Every user can read every
+  workspace, so traces imported into your personal workspace are visible to
+  everyone on the server. See <a href="../workspaces/">Where runs happen</a>.</li>
+</ul>
+<h2 id="checking-a-session">Checking a session<a class="headerlink" href="#checking-a-session" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>check<span class="w"> </span>myagent-sdk<span class="w"> </span>&lt;session<span class="w"> </span>id&gt;
+</code></pre></div>
+<p>prints the settle state, span kinds, tokens, the attributes the mapping did not read and the ATIF summary. <code>--dump spans.json</code> writes the raw spans. <code>--dump esf.json</code> leaves out the input messages of every LLM call after each agent's first, as the trajectory does not use them; <code>spans.json</code> has the raw values. A session over <code>otel.max_session_bytes</code> fails the check with its size and the limit (see Size limits and large spans above). If the kinds or messages look wrong, the agent needs a mapping: see <a href="../mappings/">Mappings</a>.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../sdk-runs/" class="md-footer__link md-footer__link--prev" aria-label="Previous: SDK runs">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                SDK runs
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../mappings/" class="md-footer__link md-footer__link--next" aria-label="Next: Mappings">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Mappings
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.footer", "navigation.sections", "navigation.top", "search.highlight", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>

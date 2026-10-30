@@ -1,0 +1,1523 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Make your AI agent better, end to end.">
+      
+      
+      
+        <link rel="canonical" href="https://inferedge-ai.github.io/evalkit/0.3.0/try-locally/">
+      
+      
+        <link rel="prev" href="../concepts/">
+      
+      
+        <link rel="next" href="../install/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Try locally - Evalkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../stylesheets/evalkit.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#try-evalkit-locally" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+          <aside class="md-banner md-banner--warning">
+            <div class="md-banner__inner md-grid md-typeset">
+              
+  You're viewing docs for an older or unreleased version.
+  <a href="../..">
+    <strong>Go to latest.</strong>
+  </a>
+
+            </div>
+            <script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL(".."),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>
+          </aside>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Evalkit" class="md-header__button md-logo" aria-label="Evalkit" data-md-component="logo">
+      <span class="ek-lockup" aria-label="InferEdge"><span class="ek-infer">Infer</span><span class="ek-slash" aria-hidden="true">/</span><span class="ek-edge">Edge</span></span>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Evalkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Try locally
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Dark"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Light"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inferedge-ai/evalkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inferedge-ai/evalkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Evalkit" class="md-nav__button md-logo" aria-label="Evalkit" data-md-component="logo">
+      <span class="ek-lockup" aria-label="InferEdge"><span class="ek-infer">Infer</span><span class="ek-slash" aria-hidden="true">/</span><span class="ek-edge">Edge</span></span>
+    </a>
+    Evalkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inferedge-ai/evalkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inferedge-ai/evalkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Try locally
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Try locally
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-need" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you need
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#start-the-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start the server
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Start the server">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#without-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Without Docker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        With Docker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#whats-in-the-kit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's in the kit
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-install-the-cli-and-log-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Install the CLI and log in
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-connect-the-agents-traces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Connect the agent's traces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-first-scorecard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. First scorecard
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-iterate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Iterate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-connect-your-own-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Connect your own agent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-run-evalkit-for-your-team" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next: run evalkit for your team
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stop-and-clean-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stop and clean up
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-something-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When something fails
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../login/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Login
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workspaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workspaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Traces
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sdk-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mappings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mappings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../harness-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Harness API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sdk-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-need" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you need
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#start-the-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start the server
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Start the server">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#without-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Without Docker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#with-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        With Docker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#whats-in-the-kit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's in the kit
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-install-the-cli-and-log-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Install the CLI and log in
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-connect-the-agents-traces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Connect the agent's traces
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-first-scorecard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. First scorecard
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-iterate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Iterate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-connect-your-own-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Connect your own agent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-run-evalkit-for-your-team" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next: run evalkit for your team
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stop-and-clean-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stop and clean up
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#when-something-fails" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        When something fails
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="try-evalkit-locally">Try evalkit locally<a class="headerlink" href="#try-evalkit-locally" title="Permanent link">&para;</a></h1>
+<p>The try-it stack runs evalkit on your machine and walks you through the
+default way to connect an agent: an <strong>SDK run with OpenTelemetry traces</strong>.
+Your Python code calls the agent once per case. The agent's spans go to
+evalkit, evalkit turns them into a trajectory, and your LLM judges the
+answers. The kit includes a small sample agent that calls your LLM, so you
+get a real scorecard before you touch your own agent.</p>
+<p>It is not a deployment: it uses a demo admin password and keeps everything
+on one machine. For a real deployment, follow the evalkit-deployment skill.</p>
+<h2 id="what-you-need">What you need<a class="headerlink" href="#what-you-need" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>uv</code> and port 8020 free.</li>
+<li>An OpenAI-compatible LLM endpoint (OpenAI, a LiteLLM proxy, vLLM, Ollama,
+  ...) that supports tool calls and structured output, with its base URL, API
+  key and model name. The sample agent and the judge both use it.</li>
+<li>Either Postgres 15 or newer running on this machine (without Docker), or
+  Docker with Compose v2 (with Docker).</li>
+</ul>
+<h2 id="start-the-server">Start the server<a class="headerlink" href="#start-the-server" title="Permanent link">&para;</a></h2>
+<p>Pick one way. Both end with the server on http://localhost:8020 and the try
+kit in a folder, and the steps after this section are the same.</p>
+<h3 id="without-docker">Without Docker<a class="headerlink" href="#without-docker" title="Permanent link">&para;</a></h3>
+<p>evalkit is on PyPI as <code>evalkit-py</code>. Install it with the server extra, then
+let <code>evalkit init-server</code> set up the rest:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span><span class="s2">"evalkit-py[server]"</span><span class="w">   </span><span class="c1"># or: pip install "evalkit-py[server]"</span>
+evalkit<span class="w"> </span>init-server
+<span class="nb">cd</span><span class="w"> </span>evalkit-try
+evalkit<span class="w"> </span>serve
+</code></pre></div>
+<p><code>init-server</code> asks for the Postgres URL (default
+<code>postgresql+psycopg://localhost/evalkit</code>), your LLM's base URL, model and API
+key, and the admin password (default <code>evalkit-admin</code>). A question is skipped
+when its flag or environment variable is set (<code>evalkit init-server --help</code>
+lists both); <code>--yes</code> never asks. It then:</p>
+<ul>
+<li>creates the database when it does not exist, and migrates it</li>
+<li>registers your LLM as the LLM provider <code>try</code> and makes it the default judge,
+  with its API key stored encrypted in the database</li>
+<li>copies the try kit into <code>./evalkit-try</code></li>
+<li>writes <code>config.yaml</code> there, with blobs stored under <code>evalkit-try/data</code></li>
+<li>writes <code>.env</code> beside it, with your LLM settings, the admin password and the
+  key that encrypts stored API keys; <code>evalkit serve</code> reads it. Keep <code>.env</code>:
+  without that key the server cannot read the stored LLM key</li>
+</ul>
+<p>Leave <code>evalkit serve</code> running and use another terminal for the steps below,
+from the <code>evalkit-try</code> folder. The CLI is already installed, so skip the
+install command in step 1.</p>
+<h3 id="with-docker">With Docker<a class="headerlink" href="#with-docker" title="Permanent link">&para;</a></h3>
+<p>The kit is <code>skills/evalkit-deployment/try/</code> in the evalkit repository, and the
+server image holds a copy. The first <code>--build</code> takes a few minutes (it builds
+the web UI and installs the server); later starts take seconds.</p>
+<p>From an evalkit checkout, compose builds the image:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>skills/evalkit-deployment/try
+cp<span class="w"> </span>-n<span class="w"> </span>.env.example<span class="w"> </span>.env<span class="w">          </span><span class="c1"># fill in LLM_BASE_URL, LLM_API_KEY, LLM_MODEL</span>
+docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--wait<span class="w"> </span>--build
+</code></pre></div>
+<p>With the server image instead, copy the kit out of it first:</p>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_IMAGE</span><span class="o">=</span>&lt;registry&gt;/evalkit:&lt;tag&gt;
+docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">:/out"</span><span class="w"> </span><span class="s2">"</span><span class="nv">$EVALKIT_IMAGE</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>evalkit<span class="w"> </span>init-server<span class="w"> </span>--kit-only<span class="w"> </span>--dir<span class="w"> </span>/out/evalkit-try
+<span class="nb">cd</span><span class="w"> </span>evalkit-try
+cp<span class="w"> </span>-n<span class="w"> </span>.env.example<span class="w"> </span>.env<span class="w">          </span><span class="c1"># fill in LLM_BASE_URL, LLM_API_KEY, LLM_MODEL</span>
+docker<span class="w"> </span>compose<span class="w"> </span>up<span class="w"> </span>-d<span class="w"> </span>--wait
+</code></pre></div>
+<p>Compose starts Postgres and the evalkit server, with your LLM as the judge.
+<code>--wait</code> returns once the server is healthy. The server runs migrations on
+every start.</p>
+<h3 id="whats-in-the-kit">What's in the kit<a class="headerlink" href="#whats-in-the-kit" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agent.py</code></td>
+<td>The sample agent. It answers questions about Acme Widgets, a made-up company, by calling your LLM with one tool, <code>lookup_financials</code>. It records each model call and tool call as an OpenTelemetry span, using the GenAI semantic conventions.</td>
+</tr>
+<tr>
+<td><code>run.py</code></td>
+<td>The SDK run: <code>tracing.register</code> sends the spans to evalkit, and <code>run_experiment</code> calls the agent once per case and scores the answers.</td>
+</tr>
+<tr>
+<td><code>mapping.json</code></td>
+<td>The span mapping: which span attribute holds the model, the messages, the tokens and each tool call. It starts as the connect-traces skill's <code>gen_ai.json</code>.</td>
+</tr>
+<tr>
+<td><code>cases/acme/</code></td>
+<td>Five cases in two folders (tags), with answer rubrics and a tool check.</td>
+</tr>
+<tr>
+<td><code>evalkit.yaml</code>, <code>.env</code></td>
+<td>Where the cases are, and the judge's key.</td>
+</tr>
+<tr>
+<td><code>config.yaml</code></td>
+<td>The server's config.</td>
+</tr>
+<tr>
+<td><code>docker-compose.yml</code>, <code>.env.example</code></td>
+<td>With Docker only: the stack, and the template for its <code>.env</code>. <code>init-server</code> leaves them out.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="1-install-the-cli-and-log-in">1. Install the CLI and log in<a class="headerlink" href="#1-install-the-cli-and-log-in" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0"</span><span class="w">   </span><span class="c1"># with Docker only</span>
+evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020<span class="w"> </span>--username<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span>evalkit-admin
+</code></pre></div>
+<p><code>0.3.0</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
+prints it.</p>
+<p><code>evalkit login</code> replaces any login you already saved. To keep it, skip
+<code>evalkit login</code> and point this shell at the try-it server instead (this needs
+<code>jq</code>):</p>
+<div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_SERVER_URL</span><span class="o">=</span>http://localhost:8020
+<span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_TOKEN</span><span class="o">=</span><span class="k">$(</span>curl<span class="w"> </span>-fsSL<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8020/api/auth/login<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'content-type: application/json'</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"username": "admin", "password": "evalkit-admin"}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.token<span class="k">)</span>
+</code></pre></div>
+<p><code>run.py</code> declares its own dependencies at the top of the file, so
+<code>uv run run.py</code> installs what it needs on the first run. The kit pins evalkit
+to the server's version when <code>evalkit init-server</code> copies it. In an evalkit
+checkout, run the kit's scripts with the checkout instead:
+<code>uv run --project ../../.. --extra otel python run.py</code>.</p>
+<h2 id="2-connect-the-agents-traces">2. Connect the agent's traces<a class="headerlink" href="#2-connect-the-agents-traces" title="Permanent link">&para;</a></h2>
+<p>Create the agent. Its trajectories come from its spans, read with
+<code>mapping.json</code>:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>analyst<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>mapping.json
+</code></pre></div>
+<p>Run one case without creating an experiment:</p>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>run.py<span class="w"> </span>--dry-run
+</code></pre></div>
+<p>It prints the answer, the session id with a count of its spans by kind and
+the mapping version, and whether evalkit built a valid trajectory from them. If no spans arrived,
+check that <code>run.py</code> calls <code>tracing.register</code> before the agent runs.</p>
+<p>Then see how the mapping read that session:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>check<span class="w"> </span>analyst<span class="w"> </span>&lt;session<span class="w"> </span>id&gt;
+</code></pre></div>
+<p>It prints one line per check: the session settled, the root span, the
+mapping version, the model calls and their token totals, the tool calls
+matched to the model's calls, any span attribute the mapping does not read,
+and a summary of the trajectory. Every line should have a ✓.</p>
+<h2 id="3-first-scorecard">3. First scorecard<a class="headerlink" href="#3-first-scorecard" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>run.py
+</code></pre></div>
+<p><code>run_experiment</code> syncs <code>cases/acme</code> into your own workspace (<code>acme@admin</code>),
+runs the five cases, has your LLM judge each answer against its rubrics,
+checks that the agent called <code>lookup_financials</code>, and prints the scorecard
+and the experiment URL. The scores depend on your model. <code>acme-operating-margin</code>
+asks for a figure the agent has no data for, so it passes only if the agent
+says so instead of making one up.</p>
+<p>The <code>answer_rubric_*</code> rows by rubric type (<code>factual_retrieval</code>,
+<code>derived_computation</code>, <code>analysis_interpretation</code>) count only the cases that
+have a rubric of that type, so their case counts differ.</p>
+<p>Open http://localhost:8020, log in as <code>admin</code> with the admin password, and open the
+experiment under the <code>acme</code> dataset. Each run shows its trajectory, the
+judge's verdict on every rubric and the tool check. The Runs page lists the
+raw sessions.</p>
+<h2 id="4-iterate">4. Iterate<a class="headerlink" href="#4-iterate" title="Permanent link">&para;</a></h2>
+<p>This is the loop you will run on your own agent:</p>
+<ul>
+<li>Change the agent, for example the instructions in <code>agent.py</code>, and run
+  <code>run.py</code> again. Compare the two experiments in the UI.</li>
+<li>Edit or add a case under <code>cases/acme/</code> and run again. The run syncs the
+  folder first.</li>
+<li>Run one folder: <code>run_experiment(..., split="balance-sheet")</code>.</li>
+</ul>
+<h2 id="5-connect-your-own-agent">5. Connect your own agent<a class="headerlink" href="#5-connect-your-own-agent" title="Permanent link">&para;</a></h2>
+<p>Do the same in your own repository:</p>
+<ol>
+<li><strong>Traces.</strong> If your agent already emits OpenTelemetry spans (OpenInference
+   or GenAI conventions), keep them. If not, add an instrumentor for your LLM
+   library, for example <code>openinference-instrumentation-openai</code> for the OpenAI
+   client (OpenInference publishes one per popular library), or record GenAI
+   spans yourself as this kit's <code>agent.py</code> does (<a href="../tracing/">Tracing</a>). The
+   connect-traces skill writes or checks the span mapping
+   (<a href="../mappings/">Mappings</a>).</li>
+<li><strong>Setup.</strong> Put an <code>evalkit.yaml</code> at the root of your repository, with
+   <code>cases:</code> pointing at your cases directory and the judge's key under
+   <code>credentials.llm_providers</code>. That map is keyed by the judge's base URL, which must
+   match the judge the run uses: the server's default judge
+   (<code>http://localhost:8020/api/judge-default</code> shows its <code>base_url</code>), or the one you pass to
+   <code>run_experiment(judge=...)</code>. This kit keys it with <code>env:LLM_BASE_URL</code> so the
+   URL comes from <code>.env</code>. Keep the keys in a <code>.env</code> beside <code>evalkit.yaml</code>.</li>
+<li><strong>Script.</strong> Copy <code>run.py</code>. Pin evalkit in its header to your evalkit
+   server's version (<code>evalkit-py[otel]==&lt;version&gt;</code>), call
+   <code>tracing.register(agent="myagent")</code>, and write a <code>task</code> that calls your
+   agent with the case input. <code>uv run run.py</code> builds an environment from the
+   header alone, so add your agent's packages to its <code>dependencies</code>. If your
+   agent lives in a uv project, you can instead add evalkit to the project
+   (see the <a href="../install/">Install</a> page) and run the script with
+   <code>uv run python run.py</code>.</li>
+<li><strong>Cases.</strong> Add a folder under your cases directory, for example
+   <code>mine/</code>, and run with <code>dataset="mine"</code>. The authoring-eval-cases skill
+   covers the format. See <a href="../concepts/">Concepts</a> for the terms.</li>
+<li><strong>Agent and mapping.</strong> Copy this kit's <code>mapping.json</code> into your
+   repository, or <code>openinference.json</code> from the connect-traces skill if your
+   spans follow OpenInference, and create the agent with it:
+   <code>evalkit agents create myagent --trajectory-source otel --mapping
+   my-mapping.json</code>. Do a dry run with your script and <code>evalkit traces check</code>
+   on its session, as in step 2. For each <code>!</code> line, edit your copy, upload it
+   as a draft and preview the same session:</li>
+</ol>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>push<span class="w"> </span>myagent<span class="w"> </span>my-mapping.json
+evalkit<span class="w"> </span>traces<span class="w"> </span>check<span class="w"> </span>myagent<span class="w"> </span>&lt;session<span class="w"> </span>id&gt;<span class="w"> </span>--mapping<span class="w"> </span>draft
+</code></pre></div>
+<p>When it reads right, activate it: <code>evalkit traces mapping push myagent
+   my-mapping.json --activate</code>, or use the agent's Mappings tab in the web
+   UI. Runs always use the active mapping. The connect-traces skill walks a
+   coding agent through the same loop.</p>
+<p><a href="../sdk-runs/">SDK runs</a> covers the rest: agents in another process, Python
+evaluators, and re-scoring. If the evalkit server
+should drive your agent instead of your script (runs started from the UI,
+shared agents), implement the <a href="../harness-api/">Harness API</a>.</p>
+<h2 id="next-run-evalkit-for-your-team">Next: run evalkit for your team<a class="headerlink" href="#next-run-evalkit-for-your-team" title="Permanent link">&para;</a></h2>
+<p>The try-it stack is for one machine. For a server your team shares, follow
+the <a href="https://github.com/inferedge-ai/evalkit/tree/main/skills/evalkit-deployment">evalkit-deployment skill</a>:
+it covers the server image, Postgres, blob storage, the judge, migrations
+and the first users and workspaces. A coding agent can walk it with you.
+Once the server runs, your teammates start from its own <code>/docs</code> page.</p>
+<h2 id="stop-and-clean-up">Stop and clean up<a class="headerlink" href="#stop-and-clean-up" title="Permanent link">&para;</a></h2>
+<p>Without Docker: stop <code>evalkit serve</code> with Ctrl-C. To delete everything, drop
+the database you gave <code>init-server</code> (<code>dropdb evalkit</code> with the default URL)
+and remove the <code>evalkit-try</code> folder.</p>
+<p>With Docker:</p>
+<div class="highlight"><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>down<span class="w">        </span><span class="c1"># stop; data stays in the volumes</span>
+docker<span class="w"> </span>compose<span class="w"> </span>down<span class="w"> </span>-v<span class="w">     </span><span class="c1"># stop and delete all data</span>
+</code></pre></div>
+<h2 id="when-something-fails">When something fails<a class="headerlink" href="#when-something-fails" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>uv run run.py</code> cannot find <code>evalkit-py==&lt;version&gt;</code>: that version is not
+  on PyPI yet (a source build, or a build whose publish job has not finished).
+  Run it with the wheel you installed instead:
+  <code>uv run --no-project --with "&lt;path to the wheel&gt;[otel]" python run.py</code>, or
+  from an evalkit checkout: <code>uv run --project &lt;checkout&gt; --extra otel python run.py</code>.
+  Or wait for the publish.</li>
+<li><code>init-server</code> cannot connect: start Postgres (<code>brew services start
+  postgresql@17</code>, <code>sudo systemctl start postgresql</code>, or Postgres.app), or
+  pass <code>--database-url</code> with the user and password your Postgres needs, e.g.
+  <code>postgresql+psycopg://me:secret@localhost:5432/evalkit</code>.</li>
+<li><code>init-server</code> says <code>config.yaml</code> exists: you already set up that folder.
+  Run <code>evalkit serve</code> there, or pass <code>--force</code> to write it again.</li>
+<li><code>evalkit serve</code> says a variable is not set: check <code>.env</code> beside
+  <code>config.yaml</code>.</li>
+<li>Compose says a variable is not set: fill in <code>.env</code> (copied from
+  <code>.env.example</code>).</li>
+<li>Compose cannot find <code>evalkit:try</code>: outside a checkout, set <code>EVALKIT_IMAGE</code>;
+  in a checkout, add <code>--build</code>.</li>
+<li>The server will not start: <code>docker compose logs server</code> (and
+  check that <code>.env</code> is filled in: the server reads the LLM settings at start).</li>
+<li>The server exits with code 132 and no logs (Apple Silicon): the image is
+  older than 0.22.0. Add <code>OPENSSL_armcap: "0"</code> to the server's
+  <code>environment:</code> in <code>docker-compose.yml</code>, or use a newer image.</li>
+<li>The judge fails on every case: your endpoint must support structured
+  output (<code>response_format</code> with a JSON schema). Try another model.</li>
+<li><code>evalkit</code> or <code>run.py</code> talks to another server: run the <code>evalkit login</code> above
+  again, or check <code>EVALKIT_SERVER_URL</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../concepts/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Concepts">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Concepts
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../install/" class="md-footer__link md-footer__link--next" aria-label="Next: Install">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Install
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.footer", "navigation.sections", "navigation.top", "search.highlight", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>
