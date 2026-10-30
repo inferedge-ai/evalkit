@@ -1,7 +1,7 @@
 import importlib.metadata
 import json
-import os
 import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -37,7 +37,8 @@ QUESTIONS = (
     Question(
         "database_url",
         "EVALKIT_DATABASE_URL",
-        "Postgres URL: where evalkit stores users, cases, experiments and scores",
+        "Postgres URL: where evalkit stores users, cases, experiments and scores "
+        "(the database is created if missing)",
         DEFAULT_DATABASE_URL,
     ),
     Question(
@@ -85,21 +86,21 @@ class Answers:
 
 
 def resolve(flags: dict[str, str | None], *, yes: bool) -> Answers:
-    typer.echo(DATABASE_NOTICE)
     values = {}
     for question in QUESTIONS:
         given = flags.get(question.key)
         if given is not None:
             values[question.key] = given
             continue
-        default = os.environ.get(question.env, question.default)
         if yes:
-            if default is None:
-                raise ApiError(f"{question.flag} is required with --yes")
-            values[question.key] = default
+            if question.default is None:
+                raise ApiError(f"{question.flag} (or {question.env}) is required with --yes")
+            values[question.key] = question.default
             continue
         values[question.key] = typer.prompt(
-            question.prompt, default=default, hide_input=question.secret
+            question.prompt,
+            default=question.default,
+            hide_input=question.secret and sys.stdin.isatty(),
         )
     return Answers(**values)
 

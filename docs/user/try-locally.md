@@ -38,9 +38,9 @@ evalkit serve
 
 `init-server` asks for the Postgres URL (default
 `postgresql+psycopg://localhost/evalkit`), your LLM's base URL, model and API
-key, and the admin password (default `evalkit-admin`). Each question takes
-its answer from a flag or an environment variable when one is set
-(`evalkit init-server --help` lists them; `--yes` never asks). It then:
+key, and the admin password (default `evalkit-admin`). A question is skipped
+when its flag or environment variable is set (`evalkit init-server --help`
+lists both); `--yes` never asks. It then:
 
 - creates the database when it does not exist, and migrates it
 - copies the try kit into `./evalkit-try`
@@ -244,7 +244,8 @@ Once the server runs, your teammates start from its own `/docs` page.
 ## Stop and clean up
 
 Without Docker: stop `evalkit serve` with Ctrl-C. To delete everything, drop
-the database (`dropdb evalkit`) and remove the `evalkit-try` folder.
+the database you gave `init-server` (`dropdb evalkit` with the default URL)
+and remove the `evalkit-try` folder.
 
 With Docker:
 
@@ -257,8 +258,10 @@ docker compose down -v     # stop and delete all data
 
 - `uv run run.py` cannot find `evalkit-py==<version>`: that version is not
   on PyPI yet (a source build, or a build whose publish job has not finished).
-  Run it with an evalkit checkout instead: `uv run --project <checkout>
-  --extra otel python run.py`, or wait for the publish.
+  Run it with the wheel you installed instead:
+  `uv run --no-project --with "<path to the wheel>[otel]" python run.py`, or
+  from an evalkit checkout: `uv run --project <checkout> --extra otel python run.py`.
+  Or wait for the publish.
 - `init-server` cannot connect: start Postgres (`brew services start
   postgresql@17`, `sudo systemctl start postgresql`, or Postgres.app), or
   pass `--database-url` with the user and password your Postgres needs, e.g.

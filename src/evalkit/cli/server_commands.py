@@ -15,6 +15,7 @@ from sqlalchemy.engine import make_url
 
 from evalkit import version
 from evalkit.api.app import create_app
+from evalkit.cli.client import ApiError
 from evalkit.config import Config
 from evalkit.db.crypto import SecretBox
 from evalkit.db.session import make_session_factory, run_migrations
@@ -63,7 +64,13 @@ def create_database_if_missing(url: str) -> bool:
         return False
     except psycopg.OperationalError as exc:
         if f'database "{parsed.database}" does not exist' not in str(exc):
-            raise
+            raise ApiError(
+                f"could not connect to Postgres at {parsed.host or 'localhost'}:"
+                f"{parsed.port or 5432}: {str(exc).strip()}\n"
+                "Is Postgres running (brew services start postgresql@17, sudo systemctl "
+                "start postgresql, Postgres.app), and are the user and password in the URL "
+                "right? See Try it locally > When something fails."
+            ) from exc
     admin = parsed.set(database="postgres").render_as_string(hide_password=False)
     with psycopg.connect(admin, autocommit=True) as conn:
         conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(parsed.database)))

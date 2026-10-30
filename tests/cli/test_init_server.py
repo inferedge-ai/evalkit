@@ -23,12 +23,20 @@ def clean_env(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_a_flag_beats_the_env_which_beats_the_default(monkeypatch):
+def test_a_flag_beats_the_env_which_beats_the_default(tmp_path, monkeypatch):
+    seen: list[init_server.Answers] = []
+    monkeypatch.setattr(init_server, "write_server_files", lambda d, answers: seen.append(answers))
+    monkeypatch.setattr(server_commands, "init_database", lambda url: True)
     monkeypatch.setenv("LLM_MODEL", "env-model")
     monkeypatch.setenv("LLM_BASE_URL", "https://env.test/v1")
-    answers = init_server.resolve(
-        {"llm_base_url": "https://flag.test/v1", "llm_api_key": "k"}, yes=True
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    result = CliRunner().invoke(
+        app,
+        ["init-server", "--dir", str(tmp_path / "kit"), "--yes"]
+        + ["--llm-base-url", "https://flag.test/v1"],
     )
+    assert result.exit_code == 0, result.output
+    answers = seen[0]
     assert answers.llm_base_url == "https://flag.test/v1"
     assert answers.llm_model == "env-model"
     assert answers.database_url == init_server.DEFAULT_DATABASE_URL
@@ -36,8 +44,19 @@ def test_a_flag_beats_the_env_which_beats_the_default(monkeypatch):
 
 
 def test_yes_fails_on_a_value_without_a_default():
-    with pytest.raises(ApiError, match="--llm-base-url is required with --yes"):
+    with pytest.raises(ApiError, match="--llm-base-url \\(or LLM_BASE_URL\\) is required"):
         init_server.resolve({}, yes=True)
+
+
+def test_an_unreachable_postgres_says_how_to_fix_it(tmp_path):
+    result = CliRunner().invoke(
+        app,
+        ["init-server", "--dir", str(tmp_path / "kit"), "--yes", *LLM_FLAGS]
+        + ["--database-url", "postgresql+psycopg://localhost:1/x"],
+    )
+    assert result.exit_code == 1
+    assert "could not connect to Postgres at localhost:1" in result.output
+    assert "Is Postgres running" in result.output
 
 
 def test_missing_values_are_prompted(tmp_path, monkeypatch):

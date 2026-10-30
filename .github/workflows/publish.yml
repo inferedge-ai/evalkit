@@ -122,6 +122,7 @@ jobs:
     needs: [changes, wheel]
     if: >-
       needs.changes.outputs.code == 'true'
+      && (github.ref_name == 'develop' || github.ref_name == 'main')
     runs-on: ubuntu-latest
     environment: pypi
     permissions:

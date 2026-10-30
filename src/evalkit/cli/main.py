@@ -1017,12 +1017,29 @@ def init_server_command(
         init_server.DEFAULT_DIR, "--dir", help="Directory for the try kit, config.yaml and .env."
     ),
     database_url: str | None = typer.Option(
-        None, "--database-url", help="Postgres URL; the database is created when missing."
+        None,
+        "--database-url",
+        envvar="EVALKIT_DATABASE_URL",
+        help="Postgres URL; the database is created when missing.",
     ),
-    llm_base_url: str | None = typer.Option(None, "--llm-base-url"),
-    llm_model: str | None = typer.Option(None, "--llm-model"),
-    llm_api_key: str | None = typer.Option(None, "--llm-api-key"),
-    admin_password: str | None = typer.Option(None, "--admin-password"),
+    llm_base_url: str | None = typer.Option(
+        None,
+        "--llm-base-url",
+        envvar="LLM_BASE_URL",
+        help="OpenAI-compatible endpoint for the judge and the sample agent.",
+    ),
+    llm_model: str | None = typer.Option(
+        None, "--llm-model", envvar="LLM_MODEL", help="Model name at that endpoint."
+    ),
+    llm_api_key: str | None = typer.Option(
+        None, "--llm-api-key", envvar="LLM_API_KEY", help="API key for that endpoint."
+    ),
+    admin_password: str | None = typer.Option(
+        None,
+        "--admin-password",
+        envvar="EVALKIT_ADMIN_PASSWORD",
+        help="Password of the `admin` user you log in as.",
+    ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Never prompt; use flags, env, defaults."),
     force: bool = typer.Option(
         False,
@@ -1042,7 +1059,7 @@ def init_server_command(
 
     Writes config.yaml (blobs under <dir>/data) and .env (your LLM, the admin password).
 
-    Each value comes from its flag, then its env var, then a prompt.
+    Each value comes from its flag or env var; anything missing is prompted for.
 
     Example: evalkit init-server · evalkit init-server --kit-only --dir ./evalkit-try
     """
@@ -1068,6 +1085,7 @@ def init_server_command(
         "admin_password": admin_password,
     }
     answers = init_server.resolve(flags, yes=yes)
+    typer.echo(init_server.DATABASE_NOTICE)
     created = server_commands.init_database(answers.database_url)
     typer.echo(
         "created the database and migrated it"
@@ -1081,6 +1099,7 @@ def init_server_command(
     typer.echo(f"  cd {directory} && evalkit serve")
     typer.echo("then, in another terminal from the same folder, log in:")
     typer.echo("  evalkit login --url http://localhost:8020 --username admin")
+    typer.echo("  (this replaces a login you saved; Try it locally step 1 shows how to keep it)")
     typer.echo("and follow Try it locally from step 2 (the CLI is already installed)")
 
 
