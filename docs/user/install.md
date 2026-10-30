@@ -36,7 +36,14 @@ uv run --with "evalkit-py[otel]=={{version}}" python eval/run.py
 
 ## The server
 
-`pip install "evalkit-py[server]"` installs the server too: the API, the web UI and migrations. [Try locally](try-locally.md) starts one on your machine; the evalkit-deployment skill covers running one for a team.
+`pip install "evalkit-py[server]"` installs the server too: the API, the web UI and migrations. To run one on your machine against a Postgres you already have:
+
+```bash
+evalkit init-server   # creates the database, writes config.yaml and .env in ./evalkit-try
+cd evalkit-try && evalkit serve
+```
+
+[Try locally](try-locally.md) walks through it with a sample agent; the evalkit-deployment skill covers running a server for a team.
 
 ## Updating
 

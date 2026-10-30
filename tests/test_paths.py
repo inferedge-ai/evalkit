@@ -1,9 +1,12 @@
-from pathlib import Path
-
 from evalkit import paths
 
-ROOT = Path(__file__).parent.parent
+
+def test_ui_root_prefers_a_checkout_build(tmp_path, monkeypatch):
+    (tmp_path / "ui" / "dist").mkdir(parents=True)
+    monkeypatch.setattr(paths, "_REPO", tmp_path)
+    assert paths.ui_root() == tmp_path / "ui" / "dist"
 
 
-def test_ui_root_in_a_checkout():
-    assert paths.ui_root() == ROOT / "ui" / "dist"
+def test_ui_root_falls_back_to_the_bundled_ui(tmp_path, monkeypatch):
+    monkeypatch.setattr(paths, "_REPO", tmp_path)
+    assert paths.ui_root() == paths._PACKAGE / "bundled" / "ui"

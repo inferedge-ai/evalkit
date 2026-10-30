@@ -53,7 +53,7 @@ from evalkit.credentials import MissingCredential
 from evalkit.paths import contracts_root, docs_root, skills_root
 from evalkit.store.base import GitRevision, Selection
 
-# `serve` and `db upgrade` need the `evalkit[server]` extra; the base install
+# `serve` and `db upgrade` need the `evalkit-py[server]` extra; the base install
 # is a thin HTTP client. The boundary is explicit here rather than hidden in
 # per-command imports.
 if find_spec("uvicorn") and find_spec("sqlalchemy"):
@@ -1024,31 +1024,42 @@ def init_server_command(
     llm_api_key: str | None = typer.Option(None, "--llm-api-key"),
     admin_password: str | None = typer.Option(None, "--admin-password"),
     yes: bool = typer.Option(False, "--yes", "-y", help="Never prompt; use flags, env, defaults."),
-    force: bool = typer.Option(False, "--force", help="Overwrite an existing config.yaml."),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite an existing kit in --dir: config.yaml, .env and the kit's files, "
+        "including your edits to its cases and scripts.",
+    ),
     kit_only: bool = typer.Option(
         False, "--kit-only", help="Only copy the try kit; no database, config.yaml or .env."
     ),
 ):
     """Set up an evalkit server on this machine, against a Postgres you already run.
 
-    Copies the try kit (sample agent, cases, run.py) into --dir, creates the database
-    when missing, writes config.yaml (blobs under <dir>/data) and .env (your LLM and the
-    admin password), and migrates the database. Values come from flags, then env
-    (EVALKIT_DATABASE_URL, LLM_BASE_URL, LLM_MODEL, LLM_API_KEY, EVALKIT_ADMIN_PASSWORD),
-    then prompts.
+    Copies the try kit (sample agent, cases, run.py) into --dir.
+
+    Creates the database when missing and migrates it.
+
+    Writes config.yaml (blobs under <dir>/data) and .env (your LLM, the admin password).
+
+    Each value comes from its flag, then its env var, then a prompt.
 
     Example: evalkit init-server · evalkit init-server --kit-only --dir ./evalkit-try
     """
+    existing = init_server.kit_files_in(directory)
+    if existing and not force:
+        raise ApiError(
+            f"{directory} already holds a try kit ({', '.join(existing)}); "
+            "pass --force to overwrite it, edits included"
+        )
     if kit_only:
-        init_server.copy_kit(directory)
+        init_server.copy_kit(directory, docker=True)
         typer.echo(f"copied the try kit to {directory}")
         return
     if server_commands is None:
         raise ApiError(
             "`evalkit init-server` needs the server extra — pip install 'evalkit-py[server]'"
         )
-    if (directory / "config.yaml").exists() and not force:
-        raise ApiError(f"{directory / 'config.yaml'} exists; pass --force to overwrite it")
     flags = {
         "database_url": database_url,
         "llm_base_url": llm_base_url,
@@ -1057,22 +1068,20 @@ def init_server_command(
         "admin_password": admin_password,
     }
     answers = init_server.resolve(flags, yes=yes)
-    typer.echo(
-        f"connecting to {answers.database_url} (is Postgres running? brew services start "
-        "postgresql@17, sudo systemctl start postgresql, or Postgres.app)"
-    )
     created = server_commands.init_database(answers.database_url)
     typer.echo(
         "created the database and migrated it"
         if created
         else "the database already existed; migrated it"
     )
-    init_server.copy_kit(directory)
+    init_server.copy_kit(directory, docker=False)
     init_server.write_server_files(directory, answers)
     typer.echo(f"set up {directory}: config.yaml, .env and the try kit")
-    typer.echo("next:")
+    typer.echo("next, start the server:")
     typer.echo(f"  cd {directory} && evalkit serve")
-    typer.echo("  then open http://localhost:8020 and follow Try it locally from step 1")
+    typer.echo("then, in another terminal from the same folder, log in:")
+    typer.echo("  evalkit login --url http://localhost:8020 --username admin")
+    typer.echo("and follow Try it locally from step 2 (the CLI is already installed)")
 
 
 @app.command()
@@ -1086,7 +1095,7 @@ def serve(
     Example: evalkit serve --config /etc/evalkit/config.yaml
     """
     if server_commands is None:
-        raise ApiError("`evalkit serve` needs the server extra — pip install 'evalkit[server]'")
+        raise ApiError("`evalkit serve` needs the server extra — pip install 'evalkit-py[server]'")
     server_commands.serve(_server_config(config), host, port)
 
 
@@ -1101,7 +1110,7 @@ def db_upgrade(
     """
     if server_commands is None:
         raise ApiError(
-            "`evalkit db upgrade` needs the server extra — pip install 'evalkit[server]'"
+            "`evalkit db upgrade` needs the server extra — pip install 'evalkit-py[server]'"
         )
     server_commands.db_upgrade(_server_config(config), revision)
     typer.echo(f"migrations applied up to {revision}")
@@ -1119,7 +1128,7 @@ def trace_sources_rekey(
     """
     if server_commands is None:
         raise ApiError(
-            "`trace-sources rekey` needs the server extra — pip install 'evalkit[server]'"
+            "`trace-sources rekey` needs the server extra — pip install 'evalkit-py[server]'"
         )
     missing = [name for name in (old_key_env, new_key_env) if name not in os.environ]
     if missing:

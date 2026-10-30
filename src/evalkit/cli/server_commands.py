@@ -1,6 +1,6 @@
 """Server-side CLI command bodies.
 
-Everything here needs the `evalkit[server]` extra (uvicorn, FastAPI, SQLAlchemy,
+Everything here needs the `evalkit-py[server]` extra (uvicorn, FastAPI, SQLAlchemy,
 alembic). The base CLI install stays a thin HTTP client; `main.py` imports this
 module only when the server extra is present and points users at it otherwise.
 """
@@ -62,7 +62,7 @@ def create_database_if_missing(url: str) -> bool:
         psycopg.connect(parsed.render_as_string(hide_password=False)).close()
         return False
     except psycopg.OperationalError as exc:
-        if "does not exist" not in str(exc):
+        if f'database "{parsed.database}" does not exist' not in str(exc):
             raise
     admin = parsed.set(database="postgres").render_as_string(hide_password=False)
     with psycopg.connect(admin, autocommit=True) as conn:

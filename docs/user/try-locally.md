@@ -91,6 +91,7 @@ every start.
 | `cases/acme/` | Five cases in two folders (tags), with answer rubrics and a tool check. |
 | `evalkit.yaml`, `.env` | Where the cases are, and the judge's key. |
 | `config.yaml` | The server's config. |
+| `docker-compose.yml`, `.env.example` | With Docker only: the stack, and the template for its `.env`. `init-server` leaves them out. |
 
 ## 1. Install the CLI and log in
 
@@ -254,6 +255,10 @@ docker compose down -v     # stop and delete all data
 
 ## When something fails
 
+- `uv run run.py` cannot find `evalkit-py==<version>`: that version is not
+  on PyPI yet (a source build, or a build whose publish job has not finished).
+  Run it with an evalkit checkout instead: `uv run --project <checkout>
+  --extra otel python run.py`, or wait for the publish.
 - `init-server` cannot connect: start Postgres (`brew services start
   postgresql@17`, `sudo systemctl start postgresql`, or Postgres.app), or
   pass `--database-url` with the user and password your Postgres needs, e.g.

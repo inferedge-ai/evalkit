@@ -574,42 +574,10 @@ async def arun_experiment(
     poll_interval: float = 5.0,
     tracer_provider: Any = None,
 ) -> ExperimentResult:
-    """Run an experiment from a running event loop, e.g. a notebook.
+    """The async form of `run_experiment`, for code already in an event loop (a notebook).
 
-    The async form of `run_experiment`. The arguments after `judge` exist for tests.
-
-    Args:
-        dataset: The dataset to run. A bare name means your personal workspace; if it
-            is also a directory under `cases` in `evalkit.yaml`, it is synced first.
-            `name@workspace` runs a shared dataset, every review state included.
-        agent: The code-driven agent on the server that the runs belong to, created once
-            with `evalkit agents create`. A bare name means your personal workspace.
-        task: Your function, called once per case and repetition, sync or async. Its
-            parameters bind by name from `input` (the case input), `files`
-            (`list[Fixture]`), `model` and `metadata` (`session_id`, `experiment_id`,
-            `case_id`, `repetition`, `tags`). A task with one parameter of another name
-            receives the input. Return a `str` (the answer), a `dict` (the structured
-            output) or a `RunResult`. A task that raises records a failed run.
-        workspace: The workspace of `dataset` when it is a bare name.
-        evaluators: Python evaluators made with `evaluator`. A case selects one by name
-            under `evaluators.custom`, like an HTTP evaluator.
-        repetitions: How many times each case runs.
-        concurrency: How many tasks run at once. Defaults to the agent's
-            `max_concurrent_runs`.
-        case_ids: Run only these cases.
-        split: Run only the cases of this split (a case tag).
-        model: Passed to the task's `model` parameter and recorded on the experiment.
-        resume: An experiment id to resume: runs only the cases it has not finished.
-        dry_run: `True` runs one case without creating an experiment and prints the
-            answer and what the server made of the session; an int runs that many.
-        trajectory_wait_seconds: How long to wait for a run's spans to settle into a
-            trajectory. Defaults to the agent's setting.
-        judge: The judge for LLM-graded evaluators. Defaults to the server's default
-            judge. Its API key comes from `credentials.judges` in `evalkit.yaml`, keyed
-            by `base_url`.
-
-    Returns:
-        The experiment id, its URL and one summary per run.
+    Same arguments and result as `run_experiment`. The arguments after `judge` exist
+    for tests.
     """
     local = _local_config().resolve_env(scoring=not dry_run)
     spec = inspect_task(task)
@@ -790,20 +758,10 @@ async def aevaluate_experiment(
     custom_eval_transport: httpx.AsyncBaseTransport | None = None,
     progress: Progress = print,
 ) -> ExperimentResult:
-    """Re-score an experiment from a running event loop, e.g. a notebook.
+    """The async form of `evaluate_experiment`, for code already in an event loop.
 
-    The async form of `evaluate_experiment`. The arguments after
+    Same arguments and result as `evaluate_experiment`. The arguments after
     `refetch_trajectories` exist for tests.
-
-    Args:
-        experiment_id: The experiment to re-score.
-        evaluators: The Python evaluators the experiment ran with. Each must have been
-            part of the experiment.
-        refetch_trajectories: Read the trajectories of runs whose trajectory was
-            `partial` or `unavailable` again before scoring.
-
-    Returns:
-        The experiment id, its URL and one summary per run.
     """
     local = _local_config().resolve_env(scoring=True)
     active = connection.active()

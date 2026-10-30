@@ -153,3 +153,13 @@ def test_reinstall_refreshes_installed_skills(stale, tmp_path):
     run_update(client(), prefix=UV_PREFIX, run=calls.append, cwd=tmp_path, server_extra=False)
     cli = str(UV_PREFIX / "bin" / "evalkit")
     assert calls[1] == [cli, "skills", "install", "--target", str(skills.resolve())]
+
+
+def test_a_project_venv_is_updated_by_its_sync_alone(stale, tmp_path, capsys):
+    (tmp_path / "pyproject.toml").write_text('dependencies = ["evalkit-py[otel]==0.3.0.dev57"]\n')
+    venv = tmp_path / ".venv"
+    venv.mkdir()
+    calls: list[list[str]] = []
+    run_update(client(), prefix=venv, run=calls.append, cwd=tmp_path, server_extra=False)
+    assert calls == [["uv", "sync"]]
+    assert f"installed evalkit {REMOTE}" in capsys.readouterr().out

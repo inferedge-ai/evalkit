@@ -157,9 +157,9 @@ path-filtered against the PR base) and on pushes to those branches:
   version; every response carries `X-Evalkit-Version`. The CLI compares it to
   its own version on every call, and `evalkit update` reinstalls
   `evalkit-py==<server version>` from PyPI.
-- `.github/workflows/docs.yml` builds the docs site on PRs and, with `mike`,
-  publishes `dev` from `develop` and `X.Y.Z` (alias `latest`) from `main` to
-  the `gh-pages` branch.
+- The docs site: `ci.yml`'s `python` job runs `mkdocs build --strict` on PRs;
+  `publish.yml`'s `docs` job deploys it with `mike` to the `gh-pages` branch,
+  `dev` from `develop` and `X.Y.Z` (alias `latest`) from `main`.
 
 ## Changelog
 

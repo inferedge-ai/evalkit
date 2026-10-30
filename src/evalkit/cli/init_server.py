@@ -16,7 +16,8 @@ DEFAULT_DIR = Path("evalkit-try")
 DEFAULT_DATABASE_URL = "postgresql+psycopg://localhost/evalkit"
 DEFAULT_ADMIN_PASSWORD = "evalkit-admin"
 KIT_REQUIREMENT = '"evalkit-py[otel]"'
-KIT_LEAVES_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.pyc")
+KIT_LEAVES_OUT = ("*.whl", "__pycache__", "*.pyc", ".env")
+DOCKER_ONLY = ("docker-compose.yml", ".env.example")
 
 
 @dataclass(frozen=True)
@@ -42,9 +43,14 @@ QUESTIONS = (
     Question(
         "llm_base_url",
         "LLM_BASE_URL",
-        "LLM base URL: an OpenAI-compatible endpoint the judge and the sample agent call",
+        "LLM base URL: an OpenAI-compatible endpoint the judge and the sample agent call "
+        "(e.g. https://api.openai.com/v1)",
     ),
-    Question("llm_model", "LLM_MODEL", "LLM model: the model name at that endpoint"),
+    Question(
+        "llm_model",
+        "LLM_MODEL",
+        "LLM model: the model name at that endpoint (e.g. gpt-4o-mini)",
+    ),
     Question(
         "llm_api_key",
         "LLM_API_KEY",
@@ -114,8 +120,15 @@ def pinned_requirement() -> str:
     return f"evalkit-py[otel]=={version.current()}"
 
 
-def copy_kit(target: Path) -> None:
-    shutil.copytree(kit_root(), target, ignore=KIT_LEAVES_OUT, dirs_exist_ok=True)
+def kit_files_in(target: Path) -> list[str]:
+    return sorted(path.name for path in kit_root().iterdir() if (target / path.name).exists())
+
+
+def copy_kit(target: Path, *, docker: bool) -> None:
+    left_out = KIT_LEAVES_OUT if docker else (*KIT_LEAVES_OUT, *DOCKER_ONLY)
+    shutil.copytree(
+        kit_root(), target, ignore=shutil.ignore_patterns(*left_out), dirs_exist_ok=True
+    )
     run_py = target / "run.py"
     run_py.write_text(run_py.read_text().replace(KIT_REQUIREMENT, f'"{pinned_requirement()}"'))
 

@@ -20,7 +20,7 @@ AGENT_HEADER = "X-Evalkit-Agent"
 STAMPED = ("session.id", "evalkit.experiment_id", "evalkit.case_id", "evalkit.repetition")
 EVAL_MARKER = "evalkit.case_id"
 MAX_EVAL_TRACES = 10_000
-INSTALL_HINT = "evalkit tracing needs the otel extra: uv add 'evalkit[otel]'"
+INSTALL_HINT = "evalkit tracing needs the otel extra: uv add 'evalkit-py[otel]'"
 
 CURRENT_RUN: ContextVar[dict[str, Any] | None] = ContextVar("evalkit_current_run", default=None)
 

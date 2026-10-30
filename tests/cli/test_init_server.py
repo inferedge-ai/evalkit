@@ -107,6 +107,8 @@ def test_init_server_creates_and_migrates_the_database(tmp_path, pg_server_url):
     assert cfg.blob.url == (kit / "data").resolve().as_uri()
     assert cfg.judge_default.base_url == "https://llm.test/v1"
     assert (kit / ".env").stat().st_mode & 0o777 == 0o600
+    assert not (kit / "docker-compose.yml").exists()
+    assert not (kit / ".env.example").exists()
     assert "evalkit serve" in result.output
     assert "creates the database named in the Postgres URL" in result.output
     assert "created the database and migrated it" in result.output
@@ -114,3 +116,16 @@ def test_init_server_creates_and_migrates_the_database(tmp_path, pg_server_url):
 
 def test_direct_url_reads_installed_metadata():
     assert json.dumps(init_server._direct_url())
+
+
+def test_an_existing_kit_is_kept_without_force(tmp_path):
+    kit = tmp_path / "kit"
+    kit.mkdir()
+    (kit / "run.py").write_text("mine\n")
+    result = CliRunner().invoke(app, ["init-server", "--kit-only", "--dir", str(kit)])
+    assert result.exit_code == 1
+    assert "already holds a try kit (run.py)" in result.output
+    assert (kit / "run.py").read_text() == "mine\n"
+    forced = CliRunner().invoke(app, ["init-server", "--kit-only", "--force", "--dir", str(kit)])
+    assert forced.exit_code == 0
+    assert (kit / "run.py").read_text() != "mine\n"
