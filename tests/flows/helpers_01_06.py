@@ -14,14 +14,13 @@ from evalkit.api.app import create_app
 from evalkit.cli.main import app as cli_app
 from evalkit.client import connection
 from evalkit.core.runner import RunnerDeps
-from evalkit.credentials import CredentialRegistry, CredentialsConfig
 from evalkit.db.agents import AgentStore
 from evalkit.db.evaluators import RemoteEvaluatorStore
+from evalkit.db.keys import NoKeysLoaded
 from evalkit.db.session import make_session_factory
 from evalkit.db.store import PgStore
 from evalkit.db.workspaces import WorkspaceStore
 from tests.cli.test_cli import _serve, stub_judges_module
-from tests.fake_agents import JUDGE_URL, TEST_ENV
 from tests.fake_blob import DictBlobStore
 from tests.fake_harness import FakeHarness
 from tests.identity import seed_agent, seed_evaluators, seed_identity
@@ -30,11 +29,6 @@ from tests.native import HOLDER, custom_eval_app, make_cfg
 __all__ = ["stub_judges_module"]
 
 USERS = {"admin": "hunter2-pw", "alice": "password", "akshat": "password", "ravi": "password"}
-CREDENTIALS = CredentialsConfig(
-    agents={"ouragent@dev": "env:FAKE_AGENT_KEY", "ouragent@prod": "env:FAKE_AGENT_KEY"},
-    evaluators={"required_tool_calls@dev": "env:CUSTOM_EVAL_KEY"},
-    judges={JUDGE_URL: "env:JUDGE_KEY"},
-)
 RUBRICS = (
     "    evaluators:\n      output:\n        answer_rubrics:\n          rubrics:\n"
     "          - rubric: 'Says 42.'\n            type: factual_retrieval\n"
@@ -78,14 +72,14 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
         return factory
 
     factory = asyncio.run(setup())
-    cfg = make_cfg(tmp).model_copy(update={"credentials": CREDENTIALS})
+    cfg = make_cfg(tmp)
     deps = RunnerDeps(
         cfg=cfg,
         store=PgStore(factory),
         blob_store=blob,
         agents=AgentStore(factory),
         evaluators=RemoteEvaluatorStore(factory),
-        credentials=CredentialRegistry(CREDENTIALS, TEST_ENV),
+        credentials=NoKeysLoaded(),
         harness_transport=httpx.ASGITransport(app=harness.app),
         custom_eval_transport=httpx.ASGITransport(app=custom_eval_app()),
     )

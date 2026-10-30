@@ -2,8 +2,9 @@
 
 The HTTP contract evalkit uses to drive the client's agent. Base URL is the
 agent's `--harness-url` (convention: `https://<host>/evalkit/v1`). Every
-request from evalkit carries the agent's key from `credentials.agents` in an
-`x-api-key: <key>` header — reject anything else with 401. Exact request/response schemas: run
+request from evalkit carries the agent's key in an `x-api-key: <key>` header
+(the server sends the shared agent's stored key; a local run sends
+`credentials.agents` from the developer's `evalkit.yaml`) — reject anything else with 401. Exact request/response schemas: run
 `evalkit contracts export --target <dir>` to write `harness-api-v1.json`
 (OpenAPI, generated from the source-of-truth pydantic models) plus the other
 contract files, matching the installed evalkit version.

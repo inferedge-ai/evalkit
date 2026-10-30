@@ -49,6 +49,7 @@ def _definition(row: models.Agent, ws: models.Workspace) -> AgentDefinition:
         repo_url=row.repo_url,
         settings=AgentSettings.model_validate(row.config or {}),
         archived=row.archived_at is not None,
+        has_api_key=row.api_key_encrypted is not None,
     )
 
 
@@ -133,6 +134,7 @@ class AgentStore:
         settings: AgentSettings | None = None,
         created_by: int | None = None,
         mapping: dict | None = None,
+        api_key_encrypted: bytes | None = None,
     ) -> AgentDefinition:
         if "@" in name or not name:
             raise InvalidAgent(f"invalid agent name: {name!r}")
@@ -155,6 +157,7 @@ class AgentStore:
                 trajectory_source=trajectory_source.value,
                 repo_url=repo_url,
                 config=(settings or AgentSettings()).model_dump(),
+                api_key_encrypted=api_key_encrypted,
                 created_by=created_by,
             )
             session.add(row)
@@ -175,13 +178,19 @@ class AgentStore:
         trajectory_source: TrajectorySource | None = None,
         mapping: dict | None = None,
         edited_by: int | None = None,
+        api_key_encrypted: bytes | None = None,
     ) -> AgentDefinition:
         if mapping is not None:
             MappingDocument.model_validate(mapping)
         async with self._sessions() as session:
             row, ws = await self._row(session, ref)
-            if harness_url is not None or "harness_url" in clear:
+            if (harness_url is not None or "harness_url" in clear) and (
+                harness_url != row.harness_url
+            ):
                 row.harness_url = harness_url
+                row.api_key_encrypted = None
+            if api_key_encrypted is not None or "api_key" in clear:
+                row.api_key_encrypted = api_key_encrypted
             if repo_url is not None or "repo_url" in clear:
                 row.repo_url = repo_url
             if settings is not None:
@@ -234,6 +243,11 @@ class AgentStore:
         elif row.harness_url:
             row.config = {**(row.config or {}), "provides": None}
         row.trajectory_source = source.value
+
+    async def sealed_key(self, ref: str) -> bytes | None:
+        async with self._sessions() as session:
+            row, _ = await self._row(session, ref)
+            return row.api_key_encrypted
 
     async def archive(self, ref: str) -> AgentDefinition:
         async with self._sessions() as session:

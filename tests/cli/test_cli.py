@@ -834,7 +834,7 @@ def write_local_config(tmp_path, harness_url: str) -> Path:
         "cases: eval/cases\nfixtures: eval/fixtures\n"
         f"cost_map:\n  source: {cost_map}\n"
         "credentials:\n  agents:\n    fake: env:CLI_AGENT_KEY\n"
-        "  judges:\n    http://judge.test: env:CLI_JUDGE_KEY\n"
+        "  llm_providers:\n    http://judge.test: env:CLI_JUDGE_KEY\n"
     )
     (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
     return tmp_path

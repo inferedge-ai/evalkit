@@ -70,9 +70,10 @@ class RunPage(BaseModel):
     harness_note: str | None = None
 
 
-def harness_client(deps: RunnerDeps, agent: AgentDefinition) -> HarnessClient:
+async def harness_client(deps: RunnerDeps, agent: AgentDefinition) -> HarnessClient:
+    assert deps.agent_keys is not None
     return HarnessClient(
-        agent, deps.credentials.key_for("agent", agent.ref), transport=deps.harness_transport
+        agent, await deps.agent_keys.agent_key(agent), transport=deps.harness_transport
     )
 
 
@@ -179,7 +180,7 @@ async def resolve_runs(
     stored = [_stored(item) for item in stored_items]
     if source == "eval" or not server_may_drive(record):
         return RunPage(runs=stored[offset : offset + limit], total=stored_total)
-    client = harness_client(deps, record)
+    client = await harness_client(deps, record)
     note: str | None = None
     harness: list[RunListItem] = []
     harness_total = 0
@@ -293,7 +294,7 @@ async def fetch_trajectory(
 ) -> Trajectory:
     stored = await agent_run(session, record.id, run_id)
     key = stored.trajectory_key if stored is not None else None
-    client = harness_client(deps, record) if not key and server_may_drive(record) else None
+    client = await harness_client(deps, record) if not key and server_may_drive(record) else None
     try:
         return await read_trajectory(record, run_id, deps, sessions, key, client)
     finally:
@@ -363,7 +364,7 @@ async def _listing(
     if snapshot or stored or not server_may_drive(record):
         kept = {path: FileEntry(path=path, size=size) for path, size in stored.items()}
         return {**kept, **snapshot}, set(stored)
-    client = harness_client(deps, record)
+    client = await harness_client(deps, record)
     try:
         files = await client.list_files(run_id)
     except httpx.HTTPStatusError as exc:
@@ -497,7 +498,7 @@ async def zip_files(
 
     if all(p in stored for _, p in entries):
         return _zip_response(root, entries, stored_chunks, _noop)
-    client = harness_client(deps, agent_def)
+    client = await harness_client(deps, agent_def)
 
     async def fetch(p: str) -> AsyncIterator[bytes]:
         if p in stored:
@@ -537,7 +538,7 @@ async def get_file(
             headers={"Content-Length": str(blob.size), **(headers or {})},
         )
     if server_may_drive(record):
-        client = harness_client(deps, record)
+        client = await harness_client(deps, record)
         async with AsyncExitStack() as cleanup:
             cleanup.push_async_callback(client.aclose)
             try:

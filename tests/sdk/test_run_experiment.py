@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -111,7 +112,7 @@ def env(server, tmp_path, monkeypatch, module_db_url):
     (tmp_path / "evalkit.yaml").write_text(
         f"cases: eval/cases\nfixtures: eval/fixtures\ncost_map:\n  source: {cost_map}\n"
         "credentials:\n  evaluators:\n    http_eval: env:SDK_EVAL_KEY\n"
-        "  judges:\n    http://judge.test: env:SDK_JUDGE_KEY\n"
+        "  llm_providers:\n    http://judge.test: env:SDK_JUDGE_KEY\n"
     )
     (tmp_path / ".env").write_text("SDK_EVAL_KEY=k\nSDK_JUDGE_KEY=jk\n")
     monkeypatch.chdir(tmp_path)
@@ -793,3 +794,30 @@ async def test_a_finished_run_prints_its_scorecard(env):
     )
     assert any(line.startswith(f"\nexperiment {result.experiment_id} ") for line in lines)
     assert "evaluators:" in lines
+
+
+async def test_sdk_runs_skip_keyless_evaluators_their_cases_do_not_use(env):
+    srv, blob, provider = env
+    created = httpx.post(
+        f"{srv.base_url}/api/evaluators",
+        headers={"Authorization": f"Bearer {os.environ['EVALKIT_TOKEN']}"},
+        json={
+            "workspace": "admin",
+            "name": "nokey_eval",
+            "kind": "score",
+            "settings": {"endpoint": "http://e"},
+        },
+    )
+    assert created.status_code == 200, created.text
+    lines: list[str] = []
+    await arun_experiment(
+        dataset="finance",
+        workspace="canonical",
+        agent="pushed",
+        task=lambda q: RunResult(answer="x", trajectory=DEFAULT_TRAJECTORY),
+        case_ids=["case-1"],
+        tracer_provider=provider,
+        progress=lines.append,
+    )
+    assert "experiment" in lines[0]
+    assert not any("nokey_eval" in line for line in lines)

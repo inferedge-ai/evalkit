@@ -10,8 +10,8 @@ How a user runs a dataset against a shared agent: an agent in a shared workspace
   - the "Run experiment" launcher on a shared workspace's dataset page (`ui/src/evals/RunLauncher.tsx`)
   - the experiment page (`ui/src/evals/ExperimentPage.tsx`)
 - **evalkit server**: `src/evalkit/api/experiments.py`. Its experiment runner is in `src/evalkit/core/runner.py`.
-- **Agent harness**: the client's agent behind the Harness API, at the agent's `harness_url`. Admins or writers create the agent with `evalkit agents create` (flow 17); its API key comes from `credentials.agents` in the server config.
-- **Judge**: the LLM the built-in evaluators call. Chosen per experiment; the server's `judge_default` applies when the run doesn't set one.
+- **Agent harness**: the client's agent behind the Harness API, at the agent's `harness_url`. Admins or writers create the agent with `evalkit agents create` (flow 17); its API key is a stored key, set with `--api-key-env` and kept encrypted in the database.
+- **Judge**: the LLM the built-in evaluators call. Chosen per experiment; the default judge an admin set (`evalkit judge-default set`) applies when the run doesn't set one. Its base URL must be a registered LLM provider, whose stored key the server sends.
 
 ## Sequence
 
@@ -99,7 +99,7 @@ sequenceDiagram
   - The UI shows the run count on the Start button: "Start N runs" = cases × repetitions.
 - **Fixture cases** are skipped when the harness accepts neither files nor file URLs. The CLI prints "skipped N case(s) with fixture files; the agent accepts neither files nor file urls: …".
 - **`--model`** is passed only if the harness accepts a model override. Otherwise the run uses the harness default and the server logs a warning. The model the harness reports is recorded when none was given.
-- **Judge:** CLI `--judge-model`, `--judge-base-url`, `--judge-effort` or the UI judge panel override the server's `judge_default`. The judge is recorded on the experiment, and Re-evaluate reuses it.
+- **Judge:** CLI `--judge-model`, `--judge-base-url`, `--judge-effort` or the UI's "Judge provider" picker override the default judge. The judge is recorded on the experiment, and Re-evaluate reuses it.
 - **Recorded with every experiment:** the case revision (git sha, branch, dirty; UI launches take it from the dataset's last sync) and the agent's `revision` and `branch` from its capabilities response.
 - **Pinning:** each case's version and effective evaluators (including overlays) are pinned at start, so later edits don't change old results.
 - **Status moves** `running` → `evaluating` → `completed`, or to `failed` with an error.
@@ -125,7 +125,9 @@ sequenceDiagram
 - **Someone else's personal agent:** CLI "A belongs to U's workspace; only its owner can run it"; API 403 "only the owner of @U can run A".
 - **Unknown agent:** 404.
 - **Archived agent:** 409 "agent A is archived".
-- **No agent key in the server config:** 400 "no credentials.agents entry for A in the server config".
+- **Judge not a registered LLM provider:** 400 "<url> is not a registered LLM provider; registered: …".
+- **No judge and no default judge:** 400 "no default judge; …".
+- **No stored key for the agent, an evaluator or the judge's provider:** the run still starts. The response carries `warnings: […]` (also logged), and the call goes out without a key header. A harness that needs a key then fails, e.g. 502 "could not start experiment: …" when capabilities return 401.
 - **Harness unreachable at start:** 502 "could not start experiment: …".
 - **Sending capabilities for a shared agent:** 400 "capabilities are fetched by the server for shared agents".
 - **Not allowed to change the experiment:** 403 "you cannot change this experiment".

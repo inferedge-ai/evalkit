@@ -20,7 +20,18 @@ export function judgeOverride(
   defaults: JudgeSettings | null,
   choice: JudgeChoice,
 ): JudgeSettings | null {
-  if (!defaults) return null;
+  if (!defaults) {
+    const base_url = choice.base_url.trim();
+    const model = choice.model.trim();
+    if (!base_url || !model) return null;
+    return {
+      base_url,
+      model,
+      reasoning_effort: choice.reasoning_effort.trim() || "high",
+      max_tokens: 32768,
+      concurrency: 16,
+    };
+  }
   const picked = {
     model: choice.model.trim() || defaults.model,
     base_url: choice.base_url.trim() || defaults.base_url,

@@ -10,9 +10,14 @@
 
 <!-- How you checked it works: tests added, commands run, manual steps. -->
 
+## Screenshots
+
+<!-- UI changes only: screenshots of each changed page and flow, taken from a local run. Delete this section otherwise. -->
+
 ## Checklist
 
 - [ ] The pull request targets `develop`
 - [ ] Tests, `ruff` and `mypy` pass locally
 - [ ] `CHANGELOG.md` has an entry under `## Unreleased`, if users can do or see something new
 - [ ] Docs updated, if behaviour changed (`docs/user/`, `skills/`)
+- [ ] Screenshots added, if the UI changed

@@ -14,8 +14,8 @@ from evalkit import version
 from evalkit.api.app import create_app
 from evalkit.config import Config
 from evalkit.db.crypto import SecretBox
+from evalkit.db.rekey import rekey_all
 from evalkit.db.session import make_session_factory, run_migrations
-from evalkit.db.trace_sources import TraceSourceStore
 
 
 def init_sentry(config: Config) -> None:
@@ -44,8 +44,8 @@ def db_upgrade(config: Config, revision: str) -> None:
     run_migrations(config.db.url, revision)
 
 
-async def rekey_trace_sources(config: Config, old_key: str, new_key: str) -> int:
+async def rekey(config: Config, old_key: str, new_key: str) -> int:
     factory = make_session_factory(config.db.url)
-    count = await TraceSourceStore(factory, None).rekey(SecretBox(old_key), SecretBox(new_key))
+    count = await rekey_all(factory, SecretBox(old_key), SecretBox(new_key))
     await factory.kw["bind"].dispose()
     return count

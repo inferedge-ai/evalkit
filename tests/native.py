@@ -42,7 +42,7 @@ from evalkit.db.store import PgStore
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from evalkit.store.base import CaseFile, Experiment, RunDetail, Selection
-from tests.fake_agents import JUDGE_URL, TEST_CREDENTIALS_CONFIG, fake_credentials
+from tests.fake_agents import JUDGE_URL, TEST_ENCRYPTION_KEY, fake_credentials
 from tests.fake_blob import DictBlobStore
 from tests.fake_harness import FakeHarness
 from tests.identity import seed_agent, seed_evaluators, seed_identity
@@ -76,10 +76,10 @@ def make_cfg(tmp_path) -> Config:
         server=ServerConfig(base_url="http://evalkit.test"),
         db=DbConfig(url="postgresql+psycopg://unused/evalkit"),
         blob=BlobConfig(url=f"file://{tmp_path}/blob"),
-        judge_default=JudgeSettings(base_url=JUDGE_URL, model="judge-model"),
         cost_map=CostMapConfig(source=str(cost_map_path)),
-        credentials=TEST_CREDENTIALS_CONFIG,
         auth=AuthConfig(),
+        encryption_key=TEST_ENCRYPTION_KEY,
+        allow_private_endpoints=True,
     )
 
 
@@ -260,7 +260,7 @@ async def prepare(
         agent=agent,
         caps=caps,
         remote_evaluators=await deps.evaluators.in_workspace(agent.workspace),
-        judge=req.judge or deps.cfg.judge_default,
+        judge=req.judge or JudgeSettings(base_url=JUDGE_URL, model="judge-model"),
         runner=runner,
         holder=holder,
     )

@@ -24,7 +24,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Reference | How a dataset, agent or evaluator is named: `name@workspace`. The API and UI always use the full form; the CLI also takes a bare `name`, meaning your personal workspace. |
 | Local run | An experiment whose agent is in a personal workspace: the user's CLI drives the harness, runs evaluators and the judge, and writes results to the server. |
 | Server run | An experiment whose agent is shared: the server's own runner drives it. |
-| Developer config | `evalkit.yaml` in the client's repo: the `credentials:` map, the `cases` / `fixtures` directories. Keys come from env or a `.env` beside it. |
+| Developer config | `evalkit.yaml` in the client's repo: the `credentials:` map (keys for personal agents and evaluators and the judge's LLM provider), the `cases` / `fixtures` directories. Keys come from env or a `.env` beside it. |
 | Experiment | One run of one dataset against one agent (× N repetitions). |
 | Run | One case executed once against the agent, in a fresh session. |
 | App run | A run of an agent outside any experiment: production, staging, or a developer using the agent by hand. Never "production run" when you mean "not an eval run". |
@@ -38,8 +38,11 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Remote evaluator | A client-hosted evaluator reached through the Custom Evaluator API, stored in a workspace (`evalkit evaluators create`). |
 | Evaluation | One evaluator's output on one run: a `score` or a `gauge` reading. |
 | Gauge | A measurement, not a score: tokens, cost, time, tool-call counts. |
-| Judge | An LLM used by an evaluator to grade an answer. Chosen per experiment; the server's `judge_default` applies when the run doesn't set one. |
-| Credential registry | The lookup from a reference to an API key, built from the `credentials:` map in server config or `evalkit.yaml`. The only place API keys are configured; the database never holds them. |
+| Judge | An LLM used by an evaluator to grade an answer. Chosen per experiment; the default judge applies when the run doesn't set one. A server run's judge must use a registered LLM provider. |
+| LLM provider | An OpenAI-compatible endpoint evalkit may call: a name (`openai`), a base URL and a stored key. Today only judges use providers. Admins manage them (`evalkit llm-providers`). |
+| Default judge | The judge (provider, model, effort, limits) an experiment uses when it does not set its own. Set by an admin in the database (`evalkit judge-default set`). |
+| Stored key | An API key saved in the database, encrypted with the server's `encryption_key`, never returned (reads show `has_api_key`). Shared agents, shared remote evaluators, LLM providers and trace sources have one. |
+| Credential registry | The CLI and SDK lookup from a reference (or a judge base URL) to an API key, built from the `credentials:` map in `evalkit.yaml` (`agents`, `evaluators`, `llm_providers`). Used by local and SDK runs only; the server uses stored keys. |
 | Bucket | A scorecard grouping of evaluator scores: content, trajectory, presentation, efficiency, custom. |
 | Split | A selectable subset of a dataset, built from case tags. |
 | Overlay | A client extension of a case in another suite: extra evaluator config attached by case id, scored only for the agents it names. |
@@ -89,7 +92,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 
 - `api → core → store`; `db` may import `core`, `store/base.py` and `contracts`; `cli → client → core`; `sdk → client → core`. Arrows never reverse; `core` imports neither `sdk`, `client` nor `api`; `sdk` imports nothing from `cli`. `core/traces` has no database or HTTP-server imports; the runner reaches sessions only through the `SessionReader` on `RunnerDeps`.
 - Only `store/blob.py` imports obstore. `store/` never imports `core` or `db`. `client` and `cli` may import `store/base.py` (pure models and the `Store` protocol) but never `db`, `store/blob`, or any server-only package (server-only commands live behind the `evalkit[server]` extra boundary in `cli/server_commands.py`).
-- The CLI never holds database or blob credentials: local runs reach the store and blob through the evalkit API. API keys live only in `credentials:` maps (server config or `evalkit.yaml`) and env; the database holds none, except trace source keys, stored encrypted.
+- The CLI never holds database or blob credentials: local runs reach the store and blob through the evalkit API. The server's API keys are stored keys, encrypted in the database with `encryption_key`; the CLI's keys live in `evalkit.yaml` `credentials:` and env.
 - The base package depends on `opentelemetry-api` only; the OTel SDK and the OTLP exporter are the `evalkit[otel]` extra, `opentelemetry-proto` is in `server`.
 - evalkit code has zero knowledge of any client's agent internals: no client tool names, paths, buckets, or env vars.
 
@@ -110,6 +113,19 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - A source checkout reports the plain semver and serves no wheel: `/api/cli` is 404 unless `EVALKIT_WHEEL_DIR` points at a directory holding one wheel of the same version.
 - The try-it stack (`skills/evalkit-deployment/try/`, walkthrough in `docs/user/try-locally.md`) builds the image from this checkout: `docker compose up -d --wait --build`.
 - `tests/e2e/services.py` serves a fake harness, custom evaluator and judge on ports 18080, 19000 and 19090 for e2e runs against a built image.
+
+### UI changes in a PR
+
+- Run the server and UI locally (see "Local server"; a throwaway Postgres,
+  dummy keys and the fake services in `tests/e2e/services.py` are enough).
+- Click through every page and flow the PR changes and take screenshots.
+- Add them to the PR description under "Screenshots" with
+  `gh pr edit <n> --body-file body.md --attach ./shot.png ...`: write
+  `![caption](./shot.png)` in `body.md` and gh uploads each file to GitHub and
+  rewrites the link. Never commit screenshots to the repo.
+- `tsc`, `vitest` and `vite build` passing is not a UI test.
+- No browser `alert()`, `confirm()` or `prompt()` in new UI code: use inline
+  fields or dialogs.
 
 ## CI
 

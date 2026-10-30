@@ -5,6 +5,7 @@ COPY ui/package.json ui/package-lock.json ./
 RUN npm ci
 COPY ui/ ./
 COPY docs/user/ /build/docs/user/
+COPY src/evalkit/contracts/notes.json /build/src/evalkit/contracts/notes.json
 RUN npx tsc -b && npx vite build
 
 # Stage 2: the server image

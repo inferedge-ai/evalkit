@@ -7,6 +7,7 @@ import { AgentsPage } from "./agents/AgentsPage";
 import { ReviewsPage } from "./pages/ReviewsPage";
 import { UsersAdminPage } from "./pages/UsersAdmin";
 import { TraceSourcesPage } from "./pages/TraceSourcesPage";
+import { LlmProvidersPage } from "./pages/LlmProvidersPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { AuthGate } from "./shell/capabilities";
 import { Shell } from "./shell/Shell";
@@ -76,6 +77,7 @@ export function App() {
             />
             <Route path="/workspace/:tab" element={<WorkspacePage />} />
             <Route path="/admin/trace-sources" element={<TraceSourcesPage />} />
+            <Route path="/admin/llm-providers" element={<LlmProvidersPage />} />
             <Route
               path="*"
               element={<NotFound what="page" up={{ label: "Home", to: "/" }} />}

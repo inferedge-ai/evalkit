@@ -78,8 +78,6 @@ async def update_workspace(
     if body.name is not None:
         await store.rename(ws, body.name)
         update += [
-            f"server config credentials: rename every key ending in @{ws} to @{body.name}; "
-            "until then the server calls those agents and evaluators with no key",
             f"developer evalkit.yaml credentials keys ending in @{ws}",
             f"CI and scripts that pass --workspace {ws} or refer to name@{ws}",
             f"bookmarked UI links that contain @{ws}",

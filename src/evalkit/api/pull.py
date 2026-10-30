@@ -161,7 +161,7 @@ async def pull_runs(
     record = await agent_or_404(agents, agent)
     selected, total, note = await _select(record, body, deps, spans, session)
     await session.commit()
-    harness = harness_client(deps, record) if server_may_drive(record) and selected else None
+    harness = await harness_client(deps, record) if server_may_drive(record) and selected else None
     ctx = PullContext(
         agent=record,
         deps=deps,

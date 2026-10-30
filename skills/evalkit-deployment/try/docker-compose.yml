@@ -9,8 +9,8 @@
 # The image is EVALKIT_IMAGE when set. In an evalkit checkout, leave it unset
 # and `--build` builds it from the repo.
 #
-# Not a deployment: the server migrates on every start (db.migrate_on_start)
-# and the admin password is a fixed demo value.
+# Not a deployment: the server migrates on every start (db.migrate_on_start),
+# the encryption key is a fixed demo value, and so is the admin password.
 
 name: evalkit-try
 
@@ -44,9 +44,7 @@ services:
       - blob-data:/data/evalkit
     environment:
       EVALKIT_ADMIN_PASSWORD: ${EVALKIT_ADMIN_PASSWORD:?set in .env}
-      LLM_BASE_URL: ${LLM_BASE_URL:?set in .env}
-      LLM_API_KEY: ${LLM_API_KEY:?set in .env}
-      LLM_MODEL: ${LLM_MODEL:?set in .env}
+      EVALKIT_ENCRYPTION_KEY: Hc7MWSn0ThmIx7XEO8V2W3u6aUbBXrOcmxHTMlVf1rE=
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8020/api/health')"]
       interval: 2s
@@ -55,6 +53,28 @@ services:
       start_period: 60s
     depends_on:
       postgres:
+        condition: service_healthy
+
+  # One-shot: registers your LLM as the LLM provider "try" and makes it the
+  # default judge. Safe to rerun; it only creates what is missing.
+  setup:
+    <<: *image
+    environment:
+      EVALKIT_ADMIN_PASSWORD: ${EVALKIT_ADMIN_PASSWORD:?set in .env}
+      LLM_BASE_URL: ${LLM_BASE_URL:?set in .env}
+      LLM_API_KEY: ${LLM_API_KEY:?set in .env}
+      LLM_MODEL: ${LLM_MODEL:?set in .env}
+    command:
+      - sh
+      - -ec
+      - |
+        evalkit login --url http://server:8020 --username admin --password "$$EVALKIT_ADMIN_PASSWORD"
+        evalkit llm-providers show try >/dev/null 2>&1 ||
+          evalkit llm-providers create try --base-url "$$LLM_BASE_URL" --api-key-env LLM_API_KEY
+        evalkit judge-default set --provider try --model "$$LLM_MODEL" --concurrency 4
+    restart: "no"
+    depends_on:
+      server:
         condition: service_healthy
 
 volumes:

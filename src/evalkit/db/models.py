@@ -152,6 +152,7 @@ class Agent(AuditMixin, Base):
     )
     repo_url: Mapped[str | None] = mapped_column(String(500), default=None)
     config: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'"))
+    api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
@@ -168,7 +169,30 @@ class RemoteEvaluator(AuditMixin, Base):
     name: Mapped[str] = mapped_column(String(150))
     kind: Mapped[str] = mapped_column(String(8))
     config: Mapped[dict] = mapped_column(JSONB)
+    api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+
+class LlmProvider(AuditMixin, Base):
+    __tablename__ = "llm_providers"
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_llm_providers_name"),
+        UniqueConstraint("base_url", name="uq_llm_providers_base_url"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(150))
+    base_url: Mapped[str] = mapped_column(String(500))
+    api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+
+class ServerSettings(AuditMixin, Base):
+    __tablename__ = "server_settings"
+    __table_args__ = (CheckConstraint("id = 1", name="ck_server_settings_single_row"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    default_judge: Mapped[dict | None] = mapped_column(JSONB, default=None)
 
 
 class TraceSource(AuditMixin, Base):

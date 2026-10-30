@@ -18,7 +18,15 @@ describe("judge override", () => {
       reasoning_effort: "high",
     });
     expect(judgeOverride(defaults, judgeChoice(defaults))).toBeNull();
-    expect(judgeOverride(null, judgeChoice(defaults))).toBeNull();
+  });
+
+  it("without a server default, sends a judge once provider and model are picked", () => {
+    const empty = { model: "", base_url: "", reasoning_effort: "" };
+    expect(judgeOverride(null, empty)).toBeNull();
+    expect(
+      judgeOverride(null, { ...empty, base_url: "https://llm/v1" }),
+    ).toBeNull();
+    expect(judgeOverride(null, judgeChoice(defaults))).toEqual(defaults);
   });
 
   it("sends the full settings when a field changes", () => {
