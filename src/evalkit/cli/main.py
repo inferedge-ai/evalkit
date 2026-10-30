@@ -272,12 +272,6 @@ def update(
     server: str = typer.Option(
         None, "--server", help="Server base URL; defaults to the one you logged in to."
     ),
-    vendor: Path | None = typer.Option(
-        None,
-        "--vendor",
-        help="Also put the server's wheel in this directory for a project's evalkit.sdk "
-        "scripts (the first time too). Without it, a wheel already in ./vendor is replaced.",
-    ),
     skills: bool = typer.Option(
         True,
         "--skills/--no-skills",
@@ -285,19 +279,18 @@ def update(
         "`evalkit skills install` wrote to.",
     ),
 ):
-    """Download the server's matching wheel, verify its checksum and reinstall the CLI.
+    """Reinstall the CLI from PyPI at the server's version.
 
-    Run it from the project directory: it also replaces the evalkit wheel in ./vendor
-    (and the pyproject.toml line that names it), so the CLI and the SDK match the
-    server again after a deploy. --vendor DIR downloads the wheel into a project that
-    has none yet and prints the `uv add` line. After a reinstall it runs the new
+    Run it from the project directory: it also moves an `evalkit-py==…` pin in
+    ./pyproject.toml to the server's version and runs `uv sync`, so the CLI and the SDK
+    match the server again after a deploy. After a reinstall it runs the new
     `evalkit skills install` again in every skills directory installed before, and in
     ./.claude/skills or ./.agents/skills if an earlier install put skills there.
 
-    Example: evalkit update · evalkit update --vendor vendor · evalkit update --no-skills
+    Example: evalkit update · evalkit update --no-skills
     """
     server_url = server or _active_connection().url
-    run_update(ApiClient(server_url, check_version=False), vendor=vendor, skills=skills)
+    run_update(ApiClient(server_url, check_version=False), skills=skills)
 
 
 @app.command()
