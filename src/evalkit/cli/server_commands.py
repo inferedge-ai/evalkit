@@ -56,6 +56,8 @@ async def rekey_trace_sources(config: Config, old_key: str, new_key: str) -> int
 
 def create_database_if_missing(url: str) -> None:
     parsed = make_url(url).set(drivername="postgresql")
+    if not parsed.database:
+        raise ValueError(f"{url} names no database")
     try:
         psycopg.connect(parsed.render_as_string(hide_password=False)).close()
         return
