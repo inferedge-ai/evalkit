@@ -5,10 +5,13 @@ alembic). The base CLI install stays a thin HTTP client; `main.py` imports this
 module only when the server extra is present and points users at it otherwise.
 """
 
+import psycopg
 import sentry_sdk
 import uvicorn
+from psycopg import sql
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
+from sqlalchemy.engine import make_url
 
 from evalkit import version
 from evalkit.api.app import create_app
@@ -49,3 +52,21 @@ async def rekey_trace_sources(config: Config, old_key: str, new_key: str) -> int
     count = await TraceSourceStore(factory, None).rekey(SecretBox(old_key), SecretBox(new_key))
     await factory.kw["bind"].dispose()
     return count
+
+
+def create_database_if_missing(url: str) -> None:
+    parsed = make_url(url).set(drivername="postgresql")
+    try:
+        psycopg.connect(parsed.render_as_string(hide_password=False)).close()
+        return
+    except psycopg.OperationalError as exc:
+        if "does not exist" not in str(exc):
+            raise
+    admin = parsed.set(database="postgres").render_as_string(hide_password=False)
+    with psycopg.connect(admin, autocommit=True) as conn:
+        conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(parsed.database)))
+
+
+def init_database(url: str) -> None:
+    create_database_if_missing(url)
+    run_migrations(url, "head")

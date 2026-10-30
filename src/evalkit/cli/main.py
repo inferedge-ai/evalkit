@@ -13,6 +13,7 @@ import typer
 from dotenv import load_dotenv
 
 from evalkit import version
+from evalkit.cli import init_server
 from evalkit.cli.admin_commands import register as register_admin
 from evalkit.cli.admin_commands import trace_sources_app
 from evalkit.cli.client import ApiClient, ApiError
@@ -1008,6 +1009,65 @@ def contracts_export(
     for file in files:
         shutil.copyfile(file, target / file.name)
         typer.echo(f"exported {file.name} → {target / file.name}")
+
+
+@app.command("init-server")
+def init_server_command(
+    directory: Path = typer.Option(
+        init_server.DEFAULT_DIR, "--dir", help="Directory for the try kit, config.yaml and .env."
+    ),
+    database_url: str | None = typer.Option(
+        None, "--database-url", help="Postgres URL; the database is created when missing."
+    ),
+    llm_base_url: str | None = typer.Option(None, "--llm-base-url"),
+    llm_model: str | None = typer.Option(None, "--llm-model"),
+    llm_api_key: str | None = typer.Option(None, "--llm-api-key"),
+    admin_password: str | None = typer.Option(None, "--admin-password"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Never prompt; use flags, env, defaults."),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing config.yaml."),
+    kit_only: bool = typer.Option(
+        False, "--kit-only", help="Only copy the try kit; no database, config.yaml or .env."
+    ),
+):
+    """Set up an evalkit server on this machine, against a Postgres you already run.
+
+    Copies the try kit (sample agent, cases, run.py) into --dir, creates the database
+    when missing, writes config.yaml (blobs under <dir>/data) and .env (your LLM and the
+    admin password), and migrates the database. Values come from flags, then env
+    (EVALKIT_DATABASE_URL, LLM_BASE_URL, LLM_MODEL, LLM_API_KEY, EVALKIT_ADMIN_PASSWORD),
+    then prompts.
+
+    Example: evalkit init-server · evalkit init-server --kit-only --dir ./evalkit-try
+    """
+    if kit_only:
+        init_server.copy_kit(directory)
+        typer.echo(f"copied the try kit to {directory}")
+        return
+    if server_commands is None:
+        raise ApiError(
+            "`evalkit init-server` needs the server extra — pip install 'evalkit-py[server]'"
+        )
+    if (directory / "config.yaml").exists() and not force:
+        raise ApiError(f"{directory / 'config.yaml'} exists; pass --force to overwrite it")
+    flags = {
+        "database_url": database_url,
+        "llm_base_url": llm_base_url,
+        "llm_model": llm_model,
+        "llm_api_key": llm_api_key,
+        "admin_password": admin_password,
+    }
+    answers = init_server.resolve(flags, yes=yes)
+    typer.echo(
+        f"connecting to {answers.database_url} (is Postgres running? brew services start "
+        "postgresql@17, sudo systemctl start postgresql, or Postgres.app)"
+    )
+    server_commands.init_database(answers.database_url)
+    init_server.copy_kit(directory)
+    init_server.write_server_files(directory, answers)
+    typer.echo(f"set up {directory}: config.yaml, .env, the try kit; database migrated")
+    typer.echo("next:")
+    typer.echo(f"  cd {directory} && evalkit serve")
+    typer.echo("  then open http://localhost:8020 and follow Try it locally from step 1")
 
 
 @app.command()
