@@ -145,6 +145,17 @@ def eval_run(metadata: dict[str, Any]) -> Iterator[None]:
 
 
 def register(agent: str, only: SpanFilter | None = None) -> None:
+    """Send this process's OpenTelemetry spans to the evalkit server.
+
+    Adds an exporter to the global tracer provider, or creates one when none is set.
+    Call it after your own tracing setup, so it joins your provider. Spans go to the
+    server you logged in to (or `EVALKIT_SERVER_URL`), with your token or
+    `EVALKIT_OTEL_TOKEN` (an agent token). Needs the `otel` extra.
+
+    Args:
+        agent: The agent the spans belong to, e.g. `myagent` or `myagent@dev`.
+        only: Export only the spans this function returns `True` for.
+    """
     span_processor = processor(agent, only)
     current = trace.get_tracer_provider()
     if isinstance(current, TracerProvider):

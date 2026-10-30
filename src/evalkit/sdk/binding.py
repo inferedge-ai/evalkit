@@ -13,6 +13,14 @@ ALLOWED = ("input", "files", "model", "metadata")
 
 
 class Fixture(BaseModel):
+    """A case's fixture file, downloaded before the task is called.
+
+    Attributes:
+        name: The fixture key the case names.
+        path: Where the file sits on this machine.
+        context: The file's description from the fixture registry, or `None`.
+    """
+
     name: str
     path: Path
     context: str | None = None
