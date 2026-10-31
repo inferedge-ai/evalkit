@@ -133,6 +133,8 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 
 ## CI
 
+- **Open pull requests as drafts** (`gh pr create --draft`). CI skips drafts, so run the tests locally and mark the PR ready (`gh pr ready <number>`) when it should be reviewed and run CI.
+
 `.github/workflows/ci.yml` runs on PRs to `develop`/`main` (non-draft; jobs are
 path-filtered against the PR base) and on pushes to those branches:
 
