@@ -339,6 +339,15 @@ async def test_search_matching_only_the_harness_lists_the_harness_row(shared):
     assert all(not r["stored"] for r in rows.values())
 
 
+async def test_org_filter_lists_only_that_orgs_harness_runs(shared):
+    client, harness, _ = shared
+    harness.runs["sess-extra"]["org_id"] = "org-b"
+    listed = (
+        await client.get("/api/agents/fake@canonical/runs", params={"org_id": "org-b"})
+    ).json()
+    assert [r["run_id"] for r in listed["runs"]] == ["sess-extra"]
+
+
 async def test_harness_down_still_lists_db_runs_with_a_note(shared, monkeypatch):
     client, _, _ = shared
 

@@ -118,7 +118,7 @@ class FakeHarness:
         async def list_runs(
             query: str | None = None,
             user_id: str | None = None,
-            client_id: str | None = None,
+            org_id: str | None = None,
             limit: int = 50,
             offset: int = 0,
             since: datetime | None = None,
@@ -129,11 +129,12 @@ class FakeHarness:
                     "run_id": run_id,
                     "title": f"run {run_id}",
                     "user_id": "dummy",
-                    "client_id": "dummy",
+                    "org_id": run.get("org_id", "dummy"),
                     "created_at": run.get("created_at", RUN_CREATED_AT).isoformat(),
                     "session_id": run.get("session_id"),
                 }
                 for run_id, run in self.runs.items()
+                if org_id is None or run.get("org_id", "dummy") == org_id
                 if self.ignore_time_filter
                 or (
                     (since is None or run.get("created_at", RUN_CREATED_AT) >= since)
