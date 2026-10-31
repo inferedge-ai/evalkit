@@ -229,7 +229,7 @@ class RunListParams(BaseModel):
         "Any other text matches runs whose title contains it, case-insensitive.",
     )
     user_id: str | None = Field(default=None, description="Filter to one user's runs.")
-    client_id: str | None = Field(default=None, description="Filter to one client's runs.")
+    org_id: str | None = Field(default=None, description="Filter to one org's runs.")
     limit: int = Field(default=50, description="Page size.")
     offset: int = Field(default=0, description="Page start.")
     since: datetime | None = Field(
@@ -253,7 +253,7 @@ class RunListItem(HarnessModel):
     user_id: str | None = Field(
         default=None, description="Optional filter value; fixed dummy if no multi-tenancy."
     )
-    client_id: str | None = Field(
+    org_id: str | None = Field(
         default=None, description="Optional filter value; fixed dummy if no multi-tenancy."
     )
     created_at: datetime | None = Field(default=None, description="Run creation time.")

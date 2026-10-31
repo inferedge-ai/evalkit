@@ -123,7 +123,7 @@ async def resolve_runs(
     until: datetime | None = None,
     query: str | None = None,
     user_id: str | None = None,
-    client_id: str | None = None,
+    org_id: str | None = None,
     limit: int = 50,
     offset: int = 0,
     no_session: bool = False,
@@ -198,7 +198,7 @@ async def resolve_runs(
             until=until,
             query=query,
             user_id=user_id,
-            client_id=client_id,
+            org_id=org_id,
             exclude=evals if source == "app" else None,
         )
         harness, harness_total = listed.runs, listed.total
@@ -209,7 +209,7 @@ async def resolve_runs(
     finally:
         await client.aclose()
     harness_ids = {run.run_id for run in harness}
-    if client_id is not None:
+    if org_id is not None:
         stored = [run for run in stored if run.run_id in harness_ids]
         stored_total = len(stored)
     overlap = sum(1 for run in stored if run.run_id in harness_ids)
@@ -230,7 +230,7 @@ async def list_runs(
     session: SessionDep,
     query: str | None = None,
     user_id: str | None = None,
-    client_id: str | None = None,
+    org_id: str | None = None,
     limit: int = 50,
     offset: int = 0,
     no_session: bool = False,
@@ -249,7 +249,7 @@ async def list_runs(
         until=until,
         query=query,
         user_id=user_id,
-        client_id=client_id,
+        org_id=org_id,
         limit=min(limit, MAX_PAGE),
         offset=offset,
         no_session=no_session,

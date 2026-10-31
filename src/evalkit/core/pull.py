@@ -58,7 +58,7 @@ async def list_harness_runs(
     until: datetime | None = None,
     query: str | None = None,
     user_id: str | None = None,
-    client_id: str | None = None,
+    org_id: str | None = None,
     exclude: Exclude | None = None,
 ) -> HarnessRuns:
     kept: list[RunListItem] = []
@@ -79,7 +79,7 @@ async def list_harness_runs(
             RunListParams(
                 query=query,
                 user_id=user_id,
-                client_id=client_id,
+                org_id=org_id,
                 limit=size,
                 offset=offset,
                 since=since,

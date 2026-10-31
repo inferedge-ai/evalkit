@@ -267,7 +267,7 @@ def run_row(run: runs_api.BrowserRun) -> RunRow:
         title=run.title,
         created_at=run.created_at,
         user_id=run.user_id,
-        client_id=run.client_id,
+        org_id=run.org_id,
         source=run.source,
         status=run.status,
         experiment_id=run.experiment_id,
@@ -487,7 +487,7 @@ def register(mcp: FastMCP, state: State) -> None:
         source: str = "all",
         query: str | None = None,
         user_id: str | None = None,
-        client_id: str | None = None,
+        org_id: str | None = None,
         timezone: str = "UTC",
         tool_error: str | None = None,
         failed_only: bool = False,
@@ -516,7 +516,7 @@ def register(mcp: FastMCP, state: State) -> None:
             "until": until,
             "query": query,
             "user_id": user_id,
-            "client_id": client_id,
+            "org_id": org_id,
         }
         if by_digest:
             # Which runs failed, or errored in a tool, is known only from their
@@ -602,7 +602,7 @@ def register(mcp: FastMCP, state: State) -> None:
         source: str = "all",
         query: str | None = None,
         user_id: str | None = None,
-        client_id: str | None = None,
+        org_id: str | None = None,
         max_runs: int = 500,
     ) -> GetRunStatsResponse:
         groupings = [group_by] if isinstance(group_by, str) else list(dict.fromkeys(group_by))
@@ -624,7 +624,7 @@ def register(mcp: FastMCP, state: State) -> None:
             "until": until,
             "query": query,
             "user_id": user_id,
-            "client_id": client_id,
+            "org_id": org_id,
         }
         page = await runs.page(record, limit=max_runs, offset=0, budget=budget, **filters)
         listed, in_window = page.runs, page.total

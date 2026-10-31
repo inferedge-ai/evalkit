@@ -111,7 +111,7 @@ class RunRow(Out):
     title: str | None = None
     created_at: datetime | None = None
     user_id: str | None = None
-    client_id: str | None = None
+    org_id: str | None = None
     source: Literal["app", "eval"] | None = None
     status: str | None = None
     experiment_id: int | None = None
