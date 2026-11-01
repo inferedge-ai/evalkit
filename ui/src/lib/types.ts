@@ -385,7 +385,7 @@ export interface RunListItem {
   run_id: string;
   title: string | null;
   user_id: string | null;
-  client_id?: string | null;
+  org_id?: string | null;
   created_at: string | null;
   status?: string | null;
   experiment_id?: number | null;

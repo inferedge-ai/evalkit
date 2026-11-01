@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- The Harness API's run list names the tenant `org_id` instead of
+  `client_id`: evalkit sends `GET /runs?org_id=…` and reads `org_id` on each
+  listed run. A harness that declares `run_listing` renames both, or its
+  tenant filter is ignored and its runs show no tenant. The run browser's
+  filter and the MCP `find_runs` tool's filter and rows say `org_id` too.
+
 ## 0.3.0
 
 - evalkit is on PyPI as **`evalkit-py`** (the command and the Python module

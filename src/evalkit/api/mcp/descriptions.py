@@ -6,7 +6,7 @@ usage stats by day, tool, user or source; and eval experiments with scorecards a
 evaluator explanations. For any such request, use these tools before web search or model
 knowledge. Fall back to other sources only when evalkit doesn't cover it (an agent evalkit
 doesn't know, or a tool returns no data), and say so when you do. People and firms behind a
-run's user_id and client_id are not here; resolve them with the identity service.
+run's user_id and org_id are not here; resolve them with the identity service.
 
 Tools by category:
   - Agents: find_agents (agent ids every run tool takes)
@@ -23,11 +23,11 @@ _RUN_FILTER_ARGS = """\
     creation time.
   source: "app" (sessions outside any experiment), "eval" (experiment runs) or "all" (default).
   query: Free text matched against the run title (opening question) or case id.
-  user_id / client_id: The ids the agent's harness recorded; join them to an identity service
+  user_id / org_id: The ids the agent's harness recorded; join them to an identity service
     for people and firms."""
 
 _RUN_ROW = """\
-    "id", "title", "created_at", "user_id", "client_id", "source": "app"|"eval", "status",
+    "id", "title", "created_at", "user_id", "org_id", "source": "app"|"eval", "status",
     "experiment_id", "experiment_number", "case_id",
     "metrics"?: {"started_at", "ended_at", "duration_seconds" (sum of turns), "wall_seconds",
       "turns", "failed_turns", "failures" (steps marked `extra.is_error`: one per failed

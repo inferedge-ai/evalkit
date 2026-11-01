@@ -97,11 +97,11 @@
             }
           },
           {
-            "name": "client_id",
+            "name": "org_id",
             "in": "query",
             "required": false,
             "schema": {
-              "description": "Filter to one client's runs.",
+              "description": "Filter to one org's runs.",
               "type": "string"
             }
           },
@@ -692,7 +692,7 @@
             "description": "Optional filter value; fixed dummy if no multi-tenancy.",
             "title": "User Id"
           },
-          "client_id": {
+          "org_id": {
             "anyOf": [
               {
                 "type": "string"
@@ -703,7 +703,7 @@
             ],
             "default": null,
             "description": "Optional filter value; fixed dummy if no multi-tenancy.",
-            "title": "Client Id"
+            "title": "Org Id"
           },
           "created_at": {
             "anyOf": [

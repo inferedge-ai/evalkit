@@ -6,7 +6,7 @@ const mk = (run_id: string, title: string | null): RunListItem => ({
   run_id,
   title,
   user_id: null,
-  client_id: null,
+  org_id: null,
   created_at: null,
 });
 
