@@ -935,7 +935,7 @@
 </tr>
 <tr>
 <td><code>find_runs</code></td>
-<td>An agent's runs in a time window, newest first: id, title, time, <code>user_id</code>, <code>client_id</code>, app or eval. <code>include</code> adds each run's <code>metrics</code>, <code>turns</code> or <code>tool_calls</code> (what it called, with which arguments). <code>failed_only</code> keeps runs with a failure; <code>tool_error</code> keeps runs where that tool errored. <code>timezone</code> reads date-only bounds as <code>get_run_stats</code> does. Up to 5,000 rows when listing alone, 200 with <code>include</code> or a filter</td>
+<td>An agent's runs in a time window, newest first: id, title, time, <code>user_id</code>, <code>org_id</code>, app or eval. <code>include</code> adds each run's <code>metrics</code>, <code>turns</code> or <code>tool_calls</code> (what it called, with which arguments). <code>failed_only</code> keeps runs with a failure; <code>tool_error</code> keeps runs where that tool errored. <code>timezone</code> reads date-only bounds as <code>get_run_stats</code> does. Up to 5,000 rows when listing alone, 200 with <code>include</code> or a filter</td>
 </tr>
 <tr>
 <td><code>get_runs</code></td>
@@ -961,7 +961,7 @@
 </table>
 <p>Every tool answers <code>{data, meta}</code>, with <code>data</code> a list of rows. Search tools page with <code>limit</code> and <code>offset</code> (<code>meta.next_offset</code> is the next page); tools that take ids answer one row per id in input order, with <code>note: {"code": "not_found"}</code> for an unknown one. Dates are <code>start_date</code> / <code>end_date</code> (<code>YYYY-MM-DD</code>, inclusive, or an ISO 8601 timestamp). Money is <code>{"value", "unit": "currency", "currency": "USD"}</code>. Errors read <code>&lt;code&gt;: &lt;detail&gt;</code>. Tools that read trajectories have a time budget for the whole call, listing included: a run not read in time comes back as a row with <code>error</code> and <code>detail</code> instead of metrics, counted in <code>meta.failed</code> by <code>get_runs</code>; ask for it again with <code>get_runs</code>. Optional fields with no value are left out of rows. When listing alone uses the budget, the call fails with <code>harness_timeout</code>; narrow the window. With <code>failed_only</code> or <code>tool_error</code>, <code>find_runs</code> reads the window again on every call, so take one page and fetch the runs not read with <code>get_runs</code> rather than paging on.</p>
 <p>A turn is one user message and everything the agent did until the next one. <code>cost_source</code> is <code>reported</code> when the harness priced the run, <code>estimated</code> when evalkit priced it from token counts, <code>mixed</code> for both. A turn counts as failed when the harness marks a step in it with <code>extra.is_error</code> (see <a href="../harness-api/">Harness API</a>).</p>
-<p><code>user_id</code> and <code>client_id</code> are what the harness recorded. Resolve them to people and firms with your identity service.</p>
+<p><code>user_id</code> and <code>org_id</code> are what the harness recorded. Resolve them to people and firms with your identity service.</p>
 
 
 
