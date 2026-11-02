@@ -81,3 +81,26 @@ def test_summary_lists_a_case_with_one_failing_evaluator_above_the_overall_bar()
     report = {**REPORT, "cases": [_case("c1", 0.9, answer_rubric_score=0.67, other=1.0)]}
     lines = summary_lines(report)
     assert any(line.endswith("0.90  (answer_rubric_score 0.67)") for line in lines)
+
+
+def test_summary_with_baseline_counts_error_to_pass_as_improved_and_hides_tiny_deltas():
+    base = {
+        **REPORT,
+        "buckets": {"content": 0.8333},
+        "cases": [_case("fixed", None), _case("broken", None)],
+    }
+    compare = {
+        **REPORT,
+        "buckets": {"content": 0.8341},
+        "cases": [_case("fixed", 1.0), _case("broken", None)],
+    }
+    lines = summary_lines(compare, base)
+    assert "  content        0.83" in lines
+    assert "  improved (1):" in lines
+    assert not any("broken" in line for line in lines)
+    assert "  unchanged: 1" in lines
+
+
+def test_summary_failing_list_ignores_rubric_diagnostics():
+    report = {**REPORT, "cases": [_case("c1", 0.9, answer_rubric_citation=0.0)]}
+    assert not any(line.startswith("failing cases") for line in summary_lines(report))

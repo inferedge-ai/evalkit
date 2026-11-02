@@ -97,7 +97,7 @@ def test_flow_10_compare_two_experiments_and_summary_baseline(
     assert {c["case_id"] for c in reverse["compare"]["cases"]} == {"c10-1", "c10-3"}
 
     summary = run_cli("summary", str(compared), "--baseline", str(base)).output
-    failing = summary.split("failing cases (< 0.80):")[1].split("\n\n")[0]
+    failing = summary.split("failing cases (")[1].split("\n\n")[0]
     lines = {line.split()[0]: line for line in failing.splitlines() if line.strip()[:4] == "c10-"}
     assert "Δ-0.50" in lines["c10-1"]
     assert "Δ" not in lines["c10-2"]

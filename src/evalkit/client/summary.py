@@ -1,5 +1,8 @@
+from evalkit.core.evaluators.base import PASS_THRESHOLD
+from evalkit.core.scorecard import ANSWER_RUBRIC_DIAGNOSTICS
+
 CHANGE_THRESHOLD = 0.05
-PASSING = 0.8
+SHOWN_DELTA = 0.005
 
 
 def _fmt(value: float | None) -> str:
@@ -12,7 +15,7 @@ def _delta(base: float | None, value: float | None) -> float | None:
 
 def _fmt_delta(base: float | None, value: float | None) -> str:
     delta = _delta(base, value)
-    return f"  Δ{delta:+.2f}" if delta is not None else ""
+    return f"  Δ{delta:+.2f}" if delta is not None and abs(delta) >= SHOWN_DELTA else ""
 
 
 def _num(value: float | None) -> str:
@@ -28,9 +31,13 @@ def _change(base: dict | None, case: dict | None) -> str:
         return "removed"
     if base is None:
         return "new"
-    delta = _delta(base["overall"], case["overall"])
-    if delta is None:
-        return "unscored"
+    if base["overall"] is None or case["overall"] is None:
+        if base["overall"] is None and case["overall"] is not None:
+            return "improved"
+        if base["overall"] is not None and case["overall"] is None:
+            return "regressed"
+        return "unchanged"
+    delta = round(case["overall"] - base["overall"], 6)
     if delta >= CHANGE_THRESHOLD:
         return "improved"
     if delta <= -CHANGE_THRESHOLD:
@@ -46,7 +53,6 @@ def _changed_cases(report: dict, base: dict) -> list[str]:
         "improved": [],
         "new": [],
         "removed": [],
-        "unscored": [],
         "unchanged": [],
     }
     for case_id in sorted(before.keys() | after.keys()):
@@ -93,13 +99,15 @@ def summary_lines(report: dict, base: dict | None = None) -> list[str]:
         low = {
             name: score
             for name, score in (case.get("scores") or {}).items()
-            if score is not None and score < PASSING
+            if name not in ANSWER_RUBRIC_DIAGNOSTICS
+            and score is not None
+            and score < PASS_THRESHOLD
         }
-        overall_low = case["overall"] is not None and case["overall"] < PASSING
+        overall_low = case["overall"] is not None and case["overall"] < PASS_THRESHOLD
         if overall_low or low:
             failing.append((case, low))
     if failing:
-        lines.append(f"failing cases (overall or any evaluator < {PASSING:.2f}):")
+        lines.append(f"failing cases (overall or any evaluator < {PASS_THRESHOLD:.2f}):")
         for case, low in failing:
             delta = f"  Δ{case['delta']:+.2f}" if case.get("delta") is not None else ""
             evaluators = ", ".join(f"{name} {_fmt(score)}" for name, score in sorted(low.items()))
