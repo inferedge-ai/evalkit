@@ -31,7 +31,14 @@ Each job does three things:
 3. Runs `evalkit lint` or `evalkit sync`.
 
 `--actor` is admin only. It records the merge author in the case changelog,
-instead of `admin`.
+instead of `admin`. It is a free-text label: the server stores it as given
+and does not look it up among evalkit users. The example passes the commit
+author's email; pass an evalkit username instead if your CI can map one.
+
+Pass values from the commit, such as the author's email, through `env:`, as
+the example does. Never write `${{ ... }}` straight into a `run:` script:
+whoever pushes the commit controls those values, and the job holds the admin
+password.
 
 ## GitHub Actions example
 
@@ -70,9 +77,11 @@ jobs:
           done
       - name: Sync
         if: github.event_name == 'push'
+        env:
+          AUTHOR: ${{ github.event.head_commit.author.email }}
         run: |
           for suite in eval-cases/*/; do
-            evalkit sync "$suite" --workspace dev --actor "${{ github.event.head_commit.author.email }}"
+            evalkit sync "$suite" --workspace dev --actor "$AUTHOR"
           done
 ```
 
