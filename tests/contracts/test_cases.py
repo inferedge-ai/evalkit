@@ -4,7 +4,9 @@ import pytest
 from pydantic import ValidationError
 
 from evalkit.contracts.cases import (
+    EVALUATOR_HOMES,
     Case,
+    CaseSchemaError,
     Overlay,
     content_hash,
     is_case_yaml,
@@ -78,7 +80,7 @@ def test_overlay_with_builtin_evaluator_rejected(tmp_path):
 def test_overlay_requires_agents(tmp_path):
     p = tmp_path / "o.yaml"
     p.write_text("overlays:\n- extends: a\n  evaluators: {custom: {x: {}}}\n")
-    with pytest.raises(ValidationError, match="agents"):
+    with pytest.raises(CaseSchemaError, match="agents"):
         load_cases_from_yaml(p)
 
 
@@ -105,7 +107,7 @@ def test_overlay_agent_must_be_a_bare_name(tmp_path):
     p.write_text(
         "overlays:\n- extends: a\n  agents: [support-bot@akshat]\n  evaluators: {custom: {x: {}}}\n"
     )
-    with pytest.raises(ValidationError, match="agents"):
+    with pytest.raises(CaseSchemaError, match="agents"):
         load_cases_from_yaml(p)
 
 
@@ -342,14 +344,14 @@ def test_overlay_rejects_trajectory_rubrics(tmp_path):
         "overlays:\n- extends: a\n  agents: [support-bot]\n  evaluators:\n    trajectory:\n"
         "      trajectory_rubrics: {rubrics: [r]}\n"
     )
-    with pytest.raises(ValidationError, match="trajectory_rubrics"):
+    with pytest.raises(CaseSchemaError, match="trajectory_rubrics"):
         load_cases_from_yaml(p)
 
 
 def test_overlay_needs_some_evaluator(tmp_path):
     p = tmp_path / "ov.yaml"
     p.write_text("overlays:\n- extends: a\n  agents: [support-bot]\n  evaluators: {}\n")
-    with pytest.raises(ValidationError, match="custom or trajectory"):
+    with pytest.raises(CaseSchemaError, match="custom or trajectory"):
         load_cases_from_yaml(p)
 
 
@@ -360,3 +362,49 @@ def test_content_hash_ignores_where_a_fixture_was_resolved_from():
     entry = {"key": "a.csv", "sha256": "a" * 64, "context": "ctx"}
     assert content_hash(case, [entry]) == content_hash(case, [{**entry, "workspace": "akshat"}])
     assert content_hash(case, [entry]) != content_hash(case, [{**entry, "sha256": "b" * 64}])
+
+
+def test_schema_error_names_valid_keys_and_where_an_evaluator_belongs(tmp_path):
+    p = tmp_path / "cases.yaml"
+    p.write_text(
+        "- id: a\n  input: {question: q}\n  evaluators:\n"
+        "    presentation_judge: {rubrics: [{rubric: x}]}\n"
+    )
+    with pytest.raises(CaseSchemaError) as exc:
+        load_cases_from_yaml(p)
+    assert exc.value.case_id == "a"
+    assert exc.value.lines == [
+        "evaluators.presentation_judge: Extra inputs are not permitted;"
+        " valid keys here: output, trajectory, custom;"
+        " `presentation_judge` goes under `evaluators.output`"
+    ]
+
+
+def test_schema_error_explains_a_bucket_name_and_a_bare_number(tmp_path):
+    p = tmp_path / "cases.yaml"
+    p.write_text(
+        "- id: a\n  input: {question: q}\n  evaluators:\n"
+        "    presentation: {}\n    output: {max_response_time: 90}\n"
+    )
+    with pytest.raises(CaseSchemaError) as exc:
+        load_cases_from_yaml(p)
+    text = " ".join(exc.value.lines)
+    assert "`presentation` is a scorecard bucket, not a YAML key" in text
+    assert "expects a mapping with keys: max_seconds" in text
+
+
+def test_schema_error_lists_valid_keys_inside_a_list(tmp_path):
+    p = tmp_path / "cases.yaml"
+    p.write_text(
+        "- id: a\n  input: {question: q}\n  evaluators:\n    output:\n"
+        "      presentation_judge: {rubrics: [{rubric: x, criteria: y}]}\n"
+    )
+    with pytest.raises(CaseSchemaError) as exc:
+        load_cases_from_yaml(p)
+    assert "valid keys here: rubric, forbid, points, note" in exc.value.lines[0]
+
+
+def test_case_schema_page_shows_every_evaluator():
+    page = (Path(__file__).parents[2] / "docs" / "user" / "case-schema.md").read_text()
+    for name, home in EVALUATOR_HOMES.items():
+        assert f"{home}.{name}" in page

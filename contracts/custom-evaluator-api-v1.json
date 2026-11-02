@@ -43,6 +43,7 @@
     "schemas": {
       "EvalCase": {
         "additionalProperties": true,
+        "description": "The case a Python evaluator scores.\n\nAttributes:\n    id: Case id.\n    input: Case input, verbatim.\n    expected: The case's `expected` block, or None.\n    config: This evaluator's block from the case's `evaluators.custom`.",
         "properties": {
           "id": {
             "description": "Case id.",
@@ -143,6 +144,7 @@
       },
       "EvalRun": {
         "additionalProperties": true,
+        "description": "The run a Python evaluator scores.\n\nAttributes:\n    answer: The agent's final answer; a structured output as canonical JSON\n        when the agent returned only that.\n    output: The structured output, or None.\n    trajectory: The ATIF trajectory document as a dict.",
         "properties": {
           "answer": {
             "description": "The agent's final answer. When the harness sent only a structured output, this is that output as canonical JSON (sorted keys).",
@@ -179,6 +181,7 @@
       },
       "ScoreItem": {
         "additionalProperties": true,
+        "description": "One named score a Python evaluator returns.\n\nAttributes:\n    name: Score name; one evaluator may return several.\n    score: The score, or None for \"no reading\" (kept out of aggregates).\n    label: Optional short label.\n    explanation: Optional explanation, shown in the UI.",
         "properties": {
           "name": {
             "description": "Score name. Multi-score is first-class: one call may return several named scores.",

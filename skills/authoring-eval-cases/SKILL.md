@@ -19,6 +19,9 @@ evaluator config, never in that text:
 - Checks scored by the client's own Custom Evaluator API endpoints go in an
   overlay. See [`references/overlays.md`](references/overlays.md).
 
+Every YAML key, with one example per evaluator, is in
+[Case schema](../evalkit-docs/case-schema.md). Check a key there before writing it.
+
 ## Terms
 
 | Term | Meaning |
@@ -56,7 +59,7 @@ general conversational rule). Stop asking when the slots are full, not before.
 | What a correct answer contains | `answer_rubrics` | Concrete values (or the correct honest negative), dated — see the rubric sections below. |
 | The intermediate values and visible steps the work should show | `trajectory_rubrics` | Checkpoint sentences — see below. |
 | Presentation requirements, if any | `presentation_judge` | Units shown, columns present, an artifact relayed rather than restated. |
-| A latency bound, if the case has one | `max_response_time` | Seconds; settable file-wide via `defaults.max_response_time`. |
+| A latency bound, if the case has one | `max_response_time` | `max_response_time: {max_seconds: 90}` under `evaluators.output`; settable file-wide via `defaults.max_response_time: 90`. |
 
 For agents that return a structured `output` (classifiers, taggers,
 extractors) instead of prose: `answer_rubrics` still works, since the judge
@@ -236,12 +239,25 @@ meant the same thing.
 
 How the answer displays its content — a table with named columns, an ordering,
 units shown, an artifact relayed rather than restated — goes under
-`presentation_judge`, never into `answer_rubrics`. Each entry is a property
-the answer must have, phrased as the property rather than a description of
-the answer having it ("A store count for each fiscal year FY2021–FY2025, as a
-table or a labelled list"); `forbid` entries name properties the answer must
-not have. Correctness of the figures stays in `answer_rubrics` — asserting
-the same thing in both places reweights it rather than making the case
+`evaluators.output.presentation_judge`, never into `answer_rubrics`. Each
+entry in its `rubrics` list carries exactly one of `rubric`, a property the
+answer must have, or `forbid`, a property it must not have. Phrase the
+property rather than a description of the answer having it. At least one
+entry must be a `rubric`.
+
+```yaml
+evaluators:
+  output:
+    presentation_judge:
+      rubrics:
+        - rubric: A store count for each fiscal year FY2021–FY2025, as a table or a labelled list.
+        - forbid: Figures given without a currency unit.
+          points: 2
+```
+
+`points` (1–10, default 1) weights an entry within the case.
+Correctness of the figures stays in `answer_rubrics` — asserting the same
+thing in both places reweights it rather than making the case
 stricter.
 
 ## Writing trajectory rubrics

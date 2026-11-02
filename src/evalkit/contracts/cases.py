@@ -10,11 +10,19 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import types
 from pathlib import Path
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Union, get_args, get_origin
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 AnswerRubricType = Literal[
     "factual_retrieval",
@@ -342,6 +350,89 @@ class Overlay(BaseModel):
     evaluators: OverlayEvaluators
 
 
+SCORECARD_BUCKETS = ("content", "trajectory", "presentation", "efficiency")
+
+EVALUATOR_HOMES = {
+    name: f"evaluators.{family}"
+    for family, model in (("output", OutputEvaluators), ("trajectory", TrajectoryEvaluators))
+    for name in model.model_fields
+}
+
+
+def _submodel(annotation: Any) -> type[BaseModel] | None:
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+    if get_origin(annotation) in (Union, types.UnionType, Annotated):
+        for arg in get_args(annotation):
+            found = _submodel(arg)
+            if found is not None:
+                return found
+    return None
+
+
+def _model_at(model: type[BaseModel], loc: tuple[int | str, ...]) -> type[BaseModel] | None:
+    current: type[BaseModel] | None = model
+    for part in loc:
+        if current is None:
+            return None
+        if isinstance(part, int):
+            continue
+        field = current.model_fields.get(part)
+        if field is None:
+            return None
+        annotation = field.annotation
+        if get_origin(annotation) is list:
+            annotation = get_args(annotation)[0]
+        current = _submodel(annotation)
+    return current
+
+
+def explain_schema_error(model: type[BaseModel], exc: ValidationError) -> list[str]:
+    lines = []
+    for error in exc.errors():
+        loc = tuple(error["loc"])
+        where = ".".join(str(part) for part in loc) or "(top level)"
+        line = f"{where}: {error['msg']}"
+        if error["type"] == "extra_forbidden" and loc:
+            key = str(loc[-1])
+            parent = _model_at(model, loc[:-1])
+            if parent is not None:
+                line += f"; valid keys here: {', '.join(parent.model_fields)}"
+            home = EVALUATOR_HOMES.get(key)
+            if home is not None:
+                line += f"; `{key}` goes under `{home}`"
+            elif key in SCORECARD_BUCKETS and loc[:-1] == ("evaluators",):
+                line += (
+                    f"; `{key}` is a scorecard bucket, not a YAML key: evaluators sit under"
+                    " `evaluators.output` or `evaluators.trajectory` (see case-schema.md)"
+                )
+        if error["type"] == "model_type":
+            expected = _model_at(model, loc)
+            if expected is not None:
+                line += f"; expects a mapping with keys: {', '.join(expected.model_fields)}"
+        lines.append(line)
+    return lines
+
+
+class CaseSchemaError(ValueError):
+    def __init__(self, path: Path, case_id: str | None, lines: list[str]):
+        self.path = path
+        self.case_id = case_id
+        self.lines = lines
+        label = f"case {case_id!r}" if case_id else "an entry"
+        super().__init__(f"{path}: {label} is invalid: " + " | ".join(lines))
+
+
+def _validate(model: type[BaseModel], path: Path, item: Any, id_key: str) -> Any:
+    case_id = item.get(id_key) if isinstance(item, dict) else None
+    try:
+        return model.model_validate(item)
+    except ValidationError as exc:
+        raise CaseSchemaError(
+            path, str(case_id) if case_id else None, explain_schema_error(model, exc)
+        ) from exc
+
+
 _ALLOWED_DEFAULTS = {"input", "tags", "max_response_time", "agents"}
 
 
@@ -407,13 +498,16 @@ def load_cases_from_yaml(path: Path) -> tuple[list[Case], list[Overlay]]:
     for item in case_items:
         if isinstance(item, dict):
             item = _apply_defaults(item, defaults)
-        cases.append(Case.model_validate(item))
+        cases.append(_validate(Case, path, item, "id"))
     default_agents = defaults.get("agents")
     overlays = [
-        Overlay.model_validate(
+        _validate(
+            Overlay,
+            path,
             {"agents": default_agents, **item}
             if default_agents is not None and isinstance(item, dict)
-            else item
+            else item,
+            "extends",
         )
         for item in overlay_items
     ]

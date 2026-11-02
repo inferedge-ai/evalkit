@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- The case YAML schema is published. A new **Case schema** docs page (also in
+  the web UI's docs) lists every key with one example per evaluator, and maps
+  each scorecard bucket to its YAML key. `evalkit contracts export` now also
+  writes `cases-v1.json`.
+- `evalkit lint` schema errors are easier to act on. They print the file path
+  and the case id, list the valid keys where an unknown key was found, and say
+  where a misplaced evaluator belongs (e.g. "`presentation_judge` goes under
+  `evaluators.output`"). `evalkit lint --offline` now reports these as findings
+  instead of stopping with a traceback.
+- `ScoreItem`, `EvalCase` and `EvalRun` can be imported from `evalkit.sdk`.
 - Run several tags in one experiment. `evalkit run finance --tag ratios --tag
   statements --agent ouragent@dev` runs every case carrying any of the given
   tags. In the web UI's run dialog, the **Tags** choice is now a multi-select
