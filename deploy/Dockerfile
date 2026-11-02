@@ -9,7 +9,7 @@ COPY src/evalkit/contracts/notes.json /build/src/evalkit/contracts/notes.json
 RUN npx tsc -b && npx vite build
 
 # Stage 2: the server image
-FROM python:3.13-slim
+FROM python:3.14-slim
 # The base image's pip vendors old certifi, urllib3, msgpack and setuptools; uv replaces it.
 RUN python -m pip uninstall -y pip
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /usr/local/bin/
