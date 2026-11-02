@@ -1191,7 +1191,7 @@
 <ul>
 <li><code>dataset="finance"</code> runs your own workspace's copy; if <code>finance</code> is a directory under <code>cases</code> it is synced first.</li>
 <li><code>dataset="finance@dev"</code> or <code>dataset="finance", workspace="dev"</code> runs the shared cases, every review state included.</li>
-<li><code>case_ids=[...]</code>, <code>split="..."</code>, <code>repetitions</code>, <code>model</code> and <code>resume=&lt;experiment id&gt;</code> mean what the same options mean on <code>evalkit run</code>.</li>
+<li><code>case_ids=[...]</code>, <code>tags=[...]</code>, <code>repetitions</code>, <code>model</code> and <code>resume=&lt;experiment id&gt;</code> mean what the same options mean on <code>evalkit run</code>.</li>
 <li><code>dry_run=True</code> runs one case (<code>dry_run=N</code> runs N) without creating an experiment and prints the answer and what the server made of the session. If the server cannot read a session, that case prints a <code>trajectory read failed</code> line and the dry run goes on. Use it while wiring up tracing; the session shows on the Runs page with its case question and case id.</li>
 </ul>
 <h2 id="notebooks">Notebooks<a class="headerlink" href="#notebooks" title="Permanent link">&para;</a></h2>
