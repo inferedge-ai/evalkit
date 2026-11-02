@@ -72,7 +72,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Trajectory source | Where an agent's trajectories come from: `atif` (served by a harness or returned by a task) or `otel` (collected spans converted by evalkit). Recorded on the agent row and the experiment. |
 | Trace source | A third-party trace store (Phoenix), created by an admin and used only to import history. Its API key is stored encrypted with the server's `encryption_key`. |
 | Python evaluator | A custom evaluator written as a Python function and passed to `run_experiment`. The in-process twin of the Custom Evaluator API. |
-| Try-it stack | The Compose kit in `skills/evalkit-deployment/try/`: server and Postgres judging with the developer's LLM (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`), plus a sample agent run through an SDK run with OTel traces. For trying evalkit on one machine; never a deployment. |
+| Try-it stack | The Compose kit in `skills/evalkit-deployment/try/`: server and Postgres judging with the developer's LLM (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`) on host port `EVALKIT_PORT` (default 8020), plus a sample agent run through an SDK run with OTel traces. For trying evalkit on one machine; never a deployment. |
 | Sample agent | The try-it stack's `agent.py`: a small agent that calls the developer's LLM with one tool and emits GenAI-convention spans. Example client code, not part of the package. |
 
 ## Layout

@@ -7,6 +7,7 @@ import time
 from datetime import UTC, datetime
 from importlib.util import find_spec
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 import typer
@@ -1067,7 +1068,9 @@ def init_server_command(
     port: int = typer.Option(
         init_server.DEFAULT_PORT,
         "--port",
-        help="Port you will serve on; written into server.base_url in config.yaml. "
+        min=1,
+        max=65535,
+        help="Port to serve on; written into server.base_url, which `evalkit serve` reads. "
         "With --kit-only, set EVALKIT_PORT in the kit's .env instead.",
     ),
 ):
@@ -1093,7 +1096,7 @@ def init_server_command(
         init_server.copy_kit(directory, docker=True)
         typer.echo(f"copied the try kit to {directory}")
         if port != init_server.DEFAULT_PORT:
-            typer.echo(f"set EVALKIT_PORT={port} in {directory / '.env'} to serve on {port}")
+            typer.echo(f"copy .env.example to .env and set EVALKIT_PORT={port} to serve on {port}")
         return
     if server_commands is None:
         raise ApiError(
@@ -1144,8 +1147,7 @@ def init_server_command(
     init_server.write_server_files(directory, answers, encryption_key, port)
     typer.echo(f"set up {directory}: config.yaml, .env and the try kit")
     typer.echo("next, start the server:")
-    serve_flag = "" if port == init_server.DEFAULT_PORT else f" --port {port}"
-    typer.echo(f"  cd {directory} && evalkit serve{serve_flag}")
+    typer.echo(f"  cd {directory} && evalkit serve")
     typer.echo("then, in another terminal from the same folder, log in:")
     typer.echo(f"  evalkit login --url {init_server.local_url(port)} --username admin")
     typer.echo("  (this replaces a login you saved; Try it locally step 1 shows how to keep it)")
@@ -1156,7 +1158,13 @@ def init_server_command(
 def serve(
     config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),
     host: str = typer.Option("127.0.0.1", "--host"),
-    port: int = typer.Option(init_server.DEFAULT_PORT, "--port"),
+    port: int | None = typer.Option(
+        None,
+        "--port",
+        min=1,
+        max=65535,
+        help="Default: the port in server.base_url, else 8020.",
+    ),
 ):
     """Start the evalkit server (API + UI).
 
@@ -1164,7 +1172,9 @@ def serve(
     """
     if server_commands is None:
         raise ApiError("`evalkit serve` needs the server extra — pip install 'evalkit-py[server]'")
-    server_commands.serve(_server_config(config), host, port)
+    cfg = _server_config(config)
+    port = port or urlsplit(cfg.server.base_url).port or init_server.DEFAULT_PORT
+    server_commands.serve(cfg, host, port)
 
 
 @db_app.command("upgrade")

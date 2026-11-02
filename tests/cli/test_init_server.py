@@ -199,7 +199,6 @@ def test_port_sets_base_url_and_the_next_steps(tmp_path, monkeypatch):
     assert yaml.safe_load((kit / "config.yaml").read_text())["server"]["base_url"] == (
         "http://localhost:9500"
     )
-    assert "evalkit serve --port 9500" in result.output
     assert "evalkit login --url http://localhost:9500" in result.output
 
 
@@ -210,3 +209,31 @@ def test_kit_only_with_a_port_says_to_set_evalkit_port(tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert "set EVALKIT_PORT=9500" in result.output
+
+
+@pytest.mark.parametrize(
+    ("base_url", "flag", "expected"),
+    [
+        ("http://localhost:9500", [], 9500),
+        ("https://evalkit.example.com", [], 8020),
+        ("http://localhost:9500", ["--port", "9600"], 9600),
+    ],
+)
+def test_serve_port_defaults_to_the_base_url_port(tmp_path, monkeypatch, base_url, flag, expected):
+    served: list[int] = []
+    monkeypatch.setattr(server_commands, "serve", lambda cfg, host, port: served.append(port))
+    monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
+    config = init_server.server_config("postgresql+psycopg://localhost/x", tmp_path / "d", 8020)
+    config["server"]["base_url"] = base_url
+    (tmp_path / "config.yaml").write_text(yaml.safe_dump(config))
+    result = CliRunner().invoke(app, ["serve", "--config", str(tmp_path / "config.yaml"), *flag])
+    assert result.exit_code == 0, result.output
+    assert served == [expected]
+
+
+def test_the_docker_kit_config_takes_its_base_url_from_the_env(monkeypatch):
+    monkeypatch.setenv("EVALKIT_BASE_URL", "http://localhost:9500")
+    monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
+    assert _server_config(init_server.kit_root() / "config.yaml").server.base_url == (
+        "http://localhost:9500"
+    )

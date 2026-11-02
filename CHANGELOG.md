@@ -3,7 +3,8 @@
 ## Unreleased
 
 - `evalkit init-server --port 9500` writes `server.base_url` with that port and
-  prints the matching `evalkit serve --port` and `evalkit login` commands. In
+  prints the matching `evalkit login` command. `evalkit serve` now defaults
+  `--port` to the port in `server.base_url` (8020 when it has none). In
   the Docker try stack, set `EVALKIT_PORT` in `.env` to publish the server on
   another host port. Try it locally says how to change the port once and its
   examples use the server's own URL in the web UI.

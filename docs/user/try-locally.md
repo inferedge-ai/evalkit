@@ -21,13 +21,13 @@ on one machine. For a real deployment, follow the evalkit-deployment skill.
 
 ## Start the server
 
-Pick one way. Both end with the server on the port you picked (8020 by default) and the try
-kit in a folder, and the steps after this section are the same.
+Pick one way. Both end with the server on the port you picked (8020 by
+default) and the try kit in a folder, and the steps after this section are the
+same.
 
-To use another port, pass it to both commands without Docker
-(`evalkit init-server --port 9500`, then `evalkit serve --port 9500`), or set
-`EVALKIT_PORT=9500` in `.env` with Docker. The steps below show
-`{{origin}}`; use your port there.
+To use another port, run `evalkit init-server --port 9500` without Docker
+(`evalkit serve` reads it from `config.yaml`), or set `EVALKIT_PORT=9500` in
+`.env` with Docker.
 
 ### Without Docker
 
