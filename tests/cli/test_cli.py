@@ -17,6 +17,7 @@ import sqlalchemy as sa
 import uvicorn
 from typer.testing import CliRunner
 
+from evalkit.api import experiments as experiments_api
 from evalkit.api.app import create_app
 from evalkit.cli import main as main_module
 from evalkit.cli import runs_commands
@@ -1164,13 +1165,12 @@ def test_local_run_with_failed_scoring_says_how_to_finish(env, tmp_path, monkeyp
     _, application = env
     write_local_config(tmp_path, harness_url)
     monkeypatch.chdir(tmp_path)
-    store = application.state.store
-    real_publish = store.publish_evaluations
+    real_publish = experiments_api.db_publish_evaluations
 
-    async def publish_failing(experiment_run_id, rows, *, force, holder=None):
+    async def publish_failing(session, experiment_run_id, rows, **kwargs):
         raise RuntimeError("store down")
 
-    monkeypatch.setattr(store, "publish_evaluations", publish_failing)
+    monkeypatch.setattr(experiments_api, "db_publish_evaluations", publish_failing)
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
     assert result.exit_code == 1, result.output
     exp = latest_experiment("finance@admin")
@@ -1178,7 +1178,7 @@ def test_local_run_with_failed_scoring_says_how_to_finish(env, tmp_path, monkeyp
     assert "scoring failed for 1 of 1 runs" in result.output
     assert f"finish it with: evalkit evaluate {exp.id}" in result.output
 
-    monkeypatch.setattr(store, "publish_evaluations", real_publish)
+    monkeypatch.setattr(experiments_api, "db_publish_evaluations", real_publish)
     result = runner.invoke(cli_app, ["evaluate", str(exp.id)])
     assert result.exit_code == 0, result.output
     assert experiment_runs(exp.id)[0].evaluations

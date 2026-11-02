@@ -146,6 +146,32 @@ indirection, resolved at load time — keep secrets out of the file.
 | `otel` | collector limits, below |
 | `limits` | request body caps, below |
 
+### Database connections and scoring
+
+```yaml
+db:
+  pool_size: 20             # connections the server keeps open to Postgres
+  max_overflow: 10          # extra connections opened under load
+  pool_timeout_seconds: 5   # a request waiting this long gets 503 + Retry-After
+runner:
+  evaluation_concurrency: 16 # runs a server run scores at once
+```
+
+Each server process holds at most `pool_size + max_overflow` connections.
+Keep `(pool_size + max_overflow) × replicas` well under Postgres
+`max_connections`, with room for migrations, the reaper and an admin's
+`psql`. A request that waits `pool_timeout_seconds` for a connection gets
+`503` with `Retry-After`; the CLI and SDK retry it. Server runs write
+straight to the database and get no retry, so a server run that cannot get a
+connection fails, and `evalkit evaluate` finishes it.
+
+Scoring one run saves its scores over one connection. A server run scores at
+most `runner.evaluation_concurrency` runs at once. That value is also the
+most an `evaluation_concurrency` request may ask for (`evalkit run
+--evaluation-concurrency`, the run dialog, or the API); a higher value gets
+`400`. Keep it well under `pool_size`, so scoring leaves connections for
+other requests.
+
 ### Request body limits
 
 The server reads request bodies as a stream and stops at the cap. A request
@@ -196,7 +222,7 @@ the CLI or the UI:
 | Agent | `evalkit agents create <name> --workspace dev --harness-url … --api-key-env VAR` | admin or writer; the key is stored encrypted and never shown (`agents show` prints `api key  set\|not set`); omit `--harness-url` for a code-driven agent; `--trajectory-source otel` needs `--mapping`; run settings such as `--max-concurrent-runs` (min'd with the harness's own limit), `--run-timeout`, `--stop-grace` are flags; `evalkit agents edit` changes them |
 | Remote evaluator | `evalkit evaluators create <name> --workspace dev --endpoint … --kind score --api-key-env VAR` | admin or writer; `--kind gauge` for measurements; runs use the evaluators in the agent's workspace |
 | LLM provider | `evalkit llm-providers create <name> --base-url … --api-key-env VAR` | admin only; server runs may only use a judge whose base URL is an active provider |
-| Default judge | `evalkit judge-default set --provider <name> --model M [--effort E] [--max-tokens N] [--concurrency N]` | admin only; `evalkit judge-default show` prints it. Use a reproducibility-tested model |
+| Default judge | `evalkit judge-default set --provider <name> --model M [--effort E] [--max-tokens N]` | admin only; `evalkit judge-default show` prints it. Use a reproducibility-tested model |
 | Trace source | `evalkit trace-sources create <name> --url … --api-key-env VAR` | admin only to create; any user can import from it (see below) |
 | Shared workspace | `evalkit workspaces create <name>` | admin only |
 | Writer / reviewer | `evalkit workspaces members add <ws> <user> --role writer\|reviewer` | admin only |

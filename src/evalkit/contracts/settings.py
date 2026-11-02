@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class JudgeSettings(BaseModel):
@@ -11,7 +13,6 @@ class JudgeSettings(BaseModel):
         model: The model name at that endpoint.
         reasoning_effort: Passed to the model as `reasoning_effort`.
         max_tokens: The most tokens one judge reply may use.
-        concurrency: How many judge calls run at once.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -20,7 +21,13 @@ class JudgeSettings(BaseModel):
     model: str
     reasoning_effort: str = "high"
     max_tokens: int = Field(32768, ge=1)
-    concurrency: int = Field(16, ge=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_concurrency(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "concurrency" in data:
+            return {k: v for k, v in data.items() if k != "concurrency"}
+        return data
 
 
 class AgentSettings(BaseModel):

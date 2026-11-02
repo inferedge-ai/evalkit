@@ -47,7 +47,7 @@ from evalkit.core.importer import load_files
 from evalkit.core.lint import fixture_findings
 from evalkit.core.lint import lint as lint_cases
 from evalkit.core.review import CaseState
-from evalkit.core.runner import ScoringFailed, dropped_cases_text
+from evalkit.core.runner import EVALUATION_CONCURRENCY, ScoringFailed, dropped_cases_text
 from evalkit.core.workspace import Reference, parse_reference, slug
 from evalkit.credentials import MissingCredential
 from evalkit.paths import contracts_root, docs_root, skills_root
@@ -563,10 +563,12 @@ def _run_on_server(
     resume: int | None,
     revision: GitRevision,
     judge: dict | None,
+    evaluation_concurrency: int | None,
 ) -> int:
     client = _client()
     if resume:
-        exp_id = int(client.post(f"/api/experiments/{resume}/resume").json()["id"])
+        scoring = {"evaluation_concurrency": evaluation_concurrency}
+        exp_id = int(client.post(f"/api/experiments/{resume}/resume", json=scoring).json()["id"])
     else:
         payload = {
             "dataset": dataset_slug,
@@ -577,6 +579,7 @@ def _run_on_server(
             "cases": revision.model_dump(exclude_none=True) or None,
             "evalkit_version": version.current(),
             "judge": judge,
+            "evaluation_concurrency": evaluation_concurrency,
         }
         created = client.post("/api/experiments", json=payload).json()
         exp_id = int(created["id"])
@@ -634,6 +637,13 @@ def run(
         None, "--judge-base-url", help="Judge endpoint; its key is credentials.judges[url]."
     ),
     judge_effort: str | None = typer.Option(None, "--judge-effort", help="Judge reasoning effort."),
+    evaluation_concurrency: int | None = typer.Option(
+        None,
+        "--evaluation-concurrency",
+        min=1,
+        help=f"How many runs are scored at once. Default: {EVALUATION_CONCURRENCY} here, or "
+        "the server's runner.evaluation_concurrency for a shared agent, which is also its limit.",
+    ),
 ):
     """Run an experiment. Your own agent runs from this machine; results land on the server.
 
@@ -689,6 +699,7 @@ def run(
             resume,
             revision,
             judge,
+            evaluation_concurrency,
         )
     else:
         if local is None:
@@ -708,6 +719,7 @@ def run(
                     revision=revision,
                     progress=progress,
                     judge=JudgeSettings.model_validate(judge) if judge else None,
+                    evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
                 )
             )
         except KeyboardInterrupt:
@@ -759,6 +771,12 @@ def evaluate(
         help="Poll the collector again for runs whose trajectory was partial or unavailable, "
         "then re-score them.",
     ),
+    evaluation_concurrency: int | None = typer.Option(
+        None,
+        "--evaluation-concurrency",
+        min=1,
+        help=f"How many runs are scored at once (default {EVALUATION_CONCURRENCY}).",
+    ),
 ):
     """Re-score an experiment's recorded runs from this machine (idempotent).
 
@@ -787,6 +805,7 @@ def evaluate(
                 experiment_id,
                 progress=typer.echo,
                 refetch_trajectories=refetch_trajectories,
+                evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
             )
         )
     except ScoringFailed as exc:

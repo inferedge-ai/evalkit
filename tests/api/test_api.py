@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import func, select
 
 from evalkit.contracts.enums import ExperimentStatus
+from evalkit.core import runner as runner_module
 from evalkit.db.models import FixtureBlob
 from tests.fake_harness import FakeHarness
 from tests.native import (
@@ -577,3 +578,33 @@ async def test_unknown_dataset_returns_404_with_its_name(api):
             404,
             "unknown dataset: nope@canonical",
         )
+
+
+async def test_server_runs_score_with_the_asked_evaluation_concurrency(api, monkeypatch):
+    client, env, _ = api
+    real = runner_module.gather_bounded
+    limits: list[int] = []
+
+    async def recording(limit, coros, **kwargs):
+        limits.append(limit)
+        return await real(limit, coros, **kwargs)
+
+    monkeypatch.setattr(runner_module, "gather_bounded", recording)
+    assert (await run_shared(client))["status"] == "completed"
+    exp = await run_shared(client, evaluation_concurrency=3)
+    assert exp["status"] == "completed"
+    evaluated = await client.post(
+        f"/api/experiments/{exp['id']}/evaluate", json={"evaluation_concurrency": 2}
+    )
+    assert evaluated.status_code == 200, evaluated.text
+    await wait_for(client, exp["id"])
+    assert (await client.post(f"/api/experiments/{exp['id']}/evaluate")).status_code == 200
+    await wait_for(client, exp["id"])
+    assert limits == [16, 3, 2, 3]
+
+    too_many = await client.post(
+        "/api/experiments",
+        json={"dataset": FINANCE, "agent": AGENT, "evaluation_concurrency": 17},
+    )
+    assert too_many.status_code == 400
+    assert "above this server's limit of 16" in too_many.json()["detail"]

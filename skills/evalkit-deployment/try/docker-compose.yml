@@ -76,7 +76,7 @@ services:
         evalkit login --url http://server:8020 --username admin --password "$$EVALKIT_ADMIN_PASSWORD"
         evalkit llm-providers show try >/dev/null 2>&1 ||
           evalkit llm-providers create try --base-url "$$LLM_BASE_URL" --api-key-env LLM_API_KEY
-        evalkit judge-default set --provider try --model "$$LLM_MODEL" --concurrency 4
+        evalkit judge-default set --provider try --model "$$LLM_MODEL"
     restart: "no"
     depends_on:
       server:

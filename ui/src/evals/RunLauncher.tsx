@@ -57,6 +57,7 @@ export function RunLauncher({
   });
   const [runs, setRuns] = useState(1);
   const [model, setModel] = useState("");
+  const [scoring, setScoring] = useState("");
   const [judgeDefault, setJudgeDefault] = useState<JudgeSettings | null>(null);
   const [providers, setProviders] = useState<LlmProviderInfo[]>([]);
   const [judge, setJudge] = useState<JudgeChoice>({
@@ -128,6 +129,7 @@ export function RunLauncher({
           selection,
           model: model.trim() || null,
           judge: judgeOverride(judgeDefault, judge),
+          evaluation_concurrency: Number(scoring) || null,
         }
       : null;
 
@@ -363,6 +365,24 @@ export function RunLauncher({
               value={model}
               onChange={(e) => setModel(e.target.value)}
               title="Used only if the harness accepts a model override"
+            />
+          </div>
+          <div className="form-row">
+            <span className="form-label">Evaluation concurrency</span>
+            <input
+              className="input w-20"
+              type="number"
+              min={1}
+              placeholder="default"
+              value={scoring}
+              onChange={(e) =>
+                setScoring(
+                  e.target.value === ""
+                    ? ""
+                    : String(Math.max(1, Math.floor(Number(e.target.value)))),
+                )
+              }
+              title="How many runs are scored at once. Server runs default to the server's limit and may not go above it"
             />
           </div>
           <div className="form-row">

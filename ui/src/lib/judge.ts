@@ -29,7 +29,6 @@ export function judgeOverride(
       model,
       reasoning_effort: choice.reasoning_effort.trim() || "high",
       max_tokens: 32768,
-      concurrency: 16,
     };
   }
   const picked = {

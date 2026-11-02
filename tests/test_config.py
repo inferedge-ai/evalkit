@@ -220,6 +220,22 @@ def test_the_moved_to_db_hint_names_env_refs_as_shell_variables(tmp_path, monkey
     assert "--model m1" in message
 
 
+def test_db_pool_defaults_and_overrides(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "pk")
+    cfg = load_config(write(tmp_path, BASIC))
+    assert (cfg.db.pool_size, cfg.db.max_overflow) == (20, 10)
+    text = BASIC.replace("db:\n", "db:\n  pool_size: 40\n  max_overflow: 0\n")
+    cfg = load_config(write(tmp_path, text))
+    assert (cfg.db.pool_size, cfg.db.max_overflow) == (40, 0)
+
+
+def test_runner_evaluation_concurrency(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "pk")
+    assert load_config(write(tmp_path, BASIC)).runner.evaluation_concurrency == 16
+    text = BASIC + "runner:\n  evaluation_concurrency: 4\n"
+    assert load_config(write(tmp_path, text)).runner.evaluation_concurrency == 4
+
+
 def test_a_base_url_with_a_bad_port_is_a_config_error(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_URL", "postgresql+psycopg://localhost/x")
     text = BASIC.replace("https://evalkit.internal", "http://localhost:80a0")

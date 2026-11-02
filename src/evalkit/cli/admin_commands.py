@@ -313,7 +313,6 @@ def register(
         model: str = typer.Option(..., "--model"),
         effort: str | None = typer.Option(None, "--effort", help="Reasoning effort."),
         max_tokens: int | None = typer.Option(None, "--max-tokens"),
-        concurrency: int | None = typer.Option(None, "--concurrency"),
     ):
         """Set the judge experiments use unless they pick their own (admin). Options you
         leave out keep their current value.
@@ -327,7 +326,6 @@ def register(
             "model": model,
             "reasoning_effort": effort,
             "max_tokens": max_tokens,
-            "concurrency": concurrency,
         }
         client.patch("/api/judge-default", json=judge)
         typer.echo(f"default judge: {model} on {provider} ({base_url})")

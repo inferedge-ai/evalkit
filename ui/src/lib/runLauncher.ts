@@ -20,6 +20,7 @@ export interface LaunchRequest {
   selection: Selection;
   model: string | null;
   judge: JudgeSettings | null;
+  evaluation_concurrency: number | null;
 }
 
 export function sourceFiles(
@@ -85,5 +86,7 @@ export function cliCommand(req: LaunchRequest): string {
       `--judge-base-url ${quote(req.judge.base_url)}`,
       `--judge-effort ${quote(req.judge.reasoning_effort)}`,
     );
+  if (req.evaluation_concurrency)
+    parts.push(`--evaluation-concurrency ${req.evaluation_concurrency}`);
   return parts.join(" ");
 }

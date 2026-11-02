@@ -1,6 +1,10 @@
 import json
+import math
 
 import pytest
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.db.workspaces import WorkspaceStore
@@ -345,3 +349,74 @@ async def test_run_listing_reports_the_refetched_trajectory_status(api):
     assert listed[0]["agent_run"]["trajectory_status"] == "valid"
     served = await client.get(f"/api/experiments/{exp_id}/runs/{run_id}/trajectory")
     assert served.status_code == 200 and served.json()["extra"]["trajectory_status"] == "valid"
+
+
+async def test_exhausted_pool_answers_503_with_retry_after(api, monkeypatch):
+    client, env = api
+
+    def exhausted(self, *args, **kwargs):
+        raise PoolTimeout("QueuePool limit of size 20 overflow 10 reached")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Engine, "connect", exhausted)
+        resp = await client.post(
+            "/api/experiment-runs/1/evaluations", json={"rows": [], "holder": HOLDER}
+        )
+    assert resp.status_code == 503
+    assert resp.headers["Retry-After"] == str(math.ceil(env.deps.cfg.db.pool_timeout_seconds))
+    assert resp.headers["Retry-After"] == "5"
+
+
+async def test_a_scoring_request_holds_one_connection_at_a_time(api):
+    client, env = api
+    created = (await create(client)).json()
+    exp_id, agent_id = created["id"], created["agent_id"]
+    key = f"trajectories/{agent_id}/sess-1.json"
+    assert (await client.put(f"/api/experiments/{exp_id}/blob/{key}", content=b"{}")).is_success
+    run = {
+        "case_id": "case-1",
+        "repetition": 1,
+        "run": {
+            "harness_run_id": "sess-1",
+            "status": "completed",
+            "answer": "42",
+            "started_at": "2026-10-05T00:00:00Z",
+            "ended_at": "2026-10-05T00:00:01Z",
+            "trajectory_key": key,
+            "trajectory_status": "valid",
+        },
+        "holder": HOLDER,
+    }
+    recorded = await client.post(f"/api/experiments/{exp_id}/runs", json=run)
+    assert recorded.status_code == 200, recorded.text
+    ref = recorded.json()
+    engine = env.session_factory.kw["bind"].sync_engine
+    held, peak = 0, 0
+
+    def checkout(*args):
+        nonlocal held, peak
+        held += 1
+        peak = max(peak, held)
+
+    def checkin(*args):
+        nonlocal held
+        held -= 1
+
+    event.listen(engine, "checkout", checkout)
+    event.listen(engine, "checkin", checkin)
+    rows = [{"producer": "p", "name": "s", "kind": "score", "source": "builtin", "value": 1.0}]
+    resp = await client.post(
+        f"/api/experiment-runs/{ref['experiment_run_id']}/evaluations",
+        json={"rows": rows, "holder": HOLDER},
+    )
+    event.remove(engine, "checkout", checkout)
+    event.remove(engine, "checkin", checkin)
+    assert resp.status_code == 200, resp.text
+    assert peak == 1
+
+
+async def test_runs_the_cli_scores_refuse_evaluation_concurrency(api):
+    client, _ = api
+    resp = await create(client, evaluation_concurrency=2)
+    assert resp.status_code == 400
+    assert "pass it there" in resp.json()["detail"]

@@ -35,6 +35,7 @@ from evalkit.core.capabilities import sdk_capabilities
 from evalkit.core.costmap import load_cost_map
 from evalkit.core.python_eval import PythonEvaluator
 from evalkit.core.runner import (
+    EVALUATION_CONCURRENCY,
     ExperimentRequest,
     LeaseLost,
     RunnerDeps,
@@ -571,6 +572,7 @@ async def arun_experiment(
     dry_run: bool | int = False,
     trajectory_wait_seconds: int | None = None,
     judge: JudgeSettings | None = None,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
     api_transport: httpx.AsyncBaseTransport | None = None,
     custom_eval_transport: httpx.AsyncBaseTransport | None = None,
     progress: Progress = print,
@@ -579,8 +581,8 @@ async def arun_experiment(
 ) -> ExperimentResult:
     """The async form of `run_experiment`, for code already in an event loop (a notebook).
 
-    Same arguments and result as `run_experiment`. The arguments after `judge` exist
-    for tests.
+    Same arguments and result as `run_experiment`. The arguments after
+    `evaluation_concurrency` exist for tests.
     """
     local = _local_config().resolve_env(scoring=not dry_run)
     spec = inspect_task(task)
@@ -686,6 +688,7 @@ async def arun_experiment(
             progress=progress,
             sessions=HttpSessionReader(api),
             python_evaluators=python_evaluators,
+            evaluation_concurrency=evaluation_concurrency,
         )
         cases = {case.case_id: case for case in await store.pinned_cases(exp.id)}
         for line in await missing_local_keys(deps, definition, cases.values()):
@@ -759,6 +762,7 @@ async def aevaluate_experiment(
     experiment_id: int,
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
     api_transport: httpx.AsyncBaseTransport | None = None,
     custom_eval_transport: httpx.AsyncBaseTransport | None = None,
     progress: Progress = print,
@@ -766,7 +770,7 @@ async def aevaluate_experiment(
     """The async form of `evaluate_experiment`, for code already in an event loop.
 
     Same arguments and result as `evaluate_experiment`. The arguments after
-    `refetch_trajectories` exist for tests.
+    `evaluation_concurrency` exist for tests.
     """
     local = _local_config().resolve_env(scoring=True)
     active = connection.active()
@@ -796,6 +800,7 @@ async def aevaluate_experiment(
             progress=progress,
             sessions=HttpSessionReader(api),
             python_evaluators={e.name: e for e in evaluators},
+            evaluation_concurrency=evaluation_concurrency,
         )
         await store.transition(experiment_id, ExperimentStatus.EVALUATING, holder)
         try:
@@ -850,6 +855,7 @@ def run_experiment(
     dry_run: bool | int = False,
     trajectory_wait_seconds: int | None = None,
     judge: JudgeSettings | None = None,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
 ) -> ExperimentResult:
     """Run an experiment: call `task` once per case and repetition, store the runs on
     the server and score them.
@@ -887,6 +893,7 @@ def run_experiment(
         judge: The judge for LLM-graded evaluators. Defaults to the server's default
             judge. Its API key comes from `credentials.judges` in `evalkit.yaml`, keyed
             by `base_url`.
+        evaluation_concurrency: How many runs are scored at once.
 
     Returns:
         The experiment id, its URL and one summary per run.
@@ -916,6 +923,7 @@ def run_experiment(
             dry_run=dry_run,
             trajectory_wait_seconds=trajectory_wait_seconds,
             judge=judge,
+            evaluation_concurrency=evaluation_concurrency,
         )
     )
 
@@ -925,6 +933,7 @@ def evaluate_experiment_sync(
     experiment_id: int,
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
 ) -> ExperimentResult:
     """Re-score an experiment that used Python evaluators.
 
@@ -937,6 +946,7 @@ def evaluate_experiment_sync(
             part of the experiment.
         refetch_trajectories: Read the trajectories of runs whose trajectory was
             `partial` or `unavailable` again before scoring.
+        evaluation_concurrency: How many runs are scored at once.
 
     Returns:
         The experiment id, its URL and one summary per run.
@@ -955,5 +965,6 @@ def evaluate_experiment_sync(
             experiment_id=experiment_id,
             evaluators=evaluators,
             refetch_trajectories=refetch_trajectories,
+            evaluation_concurrency=evaluation_concurrency,
         )
     )

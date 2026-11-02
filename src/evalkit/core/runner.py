@@ -20,14 +20,14 @@ import logging
 import tempfile
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import IO, Literal, Protocol
+from typing import IO, Any, Literal, Protocol
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from evalkit.config import RunnerConfig
 from evalkit.contracts.atif import Trajectory, TrajectoryValidationError, validate_trajectory
@@ -99,6 +99,7 @@ from evalkit.store.base import (
 LOGGER = logging.getLogger(__name__)
 
 LEASE_SECONDS = 60
+EVALUATION_CONCURRENCY = 16
 RENEW_EVERY_SECONDS = 15
 ACTIVE = frozenset({ExperimentStatus.RUNNING, ExperimentStatus.EVALUATING})
 ALLOWED: frozenset[tuple[ExperimentStatus | None, ExperimentStatus]] = frozenset(
@@ -129,6 +130,7 @@ class ExperimentRequest(BaseModel):
     judge: JudgeSettings | None = None
     holder: str | None = None
     trajectory_wait_seconds: int | None = None
+    evaluation_concurrency: int | None = Field(default=None, ge=1)
 
 
 def _no_progress(message: str) -> None:
@@ -153,6 +155,7 @@ class RunnerDeps:
     sessions: SessionReader | None = None
     python_evaluators: dict[str, PythonEvaluator] = field(default_factory=dict)
     agent_keys: AgentKeySource | None = None
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY
 
 
 class ExperimentFactory(Protocol):
@@ -533,6 +536,7 @@ async def prepare_experiment(
             },
             code_evaluators=sorted(req.code_evaluators or []),
             evalkit_version=req.evalkit_version,
+            evaluation_concurrency=req.evaluation_concurrency,
         ),
     )
     exp = await factory.create_experiment(
@@ -708,6 +712,20 @@ def _configured_builtins(evaluators: dict) -> dict[str, dict]:
 
 REFETCHABLE = (TrajectoryStatus.PARTIAL, TrajectoryStatus.UNAVAILABLE)
 REFETCH_CONCURRENCY = 8
+
+
+async def gather_bounded[T](
+    limit: int, coros: list[Coroutine[Any, Any, T]], *, return_exceptions: bool = False
+) -> list[Any]:
+    slots = asyncio.Semaphore(limit)
+
+    async def one(coro: Coroutine[Any, Any, T]) -> T:
+        async with slots:
+            return await coro
+
+    return await asyncio.gather(*(one(c) for c in coros), return_exceptions=return_exceptions)
+
+
 SCORABLE = (TrajectoryStatus.VALID, TrajectoryStatus.PARTIAL)
 
 
@@ -791,7 +809,6 @@ async def _evaluate_run(
     caps: Capabilities,
     cost_map: dict,
     run: RunForScoring,
-    judge_semaphore: asyncio.Semaphore,
     judge_api_key: str | None,
     configured_custom: dict[str, RemoteEvaluator],
     holder: str | None,
@@ -828,14 +845,11 @@ async def _evaluate_run(
         evaluator = BUILTIN_EVALUATORS[name]
         if set(evaluator.emits) <= already:
             continue
-        async with judge_semaphore:
-            try:
-                scores = await execute(evaluator, ctx, config, caps)
-            except Exception as exc:
-                LOGGER.warning(
-                    "evaluator %s errored on run %s: %s", name, run.experiment_run_id, exc
-                )
-                scores = [ScoreRow(name=name, score=None, label="error", error=str(exc))]
+        try:
+            scores = await execute(evaluator, ctx, config, caps)
+        except Exception as exc:
+            LOGGER.warning("evaluator %s errored on run %s: %s", name, run.experiment_run_id, exc)
+            scores = [ScoreRow(name=name, score=None, label="error", error=str(exc))]
         rows.extend(_rows(name, EvaluationSource.BUILTIN, scores))
 
     custom_config = evaluators.get("custom") or {}
@@ -918,14 +932,10 @@ async def _refetch(
         raise ValueError("refetching trajectories needs a session reader")
     wait = exp.config.snapshot.trajectory_wait_seconds
     refetched: set[int] = set()
-    slots = asyncio.Semaphore(REFETCH_CONCURRENCY)
     sessions = deps.sessions
 
     async def one(run: RunForScoring) -> None:
-        async with slots:
-            doc, status = await poll_trajectory(
-                sessions, exp.agent, run.agent_run.harness_run_id, wait
-            )
+        doc, status = await poll_trajectory(sessions, exp.agent, run.agent_run.harness_run_id, wait)
         if doc is None:
             return
         trajectory = validate_trajectory(doc)
@@ -941,8 +951,9 @@ async def _refetch(
         refetched.add(run.experiment_run_id)
         deps.progress(f"refetched trajectory for {run.case.case_id} #{run.repetition}: {status}")
 
-    await asyncio.gather(
-        *(one(run) for run in runs if run.agent_run.trajectory_status in REFETCHABLE)
+    await gather_bounded(
+        REFETCH_CONCURRENCY,
+        [one(run) for run in runs if run.agent_run.trajectory_status in REFETCHABLE],
     )
     return refetched
 
@@ -960,15 +971,15 @@ async def evaluate_experiment(
     cost_map = load_cost_map(deps.cfg.cost_map)
     runs = await deps.store.runs_to_score(exp_id, force=False)
     refetched = await _refetch(deps, exp, agent, runs) if refetch_trajectories else set()
-    judge_semaphore = asyncio.Semaphore(exp.config.judge.concurrency)
     api_key = judge_key(deps, exp.config.judge, [run.case for run in runs])
     configured_custom = (
         await deps.evaluators.in_workspace(agent.workspace)
         if any(run.case.effective_evaluators.get("custom") for run in runs)
         else {}
     )
-    results = await asyncio.gather(
-        *(
+    results = await gather_bounded(
+        deps.evaluation_concurrency,
+        [
             _evaluate_run(
                 deps,
                 exp,
@@ -976,14 +987,13 @@ async def evaluate_experiment(
                 caps,
                 cost_map,
                 run,
-                judge_semaphore,
                 api_key,
                 configured_custom,
                 holder,
                 force=run.experiment_run_id in refetched,
             )
             for run in runs
-        ),
+        ],
         return_exceptions=True,
     )
     errors = [r for r in results if isinstance(r, BaseException)]

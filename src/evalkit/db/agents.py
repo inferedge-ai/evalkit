@@ -70,22 +70,30 @@ def _ref(ref: str) -> Reference:
     return Reference(name, workspace)
 
 
+async def _agent_row(session: AsyncSession, ref: str) -> tuple[models.Agent, models.Workspace]:
+    name, workspace = _ref(ref)
+    found = (
+        await session.execute(
+            select(models.Agent, models.Workspace)
+            .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+            .where(models.Agent.name == name, models.Workspace.name == workspace)
+        )
+    ).one_or_none()
+    if found is None:
+        raise UnknownAgent(ref)
+    return found[0], found[1]
+
+
+async def agent_definition(session: AsyncSession, ref: str) -> AgentDefinition:
+    return _definition(*await _agent_row(session, ref))
+
+
 class AgentStore:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
         self._sessions = session_factory
 
     async def _row(self, session: AsyncSession, ref: str) -> tuple[models.Agent, models.Workspace]:
-        name, workspace = _ref(ref)
-        found = (
-            await session.execute(
-                select(models.Agent, models.Workspace)
-                .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
-                .where(models.Agent.name == name, models.Workspace.name == workspace)
-            )
-        ).one_or_none()
-        if found is None:
-            raise UnknownAgent(ref)
-        return found[0], found[1]
+        return await _agent_row(session, ref)
 
     async def _agent_id(self, session: AsyncSession, name: str, workspace: str) -> int | None:
         return await session.scalar(
@@ -96,7 +104,7 @@ class AgentStore:
 
     async def get(self, ref: str) -> AgentDefinition:
         async with self._sessions() as session:
-            return _definition(*await self._row(session, ref))
+            return await agent_definition(session, ref)
 
     async def find(self, ref: str) -> AgentDefinition | None:
         name, workspace = _ref(ref)

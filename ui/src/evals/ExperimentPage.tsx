@@ -265,8 +265,6 @@ export function ExperimentPage() {
                 `effort ${config.judge.reasoning_effort}`,
               config.judge.max_tokens != null &&
                 `max tokens ${config.judge.max_tokens}`,
-              config.judge.concurrency != null &&
-                `concurrency ${config.judge.concurrency}`,
             ]
               .filter(Boolean)
               .join(" · ")}

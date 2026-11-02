@@ -257,9 +257,10 @@ async def publish_evaluations(
     *,
     force: bool = False,
     holder: str | None = None,
+    experiment_id: int | None = None,
 ) -> None:
     if holder is not None:
-        exp_id = await session.scalar(
+        exp_id = experiment_id or await session.scalar(
             select(models.ExperimentRun.experiment_id).where(
                 models.ExperimentRun.id == experiment_run_id
             )

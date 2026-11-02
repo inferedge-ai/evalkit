@@ -119,7 +119,7 @@ async def _register_default_judge(
         await store.create(TRY_PROVIDER, base_url, sealed)
     else:
         await store.edit(existing.name, api_key_encrypted=sealed)
-    judge = JudgeSettings.model_validate({"base_url": base_url, "model": model, "concurrency": 4})
+    judge = JudgeSettings.model_validate({"base_url": base_url, "model": model})
     await store.set_default_judge(judge)
     await factory.kw["bind"].dispose()
 

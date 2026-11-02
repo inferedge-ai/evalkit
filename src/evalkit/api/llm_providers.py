@@ -106,7 +106,6 @@ class JudgePatch(BaseModel):
     model: str | None = None
     reasoning_effort: str | None = None
     max_tokens: int | None = None
-    concurrency: int | None = None
 
 
 @router.patch("/api/judge-default")

@@ -14,6 +14,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
+from evalkit.api import experiments as experiments_api
 from evalkit.api.app import create_app
 from evalkit.client import connection
 from evalkit.client.api import ApiRequestError
@@ -740,17 +741,16 @@ async def test_model_override_warns_when_the_task_cannot_receive_it(env):
 
 async def test_failed_scoring_finishes_the_other_runs_and_says_how_to_finish(env, monkeypatch):
     srv, blob, provider = env
-    store = srv.app.state.store
-    real_publish = store.publish_evaluations
+    real_publish = experiments_api.db_publish_evaluations
     failed: list[int] = []
 
-    async def publish_failing_once(experiment_run_id, rows, *, force, holder=None):
+    async def publish_failing_once(session, experiment_run_id, rows, **kwargs):
         if not failed:
             failed.append(experiment_run_id)
             raise RuntimeError("store down")
-        await real_publish(experiment_run_id, rows, force=force, holder=holder)
+        await real_publish(session, experiment_run_id, rows, **kwargs)
 
-    monkeypatch.setattr(store, "publish_evaluations", publish_failing_once)
+    monkeypatch.setattr(experiments_api, "db_publish_evaluations", publish_failing_once)
     lines: list[str] = []
     with pytest.raises(ScoringFailed) as raised:
         await arun_experiment(
@@ -772,7 +772,7 @@ async def test_failed_scoring_finishes_the_other_runs_and_says_how_to_finish(env
     assert exp.status == "failed"
     assert [bool(run.evaluations) for run in runs].count(True) == 3
 
-    monkeypatch.setattr(store, "publish_evaluations", real_publish)
+    monkeypatch.setattr(experiments_api, "db_publish_evaluations", real_publish)
     await aevaluate_experiment(experiment_id=exp_id, progress=lines.append)
     exp, runs = await srv.experiment(exp_id)
     assert all(run.evaluations for run in runs)

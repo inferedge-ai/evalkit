@@ -7,7 +7,7 @@ from typing import Literal
 from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from evalkit.credentials import CredentialsConfig, load_dotenv_beside
 
@@ -45,10 +45,17 @@ class ServerConfig(ConfigModel):
 class DbConfig(ConfigModel):
     url: str
     migrate_on_start: bool = False
+    pool_size: int = Field(20, ge=1)
+    max_overflow: int = Field(10, ge=0)
+    pool_timeout_seconds: float = Field(5, gt=0)
 
 
 class BlobConfig(ConfigModel):
     url: str
+
+
+class ServerRunnerConfig(ConfigModel):
+    evaluation_concurrency: int = Field(default=16, ge=1)
 
 
 class CostMapConfig(ConfigModel):
@@ -138,6 +145,7 @@ class Config(RunnerConfig):
     mcp: McpConfig = McpConfig()
     otel: OtelConfig = OtelConfig()
     limits: LimitsConfig = LimitsConfig()
+    runner: ServerRunnerConfig = ServerRunnerConfig()
     sentry: SentryConfig | None = None
     encryption_key: str | None = None
     allow_private_endpoints: bool = False
