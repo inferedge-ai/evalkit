@@ -218,3 +218,10 @@ def test_the_moved_to_db_hint_names_env_refs_as_shell_variables(tmp_path, monkey
     message = str(raised.value)
     assert "--base-url $LLM_BASE_URL --api-key-env LLM_API_KEY" in message
     assert "--model m1" in message
+
+
+def test_a_base_url_with_a_bad_port_is_a_config_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "postgresql+psycopg://localhost/x")
+    text = BASIC.replace("https://evalkit.internal", "http://localhost:80a0")
+    with pytest.raises(ValueError, match="base_url"):
+        load_config(write(tmp_path, text))

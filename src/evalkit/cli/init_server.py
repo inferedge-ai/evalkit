@@ -16,7 +16,6 @@ from evalkit.paths import skills_root
 DEFAULT_DIR = Path("evalkit-try")
 ENCRYPTION_KEY_ENV = "EVALKIT_ENCRYPTION_KEY"
 DEFAULT_DATABASE_URL = "postgresql+psycopg://localhost/evalkit"
-DEFAULT_PORT = 8020
 DEFAULT_ADMIN_PASSWORD = "evalkit-admin"
 KIT_REQUIREMENT = '"evalkit-py[otel]"'
 KIT_LEAVES_OUT = ("*.whl", "__pycache__", "*.pyc", ".env")

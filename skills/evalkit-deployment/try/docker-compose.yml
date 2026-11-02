@@ -40,6 +40,7 @@ services:
 
   server:
     <<: *image
+    command: ["evalkit", "serve", "--config", "/etc/evalkit/config.yaml", "--host", "0.0.0.0", "--port", "8020"]
     ports:
       - "127.0.0.1:${EVALKIT_PORT:-8020}:8020"
     volumes:

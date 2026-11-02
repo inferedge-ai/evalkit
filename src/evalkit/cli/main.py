@@ -7,7 +7,6 @@ import time
 from datetime import UTC, datetime
 from importlib.util import find_spec
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import httpx
 import typer
@@ -38,7 +37,7 @@ from evalkit.client.agents import definition_of
 from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
 from evalkit.client.sync import ResolvedPath, git_revision, resolve_path, sync_dataset
-from evalkit.config import Config, LocalConfig, MissingEnvError, load_config
+from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, load_config
 from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml, load_cases_from_yaml
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import AgentDefinition, Driver, driver, explicit, server_may_drive
@@ -1066,7 +1065,7 @@ def init_server_command(
         False, "--kit-only", help="Only copy the try kit; no database, config.yaml or .env."
     ),
     port: int = typer.Option(
-        init_server.DEFAULT_PORT,
+        DEFAULT_PORT,
         "--port",
         min=1,
         max=65535,
@@ -1095,7 +1094,7 @@ def init_server_command(
     if kit_only:
         init_server.copy_kit(directory, docker=True)
         typer.echo(f"copied the try kit to {directory}")
-        if port != init_server.DEFAULT_PORT:
+        if port != DEFAULT_PORT:
             typer.echo(f"copy .env.example to .env and set EVALKIT_PORT={port} to serve on {port}")
         return
     if server_commands is None:
@@ -1173,8 +1172,7 @@ def serve(
     if server_commands is None:
         raise ApiError("`evalkit serve` needs the server extra — pip install 'evalkit-py[server]'")
     cfg = _server_config(config)
-    port = port or urlsplit(cfg.server.base_url).port or init_server.DEFAULT_PORT
-    server_commands.serve(cfg, host, port)
+    server_commands.serve(cfg, host, port or cfg.server.port)
 
 
 @db_app.command("upgrade")

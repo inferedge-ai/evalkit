@@ -12,6 +12,7 @@ from evalkit import version
 from evalkit.cli import init_server, server_commands
 from evalkit.cli.client import ApiError
 from evalkit.cli.main import _server_config, app
+from evalkit.config import load_config
 from tests.pg import _admin, _with_database
 
 ROOT = Path(__file__).parents[2]
@@ -234,6 +235,6 @@ def test_serve_port_defaults_to_the_base_url_port(tmp_path, monkeypatch, base_ur
 def test_the_docker_kit_config_takes_its_base_url_from_the_env(monkeypatch):
     monkeypatch.setenv("EVALKIT_BASE_URL", "http://localhost:9500")
     monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
-    assert _server_config(init_server.kit_root() / "config.yaml").server.base_url == (
+    assert load_config(init_server.kit_root() / "config.yaml").server.base_url == (
         "http://localhost:9500"
     )
