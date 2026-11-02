@@ -1,3 +1,4 @@
+import { hasAnyTag } from "./tags";
 import type { CaseView, JudgeSettings } from "./types";
 
 export type Scope = "all" | "tags" | "file" | "cases";
@@ -41,10 +42,8 @@ export function casesInScope(
   switch (choice.scope) {
     case "all":
       return examples;
-    case "tags": {
-      const wanted = new Set(choice.tags);
-      return examples.filter((ex) => ex.split_tags.some((t) => wanted.has(t)));
-    }
+    case "tags":
+      return examples.filter((ex) => hasAnyTag(ex.split_tags, choice.tags));
     case "file":
       return examples.filter((ex) => ex.source === choice.file);
     case "cases": {

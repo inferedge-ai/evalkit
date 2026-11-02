@@ -10,7 +10,7 @@ import {
   sourceFiles,
 } from "../lib/runLauncher";
 import type { LaunchRequest, Scope, ScopeChoice } from "../lib/runLauncher";
-import { Select } from "../lib/Select";
+import { MultiSelect, Select } from "../lib/Select";
 import { judgeChoice, judgeOverride } from "../lib/judge";
 import type { JudgeChoice } from "../lib/judge";
 import type {
@@ -62,7 +62,6 @@ export function RunLauncher({
     reasoning_effort: "",
   });
   const [filter, setFilter] = useState("");
-  const [tagFilter, setTagFilter] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -142,18 +141,6 @@ export function RunLauncher({
   };
 
   const setScope = (scope: Scope) => setChoice((c) => ({ ...c, scope }));
-  const pickedTags = new Set(choice.tags);
-  const tagNeedle = tagFilter.trim().toLowerCase();
-  const shownTags = tags.filter(
-    (t) => !tagNeedle || t.name.toLowerCase().includes(tagNeedle),
-  );
-  const toggleTag = (tag: string) =>
-    setChoice((c) => ({
-      ...c,
-      tags: pickedTags.has(tag)
-        ? c.tags.filter((t) => t !== tag)
-        : [...c.tags, tag],
-    }));
   const picked = new Set(choice.caseIds);
   const togglePick = (caseId: string) =>
     setChoice((c) => ({
@@ -219,44 +206,20 @@ export function RunLauncher({
                 ))}
               </div>
               {choice.scope === "tags" && (
-                <div className="picker">
-                  <div className="picker-toolbar">
-                    <input
-                      className="input h-7 min-w-0 flex-1"
-                      placeholder="Filter tags"
-                      aria-label="filter tags"
-                      value={tagFilter}
-                      onChange={(e) => setTagFilter(e.target.value)}
-                    />
-                    <button
-                      className="btn btn-sm"
-                      disabled={!choice.tags.length}
-                      onClick={() => setChoice((c) => ({ ...c, tags: [] }))}
-                    >
-                      Clear
-                    </button>
-                  </div>
-                  <div className="picker-list">
-                    {shownTags.map((t) => (
-                      <label key={t.name} className="picker-row check">
-                        <input
-                          type="checkbox"
-                          checked={pickedTags.has(t.name)}
-                          onChange={() => toggleTag(t.name)}
-                        />
-                        <span className="truncate font-mono text-ink">
-                          {t.name}
-                        </span>
-                        <span className="row-meta num ml-auto shrink-0">
-                          {t.count}
-                        </span>
-                      </label>
-                    ))}
-                    {!shownTags.length && (
-                      <div className="pane-status">No tags match.</div>
-                    )}
-                  </div>
-                </div>
+                <MultiSelect
+                  ariaLabel="tags"
+                  className="self-start"
+                  placeholder="Pick tags"
+                  values={choice.tags}
+                  onChange={(picked) =>
+                    setChoice((c) => ({ ...c, tags: picked }))
+                  }
+                  options={tags.map((t) => ({
+                    value: t.name,
+                    label: t.name,
+                    hint: t.count,
+                  }))}
+                />
               )}
               {choice.scope === "file" && (
                 <Select

@@ -22,7 +22,8 @@ import { agentRevision, agentTag } from "./experimentRow";
 import { ProgressBar } from "./ProgressBar";
 import { ScoreMatrix } from "./ScoreMatrix";
 import { BucketCards, CostSpeedLine } from "./ScoreSummary";
-import { Select } from "../lib/Select";
+import { MultiSelect, Select } from "../lib/Select";
+import { hasAnyTag, tagCounts } from "../lib/tags";
 import { useFollowWorkspace } from "../shell/workspace";
 
 function ScorecardSkeleton() {
@@ -82,6 +83,7 @@ export function ExperimentPage() {
   const [error, setError] = useState<string | null>(null);
   const [failingOnly, setFailingOnly] = useState(false);
   const [evaluator, setEvaluator] = useState("");
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const validId = isExperimentId(experimentId);
@@ -185,7 +187,11 @@ export function ExperimentPage() {
     report,
   );
   const stateOf = new Map(listed.map((r) => [r.case_id, r.state]));
+  const tagsOf = new Map((pinned ?? []).map((c) => [c.case_id, c.split_tags]));
+  const tags = tagCounts(pinned ?? []);
   const rows = listed.filter((r) => {
+    if (tagFilter.length && !hasAnyTag(tagsOf.get(r.case_id) ?? [], tagFilter))
+      return false;
     if ((failingOnly || evaluator) && !r.row) return false;
     if (failingOnly && r.row && !rowFailing(r.row)) return false;
     if (evaluator && r.row && !hasColumn(r.row, evaluator)) return false;
@@ -387,6 +393,20 @@ export function ExperimentPage() {
                     })),
                   ]}
                 />
+                {tags.length > 0 && (
+                  <MultiSelect
+                    ariaLabel="tags"
+                    placeholder="All tags"
+                    title="show only cases carrying any of these tags"
+                    values={tagFilter}
+                    onChange={setTagFilter}
+                    options={tags.map((t) => ({
+                      value: t.name,
+                      label: t.name,
+                      hint: t.count,
+                    }))}
+                  />
+                )}
                 <label className="check">
                   <input
                     type="checkbox"

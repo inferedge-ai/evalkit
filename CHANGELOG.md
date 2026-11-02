@@ -4,9 +4,11 @@
 
 - Run several tags in one experiment. `evalkit run finance --tag ratios --tag
   statements --agent ouragent@dev` runs every case carrying any of the given
-  tags. The web UI's run dialog has a **Tags** choice with a checkbox per tag,
-  and its CLI preview prints `--tag` flags. `evalkit review request --tag` is
-  repeatable too.
+  tags. In the web UI's run dialog, the **Tags** choice is now a multi-select
+  (type to search, pick several), and its CLI preview prints `--tag` flags.
+  `evalkit review request --tag` is repeatable too.
+- The experiment page's case table has a tag filter: pick one or more tags to
+  show only the cases carrying any of them.
 - "Split" is now called "tag" everywhere:
   - The SDK's `run_experiment(split="x")` is now `run_experiment(tags=["x"])`.
   - The API's `selection` takes `tags: [...]` instead of `tag`. A request that
