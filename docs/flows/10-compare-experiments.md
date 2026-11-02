@@ -44,7 +44,7 @@ sequenceDiagram
 - On resumed experiments only the latest attempt per (case, repetition) counts.
 - The case list holds the compared experiment's cases. A case missing from the base (or without an overall score on either side) shows `—` and no delta; cases only in the base are not listed.
 - The case list links to the compared experiment's run page.
-- `evalkit summary --baseline` shows a Δ next to each bucket and evaluator (hidden below 0.005), lists improved, regressed, new and removed cases with base → compare scores, and counts unchanged cases. A case that errored in the base and scores now counts as improved; one that scores in the base and errors now counts as regressed.
+- `evalkit summary --baseline` shows a Δ next to each bucket and evaluator (hidden below 0.005), lists improved, regressed, new and removed cases with base → compare scores, and counts unchanged cases. A case without an overall score on either side is listed as unscored, as on the compare page. The evaluator line adds the base's case count when it differs.
 - Without both ids the compare page says `Pick two experiments to compare: /experiments/compare?base=…&compare=…`.
 
 ## Error cases

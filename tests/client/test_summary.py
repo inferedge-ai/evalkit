@@ -83,7 +83,7 @@ def test_summary_lists_a_case_with_one_failing_evaluator_above_the_overall_bar()
     assert any(line.endswith("0.90  (answer_rubric_score 0.67)") for line in lines)
 
 
-def test_summary_with_baseline_counts_error_to_pass_as_improved_and_hides_tiny_deltas():
+def test_summary_with_baseline_lists_unscored_cases_and_hides_tiny_deltas():
     base = {
         **REPORT,
         "buckets": {"content": 0.8333},
@@ -96,9 +96,18 @@ def test_summary_with_baseline_counts_error_to_pass_as_improved_and_hides_tiny_d
     }
     lines = summary_lines(compare, base)
     assert "  content        0.83" in lines
-    assert "  improved (1):" in lines
-    assert not any("broken" in line for line in lines)
-    assert "  unchanged: 1" in lines
+    assert "  unscored (2):" in lines
+    assert any("fixed" in line and "  -  → 1.00" in line for line in lines)
+    assert any("broken" in line for line in lines)
+    assert "  unchanged: 0" in lines
+
+
+def test_summary_with_baseline_shows_the_base_case_count_when_it_differs():
+    stat = {"name": "answer_rubric_score", "score": 1.0, "errors": 0}
+    base = {**REPORT, "evaluators": [{**stat, "cases": 2}]}
+    compare = {**REPORT, "evaluators": [{**stat, "cases": 3}]}
+    lines = summary_lines(compare, base)
+    assert any(line.endswith("(3 cases, base 2)") for line in lines)
 
 
 def test_summary_failing_list_ignores_rubric_diagnostics():

@@ -31,13 +31,9 @@ def _change(base: dict | None, case: dict | None) -> str:
         return "removed"
     if base is None:
         return "new"
-    if base["overall"] is None or case["overall"] is None:
-        if base["overall"] is None and case["overall"] is not None:
-            return "improved"
-        if base["overall"] is not None and case["overall"] is None:
-            return "regressed"
-        return "unchanged"
-    delta = round(case["overall"] - base["overall"], 6)
+    delta = _delta(base["overall"], case["overall"])
+    if delta is None:
+        return "unscored"
     if delta >= CHANGE_THRESHOLD:
         return "improved"
     if delta <= -CHANGE_THRESHOLD:
@@ -53,22 +49,27 @@ def _changed_cases(report: dict, base: dict) -> list[str]:
         "improved": [],
         "new": [],
         "removed": [],
-        "unchanged": [],
+        "unscored": [],
     }
+    unchanged = 0
     for case_id in sorted(before.keys() | after.keys()):
         old, new = before.get(case_id), after.get(case_id)
-        old_score = _fmt(old["overall"] if old else None)
-        new_score = _fmt(new["overall"] if new else None)
-        delta = _fmt_delta(old and old["overall"], new and new["overall"])
-        groups[_change(old, new)].append(f"    {case_id:<46} {old_score} → {new_score}{delta}")
+        change = _change(old, new)
+        if change == "unchanged":
+            unchanged += 1
+            continue
+        old_overall = old["overall"] if old else None
+        new_overall = new["overall"] if new else None
+        delta = _fmt_delta(old_overall, new_overall)
+        groups[change].append(f"    {case_id:<46} {_fmt(old_overall)} → {_fmt(new_overall)}{delta}")
     lines = ["changed cases:"]
     for change, rows in groups.items():
-        if change != "unchanged" and rows:
+        if rows:
             lines.append(f"  {change} ({len(rows)}):")
             lines += rows
     if len(lines) == 1:
         lines.append("  none")
-    lines.append(f"  unchanged: {len(groups['unchanged'])}")
+    lines.append(f"  unchanged: {unchanged}")
     return lines
 
 
@@ -77,7 +78,7 @@ def summary_lines(report: dict, base: dict | None = None) -> list[str]:
     if base is not None:
         lines.append(f"vs experiment {base['experiment_id']}  {base['name']} of {base['dataset']}")
     base_buckets = base["buckets"] if base else {}
-    base_evaluators = {stat["name"]: stat["score"] for stat in base["evaluators"]} if base else {}
+    base_evaluators = {stat["name"]: stat for stat in base["evaluators"]} if base else {}
     scored = {bucket: value for bucket, value in report["buckets"].items() if value is not None}
     if scored:
         lines.append("buckets:")
@@ -90,7 +91,14 @@ def summary_lines(report: dict, base: dict | None = None) -> list[str]:
         errored = f", {stat['errors']} errored" if stat.get("errors") else ""
         noun = "case" if stat["cases"] == 1 else "cases"
         counts = f"({stat['cases']} {noun}{errored})"
-        delta = _fmt_delta(base_evaluators.get(stat["name"]), stat["score"])
+        base_stat = base_evaluators.get(stat["name"])
+        base_cases = (
+            f", base {base_stat['cases']}"
+            if base_stat and base_stat["cases"] != stat["cases"]
+            else ""
+        )
+        counts = f"({stat['cases']} {noun}{errored}{base_cases})"
+        delta = _fmt_delta(base_stat["score"] if base_stat else None, stat["score"])
         lines.append(f"  {stat['name']:<40} {_fmt(stat['score'])}  {counts}{delta}")
     if base is not None:
         lines += _changed_cases(report, base)
@@ -109,7 +117,7 @@ def summary_lines(report: dict, base: dict | None = None) -> list[str]:
     if failing:
         lines.append(f"failing cases (overall or any evaluator < {PASS_THRESHOLD:.2f}):")
         for case, low in failing:
-            delta = f"  Δ{case['delta']:+.2f}" if case.get("delta") is not None else ""
+            delta = _fmt_delta(case.get("baseline_overall"), case["overall"])
             evaluators = ", ".join(f"{name} {_fmt(score)}" for name, score in sorted(low.items()))
             detail = f"  ({evaluators})" if evaluators else ""
             lines.append(f"  {case['case_id']:<48} {_fmt(case['overall'])}{delta}{detail}")
