@@ -57,7 +57,7 @@ sequenceDiagram
     C-->>U: "  running (R/N ran, E/N evaluated)" … "  completed (…)"
   end
   C->>S: GET /api/experiments/{id}/scorecard
-  C-->>U: buckets, evaluators, failing cases (< 0.80), errored cases, gauges
+  C-->>U: buckets, evaluators, failing cases (overall or any evaluator < 0.80, naming the evaluators), errored cases, gauges
   Note over U,S: UI: /experiments/{id} lists every selected case, a progress bar (ran, evaluated), scorecard
 ```
 

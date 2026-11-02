@@ -12,6 +12,7 @@ describe("docs", () => {
       "config",
       "workspaces",
       "ci-sync",
+      "case-schema",
       "sdk-runs",
       "tracing",
       "mappings",

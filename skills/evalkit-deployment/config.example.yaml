@@ -1,5 +1,5 @@
 server:
-  base_url: https://evalkit.internal # used in links the CLI prints
+  base_url: https://evalkit.internal # used in links the CLI prints; `evalkit serve` binds its port unless --port is given (8020 when it has none)
 
 db:
   url: env:EVALKIT_DATABASE_URL # Postgres: users, workspaces, agents, cases, experiments, scores

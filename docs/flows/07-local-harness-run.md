@@ -66,7 +66,7 @@ sequenceDiagram
   end
   CLI->>S: status → completed
   CLI->>S: GET scorecard
-  CLI-->>Dev: buckets, evaluators, failing cases (< 0.80), errored cases, gauges
+  CLI-->>Dev: buckets, evaluators, failing cases (overall or any evaluator < 0.80, naming the evaluators), errored cases, gauges
 ```
 
 ### Interrupt, resume, re-score, status

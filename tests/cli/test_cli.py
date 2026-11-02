@@ -1427,3 +1427,51 @@ async def test_runs_files_refuses_an_unsafe_run_id_before_calling_the_harness():
         await runs_commands._harness_listing(harness, "../x")
     with pytest.raises(ApiError, match="must be one plain path segment"):
         await runs_commands._harness_fetch(harness, "a/b", ["f.txt"], lambda name, data: None)
+
+
+def test_summary_with_baseline_reads_the_compare_endpoint(monkeypatch):
+    def report(exp_id, overall):
+        case = {"case_id": "c1", "overall": overall, "scores": {}, "errors": {}, "run_errors": []}
+        return {
+            "name": f"#{exp_id}",
+            "experiment_id": str(exp_id),
+            "dataset": "finance@dev",
+            "buckets": {},
+            "evaluators": [],
+            "cases": [case],
+            "gauges": [],
+        }
+
+    class StubResponse:
+        def json(self):
+            return {"base": report(3, 0.0), "compare": report(4, 1.0)}
+
+    class StubClient:
+        def get(self, path, **kwargs):
+            assert path == "/api/experiments/compare"
+            assert kwargs["params"] == {"base": 3, "compare": 4}
+            return StubResponse()
+
+    monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    result = runner.invoke(cli_app, ["summary", "4", "--baseline", "3"])
+    assert result.exit_code == 0, result.output
+    assert "vs experiment 3  #3 of finance@dev" in result.output
+    assert re.search(r"c1\s+0\.00 → 1\.00  Δ\+1\.00$", result.output, re.M)
+
+
+def test_offline_lint_refuses_a_file_that_is_not_a_case_file(tmp_path):
+    registry = tmp_path / "fixtures.yaml"
+    registry.write_text("fixtures: []\n")
+    result = runner.invoke(cli_app, ["lint", "--offline", str(registry)])
+    assert result.exit_code != 0
+    assert "is not a case file" in result.output
+
+
+def test_offline_lint_reports_schema_errors_as_findings(tmp_path):
+    (tmp_path / "acme").mkdir()
+    (tmp_path / "acme" / "cases.yaml").write_text(
+        "- id: q1\n  input: {question: q}\n  evaluators: {output: {max_response_time: 90}}\n"
+    )
+    result = runner.invoke(cli_app, ["lint", "--offline", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "E-SCHEMA [q1] acme/cases.yaml: evaluators.output.max_response_time" in result.output

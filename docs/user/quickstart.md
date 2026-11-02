@@ -16,6 +16,8 @@ The Workspace tab on a run lists the files the agent wrote. evalkit reads them t
 
 ## 2. Install and log in
 
+evalkit needs Python 3.12 or newer.
+
 ```bash
 uv tool install --reinstall "evalkit-py=={{version}}"
 evalkit login --url {{origin}}

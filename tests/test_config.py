@@ -234,3 +234,10 @@ def test_runner_evaluation_concurrency(tmp_path, monkeypatch):
     assert load_config(write(tmp_path, BASIC)).runner.evaluation_concurrency == 16
     text = BASIC + "runner:\n  evaluation_concurrency: 4\n"
     assert load_config(write(tmp_path, text)).runner.evaluation_concurrency == 4
+
+
+def test_a_base_url_with_a_bad_port_is_a_config_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "postgresql+psycopg://localhost/x")
+    text = BASIC.replace("https://evalkit.internal", "http://localhost:80a0")
+    with pytest.raises(ValueError, match="base_url"):
+        load_config(write(tmp_path, text))
