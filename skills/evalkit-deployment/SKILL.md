@@ -17,7 +17,7 @@ Every developer on the client's team needs that one; only the deployer needs
 this one. You need no CLI before the server is up: the image contains one
 (`docker compose run --rm server evalkit …`). Once the server runs, install
 it on your machine from PyPI at the server's version, like everyone after you:
-`uv tool install --reinstall "evalkit-py==<version>"`, where
+`uv tool install --reinstall "evalkit-py==<version>"` (Python 3.12 or newer), where
 `curl <server url>/api/cli` prints the version (see evalkit-usage).
 
 `evalkit skills install` puts the evalkit user docs in `evalkit-docs/`

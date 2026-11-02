@@ -122,7 +122,7 @@ print(result.url)  # the scorecard in the web UI
 
 ## Run your own evalkit
 
-1. **Try it locally.** `pip install "evalkit-py[server]"`, then
+1. **Try it locally.** With Python 3.12 or newer, `pip install "evalkit-py[server]"`, then
    `evalkit init-server` against a local Postgres, or use Docker.
    [Try locally](docs/user/try-locally.md) starts the server on your machine,
    judges with your LLM, and runs a sample agent through an SDK run with

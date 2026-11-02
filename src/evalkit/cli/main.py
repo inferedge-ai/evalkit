@@ -37,7 +37,7 @@ from evalkit.client.agents import definition_of
 from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
 from evalkit.client.sync import ResolvedPath, git_revision, resolve_path, sync_dataset
-from evalkit.config import Config, LocalConfig, MissingEnvError, load_config
+from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, load_config
 from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import AgentDefinition, Driver, driver, explicit, server_may_drive
@@ -1071,6 +1071,14 @@ def init_server_command(
     kit_only: bool = typer.Option(
         False, "--kit-only", help="Only copy the try kit; no database, config.yaml or .env."
     ),
+    port: int = typer.Option(
+        DEFAULT_PORT,
+        "--port",
+        min=1,
+        max=65535,
+        help="Port to serve on; written into server.base_url, which `evalkit serve` reads. "
+        "With --kit-only, set EVALKIT_PORT in the kit's .env instead.",
+    ),
 ):
     """Set up an evalkit server on this machine, against a Postgres you already run.
 
@@ -1082,7 +1090,7 @@ def init_server_command(
 
     Each value comes from its flag or env var; anything missing is prompted for.
 
-    Example: evalkit init-server · evalkit init-server --kit-only --dir ./evalkit-try
+    Example: evalkit init-server --port 9500 · evalkit init-server --kit-only --dir ./evalkit-try
     """
     existing = init_server.kit_files_in(directory)
     if existing and not force:
@@ -1093,6 +1101,8 @@ def init_server_command(
     if kit_only:
         init_server.copy_kit(directory, docker=True)
         typer.echo(f"copied the try kit to {directory}")
+        if port != DEFAULT_PORT:
+            typer.echo(f"copy .env.example to .env and set EVALKIT_PORT={port} to serve on {port}")
         return
     if server_commands is None:
         raise ApiError(
@@ -1140,12 +1150,12 @@ def init_server_command(
                 fg="yellow",
             )
     init_server.copy_kit(directory, docker=False)
-    init_server.write_server_files(directory, answers, encryption_key)
+    init_server.write_server_files(directory, answers, encryption_key, port)
     typer.echo(f"set up {directory}: config.yaml, .env and the try kit")
     typer.echo("next, start the server:")
     typer.echo(f"  cd {directory} && evalkit serve")
     typer.echo("then, in another terminal from the same folder, log in:")
-    typer.echo("  evalkit login --url http://localhost:8020 --username admin")
+    typer.echo(f"  evalkit login --url {init_server.local_url(port)} --username admin")
     typer.echo("  (this replaces a login you saved; Try it locally step 1 shows how to keep it)")
     typer.echo("and follow Try it locally from step 2 (the CLI is already installed)")
 
@@ -1154,15 +1164,22 @@ def init_server_command(
 def serve(
     config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),
     host: str = typer.Option("127.0.0.1", "--host"),
-    port: int = typer.Option(8020, "--port"),
+    port: int | None = typer.Option(
+        None,
+        "--port",
+        min=1,
+        max=65535,
+        help="Default: the port in server.base_url, else 8020.",
+    ),
 ):
     """Start the evalkit server (API + UI).
 
-    Example: evalkit serve --config /etc/evalkit/config.yaml
+    Example: evalkit serve --config /etc/evalkit/config.yaml --port 9500
     """
     if server_commands is None:
         raise ApiError("`evalkit serve` needs the server extra — pip install 'evalkit-py[server]'")
-    server_commands.serve(_server_config(config), host, port)
+    cfg = _server_config(config)
+    server_commands.serve(cfg, host, port or cfg.server.port)
 
 
 @db_app.command("upgrade")
