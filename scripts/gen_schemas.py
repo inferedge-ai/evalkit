@@ -5,6 +5,7 @@ from pathlib import Path
 from pydantic.json_schema import models_json_schema
 
 from evalkit.contracts.atif import ACCEPTED_SCHEMA_VERSIONS
+from evalkit.contracts.cases import CASE_FILE
 from evalkit.contracts.custom_evaluator import EvalRequest, EvalResponse
 from evalkit.contracts.esf import MappingDocument
 from evalkit.contracts.harness import (
@@ -238,6 +239,7 @@ def generate(out_dir: Path) -> None:
         json.dumps(custom_evaluator_openapi(), indent=2) + "\n"
     )
     (out_dir / "atif-accepted.json").write_text(json.dumps(atif, indent=2) + "\n")
+    (out_dir / "cases-v1.json").write_text(json.dumps(CASE_FILE.json_schema(), indent=2) + "\n")
     (out_dir / "span-mapping-v1.json").write_text(
         json.dumps(MappingDocument.model_json_schema(by_alias=True), indent=2) + "\n"
     )

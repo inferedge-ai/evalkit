@@ -11,6 +11,7 @@ import harnessApi from "../../../docs/user/harness-api.md?raw";
 import tryLocally from "../../../docs/user/try-locally.md?raw";
 import concepts from "../../../docs/user/concepts.md?raw";
 import mcp from "../../../docs/user/mcp.md?raw";
+import caseSchema from "../../../docs/user/case-schema.md?raw";
 
 export const DOC_TABS = [
   {
@@ -36,6 +37,12 @@ export const DOC_TABS = [
     body: workspaces,
   },
   { id: "ci-sync", label: "CI sync", group: "Get started", body: ciSync },
+  {
+    id: "case-schema",
+    label: "Case schema",
+    group: "Get started",
+    body: caseSchema,
+  },
   { id: "sdk-runs", label: "SDK runs", group: "Traces", body: sdkRuns },
   { id: "tracing", label: "Tracing", group: "Traces", body: tracing },
   { id: "mappings", label: "Mappings", group: "Traces", body: mappings },

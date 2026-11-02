@@ -38,11 +38,12 @@ from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
 from evalkit.client.sync import ResolvedPath, git_revision, resolve_path, sync_dataset
 from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, load_config
-from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml, load_cases_from_yaml
+from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import AgentDefinition, Driver, driver, explicit, server_may_drive
 from evalkit.core.fixtures import load_registries
 from evalkit.core.harness import HarnessClient
+from evalkit.core.importer import load_files
 from evalkit.core.lint import fixture_findings
 from evalkit.core.lint import lint as lint_cases
 from evalkit.core.review import CaseState
@@ -329,14 +330,19 @@ def lint(
     if offline and agent is not None:
         raise ApiError("--agent needs the server; drop --offline")
     if offline:
-        all_cases, all_overlays = [], []
-        for _, file_path in _yaml_files(path):
-            cases, overlays = load_cases_from_yaml(file_path)
-            all_cases.extend(cases)
-            all_overlays.extend(overlays)
+        if path.is_file() and not is_case_yaml(path):
+            raise ApiError(f"{path} is not a case file; lint a case YAML file or a directory")
+        sourced, sourced_overlays, schema_findings = load_files(
+            [file_path for _, file_path in _yaml_files(path)],
+            path if path.is_dir() else path.parent,
+        )
+        all_cases = [case for case, _ in sourced]
+        all_overlays = [overlay for overlay, _ in sourced_overlays]
         known = {name for case in all_cases for name in case.evaluators.custom}
         known.update(name for ov in all_overlays for name in ov.evaluators.custom)
-        findings = lint_cases(all_cases, all_overlays, known_custom_evaluators=known)
+        findings = schema_findings + lint_cases(
+            all_cases, all_overlays, known_custom_evaluators=known
+        )
         registry = _nearest_registry(path)
         entries, registry_findings = load_registries([registry] if registry else [])
         findings.extend(registry_findings)
@@ -1010,8 +1016,9 @@ def contracts_export(
 ):
     """Write the bundled API contracts (OpenAPI + accepted ATIF versions) to a directory.
 
-    Exports harness-api-v1.json, custom-evaluator-api-v1.json and
-    atif-accepted.json, matching the installed evalkit version.
+    Exports harness-api-v1.json, custom-evaluator-api-v1.json, atif-accepted.json,
+    span-mapping-v1.json and cases-v1.json (the case YAML schema), matching the
+    installed evalkit version.
 
     Example: evalkit contracts export --target ./contracts
     """

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- The case YAML schema is published. A new **Case schema** docs page (also in
+  the web UI's docs) lists every key with one example per evaluator, and maps
+  each scorecard bucket to its YAML key. `evalkit contracts export` now also
+  writes `cases-v1.json`.
+- `evalkit lint` schema errors are easier to act on. They print the file path
+  and the case id, list the valid keys where an unknown key was found, and say
+  where a misplaced evaluator belongs (e.g. "`presentation_judge` goes under
+  `evaluators.output`"). `evalkit lint --offline` now reports these as findings
+  instead of stopping with a traceback.
+  Lint reports every broken case in a file, not just the first.
+- Stricter case files: in a file with `cases:` or `overlays:`, any other
+  top-level key besides `defaults` is now an error (it used to be ignored, so
+  a typo like `defualts:` dropped your defaults silently). `cases:` and
+  `overlays:` must be lists. Fix: remove or rename the stray key.
+- `ScoreItem`, `EvalCase` and `EvalRun` can be imported from `evalkit.sdk`.
 - `evalkit init-server --port 9500` writes `server.base_url` with that port and
   prints the matching `evalkit login` command. `evalkit serve` now defaults
   `--port` to the port in `server.base_url` (8020 when it has none). In

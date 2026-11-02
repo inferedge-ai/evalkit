@@ -22,6 +22,12 @@ The Python SDK runs experiments from your own code. Install it with the `otel` e
 
 ## Types
 
+::: evalkit.sdk.EvalCase
+
+::: evalkit.sdk.EvalRun
+
+::: evalkit.sdk.ScoreItem
+
 ::: evalkit.sdk.RunResult
 
 ::: evalkit.sdk.Fixture

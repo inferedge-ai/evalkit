@@ -87,7 +87,7 @@ async def lint_endpoint(
 ) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         paths = await _save_uploads(files, Path(tmp))
-        sourced_cases, overlays, findings = load_files(paths)
+        sourced_cases, overlays, findings = load_files(paths, Path(tmp))
         registry = Path(tmp) / REGISTRY_FILENAME
         if registry in paths:
             entries, registry_findings = load_registries([registry])
