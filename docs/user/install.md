@@ -55,6 +55,8 @@ evalkit update
 
 It reinstalls the CLI at the server's version and, when `pyproject.toml` pins `evalkit-py==…`, moves the pin and runs `uv sync`. It then refreshes the skills in every directory `evalkit skills install` wrote to on this machine (listed in `~/.evalkit/skills-targets`), and in `./.claude/skills` or `./.agents/skills` if they hold an earlier install; commit the changes in repos that track the skills. Pass `--no-skills` to skip that.
 
+A CLI older than 0.3.0 cannot update itself: `evalkit update` fails with `KeyError: 'filename'`. Run the [global tool install](#the-cli-as-a-global-tool) command once instead; `evalkit update` works from then on.
+
 A project that vendored an evalkit wheel before evalkit was on PyPI moves to PyPI once: `uv remove evalkit && uv add "evalkit-py[otel]=={{version}}"`.
 
 Next: [Login](login.md).
