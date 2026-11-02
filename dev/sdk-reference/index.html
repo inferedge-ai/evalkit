@@ -1336,6 +1336,7 @@
     <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">trajectory_wait_seconds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">judge</span><span class="p">:</span> <span class="n">JudgeSettings</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">EVALUATION_CONCURRENCY</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span>
 </code></pre></div>
 
@@ -1498,6 +1499,16 @@ judge. Its API key comes from <code>credentials.judges</code> in <code>evalkit.y
 by <code>base_url</code>.</p>
           </div>
         </li>
+        <li class="doc-section-item field-body">
+            <b><code>evaluation_concurrency</code></b>
+              (<code><span title="int">int</span></code>, default:
+                  <code><span title="evalkit.core.runner.EVALUATION_CONCURRENCY">EVALUATION_CONCURRENCY</span></code>
+)
+          –
+          <div class="doc-md-description">
+            <p>How many runs are scored at once.</p>
+          </div>
+        </li>
     </ul>
 
 
@@ -1558,6 +1569,7 @@ there instead.</p>
     <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">trajectory_wait_seconds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">judge</span><span class="p">:</span> <span class="n">JudgeSettings</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">EVALUATION_CONCURRENCY</span><span class="p">,</span>
     <span class="n">api_transport</span><span class="p">:</span> <span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">custom_eval_transport</span><span class="p">:</span> <span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">progress</span><span class="p">:</span> <span class="n">Progress</span> <span class="o">=</span> <span class="nb">print</span><span class="p">,</span>
@@ -1569,8 +1581,8 @@ there instead.</p>
     <div class="doc doc-contents first">
 
         <p>The async form of <code>run_experiment</code>, for code already in an event loop (a notebook).</p>
-<p>Same arguments and result as <code>run_experiment</code>. The arguments after <code>judge</code> exist
-for tests.</p>
+<p>Same arguments and result as <code>run_experiment</code>. The arguments after
+<code>evaluation_concurrency</code> exist for tests.</p>
 
 
     </div>
@@ -1590,6 +1602,7 @@ for tests.</p>
     <span class="n">experiment_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">evaluators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PythonEvaluator</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">refetch_trajectories</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">EVALUATION_CONCURRENCY</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span>
 </code></pre></div>
 
@@ -1630,6 +1643,16 @@ part of the experiment.</p>
           <div class="doc-md-description">
             <p>Read the trajectories of runs whose trajectory was
 <code>partial</code> or <code>unavailable</code> again before scoring.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+            <b><code>evaluation_concurrency</code></b>
+              (<code><span title="int">int</span></code>, default:
+                  <code><span title="evalkit.core.runner.EVALUATION_CONCURRENCY">EVALUATION_CONCURRENCY</span></code>
+)
+          –
+          <div class="doc-md-description">
+            <p>How many runs are scored at once.</p>
           </div>
         </li>
     </ul>
@@ -1681,6 +1704,7 @@ part of the experiment.</p>
     <span class="n">experiment_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">evaluators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PythonEvaluator</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">refetch_trajectories</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">EVALUATION_CONCURRENCY</span><span class="p">,</span>
     <span class="n">api_transport</span><span class="p">:</span> <span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">custom_eval_transport</span><span class="p">:</span> <span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">progress</span><span class="p">:</span> <span class="n">Progress</span> <span class="o">=</span> <span class="nb">print</span><span class="p">,</span>
@@ -1691,7 +1715,7 @@ part of the experiment.</p>
 
         <p>The async form of <code>evaluate_experiment</code>, for code already in an event loop.</p>
 <p>Same arguments and result as <code>evaluate_experiment</code>. The arguments after
-<code>refetch_trajectories</code> exist for tests.</p>
+<code>evaluation_concurrency</code> exist for tests.</p>
 
 
     </div>
@@ -2217,14 +2241,6 @@ one from spans.</p>
           –
           <div class="doc-md-description">
             <p>The most tokens one judge reply may use.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.Judge.concurrency">concurrency</span></code></b>
-              (<code><span title="int">int</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>How many judge calls run at once.</p>
           </div>
         </li>
     </ul>
