@@ -28,7 +28,9 @@ and how case review works.
 ## Install and log in
 
 1. Install the CLI from PyPI at the server's version. evalkit is on PyPI as
-   `evalkit-py`; `curl <server url>/api/cli` prints the server's version:
+   `evalkit-py` and needs Python 3.12 or newer, in the tool and in any
+   project that adds the SDK. `curl <server url>/api/cli` prints the server's
+   version:
 
    ```bash
    uv tool install --reinstall "evalkit-py==<version>"
