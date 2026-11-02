@@ -99,6 +99,7 @@ from evalkit.store.base import (
 LOGGER = logging.getLogger(__name__)
 
 LEASE_SECONDS = 60
+EVALUATION_CONCURRENCY = 16
 RENEW_EVERY_SECONDS = 15
 ACTIVE = frozenset({ExperimentStatus.RUNNING, ExperimentStatus.EVALUATING})
 ALLOWED: frozenset[tuple[ExperimentStatus | None, ExperimentStatus]] = frozenset(
@@ -153,6 +154,7 @@ class RunnerDeps:
     sessions: SessionReader | None = None
     python_evaluators: dict[str, PythonEvaluator] = field(default_factory=dict)
     agent_keys: AgentKeySource | None = None
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY
 
 
 class ExperimentFactory(Protocol):
@@ -962,7 +964,7 @@ async def evaluate_experiment(
         if any(run.case.effective_evaluators.get("custom") for run in runs)
         else {}
     )
-    slots = asyncio.Semaphore(exp.config.judge.concurrency)
+    slots = asyncio.Semaphore(deps.evaluation_concurrency)
 
     async def one(run: RunForScoring) -> None:
         async with slots:

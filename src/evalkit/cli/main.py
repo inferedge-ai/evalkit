@@ -46,7 +46,7 @@ from evalkit.core.harness import HarnessClient
 from evalkit.core.lint import fixture_findings
 from evalkit.core.lint import lint as lint_cases
 from evalkit.core.review import CaseState
-from evalkit.core.runner import ScoringFailed, dropped_cases_text
+from evalkit.core.runner import EVALUATION_CONCURRENCY, ScoringFailed, dropped_cases_text
 from evalkit.core.workspace import Reference, parse_reference, slug
 from evalkit.credentials import MissingCredential
 from evalkit.paths import contracts_root, docs_root, skills_root
@@ -628,6 +628,12 @@ def run(
         None, "--judge-base-url", help="Judge endpoint; its key is credentials.judges[url]."
     ),
     judge_effort: str | None = typer.Option(None, "--judge-effort", help="Judge reasoning effort."),
+    evaluation_concurrency: int | None = typer.Option(
+        None,
+        "--evaluation-concurrency",
+        min=1,
+        help=f"How many runs are scored at once (default {EVALUATION_CONCURRENCY}).",
+    ),
 ):
     """Run an experiment. Your own agent runs from this machine; results land on the server.
 
@@ -674,6 +680,11 @@ def run(
     dataset_slug = slug(resolved.ref)
     judge = _judge_override(judge_model, judge_base_url, judge_effort)
     if route is Driver.SERVER:
+        if evaluation_concurrency is not None:
+            raise ApiError(
+                f"{definition.ref} is a shared agent; the server scores its runs, "
+                "so --evaluation-concurrency does not apply"
+            )
         exp_id = _run_on_server(
             dataset_slug,
             slug(agent_ref),
@@ -702,6 +713,7 @@ def run(
                     revision=revision,
                     progress=progress,
                     judge=JudgeSettings.model_validate(judge) if judge else None,
+                    evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
                 )
             )
         except KeyboardInterrupt:
@@ -753,6 +765,12 @@ def evaluate(
         help="Poll the collector again for runs whose trajectory was partial or unavailable, "
         "then re-score them.",
     ),
+    evaluation_concurrency: int | None = typer.Option(
+        None,
+        "--evaluation-concurrency",
+        min=1,
+        help=f"How many runs are scored at once (default {EVALUATION_CONCURRENCY}).",
+    ),
 ):
     """Re-score an experiment's recorded runs from this machine (idempotent).
 
@@ -781,6 +799,7 @@ def evaluate(
                 experiment_id,
                 progress=typer.echo,
                 refetch_trajectories=refetch_trajectories,
+                evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
             )
         )
     except ScoringFailed as exc:

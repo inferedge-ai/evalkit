@@ -213,7 +213,7 @@ def test_flow_06_start_errors(cli):
             "/api/experiments",
             json={
                 **body,
-                "judge": {"base_url": "http://judge.test", "model": "j", "concurrency": 0},
+                "judge": {"base_url": "http://judge.test", "model": "j", "max_tokens": 0},
             },
         )
         assert zero.status_code == 422

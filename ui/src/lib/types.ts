@@ -40,7 +40,6 @@ export interface JudgeSettings {
   model: string;
   reasoning_effort: string;
   max_tokens: number;
-  concurrency: number;
 }
 
 export interface AgentSettings {

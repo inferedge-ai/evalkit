@@ -96,10 +96,19 @@ async def test_private_endpoints_are_refused_unless_allowed(api):
 async def test_judge_default_patch_keeps_unset_fields(api):
     await api.put(
         "/api/judge-default",
-        json={"base_url": JUDGE_URL, "model": "judge-model", "concurrency": 4},
+        json={"base_url": JUDGE_URL, "model": "judge-model", "max_tokens": 4},
     )
     patched = await api.patch("/api/judge-default", json={"model": "bigger"})
-    assert patched.json()["model"] == "bigger" and patched.json()["concurrency"] == 4
+    assert patched.json()["model"] == "bigger" and patched.json()["max_tokens"] == 4
+
+
+async def test_judge_concurrency_from_older_clients_is_dropped(api):
+    put = await api.put(
+        "/api/judge-default",
+        json={"base_url": JUDGE_URL, "model": "judge-model", "concurrency": 4},
+    )
+    assert put.status_code == 200, put.text
+    assert "concurrency" not in put.json()
 
 
 async def test_an_empty_key_clears_it_everywhere(api):

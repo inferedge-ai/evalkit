@@ -104,7 +104,6 @@ describe("cliCommand", () => {
           model: "other",
           reasoning_effort: "low",
           max_tokens: 1,
-          concurrency: 1,
         },
       }),
     ).toBe(

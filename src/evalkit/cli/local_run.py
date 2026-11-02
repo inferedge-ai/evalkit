@@ -18,6 +18,7 @@ from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import explicit
 from evalkit.core.harness_check import check_harness
 from evalkit.core.runner import (
+    EVALUATION_CONCURRENCY,
     ExperimentRequest,
     RunnerDeps,
     dropped_cases_text,
@@ -47,6 +48,7 @@ def _deps(
     progress: Callable[[str], None],
     harness_transport: httpx.AsyncBaseTransport | None,
     custom_eval_transport: httpx.AsyncBaseTransport | None,
+    evaluation_concurrency: int,
 ) -> RunnerDeps:
     return RunnerDeps(
         cfg=local,
@@ -59,6 +61,7 @@ def _deps(
         custom_eval_transport=custom_eval_transport,
         progress=progress,
         sessions=HttpSessionReader(api),
+        evaluation_concurrency=evaluation_concurrency,
     )
 
 
@@ -75,6 +78,7 @@ async def run_local(
     revision: GitRevision,
     progress: Callable[[str], None],
     judge: JudgeSettings | None = None,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
     transport: httpx.AsyncBaseTransport | None = None,
     custom_eval_transport: httpx.AsyncBaseTransport | None = None,
     api_transport: httpx.AsyncBaseTransport | None = None,
@@ -108,7 +112,16 @@ async def run_local(
         else:
             exp = await store.transition(resume, ExperimentStatus.RUNNING, holder)
         progress(f"experiment {exp.id} (#{exp.number} of {exp.dataset})")
-        deps = _deps(local, conn, api, exp.id, progress, transport, custom_eval_transport)
+        deps = _deps(
+            local,
+            conn,
+            api,
+            exp.id,
+            progress,
+            transport,
+            custom_eval_transport,
+            evaluation_concurrency,
+        )
         for line in await missing_local_keys(
             deps, await deps.agents.get(explicit(agent)), await store.pinned_cases(exp.id)
         ):
@@ -128,12 +141,22 @@ async def evaluate_local(
     custom_eval_transport: httpx.AsyncBaseTransport | None = None,
     api_transport: httpx.AsyncBaseTransport | None = None,
     refetch_trajectories: bool = False,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
 ) -> None:
     api = AsyncApi(conn.url, conn.token, transport=api_transport)
     holder = holder_for(conn)
     try:
         await api.require_same_version()
-        deps = _deps(local, conn, api, exp_id, progress, None, custom_eval_transport)
+        deps = _deps(
+            local,
+            conn,
+            api,
+            exp_id,
+            progress,
+            None,
+            custom_eval_transport,
+            evaluation_concurrency,
+        )
         await deps.store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
         await rescore_experiment(deps, exp_id, holder, refetch_trajectories=refetch_trajectories)
     finally:

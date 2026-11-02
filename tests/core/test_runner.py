@@ -1021,7 +1021,7 @@ async def test_a_failed_workspace_listing_keeps_the_experiment(
     assert not any(key.startswith("workspaces/") for key in env.blob.objects)
 
 
-async def test_scoring_runs_at_most_judge_concurrency_at_once(
+async def test_scoring_runs_at_most_evaluation_concurrency_at_once(
     tmp_path, stub_judges, session_factory, monkeypatch
 ):
     env = await seed_env(session_factory, tmp_path)
@@ -1037,12 +1037,9 @@ async def test_scoring_runs_at_most_judge_concurrency_at_once(
         active -= 1
 
     monkeypatch.setattr(runner_module, "_evaluate_run", tracked)
-    judge = JudgeSettings(base_url=JUDGE_URL, model="judge-model", concurrency=1)
+    env.deps.evaluation_concurrency = 1
     exp = await start(
-        env,
-        ExperimentRequest(
-            dataset="finance@canonical", agent="fake@canonical", repetitions=2, judge=judge
-        ),
+        env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical", repetitions=2)
     )
     assert exp.status is COMPLETED, exp.status_error
     assert peak == 1

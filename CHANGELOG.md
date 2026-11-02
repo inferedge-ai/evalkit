@@ -3,15 +3,20 @@
 ## Unreleased
 
 - Scoring experiments of more than about 40 runs no longer fails with `500`s
-  on `POST /api/experiment-runs/{id}/evaluations`. The judge's `concurrency`
-  (default 16) now caps how many runs are scored at once, not only how many
-  judge calls run at once, so a run (or `evalkit evaluate`) no longer sends
-  every run's scores in one burst. Each scoring request uses one database
-  connection instead of two, and the server's connection pool is bigger by
-  default. Set its size in `config.yaml` with `db.pool_size`
+  on `POST /api/experiment-runs/{id}/evaluations`. A run (or `evalkit
+  evaluate`) now scores at most 16 runs at once instead of all of them. Change
+  it with `--evaluation-concurrency N` on `evalkit run` and `evalkit evaluate`,
+  or `evaluation_concurrency=N` in the SDK's `run_experiment` and
+  `evaluate_experiment`. Server runs use 16; `evalkit run` refuses the flag for
+  a shared agent. Each scoring request uses one database connection instead of
+  two, and the server's connection pool is bigger by default. Set its size in `config.yaml` with `db.pool_size`
   (default 20) and `db.max_overflow` (default 10). When every connection is
   still busy, the server answers `503` with `Retry-After`, and the CLI and
   SDK retry instead of failing the experiment.
+- The judge no longer has a `concurrency` setting: `evaluation_concurrency`
+  replaces it. `evalkit judge-default set --concurrency` is gone, and the SDK's
+  `Judge(concurrency=...)`, the API and saved experiments and default judges
+  ignore the field.
 - Run several tags in one experiment. `evalkit run finance --tag ratios --tag
   statements --agent ouragent@dev` runs every case carrying any of the given
   tags. In the web UI's run dialog, the **Tags** choice is now a multi-select

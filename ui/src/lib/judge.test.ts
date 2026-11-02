@@ -7,7 +7,6 @@ const defaults: JudgeSettings = {
   model: "judge-model",
   reasoning_effort: "high",
   max_tokens: 32768,
-  concurrency: 16,
 };
 
 describe("judge override", () => {
