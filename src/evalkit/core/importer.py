@@ -92,13 +92,14 @@ def load_files(
         try:
             file_cases, file_overlays = load_cases_from_yaml(path)
         except CaseSchemaError as exc:
-            findings.append(
+            findings.extend(
                 Finding(
                     severity="error",
                     code="E-SCHEMA",
-                    case_id=exc.case_id if exc.case_id is not None else str(shown),
-                    message=f"{shown}: " + " | ".join(exc.lines),
+                    case_id=problem.case_id if problem.case_id is not None else str(shown),
+                    message=f"{shown}: " + " | ".join(problem.lines),
                 )
+                for problem in exc.problems
             )
             continue
         cases.extend((case, path) for case in file_cases)

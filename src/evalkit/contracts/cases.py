@@ -11,6 +11,7 @@ import hashlib
 import json
 import re
 import types
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal, Union, get_args, get_origin
 
@@ -21,6 +22,7 @@ from pydantic import (
     Field,
     TypeAdapter,
     ValidationError,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -351,9 +353,6 @@ class Overlay(BaseModel):
     evaluators: OverlayEvaluators
 
 
-SCORECARD_BUCKETS = ("content", "trajectory", "presentation", "efficiency", "custom")
-
-
 class SuiteDefaults(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -362,13 +361,27 @@ class SuiteDefaults(BaseModel):
     max_response_time: Annotated[float, Field(gt=0)] | MaxResponseTime | None = None
     agents: list[AgentName] | None = None
 
+    @field_validator("input", "tags", mode="before")
+    @classmethod
+    def _none_is_empty(cls, value: Any, info: ValidationInfo) -> Any:
+        if value is None:
+            return {} if info.field_name == "input" else []
+        return value
+
 
 class SuiteFile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     defaults: SuiteDefaults = Field(default_factory=SuiteDefaults)
-    cases: list[Case] = Field(default_factory=list)
+    cases: list[Case | Overlay] = Field(default_factory=list)
     overlays: list[Overlay] = Field(default_factory=list)
+
+    @field_validator("defaults", "cases", "overlays", mode="before")
+    @classmethod
+    def _none_is_empty(cls, value: Any, info: ValidationInfo) -> Any:
+        if value is None:
+            return {} if info.field_name == "defaults" else []
+        return value
 
 
 CASE_FILE: TypeAdapter[SuiteFile | list[Case | Overlay] | Case] = TypeAdapter(
@@ -392,7 +405,7 @@ def _model_at(model: type[BaseModel], loc: tuple[int | str, ...]) -> type[BaseMo
     for part in loc:
         if current is None:
             return None
-        if isinstance(part, int):
+        if isinstance(part, int) or part == current.__name__:
             continue
         field = current.model_fields.get(part)
         if field is None:
@@ -430,13 +443,16 @@ def explain_schema_error(model: type[BaseModel], exc: ValidationError) -> list[s
                 line += f"; valid keys here: {', '.join(parent.model_fields)}"
             if key in homes:
                 line += f"; `{key}` goes under `{homes[key]}`"
+            elif key in EVALUATOR_HOMES and model is Overlay:
+                line += f"; `{key}` is not allowed in an overlay"
             elif key in EVALUATOR_HOMES:
-                place = "an overlay" if model is Overlay else "here"
-                line += f"; `{key}` is not allowed in {place}"
-            elif key in SCORECARD_BUCKETS and loc[:-1] == ("evaluators",):
+                line += f"; `{key}` goes under `{EVALUATOR_HOMES[key]}` of a case"
+            elif loc[:-1] == ("evaluators",) and homes:
+                families = sorted(set(homes.values()))
                 line += (
-                    f"; `{key}` is a scorecard bucket, not a YAML key: evaluators sit under"
-                    " `evaluators.output` or `evaluators.trajectory` (see case-schema.md)"
+                    "; built-in evaluators sit under "
+                    + " or ".join(f"`{family}`" for family in families)
+                    + " (see case-schema.md)"
                 )
         if error["type"] == "model_type":
             expected = _model_at(model, loc)
@@ -446,41 +462,63 @@ def explain_schema_error(model: type[BaseModel], exc: ValidationError) -> list[s
     return lines
 
 
+@dataclass
+class SchemaProblem:
+    case_id: str | None
+    lines: list[str]
+
+
 class CaseSchemaError(ValueError):
-    def __init__(self, path: Path, case_id: str | None, lines: list[str]):
+    def __init__(self, path: Path, problems: list[SchemaProblem]):
         self.path = path
-        self.case_id = case_id
-        self.lines = lines
-        label = f"case {case_id!r}" if case_id is not None else "the file"
-        super().__init__(f"{path}: {label} is invalid: " + " | ".join(lines))
+        self.problems = problems
+        super().__init__(
+            f"{path}: "
+            + "; ".join(
+                f"{'case ' + repr(p.case_id) if p.case_id is not None else 'the file'}: "
+                + " | ".join(p.lines)
+                for p in problems
+            )
+        )
 
 
-def _validate(model: type[BaseModel], path: Path, item: Any, id_key: str | None) -> Any:
+def _check(
+    model: type[BaseModel], item: Any, id_key: str | None, problems: list[SchemaProblem]
+) -> Any:
     case_id = item.get(id_key) if id_key is not None and isinstance(item, dict) else None
     try:
         return model.model_validate(item)
     except ValidationError as exc:
-        raise CaseSchemaError(
-            path, str(case_id) if case_id is not None else None, explain_schema_error(model, exc)
-        ) from exc
-
-
-def _apply_defaults(item: dict[str, Any], defaults: SuiteDefaults) -> dict[str, Any]:
-    if defaults.input:
-        item = {**item, "input": {**defaults.input, **(item.get("input") or {})}}
-    if defaults.tags:
-        item = {**item, "tags": list(dict.fromkeys(defaults.tags + (item.get("tags") or [])))}
-    mrt = defaults.max_response_time
-    if mrt is not None:
-        evaluators = dict(item.get("evaluators") or {})
-        output = dict(evaluators.get("output") or {})
-        if "max_response_time" not in output:
-            output["max_response_time"] = (
-                mrt.model_dump() if isinstance(mrt, MaxResponseTime) else {"max_seconds": mrt}
+        problems.append(
+            SchemaProblem(
+                str(case_id) if case_id is not None else None, explain_schema_error(model, exc)
             )
-            evaluators["output"] = output
-            item = {**item, "evaluators": evaluators}
-    return item
+        )
+        return None
+
+
+def _apply_defaults(case: Case, defaults: SuiteDefaults) -> Case:
+    output = case.evaluators.output
+    mrt = defaults.max_response_time
+    if mrt is not None and output.max_response_time is None:
+        output = output.model_copy(
+            update={
+                "max_response_time": mrt
+                if isinstance(mrt, MaxResponseTime)
+                else MaxResponseTime(max_seconds=mrt)
+            }
+        )
+    return case.model_copy(
+        update={
+            "input": {**defaults.input, **case.input},
+            "tags": list(dict.fromkeys(defaults.tags + case.tags)),
+            "evaluators": case.evaluators.model_copy(update={"output": output}),
+        }
+    )
+
+
+def _file_problem(path: Path, message: str) -> CaseSchemaError:
+    return CaseSchemaError(path, [SchemaProblem(None, [message])])
 
 
 def load_cases_from_yaml(path: Path) -> tuple[list[Case], list[Overlay]]:
@@ -495,24 +533,31 @@ def load_cases_from_yaml(path: Path) -> tuple[list[Case], list[Overlay]]:
     try:
         raw = yaml.safe_load(path.read_text())
     except yaml.YAMLError as exc:
-        raise CaseSchemaError(path, None, [f"not valid YAML: {exc}"]) from exc
+        raise _file_problem(path, f"not valid YAML: {exc}") from exc
+    problems: list[SchemaProblem] = []
     defaults = SuiteDefaults()
-    overlay_items: list[Any] = []
+    overlay_items: Any = []
     if isinstance(raw, dict) and ("cases" in raw or "overlays" in raw):
         shell = {k: v for k, v in raw.items() if k not in ("cases", "overlays")}
-        defaults = _validate(SuiteFile, path, shell, None).defaults
+        suite = _check(SuiteFile, shell, None, problems)
+        if suite is None:
+            raise CaseSchemaError(path, problems)
+        defaults = suite.defaults
         overlay_items = raw.get("overlays") or []
+        if not isinstance(overlay_items, list):
+            raise _file_problem(
+                path, f"overlays: expected a list of overlays, got {type(overlay_items).__name__}"
+            )
         raw = raw.get("cases") or []
+        if not isinstance(raw, list):
+            raise _file_problem(path, f"cases: expected a list of cases, got {type(raw).__name__}")
     if isinstance(raw, dict):
         raw = [raw]
     if not isinstance(raw, list):
-        raise CaseSchemaError(
+        raise _file_problem(
             path,
-            None,
-            [
-                "expected a case, a list of cases and overlays, or a mapping with"
-                f" defaults / cases / overlays; got {type(raw).__name__}"
-            ],
+            "expected a case, a list of cases and overlays, or a mapping with"
+            f" defaults / cases / overlays; got {type(raw).__name__}",
         )
     case_items: list[Any] = []
     for item in raw:
@@ -520,23 +565,29 @@ def load_cases_from_yaml(path: Path) -> tuple[list[Case], list[Overlay]]:
             overlay_items.append(item)
         else:
             case_items.append(item)
-    cases = []
-    for item in case_items:
-        if isinstance(item, dict):
-            item = _apply_defaults(item, defaults)
-        cases.append(_validate(Case, path, item, "id"))
+    cases = [
+        _apply_defaults(case, defaults)
+        for item in case_items
+        if (case := _check(Case, item, "id", problems)) is not None
+    ]
     default_agents = defaults.agents
     overlays = [
-        _validate(
-            Overlay,
-            path,
-            {"agents": default_agents, **item}
-            if default_agents is not None and isinstance(item, dict)
-            else item,
-            "extends",
-        )
+        overlay
         for item in overlay_items
+        if (
+            overlay := _check(
+                Overlay,
+                {"agents": default_agents, **item}
+                if default_agents is not None and isinstance(item, dict)
+                else item,
+                "extends",
+                problems,
+            )
+        )
+        is not None
     ]
+    if problems:
+        raise CaseSchemaError(path, problems)
     return cases, overlays
 
 

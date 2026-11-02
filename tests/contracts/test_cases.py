@@ -373,8 +373,8 @@ def test_schema_error_names_valid_keys_and_where_an_evaluator_belongs(tmp_path):
     )
     with pytest.raises(CaseSchemaError) as exc:
         load_cases_from_yaml(p)
-    assert exc.value.case_id == "a"
-    assert exc.value.lines == [
+    assert exc.value.problems[0].case_id == "a"
+    assert exc.value.problems[0].lines == [
         "evaluators.presentation_judge: Extra inputs are not permitted;"
         " valid keys here: output, trajectory, custom;"
         " `presentation_judge` goes under `evaluators.output`"
@@ -389,8 +389,8 @@ def test_schema_error_explains_a_bucket_name_and_a_bare_number(tmp_path):
     )
     with pytest.raises(CaseSchemaError) as exc:
         load_cases_from_yaml(p)
-    text = " ".join(exc.value.lines)
-    assert "`presentation` is a scorecard bucket, not a YAML key" in text
+    text = " ".join(exc.value.problems[0].lines)
+    assert "built-in evaluators sit under `evaluators.output` or `evaluators.trajectory`" in text
     assert "expects a mapping with keys: max_seconds" in text
 
 
@@ -402,7 +402,7 @@ def test_schema_error_lists_valid_keys_inside_a_list(tmp_path):
     )
     with pytest.raises(CaseSchemaError) as exc:
         load_cases_from_yaml(p)
-    assert "valid keys here: rubric, forbid, points, note" in exc.value.lines[0]
+    assert "valid keys here: rubric, forbid, points, note" in exc.value.problems[0].lines[0]
 
 
 def test_case_schema_page_shows_every_evaluator():
@@ -419,9 +419,9 @@ def test_overlay_schema_error_says_the_evaluator_is_not_allowed(tmp_path):
     )
     with pytest.raises(CaseSchemaError) as exc:
         load_cases_from_yaml(p)
-    assert exc.value.case_id == "a"
-    assert "`trajectory_rubrics` is not allowed in an overlay" in exc.value.lines[0]
-    assert "goes under" not in exc.value.lines[0]
+    assert exc.value.problems[0].case_id == "a"
+    assert "`trajectory_rubrics` is not allowed in an overlay" in exc.value.problems[0].lines[0]
+    assert "goes under" not in exc.value.problems[0].lines[0]
 
 
 def test_file_level_keys_are_checked(tmp_path):
@@ -429,9 +429,9 @@ def test_file_level_keys_are_checked(tmp_path):
     p.write_text("defualts: {}\ncases:\n- id: a\n  input: {question: q}\n")
     with pytest.raises(CaseSchemaError) as exc:
         load_cases_from_yaml(p)
-    assert exc.value.case_id is None
-    assert exc.value.lines[0].startswith("defualts: Extra inputs are not permitted")
-    assert "valid keys here: defaults, cases, overlays" in exc.value.lines[0]
+    assert exc.value.problems[0].case_id is None
+    assert exc.value.problems[0].lines[0].startswith("defualts: Extra inputs are not permitted")
+    assert "valid keys here: defaults, cases, overlays" in exc.value.problems[0].lines[0]
 
 
 def test_published_schema_accepts_every_file_shape():
@@ -442,3 +442,85 @@ def test_published_schema_accepts_every_file_shape():
     CASE_FILE.validate_python(
         {"defaults": {"max_response_time": 90}, "cases": [single], "overlays": [overlay]}
     )
+
+
+@pytest.mark.parametrize(
+    "case_yaml",
+    [
+        "evaluators: answer_rubrics",
+        "evaluators: [a, b]",
+        "tags: smoke",
+        "input: foo",
+    ],
+)
+def test_wrong_types_with_defaults_are_schema_errors(tmp_path, case_yaml):
+    p = tmp_path / "cases.yaml"
+    p.write_text(
+        "defaults: {max_response_time: 5, tags: [t], input: {x: 1}}\n"
+        f"cases:\n  - id: a\n    input: {{question: q}}\n    {case_yaml}\n"
+        if not case_yaml.startswith("input")
+        else "defaults: {input: {x: 1}}\ncases:\n  - id: a\n    input: foo\n"
+    )
+    with pytest.raises(CaseSchemaError) as exc:
+        load_cases_from_yaml(p)
+    assert exc.value.problems[0].case_id == "a"
+
+
+def test_defaults_still_merge_into_cases(tmp_path):
+    p = tmp_path / "cases.yaml"
+    p.write_text(
+        "defaults: {max_response_time: 5, tags: [t], input: {x: 1}}\n"
+        "cases:\n  - id: a\n    tags: [u]\n    input: {question: q}\n"
+    )
+    [case], _ = load_cases_from_yaml(p)
+    assert case.tags == ["t", "u"]
+    assert case.input == {"x": 1, "question": "q"}
+    assert case.evaluators.output.max_response_time.max_seconds == 5
+
+
+@pytest.mark.parametrize("overlays", ["5", "{extends: a, agents: [bot]}"])
+def test_overlays_must_be_a_list(tmp_path, overlays):
+    p = tmp_path / "cases.yaml"
+    p.write_text(f"overlays: {overlays}\n")
+    with pytest.raises(CaseSchemaError, match="overlays: expected a list of overlays"):
+        load_cases_from_yaml(p)
+
+
+def test_empty_defaults_are_accepted(tmp_path):
+    p = tmp_path / "cases.yaml"
+    p.write_text("defaults:\ncases:\n  - id: a\n    input: {question: q}\n")
+    assert len(load_cases_from_yaml(p)[0]) == 1
+    p.write_text("defaults: {tags:, input:}\ncases:\n  - id: a\n    input: {question: q}\n")
+    assert len(load_cases_from_yaml(p)[0]) == 1
+
+
+def test_every_broken_case_is_reported(tmp_path):
+    p = tmp_path / "cases.yaml"
+    p.write_text("- id: a\n  bad: 1\n- id: b\n  input: {question: q}\n- id: c\n  bad: 2\n")
+    with pytest.raises(CaseSchemaError) as exc:
+        load_cases_from_yaml(p)
+    assert [problem.case_id for problem in exc.value.problems] == ["a", "c"]
+
+
+def test_evaluator_at_the_file_top_level_says_where_it_goes(tmp_path):
+    p = tmp_path / "cases.yaml"
+    p.write_text("answer_rubrics: {}\ncases: []\n")
+    with pytest.raises(CaseSchemaError) as exc:
+        load_cases_from_yaml(p)
+    assert (
+        "`answer_rubrics` goes under `evaluators.output` of a case"
+        in exc.value.problems[0].lines[0]
+    )
+
+
+def test_valid_keys_named_inside_a_union_field(tmp_path):
+    p = tmp_path / "cases.yaml"
+    p.write_text("defaults: {max_response_time: {seconds: 5}}\ncases: []\n")
+    with pytest.raises(CaseSchemaError) as exc:
+        load_cases_from_yaml(p)
+    assert any("valid keys here: max_seconds" in line for line in exc.value.problems[0].lines)
+
+
+def test_published_schema_accepts_an_overlay_inside_cases():
+    overlay = {"extends": "a", "agents": ["bot"], "evaluators": {"custom": {"x": {}}}}
+    CASE_FILE.validate_python({"cases": [overlay]})

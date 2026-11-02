@@ -11,6 +11,11 @@
   where a misplaced evaluator belongs (e.g. "`presentation_judge` goes under
   `evaluators.output`"). `evalkit lint --offline` now reports these as findings
   instead of stopping with a traceback.
+  Lint reports every broken case in a file, not just the first.
+- Stricter case files: in a file with `cases:` or `overlays:`, any other
+  top-level key besides `defaults` is now an error (it used to be ignored, so
+  a typo like `defualts:` dropped your defaults silently). `cases:` and
+  `overlays:` must be lists. Fix: remove or rename the stray key.
 - `ScoreItem`, `EvalCase` and `EvalRun` can be imported from `evalkit.sdk`.
 - Run several tags in one experiment. `evalkit run finance --tag ratios --tag
   statements --agent ouragent@dev` runs every case carrying any of the given

@@ -477,7 +477,14 @@
         },
         "cases": {
           "items": {
-            "$ref": "#/$defs/Case"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Case"
+              },
+              {
+                "$ref": "#/$defs/Overlay"
+              }
+            ]
           },
           "title": "Cases",
           "type": "array"
