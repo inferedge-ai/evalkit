@@ -662,6 +662,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ci-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI sync
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1048,7 +1076,7 @@
 </table>
 <p>The Workspace tab on a run lists the files the agent wrote. evalkit reads them through the Harness API files endpoints, so only the two Harness API paths have it. See <a href="../harness-api/">Harness API</a> for what each endpoint enables.</p>
 <h2 id="2-install-and-log-in">2. Install and log in<a class="headerlink" href="#2-install-and-log-in" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev20"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev21"</span>
 evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020
 </code></pre></div>
 <p>More in <a href="../install/">Install</a> and <a href="../login/">Login</a>.</p>
@@ -1126,7 +1154,7 @@ shasum<span class="w"> </span>-a<span class="w"> </span><span class="m">256</spa
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>evaluate<span class="w"> </span>&lt;experiment-id&gt;<span class="w">        </span><span class="c1"># re-score the same runs after an evaluator change; no agent calls</span>
 evalkit<span class="w"> </span>runs<span class="w"> </span>pull<span class="w"> </span>--experiment<span class="w"> </span>&lt;experiment-id&gt;<span class="w">   </span><span class="c1"># download every run (trajectory, case, scores) to diagnose failures</span>
 </code></pre></div>
-<p>Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as <code>dev</code>, where they start Unreviewed; a reviewer of that workspace approves them, and if <code>dev</code> is linked to <code>prod</code>, approval promotes them there.</p>
+<p>Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as <code>dev</code>, where they start Unreviewed; a reviewer of that workspace approves them, and if <code>dev</code> is linked to <code>prod</code>, approval promotes them there. <a href="../ci-sync/">CI sync</a> shows how to set up that CI job.</p>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>review<span class="w"> </span>request<span class="w"> </span>finance@dev<span class="w"> </span>--case-id<span class="w"> </span>net-debt-fy2025<span class="w"> </span>--reviewer<span class="w"> </span>&lt;user&gt;
 evalkit<span class="w"> </span>review<span class="w"> </span>approve<span class="w"> </span>finance@dev<span class="w"> </span>net-debt-fy2025<span class="w">   </span><span class="c1"># reviewers only</span>
 </code></pre></div>

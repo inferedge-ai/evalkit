@@ -16,7 +16,7 @@
         <link rel="prev" href="../config/">
       
       
-        <link rel="next" href="../sdk-runs/">
+        <link rel="next" href="../ci-sync/">
       
       
         
@@ -577,6 +577,45 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#example-setup-personal-dev-prod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example setup: personal → dev → prod
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example setup: personal → dev → prod">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#set-it-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Set it up
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#day-to-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Day to day
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#several-branches" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -591,6 +630,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ci-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI sync
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -854,6 +921,45 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#example-setup-personal-dev-prod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example setup: personal → dev → prod
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Example setup: personal → dev → prod">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#set-it-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Set it up
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#day-to-day" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Day to day
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#several-branches" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1028,6 +1134,58 @@ with one entry per shared workspace.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="example-setup-personal-dev-prod">Example setup: personal → dev → prod<a class="headerlink" href="#example-setup-personal-dev-prod" title="Permanent link">&para;</a></h2>
+<p>A common setup with two shared workspaces, one per deployed environment of
+your agent:</p>
+<ul>
+<li><strong>Personal workspaces:</strong> each developer writes and runs cases in their own
+  workspace, on their laptop.</li>
+<li><strong><code>@dev</code>:</strong> a PR adds or changes cases in the repo. On merge, CI syncs them
+  into <code>@dev</code>. Reviewers of <code>@dev</code> approve them there.</li>
+<li><strong><code>@prod</code>:</strong> the promotion target of <code>@dev</code>. Approving a case in <code>@dev</code>
+  copies that version into <code>@prod</code>, already approved. Nothing else writes
+  cases to <code>@prod</code>, so it always holds the released set.</li>
+</ul>
+<div class="highlight"><pre><span></span><code>@alice ──PR merged, CI syncs──▶ @dev (Unreviewed) ──reviewer approves──▶ @dev (Approved) ──promotion──▶ @prod (Approved)
+</code></pre></div>
+<h3 id="set-it-up">Set it up<a class="headerlink" href="#set-it-up" title="Permanent link">&para;</a></h3>
+<p>An admin runs these once:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>workspaces<span class="w"> </span>create<span class="w"> </span>dev
+evalkit<span class="w"> </span>workspaces<span class="w"> </span>create<span class="w"> </span>prod
+evalkit<span class="w"> </span>workspaces<span class="w"> </span>promote-to<span class="w"> </span>dev<span class="w"> </span>prod<span class="w">                  </span><span class="c1"># approvals in @dev land in @prod</span>
+evalkit<span class="w"> </span>workspaces<span class="w"> </span>members<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>alice<span class="w"> </span>--role<span class="w"> </span>writer<span class="w">  </span><span class="c1"># may sync and run in @dev</span>
+evalkit<span class="w"> </span>workspaces<span class="w"> </span>members<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>bob<span class="w"> </span>--role<span class="w"> </span>reviewer<span class="w">  </span><span class="c1"># may approve cases in @dev</span>
+evalkit<span class="w"> </span>datasets<span class="w"> </span>create<span class="w"> </span>finance@prod<span class="w">                    </span><span class="c1"># once per dataset, before its first approval</span>
+</code></pre></div>
+<p>Then:</p>
+<ol>
+<li>Set up CI to lint cases on every PR and sync them into <code>@dev</code> on merge.
+   See <a href="../ci-sync/">CI sync</a>.</li>
+<li>If the server drives your deployed agent, register it once per
+   workspace, pointing each at that environment's deployment:
+   <code>evalkit agents create ouragent --workspace dev --harness-url …</code> and the
+   same with <code>--workspace prod</code>.</li>
+</ol>
+<h3 id="day-to-day">Day to day<a class="headerlink" href="#day-to-day" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Write and try a case.</strong> Alice adds <code>finance/net-debt.yaml</code> and runs it
+   against her own agent: <code>evalkit run finance --agent myagent</code>. This syncs
+   the directory into <code>finance@alice</code> and runs it there.</li>
+<li><strong>Open a PR.</strong> CI runs <code>evalkit lint</code> on the cases and fails on errors.</li>
+<li><strong>Merge.</strong> CI runs <code>evalkit sync</code> into <code>finance@dev</code>. The new case is
+   Unreviewed.</li>
+<li><strong>Review.</strong> Alice asks for a review:
+   <code>evalkit review request finance@dev --case-id net-debt --reviewer bob</code>.
+   Bob approves it: <code>evalkit review approve finance@dev net-debt</code>.</li>
+<li><strong>Promotion.</strong> The approval adds that version of the case to
+   <code>finance@prod</code>, approved.</li>
+<li><strong>Run.</strong> <code>finance@dev</code> holds every merged case, for regression runs
+   after a merge. <code>finance@prod</code> holds the approved ones, for the release
+   gate (rows 5 and 7 in the table above).</li>
+</ol>
+<p>Changing a case starts the loop again. The new version is Unreviewed in
+<code>@dev</code>, and <code>@prod</code> keeps the old approved version until the new one is
+approved.</p>
 <h2 id="several-branches">Several branches<a class="headerlink" href="#several-branches" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>evalkit run</code> syncs the dataset directory first. The dataset in your
@@ -1094,13 +1252,13 @@ with one entry per shared workspace.</p>
         
         
           
-          <a href="../sdk-runs/" class="md-footer__link md-footer__link--next" aria-label="Next: SDK runs">
+          <a href="../ci-sync/" class="md-footer__link md-footer__link--next" aria-label="Next: CI sync">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                SDK runs
+                CI sync
               </div>
             </div>
             <div class="md-footer__button md-icon">
