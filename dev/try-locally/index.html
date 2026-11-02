@@ -1199,7 +1199,7 @@ get a real scorecard before you touch your own agent.</p>
 on one machine. For a real deployment, follow the evalkit-deployment skill.</p>
 <h2 id="what-you-need">What you need<a class="headerlink" href="#what-you-need" title="Permanent link">&para;</a></h2>
 <ul>
-<li><code>uv</code> and port 8020 free.</li>
+<li><code>uv</code>.</li>
 <li>An OpenAI-compatible LLM endpoint (OpenAI, a LiteLLM proxy, vLLM, Ollama,
   ...) that supports tool calls and structured output, with its base URL, API
   key and model name. The sample agent and the judge both use it.</li>
@@ -1207,8 +1207,12 @@ on one machine. For a real deployment, follow the evalkit-deployment skill.</p>
   Docker with Compose v2 (with Docker).</li>
 </ul>
 <h2 id="start-the-server">Start the server<a class="headerlink" href="#start-the-server" title="Permanent link">&para;</a></h2>
-<p>Pick one way. Both end with the server on http://localhost:8020 and the try
-kit in a folder, and the steps after this section are the same.</p>
+<p>Pick one way. Both end with the server on the port you picked (8020 by
+default) and the try kit in a folder, and the steps after this section are the
+same.</p>
+<p>To use another port, run <code>evalkit init-server --port 9500</code> without Docker
+(<code>evalkit serve</code> reads it from <code>config.yaml</code>), or set <code>EVALKIT_PORT=9500</code> in
+<code>.env</code> with Docker.</p>
 <h3 id="without-docker">Without Docker<a class="headerlink" href="#without-docker" title="Permanent link">&para;</a></h3>
 <p>evalkit is on PyPI as <code>evalkit-py</code> and needs Python 3.12 or newer. Install it with the server extra, then
 let <code>evalkit init-server</code> set up the rest:</p>
@@ -1295,14 +1299,14 @@ every start.</p>
 </tbody>
 </table>
 <h2 id="1-install-the-cli-and-log-in">1. Install the CLI and log in<a class="headerlink" href="#1-install-the-cli-and-log-in" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev23"</span><span class="w">   </span><span class="c1"># with Docker only</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev24"</span><span class="w">   </span><span class="c1"># with Docker only</span>
 evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020<span class="w"> </span>--username<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span>evalkit-admin
 </code></pre></div>
-<p><code>0.3.0.dev23</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
+<p><code>0.3.0.dev24</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
 prints it.</p>
 <p><code>evalkit login</code> replaces any login you already saved. To keep it, skip
-<code>evalkit login</code> and point this shell at the try-it server instead (this needs
-<code>jq</code>):</p>
+<code>evalkit login</code> and give this shell a token for the try-it server instead
+(this needs <code>jq</code>):</p>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_SERVER_URL</span><span class="o">=</span>http://localhost:8020
 <span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_TOKEN</span><span class="o">=</span><span class="k">$(</span>curl<span class="w"> </span>-fsSL<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>http://localhost:8020/api/auth/login<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>-H<span class="w"> </span><span class="s1">'content-type: application/json'</span><span class="w"> </span>-d<span class="w"> </span><span class="s1">'{"username": "admin", "password": "evalkit-admin"}'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.token<span class="k">)</span>
