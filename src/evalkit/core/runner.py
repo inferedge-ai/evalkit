@@ -708,7 +708,6 @@ def _configured_builtins(evaluators: dict) -> dict[str, dict]:
 
 REFETCHABLE = (TrajectoryStatus.PARTIAL, TrajectoryStatus.UNAVAILABLE)
 REFETCH_CONCURRENCY = 8
-SCORING_CONCURRENCY = 8
 SCORABLE = (TrajectoryStatus.VALID, TrajectoryStatus.PARTIAL)
 
 
@@ -792,7 +791,6 @@ async def _evaluate_run(
     caps: Capabilities,
     cost_map: dict,
     run: RunForScoring,
-    judge_semaphore: asyncio.Semaphore,
     judge_api_key: str | None,
     configured_custom: dict[str, RemoteEvaluator],
     holder: str | None,
@@ -829,14 +827,11 @@ async def _evaluate_run(
         evaluator = BUILTIN_EVALUATORS[name]
         if set(evaluator.emits) <= already:
             continue
-        async with judge_semaphore:
-            try:
-                scores = await execute(evaluator, ctx, config, caps)
-            except Exception as exc:
-                LOGGER.warning(
-                    "evaluator %s errored on run %s: %s", name, run.experiment_run_id, exc
-                )
-                scores = [ScoreRow(name=name, score=None, label="error", error=str(exc))]
+        try:
+            scores = await execute(evaluator, ctx, config, caps)
+        except Exception as exc:
+            LOGGER.warning("evaluator %s errored on run %s: %s", name, run.experiment_run_id, exc)
+            scores = [ScoreRow(name=name, score=None, label="error", error=str(exc))]
         rows.extend(_rows(name, EvaluationSource.BUILTIN, scores))
 
     custom_config = evaluators.get("custom") or {}
@@ -961,14 +956,13 @@ async def evaluate_experiment(
     cost_map = load_cost_map(deps.cfg.cost_map)
     runs = await deps.store.runs_to_score(exp_id, force=False)
     refetched = await _refetch(deps, exp, agent, runs) if refetch_trajectories else set()
-    judge_semaphore = asyncio.Semaphore(exp.config.judge.concurrency)
     api_key = judge_key(deps, exp.config.judge, [run.case for run in runs])
     configured_custom = (
         await deps.evaluators.in_workspace(agent.workspace)
         if any(run.case.effective_evaluators.get("custom") for run in runs)
         else {}
     )
-    slots = asyncio.Semaphore(SCORING_CONCURRENCY)
+    slots = asyncio.Semaphore(exp.config.judge.concurrency)
 
     async def one(run: RunForScoring) -> None:
         async with slots:
@@ -979,7 +973,6 @@ async def evaluate_experiment(
                 caps,
                 cost_map,
                 run,
-                judge_semaphore,
                 api_key,
                 configured_custom,
                 holder,

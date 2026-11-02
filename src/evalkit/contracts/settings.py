@@ -11,7 +11,8 @@ class JudgeSettings(BaseModel):
         model: The model name at that endpoint.
         reasoning_effort: Passed to the model as `reasoning_effort`.
         max_tokens: The most tokens one judge reply may use.
-        concurrency: How many judge calls run at once.
+        concurrency: How many runs are scored at once. A run's evaluators run one
+            after another, so this is also the most judge calls in flight.
     """
 
     model_config = ConfigDict(extra="forbid")
