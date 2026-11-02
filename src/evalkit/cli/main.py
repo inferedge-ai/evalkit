@@ -7,7 +7,6 @@ import time
 from datetime import UTC, datetime
 from importlib.util import find_spec
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import httpx
 import typer
@@ -62,8 +61,6 @@ else:
     server_commands = None  # type: ignore[assignment]
 
 RUN_POLL_SECONDS = 2.0
-LOCAL_HOSTS = ("localhost", "127.0.0.1")
-DEFAULT_PORTS = {"http": 80, "https": 443}
 
 app = typer.Typer(
     name="evalkit",
@@ -1167,17 +1164,7 @@ def serve(
     """
     if server_commands is None:
         raise ApiError("`evalkit serve` needs the server extra — pip install 'evalkit-py[server]'")
-    cfg = _server_config(config)
-    base = urlsplit(cfg.server.base_url)
-    base_port = base.port or DEFAULT_PORTS.get(base.scheme)
-    if host in LOCAL_HOSTS and base.hostname in LOCAL_HOSTS and base_port != port:
-        typer.secho(
-            f"serving on port {port}, but server.base_url in {config} is "
-            f"{cfg.server.base_url}; links the server builds will point there",
-            fg="yellow",
-            err=True,
-        )
-    server_commands.serve(cfg, host, port)
+    server_commands.serve(_server_config(config), host, port)
 
 
 @db_app.command("upgrade")

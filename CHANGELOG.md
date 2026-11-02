@@ -3,11 +3,10 @@
 ## Unreleased
 
 - `evalkit init-server --port 9500` writes `server.base_url` with that port and
-  prints the matching `evalkit serve --port` and `evalkit login` commands.
-  `evalkit serve` warns when its `--port` differs from the port in a localhost
-  `server.base_url`. With Docker, set `EVALKIT_PORT` in `.env` to publish the
-  server on another host port. Try it locally says how to change the port once
-  and its examples use the server's own URL in the web UI.
+  prints the matching `evalkit serve --port` and `evalkit login` commands. In
+  the Docker try stack, set `EVALKIT_PORT` in `.env` to publish the server on
+  another host port. Try it locally says how to change the port once and its
+  examples use the server's own URL in the web UI.
 - Run several tags in one experiment. `evalkit run finance --tag ratios --tag
   statements --agent ouragent@dev` runs every case carrying any of the given
   tags. In the web UI's run dialog, the **Tags** choice is now a multi-select

@@ -32,8 +32,7 @@ and `evalkit serve` also serve it.
 cp <this-skill-dir>/config.example.yaml config.yaml   # fill in: blob, encryption_key
 cp <this-skill-dir>/docker-compose.yml .
 # Env referenced by config.example.yaml + compose: EVALKIT_IMAGE (the server
-# image you were given), POSTGRES_PASSWORD, EVALKIT_ENCRYPTION_KEY, and
-# optionally EVALKIT_PORT (the host port, default 8020).
+# image you were given), POSTGRES_PASSWORD, EVALKIT_ENCRYPTION_KEY.
 # API keys are not in config: the commands below store them in the database.
 # First start: EVALKIT_ADMIN_PASSWORD (8+ characters, at most 72 bytes)
 # creates the admin user; a server with no admin and no
@@ -47,7 +46,7 @@ docker compose up -d
 #   docker compose up -d postgres
 #   docker compose run --rm --no-deps server evalkit db upgrade --config /etc/evalkit/config.yaml
 #   docker compose up -d
-EVALKIT_URL=http://localhost:${EVALKIT_PORT:-8020}
+EVALKIT_URL=http://localhost:8020   # the host port docker-compose.yml publishes
 uv tool install --reinstall "evalkit-py==$(curl -fsSL $EVALKIT_URL/api/cli | jq -r .version)"   # the CLI, from PyPI at the server's version
 evalkit login --url $EVALKIT_URL   # admin / $EVALKIT_ADMIN_PASSWORD
 evalkit users add <teammate>                    # optional, admin only

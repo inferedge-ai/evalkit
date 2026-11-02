@@ -203,26 +203,6 @@ def test_port_sets_base_url_and_the_next_steps(tmp_path, monkeypatch):
     assert "evalkit login --url http://localhost:9500" in result.output
 
 
-def test_serve_warns_when_its_port_differs_from_base_url(tmp_path, monkeypatch):
-    served: list[int] = []
-    monkeypatch.setattr(server_commands, "serve", lambda cfg, host, port: served.append(port))
-    kit = tmp_path / "kit"
-    kit.mkdir()
-    config = init_server.server_config("postgresql+psycopg://localhost/x", kit / "data", 8020)
-    (kit / "config.yaml").write_text(yaml.safe_dump(config))
-    monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
-    path = str(kit / "config.yaml")
-    same = CliRunner().invoke(app, ["serve", "--config", path])
-    other = CliRunner().invoke(app, ["serve", "--config", path, "--port", "9500"])
-    mapped = CliRunner().invoke(
-        app, ["serve", "--config", path, "--host", "0.0.0.0", "--port", "9500"]
-    )
-    assert served == [8020, 9500, 9500]
-    assert "server.base_url" not in same.output
-    assert "server.base_url" not in mapped.output
-    assert "serving on port 9500, but server.base_url" in other.output
-
-
 def test_kit_only_with_a_port_says_to_set_evalkit_port(tmp_path):
     kit = tmp_path / "kit"
     result = CliRunner().invoke(
