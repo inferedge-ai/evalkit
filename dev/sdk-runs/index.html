@@ -13,7 +13,7 @@
         <link rel="canonical" href="https://inferedge-ai.github.io/evalkit/dev/sdk-runs/">
       
       
-        <link rel="prev" href="../ci-sync/">
+        <link rel="prev" href="../case-schema/">
       
       
         <link rel="next" href="../tracing/">
@@ -551,6 +551,34 @@
     
   
     CI sync
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../case-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Case schema
   
 
     
@@ -1216,7 +1244,7 @@
 <h2 id="capabilities">Capabilities<a class="headerlink" href="#capabilities" title="Permanent link">&para;</a></h2>
 <p>A code-driven agent has no <code>GET /capabilities</code>, so evalkit writes its capabilities onto each experiment itself: <code>trajectory</code>, <code>tool_calls</code>, <code>token_usage</code> and <code>run_listing</code> are true; <code>thinking</code>, <code>artifacts</code> and <code>workspace</code> are false. Evaluators gated on a capability skip when it is false. evalkit does not read capabilities from the spans. Set <code>provides</code> on the agent (<code>evalkit agents create --provides</code>, or <code>evalkit agents edit</code>) to declare what it really does, for example <code>thinking: true</code> when its spans carry the model's reasoning. Declare only what works: a false <code>true</code> produces failing scores blamed on the agent.</p>
 <h2 id="python-evaluators">Python evaluators<a class="headerlink" href="#python-evaluators" title="Permanent link">&para;</a></h2>
-<p><code>@evaluator(name=..., kind="evaluator" | "gauge", requires_trajectory=False)</code> turns a function into an evaluator. It receives the same <code>EvalCase</code> and <code>EvalRun</code> the HTTP Custom Evaluator API sends: the case id, input, expected block and this evaluator's config from the case YAML; the answer, structured output and the ATIF trajectory as a dict. Return a float, a <code>ScoreItem</code>, or a list of them. A case selects it by name under <code>evaluators.custom</code>, exactly like an HTTP evaluator.</p>
+<p><code>@evaluator(name=..., kind="evaluator" | "gauge", requires_trajectory=False)</code> turns a function into an evaluator. It receives the same <code>EvalCase</code> and <code>EvalRun</code> the HTTP Custom Evaluator API sends: the case id, input, expected block and this evaluator's config from the case YAML; the answer, structured output and the ATIF trajectory as a dict. Return a float, a <code>ScoreItem</code> (<code>from evalkit.sdk import ScoreItem</code>), or a list of them. <a href="../case-schema/#python-evaluators">Case schema</a> lists the fields of <code>EvalCase</code> and <code>EvalRun</code>. A case selects it by name under <code>evaluators.custom</code>, exactly like an HTTP evaluator.</p>
 <h2 id="bring-your-own-benchmark">Bring your own benchmark<a class="headerlink" href="#bring-your-own-benchmark" title="Permanent link">&para;</a></h2>
 <p>A published benchmark is a suite plus a Python evaluator:</p>
 <ol>
@@ -1269,7 +1297,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../ci-sync/" class="md-footer__link md-footer__link--prev" aria-label="Previous: CI sync">
+          <a href="../case-schema/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Case schema">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1279,7 +1307,7 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                CI sync
+                Case schema
               </div>
             </div>
           </a>
