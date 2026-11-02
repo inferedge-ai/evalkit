@@ -14,9 +14,11 @@ from sqlalchemy.pool import NullPool
 
 
 def make_session_factory(
-    db_url: str, *, pool_size: int = 20, max_overflow: int = 10
+    db_url: str, *, pool_size: int = 20, max_overflow: int = 10, pool_timeout: float = 5
 ) -> async_sessionmaker[AsyncSession]:
-    engine = create_async_engine(db_url, pool_size=pool_size, max_overflow=max_overflow)
+    engine = create_async_engine(
+        db_url, pool_size=pool_size, max_overflow=max_overflow, pool_timeout=pool_timeout
+    )
     return async_sessionmaker(engine, expire_on_commit=False)
 
 

@@ -175,7 +175,10 @@ def create_app(
         session_factory
         if session_factory is not None
         else make_session_factory(
-            cfg.db.url, pool_size=cfg.db.pool_size, max_overflow=cfg.db.max_overflow
+            cfg.db.url,
+            pool_size=cfg.db.pool_size,
+            max_overflow=cfg.db.max_overflow,
+            pool_timeout=cfg.db.pool_timeout_seconds,
         )
     )
     resolved_store = PgStore(session_factory)

@@ -1167,7 +1167,7 @@ def test_local_run_with_failed_scoring_says_how_to_finish(env, tmp_path, monkeyp
     monkeypatch.chdir(tmp_path)
     real_publish = experiments_api.db_publish_evaluations
 
-    async def publish_failing(session, experiment_run_id, rows, *, force, holder=None):
+    async def publish_failing(session, experiment_run_id, rows, **kwargs):
         raise RuntimeError("store down")
 
     monkeypatch.setattr(experiments_api, "db_publish_evaluations", publish_failing)

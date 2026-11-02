@@ -9,10 +9,15 @@
   or `evaluation_concurrency=N` in the SDK's `run_experiment` and
   `evaluate_experiment`. Server runs use 16; `evalkit run` refuses the flag for
   a shared agent. Each scoring request uses one database connection instead of
-  two, and the server's connection pool is bigger by default. Set its size in `config.yaml` with `db.pool_size`
-  (default 20) and `db.max_overflow` (default 10). When every connection is
-  still busy, the server answers `503` with `Retry-After`, and the CLI and
-  SDK retry instead of failing the experiment.
+  two, and the server's connection pool is bigger by default. Set it in
+  `config.yaml` with `db.pool_size` (default 20), `db.max_overflow`
+  (default 10) and `db.pool_timeout_seconds` (default 5). Keep
+  `(pool_size + max_overflow) × replicas` well under Postgres
+  `max_connections`. When no connection frees up within
+  `pool_timeout_seconds`, the server answers `503` with `Retry-After`, and the
+  CLI and SDK retry instead of failing the experiment. Server runs write
+  straight to the database, so they get no retry: a server run that cannot
+  get a connection still fails, and `evalkit evaluate` finishes it.
 - The judge no longer has a `concurrency` setting: `evaluation_concurrency`
   replaces it. `evalkit judge-default set --concurrency` is gone, and the SDK's
   `Judge(concurrency=...)`, the API and saved experiments and default judges

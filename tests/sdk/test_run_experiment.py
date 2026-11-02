@@ -744,11 +744,11 @@ async def test_failed_scoring_finishes_the_other_runs_and_says_how_to_finish(env
     real_publish = experiments_api.db_publish_evaluations
     failed: list[int] = []
 
-    async def publish_failing_once(session, experiment_run_id, rows, *, force, holder=None):
+    async def publish_failing_once(session, experiment_run_id, rows, **kwargs):
         if not failed:
             failed.append(experiment_run_id)
             raise RuntimeError("store down")
-        await real_publish(session, experiment_run_id, rows, force=force, holder=holder)
+        await real_publish(session, experiment_run_id, rows, **kwargs)
 
     monkeypatch.setattr(experiments_api, "db_publish_evaluations", publish_failing_once)
     lines: list[str] = []

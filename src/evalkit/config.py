@@ -33,6 +33,7 @@ class DbConfig(ConfigModel):
     migrate_on_start: bool = False
     pool_size: int = Field(20, ge=1)
     max_overflow: int = Field(10, ge=0)
+    pool_timeout_seconds: float = Field(5, gt=0)
 
 
 class BlobConfig(ConfigModel):

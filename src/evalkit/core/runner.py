@@ -20,11 +20,11 @@ import logging
 import tempfile
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import IO, Literal, Protocol
+from typing import IO, Any, Literal, Protocol
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -710,6 +710,20 @@ def _configured_builtins(evaluators: dict) -> dict[str, dict]:
 
 REFETCHABLE = (TrajectoryStatus.PARTIAL, TrajectoryStatus.UNAVAILABLE)
 REFETCH_CONCURRENCY = 8
+
+
+async def gather_bounded[T](
+    limit: int, coros: list[Coroutine[Any, Any, T]], *, return_exceptions: bool = False
+) -> list[Any]:
+    slots = asyncio.Semaphore(limit)
+
+    async def one(coro: Coroutine[Any, Any, T]) -> T:
+        async with slots:
+            return await coro
+
+    return await asyncio.gather(*(one(c) for c in coros), return_exceptions=return_exceptions)
+
+
 SCORABLE = (TrajectoryStatus.VALID, TrajectoryStatus.PARTIAL)
 
 
@@ -916,14 +930,10 @@ async def _refetch(
         raise ValueError("refetching trajectories needs a session reader")
     wait = exp.config.snapshot.trajectory_wait_seconds
     refetched: set[int] = set()
-    slots = asyncio.Semaphore(REFETCH_CONCURRENCY)
     sessions = deps.sessions
 
     async def one(run: RunForScoring) -> None:
-        async with slots:
-            doc, status = await poll_trajectory(
-                sessions, exp.agent, run.agent_run.harness_run_id, wait
-            )
+        doc, status = await poll_trajectory(sessions, exp.agent, run.agent_run.harness_run_id, wait)
         if doc is None:
             return
         trajectory = validate_trajectory(doc)
@@ -939,8 +949,9 @@ async def _refetch(
         refetched.add(run.experiment_run_id)
         deps.progress(f"refetched trajectory for {run.case.case_id} #{run.repetition}: {status}")
 
-    await asyncio.gather(
-        *(one(run) for run in runs if run.agent_run.trajectory_status in REFETCHABLE)
+    await gather_bounded(
+        REFETCH_CONCURRENCY,
+        [one(run) for run in runs if run.agent_run.trajectory_status in REFETCHABLE],
     )
     return refetched
 
@@ -964,11 +975,10 @@ async def evaluate_experiment(
         if any(run.case.effective_evaluators.get("custom") for run in runs)
         else {}
     )
-    slots = asyncio.Semaphore(deps.evaluation_concurrency)
-
-    async def one(run: RunForScoring) -> None:
-        async with slots:
-            await _evaluate_run(
+    results = await gather_bounded(
+        deps.evaluation_concurrency,
+        [
+            _evaluate_run(
                 deps,
                 exp,
                 agent,
@@ -980,8 +990,10 @@ async def evaluate_experiment(
                 holder,
                 force=run.experiment_run_id in refetched,
             )
-
-    results = await asyncio.gather(*(one(run) for run in runs), return_exceptions=True)
+            for run in runs
+        ],
+        return_exceptions=True,
+    )
     errors = [r for r in results if isinstance(r, BaseException)]
     for error in errors:
         if not isinstance(error, Exception):

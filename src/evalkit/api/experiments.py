@@ -51,6 +51,7 @@ from evalkit.core.trajectory import backfill_step_costs
 from evalkit.core.workspace import Reference, parse_slug
 from evalkit.db import experiments as db_experiments
 from evalkit.db import scorecard as db_scorecard
+from evalkit.db.agents import agent_definition
 from evalkit.db.cases import dataset_by_ref
 from evalkit.db.models import AgentRun as AgentRunRow
 from evalkit.db.models import ExperimentRun as ExperimentRunRow
@@ -190,8 +191,8 @@ async def _server_driven(deps: RunnerDeps, exp: Experiment, command: str) -> Age
     return agent
 
 
-async def _runner_written(deps: RunnerDeps, exp: Experiment) -> AgentDefinition:
-    agent = await _agent(deps, exp)
+async def _runner_written(session: AsyncSession, exp: Experiment) -> AgentDefinition:
+    agent = await agent_definition(session, explicit(parse_slug(exp.agent)))
     if server_may_drive(agent):
         raise HTTPException(
             status_code=409,
@@ -376,7 +377,7 @@ async def record_run(
     exp_id: int, body: RunPost, deps: RunnerDepsDep, session: SessionDep, actor: ActorDep
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
-    await _runner_written(deps, exp)
+    await _runner_written(session, exp)
     expected = trajectory_key(exp.agent_id, body.run.harness_run_id)
     if body.run.trajectory_key is not None and body.run.trajectory_key != expected:
         raise HTTPException(status_code=400, detail=f"trajectory_key must be {expected}")
@@ -422,8 +423,10 @@ async def publish_evaluations(
     exp_id = await db_experiments.experiment_of_run(session, run_id)
     if exp_id is None:
         raise HTTPException(status_code=404, detail=f"unknown experiment run: {run_id}")
-    await _runner_written(deps, await _changeable(session, actor, exp_id))
-    await db_publish_evaluations(session, run_id, body.rows, force=body.force, holder=body.holder)
+    await _runner_written(session, await _changeable(session, actor, exp_id))
+    await db_publish_evaluations(
+        session, run_id, body.rows, force=body.force, holder=body.holder, experiment_id=exp_id
+    )
     await session.commit()
     return {"ok": True}
 
@@ -437,7 +440,7 @@ async def patch_experiment(
     session: SessionDep,
     actor: ActorDep,
 ) -> dict:
-    agent = await _runner_written(deps, await _changeable(session, actor, exp_id))
+    agent = await _runner_written(session, await _changeable(session, actor, exp_id))
     if body.status in ACTIVE and agent.archived:
         raise HTTPException(status_code=409, detail=f"agent {agent.ref} is archived")
     if body.model is not None:
@@ -566,7 +569,7 @@ async def put_blob(
     actor: ActorDep,
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
-    await _runner_written(deps, exp)
+    await _runner_written(session, exp)
     _check_blob_key(exp, key)
     harness_run_id = _harness_run_id(exp, key)
     if harness_run_id is None:
@@ -590,6 +593,7 @@ async def put_blob(
             detail=f"session id {harness_run_id} was already used in experiment {exp_id}; "
             "each run needs its own session id",
         )
+    await session.close()
     await deps.blob_store.put_stream(key, request.stream())
     return {"ok": True}
 
