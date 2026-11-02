@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The install page says what to do when `evalkit update` fails with
+  `KeyError: 'filename'`: a CLI older than 0.3.0 cannot update itself, so
+  run `uv tool install --reinstall "evalkit-py==<version>"` once.
+
 - The Harness API's run list names the tenant `org_id` instead of
   `client_id`: evalkit sends `GET /runs?org_id=…` and reads `org_id` on each
   listed run. A harness that declares `run_listing` renames both, or its
