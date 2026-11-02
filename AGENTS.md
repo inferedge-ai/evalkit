@@ -44,7 +44,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Stored key | An API key saved in the database, encrypted with the server's `encryption_key`, never returned (reads show `has_api_key`). Shared agents, shared remote evaluators, LLM providers and trace sources have one. |
 | Credential registry | The CLI and SDK lookup from a reference (or a judge base URL) to an API key, built from the `credentials:` map in `evalkit.yaml` (`agents`, `evaluators`, `llm_providers`). Used by local and SDK runs only; the server uses stored keys. |
 | Bucket | A scorecard grouping of evaluator scores: content, trajectory, presentation, efficiency, custom. |
-| Split | A selectable subset of a dataset, built from case tags. |
+| Tag | A label on a case: from its YAML `tags`, its folder in the suite, or an overlay. `evalkit run --tag` (repeatable) runs the cases carrying any of the given tags. |
 | Overlay | A client extension of a case in another suite: extra evaluator config attached by case id, scored only for the agents it names. |
 | Review state | Unreviewed, Review requested, Changes requested or Approved. Derived from a case's current content hash and the latest decisive event at that hash; never stored as a column. Never filters a run: `evalkit run` executes every selected case. Approval in a promotion source promotes the case; personal datasets have no review state. |
 | Reviewer | A member with the `reviewer` role on a shared workspace. Only reviewers approve or request changes there. |

@@ -2,12 +2,12 @@ import type { CaseView, WorkspaceInfo } from "./types";
 import { workspaceHint } from "./workspace";
 
 export type SearchKind =
-  "dataset" | "split" | "experiment" | "case" | "run" | "workspace";
+  "dataset" | "tag" | "experiment" | "case" | "run" | "workspace";
 
 export const SEARCH_KINDS: { kind: SearchKind; label: string; hint: string }[] =
   [
     { kind: "dataset", label: "Datasets", hint: "name@workspace" },
-    { kind: "split", label: "Splits", hint: "name, across datasets" },
+    { kind: "tag", label: "Tags", hint: "name, across datasets" },
     {
       kind: "experiment",
       label: "Experiments",
@@ -33,15 +33,15 @@ export type LevelOneEntry =
   | { type: "page"; label: string; route: string }
   | { type: "item"; item: PaletteItem };
 
-export function splitItems(dataset: string, cases: CaseView[]): PaletteItem[] {
+export function tagItems(dataset: string, cases: CaseView[]): PaletteItem[] {
   const counts = new Map<string, number>();
   for (const c of cases)
     for (const tag of c.split_tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
   return [...counts].map(([tag, count]) => ({
-    key: `split:${dataset}:${tag}`,
+    key: `tag:${dataset}:${tag}`,
     label: tag,
     sub: `${dataset} · ${count} cases`,
-    tag: "split",
+    tag: "tag",
     route: `/datasets/${encodeURIComponent(dataset)}/cases?tag=${encodeURIComponent(tag)}`,
     terms: [tag],
   }));

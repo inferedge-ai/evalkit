@@ -36,7 +36,7 @@ from evalkit.client import connection
 from evalkit.client.agents import definition_of
 from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
-from evalkit.client.sync import git_revision, resolve_path, sync_dataset
+from evalkit.client.sync import ResolvedPath, git_revision, resolve_path, sync_dataset
 from evalkit.config import Config, LocalConfig, MissingEnvError, load_config
 from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml, load_cases_from_yaml
 from evalkit.contracts.settings import JudgeSettings
@@ -591,11 +591,23 @@ def _run_on_server(
     return exp_id
 
 
+def _run_selection(
+    resolved: ResolvedPath, tag: list[str] | None, case_id: list[str] | None
+) -> Selection:
+    if (tag or case_id) and resolved.subpath:
+        raise ApiError(
+            f"{resolved.subpath} already selects cases; drop it or drop --tag / --case-id"
+        )
+    if tag or case_id:
+        return Selection.model_validate(_selection(tag, case_id))
+    return resolved.selection
+
+
 @app.command()
 def run(
     dataset: str = typer.Argument(
         ...,
-        help="finance · finance@dev · finance/<split> · finance/<file>.yaml · a path",
+        help="finance · finance@dev · finance/<dir> · finance/<file>.yaml · a path",
     ),
     agent: str = typer.Option(
         ...,
@@ -603,6 +615,9 @@ def run(
         help="myagent (yours, your laptop drives it) or ouragent@dev (the server drives it).",
     ),
     runs: int = typer.Option(1, "--runs", help="Repetitions per case."),
+    tag: list[str] = typer.Option(
+        None, "--tag", help="Run only cases carrying any of these tags. Repeatable."
+    ),
     case_id: list[str] = typer.Option(None, "--case-id", help="Run only these case ids."),
     model: str = typer.Option(None, "--model", help="Model override (if the harness accepts it)."),
     resume: int = typer.Option(None, "--resume", help="Resume an experiment by id."),
@@ -623,7 +638,7 @@ def run(
     shows the same errors before you sync.
 
     Example: evalkit run finance --agent research-agent ·
-    evalkit run finance@dev/statement-analysis --agent ouragent@dev
+    evalkit run finance@dev --tag statement-analysis --tag ratios --agent ouragent@dev
     """
     conn = _connection()
     me = conn.username or ""
@@ -646,7 +661,7 @@ def run(
         local = _with_secrets(local, scoring=True)
         _require_agent_key(local, conn, definition)
     resolved = _resolve(dataset, local.cases if local else None, me)
-    selection = Selection(case_ids=list(case_id)) if case_id else resolved.selection
+    selection = _run_selection(resolved, tag, case_id)
     revision = git_revision(resolved.dataset_dir) if resolved.dataset_dir else GitRevision()
     if resolved.dataset_dir is not None and resume is None:
         _sync_and_report(
@@ -1188,11 +1203,13 @@ if __name__ == "__main__":
     app()
 
 
-def _selection(tag: str | None, case_id: list[str] | None) -> dict:
+def _selection(tag: list[str] | None, case_id: list[str] | None) -> dict:
+    if tag and case_id:
+        raise ApiError("pass --tag or --case-id, not both")
     if case_id:
         return {"case_ids": list(case_id)}
     if tag:
-        return {"tag": tag}
+        return {"tags": list(tag)}
     return {"all": True}
 
 
@@ -1221,7 +1238,9 @@ def _post_decision(dataset: str, case_id: str, action: str, comment: str | None)
 def review_request(
     dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
     reviewer: str = typer.Option(..., "--reviewer", help="Reviewer username."),
-    tag: str = typer.Option(None, "--tag", help="Only cases carrying this tag."),
+    tag: list[str] = typer.Option(
+        None, "--tag", help="Only cases carrying any of these tags. Repeatable."
+    ),
     case_id: list[str] = typer.Option(None, "--case-id", help="Only these case ids."),
 ):
     """Ask a reviewer to look at cases (all cases when no selector is given).

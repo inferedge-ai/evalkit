@@ -19,6 +19,7 @@ from evalkit.db.experiments import (
 from evalkit.db.models import Case, ExperimentCase
 from evalkit.db.models import Experiment as ExperimentRow
 from evalkit.db.runs import record_run
+from evalkit.db.session import downgrade_migrations, run_migrations
 from evalkit.store.base import (
     AgentRunRecord,
     Conflict,
@@ -300,3 +301,26 @@ async def test_list_experiments_filters(session_factory, world, running_exp):
         assert [e.id for e in await list_experiments(s, workspace_id=world.akshat_ws.id)] == [
             mine.id
         ]
+
+
+async def _selection_of(session_factory, exp_id: int) -> dict:
+    async with session_factory() as s:
+        config = await s.scalar(select(ExperimentRow.config).where(ExperimentRow.id == exp_id))
+    return config["selection"]
+
+
+async def test_migration_0014_moves_a_stored_tag_into_tags(session_factory, world, db_url):
+    async with session_factory() as s:
+        experiment = await new(s)
+        tagged = experiment.model_copy(
+            update={"config": CONFIG.model_copy(update={"selection": Selection(tags=["fy24"])})}
+        )
+        exp = await create_experiment(s, tagged)
+        await s.commit()
+    await session_factory.kw["bind"].dispose()
+    await asyncio.to_thread(downgrade_migrations, db_url, "0013")
+    before = await _selection_of(session_factory, exp.id)
+    assert before == {"all": False, "tag": "fy24", "case_ids": None}
+    await asyncio.to_thread(run_migrations, db_url)
+    after = await _selection_of(session_factory, exp.id)
+    assert after == {"all": False, "tags": ["fy24"], "case_ids": None}

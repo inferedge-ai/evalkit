@@ -579,7 +579,7 @@ async def current_cases(
     )
 
 
-async def splits(session: AsyncSession, dataset: DatasetRow) -> list[tuple[str, int]]:
+async def tag_counts(session: AsyncSession, dataset: DatasetRow) -> list[tuple[str, int]]:
     counts: dict[str, int] = {}
     for view in await current_cases(session, dataset):
         for tag in view.split_tags:

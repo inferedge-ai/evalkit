@@ -136,7 +136,7 @@ export interface TwinStatus {
   href: string;
 }
 
-export interface SplitInfo {
+export interface TagInfo {
   name: string;
   count: number;
 }
@@ -153,7 +153,11 @@ export interface GitRevision {
 export interface ExperimentConfig {
   model: string | null;
   judge: JudgeSettings;
-  selection: { all?: boolean; tag?: string | null; case_ids?: string[] | null };
+  selection: {
+    all?: boolean;
+    tags?: string[] | null;
+    case_ids?: string[] | null;
+  };
   revision: GitRevision | null;
   snapshot: {
     capabilities: Record<string, unknown>;

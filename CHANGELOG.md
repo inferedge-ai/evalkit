@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- Run several tags in one experiment. `evalkit run finance --tag ratios --tag
+  statements --agent ouragent@dev` runs every case carrying any of the given
+  tags. In the web UI's run dialog, the **Tags** choice is now a multi-select
+  (type to search, pick several). The picked tags show as removable chips
+  under it, and the CLI preview prints `--tag` flags.
+  `evalkit review request --tag` is repeatable too.
+- Datasets in a personal workspace now have a **Run experiment** button too.
+  The dialog lists your own agents first. In place of starting the run, it has
+  a **Copy CLI command** button: set the options in the UI, then paste the
+  `evalkit run …` command into your terminal.
+- The experiment page's case table has a tag filter: pick one or more tags to
+  show only the cases carrying any of them.
+- "Split" is now called "tag" everywhere:
+  - The SDK's `run_experiment(split="x")` is now `run_experiment(tags=["x"])`.
+  - The API's `selection` takes `tags: [...]` instead of `tag`. A request that
+    still sends `tag` is refused.
+  - `GET /api/datasets/{ref}/splits` moved to `GET /api/datasets/{ref}/tags`.
+  - The dataset page's Splits tab is now Tags, and ⌘K searches Tags.
+- `evalkit run finance/<name>` no longer falls back to selecting a tag when
+  `<name>` is not a folder or file of the dataset on disk. It fails and tells
+  you to pass `--tag <name>`. Folders and case files still work.
+- Migration `0014` rewrites the stored selection of existing experiments from
+  `tag` to `tags`. Run `evalkit db upgrade` before starting the new server.
+
 - New docs page **CI sync** (`/docs/ci-sync`): how to lint eval cases on
   PRs and sync them into a shared workspace on merge, with a GitHub Actions
   example. The Workspaces page has a new section, **Example setup:
@@ -11,6 +35,7 @@
 - `evalkit runs pull` no longer fails the whole batch with a 500 when a
   run's stored trajectory is missing from the blob store. That run comes
   back in `index.json` with a `pull_error`, and the other runs are pulled.
+
 - The install page says what to do when `evalkit update` fails with
   `KeyError: 'filename'`: a CLI older than 0.3.0 cannot update itself, so
   run `uv tool install --reinstall "evalkit-py==<version>"` once.

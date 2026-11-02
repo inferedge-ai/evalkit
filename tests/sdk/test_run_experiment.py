@@ -528,7 +528,7 @@ async def test_dry_run_skips_judge_key_and_a_real_run_names_it_before_any_task(e
     assert called == []
 
 
-async def test_dry_run_applies_case_ids_and_split(env):
+async def test_dry_run_applies_case_ids_and_tags(env):
     srv, blob, provider = env
     common = {
         "dataset": "finance",
@@ -539,9 +539,9 @@ async def test_dry_run_applies_case_ids_and_split(env):
     }
     picked = await arun_experiment(**common, case_ids=["case-2"], dry_run=True)
     assert [run.case_id for run in picked.runs] == ["case-2"]
-    split = await arun_experiment(**common, split="finance", dry_run=5)
-    assert [run.case_id for run in split.runs] == ["case-1", "case-2"]
-    empty = await arun_experiment(**common, split="no-such-split", dry_run=5)
+    tagged = await arun_experiment(**common, tags=["finance"], dry_run=5)
+    assert [run.case_id for run in tagged.runs] == ["case-1", "case-2"]
+    empty = await arun_experiment(**common, tags=["no-such-tag"], dry_run=5)
     assert empty.runs == []
 
 

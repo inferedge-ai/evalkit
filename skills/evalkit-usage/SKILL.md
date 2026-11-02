@@ -184,8 +184,9 @@ the experiment's judge. A server run may only use a judge whose base URL is a
 registered LLM provider (`evalkit llm-providers list`).
 
 Inside a dataset directory, subfolders become tags (`finance/statement-analysis/x.yaml`
-gets the tag `statement-analysis`), and `evalkit run finance/statement-analysis`
-runs that split. Local runs require the CLI and server versions to match.
+gets the tag `statement-analysis`). `evalkit run finance --tag statement-analysis`
+runs the cases carrying that tag; repeat `--tag` to run the cases carrying any
+of several tags. Local runs require the CLI and server versions to match.
 
 ## SDK runs
 
@@ -240,7 +241,7 @@ Rules of the road:
 - `run_experiment` is a push model: your process runs the task once per case
   and repetition, exports the agent's OpenTelemetry spans to the server,
   waits for each session to settle, and records runs and scores through the
-  API. `dataset`, `case_ids`, `split`, `repetitions`, `model` and `resume` mean
+  API. `dataset`, `case_ids`, `tags`, `repetitions`, `model` and `resume` mean
   what they mean on `evalkit run` (see `evalkit --help`).
 - The task's parameters bind **by name** from `input`, `files`, `model` and
   `metadata`, in any order; any other required parameter is an error, and

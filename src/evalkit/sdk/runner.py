@@ -402,11 +402,13 @@ async def settle_and_record(
     )
 
 
-def _selection(case_ids: Sequence[str] | None, split: str | None) -> Selection:
+def _selection(case_ids: Sequence[str] | None, tags: Sequence[str] | None) -> Selection:
+    if case_ids and tags:
+        raise ValueError("pass case_ids or tags, not both")
     if case_ids:
         return Selection(case_ids=list(case_ids))
-    if split:
-        return Selection(tag=split)
+    if tags:
+        return Selection(tags=list(tags))
     return Selection(all=True)
 
 
@@ -563,7 +565,7 @@ async def arun_experiment(
     repetitions: int = 1,
     concurrency: int | None = None,
     case_ids: Sequence[str] | None = None,
-    split: str | None = None,
+    tags: Sequence[str] | None = None,
     model: str | None = None,
     resume: int | None = None,
     dry_run: bool | int = False,
@@ -629,7 +631,7 @@ async def arun_experiment(
                 dataset_ref=dataset_ref,
                 agent_ref=agent_ref,
                 me=me,
-                selection=_selection(case_ids, split),
+                selection=_selection(case_ids, tags),
                 count=int(dry_run),
                 model=model,
                 wait=wait,
@@ -646,7 +648,7 @@ async def arun_experiment(
             )
             selected = await store.cases_for(
                 slug(dataset_ref),
-                _selection(case_ids, split),
+                _selection(case_ids, tags),
                 agent=slug(agent_ref),
             )
             judge_key_for(credentials, resolved_judge, selected)
@@ -655,7 +657,7 @@ async def arun_experiment(
                 ExperimentRequest(
                     dataset=slug(dataset_ref),
                     agent=slug(agent_ref),
-                    selection=_selection(case_ids, split),
+                    selection=_selection(case_ids, tags),
                     repetitions=repetitions,
                     model=model,
                     capabilities=sdk_capabilities(definition),
@@ -842,7 +844,7 @@ def run_experiment(
     repetitions: int = 1,
     concurrency: int | None = None,
     case_ids: Sequence[str] | None = None,
-    split: str | None = None,
+    tags: Sequence[str] | None = None,
     model: str | None = None,
     resume: int | None = None,
     dry_run: bool | int = False,
@@ -875,7 +877,7 @@ def run_experiment(
         concurrency: How many tasks run at once. Defaults to the agent's
             `max_concurrent_runs`.
         case_ids: Run only these cases.
-        split: Run only the cases of this split (a case tag).
+        tags: Run only the cases carrying any of these tags.
         model: Passed to the task's `model` parameter and recorded on the experiment.
         resume: An experiment id to resume: runs only the cases it has not finished.
         dry_run: `True` runs one case without creating an experiment and prints the
@@ -908,7 +910,7 @@ def run_experiment(
             repetitions=repetitions,
             concurrency=concurrency,
             case_ids=case_ids,
-            split=split,
+            tags=tags,
             model=model,
             resume=resume,
             dry_run=dry_run,

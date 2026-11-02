@@ -18,7 +18,7 @@ import {
   outputText,
   questionText,
   severity,
-  splitLabel,
+  selectionLabel,
   verdictKind,
   verdictWord,
 } from "./format";
@@ -89,23 +89,26 @@ describe("experimentTag", () => {
   });
 });
 
-describe("splitLabel", () => {
-  it("reads the split from the experiment selection", () => {
-    expect(splitLabel({ selection: { tag: "starbucks" } })).toBe("starbucks");
-    expect(splitLabel({ selection: { all: true } })).toBe("all cases");
+describe("selectionLabel", () => {
+  it("reads the tags from the experiment selection", () => {
+    expect(selectionLabel({ selection: { tags: ["starbucks"] } })).toBe(
+      "starbucks",
+    );
+    expect(selectionLabel({ selection: { tags: ["a", "b"] } })).toBe("a, b");
+    expect(selectionLabel({ selection: { all: true } })).toBe("all cases");
   });
 
   it("labels a case-id selection by its cases", () => {
-    expect(splitLabel({ selection: { case_ids: ["a", "b", "c"] } })).toBe(
+    expect(selectionLabel({ selection: { case_ids: ["a", "b", "c"] } })).toBe(
       "3 cases",
     );
-    expect(splitLabel({ selection: { case_ids: ["a"] } })).toBe("a");
+    expect(selectionLabel({ selection: { case_ids: ["a"] } })).toBe("a");
   });
 
   it("returns null when there is no selection", () => {
-    expect(splitLabel({})).toBeNull();
-    expect(splitLabel(undefined)).toBeNull();
-    expect(splitLabel({ selection: {} })).toBeNull();
+    expect(selectionLabel({})).toBeNull();
+    expect(selectionLabel(undefined)).toBeNull();
+    expect(selectionLabel({ selection: {} })).toBeNull();
   });
 });
 

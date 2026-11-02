@@ -9,7 +9,7 @@ import {
   reevaluateStrandsCases,
   resumeHint,
 } from "../lib/experimentStatus";
-import { splitLabel } from "../lib/format";
+import { selectionLabel } from "../lib/format";
 import { agentCommitUrl } from "../lib/meta";
 import { hasColumn, rowFailing } from "../lib/scorecard";
 import { BY_TYPE, gaugeGroup, scoreGroups } from "../lib/scoreSummary";
@@ -22,7 +22,8 @@ import { agentRevision, agentTag } from "./experimentRow";
 import { ProgressBar } from "./ProgressBar";
 import { ScoreMatrix } from "./ScoreMatrix";
 import { BucketCards, CostSpeedLine } from "./ScoreSummary";
-import { Select } from "../lib/Select";
+import { MultiSelect, Select } from "../lib/Select";
+import { hasAnyTag, sortedTags, tagCounts } from "../lib/tags";
 import { useFollowWorkspace } from "../shell/workspace";
 
 function ScorecardSkeleton() {
@@ -82,6 +83,7 @@ export function ExperimentPage() {
   const [error, setError] = useState<string | null>(null);
   const [failingOnly, setFailingOnly] = useState(false);
   const [evaluator, setEvaluator] = useState("");
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const validId = isExperimentId(experimentId);
@@ -167,7 +169,9 @@ export function ExperimentPage() {
     );
   const config = status?.config;
   const tag = status ? agentTag(status) : null;
-  const split = config ? splitLabel({ selection: config.selection }) : null;
+  const selection = config
+    ? selectionLabel({ selection: config.selection })
+    : null;
   const rev = status ? agentRevision(status) : {};
   const cases = config?.revision ?? null;
   const drives = !!status && status.can_change && status.server_may_drive;
@@ -183,7 +187,11 @@ export function ExperimentPage() {
     report,
   );
   const stateOf = new Map(listed.map((r) => [r.case_id, r.state]));
+  const tagsOf = new Map((pinned ?? []).map((c) => [c.case_id, c.split_tags]));
+  const tags = tagCounts(pinned ?? []);
   const rows = listed.filter((r) => {
+    if (tagFilter.length && !hasAnyTag(tagsOf.get(r.case_id) ?? [], tagFilter))
+      return false;
     if ((failingOnly || evaluator) && !r.row) return false;
     if (failingOnly && r.row && !rowFailing(r.row)) return false;
     if (evaluator && r.row && !hasColumn(r.row, evaluator)) return false;
@@ -227,12 +235,9 @@ export function ExperimentPage() {
           </span>
         )}
         <WorkspaceChip workspace={status?.workspace} />
-        {split && (
-          <span
-            className="chip muted"
-            title="dataset split this experiment ran on"
-          >
-            split: {split}
+        {selection && (
+          <span className="chip muted" title="the cases this experiment ran on">
+            cases: {selection}
           </span>
         )}
         <RevisionChip
@@ -388,6 +393,20 @@ export function ExperimentPage() {
                     })),
                   ]}
                 />
+                {tags.length > 0 && (
+                  <MultiSelect
+                    ariaLabel="tags"
+                    placeholder="All tags"
+                    title="show only cases carrying any of these tags"
+                    values={tagFilter}
+                    onChange={(picked) => setTagFilter(sortedTags(picked))}
+                    options={tags.map((t) => ({
+                      value: t.name,
+                      label: t.name,
+                      hint: t.count,
+                    }))}
+                  />
+                )}
                 <label className="check">
                   <input
                     type="checkbox"
@@ -449,7 +468,9 @@ export function ExperimentPage() {
             }}
           />
           <div className="num mt-2 text-micro text-ink-3">
-            {listed.length} cases
+            {rows.length === listed.length
+              ? `${listed.length} cases`
+              : `${rows.length}/${listed.length} cases`}
             {report.baseline_id ? ` · vs ${report.baseline_id}` : ""}
           </div>
         </>
