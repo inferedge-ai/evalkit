@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `evalkit runs pull` no longer fails the whole batch with a 500 when a
+  run's stored trajectory is missing from the blob store. That run comes
+  back in `index.json` with a `pull_error`, and the other runs are pulled.
 - The Harness API's run list names the tenant `org_id` instead of
   `client_id`: evalkit sends `GET /runs?org_id=…` and reads `org_id` on each
   listed run. A harness that declares `run_listing` renames both, or its
