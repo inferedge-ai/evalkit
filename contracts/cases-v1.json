@@ -19,6 +19,58 @@
       "title": "AnswerRubrics",
       "type": "object"
     },
+    "Case": {
+      "additionalProperties": false,
+      "description": "A single eval case authored in YAML.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "input": {
+          "additionalProperties": true,
+          "title": "Input",
+          "type": "object"
+        },
+        "fixtures": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Fixtures",
+          "type": "array"
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected"
+        },
+        "evaluators": {
+          "$ref": "#/$defs/CaseEvaluators"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Case",
+      "type": "object"
+    },
     "CaseEvaluators": {
       "additionalProperties": false,
       "description": "Case's evaluator opt-ins: built-ins split into output and trajectory\nfamilies, plus opaque custom-evaluator blocks keyed by registered name.",
@@ -141,6 +193,92 @@
         }
       },
       "title": "OutputEvaluators",
+      "type": "object"
+    },
+    "Overlay": {
+      "additionalProperties": false,
+      "description": "Extends a case in another suite by id without touching its ground truth: only\nadditive tags, custom-evaluator config and tool trajectory evaluators are allowed.",
+      "properties": {
+        "extends": {
+          "minLength": 1,
+          "title": "Extends",
+          "type": "string"
+        },
+        "agents": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^@]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Agents",
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "evaluators": {
+          "$ref": "#/$defs/OverlayEvaluators"
+        }
+      },
+      "required": [
+        "extends",
+        "agents",
+        "evaluators"
+      ],
+      "title": "Overlay",
+      "type": "object"
+    },
+    "OverlayEvaluators": {
+      "additionalProperties": false,
+      "properties": {
+        "custom": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Custom",
+          "type": "object"
+        },
+        "trajectory": {
+          "$ref": "#/$defs/OverlayTrajectoryEvaluators"
+        }
+      },
+      "title": "OverlayEvaluators",
+      "type": "object"
+    },
+    "OverlayTrajectoryEvaluators": {
+      "additionalProperties": false,
+      "description": "The harness-specific trajectory evaluators an overlay may attach.",
+      "properties": {
+        "tool_trajectory_match": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolTrajectoryMatch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "required_tools_called": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequiredToolsCalled"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "OverlayTrajectoryEvaluators",
       "type": "object"
     },
     "PresentationJudge": {
@@ -279,6 +417,82 @@
       "title": "Rubric",
       "type": "object"
     },
+    "SuiteDefaults": {
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "additionalProperties": true,
+          "title": "Input",
+          "type": "object"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "max_response_time": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/MaxResponseTime"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Response Time"
+        },
+        "agents": {
+          "anyOf": [
+            {
+              "items": {
+                "minLength": 1,
+                "pattern": "^[^@]+$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agents"
+        }
+      },
+      "title": "SuiteDefaults",
+      "type": "object"
+    },
+    "SuiteFile": {
+      "additionalProperties": false,
+      "properties": {
+        "defaults": {
+          "$ref": "#/$defs/SuiteDefaults"
+        },
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/Case"
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/Overlay"
+          },
+          "title": "Overlays",
+          "type": "array"
+        }
+      },
+      "title": "SuiteFile",
+      "type": "object"
+    },
     "ToolTrajectoryMatch": {
       "additionalProperties": false,
       "description": "Expected tool calls, matched by name and args, each against at most one\nactual call. Scores the fraction found; `ordered` also requires them to\nappear in this order.",
@@ -365,54 +579,25 @@
       "type": "object"
     }
   },
-  "additionalProperties": false,
-  "description": "A single eval case authored in YAML.",
-  "properties": {
-    "id": {
-      "minLength": 1,
-      "title": "Id",
-      "type": "string"
+  "anyOf": [
+    {
+      "$ref": "#/$defs/SuiteFile"
     },
-    "tags": {
+    {
       "items": {
-        "type": "string"
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Case"
+          },
+          {
+            "$ref": "#/$defs/Overlay"
+          }
+        ]
       },
-      "title": "Tags",
       "type": "array"
     },
-    "input": {
-      "additionalProperties": true,
-      "title": "Input",
-      "type": "object"
-    },
-    "fixtures": {
-      "items": {
-        "minLength": 1,
-        "type": "string"
-      },
-      "title": "Fixtures",
-      "type": "array"
-    },
-    "expected": {
-      "anyOf": [
-        {
-          "additionalProperties": true,
-          "type": "object"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "title": "Expected"
-    },
-    "evaluators": {
-      "$ref": "#/$defs/CaseEvaluators"
+    {
+      "$ref": "#/$defs/Case"
     }
-  },
-  "required": [
-    "id"
-  ],
-  "title": "Case",
-  "type": "object"
+  ]
 }

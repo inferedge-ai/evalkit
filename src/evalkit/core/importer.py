@@ -9,8 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from evalkit.contracts.cases import (
     REGISTRY_FILENAME,
@@ -97,14 +96,9 @@ def load_files(
                 Finding(
                     severity="error",
                     code="E-SCHEMA",
-                    case_id=exc.case_id or str(shown),
-                    message=f"{shown}: " + "; ".join(exc.lines),
+                    case_id=exc.case_id if exc.case_id is not None else str(shown),
+                    message=f"{shown}: " + " | ".join(exc.lines),
                 )
-            )
-            continue
-        except (ValidationError, ValueError, yaml.YAMLError) as exc:
-            findings.append(
-                Finding(severity="error", code="E-SCHEMA", case_id=str(shown), message=str(exc))
             )
             continue
         cases.extend((case, path) for case in file_cases)

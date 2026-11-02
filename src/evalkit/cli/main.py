@@ -330,6 +330,8 @@ def lint(
     if offline and agent is not None:
         raise ApiError("--agent needs the server; drop --offline")
     if offline:
+        if path.is_file() and not is_case_yaml(path):
+            raise ApiError(f"{path} is not a case file; lint a case YAML file or a directory")
         sourced, sourced_overlays, schema_findings = load_files(
             [file_path for _, file_path in _yaml_files(path)],
             path if path.is_dir() else path.parent,

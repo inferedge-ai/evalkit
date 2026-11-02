@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from evalkit.contracts.cases import (
+    CASE_FILE,
     EVALUATOR_HOMES,
     Case,
     CaseSchemaError,
@@ -408,3 +409,36 @@ def test_case_schema_page_shows_every_evaluator():
     page = (Path(__file__).parents[2] / "docs" / "user" / "case-schema.md").read_text()
     for name, home in EVALUATOR_HOMES.items():
         assert f"{home}.{name}" in page
+
+
+def test_overlay_schema_error_says_the_evaluator_is_not_allowed(tmp_path):
+    p = tmp_path / "cases.yaml"
+    p.write_text(
+        "overlays:\n- extends: a\n  agents: [bot]\n  evaluators:\n"
+        "    trajectory: {trajectory_rubrics: {rubrics: [x]}}\n"
+    )
+    with pytest.raises(CaseSchemaError) as exc:
+        load_cases_from_yaml(p)
+    assert exc.value.case_id == "a"
+    assert "`trajectory_rubrics` is not allowed in an overlay" in exc.value.lines[0]
+    assert "goes under" not in exc.value.lines[0]
+
+
+def test_file_level_keys_are_checked(tmp_path):
+    p = tmp_path / "cases.yaml"
+    p.write_text("defualts: {}\ncases:\n- id: a\n  input: {question: q}\n")
+    with pytest.raises(CaseSchemaError) as exc:
+        load_cases_from_yaml(p)
+    assert exc.value.case_id is None
+    assert exc.value.lines[0].startswith("defualts: Extra inputs are not permitted")
+    assert "valid keys here: defaults, cases, overlays" in exc.value.lines[0]
+
+
+def test_published_schema_accepts_every_file_shape():
+    single = {"id": "a", "input": {"question": "q"}}
+    overlay = {"extends": "a", "agents": ["bot"], "evaluators": {"custom": {"x": {}}}}
+    CASE_FILE.validate_python(single)
+    CASE_FILE.validate_python([single, overlay])
+    CASE_FILE.validate_python(
+        {"defaults": {"max_response_time": 90}, "cases": [single], "overlays": [overlay]}
+    )

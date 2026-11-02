@@ -17,6 +17,7 @@ from collections.abc import Iterable
 
 from pydantic import BaseModel, Field
 
+from evalkit.contracts.cases import SCORECARD_BUCKETS
 from evalkit.store.base import AggregateRows
 
 GAUGE_PREFIX = "gauge_"
@@ -35,13 +36,7 @@ ANSWER_RUBRIC_DIAGNOSTICS = frozenset(ANSWER_RUBRIC_ORDER) - {"answer_rubric_sco
 
 EXCLUDED_FROM_BUCKETS = ANSWER_RUBRIC_DIAGNOSTICS
 
-BUCKET_ORDER: tuple[str, ...] = (
-    "content",
-    "trajectory",
-    "presentation",
-    "efficiency",
-    "custom",
-)
+BUCKET_ORDER: tuple[str, ...] = SCORECARD_BUCKETS
 
 BUCKETS: dict[str, frozenset[str]] = {
     "content": frozenset({"answer_rubric_score"}),

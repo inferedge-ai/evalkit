@@ -21,6 +21,8 @@ evaluator config, never in that text:
 
 Every YAML key, with one example per evaluator, is in
 [Case schema](../evalkit-docs/case-schema.md). Check a key there before writing it.
+`evalkit skills install` puts the evalkit user docs in `evalkit-docs/` beside
+this skill; in the evalkit repo they are `docs/user/`.
 
 ## Terms
 

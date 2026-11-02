@@ -19,6 +19,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    TypeAdapter,
     ValidationError,
     field_validator,
     model_validator,
@@ -350,19 +351,35 @@ class Overlay(BaseModel):
     evaluators: OverlayEvaluators
 
 
-SCORECARD_BUCKETS = ("content", "trajectory", "presentation", "efficiency")
+SCORECARD_BUCKETS = ("content", "trajectory", "presentation", "efficiency", "custom")
 
-EVALUATOR_HOMES = {
-    name: f"evaluators.{family}"
-    for family, model in (("output", OutputEvaluators), ("trajectory", TrajectoryEvaluators))
-    for name in model.model_fields
-}
+
+class SuiteDefaults(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    input: dict[str, Any] = Field(default_factory=dict)
+    tags: list[str] = Field(default_factory=list)
+    max_response_time: Annotated[float, Field(gt=0)] | MaxResponseTime | None = None
+    agents: list[AgentName] | None = None
+
+
+class SuiteFile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    defaults: SuiteDefaults = Field(default_factory=SuiteDefaults)
+    cases: list[Case] = Field(default_factory=list)
+    overlays: list[Overlay] = Field(default_factory=list)
+
+
+CASE_FILE: TypeAdapter[SuiteFile | list[Case | Overlay] | Case] = TypeAdapter(
+    SuiteFile | list[Case | Overlay] | Case
+)
 
 
 def _submodel(annotation: Any) -> type[BaseModel] | None:
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         return annotation
-    if get_origin(annotation) in (Union, types.UnionType, Annotated):
+    if get_origin(annotation) in (list, Union, types.UnionType, Annotated):
         for arg in get_args(annotation):
             found = _submodel(arg)
             if found is not None:
@@ -380,14 +397,27 @@ def _model_at(model: type[BaseModel], loc: tuple[int | str, ...]) -> type[BaseMo
         field = current.model_fields.get(part)
         if field is None:
             return None
-        annotation = field.annotation
-        if get_origin(annotation) is list:
-            annotation = get_args(annotation)[0]
-        current = _submodel(annotation)
+        current = _submodel(field.annotation)
     return current
 
 
+def _evaluator_homes(model: type[BaseModel]) -> dict[str, str]:
+    evaluators = _model_at(model, ("evaluators",))
+    if evaluators is None:
+        return {}
+    return {
+        name: f"evaluators.{family}"
+        for family in evaluators.model_fields
+        if (sub := _model_at(evaluators, (family,))) is not None
+        for name in sub.model_fields
+    }
+
+
+EVALUATOR_HOMES = _evaluator_homes(Case)
+
+
 def explain_schema_error(model: type[BaseModel], exc: ValidationError) -> list[str]:
+    homes = _evaluator_homes(model)
     lines = []
     for error in exc.errors():
         loc = tuple(error["loc"])
@@ -398,9 +428,11 @@ def explain_schema_error(model: type[BaseModel], exc: ValidationError) -> list[s
             parent = _model_at(model, loc[:-1])
             if parent is not None:
                 line += f"; valid keys here: {', '.join(parent.model_fields)}"
-            home = EVALUATOR_HOMES.get(key)
-            if home is not None:
-                line += f"; `{key}` goes under `{home}`"
+            if key in homes:
+                line += f"; `{key}` goes under `{homes[key]}`"
+            elif key in EVALUATOR_HOMES:
+                place = "an overlay" if model is Overlay else "here"
+                line += f"; `{key}` is not allowed in {place}"
             elif key in SCORECARD_BUCKETS and loc[:-1] == ("evaluators",):
                 line += (
                     f"; `{key}` is a scorecard bucket, not a YAML key: evaluators sit under"
@@ -419,38 +451,33 @@ class CaseSchemaError(ValueError):
         self.path = path
         self.case_id = case_id
         self.lines = lines
-        label = f"case {case_id!r}" if case_id else "an entry"
+        label = f"case {case_id!r}" if case_id is not None else "the file"
         super().__init__(f"{path}: {label} is invalid: " + " | ".join(lines))
 
 
-def _validate(model: type[BaseModel], path: Path, item: Any, id_key: str) -> Any:
-    case_id = item.get(id_key) if isinstance(item, dict) else None
+def _validate(model: type[BaseModel], path: Path, item: Any, id_key: str | None) -> Any:
+    case_id = item.get(id_key) if id_key is not None and isinstance(item, dict) else None
     try:
         return model.model_validate(item)
     except ValidationError as exc:
         raise CaseSchemaError(
-            path, str(case_id) if case_id else None, explain_schema_error(model, exc)
+            path, str(case_id) if case_id is not None else None, explain_schema_error(model, exc)
         ) from exc
 
 
-_ALLOWED_DEFAULTS = {"input", "tags", "max_response_time", "agents"}
-
-
-def _apply_defaults(item: dict[str, Any], defaults: dict[str, Any]) -> dict[str, Any]:
-    default_input = defaults.get("input") or {}
-    default_tags = defaults.get("tags") or []
-    default_mrt = defaults.get("max_response_time")
-    if default_input:
-        item = {**item, "input": {**default_input, **(item.get("input") or {})}}
-    if default_tags:
-        item = {**item, "tags": list(dict.fromkeys(default_tags + (item.get("tags") or [])))}
-    if default_mrt is not None:
-        if isinstance(default_mrt, int | float):
-            default_mrt = {"max_seconds": default_mrt}
+def _apply_defaults(item: dict[str, Any], defaults: SuiteDefaults) -> dict[str, Any]:
+    if defaults.input:
+        item = {**item, "input": {**defaults.input, **(item.get("input") or {})}}
+    if defaults.tags:
+        item = {**item, "tags": list(dict.fromkeys(defaults.tags + (item.get("tags") or [])))}
+    mrt = defaults.max_response_time
+    if mrt is not None:
         evaluators = dict(item.get("evaluators") or {})
         output = dict(evaluators.get("output") or {})
         if "max_response_time" not in output:
-            output["max_response_time"] = default_mrt
+            output["max_response_time"] = (
+                mrt.model_dump() if isinstance(mrt, MaxResponseTime) else {"max_seconds": mrt}
+            )
             evaluators["output"] = output
             item = {**item, "evaluators": evaluators}
     return item
@@ -465,28 +492,27 @@ def load_cases_from_yaml(path: Path) -> tuple[list[Case], list[Overlay]]:
       - a mapping with any of `defaults`, `cases`, `overlays`
     """
     path = Path(path)
-    raw = yaml.safe_load(path.read_text())
-    defaults: dict[str, Any] = {}
+    try:
+        raw = yaml.safe_load(path.read_text())
+    except yaml.YAMLError as exc:
+        raise CaseSchemaError(path, None, [f"not valid YAML: {exc}"]) from exc
+    defaults = SuiteDefaults()
     overlay_items: list[Any] = []
     if isinstance(raw, dict) and ("cases" in raw or "overlays" in raw):
-        defaults = raw.get("defaults") or {}
-        extra = set(defaults) - _ALLOWED_DEFAULTS
-        if extra:
-            raise ValueError(
-                f"{path}: defaults supports only {sorted(_ALLOWED_DEFAULTS)}, got {sorted(extra)}"
-            )
-        default_tags = defaults.get("tags", [])
-        if not isinstance(default_tags, list) or not all(
-            isinstance(tag, str) for tag in default_tags
-        ):
-            raise ValueError(f"{path}: defaults.tags must be a list of strings")
+        shell = {k: v for k, v in raw.items() if k not in ("cases", "overlays")}
+        defaults = _validate(SuiteFile, path, shell, None).defaults
         overlay_items = raw.get("overlays") or []
         raw = raw.get("cases") or []
     if isinstance(raw, dict):
         raw = [raw]
     if not isinstance(raw, list):
-        raise ValueError(
-            f"{path}: expected a list of cases or a single case dict, got {type(raw).__name__}"
+        raise CaseSchemaError(
+            path,
+            None,
+            [
+                "expected a case, a list of cases and overlays, or a mapping with"
+                f" defaults / cases / overlays; got {type(raw).__name__}"
+            ],
         )
     case_items: list[Any] = []
     for item in raw:
@@ -499,7 +525,7 @@ def load_cases_from_yaml(path: Path) -> tuple[list[Case], list[Overlay]]:
         if isinstance(item, dict):
             item = _apply_defaults(item, defaults)
         cases.append(_validate(Case, path, item, "id"))
-    default_agents = defaults.get("agents")
+    default_agents = defaults.agents
     overlays = [
         _validate(
             Overlay,
