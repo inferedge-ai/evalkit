@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- New docs page **CI sync** (`/docs/ci-sync`): how to lint eval cases on
+  PRs and sync them into a shared workspace on merge, with a GitHub Actions
+  example.
+
 - The install page says what to do when `evalkit update` fails with
   `KeyError: 'filename'`: a CLI older than 0.3.0 cannot update itself, so
   run `uv tool install --reinstall "evalkit-py==<version>"` once.
