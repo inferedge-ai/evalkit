@@ -9,7 +9,7 @@ import {
   reevaluateStrandsCases,
   resumeHint,
 } from "../lib/experimentStatus";
-import { splitLabel } from "../lib/format";
+import { selectionLabel } from "../lib/format";
 import { agentCommitUrl } from "../lib/meta";
 import { hasColumn, rowFailing } from "../lib/scorecard";
 import { BY_TYPE, gaugeGroup, scoreGroups } from "../lib/scoreSummary";
@@ -167,7 +167,9 @@ export function ExperimentPage() {
     );
   const config = status?.config;
   const tag = status ? agentTag(status) : null;
-  const split = config ? splitLabel({ selection: config.selection }) : null;
+  const selection = config
+    ? selectionLabel({ selection: config.selection })
+    : null;
   const rev = status ? agentRevision(status) : {};
   const cases = config?.revision ?? null;
   const drives = !!status && status.can_change && status.server_may_drive;
@@ -227,12 +229,9 @@ export function ExperimentPage() {
           </span>
         )}
         <WorkspaceChip workspace={status?.workspace} />
-        {split && (
-          <span
-            className="chip muted"
-            title="dataset split this experiment ran on"
-          >
-            split: {split}
+        {selection && (
+          <span className="chip muted" title="the cases this experiment ran on">
+            cases: {selection}
           </span>
         )}
         <RevisionChip

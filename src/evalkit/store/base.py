@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from evalkit.contracts.enums import (
     EvaluationSource,
@@ -87,8 +87,10 @@ class DatasetRow(BaseModel):
 
 
 class Selection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     all: bool = False
-    tag: str | None = None
+    tags: list[str] | None = None
     case_ids: list[str] | None = None
 
 
@@ -348,7 +350,8 @@ class Store(Protocol):
 def select_cases(cases: list[CaseView], selection: Selection) -> list[CaseView]:
     if selection.all:
         return list(cases)
-    if selection.tag:
-        return [case for case in cases if selection.tag in case.split_tags]
+    if selection.tags:
+        wanted_tags = set(selection.tags)
+        return [case for case in cases if wanted_tags & set(case.split_tags)]
     wanted = set(selection.case_ids or [])
     return [case for case in cases if case.case_id in wanted]

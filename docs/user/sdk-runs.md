@@ -102,7 +102,7 @@ The agent's exporter needs its own token. Mint one with `evalkit tokens create -
 
 - `dataset="finance"` runs your own workspace's copy; if `finance` is a directory under `cases` it is synced first.
 - `dataset="finance@dev"` or `dataset="finance", workspace="dev"` runs the shared cases, every review state included.
-- `case_ids=[...]`, `split="..."`, `repetitions`, `model` and `resume=<experiment id>` mean what the same options mean on `evalkit run`.
+- `case_ids=[...]`, `tags=[...]`, `repetitions`, `model` and `resume=<experiment id>` mean what the same options mean on `evalkit run`.
 - `dry_run=True` runs one case (`dry_run=N` runs N) without creating an experiment and prints the answer and what the server made of the session. If the server cannot read a session, that case prints a `trajectory read failed` line and the dry run goes on. Use it while wiring up tracing; the session shows on the Runs page with its case question and case id.
 
 ## Notebooks

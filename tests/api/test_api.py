@@ -80,8 +80,8 @@ async def test_datasets_and_cases(api):
     assert {c["case_id"] for c in cases} == {"case-1", "case-2"}
     filtered = (await client.get(f"/api/datasets/{FINANCE}/cases", params={"q": "q1"})).json()
     assert [c["case_id"] for c in filtered] == ["case-1"]
-    splits = (await client.get(f"/api/datasets/{FINANCE}/splits")).json()
-    assert splits == [{"name": "finance", "count": 2}]
+    tags = (await client.get(f"/api/datasets/{FINANCE}/tags")).json()
+    assert tags == [{"name": "finance", "count": 2}]
 
 
 async def test_meta_reports_accent_color(api):
@@ -571,7 +571,7 @@ async def test_unknown_dataset_returns_404_with_its_name(api):
     resp = await client.post("/api/experiments", json={"dataset": "finance@admin", "agent": AGENT})
     assert resp.status_code == 404
     assert resp.json()["detail"] == "unknown dataset: finance@admin"
-    for path in ("cases", "splits", "experiments"):
+    for path in ("cases", "tags", "experiments"):
         resp = await client.get(f"/api/datasets/nope@canonical/{path}")
         assert (resp.status_code, resp.json()["detail"]) == (
             404,

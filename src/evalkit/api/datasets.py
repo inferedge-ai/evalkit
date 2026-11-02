@@ -9,7 +9,13 @@ from evalkit.core.access import can_write
 from evalkit.core.review import CaseVersion, is_reviewable, review_summary
 from evalkit.db import experiments as db_experiments
 from evalkit.db.agents import agent_id_for
-from evalkit.db.cases import create_dataset, current_cases, dataset_by_ref, list_datasets, splits
+from evalkit.db.cases import (
+    create_dataset,
+    current_cases,
+    dataset_by_ref,
+    list_datasets,
+    tag_counts,
+)
 from evalkit.db.promotion import twin_status
 from evalkit.db.review import ReviewLog
 from evalkit.db.scorecard import case_history
@@ -108,10 +114,10 @@ async def select(ref: str, body: CaseSelection, store: PgStoreDep) -> list[dict]
     return [case.model_dump(mode="json") for case in cases]
 
 
-@router.get("/{ref}/splits")
-async def list_splits(ref: str, session: SessionDep) -> list[dict]:
+@router.get("/{ref}/tags")
+async def list_tags(ref: str, session: SessionDep) -> list[dict]:
     dataset = await dataset_by_ref(session, ref)
-    return [{"name": tag, "count": count} for tag, count in await splits(session, dataset)]
+    return [{"name": tag, "count": count} for tag, count in await tag_counts(session, dataset)]
 
 
 @router.get("/{ref}/experiments")

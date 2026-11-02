@@ -8,7 +8,7 @@ from evalkit.core.access import WorkspaceRef
 from evalkit.core.importer import import_dataset
 from evalkit.core.review import CaseEventKind, CaseReview, CaseState, CaseVersion
 from evalkit.db import models
-from evalkit.db.cases import current_cases, find_dataset_row, splits
+from evalkit.db.cases import current_cases, find_dataset_row, tag_counts
 from evalkit.db.fixture_blobs import record_blob
 from evalkit.db.review import ReviewLog
 from evalkit.db.store import PgStore
@@ -110,7 +110,7 @@ async def split_counts(ctx, dataset: str = "finance", workspace: str = "canonica
     async with sf() as s:
         row = await find_dataset_row(s, workspace, dataset)
         assert row is not None
-        return dict(await splits(s, row))
+        return dict(await tag_counts(s, row))
 
 
 async def last_sync_detail(ctx, dataset: str = "finance", workspace: str = "canonical") -> dict:

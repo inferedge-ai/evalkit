@@ -210,15 +210,15 @@ export function experimentTag(
   return `${meta.agent}${model}`;
 }
 
-// The dataset subset an experiment ran on, from its stored selection: a
-// tag/split name, "all cases", or an ad-hoc case-id list.
-export function splitLabel(
+// The dataset subset an experiment ran on, from its stored selection: its
+// tags, "all cases", or an ad-hoc case-id list.
+export function selectionLabel(
   meta: { selection?: unknown } | undefined,
 ): string | null {
   const sel = meta?.selection as
-    { all?: boolean; tag?: string; case_ids?: string[] } | undefined;
+    { all?: boolean; tags?: string[]; case_ids?: string[] } | undefined;
   if (!sel) return null;
-  if (typeof sel.tag === "string" && sel.tag) return sel.tag;
+  if (Array.isArray(sel.tags) && sel.tags.length) return sel.tags.join(", ");
   if (Array.isArray(sel.case_ids) && sel.case_ids.length) {
     const n = sel.case_ids.length;
     return n === 1 ? sel.case_ids[0] : `${n} cases`;

@@ -25,7 +25,7 @@ evaluator config, never in that text:
 |---|---|
 | Case | One eval question: input, expected behaviour, evaluator config. One YAML document. |
 | Dataset | A named set of cases in the evalkit store; a YAML file or directory syncs into one. |
-| Split | A selectable subset of a dataset, built from case tags. |
+| Tag | A label on a case: from its YAML `tags`, its folder in the suite, or an overlay. `evalkit run --tag` (repeatable) runs the cases carrying any of the given tags. |
 | Rubric | One typed sentence in `answer_rubrics` asserting something a correct answer contains. |
 | Rubric type | `factual_retrieval`, `derived_computation`, or `analysis_interpretation`; drives the per-type rates. |
 | Source | The attribution a `factual_retrieval` rubric requires; graded on its own citation axis, never in the content score. |

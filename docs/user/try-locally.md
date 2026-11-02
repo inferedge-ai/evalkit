@@ -182,7 +182,7 @@ This is the loop you will run on your own agent:
   `run.py` again. Compare the two experiments in the UI.
 - Edit or add a case under `cases/acme/` and run again. The run syncs the
   folder first.
-- Run one folder: `run_experiment(..., split="balance-sheet")`.
+- Run one folder: `run_experiment(..., tags=["balance-sheet"])`. A folder's name is a tag on its cases.
 
 ## 5. Connect your own agent
 

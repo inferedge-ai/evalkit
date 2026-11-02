@@ -18,26 +18,26 @@ import type {
   Dataset,
   JudgeSettings,
   LlmProviderInfo,
-  SplitInfo,
+  TagInfo,
   CaseView,
 } from "../lib/types";
 import { CopyButton } from "../lib/ui";
 
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "all", label: "All cases" },
-  { id: "split", label: "Split" },
+  { id: "tags", label: "Tags" },
   { id: "file", label: "Case file" },
   { id: "cases", label: "Pick cases" },
 ];
 
 export function RunLauncher({
   dataset,
-  splits,
+  tags,
   initialCaseIds,
   onClose,
 }: {
   dataset: string;
-  splits: SplitInfo[];
+  tags: TagInfo[];
   initialCaseIds?: string[];
   onClose: () => void;
 }) {
@@ -48,7 +48,7 @@ export function RunLauncher({
   const [isSuite, setIsSuite] = useState(false);
   const [choice, setChoice] = useState<ScopeChoice>({
     scope: initialCaseIds?.length ? "cases" : "all",
-    tag: splits[0]?.name ?? "",
+    tags: [],
     file: "",
     caseIds: initialCaseIds ?? [],
   });
@@ -106,10 +106,6 @@ export function RunLauncher({
     if (!choice.file && files.length)
       setChoice((c) => ({ ...c, file: files[0].name }));
   }, [files, choice.file]);
-  useEffect(() => {
-    if (!choice.tag && splits.length)
-      setChoice((c) => ({ ...c, tag: splits[0].name }));
-  }, [splits, choice.tag]);
 
   const inScope = casesInScope(examples ?? [], choice);
   const selection = selectionFor(examples ?? [], choice);
@@ -145,6 +141,14 @@ export function RunLauncher({
   };
 
   const setScope = (scope: Scope) => setChoice((c) => ({ ...c, scope }));
+  const pickedTags = new Set(choice.tags);
+  const toggleTag = (tag: string) =>
+    setChoice((c) => ({
+      ...c,
+      tags: pickedTags.has(tag)
+        ? c.tags.filter((t) => t !== tag)
+        : [...c.tags, tag],
+    }));
   const picked = new Set(choice.caseIds);
   const togglePick = (caseId: string) =>
     setChoice((c) => ({
@@ -200,7 +204,7 @@ export function RunLauncher({
                     key={s.id}
                     aria-pressed={choice.scope === s.id}
                     disabled={
-                      (s.id === "split" && !splits.length) ||
+                      (s.id === "tags" && !tags.length) ||
                       (s.id === "file" && !files.length)
                     }
                     onClick={() => setScope(s.id)}
@@ -209,18 +213,26 @@ export function RunLauncher({
                   </button>
                 ))}
               </div>
-              {choice.scope === "split" && (
-                <Select
-                  ariaLabel="split"
-                  className="self-start"
-                  value={choice.tag}
-                  onChange={(tag) => setChoice((c) => ({ ...c, tag }))}
-                  options={splits.map((s) => ({
-                    value: s.name,
-                    label: s.name,
-                    hint: s.count,
-                  }))}
-                />
+              {choice.scope === "tags" && (
+                <div className="picker">
+                  <div className="picker-list">
+                    {tags.map((t) => (
+                      <label key={t.name} className="picker-row check">
+                        <input
+                          type="checkbox"
+                          checked={pickedTags.has(t.name)}
+                          onChange={() => toggleTag(t.name)}
+                        />
+                        <span className="truncate font-mono text-ink">
+                          {t.name}
+                        </span>
+                        <span className="row-meta num ml-auto shrink-0">
+                          {t.count}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               )}
               {choice.scope === "file" && (
                 <Select

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Run several tags in one experiment. `evalkit run finance --tag ratios --tag
+  statements --agent ouragent@dev` runs every case carrying any of the given
+  tags. The web UI's run dialog has a **Tags** choice with a checkbox per tag,
+  and its CLI preview prints `--tag` flags. `evalkit review request --tag` is
+  repeatable too.
+- "Split" is now called "tag" everywhere:
+  - The SDK's `run_experiment(split="x")` is now `run_experiment(tags=["x"])`.
+  - The API's `selection` takes `tags: [...]` instead of `tag`. A request that
+    still sends `tag` is refused.
+  - `GET /api/datasets/{ref}/splits` moved to `GET /api/datasets/{ref}/tags`.
+  - The dataset page's Splits tab is now Tags, and ⌘K searches Tags.
+- `evalkit run finance/<name>` no longer falls back to selecting a tag when
+  `<name>` is not a folder or file of the dataset on disk. It fails and tells
+  you to pass `--tag <name>`. Folders and case files still work.
+- Migration `0014` rewrites the stored selection of existing experiments from
+  `tag` to `tags`. Run `evalkit db upgrade` before starting the new server.
+
 - The install page says what to do when `evalkit update` fails with
   `KeyError: 'filename'`: a CLI older than 0.3.0 cannot update itself, so
   run `uv tool install --reinstall "evalkit-py==<version>"` once.

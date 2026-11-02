@@ -101,10 +101,7 @@ def _e_reserved_tags(case_id: str, tags: list[str]) -> list[Finding]:
             severity="error",
             code="E-RESERVED-TAG",
             case_id=case_id,
-            message=(
-                f"tag '{t}' is reserved for run-time case selection "
-                "(the working split) — pick another tag name"
-            ),
+            message=(f"tag '{t}' is reserved for run-time case selection — pick another tag name"),
         )
         for t in tags
         if t.startswith("working:")

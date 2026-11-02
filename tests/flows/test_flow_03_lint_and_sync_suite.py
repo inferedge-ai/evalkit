@@ -29,7 +29,7 @@ def test_flow_03_sync_targets_your_workspace_and_prunes_only_whole_datasets(cli)
         "overlays_applied": 0,
     }
     with api(cli.live, "alice") as alice:
-        splits = alice.get("/api/datasets/fin3@alice/splits").json()
+        splits = alice.get("/api/datasets/fin3@alice/tags").json()
         assert {"name": "sub", "count": 1} in splits, splits
 
         (root / "a.yaml").write_text(cases_yaml("f3-1", question="Changed question 2024-01-01?"))

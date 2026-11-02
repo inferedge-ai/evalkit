@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import select
 
 from evalkit.core.review import CaseEventKind
-from evalkit.db.cases import current_cases, get_dataset, splits
+from evalkit.db.cases import current_cases, get_dataset, tag_counts
 from evalkit.db.models import Case, CaseEvent, CaseVersion, DatasetSync
 from evalkit.store.base import UnknownDataset
 from tests.seed import World, count, incoming, overlay, seed_world, sync
@@ -157,7 +157,7 @@ async def test_split_counts_include_overlay_tags(session_factory, world):
             dataset="client-cases",
             overlays=(overlay("q-1", ["support-bot"], tags=("client-only",)),),
         )
-        counts = await splits(s, await get_dataset(s, "dev", "finance"))
+        counts = await tag_counts(s, await get_dataset(s, "dev", "finance"))
         await s.commit()
     assert counts == [("client-only", 1), ("core", 2), ("hard", 1)]
 

@@ -9,7 +9,7 @@ import {
   fmtWhen,
   formatElapsed,
   formatMs,
-  splitLabel,
+  selectionLabel,
 } from "../lib/format";
 import { columnHelper } from "../lib/DataTable";
 import type { Column } from "../lib/DataTable";
@@ -150,11 +150,11 @@ export function experimentTailColumns(
       },
     }),
     helper.accessor(
-      (exp) => splitLabel({ selection: exp.config.selection }) ?? "",
+      (exp) => selectionLabel({ selection: exp.config.selection }) ?? "",
       {
-        id: "split",
-        header: "split",
-        meta: { wrap: true, title: "dataset split this experiment ran on" },
+        id: "cases",
+        header: "cases",
+        meta: { wrap: true, title: "the cases this experiment ran on" },
         cell: (c) => <span className="row-meta">{c.getValue()}</span>,
       },
     ),
