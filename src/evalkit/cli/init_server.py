@@ -16,6 +16,7 @@ from evalkit.paths import skills_root
 DEFAULT_DIR = Path("evalkit-try")
 ENCRYPTION_KEY_ENV = "EVALKIT_ENCRYPTION_KEY"
 DEFAULT_DATABASE_URL = "postgresql+psycopg://localhost/evalkit"
+DEFAULT_PORT = 8020
 DEFAULT_ADMIN_PASSWORD = "evalkit-admin"
 KIT_REQUIREMENT = '"evalkit-py[otel]"'
 KIT_LEAVES_OUT = ("*.whl", "__pycache__", "*.pyc", ".env")
@@ -136,8 +137,13 @@ def copy_kit(target: Path, *, docker: bool) -> None:
     run_py.write_text(run_py.read_text().replace(KIT_REQUIREMENT, f'"{pinned_requirement()}"'))
 
 
-def server_config(database_url: str, data_dir: Path) -> dict:
+def local_url(port: int) -> str:
+    return f"http://localhost:{port}"
+
+
+def server_config(database_url: str, data_dir: Path, port: int) -> dict:
     data = yaml.safe_load((kit_root() / "config.yaml").read_text())
+    data["server"]["base_url"] = local_url(port)
     data["db"] = {"url": database_url}
     data["blob"] = {"url": data_dir.resolve().as_uri()}
     return data
@@ -147,8 +153,10 @@ def existing_encryption_key(target: Path) -> str | None:
     return dotenv_values(target / ".env").get(ENCRYPTION_KEY_ENV)
 
 
-def write_server_files(target: Path, answers: Answers, encryption_key: str | None) -> None:
-    config = server_config(answers.database_url, target / "data")
+def write_server_files(
+    target: Path, answers: Answers, encryption_key: str | None, port: int
+) -> None:
+    config = server_config(answers.database_url, target / "data", port)
     (target / "config.yaml").write_text(yaml.safe_dump(config, sort_keys=False))
     env = target / ".env"
     env.write_text(

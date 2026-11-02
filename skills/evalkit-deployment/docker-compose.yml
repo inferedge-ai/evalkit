@@ -11,6 +11,9 @@
 # run `evalkit db upgrade`, then start the server
 # (see references/config-and-deploy.md).
 #
+# The server listens on 8020 in the container; EVALKIT_PORT picks the host
+# port (default 8020). Keep server.base_url in config.yaml in step with it.
+#
 # Using an existing Postgres instead? Remove the `postgres` service and the
 # `depends_on`, and set `db.url` in config.yaml to your instance
 # (postgresql+psycopg://user:pass@host/dbname).
@@ -19,7 +22,7 @@ services:
   server:
     image: ${EVALKIT_IMAGE:?set EVALKIT_IMAGE to the evalkit server image, e.g. <registry>/evalkit:<tag>}
     ports:
-      - "8020:8020"
+      - "${EVALKIT_PORT:-8020}:8020"
     volumes:
       - ./config.yaml:/etc/evalkit/config.yaml:ro
       # For a file:// blob URL, mount a volume at the configured path:

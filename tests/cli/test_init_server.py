@@ -3,6 +3,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+import yaml
 from dotenv import dotenv_values
 from sqlalchemy import create_engine, text
 from typer.testing import CliRunner
@@ -27,7 +28,7 @@ def clean_env(monkeypatch):
 def test_a_flag_beats_the_env_which_beats_the_default(tmp_path, monkeypatch):
     seen: list[init_server.Answers] = []
     monkeypatch.setattr(
-        init_server, "write_server_files", lambda d, answers, key: seen.append(answers)
+        init_server, "write_server_files", lambda d, answers, key, port: seen.append(answers)
     )
     monkeypatch.setattr(server_commands, "init_database", lambda url: True)
     monkeypatch.setattr(server_commands, "register_default_judge", lambda *args: None)
@@ -184,3 +185,35 @@ def test_an_existing_llm_setup_gets_no_new_encryption_key(tmp_path, monkeypatch)
     assert "EVALKIT_ENCRYPTION_KEY" not in dotenv_values(kit / ".env")
     assert "# EVALKIT_ENCRYPTION_KEY=<the encryption_key" in (kit / ".env").read_text()
     assert "commented out" in result.output
+
+
+def test_port_sets_base_url_and_the_next_steps(tmp_path, monkeypatch):
+    monkeypatch.setattr(server_commands, "init_database", lambda url: True)
+    monkeypatch.setattr(server_commands, "register_default_judge", lambda *args: None)
+    monkeypatch.setattr(server_commands, "has_llm_setup", lambda url: False)
+    kit = tmp_path / "kit"
+    result = CliRunner().invoke(
+        app, ["init-server", "--dir", str(kit), "--yes", "--port", "9500", *LLM_FLAGS]
+    )
+    assert result.exit_code == 0, result.output
+    assert yaml.safe_load((kit / "config.yaml").read_text())["server"]["base_url"] == (
+        "http://localhost:9500"
+    )
+    assert "evalkit serve --port 9500" in result.output
+    assert "evalkit login --url http://localhost:9500" in result.output
+
+
+def test_serve_warns_when_its_port_differs_from_base_url(tmp_path, monkeypatch):
+    served: list[int] = []
+    monkeypatch.setattr(server_commands, "serve", lambda cfg, host, port: served.append(port))
+    kit = tmp_path / "kit"
+    kit.mkdir()
+    config = init_server.server_config("postgresql+psycopg://localhost/x", kit / "data", 8020)
+    (kit / "config.yaml").write_text(yaml.safe_dump(config))
+    (kit / ".env").write_text("EVALKIT_ENCRYPTION_KEY=k\n")
+    path = str(kit / "config.yaml")
+    same = CliRunner().invoke(app, ["serve", "--config", path])
+    other = CliRunner().invoke(app, ["serve", "--config", path, "--port", "9500"])
+    assert served == [8020, 9500]
+    assert "server.base_url" not in same.output
+    assert "serving on port 9500, but server.base_url" in other.output

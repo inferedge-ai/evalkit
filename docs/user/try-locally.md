@@ -12,7 +12,8 @@ on one machine. For a real deployment, follow the evalkit-deployment skill.
 
 ## What you need
 
-- `uv` and port 8020 free.
+- `uv` and a free port. The server uses 8020 unless you pick another (see
+  "Start the server").
 - An OpenAI-compatible LLM endpoint (OpenAI, a LiteLLM proxy, vLLM, Ollama,
   ...) that supports tool calls and structured output, with its base URL, API
   key and model name. The sample agent and the judge both use it.
@@ -23,6 +24,15 @@ on one machine. For a real deployment, follow the evalkit-deployment skill.
 
 Pick one way. Both end with the server on http://localhost:8020 and the try
 kit in a folder, and the steps after this section are the same.
+
+To use another port, pass it to both commands without Docker
+(`evalkit init-server --port 9500`, then `evalkit serve --port 9500`), or set
+`EVALKIT_PORT=9500` in `.env` with Docker. The steps below use the server URL
+from a shell variable; set it in each terminal you use:
+
+```bash
+EVALKIT_URL=http://localhost:8020   # or your port
+```
 
 ### Without Docker
 
@@ -100,19 +110,19 @@ every start.
 
 ```bash
 uv tool install --reinstall "evalkit-py=={{version}}"   # with Docker only
-evalkit login --url http://localhost:8020 --username admin --password evalkit-admin
+evalkit login --url $EVALKIT_URL --username admin --password evalkit-admin
 ```
 
-`{{version}}` is the server's version; `curl http://localhost:8020/api/cli`
+`{{version}}` is the server's version; `curl $EVALKIT_URL/api/cli`
 prints it.
 
 `evalkit login` replaces any login you already saved. To keep it, skip
-`evalkit login` and point this shell at the try-it server instead (this needs
-`jq`):
+`evalkit login` and give this shell a token for the try-it server instead
+(this needs `jq`):
 
 ```bash
-export EVALKIT_SERVER_URL=http://localhost:8020
-export EVALKIT_TOKEN=$(curl -fsSL -X POST http://localhost:8020/api/auth/login \
+export EVALKIT_SERVER_URL=$EVALKIT_URL
+export EVALKIT_TOKEN=$(curl -fsSL -X POST $EVALKIT_URL/api/auth/login \
   -H 'content-type: application/json' -d '{"username": "admin", "password": "evalkit-admin"}' | jq -r .token)
 ```
 
@@ -169,7 +179,7 @@ The `answer_rubric_*` rows by rubric type (`factual_retrieval`,
 `derived_computation`, `analysis_interpretation`) count only the cases that
 have a rubric of that type, so their case counts differ.
 
-Open http://localhost:8020, log in as `admin` with the admin password, and open the
+Open `$EVALKIT_URL` in a browser, log in as `admin` with the admin password, and open the
 experiment under the `acme` dataset. Each run shows its trajectory, the
 judge's verdict on every rubric and the tool check. The Runs page lists the
 raw sessions.
