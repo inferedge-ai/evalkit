@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `evalkit summary <N> --baseline <M>` now shows what changed since the
+  baseline: a `vs experiment M` header, a Δ next to every bucket and
+  evaluator, and a `changed cases:` block listing improved, regressed, new
+  and removed cases (base → current score and Δ) plus a count of unchanged
+  ones. It reads the same compare data as the web UI's compare page.
+- The summary's failing-cases list now also includes cases where any single
+  evaluator scored below 0.80, naming those evaluators, even when the case's
+  overall score is above 0.80.
 - Run several tags in one experiment. `evalkit run finance --tag ratios --tag
   statements --agent ouragent@dev` runs every case carrying any of the given
   tags. In the web UI's run dialog, the **Tags** choice is now a multi-select
