@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hasAnyTag, tagCounts } from "./tags";
+import { hasAnyTag, sortedTags, tagCounts } from "./tags";
 import type { CaseView } from "./types";
 
 const ex = (case_id: string, tags: string[]) =>
@@ -10,6 +10,14 @@ describe("hasAnyTag", () => {
     expect(hasAnyTag(["ratios", "tcs"], ["mf", "tcs"])).toBe(true);
     expect(hasAnyTag(["ratios"], ["mf"])).toBe(false);
     expect(hasAnyTag([], ["mf"])).toBe(false);
+  });
+});
+
+describe("sortedTags", () => {
+  it("sorts tags by name without changing the input", () => {
+    const picked = ["statements", "mf", "ratios"];
+    expect(sortedTags(picked)).toEqual(["mf", "ratios", "statements"]);
+    expect(picked).toEqual(["statements", "mf", "ratios"]);
   });
 });
 

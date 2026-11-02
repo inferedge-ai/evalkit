@@ -4,6 +4,10 @@ export function hasAnyTag(caseTags: string[], wanted: string[]): boolean {
   return caseTags.some((t) => wanted.includes(t));
 }
 
+export function sortedTags(tags: string[]): string[] {
+  return [...tags].sort((a, b) => a.localeCompare(b));
+}
+
 export function tagCounts(
   cases: CaseView[],
 ): { name: string; count: number }[] {

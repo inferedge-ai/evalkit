@@ -23,7 +23,7 @@ import { ProgressBar } from "./ProgressBar";
 import { ScoreMatrix } from "./ScoreMatrix";
 import { BucketCards, CostSpeedLine } from "./ScoreSummary";
 import { MultiSelect, Select } from "../lib/Select";
-import { hasAnyTag, tagCounts } from "../lib/tags";
+import { hasAnyTag, sortedTags, tagCounts } from "../lib/tags";
 import { useFollowWorkspace } from "../shell/workspace";
 
 function ScorecardSkeleton() {
@@ -399,7 +399,7 @@ export function ExperimentPage() {
                     placeholder="All tags"
                     title="show only cases carrying any of these tags"
                     values={tagFilter}
-                    onChange={setTagFilter}
+                    onChange={(picked) => setTagFilter(sortedTags(picked))}
                     options={tags.map((t) => ({
                       value: t.name,
                       label: t.name,
@@ -468,7 +468,9 @@ export function ExperimentPage() {
             }}
           />
           <div className="num mt-2 text-micro text-ink-3">
-            {listed.length} cases
+            {rows.length === listed.length
+              ? `${listed.length} cases`
+              : `${rows.length}/${listed.length} cases`}
             {report.baseline_id ? ` · vs ${report.baseline_id}` : ""}
           </div>
         </>

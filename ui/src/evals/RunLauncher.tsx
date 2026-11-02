@@ -11,6 +11,7 @@ import {
 } from "../lib/runLauncher";
 import type { LaunchRequest, Scope, ScopeChoice } from "../lib/runLauncher";
 import { MultiSelect, Select } from "../lib/Select";
+import { sortedTags } from "../lib/tags";
 import { judgeChoice, judgeOverride } from "../lib/judge";
 import type { JudgeChoice } from "../lib/judge";
 import type {
@@ -220,7 +221,7 @@ export function RunLauncher({
                     placeholder="Pick tags"
                     values={choice.tags}
                     onChange={(picked) =>
-                      setChoice((c) => ({ ...c, tags: picked }))
+                      setChoice((c) => ({ ...c, tags: sortedTags(picked) }))
                     }
                     options={tags.map((t) => ({
                       value: t.name,
