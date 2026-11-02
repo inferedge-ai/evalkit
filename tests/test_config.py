@@ -218,3 +218,12 @@ def test_the_moved_to_db_hint_names_env_refs_as_shell_variables(tmp_path, monkey
     message = str(raised.value)
     assert "--base-url $LLM_BASE_URL --api-key-env LLM_API_KEY" in message
     assert "--model m1" in message
+
+
+def test_db_pool_defaults_and_overrides(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "pk")
+    cfg = load_config(write(tmp_path, BASIC))
+    assert (cfg.db.pool_size, cfg.db.max_overflow) == (20, 10)
+    text = BASIC.replace("db:\n", "db:\n  pool_size: 40\n  max_overflow: 0\n")
+    cfg = load_config(write(tmp_path, text))
+    assert (cfg.db.pool_size, cfg.db.max_overflow) == (40, 0)

@@ -4,6 +4,8 @@ server:
 db:
   url: env:EVALKIT_DATABASE_URL # Postgres: users, workspaces, agents, cases, experiments, scores
   # migrate_on_start: true # run `evalkit db upgrade` at startup (default false); see references/config-and-deploy.md
+  # pool_size: 20 # connections the server keeps open to Postgres (default 20)
+  # max_overflow: 10 # extra connections opened under load (default 10); a request that waits 30 s for one gets 503
 
 blob:
   url: s3://client-bucket/evalkit # or file:///data/evalkit

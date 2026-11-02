@@ -708,6 +708,7 @@ def _configured_builtins(evaluators: dict) -> dict[str, dict]:
 
 REFETCHABLE = (TrajectoryStatus.PARTIAL, TrajectoryStatus.UNAVAILABLE)
 REFETCH_CONCURRENCY = 8
+SCORING_CONCURRENCY = 8
 SCORABLE = (TrajectoryStatus.VALID, TrajectoryStatus.PARTIAL)
 
 
@@ -967,9 +968,11 @@ async def evaluate_experiment(
         if any(run.case.effective_evaluators.get("custom") for run in runs)
         else {}
     )
-    results = await asyncio.gather(
-        *(
-            _evaluate_run(
+    slots = asyncio.Semaphore(SCORING_CONCURRENCY)
+
+    async def one(run: RunForScoring) -> None:
+        async with slots:
+            await _evaluate_run(
                 deps,
                 exp,
                 agent,
@@ -982,10 +985,8 @@ async def evaluate_experiment(
                 holder,
                 force=run.experiment_run_id in refetched,
             )
-            for run in runs
-        ),
-        return_exceptions=True,
-    )
+
+    results = await asyncio.gather(*(one(run) for run in runs), return_exceptions=True)
     errors = [r for r in results if isinstance(r, BaseException)]
     for error in errors:
         if not isinstance(error, Exception):

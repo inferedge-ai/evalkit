@@ -55,6 +55,7 @@ from evalkit.db.cases import dataset_by_ref
 from evalkit.db.models import AgentRun as AgentRunRow
 from evalkit.db.models import ExperimentRun as ExperimentRunRow
 from evalkit.db.models import User
+from evalkit.db.runs import publish_evaluations as db_publish_evaluations
 from evalkit.db.runs import record_run as db_record_run
 from evalkit.store.base import (
     AgentRunRecord,
@@ -415,7 +416,6 @@ async def publish_evaluations(
     run_id: int,
     body: EvaluationsPost,
     deps: RunnerDepsDep,
-    store: PgStoreDep,
     session: SessionDep,
     actor: ActorDep,
 ) -> dict:
@@ -423,7 +423,8 @@ async def publish_evaluations(
     if exp_id is None:
         raise HTTPException(status_code=404, detail=f"unknown experiment run: {run_id}")
     await _runner_written(deps, await _changeable(session, actor, exp_id))
-    await store.publish_evaluations(run_id, body.rows, force=body.force, holder=body.holder)
+    await db_publish_evaluations(session, run_id, body.rows, force=body.force, holder=body.holder)
+    await session.commit()
     return {"ok": True}
 
 

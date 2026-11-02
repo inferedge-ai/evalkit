@@ -9,6 +9,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastmcp.server.auth import TokenVerifier
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import FileResponse, JSONResponse
 from starlette.staticfiles import StaticFiles
@@ -171,7 +172,11 @@ def create_app(
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (
-        session_factory if session_factory is not None else make_session_factory(cfg.db.url)
+        session_factory
+        if session_factory is not None
+        else make_session_factory(
+            cfg.db.url, pool_size=cfg.db.pool_size, max_overflow=cfg.db.max_overflow
+        )
     )
     resolved_store = PgStore(session_factory)
     resolved_agents = agents if agents is not None else AgentStore(session_factory)
@@ -294,6 +299,14 @@ def create_app(
     @app.exception_handler(BlockedEndpoint)
     async def bad_request(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+    @app.exception_handler(PoolTimeout)
+    async def pool_exhausted(request: Request, exc: PoolTimeout) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "the server's database connections are all in use; retry"},
+            headers={"Retry-After": "5"},
+        )
 
     app.add_middleware(BodyLimitMiddleware, cfg=cfg)
 

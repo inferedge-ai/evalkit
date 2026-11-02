@@ -1,8 +1,10 @@
 import json
 
 import pytest
+from sqlalchemy.exc import TimeoutError as PoolTimeout
 
 from evalkit.contracts.enums import DatasetKind, SyncSource
+from evalkit.db import experiments as db_experiments
 from evalkit.db.workspaces import WorkspaceStore
 from evalkit.store.base import IncomingOverlay
 from tests.fake_agents import reference_mapping
@@ -345,3 +347,17 @@ async def test_run_listing_reports_the_refetched_trajectory_status(api):
     assert listed[0]["agent_run"]["trajectory_status"] == "valid"
     served = await client.get(f"/api/experiments/{exp_id}/runs/{run_id}/trajectory")
     assert served.status_code == 200 and served.json()["extra"]["trajectory_status"] == "valid"
+
+
+async def test_exhausted_pool_answers_503_with_retry_after(api, monkeypatch):
+    client, _ = api
+
+    async def exhausted(*args, **kwargs):
+        raise PoolTimeout("QueuePool limit of size 5 overflow 10 reached")
+
+    monkeypatch.setattr(db_experiments, "experiment_of_run", exhausted)
+    resp = await client.post(
+        "/api/experiment-runs/1/evaluations", json={"rows": [], "holder": HOLDER}
+    )
+    assert resp.status_code == 503
+    assert resp.headers["Retry-After"] == "5"

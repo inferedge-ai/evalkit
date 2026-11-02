@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from evalkit.credentials import CredentialsConfig, load_dotenv_beside
 
@@ -31,6 +31,8 @@ class ServerConfig(ConfigModel):
 class DbConfig(ConfigModel):
     url: str
     migrate_on_start: bool = False
+    pool_size: int = Field(20, ge=1)
+    max_overflow: int = Field(10, ge=0)
 
 
 class BlobConfig(ConfigModel):

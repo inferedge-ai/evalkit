@@ -19,6 +19,7 @@ from evalkit.contracts.enums import (
 )
 from evalkit.contracts.harness import Capabilities
 from evalkit.contracts.settings import JudgeSettings, RemoteEvaluatorSettings
+from evalkit.core import runner as runner_module
 from evalkit.core.evaluators import presentation, rubrics, trajectory_rubrics
 from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
 from evalkit.core.evaluators.rubrics import ANSWER_RUBRIC_EMITS
@@ -1018,3 +1019,27 @@ async def test_a_failed_workspace_listing_keeps_the_experiment(
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     assert (await env.experiment(exp.id)).status is COMPLETED
     assert not any(key.startswith("workspaces/") for key in env.blob.objects)
+
+
+async def test_scoring_runs_at_most_scoring_concurrency_at_once(
+    tmp_path, stub_judges, session_factory, monkeypatch
+):
+    env = await seed_env(session_factory, tmp_path)
+    real = runner_module._evaluate_run
+    active, peak = 0, 0
+
+    async def tracked(*args, **kwargs):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0)
+        await real(*args, **kwargs)
+        active -= 1
+
+    monkeypatch.setattr(runner_module, "SCORING_CONCURRENCY", 1)
+    monkeypatch.setattr(runner_module, "_evaluate_run", tracked)
+    exp = await start(
+        env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical", repetitions=2)
+    )
+    assert exp.status is COMPLETED, exp.status_error
+    assert peak == 1

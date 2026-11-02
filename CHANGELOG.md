@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Scoring experiments of more than about 40 runs no longer fails with `500`s
+  on `POST /api/experiment-runs/{id}/evaluations`. A run (or `evalkit
+  evaluate`) now scores at most 8 runs at once, each scoring request uses one
+  database connection instead of two, and the server's connection pool is
+  bigger by default. Set its size in `config.yaml` with `db.pool_size`
+  (default 20) and `db.max_overflow` (default 10). When every connection is
+  still busy, the server answers `503` with `Retry-After`, and the CLI and
+  SDK retry instead of failing the experiment.
 - Run several tags in one experiment. `evalkit run finance --tag ratios --tag
   statements --agent ouragent@dev` runs every case carrying any of the given
   tags. In the web UI's run dialog, the **Tags** choice is now a multi-select
