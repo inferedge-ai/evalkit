@@ -26,10 +26,19 @@
 - Migration `0014` rewrites the stored selection of existing experiments from
   `tag` to `tags`. Run `evalkit db upgrade` before starting the new server.
 
+- New docs page **CI sync** (`/docs/ci-sync`): how to lint eval cases on
+  PRs and sync them into a shared workspace on merge, with a GitHub Actions
+  example. The Workspaces page has a new section, **Example setup:
+  personal → dev → prod**, with the commands to set it up and the day-to-day
+  flow of a case.
+
+- `evalkit runs pull` no longer fails the whole batch with a 500 when a
+  run's stored trajectory is missing from the blob store. That run comes
+  back in `index.json` with a `pull_error`, and the other runs are pulled.
+
 - The install page says what to do when `evalkit update` fails with
   `KeyError: 'filename'`: a CLI older than 0.3.0 cannot update itself, so
   run `uv tool install --reinstall "evalkit-py==<version>"` once.
-
 - The Harness API's run list names the tenant `org_id` instead of
   `client_id`: evalkit sends `GET /runs?org_id=…` and reads `org_id` on each
   listed run. A harness that declares `run_listing` renames both, or its

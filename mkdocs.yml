@@ -90,6 +90,7 @@ nav:
       - Login: login.md
       - Config: config.md
       - Workspaces: workspaces.md
+      - CI sync: ci-sync.md
   - Traces:
       - SDK runs: sdk-runs.md
       - Tracing: tracing.md

@@ -132,7 +132,7 @@ evalkit evaluate <experiment-id>        # re-score the same runs after an evalua
 evalkit runs pull --experiment <experiment-id>   # download every run (trajectory, case, scores) to diagnose failures
 ```
 
-Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as `dev`, where they start Unreviewed; a reviewer of that workspace approves them, and if `dev` is linked to `prod`, approval promotes them there.
+Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as `dev`, where they start Unreviewed; a reviewer of that workspace approves them, and if `dev` is linked to `prod`, approval promotes them there. [CI sync](ci-sync.md) shows how to set up that CI job.
 
 ```bash
 evalkit review request finance@dev --case-id net-debt-fy2025 --reviewer <user>

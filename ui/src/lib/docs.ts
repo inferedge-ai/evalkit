@@ -3,6 +3,7 @@ import install from "../../../docs/user/install.md?raw";
 import login from "../../../docs/user/login.md?raw";
 import config from "../../../docs/user/config.md?raw";
 import workspaces from "../../../docs/user/workspaces.md?raw";
+import ciSync from "../../../docs/user/ci-sync.md?raw";
 import sdkRuns from "../../../docs/user/sdk-runs.md?raw";
 import tracing from "../../../docs/user/tracing.md?raw";
 import mappings from "../../../docs/user/mappings.md?raw";
@@ -34,6 +35,7 @@ export const DOC_TABS = [
     group: "Get started",
     body: workspaces,
   },
+  { id: "ci-sync", label: "CI sync", group: "Get started", body: ciSync },
   { id: "sdk-runs", label: "SDK runs", group: "Traces", body: sdkRuns },
   { id: "tracing", label: "Tracing", group: "Traces", body: tracing },
   { id: "mappings", label: "Mappings", group: "Traces", body: mappings },

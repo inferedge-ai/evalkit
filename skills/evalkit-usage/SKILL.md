@@ -91,6 +91,7 @@ Every dataset and agent lives in a workspace:
   workspace's API keys there. `evalkit workspaces list` and
   `evalkit workspaces members list <ws>` show them.
 - CI syncs into the shared workspace the deployer picked (usually `dev`).
+  Setting that CI up is on the [CI sync](../evalkit-docs/ci-sync.md) page.
 
 References:
 
