@@ -91,6 +91,7 @@ nav:
       - Config: config.md
       - Workspaces: workspaces.md
       - CI sync: ci-sync.md
+      - Case schema: case-schema.md
   - Traces:
       - SDK runs: sdk-runs.md
       - Tracing: tracing.md

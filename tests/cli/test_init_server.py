@@ -3,6 +3,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+import yaml
 from dotenv import dotenv_values
 from sqlalchemy import create_engine, text
 from typer.testing import CliRunner
@@ -11,6 +12,7 @@ from evalkit import version
 from evalkit.cli import init_server, server_commands
 from evalkit.cli.client import ApiError
 from evalkit.cli.main import _server_config, app
+from evalkit.config import load_config
 from tests.pg import _admin, _with_database
 
 ROOT = Path(__file__).parents[2]
@@ -27,7 +29,7 @@ def clean_env(monkeypatch):
 def test_a_flag_beats_the_env_which_beats_the_default(tmp_path, monkeypatch):
     seen: list[init_server.Answers] = []
     monkeypatch.setattr(
-        init_server, "write_server_files", lambda d, answers, key: seen.append(answers)
+        init_server, "write_server_files", lambda d, answers, key, port: seen.append(answers)
     )
     monkeypatch.setattr(server_commands, "init_database", lambda url: True)
     monkeypatch.setattr(server_commands, "register_default_judge", lambda *args: None)
@@ -184,3 +186,55 @@ def test_an_existing_llm_setup_gets_no_new_encryption_key(tmp_path, monkeypatch)
     assert "EVALKIT_ENCRYPTION_KEY" not in dotenv_values(kit / ".env")
     assert "# EVALKIT_ENCRYPTION_KEY=<the encryption_key" in (kit / ".env").read_text()
     assert "commented out" in result.output
+
+
+def test_port_sets_base_url_and_the_next_steps(tmp_path, monkeypatch):
+    monkeypatch.setattr(server_commands, "init_database", lambda url: True)
+    monkeypatch.setattr(server_commands, "register_default_judge", lambda *args: None)
+    monkeypatch.setattr(server_commands, "has_llm_setup", lambda url: False)
+    kit = tmp_path / "kit"
+    result = CliRunner().invoke(
+        app, ["init-server", "--dir", str(kit), "--yes", "--port", "9500", *LLM_FLAGS]
+    )
+    assert result.exit_code == 0, result.output
+    assert yaml.safe_load((kit / "config.yaml").read_text())["server"]["base_url"] == (
+        "http://localhost:9500"
+    )
+    assert "evalkit login --url http://localhost:9500" in result.output
+
+
+def test_kit_only_with_a_port_says_to_set_evalkit_port(tmp_path):
+    kit = tmp_path / "kit"
+    result = CliRunner().invoke(
+        app, ["init-server", "--kit-only", "--dir", str(kit), "--port", "9500"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "set EVALKIT_PORT=9500" in result.output
+
+
+@pytest.mark.parametrize(
+    ("base_url", "flag", "expected"),
+    [
+        ("http://localhost:9500", [], 9500),
+        ("https://evalkit.example.com", [], 8020),
+        ("http://localhost:9500", ["--port", "9600"], 9600),
+    ],
+)
+def test_serve_port_defaults_to_the_base_url_port(tmp_path, monkeypatch, base_url, flag, expected):
+    served: list[int] = []
+    monkeypatch.setattr(server_commands, "serve", lambda cfg, host, port: served.append(port))
+    monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
+    config = init_server.server_config("postgresql+psycopg://localhost/x", tmp_path / "d", 8020)
+    config["server"]["base_url"] = base_url
+    (tmp_path / "config.yaml").write_text(yaml.safe_dump(config))
+    result = CliRunner().invoke(app, ["serve", "--config", str(tmp_path / "config.yaml"), *flag])
+    assert result.exit_code == 0, result.output
+    assert served == [expected]
+
+
+def test_the_docker_kit_config_takes_its_base_url_from_the_env(monkeypatch):
+    monkeypatch.setenv("EVALKIT_BASE_URL", "http://localhost:9500")
+    monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
+    assert load_config(init_server.kit_root() / "config.yaml").server.base_url == (
+        "http://localhost:9500"
+    )

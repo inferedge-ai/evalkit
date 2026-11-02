@@ -4,9 +4,10 @@ import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 import yaml
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from evalkit.credentials import CredentialsConfig, load_dotenv_beside
 
@@ -19,6 +20,9 @@ class MissingEnvError(ValueError):
         super().__init__(f"{source}: {key} needs env {name} (or env:{name}:<default>)")
 
 
+DEFAULT_PORT = 8020
+
+
 class ConfigModel(BaseModel):
     model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
@@ -26,6 +30,16 @@ class ConfigModel(BaseModel):
 class ServerConfig(ConfigModel):
     base_url: str
     accent_color: str | None = None
+
+    @field_validator("base_url")
+    @classmethod
+    def _port_is_a_number(cls, value: str) -> str:
+        _ = urlsplit(value).port
+        return value
+
+    @property
+    def port(self) -> int:
+        return urlsplit(self.base_url).port or DEFAULT_PORT
 
 
 class DbConfig(ConfigModel):

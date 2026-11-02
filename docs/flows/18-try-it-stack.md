@@ -10,7 +10,7 @@ and then connect their own agent the same way. Walkthrough:
 - **Developer**: has Docker, `uv`, an evalkit checkout or the server image (`EVALKIT_IMAGE`) and an OpenAI-compatible LLM (base URL, key, model).
 - **Terminal**: `docker compose`, the evalkit CLI and the kit's `run.py`.
 - **Browser**: the evalkit web UI.
-- **evalkit**: the server the stack runs on `localhost:8020`.
+- **evalkit**: the server the stack runs on `localhost:${EVALKIT_PORT}` (default 8020).
 - **LLM**: the developer's endpoint. The sample agent and the judge both call it.
 
 ## Sequence
@@ -25,7 +25,7 @@ sequenceDiagram
 
   D->>T: cd to the kit (checkout, or copied out of the image), fill in .env
   D->>T: docker compose up -d --wait [--build]
-  T-->>D: server healthy at http://localhost:8020
+  T-->>D: server healthy at http://localhost:${EVALKIT_PORT}
   D->>T: uv tool install evalkit from the server's index, evalkit login
   D->>T: evalkit agents create analyst --trajectory-source otel --mapping mapping.json
   D->>T: uv run run.py --dry-run

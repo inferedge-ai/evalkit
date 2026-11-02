@@ -143,7 +143,7 @@ A code-driven agent has no `GET /capabilities`, so evalkit writes its capabiliti
 
 ## Python evaluators
 
-`@evaluator(name=..., kind="evaluator" | "gauge", requires_trajectory=False)` turns a function into an evaluator. It receives the same `EvalCase` and `EvalRun` the HTTP Custom Evaluator API sends: the case id, input, expected block and this evaluator's config from the case YAML; the answer, structured output and the ATIF trajectory as a dict. Return a float, a `ScoreItem`, or a list of them. A case selects it by name under `evaluators.custom`, exactly like an HTTP evaluator.
+`@evaluator(name=..., kind="evaluator" | "gauge", requires_trajectory=False)` turns a function into an evaluator. It receives the same `EvalCase` and `EvalRun` the HTTP Custom Evaluator API sends: the case id, input, expected block and this evaluator's config from the case YAML; the answer, structured output and the ATIF trajectory as a dict. Return a float, a `ScoreItem` (`from evalkit.sdk import ScoreItem`), or a list of them. [Case schema](case-schema.md#python-evaluators) lists the fields of `EvalCase` and `EvalRun`. A case selects it by name under `evaluators.custom`, exactly like an HTTP evaluator.
 
 ## Bring your own benchmark
 

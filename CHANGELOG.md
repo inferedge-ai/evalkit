@@ -12,6 +12,30 @@
 - The summary's failing-cases list now also includes cases where any single
   evaluator scored below 0.80, naming those evaluators, even when the case's
   overall score is above 0.80.
+- The case YAML schema is published. A new **Case schema** docs page (also in
+  the web UI's docs) lists every key with one example per evaluator, and maps
+  each scorecard bucket to its YAML key. `evalkit contracts export` now also
+  writes `cases-v1.json`.
+- `evalkit lint` schema errors are easier to act on. They print the file path
+  and the case id, list the valid keys where an unknown key was found, and say
+  where a misplaced evaluator belongs (e.g. "`presentation_judge` goes under
+  `evaluators.output`"). `evalkit lint --offline` now reports these as findings
+  instead of stopping with a traceback.
+  Lint reports every broken case in a file, not just the first.
+- Stricter case files: in a file with `cases:` or `overlays:`, any other
+  top-level key besides `defaults` is now an error (it used to be ignored, so
+  a typo like `defualts:` dropped your defaults silently). `cases:` and
+  `overlays:` must be lists. Fix: remove or rename the stray key.
+- `ScoreItem`, `EvalCase` and `EvalRun` can be imported from `evalkit.sdk`.
+- `evalkit init-server --port 9500` writes `server.base_url` with that port and
+  prints the matching `evalkit login` command. `evalkit serve` now defaults
+  `--port` to the port in `server.base_url` (8020 when it has none). In
+  the Docker try stack, set `EVALKIT_PORT` in `.env` to publish the server on
+  another host port. Try it locally says how to change the port once and its
+  examples use the server's own URL in the web UI.
+- evalkit now runs on Python 3.12 as well as 3.13 (`requires-python` was
+  `>=3.13`). Projects on 3.12 can `uv add "evalkit-py[otel]"` without
+  upgrading Python. The install docs and skills state the minimum version.
 - Run several tags in one experiment. `evalkit run finance --tag ratios --tag
   statements --agent ouragent@dev` runs every case carrying any of the given
   tags. In the web UI's run dialog, the **Tags** choice is now a multi-select

@@ -1457,3 +1457,21 @@ def test_summary_with_baseline_reads_the_compare_endpoint(monkeypatch):
     assert result.exit_code == 0, result.output
     assert "vs experiment 3  #3 of finance@dev" in result.output
     assert re.search(r"c1\s+0\.00 → 1\.00  Δ\+1\.00$", result.output, re.M)
+
+
+def test_offline_lint_refuses_a_file_that_is_not_a_case_file(tmp_path):
+    registry = tmp_path / "fixtures.yaml"
+    registry.write_text("fixtures: []\n")
+    result = runner.invoke(cli_app, ["lint", "--offline", str(registry)])
+    assert result.exit_code != 0
+    assert "is not a case file" in result.output
+
+
+def test_offline_lint_reports_schema_errors_as_findings(tmp_path):
+    (tmp_path / "acme").mkdir()
+    (tmp_path / "acme" / "cases.yaml").write_text(
+        "- id: q1\n  input: {question: q}\n  evaluators: {output: {max_response_time: 90}}\n"
+    )
+    result = runner.invoke(cli_app, ["lint", "--offline", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "E-SCHEMA [q1] acme/cases.yaml: evaluators.output.max_response_time" in result.output

@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import func, select
 
 from evalkit.core.access import WorkspaceRef
-from evalkit.core.importer import import_dataset
+from evalkit.core.importer import import_dataset, load_files
 from evalkit.core.review import CaseEventKind, CaseReview, CaseState, CaseVersion
 from evalkit.db import models
 from evalkit.db.cases import current_cases, find_dataset_row, tag_counts
@@ -621,3 +621,14 @@ async def test_same_case_in_another_workspace_is_not_a_collision(tmp_path, ctx):
     assert not mine.aborted and mine.created == 2
     other = await do_import(ctx, files, dataset="other", workspace=world.akshat_ws, actor="akshat")
     assert not other.aborted and other.created == 2
+
+
+def test_schema_finding_names_the_file_and_case(tmp_path):
+    folder = tmp_path / "acme"
+    folder.mkdir()
+    (folder / "cases.yaml").write_text(
+        "- id: q1\n  input: {question: q}\n  evaluators: {output: {max_response_time: 90}}\n"
+    )
+    _, _, findings = load_files([folder / "cases.yaml"], tmp_path)
+    assert [(f.code, f.case_id) for f in findings] == [("E-SCHEMA", "q1")]
+    assert findings[0].message.startswith("acme/cases.yaml: evaluators.output.max_response_time")

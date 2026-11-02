@@ -13,6 +13,7 @@ def test_generated_schemas_current(tmp_path):
     names = sorted(p.name for p in committed.glob("*.json"))
     assert names == [
         "atif-accepted.json",
+        "cases-v1.json",
         "custom-evaluator-api-v1.json",
         "harness-api-v1.json",
         "span-mapping-v1.json",

@@ -43,6 +43,7 @@
     "schemas": {
       "EvalCase": {
         "additionalProperties": true,
+        "description": "The case an evaluator scores.",
         "properties": {
           "id": {
             "description": "Case id.",
@@ -143,6 +144,7 @@
       },
       "EvalRun": {
         "additionalProperties": true,
+        "description": "The run an evaluator scores.",
         "properties": {
           "answer": {
             "description": "The agent's final answer. When the harness sent only a structured output, this is that output as canonical JSON (sorted keys).",
@@ -179,6 +181,7 @@
       },
       "ScoreItem": {
         "additionalProperties": true,
+        "description": "One named score an evaluator returns.",
         "properties": {
           "name": {
             "description": "Score name. Multi-score is first-class: one call may return several named scores.",
