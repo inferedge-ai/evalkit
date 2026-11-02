@@ -1,4 +1,5 @@
 import json
+import math
 
 import pytest
 from sqlalchemy import event
@@ -351,7 +352,7 @@ async def test_run_listing_reports_the_refetched_trajectory_status(api):
 
 
 async def test_exhausted_pool_answers_503_with_retry_after(api, monkeypatch):
-    client, _ = api
+    client, env = api
 
     def exhausted(self, *args, **kwargs):
         raise PoolTimeout("QueuePool limit of size 20 overflow 10 reached")
@@ -362,6 +363,7 @@ async def test_exhausted_pool_answers_503_with_retry_after(api, monkeypatch):
             "/api/experiment-runs/1/evaluations", json={"rows": [], "holder": HOLDER}
         )
     assert resp.status_code == 503
+    assert resp.headers["Retry-After"] == str(math.ceil(env.deps.cfg.db.pool_timeout_seconds))
     assert resp.headers["Retry-After"] == "5"
 
 

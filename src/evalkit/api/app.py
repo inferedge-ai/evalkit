@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import math
 import os
 import signal
 import socket
@@ -308,7 +309,7 @@ def create_app(
         return JSONResponse(
             status_code=503,
             content={"detail": "the server's database connections are all in use; retry"},
-            headers={"Retry-After": "5"},
+            headers={"Retry-After": str(math.ceil(cfg.db.pool_timeout_seconds))},
         )
 
     app.add_middleware(BodyLimitMiddleware, cfg=cfg)
