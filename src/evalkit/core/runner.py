@@ -536,6 +536,7 @@ async def prepare_experiment(
             },
             code_evaluators=sorted(req.code_evaluators or []),
             evalkit_version=req.evalkit_version,
+            evaluation_concurrency=req.evaluation_concurrency,
         ),
     )
     exp = await factory.create_experiment(

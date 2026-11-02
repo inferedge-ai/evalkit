@@ -196,14 +196,16 @@ async def _server_driven(deps: RunnerDeps, exp: Experiment, command: str) -> Age
     return agent
 
 
-def _scoring(request: Request, deps: RunnerDeps, asked: int | None) -> RunnerDeps:
+def _scoring(
+    request: Request, deps: RunnerDeps, asked: int | None, saved: int | None = None
+) -> RunnerDeps:
     limit = request.app.state.cfg.runner.evaluation_concurrency
     if asked is not None and asked > limit:
         raise HTTPException(
             status_code=400,
             detail=f"evaluation_concurrency {asked} is above this server's limit of {limit}",
         )
-    return replace(deps, evaluation_concurrency=asked or limit)
+    return replace(deps, evaluation_concurrency=asked or min(saved or limit, limit))
 
 
 async def _runner_written(session: AsyncSession, exp: Experiment) -> AgentDefinition:
@@ -508,7 +510,13 @@ async def evaluate(
         exp_id,
         holder,
         f"evaluate:{exp_id}",
-        rescore_experiment(_scoring(request, with_keys(deps, keys), asked), exp_id, holder),
+        rescore_experiment(
+            _scoring(
+                request, with_keys(deps, keys), asked, exp.config.snapshot.evaluation_concurrency
+            ),
+            exp_id,
+            holder,
+        ),
     )
     return {**exp.model_dump(mode="json"), "warnings": warnings}
 
@@ -536,7 +544,13 @@ async def resume(
         exp_id,
         holder,
         f"run:{exp_id}",
-        run_experiment(_scoring(request, with_keys(deps, keys), asked), exp_id, holder),
+        run_experiment(
+            _scoring(
+                request, with_keys(deps, keys), asked, exp.config.snapshot.evaluation_concurrency
+            ),
+            exp_id,
+            holder,
+        ),
     )
     return {**exp.model_dump(mode="json"), "warnings": warnings}
 

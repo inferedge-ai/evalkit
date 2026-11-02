@@ -3,26 +3,30 @@
 ## Unreleased
 
 - Scoring experiments of more than about 40 runs no longer fails with `500`s
-  on `POST /api/experiment-runs/{id}/evaluations`. A run (or `evalkit
-  evaluate`) now scores at most 16 runs at once instead of all of them. Change
-  it with `--evaluation-concurrency N` on `evalkit run` and `evalkit evaluate`,
-  or `evaluation_concurrency=N` in the SDK's `run_experiment` and
-  `evaluate_experiment`, and an **Evaluation concurrency** field in the web
-  UI's run dialog. A server run uses `runner.evaluation_concurrency` from the
-  server's `config.yaml` (default 16). `evalkit run --evaluation-concurrency`
-  for a shared agent, the run dialog, and the `evaluation_concurrency` field
-  on `POST /api/experiments`, `/resume` and `/evaluate` may ask for less or as
-  much, never more: a higher value is refused with `400`. The UI's
-  **Re-evaluate** and **Resume** buttons use the server's value. Each scoring request uses one database connection instead of
-  two, and the server's connection pool is bigger by default. Set it in
-  `config.yaml` with `db.pool_size` (default 20), `db.max_overflow`
-  (default 10) and `db.pool_timeout_seconds` (default 5). Keep
-  `(pool_size + max_overflow) × replicas` well under Postgres
-  `max_connections`. When no connection frees up within
-  `pool_timeout_seconds`, the server answers `503` with `Retry-After`, and the
-  CLI and SDK retry instead of failing the experiment. Server runs write
-  straight to the database, so they get no retry: a server run that cannot
-  get a connection still fails, and `evalkit evaluate` finishes it.
+  on `POST /api/experiment-runs/{id}/evaluations`.
+  - A run (or `evalkit evaluate`) now scores at most 16 runs at once instead
+    of all of them. Change it with `--evaluation-concurrency N` on `evalkit
+    run` and `evalkit evaluate`, `evaluation_concurrency=N` in the SDK's
+    `run_experiment` and `evaluate_experiment`, or the **Evaluation
+    concurrency** field in the web UI's run dialog.
+  - A server run uses `runner.evaluation_concurrency` from the server's
+    `config.yaml` (default 16). The CLI flag, the run dialog and the
+    `evaluation_concurrency` field on `POST /api/experiments`, `/resume` and
+    `/evaluate` may ask for that much or less; more is refused with `400`.
+    The experiment keeps the value it was started with, so a resume or
+    re-evaluate without one (such as the UI's **Re-evaluate** and **Resume**
+    buttons) uses it again.
+  - Each scoring request uses one database connection instead of two, and
+    the server's connection pool is bigger by default. Set it in
+    `config.yaml` with `db.pool_size` (default 20), `db.max_overflow`
+    (default 10) and `db.pool_timeout_seconds` (default 5). Keep
+    `(pool_size + max_overflow) × replicas` well under Postgres
+    `max_connections`.
+  - When no connection frees up within `pool_timeout_seconds`, the server
+    answers `503` with `Retry-After`, and the CLI and SDK retry instead of
+    failing the experiment. Server runs write straight to the database, so
+    they get no retry: a server run that cannot get a connection still
+    fails, and `evalkit evaluate` finishes it.
 - The judge no longer has a `concurrency` setting: `evaluation_concurrency`
   replaces it. `evalkit judge-default set --concurrency` is gone, and the SDK's
   `Judge(concurrency=...)`, the API and saved experiments and default judges

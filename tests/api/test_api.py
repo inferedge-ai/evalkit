@@ -598,7 +598,9 @@ async def test_server_runs_score_with_the_asked_evaluation_concurrency(api, monk
     )
     assert evaluated.status_code == 200, evaluated.text
     await wait_for(client, exp["id"])
-    assert limits == [16, 3, 2]
+    assert (await client.post(f"/api/experiments/{exp['id']}/evaluate")).status_code == 200
+    await wait_for(client, exp["id"])
+    assert limits == [16, 3, 2, 3]
 
     too_many = await client.post(
         "/api/experiments",

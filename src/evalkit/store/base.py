@@ -144,6 +144,7 @@ class ExperimentSnapshot(BaseModel):
     remote_evaluators: dict[str, RemoteEvaluatorSettings] = Field(default_factory=dict)
     code_evaluators: list[str] = Field(default_factory=list)
     evalkit_version: str | None = None
+    evaluation_concurrency: int | None = None
 
 
 class ExperimentConfig(BaseModel):
