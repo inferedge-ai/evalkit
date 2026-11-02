@@ -2,11 +2,12 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Coroutine
+from dataclasses import replace
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response, StreamingResponse
@@ -75,6 +76,10 @@ INTERRUPTED_ERROR = "interrupted: evalkit server shut down"
 
 TaskRegistry = dict[str, tuple[int, str, asyncio.Task]]
 LIST_LIMIT = 200
+
+
+class ScoringOptions(BaseModel):
+    evaluation_concurrency: int | None = Field(default=None, ge=1)
 
 
 class ExperimentPatch(BaseModel):
@@ -191,6 +196,16 @@ async def _server_driven(deps: RunnerDeps, exp: Experiment, command: str) -> Age
     return agent
 
 
+def _scoring(request: Request, deps: RunnerDeps, asked: int | None) -> RunnerDeps:
+    limit = request.app.state.cfg.runner.evaluation_concurrency
+    if asked is not None and asked > limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"evaluation_concurrency {asked} is above this server's limit of {limit}",
+        )
+    return replace(deps, evaluation_concurrency=asked or limit)
+
+
 async def _runner_written(session: AsyncSession, exp: Experiment) -> AgentDefinition:
     agent = await agent_definition(session, explicit(parse_slug(exp.agent)))
     if server_may_drive(agent):
@@ -246,6 +261,12 @@ async def create_experiment(
         raise HTTPException(
             status_code=400, detail="capabilities are fetched by the server for shared agents"
         )
+    if not server_driven and body.evaluation_concurrency is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="evaluation_concurrency is for server runs; your CLI or SDK scores this "
+            "experiment, so pass it there",
+        )
     if not server_driven and (body.capabilities is None or body.holder is None):
         raise HTTPException(
             status_code=400,
@@ -262,7 +283,7 @@ async def create_experiment(
         await require_registered_judge(providers, judge.base_url)
         keys, warnings = await server_keys(request, agent, judge.base_url)
         api_key = keys.key_for("agent", agent.ref)
-        run_deps = with_keys(deps, keys)
+        run_deps = _scoring(request, with_keys(deps, keys), body.evaluation_concurrency)
     holder = task_holder(pod) if server_driven else str(body.holder)
     try:
         caps = body.capabilities or await harness_capabilities(
@@ -473,9 +494,11 @@ async def evaluate(
     session: SessionDep,
     actor: ActorDep,
     pod: HolderDep,
+    body: ScoringOptions | None = None,
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
     agent = await _server_driven(deps, exp, "evaluate")
+    asked = body.evaluation_concurrency if body is not None else None
     await require_registered_judge(request.app.state.llm_providers, exp.config.judge.base_url)
     keys, warnings = await server_keys(request, agent, exp.config.judge.base_url)
     holder = task_holder(pod)
@@ -485,7 +508,7 @@ async def evaluate(
         exp_id,
         holder,
         f"evaluate:{exp_id}",
-        rescore_experiment(with_keys(deps, keys), exp_id, holder),
+        rescore_experiment(_scoring(request, with_keys(deps, keys), asked), exp_id, holder),
     )
     return {**exp.model_dump(mode="json"), "warnings": warnings}
 
@@ -499,9 +522,11 @@ async def resume(
     session: SessionDep,
     actor: ActorDep,
     pod: HolderDep,
+    body: ScoringOptions | None = None,
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
     agent = await _server_driven(deps, exp, "resume")
+    asked = body.evaluation_concurrency if body is not None else None
     await require_registered_judge(request.app.state.llm_providers, exp.config.judge.base_url)
     keys, warnings = await server_keys(request, agent, exp.config.judge.base_url)
     holder = task_holder(pod)
@@ -511,7 +536,7 @@ async def resume(
         exp_id,
         holder,
         f"run:{exp_id}",
-        run_experiment(with_keys(deps, keys), exp_id, holder),
+        run_experiment(_scoring(request, with_keys(deps, keys), asked), exp_id, holder),
     )
     return {**exp.model_dump(mode="json"), "warnings": warnings}
 

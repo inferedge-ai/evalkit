@@ -105,6 +105,7 @@ describe("cliCommand", () => {
           reasoning_effort: "low",
           max_tokens: 1,
         },
+        evaluation_concurrency: null,
       }),
     ).toBe(
       "evalkit run finance@dev --agent ouragent@dev --judge-model other --judge-base-url https://llm/v1 --judge-effort low",
@@ -120,9 +121,10 @@ describe("cliCommand", () => {
         selection: { case_ids: ["a", "b c"] },
         model: "claude-opus-5-5",
         judge: null,
+        evaluation_concurrency: 4,
       }),
     ).toBe(
-      "evalkit run finance@dev --agent research-agent@dev --runs 3 --case-id a --case-id 'b c' --model claude-opus-5-5",
+      "evalkit run finance@dev --agent research-agent@dev --runs 3 --case-id a --case-id 'b c' --model claude-opus-5-5 --evaluation-concurrency 4",
     );
   });
 
@@ -135,6 +137,7 @@ describe("cliCommand", () => {
         selection: { all: true },
         model: null,
         judge: null,
+        evaluation_concurrency: null,
       }),
     ).toBe("evalkit run finance@dev --agent research-agent@dev");
   });
@@ -148,6 +151,7 @@ describe("cliCommand", () => {
         selection: { tags: ["starbucks", "q&a"] },
         model: null,
         judge: null,
+        evaluation_concurrency: null,
       }),
     ).toBe(
       "evalkit run finance@dev --agent research-agent@dev --tag starbucks --tag 'q&a'",

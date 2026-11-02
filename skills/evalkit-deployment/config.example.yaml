@@ -30,6 +30,9 @@ otel: # optional block; the OTLP collector at /api/otel/v1/traces
   max_session_bytes: 402653184 # span attributes one session read loads; 413 beyond it (size with the server's memory)
   import_page_traces: 25 # traces per request to a trace source during an import (size with the server's memory)
 
+runner: # optional block; server runs
+  evaluation_concurrency: 16 # runs scored at once; also the most a request may ask for (each holds a DB connection while it saves)
+
 limits: # optional block; request body caps, 413 beyond them
   fixture_upload_bytes: 524288000 # one fixture file uploaded by evalkit sync (500 MB)
   experiment_blob_bytes: 524288000 # one trajectory or artifact written by a local run (500 MB)

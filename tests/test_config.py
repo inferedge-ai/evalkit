@@ -227,3 +227,10 @@ def test_db_pool_defaults_and_overrides(tmp_path, monkeypatch):
     text = BASIC.replace("db:\n", "db:\n  pool_size: 40\n  max_overflow: 0\n")
     cfg = load_config(write(tmp_path, text))
     assert (cfg.db.pool_size, cfg.db.max_overflow) == (40, 0)
+
+
+def test_runner_evaluation_concurrency(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "pk")
+    assert load_config(write(tmp_path, BASIC)).runner.evaluation_concurrency == 16
+    text = BASIC + "runner:\n  evaluation_concurrency: 4\n"
+    assert load_config(write(tmp_path, text)).runner.evaluation_concurrency == 4

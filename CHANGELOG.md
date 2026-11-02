@@ -7,8 +7,13 @@
   evaluate`) now scores at most 16 runs at once instead of all of them. Change
   it with `--evaluation-concurrency N` on `evalkit run` and `evalkit evaluate`,
   or `evaluation_concurrency=N` in the SDK's `run_experiment` and
-  `evaluate_experiment`. Server runs use 16; `evalkit run` refuses the flag for
-  a shared agent. Each scoring request uses one database connection instead of
+  `evaluate_experiment`, and an **Evaluation concurrency** field in the web
+  UI's run dialog. A server run uses `runner.evaluation_concurrency` from the
+  server's `config.yaml` (default 16). `evalkit run --evaluation-concurrency`
+  for a shared agent, the run dialog, and the `evaluation_concurrency` field
+  on `POST /api/experiments`, `/resume` and `/evaluate` may ask for less or as
+  much, never more: a higher value is refused with `400`. The UI's
+  **Re-evaluate** and **Resume** buttons use the server's value. Each scoring request uses one database connection instead of
   two, and the server's connection pool is bigger by default. Set it in
   `config.yaml` with `db.pool_size` (default 20), `db.max_overflow`
   (default 10) and `db.pool_timeout_seconds` (default 5). Keep

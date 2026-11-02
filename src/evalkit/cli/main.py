@@ -557,10 +557,12 @@ def _run_on_server(
     resume: int | None,
     revision: GitRevision,
     judge: dict | None,
+    evaluation_concurrency: int | None,
 ) -> int:
     client = _client()
     if resume:
-        exp_id = int(client.post(f"/api/experiments/{resume}/resume").json()["id"])
+        scoring = {"evaluation_concurrency": evaluation_concurrency}
+        exp_id = int(client.post(f"/api/experiments/{resume}/resume", json=scoring).json()["id"])
     else:
         payload = {
             "dataset": dataset_slug,
@@ -571,6 +573,7 @@ def _run_on_server(
             "cases": revision.model_dump(exclude_none=True) or None,
             "evalkit_version": version.current(),
             "judge": judge,
+            "evaluation_concurrency": evaluation_concurrency,
         }
         created = client.post("/api/experiments", json=payload).json()
         exp_id = int(created["id"])
@@ -632,7 +635,8 @@ def run(
         None,
         "--evaluation-concurrency",
         min=1,
-        help=f"How many runs are scored at once (default {EVALUATION_CONCURRENCY}).",
+        help=f"How many runs are scored at once. Default: {EVALUATION_CONCURRENCY} here, or "
+        "the server's runner.evaluation_concurrency for a shared agent, which is also its limit.",
     ),
 ):
     """Run an experiment. Your own agent runs from this machine; results land on the server.
@@ -680,11 +684,6 @@ def run(
     dataset_slug = slug(resolved.ref)
     judge = _judge_override(judge_model, judge_base_url, judge_effort)
     if route is Driver.SERVER:
-        if evaluation_concurrency is not None:
-            raise ApiError(
-                f"{definition.ref} is a shared agent; the server scores its runs, "
-                "so --evaluation-concurrency does not apply"
-            )
         exp_id = _run_on_server(
             dataset_slug,
             slug(agent_ref),
@@ -694,6 +693,7 @@ def run(
             resume,
             revision,
             judge,
+            evaluation_concurrency,
         )
     else:
         if local is None:

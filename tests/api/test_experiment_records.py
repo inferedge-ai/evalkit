@@ -413,3 +413,10 @@ async def test_a_scoring_request_holds_one_connection_at_a_time(api):
     event.remove(engine, "checkin", checkin)
     assert resp.status_code == 200, resp.text
     assert peak == 1
+
+
+async def test_runs_the_cli_scores_refuse_evaluation_concurrency(api):
+    client, _ = api
+    resp = await create(client, evaluation_concurrency=2)
+    assert resp.status_code == 400
+    assert "pass it there" in resp.json()["detail"]

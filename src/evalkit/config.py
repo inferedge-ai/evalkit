@@ -40,6 +40,10 @@ class BlobConfig(ConfigModel):
     url: str
 
 
+class ServerRunnerConfig(ConfigModel):
+    evaluation_concurrency: int = Field(default=16, ge=1)
+
+
 class CostMapConfig(ConfigModel):
     source: str = "bundled"
 
@@ -127,6 +131,7 @@ class Config(RunnerConfig):
     mcp: McpConfig = McpConfig()
     otel: OtelConfig = OtelConfig()
     limits: LimitsConfig = LimitsConfig()
+    runner: ServerRunnerConfig = ServerRunnerConfig()
     sentry: SentryConfig | None = None
     encryption_key: str | None = None
     allow_private_endpoints: bool = False

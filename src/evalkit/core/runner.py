@@ -27,7 +27,7 @@ from datetime import UTC, datetime
 from typing import IO, Any, Literal, Protocol
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from evalkit.config import RunnerConfig
 from evalkit.contracts.atif import Trajectory, TrajectoryValidationError, validate_trajectory
@@ -130,6 +130,7 @@ class ExperimentRequest(BaseModel):
     judge: JudgeSettings | None = None
     holder: str | None = None
     trajectory_wait_seconds: int | None = None
+    evaluation_concurrency: int | None = Field(default=None, ge=1)
 
 
 def _no_progress(message: str) -> None:
