@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `evalkit init-server --port 9500` writes `server.base_url` with that port and
+  prints the matching `evalkit login` command. `evalkit serve` now defaults
+  `--port` to the port in `server.base_url` (8020 when it has none). In
+  the Docker try stack, set `EVALKIT_PORT` in `.env` to publish the server on
+  another host port. Try it locally says how to change the port once and its
+  examples use the server's own URL in the web UI.
 - evalkit now runs on Python 3.12 as well as 3.13 (`requires-python` was
   `>=3.13`). Projects on 3.12 can `uv add "evalkit-py[otel]"` without
   upgrading Python. The install docs and skills state the minimum version.

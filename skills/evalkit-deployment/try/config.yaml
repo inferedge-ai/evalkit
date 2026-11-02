@@ -1,6 +1,6 @@
 # Server config for the try-it stack. See ../config.example.yaml for a real one.
 server:
-  base_url: http://localhost:8020
+  base_url: env:EVALKIT_BASE_URL:http://localhost:8020 # docker-compose.yml sets it from EVALKIT_PORT
 
 db:
   url: postgresql+psycopg://evalkit:evalkit@postgres/evalkit
