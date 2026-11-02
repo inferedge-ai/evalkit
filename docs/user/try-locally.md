@@ -26,7 +26,7 @@ kit in a folder, and the steps after this section are the same.
 
 ### Without Docker
 
-evalkit is on PyPI as `evalkit-py`. Install it with the server extra, then
+evalkit is on PyPI as `evalkit-py` and needs Python 3.12 or newer. Install it with the server extra, then
 let `evalkit init-server` set up the rest:
 
 ```bash

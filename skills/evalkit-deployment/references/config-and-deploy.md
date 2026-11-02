@@ -22,7 +22,7 @@ The **UI is part of the same server image** and served at the server root —
 there is no separate UI deployment. At runtime the FastAPI app serves
 `/assets` and returns `index.html` for every non-`/api` path (so client-side
 routes survive a refresh); deploying the image deploys the UI. The PyPI
-wheel (`evalkit-py`) bundles the UI too, so `pip install "evalkit-py[server]"`
+wheel (`evalkit-py`, Python 3.12 or newer) bundles the UI too, so `pip install "evalkit-py[server]"`
 and `evalkit serve` also serve it.
 
 ## Setup sequence (exact commands)
