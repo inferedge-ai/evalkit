@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- New docs page **CI sync** (`/docs/ci-sync`): how to lint eval cases on
+  PRs and sync them into a shared workspace on merge, with a GitHub Actions
+  example. The Workspaces page has a new section, **Example setup:
+  personal → dev → prod**, with the commands to set it up and the day-to-day
+  flow of a case.
+
 - `evalkit runs pull` no longer fails the whole batch with a 500 when a
   run's stored trajectory is missing from the blob store. That run comes
   back in `index.json` with a `pull_error`, and the other runs are pulled.
