@@ -63,6 +63,7 @@ else:
 
 RUN_POLL_SECONDS = 2.0
 LOCAL_HOSTS = ("localhost", "127.0.0.1")
+DEFAULT_PORTS = {"http": 80, "https": 443}
 
 app = typer.Typer(
     name="evalkit",
@@ -1069,7 +1070,8 @@ def init_server_command(
     port: int = typer.Option(
         init_server.DEFAULT_PORT,
         "--port",
-        help="Port you will serve on; written into server.base_url in config.yaml.",
+        help="Port you will serve on; written into server.base_url in config.yaml. "
+        "With --kit-only, set EVALKIT_PORT in the kit's .env instead.",
     ),
 ):
     """Set up an evalkit server on this machine, against a Postgres you already run.
@@ -1093,6 +1095,8 @@ def init_server_command(
     if kit_only:
         init_server.copy_kit(directory, docker=True)
         typer.echo(f"copied the try kit to {directory}")
+        if port != init_server.DEFAULT_PORT:
+            typer.echo(f"set EVALKIT_PORT={port} in {directory / '.env'} to serve on {port}")
         return
     if server_commands is None:
         raise ApiError(
@@ -1165,7 +1169,8 @@ def serve(
         raise ApiError("`evalkit serve` needs the server extra — pip install 'evalkit-py[server]'")
     cfg = _server_config(config)
     base = urlsplit(cfg.server.base_url)
-    if base.hostname in LOCAL_HOSTS and base.port != port:
+    base_port = base.port or DEFAULT_PORTS.get(base.scheme)
+    if host in LOCAL_HOSTS and base.hostname in LOCAL_HOSTS and base_port != port:
         typer.secho(
             f"serving on port {port}, but server.base_url in {config} is "
             f"{cfg.server.base_url}; links the server builds will point there",
