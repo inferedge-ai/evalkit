@@ -830,8 +830,8 @@ def status(experiment_id: int):
         typer.secho(f"  error: {body['status_error']}", fg="red")
 
 
-def _render_summary(report: dict) -> None:
-    for line in summary_lines(report):
+def _render_summary(report: dict, base: dict | None = None) -> None:
+    for line in summary_lines(report, base):
         typer.echo(line)
 
 
@@ -844,10 +844,15 @@ def summary(
 
     Example: evalkit summary <experiment-id> --baseline <older-id>
     """
-    params = {"baseline_id": baseline} if baseline else {}
-    _render_summary(
-        _client().get(f"/api/experiments/{experiment_id}/scorecard", params=params).json()
+    if baseline is None:
+        _render_summary(_client().get(f"/api/experiments/{experiment_id}/scorecard").json())
+        return
+    reports = (
+        _client()
+        .get("/api/experiments/compare", params={"base": baseline, "compare": experiment_id})
+        .json()
     )
+    _render_summary(reports["compare"], reports["base"])
 
 
 def _require_own_agent(definition: AgentDefinition, me: str, action: str) -> None:

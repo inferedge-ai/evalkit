@@ -72,7 +72,7 @@ sequenceDiagram
 
   D->>CLI: evalkit summary #lt;id#gt;
   CLI->>S: GET scorecard
-  CLI-->>D: scored buckets, evaluators (cases, errored), failing cases < 0.80, errored cases, gauges (2 decimals)
+  CLI-->>D: scored buckets, evaluators (cases, errored), failing cases (overall or any evaluator < 0.80, naming the evaluators), errored cases, gauges (2 decimals)
 
   D->>CLI: evalkit runs pull --experiment #lt;id#gt; [--out DIR]
   loop pages until every run is pulled

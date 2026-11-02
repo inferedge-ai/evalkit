@@ -32,8 +32,8 @@ sequenceDiagram
   UI-->>V: normal experiment page plus "vs baseline A" and per-case deltas
 
   V->>CLI: evalkit summary B --baseline A
-  CLI->>S: GET scorecard of B with baseline_id=A
-  CLI-->>V: summary table, failing cases show Δ+/-0.00
+  CLI->>S: GET /api/experiments/compare?base=A&compare=B
+  CLI-->>V: summary table with "vs experiment A", bucket and evaluator Δ, changed cases (improved, regressed, new, removed), unchanged count
 ```
 
 ## Expected outcomes
@@ -44,7 +44,7 @@ sequenceDiagram
 - On resumed experiments only the latest attempt per (case, repetition) counts.
 - The case list holds the compared experiment's cases. A case missing from the base (or without an overall score on either side) shows `—` and no delta; cases only in the base are not listed.
 - The case list links to the compared experiment's run page.
-- `evalkit summary --baseline` adds `Δ` to failing-case lines only.
+- `evalkit summary --baseline` shows a Δ next to each bucket and evaluator (hidden below 0.005), lists improved, regressed, new and removed cases with base → compare scores, and counts unchanged cases. A case without an overall score on either side is listed as unscored, as on the compare page. The evaluator line adds the base's case count when it differs.
 - Without both ids the compare page says `Pick two experiments to compare: /experiments/compare?base=…&compare=…`.
 
 ## Error cases

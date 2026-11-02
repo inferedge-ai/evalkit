@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- `evalkit summary <N> --baseline <M>` now shows what changed since the
+  baseline: a `vs experiment M` header, a Δ next to every bucket and
+  evaluator, and a `changed cases:` block listing improved, regressed, new
+  and removed cases (base → current score and Δ), unscored cases (no
+  overall score on one side), plus a count of unchanged ones. When the two
+  runs scored an evaluator on different case counts, its line shows the
+  base's count too (`(3 cases, base 2)`). It reads the same compare data as the web UI's compare page.
+- The summary's failing-cases list now also includes cases where any single
+  evaluator scored below 0.80, naming those evaluators, even when the case's
+  overall score is above 0.80.
 - The case YAML schema is published. A new **Case schema** docs page (also in
   the web UI's docs) lists every key with one example per evaluator, and maps
   each scorecard bucket to its YAML key. `evalkit contracts export` now also
