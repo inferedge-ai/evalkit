@@ -34,9 +34,11 @@ export function RunLauncher({
   dataset,
   tags,
   initialCaseIds,
+  serverRuns,
   onClose,
 }: {
   dataset: string;
+  serverRuns: boolean;
   tags: TagInfo[];
   initialCaseIds?: string[];
   onClose: () => void;
@@ -68,7 +70,12 @@ export function RunLauncher({
   useEffect(() => {
     api<AgentInfo[]>("/agents")
       .then((all) => {
-        const list = all.filter((a) => a.driver === "server");
+        const list = serverRuns
+          ? all.filter((a) => a.driver === "server")
+          : [
+              ...all.filter((a) => a.driver === "cli"),
+              ...all.filter((a) => a.driver === "server"),
+            ];
         setAgents(list);
         setAgent((a) => a || list[0]?.ref || "");
       })
@@ -91,7 +98,7 @@ export function RunLauncher({
     api<Dataset>(`/datasets/${encodeURIComponent(dataset)}`)
       .then((d) => setIsSuite(d.kind === "suite" && d.workspace_is_shared))
       .catch(() => setIsSuite(false));
-  }, [dataset]);
+  }, [dataset, serverRuns]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -112,10 +119,10 @@ export function RunLauncher({
   const judgeReady =
     judgeDefault !== null || judgeOverride(null, judge) !== null;
   const request: LaunchRequest | null =
-    selection && agent && judgeReady
+    selection && (agent || !serverRuns) && judgeReady
       ? {
           dataset,
-          agent,
+          agent: agent || "<agent>",
           repetitions: runs,
           selection,
           model: model.trim() || null,
@@ -183,7 +190,7 @@ export function RunLauncher({
               ariaLabel="agent"
               value={agent}
               onChange={setAgent}
-              placeholder="No shared agents"
+              placeholder={serverRuns ? "No shared agents" : "No agents"}
               options={agents.map((a) => ({ value: a.ref, label: a.ref }))}
             />
           </div>
@@ -206,20 +213,47 @@ export function RunLauncher({
                 ))}
               </div>
               {choice.scope === "tags" && (
-                <MultiSelect
-                  ariaLabel="tags"
-                  className="self-start"
-                  placeholder="Pick tags"
-                  values={choice.tags}
-                  onChange={(picked) =>
-                    setChoice((c) => ({ ...c, tags: picked }))
-                  }
-                  options={tags.map((t) => ({
-                    value: t.name,
-                    label: t.name,
-                    hint: t.count,
-                  }))}
-                />
+                <>
+                  <MultiSelect
+                    ariaLabel="tags"
+                    className="self-start"
+                    placeholder="Pick tags"
+                    values={choice.tags}
+                    onChange={(picked) =>
+                      setChoice((c) => ({ ...c, tags: picked }))
+                    }
+                    options={tags.map((t) => ({
+                      value: t.name,
+                      label: t.name,
+                      hint: t.count,
+                    }))}
+                  />
+                  {choice.tags.length > 0 && (
+                    <div
+                      className="flex flex-wrap gap-1.5"
+                      aria-label="selected tags"
+                    >
+                      {choice.tags.map((tag) => (
+                        <span key={tag} className="chip muted font-mono">
+                          {tag}
+                          <button
+                            type="button"
+                            className="ml-1 text-ink-3 hover:text-ink"
+                            aria-label={`remove ${tag}`}
+                            onClick={() =>
+                              setChoice((c) => ({
+                                ...c,
+                                tags: c.tags.filter((t) => t !== tag),
+                              }))
+                            }
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
               {choice.scope === "file" && (
                 <Select
@@ -382,20 +416,50 @@ export function RunLauncher({
         </div>
         <div className="dialog-foot">
           {error && <span className="text-meta text-err-text">{error}</span>}
+          {!serverRuns && !error && (
+            <span className="text-meta text-ink-3">
+              Datasets in a personal workspace run from your terminal.
+            </span>
+          )}
           <button className="btn btn-quiet ml-auto" onClick={onClose}>
             Cancel
           </button>
-          <button
-            className="btn btn-primary"
-            disabled={busy || !request || inScope.length === 0}
-            onClick={launch}
-          >
-            {busy
-              ? "Starting…"
-              : `Start ${inScope.length * runs} run${inScope.length * runs === 1 ? "" : "s"}`}
-          </button>
+          {serverRuns ? (
+            <button
+              className="btn btn-primary"
+              disabled={busy || !request || inScope.length === 0}
+              onClick={launch}
+            >
+              {busy
+                ? "Starting…"
+                : `Start ${inScope.length * runs} run${inScope.length * runs === 1 ? "" : "s"}`}
+            </button>
+          ) : (
+            <CopyCommandButton
+              text={request && inScope.length ? cliCommand(request) : null}
+            />
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+function CopyCommandButton({ text }: { text: string | null }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="btn btn-primary"
+      disabled={!text}
+      onClick={() => {
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+    >
+      {copied ? "Copied" : "Copy CLI command"}
+    </button>
   );
 }

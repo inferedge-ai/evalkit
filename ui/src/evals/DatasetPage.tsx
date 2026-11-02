@@ -85,17 +85,10 @@ export function DatasetPage() {
           </span>
         )}
         <span className="ml-auto">
-          {info?.workspace_is_shared ? (
+          {info && (
             <button className="btn btn-primary" onClick={() => setLaunch({})}>
               Run experiment
             </button>
-          ) : (
-            <span
-              className="row-meta font-mono"
-              title="workspace datasets run from the CLI"
-            >
-              evalkit run {ref} --agent &lt;agent&gt;
-            </span>
           )}
         </span>
       </div>
@@ -121,6 +114,7 @@ export function DatasetPage() {
           dataset={ref}
           tags={tags}
           initialCaseIds={launch.caseIds}
+          serverRuns={!!info?.workspace_is_shared}
           onClose={() => setLaunch(null)}
         />
       )}

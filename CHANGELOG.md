@@ -5,7 +5,12 @@
 - Run several tags in one experiment. `evalkit run finance --tag ratios --tag
   statements --agent ouragent@dev` runs every case carrying any of the given
   tags. In the web UI's run dialog, the **Tags** choice is now a multi-select
-  (type to search, pick several), and its CLI preview prints `--tag` flags.
+  (type to search, pick several). The picked tags show as removable chips
+  under it, and the CLI preview prints `--tag` flags.
+- Datasets in a personal workspace now have a **Run experiment** button too.
+  The dialog lists your own agents first. In place of starting the run, it has
+  a **Copy CLI command** button: set the options in the UI, then paste the
+  `evalkit run …` command into your terminal.
   `evalkit review request --tag` is repeatable too.
 - The experiment page's case table has a tag filter: pick one or more tags to
   show only the cases carrying any of them.
