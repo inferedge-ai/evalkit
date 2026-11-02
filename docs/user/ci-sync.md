@@ -2,7 +2,13 @@
 
 Keep eval cases in your agent's repo and let CI put them on the server. A PR
 lints the cases; a merge to your default branch syncs them into a shared
-workspace (usually `dev`), where reviewers approve them.
+workspace, where reviewers approve them.
+
+This page uses the dev and prod setup described in
+[Example setup: personal → dev → prod](workspaces.md#example-setup-personal-dev-prod):
+developers try cases in their personal workspaces, CI syncs merged cases into
+`@dev`, and approvals in `@dev` promote them to `@prod`. If your workspaces
+differ, change `dev` below to the workspace CI should sync into.
 
 - **On every PR:** `evalkit lint <suite-dir> --dataset <suite>@dev` fails the
   job on errors.

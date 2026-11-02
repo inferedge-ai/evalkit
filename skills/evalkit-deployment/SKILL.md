@@ -90,6 +90,8 @@ Recommended setup: one shared workspace per deployed environment of the
 client's agent, usually `dev` and `prod`. Cases move personal → `@dev` →
 `@prod`: a developer drafts in their own workspace, CI syncs merged cases
 into `@dev` where reviewers approve them, and `@prod` holds the released set.
+The full setup, with commands, is "Example setup: personal → dev → prod" on
+the [Workspaces](../evalkit-docs/workspaces.md) page.
 
 ```bash
 evalkit workspaces create dev                           # admin only
@@ -305,8 +307,10 @@ so the case changelog records who synced instead of `admin`. `--dataset` on
 lint is what makes the server check case ids and overlay targets against
 every other dataset; without it those two checks only run at sync.
 
-A ready-to-copy GitHub Actions workflow is on the
-[CI sync](../evalkit-docs/ci-sync.md) page.
+For the dev and prod setup in step 2b (described step by step under
+"Example setup: personal → dev → prod" on the
+[Workspaces](../evalkit-docs/workspaces.md) page), a ready-to-copy GitHub
+Actions workflow is on the [CI sync](../evalkit-docs/ci-sync.md) page.
 
 ## 8–9. Verify live
 
