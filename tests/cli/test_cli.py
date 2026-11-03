@@ -1086,6 +1086,10 @@ def test_code_driven_agent_input_schema_drives_lint(env, tmp_path, monkeypatch, 
     assert '{"type": "object", "required": ["turns"]}' in edited.output
     passed = runner.invoke(cli_app, ["lint", str(case), "--agent", "multiturn"])
     assert passed.exit_code == 0, passed.output
+    not_json = tmp_path / "schema.yaml"
+    not_json.write_text("type: object\n")
+    bad = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--input-schema", str(not_json)])
+    assert bad.exit_code == 2 and "--input-schema" in bad.output
     cleared = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--clear-input-schema"])
     assert "default (a required string question)" in cleared.output
     harness = runner.invoke(

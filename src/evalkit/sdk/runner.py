@@ -500,8 +500,9 @@ async def _dry_run(
 ) -> ExperimentResult:
     agent_ref = definition.reference
     store = HttpStore(api)
-    cases = (await store.cases_for(slug(dataset_ref), selection, agent=slug(agent_ref)))[:count]
+    cases = await store.cases_for(slug(dataset_ref), selection, agent=slug(agent_ref))
     check_inputs(slug(agent_ref), sdk_capabilities(definition), cases)
+    cases = cases[:count]
     blob = HttpBlobStore(api, None)
     deps = RunnerDeps(
         cfg=local,

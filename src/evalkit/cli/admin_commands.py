@@ -39,9 +39,23 @@ CLEAR_API_KEY = typer.Option(False, "--clear-api-key", help="Remove the stored A
 
 ROLE = typer.Option(..., "--role", help="writer or reviewer.")
 
+
+def _check_schema_file(path: Path | None) -> Path | None:
+    if path is None:
+        return None
+    try:
+        schema = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"{path} is not valid JSON: {exc}") from exc
+    if not isinstance(schema, dict):
+        raise typer.BadParameter(f"{path} must hold a JSON object")
+    return path
+
+
 INPUT_SCHEMA = typer.Option(
     None,
     "--input-schema",
+    callback=_check_schema_file,
     exists=True,
     dir_okay=False,
     help="JSON Schema file every case input must pass; code-driven agents only. Default: "

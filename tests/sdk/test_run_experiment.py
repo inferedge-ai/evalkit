@@ -54,6 +54,7 @@ LLM_ATTRS = {
 }
 
 
+NOT_Q2_SCHEMA = {"type": "object", "properties": {"question": {"not": {"const": "q2"}}}}
 TURNS_SCHEMA = {"type": "object", "required": ["turns"], "properties": {"turns": {"type": "array"}}}
 
 
@@ -81,6 +82,13 @@ def server(tmp_path_factory, stub_judges_module, module_db_url):
             "admin",
             harness_url=None,
             settings=AgentSettings(input_schema=TURNS_SCHEMA),
+        )
+        await seed_agent(
+            factory,
+            "picky",
+            "admin",
+            harness_url=None,
+            settings=AgentSettings(input_schema=NOT_Q2_SCHEMA),
         )
         await RemoteEvaluatorStore(factory).create(
             "admin",
@@ -528,6 +536,8 @@ async def test_dry_run_and_real_run_check_inputs_against_the_agent_schema(env):
         await arun_experiment(**common, agent="typed")
     dry = await arun_experiment(**common, agent="pushed", dry_run=True)
     assert len(dry.runs) == 1
+    with pytest.raises(InvalidCaseInputs, match="case-2"):
+        await arun_experiment(**common, agent="picky", dry_run=1)
 
 
 async def test_dry_run_skips_judge_key_and_a_real_run_names_it_before_any_task(env, monkeypatch):
