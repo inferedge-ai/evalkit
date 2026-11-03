@@ -23,7 +23,7 @@ from evalkit.contracts.cases import Case
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import explicit
-from evalkit.core.blob import fixture_blob_key, tenant_prefix
+from evalkit.core.blob import TenantBlobStore, fixture_blob_key, tenant_prefix
 from evalkit.core.importer import incoming_case
 from evalkit.core.review import CaseReview
 from evalkit.core.runner import (
@@ -219,7 +219,7 @@ async def seed_env(
     deps = RunnerDeps(
         cfg=make_cfg(tmp_path),
         store=store,
-        blob_store=blob_store,
+        blob_store=TenantBlobStore(blob_store, 1),
         agents=AgentStore(session_factory, 1),
         evaluators=RemoteEvaluatorStore(session_factory, 1),
         credentials=fake_credentials(),
@@ -279,7 +279,6 @@ async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[htt
         env.deps.cfg,  # type: ignore[arg-type]
         blob_store=env.blob,
         runner_deps=env.deps,
-        agents=env.deps.agents,  # type: ignore[arg-type]
         session_factory=env.session_factory,
         check_schema=False,
         holder=HOLDER,

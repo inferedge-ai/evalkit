@@ -1,18 +1,14 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from pydantic import BaseModel
 
+from evalkit.api.access import StoresDep
 from evalkit.api.auth import AdminUser
-from evalkit.db.users import UserStore
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
-def _users(request: Request) -> UserStore:
-    return UserStore(request.app.state.session_factory)
-
-
 @router.get("")
-async def list_users(request: Request, admin: AdminUser) -> list[dict]:
+async def list_users(stores: StoresDep, admin: AdminUser) -> list[dict]:
     return [
         {
             "id": u.id,
@@ -21,7 +17,7 @@ async def list_users(request: Request, admin: AdminUser) -> list[dict]:
             "archived": u.archived_at is not None,
             "created_at": u.created_at.isoformat(),
         }
-        for u in await _users(request).list()
+        for u in await stores.users.list()
     ]
 
 
@@ -31,20 +27,20 @@ class CreateUserRequest(BaseModel):
 
 
 @router.post("")
-async def create_user(body: CreateUserRequest, request: Request, admin: AdminUser) -> dict:
-    await _users(request).create(body.username, body.password)
+async def create_user(body: CreateUserRequest, stores: StoresDep, admin: AdminUser) -> dict:
+    await stores.users.create(body.username, body.password)
     return {"username": body.username}
 
 
 @router.post("/{username}/archive")
-async def archive_user(username: str, request: Request, admin: AdminUser) -> dict:
-    await _users(request).archive(username)
+async def archive_user(username: str, stores: StoresDep, admin: AdminUser) -> dict:
+    await stores.users.archive(username)
     return {"archived": username}
 
 
 @router.post("/{username}/restore")
-async def restore_user(username: str, request: Request, admin: AdminUser) -> dict:
-    await _users(request).restore(username)
+async def restore_user(username: str, stores: StoresDep, admin: AdminUser) -> dict:
+    await stores.users.restore(username)
     return {"restored": username}
 
 
@@ -54,19 +50,19 @@ class SetPasswordRequest(BaseModel):
 
 @router.post("/{username}/password")
 async def set_password(
-    username: str, body: SetPasswordRequest, request: Request, admin: AdminUser
+    username: str, body: SetPasswordRequest, stores: StoresDep, admin: AdminUser
 ) -> dict:
-    await _users(request).set_password(username, body.password)
+    await stores.users.set_password(username, body.password)
     return {"password_set": username}
 
 
 @router.post("/{username}/promote")
-async def promote_user(username: str, request: Request, admin: AdminUser) -> dict:
-    await _users(request).set_admin(username, True)
+async def promote_user(username: str, stores: StoresDep, admin: AdminUser) -> dict:
+    await stores.users.set_admin(username, True)
     return {"promoted": username}
 
 
 @router.post("/{username}/demote")
-async def demote_user(username: str, request: Request, admin: AdminUser) -> dict:
-    await _users(request).set_admin(username, False)
+async def demote_user(username: str, stores: StoresDep, admin: AdminUser) -> dict:
+    await stores.users.set_admin(username, False)
     return {"demoted": username}

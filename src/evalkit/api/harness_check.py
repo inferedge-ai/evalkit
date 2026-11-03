@@ -1,9 +1,9 @@
 import asyncio
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 
-from evalkit.api.access import ActorDep, require, workspace_ref
-from evalkit.api.deps import AgentStoreDep, RunnerDepsDep, SessionDep
+from evalkit.api.access import ActorDep, StoresDep, require, workspace_ref
+from evalkit.api.deps import ConfigDep
 from evalkit.api.server_keys import server_keys
 from evalkit.core.access import can_use_agent
 from evalkit.core.agents import explicit, server_may_drive
@@ -16,14 +16,12 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 @router.post("/{agent}/check")
 async def run_check(
     agent: str,
-    request: Request,
-    deps: RunnerDepsDep,
-    agents: AgentStoreDep,
-    session: SessionDep,
+    stores: StoresDep,
+    cfg: ConfigDep,
     actor: ActorDep,
 ) -> dict:
-    definition = await agents.get(explicit(parse_slug(agent)))
-    ws = await workspace_ref(session, definition.workspace)
+    definition = await stores.agents.get(explicit(parse_slug(agent)))
+    ws = await workspace_ref(stores, definition.workspace)
     require(can_use_agent(actor, ws), f"only the owner of @{ws.name} can check {definition.ref}")
     if definition.archived:
         raise HTTPException(status_code=409, detail=f"agent {definition.ref} is archived")
@@ -38,10 +36,10 @@ async def run_check(
     report = await asyncio.wait_for(
         check_harness(
             definition,
-            (await server_keys(request, definition, None))[0].key_for("agent", definition.ref),
-            deps.blob_store,
-            transport=deps.harness_transport,
-            sessions=request.app.state.sessions,
+            (await server_keys(stores, cfg, definition, None))[0].key_for("agent", definition.ref),
+            stores.deps.blob_store,
+            transport=stores.deps.harness_transport,
+            sessions=stores.sessions,
         ),
         timeout=120,
     )

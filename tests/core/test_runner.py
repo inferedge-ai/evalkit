@@ -112,7 +112,7 @@ async def test_end_to_end(tmp_path, stub_judges, session_factory):
     assert len(runs) == 4
     for run in runs:
         key = run.agent_run.trajectory_key
-        assert key and await env.blob.object_exists(key)
+        assert key and await env.blob.object_exists(f"{tenant_prefix(1)}{key}")
         by_name = scores_of(run)
         assert "answer_rubric_score" in by_name
         assert "gauge_duration_seconds" in by_name
@@ -400,7 +400,7 @@ async def test_fixture_case_sends_urls_when_harness_accepts_them(
     assert fake.received_file_urls[run_id] == [
         {
             "name": "bs.csv",
-            "url": f"memory://blob/fixtures/sha256/{digest}",
+            "url": f"memory://blob/{tenant_prefix(1)}fixtures/sha256/{digest}",
             "context": "Balance sheet.",
         }
     ]
@@ -1025,7 +1025,7 @@ async def test_a_failed_workspace_listing_keeps_the_experiment(
     env = await seed_env(session_factory, tmp_path, FakeHarness())
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     assert (await env.experiment(exp.id)).status is COMPLETED
-    assert not any(key.startswith("workspaces/") for key in env.blob.objects)
+    assert not any(key.startswith(f"{tenant_prefix(1)}workspaces/") for key in env.blob.objects)
 
 
 async def test_scoring_runs_at_most_evaluation_concurrency_at_once(

@@ -9,6 +9,7 @@ from sqlalchemy import create_engine, inspect, select, text, update
 from evalkit.api import auth as auth_module
 from evalkit.api.auth import bootstrap_admin, router
 from evalkit.config import AuthConfig
+from evalkit.core.tenant import resolve_tenant
 from evalkit.db.models import AuthToken, User
 from evalkit.db.session import head_revision, run_migrations
 from evalkit.db.users import InvalidPassword, UserStore, hash_password
@@ -25,6 +26,7 @@ async def app(session_factory):
     application.include_router(router)
     application.state.cfg = FakeCfg()
     application.state.session_factory = session_factory
+    application.state.resolve_tenant = resolve_tenant
     await seed_identity(session_factory, {"admin": "hunter2-pw", "alice": "wonderland"}, shared=())
     return application
 

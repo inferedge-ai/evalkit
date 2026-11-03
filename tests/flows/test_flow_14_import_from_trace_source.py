@@ -9,7 +9,6 @@ from sqlalchemy import func, select
 from evalkit.cli.traces_commands import render_check
 from evalkit.db.crypto import SecretBox
 from evalkit.db.models import Span
-from evalkit.db.trace_sources import TraceSourceStore
 from tests.api.native_api import login_as
 from tests.core.traces.test_phoenix_source import phoenix_span, phoenix_trace
 from tests.fake_agents import reference_mapping
@@ -34,9 +33,7 @@ def serve_spans(router: Router) -> Route:
 @pytest.fixture
 async def api(tmp_path, session_factory, stub_judges):
     async with flow_api(tmp_path, session_factory) as (client, _env):
-        client.app.state.trace_sources = TraceSourceStore(
-            session_factory, 1, SecretBox(Fernet.generate_key().decode())
-        )
+        client.app.state.box = SecretBox(Fernet.generate_key().decode())
         source = {"name": "phx", "provider": "phoenix", "url": PHOENIX, "api_key": "pk"}
         assert (await client.post("/api/trace-sources", json=source)).status_code == 200
         created = await client.post(

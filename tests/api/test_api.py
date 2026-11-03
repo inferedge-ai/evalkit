@@ -550,7 +550,7 @@ async def test_fixture_upload_is_content_addressed(api):
     assert again.status_code == 200
     assert await _blob_rows(env) == 1
     async with env.session_factory() as s:
-        row = await s.get(FixtureBlob, digest)
+        row = await s.get(FixtureBlob, (1, digest))
     assert row is not None and row.uploaded_by == env.user_ids["alice"]
     assert row.size == len(FILE_BYTES)
 

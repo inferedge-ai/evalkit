@@ -3,13 +3,13 @@ import json
 import pytest
 from cryptography.fernet import Fernet
 
+from evalkit.api.access import build_tenant_stores
 from evalkit.client.api import AsyncApi
 from evalkit.client.sessions import HttpSessionReader
 from evalkit.contracts.enums import TrajectorySource
 from evalkit.core.traces.poll import poll_trajectory
 from evalkit.core.traces.sessions import SessionTooLarge
 from evalkit.db.crypto import SecretBox
-from evalkit.db.trace_sources import TraceSourceStore
 from tests.api.native_api import api_env, login_as
 from tests.api.test_otel import PROTO, otlp_payload
 from tests.fake_agents import reference_mapping
@@ -73,12 +73,12 @@ async def test_mapping_lifecycle_and_previews(api):
 
 def with_encryption(api) -> None:
     box = SecretBox(Fernet.generate_key().decode())
-    api.app.state.trace_sources = TraceSourceStore(api.app.state.session_factory, 1, box)
+    api.app.state.box = box
 
 
 async def test_trace_sources_are_admin_rows_and_hide_keys(api):
     body = {"name": "phx", "provider": "phoenix", "url": "u", "api_key": "secret"}
-    api.app.state.trace_sources = TraceSourceStore(api.app.state.session_factory, 1, None)
+    api.app.state.box = None
     refused = await api.post("/api/trace-sources", json=body)
     assert refused.status_code == 400 and "encryption_key" in refused.json()["detail"]
     with_encryption(api)
@@ -94,7 +94,8 @@ async def test_trace_sources_are_admin_rows_and_hide_keys(api):
 
 async def test_trajectory_response_is_the_session_model_as_json(api):
     api.app.state.cfg.otel.settle_seconds = 3600
-    reader = api.app.state.sessions
+    stores = build_tenant_stores(api.app.state, 1)
+    reader = stores.sessions
     for esf in (False, True):
         expected = await reader.read("sdk@admin", "sess-1", include_esf=esf)
         resp = await api.get(
@@ -105,7 +106,7 @@ async def test_trajectory_response_is_the_session_model_as_json(api):
         assert resp.json() == expected.model_dump(mode="json")
     spans = (await api.get("/api/agents/sdk@admin/sessions/sess-1/spans")).json()
     record = await reader.agent("sdk@admin")
-    stored = await api.app.state.spans.session_spans(record.id, "sess-1")
+    stored = await stores.spans.session_spans(record.id, "sess-1")
     assert spans == [s.model_dump(mode="json") for s in stored]
     assert (await api.get("/api/agents/nope@admin/sessions/x/spans")).status_code == 404
 

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.api.auth import bearer_login, token_expiry
 from evalkit.config import Config
+from evalkit.core.tenant import DEFAULT_TENANT_ID
 
 SCOPE_READ = "evalkit:read"
 MCP_PATH = "/mcp"
@@ -66,7 +67,8 @@ class ProviderScopeVerifier(TokenVerifier):
         scopes = [s for s in found.scopes if s != SCOPE_READ]
         if self._scope in found.scopes:
             scopes.append(SCOPE_READ)
-        return found.model_copy(update={"scopes": scopes})
+        claims = {"tenant_id": DEFAULT_TENANT_ID, **found.claims}
+        return found.model_copy(update={"scopes": scopes, "claims": claims})
 
 
 def build_auth(

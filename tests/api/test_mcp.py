@@ -19,6 +19,7 @@ from evalkit.api.app import create_app
 from evalkit.api.mcp import descriptions as mcp_descriptions
 from evalkit.api.mcp import tools as mcp_tools
 from evalkit.config import McpConfig, McpOAuthConfig
+from evalkit.db.agents import AgentStore
 from tests.api.native_api import api_env
 from tests.fake_harness import FakeHarness
 from tests.mcp_trajectory import chat_session
@@ -580,7 +581,6 @@ async def oauth_app(env: Env, tmp_path, key: RSAKeyPair, **oauth: str) -> AsyncI
         cfg,  # type: ignore[arg-type]
         blob_store=env.blob,
         runner_deps=env.deps,
-        agents=env.deps.agents,  # type: ignore[arg-type]
         session_factory=env.session_factory,
         check_schema=False,
         holder=HOLDER,
@@ -664,7 +664,7 @@ async def test_expected_tool_errors_log_as_warnings_and_bugs_as_errors(api, monk
                 await mcp.call_tool("find_runs", {"agent": "missing@canonical"})
             with pytest.raises(ToolError, match="^invalid_limit: "):
                 await mcp.call_tool("find_runs", {"agent": "fake@canonical", "limit": 0})
-            monkeypatch.setattr(client.app.state.agents, "list_agents", broken)
+            monkeypatch.setattr(AgentStore, "list_agents", broken)
             with pytest.raises(ToolError):
                 await mcp.call_tool("find_agents", {})
     levels = [r.levelno for r in caplog.records if r.message.startswith("Error calling tool")]

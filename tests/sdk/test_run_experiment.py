@@ -26,7 +26,7 @@ from evalkit.core.runner import ScoringFailed
 from evalkit.credentials import MissingCredential
 from evalkit.db import models
 from evalkit.db.evaluators import RemoteEvaluatorStore
-from evalkit.db.session import make_session_factory
+from evalkit.db.session import make_session_factory, tenant_session
 from evalkit.db.store import PgStore
 from evalkit.sdk import (
     RunResult,
@@ -146,14 +146,14 @@ class Server:
 
     async def count(self) -> int:
         async def work(_, factory):
-            async with factory() as session:
+            async with tenant_session(factory, 1) as session:
                 return await session.scalar(sa.select(sa.func.count(models.Experiment.id)))
 
         return await self._with_store(work)
 
     async def execute(self, statement) -> None:
         async def work(_, factory):
-            async with factory() as session:
+            async with tenant_session(factory, 1) as session:
                 await session.execute(statement)
                 await session.commit()
 

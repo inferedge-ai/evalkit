@@ -30,7 +30,7 @@ from evalkit.core.importer import incoming_case
 from evalkit.core.pull import safe_dir
 from evalkit.db import models
 from evalkit.db.fixture_blobs import record_blob
-from evalkit.db.session import make_session_factory
+from evalkit.db.session import make_session_factory, tenant_session
 from evalkit.db.store import PgStore
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
@@ -174,7 +174,7 @@ def experiment_runs(exp_id: int) -> list[RunDetail]:
 def in_db(url: str, work):
     async def go():
         factory = make_session_factory(url)
-        async with factory() as session:
+        async with tenant_session(factory, 1) as session:
             result = await work(session)
             await session.commit()
         await factory.kw["bind"].dispose()
@@ -1098,7 +1098,7 @@ def _seed_canonical(url: str, dataset: str) -> None:
 
     async def seed():
         factory = make_session_factory(url)
-        async with factory() as session:
+        async with tenant_session(factory, 1) as session:
             await record_blob(session, 1, digest, 1, None)
             await session.commit()
         canonical = await WorkspaceStore(factory, 1).get_by_name("canonical")

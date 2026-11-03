@@ -15,13 +15,8 @@ from pydantic_core import from_json
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import StreamingResponse
 
-from evalkit.api.deps import (
-    AgentStoreDep,
-    RunnerDepsDep,
-    SessionDep,
-    SessionReaderDep,
-    SpanStoreDep,
-)
+from evalkit.api.access import StoresDep
+from evalkit.api.deps import SessionDep
 from evalkit.api.download import content_disposition
 from evalkit.api.experiments import slug_or_400
 from evalkit.contracts.atif import Trajectory, validate_trajectory
@@ -224,9 +219,7 @@ async def resolve_runs(
 @router.get("/{agent}/runs")
 async def list_runs(
     agent: str,
-    deps: RunnerDepsDep,
-    agents: AgentStoreDep,
-    spans: SpanStoreDep,
+    stores: StoresDep,
     session: SessionDep,
     query: str | None = None,
     user_id: str | None = None,
@@ -240,9 +233,9 @@ async def list_runs(
     run_id: Annotated[list[str] | None, Query()] = None,
 ) -> dict:
     page = await resolve_runs(
-        await agent_or_404(agents, agent),
-        deps,
-        spans,
+        await agent_or_404(stores.agents, agent),
+        stores.deps,
+        stores.spans,
         session,
         source=source,
         since=since,
@@ -306,17 +299,15 @@ async def fetch_trajectory(
 async def live_trajectory(
     agent: str,
     run_id: str,
-    deps: RunnerDepsDep,
-    agents: AgentStoreDep,
-    sessions: SessionReaderDep,
+    stores: StoresDep,
     session: SessionDep,
 ) -> dict:
     _run_id_or_400(run_id)
-    record = await agent_or_404(agents, agent)
-    trajectory = await fetch_trajectory(record, run_id, deps, sessions, session)
+    record = await agent_or_404(stores.agents, agent)
+    trajectory = await fetch_trajectory(record, run_id, stores.deps, stores.sessions, session)
     # Price any step the harness left uncosted so the cost view matches the
     # scorecard gauge (see backfill_step_costs).
-    backfill_step_costs(trajectory, load_cost_map(deps.cfg.cost_map))
+    backfill_step_costs(trajectory, load_cost_map(stores.deps.cfg.cost_map))
     return trajectory.model_dump(exclude_none=True)
 
 
@@ -375,10 +366,10 @@ async def _listing(
 
 
 @router.get("/{agent}/runs/{run_id}/files")
-async def list_files(agent: str, run_id: str, deps: RunnerDepsDep, agents: AgentStoreDep) -> dict:
+async def list_files(agent: str, run_id: str, stores: StoresDep) -> dict:
     _run_id_or_400(run_id)
-    record = await agent_or_404(agents, agent)
-    listing, stored = await _listing(deps, record, run_id)
+    record = await agent_or_404(stores.agents, agent)
+    listing, stored = await _listing(stores.deps, record, run_id)
     return {
         "files": [
             {**entry.model_dump(), "stored": path in stored}
@@ -478,14 +469,14 @@ async def _noop() -> None:
 
 @router.get("/{agent}/runs/{run_id}/zip")
 async def zip_files(
-    agent: str, run_id: str, deps: RunnerDepsDep, agents: AgentStoreDep, path: str = ""
+    agent: str, run_id: str, stores: StoresDep, path: str = ""
 ) -> StreamingResponse:
     _run_id_or_400(run_id)
     folder = path.strip("/")
     if folder:
         _path_or_400(folder)
-    agent_def = await agent_or_404(agents, agent)
-    listing, stored = await _listing(deps, agent_def, run_id)
+    agent_def = await agent_or_404(stores.agents, agent)
+    listing, stored = await _listing(stores.deps, agent_def, run_id)
     drivable = server_may_drive(agent_def)
     if not drivable:
         listing = {p: entry for p, entry in listing.items() if p in stored}
@@ -494,11 +485,11 @@ async def zip_files(
     prefix = artifact_key(agent_def.id, run_id, "")
 
     async def stored_chunks(p: str) -> AsyncIterator[bytes]:
-        return (await deps.blob_store.get_stream(f"{prefix}{p}")).chunks
+        return (await stores.deps.blob_store.get_stream(f"{prefix}{p}")).chunks
 
     if all(p in stored for _, p in entries):
         return _zip_response(root, entries, stored_chunks, _noop)
-    client = await harness_client(deps, agent_def)
+    client = await harness_client(stores.deps, agent_def)
 
     async def fetch(p: str) -> AsyncIterator[bytes]:
         if p in stored:
@@ -521,24 +512,23 @@ async def get_file(
     agent: str,
     run_id: str,
     path: str,
-    deps: RunnerDepsDep,
-    agents: AgentStoreDep,
+    stores: StoresDep,
     download: bool = False,
 ) -> StreamingResponse:
     _run_id_or_400(run_id)
     path = _path_or_400(path)
     headers = content_disposition(basename(path)) if download else None
-    record = await agent_or_404(agents, agent)
+    record = await agent_or_404(stores.agents, agent)
     key = artifact_key(record.id, run_id, path)
-    if await deps.blob_store.object_exists(key):
-        blob = await deps.blob_store.get_stream(key)
+    if await stores.deps.blob_store.object_exists(key):
+        blob = await stores.deps.blob_store.get_stream(key)
         return StreamingResponse(
             blob.chunks,
             media_type="application/octet-stream",
             headers={"Content-Length": str(blob.size), **(headers or {})},
         )
     if server_may_drive(record):
-        client = await harness_client(deps, record)
+        client = await harness_client(stores.deps, record)
         async with AsyncExitStack() as cleanup:
             cleanup.push_async_callback(client.aclose)
             try:
