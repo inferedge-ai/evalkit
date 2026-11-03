@@ -29,7 +29,7 @@ def _num(value: float | None) -> str:
 
 def _fmt_gauge_delta(base: float | None, value: float | None) -> str:
     delta = _delta(base, value)
-    if delta is None or abs(delta) < SHOWN_GAUGE_CHANGE * max(abs(base or 0), abs(value or 0)):
+    if not delta or abs(delta) < SHOWN_GAUGE_CHANGE * max(abs(base or 0), abs(value or 0)):
         return ""
     return f"  Δmean {'+' if delta > 0 else ''}{_num(delta)}"
 
