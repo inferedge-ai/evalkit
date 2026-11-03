@@ -35,6 +35,8 @@ def _dataset(row: DatasetRow) -> dict:
 
 @router.get("")
 async def list_all(session: SessionDep, workspace: str | None = None) -> list[dict]:
+    if workspace is not None:
+        await workspace_ref(session, workspace)
     return [_dataset(row) for row in await list_datasets(session, workspace)]
 
 

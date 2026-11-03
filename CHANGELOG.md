@@ -14,7 +14,17 @@
 - `evalkit traces mapping push` with a document equal to the current draft
   keeps the draft's version and says it is unchanged, instead of minting a
   new version. The endpoint's response has a new `unchanged` field.
-
+- `evalkit datasets list --workspace dev` lists only the datasets in `@dev`,
+  and `evalkit review queue --workspace dev` only the cases waiting there.
+  Without the flag both still cover every workspace you can see. `@dev` works
+  too; an unknown workspace is an error, not an empty list (the same 404
+  applies to `GET /api/datasets?workspace=` and `GET /api/review/queue?workspace=`). Passing
+  `--workspace` together with a dataset is refused: name it as `finance@dev`.
+- `evalkit datasets show finance@dev` prints one dataset's kind, last sync
+  (time, author, sha, branch), case count, cases per review state (reviewable
+  suites only) and tag counts.
+- `evalkit workspaces list` now shows promotion links: `promotes to prod` on
+  the source row and `promoted from dev` on the target row.
 - `evalkit runs pull` now writes `started_at` in every `run.json`. A run with
   no agent-run record (most app runs) takes it from the run's listed
   `created_at`; before, the field was missing. It is `null` when the harness

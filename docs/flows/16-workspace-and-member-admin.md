@@ -100,8 +100,9 @@ sequenceDiagram
 - **Workspaces:**
   - **`workspaces create NAME`:** creates a shared workspace. Workspace names
     and usernames share one namespace.
-  - **`workspaces list`:** shows name, type (personal or shared), owner and
-    archived state. `--archived` includes archived ones.
+  - **`workspaces list`:** shows name, type (personal or shared), owner, the
+    promotion link (`promotes to prod` on the source, `promoted from dev` on
+    the target) and archived state. `--archived` includes archived ones.
   - **`workspaces rename OLD NEW`:** shared workspaces only. References follow
     the new name, e.g. `finance@staging`, and data stays attached. The command
     prints what to update by hand: `credentials` keys ending in `@OLD` in
