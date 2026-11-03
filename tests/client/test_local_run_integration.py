@@ -5,6 +5,7 @@ from evalkit.cli.local_run import run_local
 from evalkit.client.connection import Connection
 from evalkit.config import CostMapConfig, LocalConfig
 from evalkit.contracts.enums import ExperimentStatus
+from evalkit.core.blob import tenant_prefix
 from evalkit.core.workspace import Reference
 from evalkit.credentials import CredentialsConfig
 from evalkit.store.base import GitRevision, Selection
@@ -76,9 +77,13 @@ async def test_local_run_writes_everything_to_the_server(ctx, tmp_path):
     assert len(runs) == 2
     for run in runs:
         record = run.agent_run
-        assert record.trajectory_key and env.blob.objects[record.trajectory_key]
         assert (
-            env.blob.objects[f"artifacts/{exp.agent_id}/{record.harness_run_id}/outputs/report.md"]
+            record.trajectory_key and env.blob.objects[f"{tenant_prefix(1)}{record.trajectory_key}"]
+        )
+        assert (
+            env.blob.objects[
+                f"{tenant_prefix(1)}artifacts/{exp.agent_id}/{record.harness_run_id}/outputs/report.md"
+            ]
             == b"# report"
         )
         names = {e.name for e in run.evaluations}

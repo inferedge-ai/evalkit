@@ -21,6 +21,7 @@ from evalkit.client.api import ApiRequestError
 from evalkit.config import OtelConfig
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource
 from evalkit.contracts.settings import AgentSettings, RemoteEvaluatorSettings
+from evalkit.core.blob import tenant_prefix
 from evalkit.core.runner import ScoringFailed
 from evalkit.credentials import MissingCredential
 from evalkit.db import models
@@ -197,7 +198,7 @@ async def test_sdk_run_with_traces_records_runs_after_settle(env):
         record = run.agent_run
         assert record.status == "completed" and record.trajectory_status == "valid"
         assert record.answer == "42"
-        doc = json.loads(blob.objects[record.trajectory_key])
+        doc = json.loads(blob.objects[f"{tenant_prefix(1)}{record.trajectory_key}"])
         assert doc["extra"]["trajectory_source"] == "otel"
         assert doc["steps"][-1]["message"] == "42"
         assert record.metrics["input_tokens"] == 3
@@ -292,7 +293,7 @@ async def test_returned_session_absorbs_the_sdk_root_and_links_the_case(env):
     run = result.runs[0]
     assert run.session_id.startswith("app-") and run.trajectory_status == "valid"
     _, [stored] = await srv.experiment(result.experiment_id)
-    doc = json.loads(blob.objects[stored.agent_run.trajectory_key])
+    doc = json.loads(blob.objects[f"{tenant_prefix(1)}{stored.agent_run.trajectory_key}"])
     assert doc["steps"][-1]["message"] == "42"
     token = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}

@@ -23,7 +23,7 @@ from evalkit.contracts.cases import Case
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import explicit
-from evalkit.core.blob import fixture_blob_key
+from evalkit.core.blob import fixture_blob_key, tenant_prefix
 from evalkit.core.importer import incoming_case
 from evalkit.core.review import CaseReview
 from evalkit.core.runner import (
@@ -193,7 +193,7 @@ async def approve(
 
 async def put_fixture(env: Env, data: bytes = FILE_BYTES, key: str = "bs.csv") -> CaseFile:
     digest = hashlib.sha256(data).hexdigest()
-    await env.blob.put_object(fixture_blob_key(digest), data)
+    await env.blob.put_object(f"{tenant_prefix(1)}{fixture_blob_key(digest)}", data)
     async with env.session_factory() as s:
         await record_blob(s, 1, digest, len(data), env.user_ids["admin"])
         await s.commit()

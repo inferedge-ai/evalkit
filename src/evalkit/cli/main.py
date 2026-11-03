@@ -75,6 +75,7 @@ users_app = typer.Typer(no_args_is_help=True, help="Manage server users (admin o
 skills_app = typer.Typer(no_args_is_help=True, help="Install the bundled agent skills.")
 contracts_app = typer.Typer(no_args_is_help=True, help="Export the bundled API contracts.")
 db_app = typer.Typer(no_args_is_help=True, help="Server database schema upgrades (server only).")
+blobs_app = typer.Typer(no_args_is_help=True, help="Blob storage maintenance (server only).")
 review_app = typer.Typer(no_args_is_help=True, help="Request, give and read case reviews.")
 app.add_typer(datasets_app, name="datasets")
 app.add_typer(harness_app, name="harness")
@@ -82,6 +83,7 @@ app.add_typer(users_app, name="users")
 app.add_typer(skills_app, name="skills")
 app.add_typer(contracts_app, name="contracts")
 app.add_typer(db_app, name="db")
+app.add_typer(blobs_app, name="blobs")
 app.add_typer(review_app, name="review")
 
 
@@ -1288,6 +1290,24 @@ def db_rekey(
         )
     )
     typer.echo(f"re-encrypted {count} stored API key(s)")
+
+
+# TODO: remove in 0.6.0, two minor versions after 0.4.0 moved blobs under tenants/
+@blobs_app.command("relocate")
+def blobs_relocate(
+    config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),
+):
+    """Move blob objects from the pre-tenant layout under tenants/1/. Run once after
+    upgrading to the release that added tenants; the server refuses to start until then.
+
+    Example: evalkit blobs relocate --config /etc/evalkit/config.yaml
+    """
+    if server_commands is None:
+        raise ApiError(
+            "`evalkit blobs relocate` needs the server extra — pip install 'evalkit-py[server]'"
+        )
+    moved = server_commands.relocate_blobs(_server_config(config))
+    typer.echo(f"relocated {moved} object(s) under tenants/1/")
 
 
 if __name__ == "__main__":

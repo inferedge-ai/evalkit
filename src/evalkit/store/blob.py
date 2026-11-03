@@ -53,6 +53,12 @@ class Obstore:
             objects.extend((obj["path"], obj["size"]) for obj in chunk)
         return objects
 
+    async def has_any(self, prefix: str) -> bool:
+        async for chunk in obstore.list(self._store, prefix=prefix):
+            if chunk:
+                return True
+        return False
+
     async def delete_object(self, key: str) -> None:
         await obstore.delete_async(self._store, key)
 

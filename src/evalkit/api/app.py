@@ -49,6 +49,7 @@ from evalkit.config import Config
 from evalkit.core.agents import UnknownAgent
 from evalkit.core.blob import BlobStore
 from evalkit.core.endpoints import BlockedEndpoint
+from evalkit.core.relocate import old_prefix_objects_remain
 from evalkit.core.remote_evaluators import UnknownEvaluator
 from evalkit.core.runner import (
     LEASE_SECONDS,
@@ -222,6 +223,12 @@ def create_app(
             await migrate_under_lock(cfg.db.url)
         if check_schema:
             await verify_schema(cfg.db.url)
+        # TODO: remove in 0.6.0, two minor versions after 0.4.0 moved blobs under tenants/
+        if await old_prefix_objects_remain(resolved_blob_store):
+            raise RuntimeError(
+                "blob objects remain under the pre-tenant layout; run "
+                "`evalkit blobs relocate --config <config>` once, then start the server again"
+            )
         if cfg.encryption_key is None and await count_sealed(app.state.session_factory):
             raise RuntimeError(
                 "stored API keys exist but encryption_key is not configured; "

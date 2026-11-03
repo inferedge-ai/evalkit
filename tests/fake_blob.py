@@ -42,3 +42,6 @@ class DictBlobStore:
 
     async def object_url(self, key: str) -> str:
         return f"{self.url.rstrip('/')}/{key}"
+
+    async def has_any(self, prefix: str) -> bool:
+        return any(k.startswith(prefix) for k in self.objects)
