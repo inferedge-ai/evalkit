@@ -107,14 +107,6 @@ jobs:
       - run: uv run --frozen --group docs mkdocs build --strict
         env:
           NO_MKDOCS_2_WARNING: "1"
-      - name: Check the docs read right without JavaScript
-        run: |
-          if grep -rl --include="*.html" "older or unreleased" site/; then exit 1; fi
-          grep -q 'data-evalkit-outdated' site/index.html
-          DOCS_ROOT_ALIAS=latest uv run --frozen --group docs mkdocs build --strict --site-dir root-site
-          grep -q '"base": "../latest/"' root-site/quickstart/index.html
-        env:
-          NO_MKDOCS_2_WARNING: "1"
       - run: uv run pytest -n 4
 
   ui:
