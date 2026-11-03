@@ -5,6 +5,7 @@ import os
 import signal
 import socket
 import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -56,6 +57,7 @@ from evalkit.core.runner import (
     LeaseLost,
     RunnerDeps,
 )
+from evalkit.core.tenant import resolve_tenant as default_resolve_tenant
 from evalkit.core.traces.sessions import SessionTooLarge
 from evalkit.core.workspace import BareReference
 from evalkit.credentials import MissingCredential
@@ -170,6 +172,7 @@ def create_app(
     ui_dist: Path | None = None,
     holder: str | None = None,
     mcp_jwt_verifier: TokenVerifier | None = None,
+    resolve_tenant: Callable[[Request, dict | None], int] = default_resolve_tenant,
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (
@@ -241,6 +244,7 @@ def create_app(
     app = FastAPI(title="evalkit", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.add_exception_handler(StarletteHTTPException, otel.log_rejection)
     app.state.cfg = cfg
+    app.state.resolve_tenant = resolve_tenant
     app.state.runner_deps = resolved_deps
     app.state.review_log = ReviewLog(session_factory)
     app.state.store = resolved_store

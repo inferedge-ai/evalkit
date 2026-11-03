@@ -40,6 +40,7 @@ def to_ref(
         row.name,
         row.owner_user_id,
         row.archived_at is not None,
+        row.tenant_id,
         promotes_to=promotes_to,
         promoted_from=promoted_from,
     )

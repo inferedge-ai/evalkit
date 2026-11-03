@@ -26,7 +26,13 @@ async def load_actor(session: AsyncSession, user: User) -> Actor:
     roles: dict[int, set[WorkspaceRole]] = {}
     for ws_id, role in rows:
         roles.setdefault(ws_id, set()).add(WorkspaceRole(role))
-    return Actor(user.id, user.username, user.is_admin, {k: frozenset(v) for k, v in roles.items()})
+    return Actor(
+        user.id,
+        user.username,
+        user.is_admin,
+        user.tenant_id,
+        {k: frozenset(v) for k, v in roles.items()},
+    )
 
 
 async def current_actor(session: SessionDep, user: CurrentUser) -> Actor:
