@@ -439,3 +439,14 @@ def test_equals_compares_as_text():
     )
     assert to_esf(raw({"n": 1}), doc).excluded
     assert not to_esf(raw({"n": 2}), doc).excluded
+
+
+def test_equals_matches_bools_and_whole_floats_by_their_plain_spelling():
+    def excluded(equals, value):
+        doc = MappingDocument.model_validate(
+            {"schema_version": "1", "exclude_spans": [{"attribute": "a", "equals": equals}]}
+        )
+        return to_esf(raw({"a": value}), doc).excluded
+
+    assert excluded("true", True) and excluded(True, "True") and excluded(1, 1.0)
+    assert not excluded("true", False) and not excluded(1, 1.5)

@@ -133,7 +133,7 @@ Each entry is a span match:
 | `"OpenAILike.*"` | its name matches the glob |
 | `{"name": G}` | its name matches the glob `G` |
 | `{"attribute": K}` | it has attribute `K` |
-| `{"attribute": K, "equals": V}` | attribute `K` holds `V`, compared as text (`1` matches `"1"`) |
+| `{"attribute": K, "equals": V}` | attribute `K` holds `V`, compared as text: `1`, `1.0` and `"1"` match each other, and so do `true` and `"true"` |
 | `{"scope": G}` | its instrumentation scope name (e.g. `mcp`) matches the glob `G` |
 
 An object match may give several of `name`, `attribute` and `scope`; every one given must match.

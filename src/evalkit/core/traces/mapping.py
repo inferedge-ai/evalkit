@@ -66,6 +66,14 @@ def kind_attributes(active: MappingDocument | None) -> set[str]:
     return {SDK_ROOT_ATTRIBUTE} | kinds | call_ids | (match_attributes(active) if active else set())
 
 
+def _normalize_match_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).lower() if str(value).lower() in ("true", "false") else str(value)
+
+
 def span_matches(match: str | SpanMatch, raw: RawSpan) -> bool:
     if isinstance(match, str):
         return fnmatchcase(raw.name, match)
@@ -77,7 +85,9 @@ def span_matches(match: str | SpanMatch, raw: RawSpan) -> bool:
         return True
     if match.attribute not in raw.attributes:
         return False
-    return match.equals is None or str(raw.attributes[match.attribute]) == str(match.equals)
+    return match.equals is None or _normalize_match_value(
+        raw.attributes[match.attribute]
+    ) == _normalize_match_value(match.equals)
 
 
 def _matched(matches: list[str | SpanMatch], raw: RawSpan) -> bool:
