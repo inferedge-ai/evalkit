@@ -425,7 +425,7 @@ store, and the access rules keep a tenant equality check as a second line.
 | Registration (`POST /api/auth/oidc/register`) | `resolve_tenant(request, claims)`; there is no user yet |
 | Password login | `resolve_tenant(request, claims=None)` |
 | `bootstrap_admin`, `init-server` | Tenant 1, passed explicitly; the "does any admin exist" check runs `ALL_TENANTS` |
-| Server runner (`prepare_experiment`, lease, reaper) | The experiment id is globally unique: an `ALL_TENANTS` lookup of the experiment joined to `datasets` and `workspaces` yields its `tenant_id`; the runner then builds its scoped `PgStore` |
+| Server runner (`prepare_experiment`, lease renewals) | The experiment id is globally unique: an `ALL_TENANTS` lookup of the experiment joined to `datasets` and `workspaces` yields its `tenant_id`; the runner then builds its scoped `PgStore` |
 | Trace import job (`TraceImportStore.job`, its lease renewals, `interrupt_imports` at shutdown) | The import id is globally unique: an `ALL_TENANTS` lookup of the import joined to `agents` and `workspaces` yields its `tenant_id`; the job then runs scoped |
 | Migrations | None; migrations are installation-wide |
 
@@ -604,7 +604,7 @@ and nothing else may:
   any scoped work can start, each by a key that is unique across the whole
   database. They are listed in the "Where the tenant comes from" table:
   an evalkit token by hash, an agent token by hash, an experiment by id for
-  the runner and reaper, a trace import by id for its job, lease renewals
+  the runner, a trace import by id for its job, lease renewals
   and the shutdown `interrupt_imports`, and the "any admin exists" check in
   `bootstrap_admin`. Each does one select, reads the tenant off the row,
   and opens a scoped session for everything after. They are small, named
