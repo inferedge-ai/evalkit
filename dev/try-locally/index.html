@@ -1327,10 +1327,10 @@ every start.</p>
 </tbody>
 </table>
 <h2 id="1-install-the-cli-and-log-in">1. Install the CLI and log in<a class="headerlink" href="#1-install-the-cli-and-log-in" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev31"</span><span class="w">   </span><span class="c1"># with Docker only</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev32"</span><span class="w">   </span><span class="c1"># with Docker only</span>
 evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020<span class="w"> </span>--username<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span>evalkit-admin
 </code></pre></div>
-<p><code>0.3.0.dev31</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
+<p><code>0.3.0.dev32</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
 prints it.</p>
 <p><code>evalkit login</code> replaces any login you already saved. To keep it, skip
 <code>evalkit login</code> and give this shell a token for the try-it server instead
@@ -1426,9 +1426,9 @@ raw sessions.</p>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>push<span class="w"> </span>myagent<span class="w"> </span>my-mapping.json
 evalkit<span class="w"> </span>traces<span class="w"> </span>check<span class="w"> </span>myagent<span class="w"> </span>&lt;session<span class="w"> </span>id&gt;<span class="w"> </span>--mapping<span class="w"> </span>draft
 </code></pre></div>
-<p>When it reads right, activate it: <code>evalkit traces mapping push myagent
-   my-mapping.json --activate</code>, or use the agent's Mappings tab in the web
-   UI. Runs always use the active mapping. The connect-traces skill walks a
+<p>When it reads right, activate it with the version push printed:
+   <code>evalkit traces mapping activate myagent &lt;version&gt;</code>, or use the agent's
+   Mappings tab in the web UI. Runs always use the active mapping. The connect-traces skill walks a
    coding agent through the same loop.</p>
 <p><a href="../sdk-runs/">SDK runs</a> covers the rest: agents in another process, Python
 evaluators, and re-scoring. If the evalkit server
