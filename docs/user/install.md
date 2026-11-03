@@ -27,7 +27,13 @@ uv add "evalkit-py=={{version}}"
 uv run evalkit --help
 ```
 
-A separate uv project for evalkit inside another uv project becomes a member of that project's workspace without asking. Create it with `uv init --no-workspace` to keep it standalone.
+If you give evalkit its own uv project in a folder of your agent's uv project (say `eval/`), create it with `uv init --no-workspace`:
+
+```bash
+cd eval && uv init --no-workspace && uv add "evalkit-py=={{version}}"
+```
+
+Without the flag, uv silently adds `eval/` to your agent project's workspace, so it shares your agent's lockfile.
 
 ## The SDK, into a project
 
