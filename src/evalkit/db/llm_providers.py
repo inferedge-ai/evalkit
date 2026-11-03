@@ -52,8 +52,8 @@ class LlmProviderStore:
             raise UnknownLlmProvider(name)
         return row
 
-    async def _settings(self, session: AsyncSession) -> models.ServerSettings | None:
-        return await session.get(models.ServerSettings, 1)
+    async def _tenant(self, session: AsyncSession) -> models.Tenant:
+        return await session.get_one(models.Tenant, 1)
 
     async def _check_free(self, session: AsyncSession, name: str, base_url: str) -> None:
         taken = await session.scalar(
@@ -88,11 +88,8 @@ class LlmProviderStore:
         async with self._sessions() as session:
             row = await self._row(session, name)
             if base_url is not None and base_url != row.base_url:
-                settings = await self._settings(session)
-                if (
-                    settings is not None
-                    and (settings.default_judge or {}).get("base_url") == row.base_url
-                ):
+                tenant = await self._tenant(session)
+                if (tenant.default_judge or {}).get("base_url") == row.base_url:
                     raise ProviderInUse(
                         f"{name} is the default judge's provider; "
                         "set another default judge before changing its base URL"
@@ -107,11 +104,8 @@ class LlmProviderStore:
     async def archive(self, name: str) -> LlmProviderView:
         async with self._sessions() as session:
             row = await self._row(session, name)
-            settings = await self._settings(session)
-            if (
-                settings is not None
-                and (settings.default_judge or {}).get("base_url") == row.base_url
-            ):
+            tenant = await self._tenant(session)
+            if (tenant.default_judge or {}).get("base_url") == row.base_url:
                 raise ProviderInUse(
                     f"{name} is the default judge's provider; set another default judge first"
                 )
@@ -158,19 +152,16 @@ class LlmProviderStore:
 
     async def default_judge(self) -> JudgeSettings | None:
         async with self._sessions() as session:
-            settings = await self._settings(session)
-        if settings is None or settings.default_judge is None:
+            tenant = await self._tenant(session)
+        if tenant.default_judge is None:
             return None
-        return JudgeSettings.model_validate(settings.default_judge)
+        return JudgeSettings.model_validate(tenant.default_judge)
 
     async def set_default_judge(self, judge: JudgeSettings) -> JudgeSettings:
         if await self.active_by_base_url(judge.base_url) is None:
             raise UnknownLlmProvider(judge.base_url)
         async with self._sessions() as session:
-            settings = await self._settings(session)
-            if settings is None:
-                settings = models.ServerSettings(id=1)
-                session.add(settings)
-            settings.default_judge = judge.model_dump()
+            tenant = await self._tenant(session)
+            tenant.default_judge = judge.model_dump()
             await session.commit()
         return judge
