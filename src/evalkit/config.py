@@ -62,20 +62,35 @@ class CostMapConfig(ConfigModel):
     source: str = "bundled"
 
 
+class OidcConfig(ConfigModel):
+    issuer: str
+    client_id: str
+    audience: str
+    name: str
+    scopes: list[str] = ["openid", "profile", "email", "offline_access"]
+    authorize_params: dict[str, str] = {}
+    algorithms: list[str] = ["RS256"]
+
+    @field_validator("scopes")
+    @classmethod
+    def _scopes_include_openid(cls, value: list[str]) -> list[str]:
+        if "openid" not in value:
+            raise ValueError("auth.oidc.scopes must include openid")
+        return value
+
+    @field_validator("issuer")
+    @classmethod
+    def _issuer_has_no_trailing_slash(cls, value: str) -> str:
+        return value.rstrip("/")
+
+
 class AuthConfig(ConfigModel):
     token_ttl_hours: int = 720
+    password_login: Literal["admin", "all"] = "admin"
+    oidc: OidcConfig | None = None
 
-
-class McpOAuthConfig(ConfigModel):
-    issuer: str
-    jwks_uri: str
-    audience: str | None = None
-    algorithm: str = "RS256"
-    scope: str = "evalkit:read"
-
-
-class McpConfig(ConfigModel):
-    oauth: McpOAuthConfig | None = None
+    def resolve_password_login(self) -> Literal["admin", "all"]:
+        return "all" if self.oidc is None else self.password_login
 
 
 class OtelConfig(ConfigModel):
@@ -142,7 +157,6 @@ class Config(RunnerConfig):
     db: DbConfig
     blob: BlobConfig
     auth: AuthConfig = AuthConfig()
-    mcp: McpConfig = McpConfig()
     otel: OtelConfig = OtelConfig()
     limits: LimitsConfig = LimitsConfig()
     runner: ServerRunnerConfig = ServerRunnerConfig()
@@ -161,6 +175,17 @@ class Config(RunnerConfig):
                 "credentials and judge_default moved to the database. Remove them from the "
                 "config, start the server, then run (as an admin, with the keys in your env):\n"
                 f"{commands}"
+            )
+        return data
+
+    # TODO: remove in 0.6.0, two minor versions after 0.4.0 moved mcp.oauth to auth.oidc.
+    @model_validator(mode="before")
+    @classmethod
+    def _mcp_oauth_moved(cls, data: object) -> object:
+        if isinstance(data, dict) and isinstance(data.get("mcp"), dict) and "oauth" in data["mcp"]:
+            raise ValueError(
+                "mcp.oauth moved to auth.oidc: set auth.oidc.issuer, client_id, audience and "
+                "name; /mcp verifies tokens with the same settings as /api"
             )
         return data
 

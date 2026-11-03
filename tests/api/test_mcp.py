@@ -2,8 +2,6 @@ import asyncio
 import json
 import logging
 import re
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 import httpx2
@@ -12,22 +10,16 @@ from fastapi import HTTPException
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from fastmcp.exceptions import ToolError
-from fastmcp.server.auth.providers.jwt import JWTVerifier, RSAKeyPair
 
 from evalkit.api import runs as runs_api
-from evalkit.api.app import create_app
 from evalkit.api.mcp import descriptions as mcp_descriptions
 from evalkit.api.mcp import tools as mcp_tools
-from evalkit.config import McpConfig, McpOAuthConfig
 from evalkit.db.agents import AgentStore
 from tests.api.native_api import api_env
 from tests.fake_harness import FakeHarness
 from tests.mcp_trajectory import chat_session
-from tests.native import HOLDER, USERS, Env, seed_env
+from tests.native import HOLDER, USERS
 
-ISSUER = "https://id.example.test"
-RESOURCE = "http://evalkit.test/mcp"
-METADATA = "http://evalkit.test/.well-known/oauth-protected-resource/mcp"
 DAY_ONE = datetime(2026, 10, 20, 23, 0, tzinfo=UTC)
 DAY_TWO = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
 MCP_ACCEPT = "application/json, text/event-stream"
@@ -563,93 +555,6 @@ async def test_experiment_tools(api):
     assert [(r["case_id"], r["id"], r["answer"]) for r in runs["data"]] == [
         ("case-2", "sess-9", "42")
     ]
-
-
-@asynccontextmanager
-async def oauth_app(env: Env, tmp_path, key: RSAKeyPair, **oauth: str) -> AsyncIterator:
-    cfg = env.deps.cfg.model_copy(  # type: ignore[union-attr]
-        update={
-            "mcp": McpConfig(
-                oauth=McpOAuthConfig(
-                    issuer=ISSUER, jwks_uri=f"{ISSUER}/.well-known/jwks.json", **oauth
-                )
-            )
-        }
-    )
-    env.deps.cfg = cfg
-    app = create_app(
-        cfg,  # type: ignore[arg-type]
-        blob_store=env.blob,
-        runner_deps=env.deps,
-        session_factory=env.session_factory,
-        check_schema=False,
-        holder=HOLDER,
-        mcp_jwt_verifier=JWTVerifier(public_key=key.public_key, issuer=ISSUER, audience=RESOURCE),
-    )
-    async with app.router.lifespan_context(app):
-        yield app
-
-
-async def test_the_providers_own_scope_name_is_the_one_required(
-    tmp_path, stub_judges, session_factory
-):
-    key = RSAKeyPair.generate()
-    env = await seed_env(session_factory, tmp_path, fake_with_runs())
-    async with oauth_app(env, tmp_path, key, scope="analytics:read") as app:
-        transport = httpx2.ASGITransport(app=app)
-        async with httpx2.AsyncClient(transport=transport, base_url="http://test") as http:
-            meta = (await http.get("/.well-known/oauth-protected-resource/mcp")).json()
-            assert meta["scopes_supported"] == ["analytics:read"]
-            theirs = key.create_token(issuer=ISSUER, audience=RESOURCE, scopes=["analytics:read"])
-            assert await mcp_status(http, theirs) == 200
-            ours = key.create_token(issuer=ISSUER, audience=RESOURCE, scopes=["evalkit:read"])
-            assert await mcp_status(http, ours) == 403
-
-
-async def test_oauth_tokens_reach_mcp_and_evalkit_tokens_still_do(
-    tmp_path, stub_judges, session_factory
-):
-    key = RSAKeyPair.generate()
-    env = await seed_env(session_factory, tmp_path, fake_with_runs())
-    async with oauth_app(env, tmp_path, key) as app:
-        transport = httpx2.ASGITransport(app=app)
-        async with httpx2.AsyncClient(transport=transport, base_url="http://test") as http:
-            meta = (await http.get("/.well-known/oauth-protected-resource/mcp")).json()
-            assert meta["resource"] == RESOURCE
-            assert meta["authorization_servers"] == [ISSUER]
-            assert meta["scopes_supported"] == ["evalkit:read"]
-
-            unauthenticated = await http.post("/mcp", json={})
-            challenge = unauthenticated.headers["www-authenticate"]
-            assert f'resource_metadata="{METADATA}"' in challenge
-
-            good = key.create_token(
-                subject="u-1", issuer=ISSUER, audience=RESOURCE, scopes=["evalkit:read"]
-            )
-            async with mcp_client(app, good) as mcp:
-                result = await mcp.call_tool("find_agents", {"workspace": "canonical"})
-            assert result.structured_content["meta"] == {"count": 1}
-
-            api_call = await http.get("/api/agents", headers={"Authorization": f"Bearer {good}"})
-            assert api_call.status_code == 401
-
-            no_scope = key.create_token(issuer=ISSUER, audience=RESOURCE, scopes=["other:read"])
-            assert await mcp_status(http, no_scope) == 403
-            wrong_audience = key.create_token(
-                issuer=ISSUER, audience="https://gateway.example.test/mcp", scopes=["evalkit:read"]
-            )
-            assert await mcp_status(http, wrong_audience) == 401
-            wrong_key = RSAKeyPair.generate().create_token(
-                issuer=ISSUER, audience=RESOURCE, scopes=["evalkit:read"]
-            )
-            assert await mcp_status(http, wrong_key) == 401
-            assert await mcp_status(http, good) == 200
-
-            login = await http.post(
-                "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
-            )
-            async with mcp_client(app, login.json()["token"]) as mcp:
-                assert len(await mcp.list_tools()) == 10
 
 
 async def test_expected_tool_errors_log_as_warnings_and_bugs_as_errors(api, monkeypatch, caplog):
