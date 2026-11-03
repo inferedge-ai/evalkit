@@ -355,7 +355,8 @@ Harness API page has the full table.
 
 | You want to | Command |
 |---|---|
-| See what datasets exist and their versions | `evalkit datasets list` |
+| See what datasets exist and their versions | `evalkit datasets list` (`--workspace dev` for one workspace) |
+| See one dataset's last sync, case count and review progress | `evalkit datasets show <dataset>` |
 | List a dataset's cases with review state, tags and fixtures (to pick `--case-id`s) | `evalkit datasets list <dataset>` (`--state`, `--tag`) |
 | Check case YAML before pushing | `evalkit lint` |
 | Check case inputs against an agent's `input_schema` (on demand, not CI) | `evalkit lint <dir> --agent <name>` |
@@ -370,7 +371,7 @@ Harness API page has the full table.
 | See or fetch a pulled run's workspace files and full tool outputs | `evalkit runs files <pull dir> <run_id>` lists the tree; add `--path <file or folder>` to fetch only those |
 | Generate new eval cases from an agent's app runs (production, staging or manual traffic) | the `eval-driven-development` skill, Loop 2 (`runs list` / `runs pull --source app`, then analysis and authoring) |
 | Re-score recorded runs after an evaluator change, or retry evaluators that errored | `evalkit evaluate` (`--refetch-trajectories` for runs whose trajectory arrived late) |
-| Inspect a traced session, push or list a span mapping | `evalkit traces` (subcommands `check`, `mapping push`, `mapping list`, `import`) |
+| Inspect a traced session, push or list a span mapping | `evalkit traces` (subcommands `check`, `mapping push`, `mapping activate`, `mapping list`, `import`) |
 | Mint, list or revoke a collector token for a deployed agent | `evalkit tokens` |
 | Move cases through review | `evalkit review` (subcommands below) |
 | Ask about runs, failures, usage or experiments from Claude, Cursor or Codex | the MCP server at `{{origin}}/mcp` (below) |
@@ -471,7 +472,8 @@ it. Nothing else reaches the target:
 Both case pages show the twin: on the source, "prod: same version · approved
 …" / "ahead of prod" / "not in prod"; on the target, "newer in dev" / "removed
 in dev". The `twin` field on `GET /api/datasets/<ref>/cases` carries the same
-information. `evalkit workspaces list` shows the link; `promote-to <source>
+information. `evalkit workspaces list` shows the link (`promotes to prod` on
+the source row, `promoted from dev` on the target row); `promote-to <source>
 --none` clears it. One target per source, one source per target, no chains.
 
 Commands, in the order a case usually moves: `evalkit review request` →

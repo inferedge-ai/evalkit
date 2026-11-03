@@ -507,23 +507,29 @@ def datasets_list(
         None, "--state", help="Only cases in this review state (shared workspaces only)."
     ),
     tag: str | None = typer.Option(None, "--tag", help="Only cases carrying this tag."),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Only datasets in this workspace, e.g. dev; defaults to all."
+    ),
 ):
     """List datasets with kind and version, or one dataset's cases.
 
     With a dataset, prints each case's id, review state (shared workspaces only; `-`
     elsewhere), tags and fixture keys.
 
-    Example: evalkit datasets list · evalkit datasets list finance@dev --state approved
-    · evalkit datasets list finance --tag statement-analysis
+    Example: evalkit datasets list --workspace dev · evalkit datasets list finance@dev
+    --state approved · evalkit datasets list finance --tag statement-analysis
     """
     if dataset is None:
         if state is not None or tag is not None:
             raise ApiError("--state and --tag filter a dataset's cases; pass a dataset")
-        for ds in _client().get("/api/datasets").json():
+        params = {"workspace": workspace.removeprefix("@")} if workspace is not None else {}
+        for ds in _client().get("/api/datasets", params=params).json():
             last = ds.get("last_sync") or {}
             sha = (last.get("detail") or {}).get("sha") or "-"
             typer.echo(f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}")
         return
+    if workspace is not None:
+        raise ApiError("--workspace filters the dataset list; name the dataset as finance@dev")
     dataset_slug = slug(_parse(dataset, _connection().username or ""))
     params = {"tag": tag} if tag is not None else {}
     rows = _client().get(f"/api/datasets/{encode(dataset_slug)}/cases", params=params).json()
@@ -539,6 +545,41 @@ def datasets_list(
             f"fixtures={','.join(fixtures) or '-'}"
         )
     typer.echo(f"{len(shown)} case(s) in {dataset_slug}")
+
+
+@datasets_app.command("show")
+def datasets_show(
+    dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
+):
+    """Show a dataset's kind, last sync, case count, review states and tags.
+
+    Example: evalkit datasets show finance@dev
+    """
+    client = _client()
+    ref = encode(slug(_parse(dataset, _connection().username or "")))
+    ds = client.get(f"/api/datasets/{ref}").json()
+    cases = client.get(f"/api/datasets/{ref}/cases").json()
+    tags = client.get(f"/api/datasets/{ref}/tags").json()
+    typer.echo(f"dataset: {ds['ref']}")
+    typer.echo(f"kind: {ds['kind']}")
+    last = ds.get("last_sync")
+    if last is None:
+        typer.echo("last sync: -")
+    else:
+        detail = last["detail"]
+        typer.echo(
+            f"last sync: {last['created_at']} by {last['actor']} ({last['source']}) "
+            f"sha={(detail.get('sha') or '-')[:12]} branch={detail.get('branch') or '-'}"
+            + (" dirty" if detail.get("dirty") else "")
+        )
+    typer.echo(f"cases: {len(cases)}")
+    if any(case["review"] is not None for case in cases):
+        states: dict[str, int] = {}
+        for case in cases:
+            state = (case["review"] or {}).get("state", "-")
+            states[state] = states.get(state, 0) + 1
+        typer.echo("review: " + (", ".join(f"{k} {v}" for k, v in sorted(states.items())) or "-"))
+    typer.echo("tags: " + (", ".join(f"{t['name']} {t['count']}" for t in tags) or "-"))
 
 
 class _Progress:
@@ -1437,13 +1478,16 @@ def review_queue(
     changes_requested: bool = typer.Option(
         False, "--changes-requested", help="Cases sent back to their authors instead."
     ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Only cases in this workspace, e.g. dev; defaults to all."
+    ),
 ):
     """List cases waiting for review, or with --changes-requested, cases awaiting an edit.
 
-    Example: evalkit review queue
+    Example: evalkit review queue · evalkit review queue --workspace dev
     """
     client = _client()
-    params: dict = {}
+    params: dict = {} if workspace is None else {"workspace": workspace.removeprefix("@")}
     if changes_requested:
         params["state"] = "changes_requested"
     elif not everyone:

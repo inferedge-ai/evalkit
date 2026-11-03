@@ -2,11 +2,33 @@
 
 ## Unreleased
 
+- New `evalkit traces mapping activate <agent> <version>` makes that
+  version the active mapping and prints the version it replaced. Pass the
+  version `mapping push` printed, so the draft you checked is the one that
+  goes live even if someone pushes another draft meanwhile; an older
+  version rolls back. `mapping push --activate` is removed: push uploads
+  the draft, activate makes it live. The `activate` query parameter on
+  `PUT /api/agents/{agent}/mappings/draft` is removed too, and
+  `POST /api/agents/{agent}/mappings/{version}/activate` now returns
+  `replaced_version`.
+- `evalkit traces mapping push` with a document equal to the current draft
+  keeps the draft's version and says it is unchanged, instead of minting a
+  new version. The endpoint's response has a new `unchanged` field.
+- `evalkit datasets list --workspace dev` lists only the datasets in `@dev`,
+  and `evalkit review queue --workspace dev` only the cases waiting there.
+  Without the flag both still cover every workspace you can see. `@dev` works
+  too; an unknown workspace is an error, not an empty list (the same 404
+  applies to `GET /api/datasets?workspace=` and `GET /api/review/queue?workspace=`). Passing
+  `--workspace` together with a dataset is refused: name it as `finance@dev`.
+- `evalkit datasets show finance@dev` prints one dataset's kind, last sync
+  (time, author, sha, branch), case count, cases per review state (reviewable
+  suites only) and tag counts.
+- `evalkit workspaces list` now shows promotion links: `promotes to prod` on
+  the source row and `promoted from dev` on the target row.
 - Review CLI fixes:
   - `evalkit review show <dataset> <case>` prints the case (id, input,
     expected, evaluators with overlays applied, file names, tags) as YAML
-    above the changelog. `--yaml` prints
-    only the case.
+    above the changelog. `--yaml` prints only the case.
   - `evalkit review queue --changes-requested` names the author the case went
     back to: "by <reviewer> to <author>". The author is the last person who
     asked for review; a re-sync does not change it. The queue API returns it

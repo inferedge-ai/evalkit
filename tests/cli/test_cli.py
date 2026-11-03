@@ -488,6 +488,29 @@ def test_datasets_list(env):
     assert "finance" in result.output
 
 
+def test_datasets_list_by_workspace(env):
+    shared = runner.invoke(cli_app, ["datasets", "list", "--workspace", "canonical"])
+    assert shared.exit_code == 0, shared.output
+    assert "finance@canonical" in shared.output
+    empty = runner.invoke(cli_app, ["datasets", "list", "--workspace", "admin"])
+    assert empty.exit_code == 0, empty.output
+    assert "finance@canonical" not in empty.output
+    at_form = runner.invoke(cli_app, ["datasets", "list", "--workspace", "@canonical"])
+    assert "finance@canonical" in at_form.output
+    assert runner.invoke(cli_app, ["datasets", "list", "--workspace", "nope"]).exit_code == 1
+    both = runner.invoke(cli_app, ["datasets", "list", "finance@canonical", "--workspace", "dev"])
+    assert both.exit_code == 1
+
+
+def test_datasets_show(env):
+    shown = runner.invoke(cli_app, ["datasets", "show", "finance@canonical"])
+    assert shown.exit_code == 0, shown.output
+    assert "dataset: finance@canonical" in shown.output
+    assert re.search(r"cases: \d+", shown.output)
+    assert "review: " in shown.output and "tags: " in shown.output
+    assert runner.invoke(cli_app, ["datasets", "show", "nope@canonical"]).exit_code == 1
+
+
 def _write_registry(path, key: str, data: bytes) -> None:
     path.write_text(
         f"fixtures:\n- key: {key}\n  sha256: {hashlib.sha256(data).hexdigest()}\n  context: ctx\n"
@@ -783,6 +806,9 @@ def test_review_request_show_and_approve(env):
     queue = runner.invoke(cli_app, ["review", "queue"])
     assert queue.exit_code == 0, queue.output
     assert "case-2" in queue.output
+    elsewhere = runner.invoke(cli_app, ["review", "queue", "--workspace", "admin"])
+    assert "nothing waiting" in elsewhere.output
+    assert runner.invoke(cli_app, ["review", "queue", "--workspace", "nope"]).exit_code == 1
 
     commented = runner.invoke(
         cli_app, ["review", "comment", "finance@canonical", "case-2", "--comment", "looks fine"]
