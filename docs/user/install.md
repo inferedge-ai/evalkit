@@ -60,7 +60,7 @@ evalkit init-server   # creates the database, writes config.yaml and .env in ./e
 cd evalkit-try && evalkit serve
 ```
 
-[Try locally](try-locally.md) walks through it with a sample agent; the evalkit-deployment skill covers running a server for a team.
+[Try locally](try-locally.md) walks through it with a sample agent; [Server config](server-config.md) lists every `config.yaml` key; the evalkit-deployment skill covers running a server for a team.
 
 ## The skills
 

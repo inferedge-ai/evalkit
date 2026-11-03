@@ -51,7 +51,9 @@ lists both); `--yes` never asks. It then:
 - registers your LLM as the LLM provider `try` and makes it the default judge,
   with its API key stored encrypted in the database
 - copies the try kit into `./evalkit-try`
-- writes `config.yaml` there, with blobs stored under `evalkit-try/data`
+- writes `config.yaml` there, with blobs stored under `evalkit-try/data` and a
+  database pool sized for one machine ([Server config](server-config.md) lists
+  every key and its default)
 - writes `.env` beside it, with your LLM settings, the admin password and the
   key that encrypts stored API keys; `evalkit serve` reads it. Keep `.env`:
   without that key the server cannot read the stored LLM key

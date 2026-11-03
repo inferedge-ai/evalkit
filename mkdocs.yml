@@ -92,6 +92,7 @@ nav:
       - Install: install.md
       - Login: login.md
       - Config: config.md
+      - Server config: server-config.md
       - Workspaces: workspaces.md
       - CI sync: ci-sync.md
       - Case schema: case-schema.md
