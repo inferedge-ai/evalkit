@@ -66,7 +66,7 @@ trajectory alone.
   "run_id": "<from index.json>",
   "created_at": "<from index.json>",
   "intent": "<one line: what the user asked for>",
-  "task_type": "<a case type from the authoring-eval-cases skill>",
+  "question_kind": "<free text: the kind of question, in a few words, e.g. 'monthly spend by category'>",
   "verdict": "failed | degraded | ok | unclear",
   "signals": ["<short label, e.g. 'user re-asked', 'tool error x3'>"],
   "failures": [

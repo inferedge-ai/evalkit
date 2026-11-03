@@ -117,8 +117,14 @@ def run_body(
     source: Literal["app", "eval"],
     record: AgentRunRecord | None,
     eval_context: RunEvalContext | None,
+    *,
+    created_at: datetime | None,
 ) -> dict:
-    body: dict = {"run_id": run_id, "source": source}
+    body: dict = {
+        "run_id": run_id,
+        "source": source,
+        "started_at": created_at.isoformat() if created_at else None,
+    }
     if eval_context is not None:
         body["input"] = eval_context.case.input
     if record is not None:
