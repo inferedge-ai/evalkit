@@ -143,23 +143,7 @@ A code-driven agent has no `GET /capabilities`, so evalkit writes its capabiliti
 
 ## Input schema
 
-Every case input must pass the agent's input schema, in a dry run too. A code-driven agent stores its schema in the agent's `input_schema` setting. Write the schema to a file and set it with `evalkit agents create` or `evalkit agents edit`:
-
-```json
-{
-  "type": "object",
-  "required": ["turns"],
-  "properties": {"turns": {"type": "array", "items": {"type": "string"}}}
-}
-```
-
-```bash
-evalkit agents edit myagent-sdk --input-schema schema.json   # or agents create ... --input-schema
-evalkit agents show myagent-sdk                              # prints input_schema
-evalkit agents edit myagent-sdk --clear-input-schema         # back to the default
-```
-
-Without one, the default applies: an object with a required string `question`. See [Input schema](case-schema.md#input-schema).
+Every case input must pass the code-driven agent's input schema, in a dry run too. The schema is the agent's `input_schema` setting: set it with `evalkit agents create --input-schema schema.json` or `evalkit agents edit --input-schema schema.json`. Without one, the default applies: an object with a required string `question`. [Input schema](case-schema.md#input-schema) shows the default and a multi-turn example.
 
 ## Python evaluators
 
