@@ -839,6 +839,20 @@ async def test_rescoring_retries_errored_evaluators_and_replaces_their_error_row
     assert "answer_rubrics" not in report.evaluator_columns
 
 
+async def test_evaluator_error_without_a_message_names_the_exception_type(
+    tmp_path, stub_judges, session_factory, monkeypatch
+):
+    env = await seed_env(session_factory, tmp_path)
+
+    async def timed_out(cfg, **kwargs):
+        raise httpx2.ReadTimeout("")
+
+    monkeypatch.setattr(rubrics, "call_judge", timed_out)
+    exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
+    report = assemble_report(await env.store.aggregate(exp.id))
+    assert {c.errors["answer_rubrics"] for c in report.cases} == {"ReadTimeout"}
+
+
 async def test_rescoring_retries_an_errored_trajectory_judge_once(
     tmp_path, stub_judges, session_factory, monkeypatch
 ):
@@ -868,7 +882,9 @@ async def test_rescoring_retries_an_errored_trajectory_judge_once(
     monkeypatch.setattr(trajectory_rubrics, "call_judge", forbidden)
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     first = assemble_report(await env.store.aggregate(exp.id))
-    assert all(c.errors == {"trajectory_rubrics": "judge returned 403"} for c in first.cases)
+    assert all(
+        c.errors == {"trajectory_rubrics": "RuntimeError: judge returned 403"} for c in first.cases
+    )
 
     monkeypatch.setattr(trajectory_rubrics, "call_judge", satisfied)
     await evaluate_experiment(env.deps, exp.id)

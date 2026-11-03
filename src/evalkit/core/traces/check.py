@@ -70,7 +70,14 @@ def _llm_line(llms: list[dict]) -> str:
     unknown = sorted(map(str, roles - CANONICAL_ROLES))
     if unknown:
         detail += f", output messages with unknown roles are dropped ({', '.join(unknown)})"
-    return _line("warn" if bare or no_tokens or unknown else "pass", "llm", detail)
+    gaps = sum(1 for s in llms if s.get("message_gaps"))
+    if gaps:
+        detail += (
+            f", {gaps} with missing message indices (the OTel SDK dropped attributes past its "
+            "limit; raise OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT)"
+        )
+    warn = bare or no_tokens or unknown or gaps
+    return _line("warn" if warn else "pass", "llm", detail)
 
 
 def _tools_line(tools: list[dict], every: list[dict]) -> str:

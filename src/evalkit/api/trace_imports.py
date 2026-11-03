@@ -11,7 +11,7 @@ from evalkit.api.traces import agent_or_404, require_otel, require_write, resolv
 from evalkit.contracts.enums import TraceImportStatus
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.agents import AgentDefinition
-from evalkit.core.runner import error_text
+from evalkit.core.errors import error_text
 from evalkit.core.traces.importer import IMPORT_STOPPED_ERROR, guarded_import
 from evalkit.core.traces.sources import client_for
 from evalkit.db.mappings import MappingStore

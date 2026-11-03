@@ -192,6 +192,16 @@ def _content_text(parts: list[dict[str, Any]], kind: str) -> str | None:
     return "".join(texts) or None
 
 
+def find_message_index_gaps(attributes: dict[str, Any], key: str) -> bool:
+    prefix = f"{key}."
+    indices = {
+        int(matched.group(1))
+        for attr in attributes
+        if attr.startswith(prefix) and (matched := _INDEXED.match(attr[len(prefix) :]))
+    }
+    return bool(indices) and indices != set(range(max(indices) + 1))
+
+
 def _openinference_messages(
     attributes: dict[str, Any], key: str
 ) -> tuple[list[EsfMessage], set[str]]:
@@ -433,6 +443,14 @@ def to_esf(raw: RawSpan, mapping: MappingDocument | None) -> EsfSpan:
             span.input = rule(doc.tool.arguments)
         if doc.tool.result is not None:
             span.output = rule(doc.tool.result)
+    if is_llm:
+        span.message_gaps = [
+            r.attribute
+            for r in (doc.input_messages, doc.output_messages)
+            if r is not None
+            and r.message_format == "openinference"
+            and find_message_index_gaps(attributes, r.attribute)
+        ]
     sdk_stamped = any(k.startswith("evalkit.") for k in attributes)
     span.unmapped = [
         k
