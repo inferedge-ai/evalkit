@@ -366,7 +366,9 @@ are advisory). `--dataset` is the dataset you will sync into; it lets the
 server check case ids and overlay targets against every other dataset.
 A jargon-leak error is fixed by rewording the case, never by renaming
 internals. Then `evalkit run <dataset> --agent <agent>` syncs the directory
-to your workspace and runs it; CI, logged in as `admin`, runs `evalkit sync
+to your workspace and runs it (for a code-driven agent, one without a
+`harness_url`: `evalkit sync <dir>`, then the eval script that calls
+`run_experiment`); CI, logged in as `admin`, runs `evalkit sync
 <dir> --workspace dev` (the team's shared workspace) on merge (see
 `evalkit --help` for exact flags).
 

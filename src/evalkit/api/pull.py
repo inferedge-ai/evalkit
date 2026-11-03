@@ -99,7 +99,7 @@ async def _bundle(ctx: PullContext, session: AsyncSession, run: BrowserRun) -> R
         status=run.status,
         created_at=run.created_at,
         title=run.title,
-        run=run_body(run.run_id, run.source, stored, context),
+        run=run_body(run.run_id, run.source, stored, context, run.created_at),
         eval=context,
     )
     try:

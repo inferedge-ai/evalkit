@@ -43,7 +43,7 @@ def eval_bundle() -> RunBundle:
         source="eval",
         status="completed",
         created_at=STARTED,
-        run=run_body("r/1", "eval", record, context),
+        run=run_body("r/1", "eval", record, context, STARTED),
         trajectory={"steps": []},
         eval=context,
     )
@@ -103,3 +103,8 @@ def test_merge_index_keeps_old_runs_and_takes_new_filters():
     assert merged["filters"] == {"offset": 2} and merged["total_matching"] == 4
     assert merged["runs"] == [{"run_id": "a"}, {"run_id": "b", "status": "x"}, {"run_id": "c"}]
     assert merge_index(None, new) == new
+
+
+def test_run_body_without_record_takes_started_at_from_listing():
+    body = run_body("app-1", "app", None, None, STARTED)
+    assert body["started_at"] == STARTED.isoformat()
