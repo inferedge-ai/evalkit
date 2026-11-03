@@ -24,10 +24,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from evalkit.core.agents import UnknownAgent
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE, AttributeKeys
 from evalkit.core.traces.raw import RawSpan
 from evalkit.db import models
 from evalkit.db.runs import RunSource, eval_run_ids
+from evalkit.db.session import tenant_session
 
 UPSERT_CHUNK = 1000
 SPAN_KEY = ("agent_id", "trace_id", "span_id")
@@ -145,8 +147,21 @@ class SessionRead:
 
 
 class SpanStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
         self._sessions = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._sessions, self._tenant_id)
+
+    async def _check_agent(self, session: AsyncSession, agent_id: int) -> None:
+        found = await session.scalar(
+            select(models.Agent.id)
+            .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+            .where(models.Workspace.tenant_id == self._tenant_id, models.Agent.id == agent_id)
+        )
+        if found is None:
+            raise UnknownAgent(str(agent_id))
 
     async def upsert(
         self, agent_id: int, spans: list[RawSpan], *, external_trace_source_id: int | None = None
@@ -157,7 +172,8 @@ class SpanStore:
             s.trace_id: s.session_id_hint for s in spans if s.parent_span_id is None
         }
         batch_roots = set(roots)
-        async with self._sessions() as session:
+        async with self._session() as session:
+            await self._check_agent(session, agent_id)
             unknown = {s.trace_id for s in spans if s.trace_id not in roots}
             if unknown:
                 stored = await session.execute(
@@ -237,8 +253,9 @@ class SpanStore:
 
     @asynccontextmanager
     async def read_session(self, agent_id: int, session_id: str) -> AsyncIterator[SessionRead]:
-        async with self._sessions() as session:
+        async with self._session() as session:
             await session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+            await self._check_agent(session, agent_id)
             yield SessionRead(session, self._in_session(agent_id, session_id))
 
     async def stream_session_spans(self, agent_id: int, session_id: str) -> AsyncIterator[RawSpan]:
@@ -248,7 +265,8 @@ class SpanStore:
             .order_by(*SESSION_ORDER)
             .execution_options(yield_per=STREAM_BATCH)
         )
-        async with self._sessions() as session:
+        async with self._session() as session:
+            await self._check_agent(session, agent_id)
             result = await session.stream(statement)
             async for row in result.mappings():
                 yield _to_raw(row)
@@ -290,7 +308,8 @@ class SpanStore:
             grouped = grouped.having(started >= since)
         if until is not None:
             grouped = grouped.having(started < until)
-        async with self._sessions() as session:
+        async with self._session() as session:
+            await self._check_agent(session, agent_id)
             total = (
                 await session.execute(select(func.count()).select_from(grouped.subquery()))
             ).scalar_one()
@@ -344,7 +363,8 @@ class SpanStore:
             .where(*where)
             .group_by(models.Span.trace_id)
         )
-        async with self._sessions() as session:
+        async with self._session() as session:
+            await self._check_agent(session, agent_id)
             total = (
                 await session.execute(select(func.count()).select_from(grouped.subquery()))
             ).scalar_one()

@@ -6,7 +6,7 @@ from evalkit.core.traces.mapping import AttributeKeys
 from evalkit.core.traces.raw import RawSpan
 from evalkit.db.agents import AgentStore
 from evalkit.db.spans import AttributeDrop, SpanStore
-from tests.identity import seed_identity
+from tests.identity import seed_identity, workspace_ref
 
 NOW = datetime(2026, 10, 9, tzinfo=UTC)
 
@@ -15,8 +15,10 @@ NOW = datetime(2026, 10, 9, tzinfo=UTC)
 async def db(tmp_path, session_factory):
     factory = session_factory
     await seed_identity(factory, {"admin": "password", "akshat": "password"}, shared=())
-    record = await AgentStore(factory).create("akshat", "research-agent")
-    return SpanStore(factory), record.id
+    record = await AgentStore(factory, 1).create(
+        await workspace_ref(factory, "akshat"), "research-agent"
+    )
+    return SpanStore(factory, 1), record.id
 
 
 def span(span_id, *, trace="t1", parent=None, session=None, at=0, name="s", attrs=None) -> RawSpan:

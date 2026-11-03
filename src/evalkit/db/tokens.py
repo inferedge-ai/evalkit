@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from evalkit.contracts.enums import TokenKind
 from evalkit.core.workspace import Reference, slug
 from evalkit.db import models
+from evalkit.db.session import tenant_session
 
 
 def token_hash(token: str) -> str:
@@ -27,12 +28,16 @@ class AgentTokenRecord(BaseModel):
 
 
 class AgentTokens:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
         self._sessions = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._sessions, self._tenant_id)
 
     async def create(self, *, agent_id: int, user_id: int) -> tuple[str, AgentTokenRecord]:
         token = secrets.token_urlsafe(32)
-        async with self._sessions() as session:
+        async with self._session() as session:
             row = models.AuthToken(
                 user_id=user_id,
                 token_hash=token_hash(token),
@@ -73,14 +78,17 @@ class AgentTokens:
         return out
 
     async def list(self, *, user_id: int | None) -> list[AgentTokenRecord]:
-        where = [models.AuthToken.kind == TokenKind.AGENT]
+        where = [models.AuthToken.kind == TokenKind.AGENT, models.User.tenant_id == self._tenant_id]
         if user_id is not None:
             where.append(models.AuthToken.user_id == user_id)
-        async with self._sessions() as session:
+        async with self._session() as session:
             rows = (
                 (
                     await session.execute(
-                        select(models.AuthToken).where(*where).order_by(models.AuthToken.id)
+                        select(models.AuthToken)
+                        .join(models.User, models.User.id == models.AuthToken.user_id)
+                        .where(*where)
+                        .order_by(models.AuthToken.id)
                     )
                 )
                 .scalars()
@@ -89,10 +97,16 @@ class AgentTokens:
             return await self._records(session, list(rows))
 
     async def revoke(self, token_id: int, *, user_id: int | None) -> bool:
-        where = [models.AuthToken.id == token_id, models.AuthToken.kind == TokenKind.AGENT]
+        where = [
+            models.AuthToken.id == token_id,
+            models.AuthToken.kind == TokenKind.AGENT,
+            models.AuthToken.user_id.in_(
+                select(models.User.id).where(models.User.tenant_id == self._tenant_id)
+            ),
+        ]
         if user_id is not None:
             where.append(models.AuthToken.user_id == user_id)
-        async with self._sessions() as session:
+        async with self._session() as session:
             result = cast(
                 CursorResult, await session.execute(delete(models.AuthToken).where(*where))
             )

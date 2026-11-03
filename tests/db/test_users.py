@@ -67,7 +67,9 @@ async def test_archive_keeps_agent_tokens(session_factory):
     await users.create("root", "password", is_admin=True)
     minter = await users.create("minter", "password", is_admin=True)
     await WorkspaceStore(session_factory, 1).create_shared("dev", None)
-    agent = await AgentStore(session_factory).create("dev", "ouragent")
+    agent = await AgentStore(session_factory, 1).create(
+        await WorkspaceStore(session_factory, 1).get_by_name("dev"), "ouragent"
+    )
     async with session_factory() as s:
         s.add(AuthToken(user_id=minter.id, token_hash="u" * 64))
         s.add(

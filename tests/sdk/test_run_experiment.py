@@ -41,7 +41,7 @@ from evalkit.store.base import Experiment, RunDetail
 from tests.cli.test_cli import _serve
 from tests.fake_agents import reference_mapping
 from tests.fake_harness import DEFAULT_TRAJECTORY, FakeHarness
-from tests.identity import seed_agent
+from tests.identity import seed_agent, workspace_ref
 from tests.native import HOLDER, seed_env
 
 LLM_ATTRS = {
@@ -72,8 +72,8 @@ def server(tmp_path_factory, stub_judges_module, module_db_url):
         )
         await seed_agent(factory, "pushed", "admin", harness_url=None, settings=AgentSettings())
         await seed_agent(factory, "harnessy", "admin", harness_url="http://x")
-        await RemoteEvaluatorStore(factory).create(
-            "admin",
+        await RemoteEvaluatorStore(factory, 1).create(
+            await workspace_ref(factory, "admin"),
             "http_eval",
             EvaluatorKind.SCORE,
             RemoteEvaluatorSettings(endpoint="http://custom.test/rtc"),

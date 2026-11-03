@@ -14,7 +14,7 @@ from evalkit.db.mappings import MappingStore
 from evalkit.db.sessions import DbSessionReader
 from evalkit.db.spans import SpanStore
 from tests.fake_agents import REFERENCE, reference_mapping
-from tests.identity import seed_identity
+from tests.identity import seed_identity, workspace_ref
 
 START = datetime(2026, 10, 9, 12, 0, tzinfo=UTC)
 SESSION = "chat-1"
@@ -115,14 +115,14 @@ def realistic_session(turns: int = 6, chunk: int = 300) -> list[RawSpan]:
 async def stores(tmp_path, session_factory):
     factory = session_factory
     await seed_identity(factory, {"admin": "password", "akshat": "password"}, shared=())
-    agents = AgentStore(factory)
+    agents = AgentStore(factory, 1)
     record = await agents.create(
-        "akshat",
+        await workspace_ref(factory, "akshat"),
         "support-bot",
         trajectory_source=TrajectorySource.OTEL,
         mapping=reference_mapping(),
     )
-    spans, mappings = SpanStore(factory), MappingStore(factory)
+    spans, mappings = SpanStore(factory, 1), MappingStore(factory, 1)
     reader = DbSessionReader(agents, spans, mappings, OtelConfig())
     return reader, spans, mappings, record.id
 
