@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- New `evalkit traces mapping activate <agent> <version>` makes that
+  version the active mapping and prints the version it replaced. Pass the
+  version `mapping push` printed, so the draft you checked is the one that
+  goes live even if someone pushes another draft meanwhile; an older
+  version rolls back. `mapping push --activate` is removed: push uploads
+  the draft, activate makes it live. The `activate` query parameter on
+  `PUT /api/agents/{agent}/mappings/draft` is removed too, and
+  `POST /api/agents/{agent}/mappings/{version}/activate` now returns
+  `replaced_version`.
+- `evalkit traces mapping push` with a document equal to the current draft
+  keeps the draft's version and says it is unchanged, instead of minting a
+  new version. The endpoint's response has a new `unchanged` field.
 - `evalkit datasets list --workspace dev` lists only the datasets in `@dev`,
   and `evalkit review queue --workspace dev` only the cases waiting there.
   Without the flag both still cover every workspace you can see. `@dev` works

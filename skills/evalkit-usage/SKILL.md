@@ -371,7 +371,7 @@ Harness API page has the full table.
 | See or fetch a pulled run's workspace files and full tool outputs | `evalkit runs files <pull dir> <run_id>` lists the tree; add `--path <file or folder>` to fetch only those |
 | Generate new eval cases from an agent's app runs (production, staging or manual traffic) | the `eval-driven-development` skill, Loop 2 (`runs list` / `runs pull --source app`, then analysis and authoring) |
 | Re-score recorded runs after an evaluator change, or retry evaluators that errored | `evalkit evaluate` (`--refetch-trajectories` for runs whose trajectory arrived late) |
-| Inspect a traced session, push or list a span mapping | `evalkit traces` (subcommands `check`, `mapping push`, `mapping list`, `import`) |
+| Inspect a traced session, push or list a span mapping | `evalkit traces` (subcommands `check`, `mapping push`, `mapping activate`, `mapping list`, `import`) |
 | Mint, list or revoke a collector token for a deployed agent | `evalkit tokens` |
 | Move cases through review | `evalkit review` (subcommands below) |
 | Ask about runs, failures, usage or experiments from Claude, Cursor or Codex | the MCP server at `{{origin}}/mcp` (below) |
