@@ -27,6 +27,24 @@ Every request carries `x-api-key`. Two rules matter more than the rest:
 - **Capabilities honesty.** Declare only what works. evalkit neutral-skips evaluators whose inputs the harness does not provide; a false `true` produces failing scores blamed on the agent.
 - **Implement stop.** evalkit calls stop on timeout when `accepts.stop` is true; a harness without it leaks resources on every timed-out run.
 
+## Input schema
+
+Every case input must pass the agent's input schema; `evalkit run` and `evalkit lint --agent` refuse inputs that fail it. A harness declares its schema as `input_schema` in `GET /capabilities`:
+
+```json
+{
+  "agent": "support-bot",
+  "input_schema": {
+    "type": "object",
+    "required": ["turns"],
+    "properties": {"turns": {"type": "array", "items": {"type": "string"}}}
+  },
+  "check_input": {"turns": ["Hi. Reply with one word."]}
+}
+```
+
+Without `input_schema`, the default applies: an object with a required string `question`. Declare `check_input` too when the default probe `{"question": "Hi. Reply with one word."}` does not pass your schema, so `evalkit harness check` can run. See [Input schema](case-schema.md#input-schema).
+
 ## Already have a harness? Keep it
 
 A harness that already emits OpenTelemetry traces can skip the trajectory endpoint: create the agent with `--trajectory-source otel --mapping FILE` and export spans to the collector with the run id it returned from `POST /runs` in the attribute the mapping's `session_id` rule names (`session.id` for OpenInference, `gen_ai.conversation.id` for GenAI). Everything else stays: server runs, `evalkit run`, the Workspace tab. The harness declares `provides.trajectory: false`. See [Tracing](tracing.md).
