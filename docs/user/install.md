@@ -20,10 +20,10 @@ uv tool install --reinstall "evalkit-py==$(curl -fsSL {{origin}}/api/cli | jq -r
 
 ## The CLI, inside a project
 
-To keep evalkit out of your global tools, add it to a uv project and run it with `uv run`. Add the `server` extra if you also run the server from there:
+To keep evalkit out of your global tools, add it to a uv project and run it with `uv run`. The CLI needs no extra; add `otel` if the same project uses `tracing.register` or SDK runs, and `server` if you also run the server from there:
 
 ```bash
-uv add "evalkit-py[otel]=={{version}}"
+uv add "evalkit-py=={{version}}"
 uv run evalkit --help
 ```
 
@@ -58,7 +58,7 @@ cd evalkit-try && evalkit serve
 
 ## The skills
 
-The skills teach a coding agent to write cases, connect traces and run evals. Copy them into your repo:
+The skills teach a coding agent to write cases, connect traces and run evals. Copy them into your repo, from the repo root:
 
 ```bash
 evalkit skills install
