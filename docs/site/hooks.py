@@ -55,4 +55,7 @@ def on_post_page(output: str, page, config) -> str:
     alias = os.environ.get("DOCS_ROOT_ALIAS")
     if not alias:
         return output
-    return CONFIG_BASE.sub(lambda match: f'{match[1]}/{alias}/"', output, count=1)
+    output, count = CONFIG_BASE.subn(lambda match: f'{match[1]}/{alias}/"', output, count=1)
+    if not count:
+        raise ValueError(f"no __config base to point at {alias}/ in {page.file.src_uri}")
+    return output
