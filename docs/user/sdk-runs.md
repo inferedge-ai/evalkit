@@ -141,7 +141,9 @@ An admin sets the default judge with `evalkit judge-default set`. Either way, th
 
 A code-driven agent has no `GET /capabilities`, so evalkit writes its capabilities onto each experiment itself: `trajectory`, `tool_calls`, `token_usage` and `run_listing` are true; `thinking`, `artifacts` and `workspace` are false. Evaluators gated on a capability skip when it is false. evalkit does not read capabilities from the spans. Set `provides` on the agent (`evalkit agents create --provides`, or `evalkit agents edit`) to declare what it really does, for example `thinking: true` when its spans carry the model's reasoning. Declare only what works: a false `true` produces failing scores blamed on the agent.
 
-The agent's input schema is the default (a required string `question`) unless you set one with `evalkit agents create --input-schema` or `evalkit agents edit --input-schema`. Every case input must pass it, in a dry run too; see [Input schema](case-schema.md#input-schema).
+## Input schema
+
+Every case input must pass the code-driven agent's input schema, in a dry run too. The schema is the agent's `input_schema` setting: set it with `evalkit agents create --input-schema schema.json` or `evalkit agents edit --input-schema schema.json`. Without one, the default applies: an object with a required string `question`. [Input schema](case-schema.md#input-schema) shows the default and a multi-turn example.
 
 ## Python evaluators
 
