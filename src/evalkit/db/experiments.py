@@ -389,7 +389,12 @@ async def tenant_of_experiment(
 
 async def experiment_of_run(session: AsyncSession, experiment_run_id: int) -> int | None:
     return await session.scalar(
-        select(models.ExperimentRun.experiment_id).where(
-            models.ExperimentRun.id == experiment_run_id
+        select(models.ExperimentRun.experiment_id)
+        .join(models.Experiment, models.Experiment.id == models.ExperimentRun.experiment_id)
+        .join(models.Dataset, models.Dataset.id == models.Experiment.dataset_id)
+        .join(models.Workspace, models.Workspace.id == models.Dataset.workspace_id)
+        .where(
+            models.ExperimentRun.id == experiment_run_id,
+            models.Workspace.tenant_id == _tenant_of(session),
         )
     )

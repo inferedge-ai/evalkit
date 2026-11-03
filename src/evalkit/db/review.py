@@ -247,19 +247,34 @@ class ReviewLog:
         assert case_id is not None
         return await self._comment(session, row, slug(Reference(name, workspace)), case_id)
 
+    async def _comment_in_tenant(
+        self, session: AsyncSession, comment_id: int
+    ) -> models.CaseComment | None:
+        return await session.scalar(
+            select(models.CaseComment)
+            .join(models.Dataset, models.Dataset.id == models.CaseComment.dataset_id)
+            .join(models.Workspace, models.Workspace.id == models.Dataset.workspace_id)
+            .where(
+                models.CaseComment.id == comment_id,
+                models.Workspace.tenant_id == self._tenant_id,
+            )
+        )
+
     async def get_comment(self, comment_id: int) -> CaseComment | None:
         async with self._session() as session:
-            row = await session.get(models.CaseComment, comment_id)
+            row = await self._comment_in_tenant(session, comment_id)
             return None if row is None else await self._describe(session, row)
 
     async def set_resolved(self, comment_id: int, resolved: bool) -> CaseComment:
         async with self._session() as session:
+            if await self._comment_in_tenant(session, comment_id) is None:
+                raise KeyError(f"unknown comment: {comment_id}")
             await session.execute(
                 update(models.CaseComment)
                 .where(models.CaseComment.id == comment_id)
                 .values(resolved=resolved)
             )
             await session.commit()
-            row = await session.get(models.CaseComment, comment_id)
+            row = await self._comment_in_tenant(session, comment_id)
             assert row is not None
             return await self._describe(session, row)
