@@ -104,7 +104,7 @@ async def test_request_review_by_selection(env):
         json={"selection": {"case_ids": ["case-1"]}, "reviewer": "sme"},
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json() == {"requested": ["case-1"]}
+    assert resp.json() == {"requested": ["case-1"], "already_requested": []}
     loaded = await ctx.review.load(
         "finance@canonical",
         [CaseVersion("case-1", hashes["case-1"]), CaseVersion("case-2", hashes["case-2"])],
@@ -113,6 +113,14 @@ async def test_request_review_by_selection(env):
     assert loaded["case-1"].requested_to == "sme"
     assert loaded["case-1"].last_event.actor == "alice"
     assert loaded["case-2"].state() is CaseState.UNREVIEWED
+
+    again = await clients["alice"].post(
+        f"{BASE}/review-requests",
+        json={"selection": {"case_ids": ["case-1"]}, "reviewer": "sme"},
+    )
+    assert again.json() == {"requested": [], "already_requested": ["case-1"]}
+    history = await ctx.review.history("finance@canonical", "case-1")
+    assert [e.kind for e in history].count(CaseEventKind.REVIEW_REQUESTED) == 1
 
     bad = await clients["alice"].post(
         f"{BASE}/review-requests",
@@ -225,6 +233,10 @@ async def test_queue_filters_by_reviewer_and_current_state(env):
 
 async def test_queue_can_list_changes_requested(env):
     clients, *_ = env
+    await clients["alice"].post(
+        f"{BASE}/review-requests",
+        json={"selection": {"case_ids": ["case-1"]}, "reviewer": "sme"},
+    )
     await clients["sme"].post(
         f"{BASE}/cases/case-1/review",
         json={"action": "request_changes", "comment": "anchor the date"},
@@ -236,8 +248,8 @@ async def test_queue_can_list_changes_requested(env):
     changes = (
         await clients["alice"].get("/api/review/queue", params={"state": "changes_requested"})
     ).json()
-    assert [(i["case_id"], i["requested_by"], i["requested_to"]) for i in changes["items"]] == [
-        ("case-1", "sme", None)
+    assert [(i["case_id"], i["requested_by"], i["author"]) for i in changes["items"]] == [
+        ("case-1", "sme", "alice")
     ]
     waiting = (await clients["alice"].get("/api/review/queue")).json()
     assert [i["case_id"] for i in waiting["items"]] == ["case-2"]

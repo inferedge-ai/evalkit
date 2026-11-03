@@ -61,7 +61,7 @@ sequenceDiagram
   Au->>Au: edit the case, merge PR
   CI->>S: evalkit sync datasets/finance --workspace dev
   S->>S: content changed → "synced" event<br/>open review → re-requested at the new content (same reviewer)<br/>approved → Unreviewed
-  S-->>CI: "… still under review: c (R)" / "… now unreviewed: c"
+  S-->>CI: "… back in review: c (R)" / "… now unreviewed: c"
   Any->>S: run finance@dev against a shared agent (flow 06)
   S->>S: every selected case runs, whatever its review state
 ```

@@ -10,6 +10,7 @@ from pathlib import Path
 
 import httpx
 import typer
+import yaml
 from dotenv import load_dotenv
 
 from evalkit import version
@@ -424,7 +425,8 @@ def _sync_and_report(
         )
     if review.get("carried"):
         typer.echo(
-            f"{len(review['carried'])} case(s) updated and still under review: "
+            f"{len(review['carried'])} case(s) updated and back in review "
+            "(no need to run `review request` again): "
             + ", ".join(f"{c['case_id']} ({c['reviewer']})" for c in review["carried"])
         )
 
@@ -1276,6 +1278,14 @@ def _fmt_comment(comment: dict, *, indent: int) -> str:
     return f"{head}\n{pad}{comment['body']}"
 
 
+def _case_yaml(case: dict) -> str:
+    fields = {"id": case["case_id"], "input": case["input"], "expected": case.get("expected")}
+    fields |= {"evaluators": case.get("evaluators") or None, "tags": case.get("tags") or None}
+    return yaml.safe_dump(
+        {k: v for k, v in fields.items() if v is not None}, sort_keys=False, allow_unicode=True
+    )
+
+
 def _post_decision(dataset: str, case_id: str, action: str, comment: str | None) -> None:
     body = {"action": action, "comment": comment}
     result = _client().post(f"{_case_path(dataset, case_id)}/review", json=body).json()
@@ -1300,14 +1310,20 @@ def review_request(
         _client().post(f"/api/datasets/{_dataset_ref(dataset)}/review-requests", json=body).json()
     )
     typer.echo(f"requested review from {reviewer} on {len(requested['requested'])} case(s)")
+    if requested["already_requested"]:
+        typer.echo(
+            f"{len(requested['already_requested'])} case(s) already waiting on {reviewer}, "
+            "left as is: " + ", ".join(requested["already_requested"])
+        )
 
 
 @review_app.command("show")
 def review_show(
     dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
     case_id: str = typer.Argument(None, help="Case id; omit to list every case's state."),
+    as_yaml: bool = typer.Option(False, "--yaml", help="Print only the case as YAML."),
 ):
-    """Show review state for a dataset, or state, changelog and comments for one case.
+    """Show review state for a dataset, or the case, state, changelog and comments for one case.
 
     Example: evalkit review show finance us10k-conv-04
     """
@@ -1324,6 +1340,11 @@ def review_show(
     match = next((ex for ex in rows if ex["case_id"] == case_id), None)
     if match is None:
         raise ApiError(f"unknown case: {case_id}")
+    case_yaml = _case_yaml(match)
+    if as_yaml:
+        typer.echo(case_yaml, nl=False)
+        return
+    typer.echo(case_yaml)
     review = match.get("review") or {}
     typer.echo(f"state: {review.get('state', '-')}")
     if review.get("requested_to"):
@@ -1372,14 +1393,17 @@ def review_request_changes(
 def review_comment(
     dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
     case_id: str = typer.Argument(..., help="Case id."),
-    text: str = typer.Argument(..., help="Comment body."),
+    text: str = typer.Argument(None, help="Comment body."),
+    comment: str = typer.Option(None, "--comment", help="Comment body, instead of TEXT."),
     reply_to: int = typer.Option(None, "--reply-to", help="Comment id to reply to."),
 ):
     """Comment on a case, or reply to a comment.
 
-    Example: evalkit review comment finance us10k-conv-04 "which fiscal year?"
+    Example: evalkit review comment finance us10k-conv-04 --comment "which fiscal year?"
     """
-    body = {"body": text, "parent_id": reply_to}
+    if (text is None) == (comment is None):
+        raise ApiError("pass the comment as TEXT or --comment, exactly one")
+    body = {"body": text if comment is None else comment, "parent_id": reply_to}
     stored = _client().post(f"{_case_path(dataset, case_id)}/comments", json=body).json()
     typer.echo(f"comment {stored['id']} on {case_id}")
 
@@ -1426,7 +1450,8 @@ def review_queue(
         typer.echo("nothing waiting")
         return
     for item in items:
+        to = item["author"] if changes_requested else item["requested_to"]
         typer.echo(
             f"{item['dataset']:<20} {item['case_id']:<40} by {item['requested_by']:<16} "
-            f"to {item['requested_to'] or '-':<16} {item['input'][:60]}"
+            f"to {to or '-':<16} {item['input'][:60]}"
         )

@@ -100,9 +100,13 @@ class ReviewLog:
             for ref, row in latest.decisive.items():
                 [event] = await self._events(session, dataset, ids[ref], [row])
                 reviews[ids[ref]].last_event = event
-            names = await _usernames(session, set(latest.requested_to.values()))
+            names = await _usernames(
+                session, set(latest.requested_to.values()) | set(latest.requested_by.values())
+            )
         for ref, target in latest.requested_to.items():
             reviews[ids[ref]].requested_to = names[target]
+        for ref, actor in latest.requested_by.items():
+            reviews[ids[ref]].requested_by = names[actor]
         return reviews
 
     async def latest_hashes(self, dataset: str, case_ids: list[str]) -> dict[str, str]:

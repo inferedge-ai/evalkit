@@ -785,7 +785,7 @@ def test_review_request_show_and_approve(env):
     assert "case-2" in queue.output
 
     commented = runner.invoke(
-        cli_app, ["review", "comment", "finance@canonical", "case-2", "looks fine"]
+        cli_app, ["review", "comment", "finance@canonical", "case-2", "--comment", "looks fine"]
     )
     assert commented.exit_code == 0, commented.output
     comment_id = re.search(r"comment (\d+)", commented.output).group(1)
@@ -805,11 +805,16 @@ def test_review_request_show_and_approve(env):
     detail = runner.invoke(cli_app, ["review", "show", "finance@canonical", "case-2"])
     assert detail.exit_code == 0, detail.output
     assert "state: approved" in detail.output
+    assert "id: case-2" in detail.output
     assert "looks fine" in detail.output and "[resolved]" in detail.output
     assert "review_requested" in detail.output and "approved" in detail.output
 
     empty = runner.invoke(cli_app, ["review", "queue"])
     assert "nothing waiting" in empty.output
+
+    only_yaml = runner.invoke(cli_app, ["review", "show", "finance@canonical", "case-2", "--yaml"])
+    assert only_yaml.exit_code == 0, only_yaml.output
+    assert only_yaml.output.startswith("id: case-2\n") and "changelog" not in only_yaml.output
 
 
 def test_lint_agent_with_offline_is_a_usage_error(tmp_path):

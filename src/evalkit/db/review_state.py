@@ -11,6 +11,7 @@ from evalkit.db import models
 class LatestEvents:
     decisive: dict[int, models.CaseEvent] = field(default_factory=dict)
     requested_to: dict[int, int] = field(default_factory=dict)
+    requested_by: dict[int, int] = field(default_factory=dict)
 
 
 async def _latest(
@@ -47,4 +48,5 @@ async def latest_events(
         requested_to={
             ref: event.target_id for ref, event in requests.items() if event.target_id is not None
         },
+        requested_by={ref: event.actor_id for ref, event in requests.items()},
     )
