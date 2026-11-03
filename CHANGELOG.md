@@ -11,6 +11,12 @@
   `runner.evaluation_concurrency: 4` into the `config.yaml` it creates, with
   a comment naming the server defaults, so several local servers can share
   one Postgres.
+- The Install page shows how to run the CLI from inside a uv project
+  (`uv add "evalkit-py==…"`, then `uv run evalkit`), how to get the
+  skills (`evalkit skills install`, and where the span mappings land), and
+  that `skills install` records its target in `~/.evalkit/skills-targets`.
+  The server install lines on Install and Try locally now pin the version,
+  and Workspaces shows `evalkit users add`.
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of
   a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch
