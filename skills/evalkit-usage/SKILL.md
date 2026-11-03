@@ -355,7 +355,8 @@ Harness API page has the full table.
 
 | You want to | Command |
 |---|---|
-| See what datasets exist and their versions | `evalkit datasets list` |
+| See what datasets exist and their versions | `evalkit datasets list` (`--workspace dev` for one workspace) |
+| See one dataset's last sync, case count and review progress | `evalkit datasets show <dataset>` |
 | List a dataset's cases with review state, tags and fixtures (to pick `--case-id`s) | `evalkit datasets list <dataset>` (`--state`, `--tag`) |
 | Check case YAML before pushing | `evalkit lint` |
 | Check case inputs against an agent's `input_schema` (on demand, not CI) | `evalkit lint <dir> --agent <name>` |
@@ -471,7 +472,8 @@ it. Nothing else reaches the target:
 Both case pages show the twin: on the source, "prod: same version · approved
 …" / "ahead of prod" / "not in prod"; on the target, "newer in dev" / "removed
 in dev". The `twin` field on `GET /api/datasets/<ref>/cases` carries the same
-information. `evalkit workspaces list` shows the link; `promote-to <source>
+information. `evalkit workspaces list` shows the link (`promotes to prod` on
+the source row, `promoted from dev` on the target row); `promote-to <source>
 --none` clears it. One target per source, one source per target, no chains.
 
 Commands, in the order a case usually moves: `evalkit review request` →
