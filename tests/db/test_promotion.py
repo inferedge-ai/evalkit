@@ -19,7 +19,7 @@ async def world(session_factory) -> World:
 
 
 async def _dev_case(s, world: World):
-    dataset = await get_dataset(s, "dev", "finance")
+    dataset = await get_dataset(s, 1, "dev", "finance")
     [case] = await current_cases(s, dataset)
     return dataset, case
 
@@ -72,7 +72,7 @@ async def test_execute_promotion_moves_pointer_events_and_overlays(session_facto
         sync_id = await execute_promotion(s, plan, actor_id=world.akshat_id, event_id=1)
         await s.commit()
 
-        prod = await get_dataset(s, "prod", "finance")
+        prod = await get_dataset(s, 1, "prod", "finance")
         [promoted] = await current_cases(s, prod)
         assert promoted.content_hash == case.content_hash
         assert promoted.review_state == "approved"
@@ -119,7 +119,9 @@ async def test_twin_status_both_sides(session_factory, world):
         await sync(s, world.dev, world.admin_id, [incoming("q-1"), incoming("q-2")])
         await create_dataset(s, world.prod, "finance")
         dev, _ = (
-            await _dev_case(s, world) if False else (await get_dataset(s, "dev", "finance"), None)
+            await _dev_case(s, world)
+            if False
+            else (await get_dataset(s, 1, "dev", "finance"), None)
         )
         dev_cases = await current_cases(s, dev)
         status = await twin_status(s, world.dev, dev, dev_cases)
@@ -135,7 +137,7 @@ async def test_twin_status_both_sides(session_factory, world):
         assert status["q-1"]["review"]["state"] == "approved"
         assert status["q-2"]["state"] == "absent"
 
-        prod = await get_dataset(s, "prod", "finance")
+        prod = await get_dataset(s, 1, "prod", "finance")
         prod_cases = await current_cases(s, prod)
         back = await twin_status(s, world.prod, prod, prod_cases)
         assert back["q-1"]["state"] == "same" and back["q-1"]["workspace"] == "dev"

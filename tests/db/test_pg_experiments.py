@@ -16,10 +16,11 @@ from evalkit.db.experiments import (
     transition,
     transition_stale,
 )
-from evalkit.db.models import Case, ExperimentCase
+from evalkit.db.models import Case, ExperimentCase, Tenant
 from evalkit.db.models import Experiment as ExperimentRow
 from evalkit.db.runs import record_run
-from evalkit.db.session import downgrade_migrations, run_migrations
+from evalkit.db.session import ALL_TENANTS, downgrade_migrations, run_migrations, tenant_session
+from evalkit.db.store import PgStore
 from evalkit.store.base import (
     AgentRunRecord,
     Conflict,
@@ -62,7 +63,7 @@ async def world(session_factory) -> World:
 
 
 async def new(s, dataset="finance@dev", agent="ouragent@dev", cases=("q-1",), holder="pod-a"):
-    row = await dataset_by_ref(s, dataset)
+    row = await dataset_by_ref(s, 1, dataset)
     current = dict(await current_versions(s, row.id))
     refs = dict((await s.execute(select(Case.case_id, Case.id))).all())
     return NewExperiment(
@@ -324,3 +325,16 @@ async def test_migration_0014_moves_a_stored_tag_into_tags(session_factory, worl
     await asyncio.to_thread(run_migrations, db_url)
     after = await _selection_of(session_factory, exp.id)
     assert after == {"all": False, "tags": ["fy24"], "case_ids": None}
+
+
+async def test_experiment_by_id_is_not_found_from_another_tenant(
+    session_factory, raw_session_factory, world
+):
+    async with session_factory() as s:
+        exp = await create_experiment(s, await new(s))
+        await s.commit()
+    async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
+        s.add(Tenant(id=2, name="other"))
+        await s.commit()
+    with pytest.raises(UnknownExperiment):
+        await PgStore(raw_session_factory, 2).get_experiment(exp.id)

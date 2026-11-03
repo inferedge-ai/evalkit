@@ -55,7 +55,7 @@ async def test_server_refuses_to_start_with_sources_but_no_key(tmp_path, session
         "phx", TraceProvider.PHOENIX, "u", "pk"
     )
     cfg = make_cfg(tmp_path).model_copy(update={"encryption_key": None})
-    store = PgStore(session_factory)
+    store = PgStore(session_factory, 1)
     app = create_app(
         cfg,
         runner_deps=RunnerDeps(

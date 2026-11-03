@@ -1099,12 +1099,12 @@ def _seed_canonical(url: str, dataset: str) -> None:
     async def seed():
         factory = make_session_factory(url)
         async with factory() as session:
-            await record_blob(session, digest, 1, None)
+            await record_blob(session, 1, digest, 1, None)
             await session.commit()
         canonical = await WorkspaceStore(factory, 1).get_by_name("canonical")
         admin = {u.username: u.id for u in await UserStore(factory, 1).list()}["admin"]
         doc = CaseFile(key="doc.pdf", sha256=digest, context="c")
-        await PgStore(factory).sync(
+        await PgStore(factory, 1).sync(
             workspace=canonical,
             dataset=dataset,
             kind=DatasetKind.SUITE,

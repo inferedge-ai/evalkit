@@ -98,7 +98,7 @@ class ReviewLog:
             v.case_id: CaseReview.unreviewed(dataset, v.case_id, v.content_hash) for v in versions
         }
         async with self._session() as session:
-            dataset_id = (await dataset_by_ref(session, dataset)).id
+            dataset_id = (await dataset_by_ref(session, self._tenant_id, dataset)).id
             refs = await _case_refs(session, self._tenant_id, [v.case_id for v in versions])
             ids = {ref: case_id for case_id, ref in refs.items()}
             latest = await latest_events(
@@ -122,7 +122,7 @@ class ReviewLog:
         if not case_ids:
             return {}
         async with self._session() as session:
-            dataset_id = (await dataset_by_ref(session, dataset)).id
+            dataset_id = (await dataset_by_ref(session, self._tenant_id, dataset)).id
             rows = await session.execute(
                 select(models.Case.case_id, models.DatasetCase.content_hash)
                 .join(models.Case, models.Case.id == models.DatasetCase.case_ref)
@@ -144,7 +144,7 @@ class ReviewLog:
         )
         rows: list[models.CaseEvent] = []
         for event in events:
-            dataset_id = (await dataset_by_ref(session, event.dataset)).id
+            dataset_id = (await dataset_by_ref(session, self._tenant_id, event.dataset)).id
             row = models.CaseEvent(
                 dataset_id=dataset_id,
                 case_ref=refs[event.case_id],
@@ -161,7 +161,7 @@ class ReviewLog:
     async def _comment_row(
         self, session: AsyncSession, comment: NewCaseComment
     ) -> models.CaseComment:
-        dataset_id = (await dataset_by_ref(session, comment.dataset)).id
+        dataset_id = (await dataset_by_ref(session, self._tenant_id, comment.dataset)).id
         refs = await _case_refs(session, self._tenant_id, [comment.case_id])
         users = await _user_ids(session, self._tenant_id, {comment.author})
         return models.CaseComment(
@@ -196,7 +196,7 @@ class ReviewLog:
 
     async def history(self, dataset: str, case_id: str) -> list[CaseEvent]:
         async with self._session() as session:
-            dataset_id = (await dataset_by_ref(session, dataset)).id
+            dataset_id = (await dataset_by_ref(session, self._tenant_id, dataset)).id
             rows = (
                 await session.scalars(
                     select(models.CaseEvent)
@@ -211,7 +211,7 @@ class ReviewLog:
 
     async def comments(self, dataset: str, case_id: str) -> list[CaseComment]:
         async with self._session() as session:
-            dataset_id = (await dataset_by_ref(session, dataset)).id
+            dataset_id = (await dataset_by_ref(session, self._tenant_id, dataset)).id
             rows = (
                 await session.scalars(
                     select(models.CaseComment)

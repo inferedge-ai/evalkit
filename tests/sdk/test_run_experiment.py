@@ -133,7 +133,7 @@ class Server:
 
     async def _with_store(self, work):
         factory = make_session_factory(self.db_url)
-        result = await work(PgStore(factory), factory)
+        result = await work(PgStore(factory, 1), factory)
         await factory.kw["bind"].dispose()
         return result
 

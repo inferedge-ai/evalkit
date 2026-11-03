@@ -195,7 +195,7 @@ async def put_fixture(env: Env, data: bytes = FILE_BYTES, key: str = "bs.csv") -
     digest = hashlib.sha256(data).hexdigest()
     await env.blob.put_object(fixture_blob_key(digest), data)
     async with env.session_factory() as s:
-        await record_blob(s, digest, len(data), env.user_ids["admin"])
+        await record_blob(s, 1, digest, len(data), env.user_ids["admin"])
         await s.commit()
     return CaseFile(key=key, sha256=digest, context="Balance sheet.")
 
@@ -214,7 +214,7 @@ async def seed_env(
     await seed_agent(session_factory, "fake", "akshat")
     await seed_evaluators(session_factory)
     user_ids = {u.username: u.id for u in await UserStore(session_factory, 1).list()}
-    store = PgStore(session_factory)
+    store = PgStore(session_factory, 1)
     blob_store = blob or DictBlobStore()
     deps = RunnerDeps(
         cfg=make_cfg(tmp_path),

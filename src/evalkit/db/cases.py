@@ -53,9 +53,11 @@ async def _last_syncs(session: AsyncSession, dataset_ids: list[int]) -> dict[int
     return {row.dataset_id: _sync_view(row, actor) for row, actor in rows}
 
 
-def _dataset_query():
-    return select(models.Dataset, models.Workspace).join(
-        models.Workspace, models.Workspace.id == models.Dataset.workspace_id
+def _dataset_query(tenant_id: int):
+    return (
+        select(models.Dataset, models.Workspace)
+        .join(models.Workspace, models.Workspace.id == models.Dataset.workspace_id)
+        .where(models.Workspace.tenant_id == tenant_id)
     )
 
 
@@ -75,31 +77,41 @@ async def _rows(session: AsyncSession, query) -> list[DatasetRow]:
     ]
 
 
-async def get_dataset(session: AsyncSession, workspace: str, name: str) -> DatasetRow:
+async def get_dataset(
+    session: AsyncSession, tenant_id: int, workspace: str, name: str
+) -> DatasetRow:
     rows = await _rows(
         session,
-        _dataset_query().where(models.Workspace.name == workspace, models.Dataset.name == name),
+        _dataset_query(tenant_id).where(
+            models.Workspace.name == workspace, models.Dataset.name == name
+        ),
     )
     if not rows:
         raise UnknownDataset(f"{name}@{workspace}")
     return rows[0]
 
 
-async def dataset_by_ref(session: AsyncSession, ref: str) -> DatasetRow:
+async def dataset_by_ref(session: AsyncSession, tenant_id: int, ref: str) -> DatasetRow:
     parsed = parse_slug(ref)
-    return await get_dataset(session, parsed.workspace, parsed.name)
+    return await get_dataset(session, tenant_id, parsed.workspace, parsed.name)
 
 
-async def find_dataset_row(session: AsyncSession, workspace: str, name: str) -> DatasetRow | None:
+async def find_dataset_row(
+    session: AsyncSession, tenant_id: int, workspace: str, name: str
+) -> DatasetRow | None:
     rows = await _rows(
         session,
-        _dataset_query().where(models.Workspace.name == workspace, models.Dataset.name == name),
+        _dataset_query(tenant_id).where(
+            models.Workspace.name == workspace, models.Dataset.name == name
+        ),
     )
     return rows[0] if rows else None
 
 
-async def list_datasets(session: AsyncSession, workspace: str | None = None) -> list[DatasetRow]:
-    query = _dataset_query().where(models.Dataset.archived_at.is_(None))
+async def list_datasets(
+    session: AsyncSession, tenant_id: int, workspace: str | None = None
+) -> list[DatasetRow]:
+    query = _dataset_query(tenant_id).where(models.Dataset.archived_at.is_(None))
     if workspace is not None:
         query = query.where(models.Workspace.name == workspace)
     return await _rows(
@@ -110,33 +122,43 @@ async def list_datasets(session: AsyncSession, workspace: str | None = None) -> 
     )
 
 
-async def case_ref_for(session: AsyncSession, case_id: str) -> int:
+async def case_ref_for(session: AsyncSession, tenant_id: int, case_id: str) -> int:
     await session.execute(
         insert(models.Case)
-        .values(case_id=case_id)
-        .on_conflict_do_nothing(index_elements=["case_id"])
+        .values(tenant_id=tenant_id, case_id=case_id)
+        .on_conflict_do_nothing(index_elements=["tenant_id", "case_id"])
     )
-    found = await session.scalar(select(models.Case.id).where(models.Case.case_id == case_id))
+    found = await session.scalar(
+        select(models.Case.id).where(
+            models.Case.tenant_id == tenant_id, models.Case.case_id == case_id
+        )
+    )
     assert found is not None
     return found
 
 
-async def case_refs_for(session: AsyncSession, case_ids: list[str]) -> dict[str, int]:
+async def case_refs_for(
+    session: AsyncSession, tenant_id: int, case_ids: list[str]
+) -> dict[str, int]:
     if not case_ids:
         return {}
     unique = list(dict.fromkeys(case_ids))
     await session.execute(
         insert(models.Case)
-        .values([{"case_id": case_id} for case_id in unique])
-        .on_conflict_do_nothing(index_elements=["case_id"])
+        .values([{"tenant_id": tenant_id, "case_id": case_id} for case_id in unique])
+        .on_conflict_do_nothing(index_elements=["tenant_id", "case_id"])
     )
     rows = await session.execute(
-        select(models.Case.case_id, models.Case.id).where(models.Case.case_id.in_(unique))
+        select(models.Case.case_id, models.Case.id).where(
+            models.Case.tenant_id == tenant_id, models.Case.case_id.in_(unique)
+        )
     )
     return {case_id: ref for case_id, ref in rows.all()}
 
 
-async def store_versions(session: AsyncSession, versions: list[tuple[int, IncomingCase]]) -> None:
+async def store_versions(
+    session: AsyncSession, tenant_id: int, versions: list[tuple[int, IncomingCase]]
+) -> None:
     if not versions:
         return
     await session.execute(
@@ -158,6 +180,7 @@ async def store_versions(session: AsyncSession, versions: list[tuple[int, Incomi
     )
     files = [
         {
+            "tenant_id": tenant_id,
             "case_ref": case_ref,
             "content_hash": case.content_hash,
             "key": file.key,
@@ -176,8 +199,10 @@ async def store_versions(session: AsyncSession, versions: list[tuple[int, Incomi
         )
 
 
-async def store_version(session: AsyncSession, case_ref: int, case: IncomingCase) -> None:
-    await store_versions(session, [(case_ref, case)])
+async def store_version(
+    session: AsyncSession, tenant_id: int, case_ref: int, case: IncomingCase
+) -> None:
+    await store_versions(session, tenant_id, [(case_ref, case)])
 
 
 async def _carry_or_reset(
@@ -224,11 +249,11 @@ class DatasetExists(ValueError):
 
 async def create_dataset(session: AsyncSession, workspace: WorkspaceRef, name: str) -> DatasetRow:
     check_name(name)
-    if await find_dataset_row(session, workspace.name, name) is not None:
+    if await find_dataset_row(session, workspace.tenant_id, workspace.name, name) is not None:
         raise DatasetExists(f"{name}@{workspace.name}")
     session.add(models.Dataset(workspace_id=workspace.id, name=name, kind=DatasetKind.SUITE.value))
     await session.flush()
-    return await get_dataset(session, workspace.name, name)
+    return await get_dataset(session, workspace.tenant_id, workspace.name, name)
 
 
 async def ensure_dataset(
@@ -258,7 +283,7 @@ async def _usernames(session: AsyncSession, ids: set[int]) -> dict[int, str]:
 
 
 async def _replace_overlays(
-    session: AsyncSession, dataset_id: int, overlays: list[IncomingOverlay]
+    session: AsyncSession, tenant_id: int, dataset_id: int, overlays: list[IncomingOverlay]
 ) -> int:
     await session.execute(
         delete(models.Overlay).where(models.Overlay.source_dataset_id == dataset_id)
@@ -268,7 +293,8 @@ async def _replace_overlays(
         for case_id, ref in (
             await session.execute(
                 select(models.Case.case_id, models.Case.id).where(
-                    models.Case.case_id.in_({o.target_case_id for o in overlays})
+                    models.Case.tenant_id == tenant_id,
+                    models.Case.case_id.in_({o.target_case_id for o in overlays}),
                 )
             )
         ).all()
@@ -312,10 +338,10 @@ async def sync_dataset(
     session.add(sync)
     await session.flush()
     result = SyncResult(sync_id=sync.id, dataset_id=dataset_id)
-    refs = await case_refs_for(session, [case.case_id for case in cases])
+    refs = await case_refs_for(session, workspace.tenant_id, [case.case_id for case in cases])
     by_ref = {refs[case.case_id]: case for case in cases}
     incoming = set(by_ref)
-    await store_versions(session, list(by_ref.items()))
+    await store_versions(session, workspace.tenant_id, list(by_ref.items()))
     existing = {
         row.case_ref: row
         for row in (
@@ -413,7 +439,7 @@ async def sync_dataset(
                 .values(removed_at=datetime.now(UTC))
             )
             result.removed = sorted(case_id for _, case_id in stale)
-    result.overlays = await _replace_overlays(session, dataset_id, overlays)
+    result.overlays = await _replace_overlays(session, workspace.tenant_id, dataset_id, overlays)
     names = await _usernames(session, {target for _, target in carried})
     result.carried = [CarriedReview(case_id=c, reviewer=names.get(t, "")) for c, t in carried]
     sync.detail = {
