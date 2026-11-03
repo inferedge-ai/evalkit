@@ -152,7 +152,7 @@ def server_config(database_url: str, data_dir: Path, port: int) -> dict:
     data = yaml.safe_load((kit_root() / "config.yaml").read_text())
     data["server"]["base_url"] = local_url(port)
     data["db"] = {"url": database_url, **LOCAL_DB_POOL}
-    data["runner"] = LOCAL_RUNNER
+    data["runner"] = {**data.get("runner", {}), **LOCAL_RUNNER}
     data["blob"] = {"url": data_dir.resolve().as_uri()}
     return data
 
