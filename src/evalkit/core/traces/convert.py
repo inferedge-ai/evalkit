@@ -248,11 +248,13 @@ def _split(kept: list[EsfSpan]) -> _Split:
         (s for s in agents if not any(a.kind == "agent" for a in tree.ancestors(s))),
         key=lambda s: s.started_at,
     )
-    pinned = next((s for s in agents if s.agent_role == "main"), None)
-    main_root = pinned or original_root
+    pinned = sorted((s for s in agents if s.agent_role == "main"), key=lambda s: s.started_at)
+    main_root = pinned[0] if pinned else original_root
     if (main_root is None or main_root.kind != "agent") and top_agents:
         main_root = top_agents[0]
-    answer_root = pinned or original_root or (top_agents[-1] if top_agents else None)
+    answer_root = (
+        pinned[-1] if pinned else original_root or (top_agents[-1] if top_agents else None)
+    )
     nested_agent_ids = {s.span_id for s in agents if s is not main_root and _spawned(s, tree)}
     top_nested = [
         s

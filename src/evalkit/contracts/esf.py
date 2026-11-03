@@ -81,8 +81,8 @@ class SpanMatch(MappingModel):
     attribute: str | None = Field(default=None, description="A span attribute key to compare.")
     equals: Any | None = Field(
         default=None,
-        description="The value the attribute must hold. Leave out to match any span that has "
-        "the attribute.",
+        description='The value the attribute must hold, compared as text (1 matches "1"). '
+        "Leave out to match any span that has the attribute.",
     )
     scope: str | None = Field(
         default=None,

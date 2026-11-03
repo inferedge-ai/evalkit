@@ -431,3 +431,11 @@ def test_a_span_match_needs_a_field():
         MappingDocument.model_validate(
             {"schema_version": "1", "exclude_spans": [{"name": "x", "equals": 1}]}
         )
+
+
+def test_equals_compares_as_text():
+    doc = MappingDocument.model_validate(
+        {"schema_version": "1", "exclude_spans": [{"attribute": "n", "equals": "1"}]}
+    )
+    assert to_esf(raw({"n": 1}), doc).excluded
+    assert not to_esf(raw({"n": 2}), doc).excluded

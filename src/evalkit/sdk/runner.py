@@ -456,7 +456,8 @@ async def _session_summary(api: AsyncApi, path: str, session_id: str) -> str:
         f"mapping {f'v{version}' if version else 'built-in'}, "
         f"unmapped {', '.join(session.get('unmapped_attributes') or []) or 'none'}"
     )
-    return "\n".join([summary, *render_check(session)[0]])
+    problems = [line for line in render_check(session)[0] if line.lstrip()[0] in "!✗"]
+    return "\n".join([summary, *problems])
 
 
 async def _report_session(

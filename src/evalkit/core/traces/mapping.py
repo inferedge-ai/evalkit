@@ -62,7 +62,8 @@ def match_attributes(doc: MappingDocument) -> set[str]:
 def kind_attributes(active: MappingDocument | None) -> set[str]:
     docs = [active, SDK_ROOT_MAPPING]
     kinds = {d.kind.attribute for d in docs if d and d.kind}
-    return {SDK_ROOT_ATTRIBUTE} | kinds | (match_attributes(active) if active else set())
+    call_ids = {d.tool.call_id.attribute for d in docs if d and d.tool.call_id}
+    return {SDK_ROOT_ATTRIBUTE} | kinds | call_ids | (match_attributes(active) if active else set())
 
 
 def span_matches(match: str | SpanMatch, raw: RawSpan) -> bool:
@@ -76,7 +77,7 @@ def span_matches(match: str | SpanMatch, raw: RawSpan) -> bool:
         return True
     if match.attribute not in raw.attributes:
         return False
-    return match.equals is None or raw.attributes[match.attribute] == match.equals
+    return match.equals is None or str(raw.attributes[match.attribute]) == str(match.equals)
 
 
 def _matched(matches: list[str | SpanMatch], raw: RawSpan) -> bool:

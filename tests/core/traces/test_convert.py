@@ -480,3 +480,14 @@ def test_first_llm_spans_are_the_first_under_each_root_and_in_each_subagent():
         *turn(2, 5, u, "c"),
     ]
     assert [s.span_id for s in first_llm_spans(spans)] == ["l1", "l2"]
+
+
+def test_main_agent_matching_every_turn_takes_the_id_from_the_first_and_answer_from_the_last():
+    u = [EsfMessage(role="user", text="q")]
+    first, second = turn(1, 0, u, "early"), turn(2, 5, u, "late")
+    spans = [
+        *(s.model_copy(update={"agent_role": "main"}) if s.kind == "agent" else s for s in second),
+        *(s.model_copy(update={"agent_role": "main"}) if s.kind == "agent" else s for s in first),
+    ]
+    doc = convert(spans)
+    assert doc.trajectory_id == "trace1:turn1" and doc.steps[-1].message == "late"

@@ -123,7 +123,7 @@ More fields shape the trajectory:
 - `answer`: where the run's answer comes from: `root`, a span name, or `<span name>.<output key>`. Default `root`.
 - `exclude_spans`: spans left out of the trajectory. Default none.
 - `rekind_spans`: spans that get another kind than the `kind` rule gives, e.g. `{"name": "agent", "kind": "chain"}` for a graph node tagged AGENT that is only a step. The first match wins.
-- `main_agent`: the agent span whose answer and id the trajectory carries, when evalkit picks the wrong one.
+- `main_agent`: the agent span whose answer and id the trajectory carries, when evalkit picks the wrong one. When it matches several spans (one per chat turn), the earliest gives the id and the latest the answer.
 - `subagent_spans`: agent spans to keep as subagent trajectories even though no tool span starts them.
 
 Each entry is a span match:
@@ -133,7 +133,7 @@ Each entry is a span match:
 | `"OpenAILike.*"` | its name matches the glob |
 | `{"name": G}` | its name matches the glob `G` |
 | `{"attribute": K}` | it has attribute `K` |
-| `{"attribute": K, "equals": V}` | attribute `K` holds `V` |
+| `{"attribute": K, "equals": V}` | attribute `K` holds `V`, compared as text (`1` matches `"1"`) |
 | `{"scope": G}` | its instrumentation scope name (e.g. `mcp`) matches the glob `G` |
 
 An object match may give several of `name`, `attribute` and `scope`; every one given must match.

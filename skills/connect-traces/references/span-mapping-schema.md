@@ -46,7 +46,8 @@ These fields apply to the whole run, not to one span:
 - `rekind_spans` (default empty): spans that get another `kind` than the kind
   rule gives. Each entry is a span match plus `kind`; the first match wins.
 - `main_agent` (default null): the agent span whose answer and id the
-  trajectory carries.
+  trajectory carries. When it matches several spans, the earliest gives the
+  id and the latest the answer.
 - `subagent_spans` (default empty): agent spans kept as subagent trajectories
   even when no tool span starts them. An agent span also becomes a subagent
   when it sits under a tool span, or when the `tool.call_id` rule reads a call
@@ -61,7 +62,7 @@ Each entry is a span match:
 | `"OpenAILike.*"` | its name matches the glob |
 | `{"name": G}` | its name matches the glob `G` |
 | `{"attribute": K}` | it has attribute `K` |
-| `{"attribute": K, "equals": V}` | attribute `K` holds `V` |
+| `{"attribute": K, "equals": V}` | attribute `K` holds `V`, compared as text (`1` matches `"1"`) |
 | `{"scope": G}` | its instrumentation scope name (e.g. `mcp`) matches the glob `G` |
 
 An object match may give several of `name`, `attribute` and `scope`; every one given must match.

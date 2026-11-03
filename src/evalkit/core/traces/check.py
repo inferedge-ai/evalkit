@@ -30,8 +30,7 @@ def _llm_steps(trajectory: dict) -> int:
     )
 
 
-def _root_line(spans: list[dict]) -> str:
-    root = next((s for s in spans if s["parent_id"] is None), None)
+def _root_line(spans: list[dict], root: dict | None) -> str:
     if root is not None:
         ended = "ended" if root["ended_at"] else "not ended"
         return _line("pass", "root", f'"{root["name"]}" ({root["kind"]}), {ended}')
@@ -114,6 +113,7 @@ def render_check(session: dict[str, Any]) -> tuple[list[str], bool]:
     esf = [s for s in spans if not s.get("excluded")]
     traces = {s["trace_id"] for s in spans}
     plural = "s" if len(traces) != 1 else ""
+    root = next((s for s in spans if s["parent_id"] is None), None)
     settled = "settled" if session["settled"] else "not settled yet"
     lines = [
         _line(
@@ -121,7 +121,7 @@ def render_check(session: dict[str, Any]) -> tuple[list[str], bool]:
             "session",
             f"{session['span_count']} spans in {len(traces)} trace{plural}, {settled}",
         ),
-        _root_line(spans),
+        _root_line(spans, root),
     ]
     version = session.get("mapping_version")
     lines.append(
@@ -153,4 +153,4 @@ def render_check(session: dict[str, Any]) -> tuple[list[str], bool]:
         lines += _shape_lines(llms, trajectory, every)
     else:
         lines.append(_line("fail", "trajectory", "no trajectory"))
-    return lines, any(s["parent_id"] is None for s in spans)
+    return lines, root is not None
