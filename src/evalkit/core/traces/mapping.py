@@ -138,7 +138,7 @@ _INDEXED = re.compile(r"^(\d+)\.(.*)$")
 
 
 def _normalize_role(value: Any) -> str:
-    role = str(value or "assistant")
+    role = str(value or "assistant").lower()
     return ROLE_ALIASES.get(role, role)
 
 

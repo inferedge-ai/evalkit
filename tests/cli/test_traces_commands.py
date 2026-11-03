@@ -315,13 +315,14 @@ def test_import_needs_exactly_one_of_a_session_or_since(srv, extra):
     assert result.exit_code == 2
 
 
-def test_render_check_warns_when_no_output_message_has_a_known_role():
+def test_render_check_warns_on_output_messages_with_unknown_roles():
     esf = [
-        {**span, "output_messages": [{"role": "robot", "text": "x"}]}
+        {**span, "output_messages": [{"role": "assistant", "text": "x"}, {"role": "robot"}]}
         if span["kind"] == "llm"
         else span
         for span in SESSION["esf"]
     ]
     lines, _ = render_check({**SESSION, "esf": esf})
     llm = next(line for line in lines if " llm " in line)
-    assert llm.startswith("  ! llm") and "no output message has a known role (saw robot)" in llm
+    assert llm.startswith("  ! llm")
+    assert "output messages with unknown roles are dropped (robot)" in llm

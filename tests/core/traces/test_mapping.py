@@ -348,7 +348,7 @@ def test_framework_roles_become_canonical_roles():
             ],
         },
         {"role": "function", "parts": [{"type": "tool_call_response", "id": "c1", "result": "1"}]},
-        {"role": "ai", "parts": [{"type": "text", "content": "Done."}]},
+        {"role": "AI", "parts": [{"type": "text", "content": "Done."}]},
     ]
     span = to_esf(
         raw({"gen_ai.operation.name": "chat", "gen_ai.output.messages": json.dumps(out)}),
