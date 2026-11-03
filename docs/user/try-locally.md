@@ -35,7 +35,7 @@ evalkit is on PyPI as `evalkit-py` and needs Python 3.12 or newer. Install it wi
 let `evalkit init-server` set up the rest:
 
 ```bash
-uv tool install "evalkit-py[server]"   # or: pip install "evalkit-py[server]"
+uv tool install "evalkit-py[server]=={{version}}"   # or: pip install "evalkit-py[server]=={{version}}"
 evalkit init-server
 cd evalkit-try
 evalkit serve

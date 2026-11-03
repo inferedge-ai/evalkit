@@ -52,6 +52,8 @@ your agent:
 An admin runs these once:
 
 ```bash
+evalkit users add alice                                 # prompts for a password; once per user
+evalkit users add bob
 evalkit workspaces create dev
 evalkit workspaces create prod
 evalkit workspaces promote-to dev prod                  # approvals in @dev land in @prod
