@@ -3,12 +3,11 @@ import hashlib
 import json
 import secrets
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from urllib.parse import parse_qs, urlencode
 
 import httpx
 import jwt
-from authlib.integrations.httpx_client._compat import httpx2
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import FastAPI, Request, Response
@@ -105,15 +104,6 @@ async def workspace_ref(
 
 
 FORM = "application/x-www-form-urlencoded"
-
-
-class IdpTransport(httpx.BaseTransport):
-    def __init__(self, handler: Callable[[httpx.Request], httpx.Response]) -> None:
-        self.handler = handler
-
-    def handle_request(self, request: httpx.Request) -> httpx.Response:
-        request.read()
-        return self.handler(request)
 
 
 class FakeIdp:
@@ -302,7 +292,6 @@ class FakeIdp:
         return 400, headers, b'{"error": "unsupported_grant_type"}'
 
     def _handle_httpx(self, request: httpx.Request) -> httpx.Response:
-        response_class = httpx2.Response if isinstance(request, httpx2.Request) else httpx.Response
         query = {k: v[0] for k, v in parse_qs(request.url.query.decode()).items()}
         form = (
             {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
@@ -316,10 +305,10 @@ class FakeIdp:
             form.setdefault("client_id", user)
             form.setdefault("client_secret", password)
         status, headers, body = self.handle(request.method, request.url.path, query, form)
-        return response_class(status, headers=headers, content=body)
+        return httpx.Response(status, headers=headers, content=body)
 
-    def transport(self) -> IdpTransport:
-        return IdpTransport(self._handle_httpx)
+    def transport(self) -> httpx.MockTransport:
+        return httpx.MockTransport(self._handle_httpx)
 
     def asgi(self) -> FastAPI:
         app = FastAPI()

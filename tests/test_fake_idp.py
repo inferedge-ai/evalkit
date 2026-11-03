@@ -1,10 +1,10 @@
-from urllib.parse import parse_qs, urlsplit
+import base64
+import hashlib
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import httpx
 import jwt
 import pytest
-from authlib.integrations.httpx_client import OAuth2Client
-from authlib.oauth2.rfc8628 import DEVICE_CODE_GRANT_TYPE
 
 from tests.identity import FakeIdp
 
@@ -31,57 +31,104 @@ def test_discovery_and_jwks(idp):
 
 def test_code_flow_with_pkce_and_refresh_rotation(idp):
     idp.next_login = ("sub-1", "ann@example.com", "ann")
-    client = OAuth2Client(
-        idp.client_id,
-        scope="openid email profile offline_access",
-        redirect_uri="http://127.0.0.1:1/callback",
-        code_challenge_method="S256",
-        transport=idp.transport(),
+    verifier = "v" * 43
+    challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     )
-    url, state = client.create_authorization_url(f"{idp.issuer}/authorize", code_verifier="v" * 43)
+    redirect_uri = "http://127.0.0.1:1/callback"
+    query = urlencode(
+        {
+            "client_id": idp.client_id,
+            "response_type": "code",
+            "redirect_uri": redirect_uri,
+            "scope": "openid email profile offline_access",
+            "state": "st-1",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+        }
+    )
+    token_url = f"{idp.issuer}/token"
     with httpx.Client(transport=idp.transport()) as http:
-        resp = http.get(url)
-    assert resp.status_code == 302
-    sent = parse_qs(urlsplit(resp.headers["location"]).query)
-    assert sent["state"] == [state]
-    tokens = client.fetch_token(f"{idp.issuer}/token", code=sent["code"][0], code_verifier="v" * 43)
-    assert set(tokens) >= {"access_token", "id_token", "refresh_token", "expires_in"}
-    idtok = jwt.decode(tokens["id_token"], options={"verify_signature": False})
-    assert idtok["email"] == "ann@example.com" and idtok["preferred_username"] == "ann"
-    first = tokens["refresh_token"]
-    rotated = client.refresh_token(f"{idp.issuer}/token", refresh_token=first)
-    assert rotated["refresh_token"] != first
-    with pytest.raises(Exception, match="invalid_grant"):
-        client.refresh_token(f"{idp.issuer}/token", refresh_token=first)
+
+        def exchange(code: str, code_verifier: str) -> httpx.Response:
+            return http.post(
+                token_url,
+                data={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                    "client_id": idp.client_id,
+                    "code_verifier": code_verifier,
+                },
+            )
+
+        def authorize() -> str:
+            resp = http.get(f"{idp.issuer}/authorize?{query}")
+            assert resp.status_code == 302
+            sent = parse_qs(urlsplit(resp.headers["location"]).query)
+            assert sent["state"] == ["st-1"]
+            return sent["code"][0]
+
+        bad = exchange(authorize(), "w" * 43)
+        assert bad.status_code == 400 and bad.json()["error"] == "invalid_grant"
+
+        resp = exchange(authorize(), verifier)
+        assert resp.status_code == 200
+        tokens = resp.json()
+        assert set(tokens) >= {"access_token", "id_token", "refresh_token", "expires_in"}
+        idtok = jwt.decode(tokens["id_token"], options={"verify_signature": False})
+        assert idtok["email"] == "ann@example.com" and idtok["preferred_username"] == "ann"
+        first = tokens["refresh_token"]
+
+        def refresh(token: str) -> httpx.Response:
+            return http.post(
+                token_url,
+                data={
+                    "grant_type": "refresh_token",
+                    "refresh_token": token,
+                    "client_id": idp.client_id,
+                },
+            )
+
+        rotated = refresh(first)
+        assert rotated.status_code == 200
+        assert rotated.json()["refresh_token"] != first
+        reused = refresh(first)
+        assert reused.status_code == 400 and reused.json()["error"] == "invalid_grant"
 
 
 def test_client_credentials_and_device_grant(idp):
     idp.machine_clients["ci"] = ("s3cret", "machine-sub")
-    client = OAuth2Client("ci", "s3cret", transport=idp.transport())
-    tokens = client.fetch_token(f"{idp.issuer}/token", grant_type="client_credentials")
-    assert (
-        jwt.decode(tokens["access_token"], options={"verify_signature": False})["sub"]
-        == "machine-sub"
-    )
-
-    idp.next_login = ("sub-2", "bob@example.com", None)
-    idp.device_pending = 1
-    public = OAuth2Client(idp.client_id, transport=idp.transport())
+    token_url = f"{idp.issuer}/token"
     with httpx.Client(transport=idp.transport()) as http:
+        resp = http.post(
+            token_url,
+            data={"grant_type": "client_credentials"},
+            auth=httpx.BasicAuth("ci", "s3cret"),
+        )
+        assert resp.status_code == 200
+        claims = jwt.decode(resp.json()["access_token"], options={"verify_signature": False})
+        assert claims["sub"] == "machine-sub"
+
+        idp.next_login = ("sub-2", "bob@example.com", None)
+        idp.device_pending = 1
         started = http.post(
             f"{idp.issuer}/device", data={"client_id": idp.client_id, "scope": "openid"}
         ).json()
-    assert {"device_code", "user_code", "verification_uri", "interval"} <= set(started)
-    with pytest.raises(Exception, match="authorization_pending"):
-        public.fetch_token(
-            f"{idp.issuer}/token",
-            grant_type=DEVICE_CODE_GRANT_TYPE,
-            device_code=started["device_code"],
+        assert {"device_code", "user_code", "verification_uri", "interval"} <= set(started)
+        poll = {
+            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            "device_code": started["device_code"],
+            "client_id": idp.client_id,
+        }
+        pending = http.post(token_url, data=poll)
+        assert pending.status_code == 400 and pending.json()["error"] == "authorization_pending"
+        done = http.post(token_url, data=poll)
+        assert done.status_code == 200
+        assert (
+            jwt.decode(done.json()["id_token"], options={"verify_signature": False})["sub"]
+            == "sub-2"
         )
-    tokens = public.fetch_token(
-        f"{idp.issuer}/token", grant_type=DEVICE_CODE_GRANT_TYPE, device_code=started["device_code"]
-    )
-    assert jwt.decode(tokens["id_token"], options={"verify_signature": False})["sub"] == "sub-2"
 
 
 async def test_asgi_adapter_serves_discovery(idp):
