@@ -313,9 +313,12 @@ per tenant:
 | Artifacts | `artifacts/<agent_id>/<run>/<path>` | `tenants/<tenant_id>/artifacts/<agent_id>/<run>/<path>` |
 | Run workspaces | `workspaces/<agent_id>/<run>.json` | `tenants/<tenant_id>/workspaces/<agent_id>/<run>.json` |
 
-The four key functions in `core/blob.py` take `tenant_id` as their first
-argument. Callers already hold a scoped store or a `WorkspaceRef`, which
-carry it. Identical fixture bytes in two tenants are stored twice; that is
+The four key functions in `core/blob.py` keep their signatures, because
+the SDK and the client compute keys and send them to the API without
+knowing a tenant. The server wraps its `Blob` in `TenantBlobStore(inner,
+tenant_id)`, which prefixes `tenants/<id>/` on every operation and strips
+it on list, so every server-side read and write is scoped and stored keys
+such as `agent_runs.trajectory_key` stay unprefixed. Identical fixture bytes in two tenants are stored twice; that is
 the cost of separation and is accepted. The `Blob` protocol and
 `store/blob.py` do not change.
 
@@ -616,11 +619,12 @@ and nothing else may:
 
 `workspace_ref` in `api/access.py` becomes
 `workspace_ref(stores, name) -> WorkspaceRef` and is the only place a
-workspace name turns into a ref for a route. The agent, case and evaluator
-stores stop accepting workspace names and take the workspace id the route
-already resolved. Likewise `resolve_user(stores, username) -> User` is the
-only place a username is resolved for a route; stores that took usernames
-take user ids.
+route turns a workspace name into a ref for an access check. Creates in
+the agent, case and evaluator stores take the `WorkspaceRef` the route
+resolved. Reads by reference (`bot@dev`) stay by name, since the reference
+is the API's identity for those rows, with the tenant filter applied
+inside the scoped store. Likewise `resolve_user(stores, username) -> User`
+is the only place a route resolves a username for an access check.
 
 Case find-or-create during sync takes the tenant from the dataset's
 `WorkspaceRef`:
@@ -1547,7 +1551,7 @@ traced run, `evalkit tokens create <agent>` and exporting the result. The
 | Page | Change |
 | --- | --- |
 | `login.md` | SSO sign-in for the UI and CLI, `--no-browser`, what `password_login` means, the `[oidc]` table in the stored login, how to resolve a 409 at registration |
-| `config.md` | The `auth.oidc` block and `auth.password_login`; `mcp.oauth` removed with the migration note |
+| `config.md` | Nothing: it documents the client-side `evalkit.yaml`. The server's `auth.oidc` block and `auth.password_login` are documented in `sso.md` and in the deployment skill's config reference, where the other server config lives, with the `mcp.oauth` removal note |
 | `ci-sync.md` | Machine client credentials and the bind step; no admin password |
 | `mcp.md` | One verifier for `/api` and `/mcp`; the `mcp.oauth` block and scope mapping are gone; an IdP token is now an evalkit user and archiving cuts it off |
 | `quickstart.md`, `tracing.md`, `sdk-runs.md` | `EVALKIT_OTEL_TOKEN` is required for export; the agent-token step |
