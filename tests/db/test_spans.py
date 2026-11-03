@@ -123,6 +123,19 @@ async def test_children_keep_their_session_when_the_root_has_none(db):
     assert total == 1 and items[0].session_id == "F"
 
 
+async def test_spans_under_a_sessionless_root_take_the_outermost_ancestors_session(db):
+    store, agent_id = db
+    await store.upsert(agent_id, [span("llm", parent="agent", at=3)])
+    await store.upsert(agent_id, [span("agent", parent="turn", session="X", at=2)])
+    await store.upsert(agent_id, [span("http", name="POST /chat")])
+    await store.upsert(agent_id, [span("turn", parent="http", session="S", at=1)])
+    await store.upsert(agent_id, [span("tool", parent="agent", at=4)])
+    rows = await store.session_spans(agent_id, "S")
+    assert sorted(r.span_id for r in rows) == ["agent", "llm", "tool", "turn"]
+    items, total = await store.list_sessions(agent_id, query=None, limit=10, offset=0)
+    assert total == 1 and items[0].session_id == "S" and items[0].span_count == 4
+
+
 async def test_session_read_drops_keys_on_listed_rows_only(db):
     store, agent_id = db
     big = {

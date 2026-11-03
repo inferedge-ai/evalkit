@@ -18,8 +18,8 @@ from sqlalchemy import (
     not_,
     or_,
     select,
+    text,
     type_coerce,
-    update,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -33,6 +33,38 @@ from evalkit.db.session import tenant_session
 
 UPSERT_CHUNK = 1000
 SPAN_KEY = ("agent_id", "trace_id", "span_id")
+SESSION_FROM_ANCESTORS = text(
+    """
+    WITH RECURSIVE trace AS (
+        SELECT id, trace_id, span_id, parent_span_id, session_id
+        FROM spans
+        WHERE agent_id = :agent_id AND trace_id = ANY(:trace_ids)
+    ),
+    chain AS (
+        SELECT t.id, t.trace_id, t.span_id, t.session_id AS resolved
+        FROM trace t
+        WHERE NOT EXISTS (
+            SELECT 1 FROM trace p
+            WHERE p.trace_id = t.trace_id AND p.span_id = t.parent_span_id
+        )
+        UNION ALL
+        SELECT t.id, t.trace_id, t.span_id, coalesce(c.resolved, t.session_id)
+        FROM trace t
+        JOIN chain c ON t.trace_id = c.trace_id AND t.parent_span_id = c.span_id
+    ),
+    roots AS (
+        SELECT trace_id, max(session_id) AS session_id
+        FROM trace
+        WHERE parent_span_id IS NULL
+        GROUP BY trace_id
+    )
+    UPDATE spans
+    SET session_id = coalesce(r.session_id, c.resolved)
+    FROM chain c LEFT JOIN roots r ON r.trace_id = c.trace_id
+    WHERE spans.id = c.id
+      AND spans.session_id IS DISTINCT FROM coalesce(r.session_id, c.resolved)
+    """
+)
 
 
 class SessionSummary(BaseModel):
@@ -168,22 +200,8 @@ class SpanStore:
     ) -> int:
         if not spans:
             return 0
-        roots: dict[str, str | None] = {
-            s.trace_id: s.session_id_hint for s in spans if s.parent_span_id is None
-        }
-        batch_roots = set(roots)
         async with self._session() as session:
             await self._check_agent(session, agent_id)
-            unknown = {s.trace_id for s in spans if s.trace_id not in roots}
-            if unknown:
-                stored = await session.execute(
-                    select(models.Span.trace_id, models.Span.session_id).where(
-                        models.Span.agent_id == agent_id,
-                        models.Span.trace_id.in_(unknown),
-                        models.Span.parent_span_id.is_(None),
-                    )
-                )
-                roots.update({trace_id: session_id for trace_id, session_id in stored.all()})
             now = datetime.now(UTC)
             rows = {
                 (span.trace_id, span.span_id): dict(
@@ -191,7 +209,7 @@ class SpanStore:
                     trace_id=span.trace_id,
                     span_id=span.span_id,
                     parent_span_id=span.parent_span_id,
-                    session_id=roots.get(span.trace_id) or span.session_id_hint,
+                    session_id=span.session_id_hint,
                     name=span.name,
                     kind=span.kind,
                     start_time=span.start_time,
@@ -216,21 +234,10 @@ class SpanStore:
                         set_={k: statement.excluded[k] for k in values[0] if k not in SPAN_KEY},
                     )
                 )
-            for trace_id in batch_roots:
-                session_id = roots[trace_id]
-                if session_id:
-                    await session.execute(
-                        update(models.Span)
-                        .where(
-                            models.Span.agent_id == agent_id,
-                            models.Span.trace_id == trace_id,
-                            or_(
-                                models.Span.session_id.is_(None),
-                                models.Span.session_id != session_id,
-                            ),
-                        )
-                        .values(session_id=session_id)
-                    )
+            await session.execute(
+                SESSION_FROM_ANCESTORS,
+                {"agent_id": agent_id, "trace_ids": sorted({s.trace_id for s in spans})},
+            )
             await session.commit()
         return len(spans)
 
