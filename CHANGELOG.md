@@ -3,7 +3,7 @@
 ## Unreleased
 
 - The Install page shows how to run the CLI from inside a uv project
-  (`uv add "evalkit-py[otel]==…"`, then `uv run evalkit`), how to get the
+  (`uv add "evalkit-py==…"`, then `uv run evalkit`), how to get the
   skills (`evalkit skills install`, and where the span mappings land), and
   that `skills install` records its target in `~/.evalkit/skills-targets`.
   The server install lines on Install and Try locally now pin the version,
