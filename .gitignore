@@ -227,4 +227,3 @@ ui/tsconfig.tsbuildinfo
 src/evalkit/core/data/cost_map.json
 /config.yaml
 .local/
-root-site/
