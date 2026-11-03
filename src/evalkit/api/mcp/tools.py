@@ -19,7 +19,7 @@ from evalkit.api import runs as runs_api
 from evalkit.api.agents import agent_view
 from evalkit.api.mcp import descriptions as d
 from evalkit.api.mcp.auth import SCOPE_READ
-from evalkit.api.mcp.digest_cache import CachedDigest, digest_cache, digest_key
+from evalkit.api.mcp.digest_cache import CachedDigest, DigestCache, digest_key
 from evalkit.api.mcp.models import (
     AgentRow,
     BatchMeta,
@@ -316,7 +316,7 @@ class Runs:
     def __init__(self, state: State) -> None:
         self.state = state
         self.gate = asyncio.Semaphore(FETCH_CONCURRENCY_TOTAL)
-        self.cache = digest_cache(state.cfg.cache)
+        self.cache: DigestCache = state.digest_cache
         self.inflight: dict[str, asyncio.Task[Digested]] = {}
 
     async def agent(self, ref: str) -> AgentDefinition:

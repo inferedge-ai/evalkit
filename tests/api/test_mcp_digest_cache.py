@@ -148,6 +148,42 @@ async def test_an_unreachable_redis_reads_as_a_miss_and_drops_writes():
     assert await cache.get_many(["k"]) == {}
 
 
+async def test_an_entry_that_no_longer_parses_reads_as_a_miss():
+    cache = RedisDigestCache("redis://cache.test:6379/0", ttl_seconds=60)
+    cache.client = fakeredis.FakeAsyncRedis()
+    good, bad = digest_key(7, "s-1"), digest_key(7, "s-2")
+    value = cached_digest()
+    await cache.put(good, value)
+    await cache.client.set(bad, '{"digest": {}}')
+    assert await cache.get_many([good, bad]) == {good: value}
+
+
+async def test_closing_the_redis_cache_closes_its_client(monkeypatch):
+    cache = RedisDigestCache("redis://cache.test:6379/0", ttl_seconds=60)
+    closed: list[bool] = []
+
+    async def aclose() -> None:
+        closed.append(True)
+
+    monkeypatch.setattr(cache.client, "aclose", aclose)
+    await cache.aclose()
+    assert closed == [True]
+
+
+async def test_the_server_closes_its_digest_cache_on_shutdown(
+    tmp_path, stub_judges, session_factory, monkeypatch
+):
+    closed: list[bool] = []
+
+    async def aclose(self) -> None:
+        closed.append(True)
+
+    monkeypatch.setattr(MemoryDigestCache, "aclose", aclose)
+    async with api_env(tmp_path, session_factory, fake_with_sessions()) as (client, _):
+        await call(client, "get_run_stats", agent="fake@canonical")
+    assert closed == [True]
+
+
 @pytest.mark.parametrize(
     ("cfg", "kind"),
     [

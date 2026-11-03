@@ -43,6 +43,7 @@ from evalkit.api import (
 from evalkit.api.auth import bootstrap_admin, current_user
 from evalkit.api.auth import router as auth_router
 from evalkit.api.limits import BodyLimitMiddleware
+from evalkit.api.mcp.digest_cache import digest_cache
 from evalkit.api.mcp.server import mcp_running, mount_mcp
 from evalkit.config import Config
 from evalkit.core.agents import UnknownAgent
@@ -234,6 +235,7 @@ def create_app(
         await experiments.interrupt_tasks(resolved_store, app.state.tasks)
         await trace_imports.interrupt_imports(app.state.trace_imports, app.state.import_tasks)
         await resolved_deps.store.aclose()
+        await app.state.digest_cache.aclose()
         engine = app.state.session_factory.kw.get("bind")
         if engine is not None:
             await engine.dispose()
@@ -257,6 +259,7 @@ def create_app(
     app.state.tasks = {}
     app.state.trace_imports = TraceImportStore(session_factory)
     app.state.import_tasks = {}
+    app.state.digest_cache = digest_cache(cfg.cache)
 
     running_version = version.current()
 

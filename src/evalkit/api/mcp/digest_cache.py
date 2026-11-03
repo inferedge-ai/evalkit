@@ -3,7 +3,7 @@ from collections import OrderedDict
 from typing import Protocol
 
 import redis.asyncio as redis
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from evalkit.config import CacheConfig
 from evalkit.core.run_digest import RunDigest, Turn
@@ -24,6 +24,8 @@ class DigestCache(Protocol):
     async def get_many(self, keys: list[str]) -> dict[str, CachedDigest]: ...
 
     async def put(self, key: str, value: CachedDigest) -> None: ...
+
+    async def aclose(self) -> None: ...
 
 
 def digest_key(agent_id: int, run_id: str) -> str:
@@ -47,6 +49,9 @@ class MemoryDigestCache:
         while len(self.entries) > self.max_entries:
             self.entries.popitem(last=False)
 
+    async def aclose(self) -> None:
+        self.entries.clear()
+
 
 class RedisDigestCache:
     def __init__(self, url: str, ttl_seconds: int) -> None:
@@ -57,8 +62,8 @@ class RedisDigestCache:
             socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
         )
 
-    # The cache only saves harness reads: when Redis is unreachable a call
-    # reads the harness as it would without one, rather than failing.
+    # The cache only saves harness reads: when Redis is unreachable, or an entry
+    # no longer parses, a call reads the harness as it would without one.
     async def get_many(self, keys: list[str]) -> dict[str, CachedDigest]:
         if not keys:
             return {}
@@ -67,17 +72,24 @@ class RedisDigestCache:
         except redis.RedisError as exc:
             LOGGER.warning("mcp.digest_cache_read_failed: %s", exc)
             return {}
-        return {
-            key: CachedDigest.model_validate_json(value)
-            for key, value in zip(keys, values, strict=True)
-            if value is not None
-        }
+        found: dict[str, CachedDigest] = {}
+        for key, value in zip(keys, values, strict=True):
+            if value is None:
+                continue
+            try:
+                found[key] = CachedDigest.model_validate_json(value)
+            except ValidationError as exc:
+                LOGGER.warning("mcp.digest_cache_entry_invalid: %s: %s", key, exc)
+        return found
 
     async def put(self, key: str, value: CachedDigest) -> None:
         try:
             await self.client.set(key, value.model_dump_json(), ex=self.ttl_seconds)
         except redis.RedisError as exc:
             LOGGER.warning("mcp.digest_cache_write_failed: %s", exc)
+
+    async def aclose(self) -> None:
+        await self.client.aclose()
 
 
 def digest_cache(cfg: CacheConfig) -> DigestCache:
