@@ -162,6 +162,19 @@ user can import traces from it into an OTel agent they can write, with
   workspace, so traces imported into your personal workspace are visible to
   everyone on the server. See [Where runs happen](workspaces.md).
 
+## Message roles
+
+evalkit reads message roles in any letter case and maps the names some frameworks use to four roles:
+
+| Role on the span | Read as |
+| -- | -- |
+| `assistant`, `model` (Gemini, Google ADK), `ai` (LangChain), `bot` | `assistant` |
+| `user`, `human` | `user` |
+| `system`, `developer` (OpenAI) | `system` |
+| `tool`, `function` | `tool` |
+
+The trajectory drops messages with any other role, along with their tool calls. `evalkit traces check` warns on its `llm` line and names the unknown roles it found.
+
 ## Checking a session
 
 ```bash
