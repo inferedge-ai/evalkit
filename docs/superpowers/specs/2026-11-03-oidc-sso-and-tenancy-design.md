@@ -426,7 +426,7 @@ store, and the access rules keep a tenant equality check as a second line.
 | Password login | `resolve_tenant(request, claims=None)` |
 | `bootstrap_admin`, `init-server` | Tenant 1, passed explicitly; the "does any admin exist" check runs `ALL_TENANTS` |
 | Server runner (`prepare_experiment`, lease, reaper) | The experiment id is globally unique: an `ALL_TENANTS` lookup of the experiment joined to `datasets` and `workspaces` yields its `tenant_id`; the runner then builds its scoped `PgStore` |
-| Trace import job (`TraceImportStore.job`, its lease, `interrupt_imports` at startup) | The import id is globally unique: an `ALL_TENANTS` lookup of the import joined to `agents` and `workspaces` yields its `tenant_id`; the job then runs scoped |
+| Trace import job (`TraceImportStore.job`, its lease renewals, `interrupt_imports` at shutdown) | The import id is globally unique: an `ALL_TENANTS` lookup of the import joined to `agents` and `workspaces` yields its `tenant_id`; the job then runs scoped |
 | Migrations | None; migrations are installation-wide |
 
 `resolve_tenant` is the one function a wrapper replaces. The public repo
@@ -604,8 +604,8 @@ and nothing else may:
   any scoped work can start, each by a key that is unique across the whole
   database. They are listed in the "Where the tenant comes from" table:
   an evalkit token by hash, an agent token by hash, an experiment by id for
-  the runner and reaper, a trace import by id for its job, lease and the
-  startup `interrupt_imports`, and the "any admin exists" check in
+  the runner and reaper, a trace import by id for its job, lease renewals
+  and the shutdown `interrupt_imports`, and the "any admin exists" check in
   `bootstrap_admin`. Each does one select, reads the tenant off the row,
   and opens a scoped session for everything after. They are small, named
   functions in `db/auth.py`, `db/experiments.py` and `db/trace_imports.py`,
@@ -637,8 +637,10 @@ Every other case lookup is already scoped through a dataset and needs nothing.
 
 - The `tenants` table itself. The public repo never lists or creates tenants
   from a route; the migration makes row 1 and that is all.
-- Migrations, the schema check at startup, the cost map, the reaper's scan
-  for expired leases (it reaps by experiment id and never reads tenant data).
+- Migrations, the schema check at startup, the cost map, and the reaper
+  loop's two bulk updates over expired leases, `reap` for experiments and
+  `reap_imports` for trace imports, which run at startup and on every tick
+  by id and never read tenant data.
 - Config: one IdP, one `encryption_key`, one `server.base_url`. Per-tenant
   IdPs are a wrapper concern and out of scope.
 
