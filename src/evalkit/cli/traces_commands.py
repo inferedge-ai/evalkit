@@ -10,6 +10,7 @@ import typer
 
 from evalkit.cli.client import ApiClient, ApiError
 from evalkit.client.api import encode
+from evalkit.core.traces.mapping import CANONICAL_ROLES
 
 traces_app = typer.Typer(
     no_args_is_help=True, help="Check, map and import OpenTelemetry sessions for an agent."
@@ -74,7 +75,13 @@ def render_check(session: dict) -> tuple[list[str], bool]:
         no_tokens = not totals["prompt_tokens"] and not totals["completion_tokens"]
         if no_tokens:
             detail += ", no token counts (check the tokens rule)"
-        lines.append(_line("warn" if bare or no_tokens else "pass", "llm", detail))
+        roles = {m.get("role") for s in llms for m in s.get("output_messages") or []}
+        roleless = bool(roles) and not roles & CANONICAL_ROLES
+        if roleless:
+            detail += (
+                f", no output message has a known role (saw {', '.join(sorted(map(str, roles)))})"
+            )
+        lines.append(_line("warn" if bare or no_tokens or roleless else "pass", "llm", detail))
     else:
         lines.append(_line("warn", "llm", "no llm spans; check the kind rule"))
     tools = [s for s in esf if s["kind"] == "tool"]

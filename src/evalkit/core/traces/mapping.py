@@ -20,6 +20,14 @@ from evalkit.core.traces.raw import RawSpan
 SDK_ROOT_ATTRIBUTE = "evalkit.sdk_root"
 TASK_SESSION_ATTRIBUTE = "evalkit.task_session"
 SDK_SESSION_ATTRIBUTE = "session.id"
+CANONICAL_ROLES = frozenset({"assistant", "user", "system", "tool"})
+ROLE_ALIASES = {
+    "model": "assistant",
+    "ai": "assistant",
+    "bot": "assistant",
+    "human": "user",
+    "function": "tool",
+}
 KINDS: frozenset[str] = frozenset({"llm", "tool", "agent", "chain", "retriever", "other"})
 
 
@@ -129,6 +137,11 @@ def _text(content: Any) -> str | None:
 _INDEXED = re.compile(r"^(\d+)\.(.*)$")
 
 
+def _normalize_role(value: Any) -> str:
+    role = str(value or "assistant")
+    return ROLE_ALIASES.get(role, role)
+
+
 def _content_text(parts: list[dict[str, Any]], kind: str) -> str | None:
     texts = [
         str(p["message_content.text"])
@@ -181,7 +194,7 @@ def _openinference_messages(
         ]
         out.append(
             EsfMessage(
-                role=str(fields.get("message.role") or "assistant"),
+                role=_normalize_role(fields.get("message.role")),
                 text=_text(fields.get("message.content")) or _content_text(parts, "text"),
                 reasoning=_content_text(parts, "reasoning"),
                 tool_calls=tool_calls or None,
@@ -225,7 +238,7 @@ def _gen_ai_messages(attributes: dict[str, Any], key: str) -> tuple[list[EsfMess
                 texts.append(result if isinstance(result, str) else json.dumps(result))
         out.append(
             EsfMessage(
-                role=str(message.get("role") or "assistant"),
+                role=_normalize_role(message.get("role")),
                 text="".join(texts) or None,
                 reasoning="".join(reasoning) or None,
                 tool_calls=tool_calls or None,
@@ -273,7 +286,7 @@ def _openai_messages(attributes: dict[str, Any], key: str) -> tuple[list[EsfMess
         ]
         out.append(
             EsfMessage(
-                role=str(message.get("role") or "assistant"),
+                role=_normalize_role(message.get("role")),
                 text=_text(message.get("content")),
                 tool_calls=tool_calls or None,
                 tool_call_id=message.get("tool_call_id"),

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Traces from Google ADK / Gemini and LangChain-style instrumentors now keep
+  the model's messages and tool calls. evalkit reads the message roles
+  `model`, `ai` and `bot` as `assistant`, `human` as `user` and `function`
+  as `tool`. Before, it dropped those messages from the trajectory without
+  a warning, so tool evaluators scored 0.
+  - `evalkit traces check` now warns on the `llm` line when LLM spans have
+    output messages but none has a known role (`assistant`, `user`,
+    `system`, `tool`), and lists the roles it saw.
 - Scoring experiments of more than about 40 runs no longer fails with `500`s
   on `POST /api/experiment-runs/{id}/evaluations`.
   - A run (or `evalkit evaluate`) now scores at most 16 runs at once instead

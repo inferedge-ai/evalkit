@@ -336,3 +336,23 @@ def test_the_sdk_session_attribute_is_not_unmapped_on_sdk_stamped_spans():
     assert to_esf(raw(stamped), gen_ai).unmapped == []
     unstamped = {"gen_ai.operation.name": "chat", "session.id": "s1"}
     assert to_esf(raw(unstamped), gen_ai).unmapped == ["session.id"]
+
+
+def test_framework_roles_become_canonical_roles():
+    out = [
+        {
+            "role": "model",
+            "parts": [
+                {"type": "text", "content": "Checking."},
+                {"type": "tool_call", "id": "c1", "name": "lookup", "arguments": {}},
+            ],
+        },
+        {"role": "function", "parts": [{"type": "tool_call_response", "id": "c1", "result": "1"}]},
+        {"role": "ai", "parts": [{"type": "text", "content": "Done."}]},
+    ]
+    span = to_esf(
+        raw({"gen_ai.operation.name": "chat", "gen_ai.output.messages": json.dumps(out)}),
+        REFERENCE["gen_ai"],
+    )
+    assert [m.role for m in span.output_messages] == ["assistant", "tool", "assistant"]
+    assert span.output_messages[0].tool_calls[0].name == "lookup"
