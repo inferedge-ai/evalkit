@@ -28,7 +28,7 @@ async def db(session_factory):
     source = await TraceSourceStore(session_factory, None).create(
         "phx", TraceProvider.PHOENIX, "https://phoenix.example.com", None
     )
-    user = next(u for u in await UserStore(session_factory).list() if u.username == "akshat")
+    user = next(u for u in await UserStore(session_factory, 1).list() if u.username == "akshat")
     store = TraceImportStore(session_factory)
 
     async def start(holder: str = "pod:a") -> int:

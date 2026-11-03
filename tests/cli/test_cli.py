@@ -106,7 +106,7 @@ def server(tmp_path_factory, stub_judges_module, fake_harness, harness_url, modu
     async def setup_db():
         factory = make_session_factory(module_db_url)
         env = await seed_env(factory, tmp_path, fake_harness)
-        await UserStore(factory).create("ravi", "password")
+        await UserStore(factory, 1).create("ravi", "password")
         await seed_agent(factory, "fake", "admin", harness_url=harness_url)
         await seed_agent(factory, "fake", "ravi", harness_url=harness_url)
         await seed_agent(
@@ -1101,8 +1101,8 @@ def _seed_canonical(url: str, dataset: str) -> None:
         async with factory() as session:
             await record_blob(session, digest, 1, None)
             await session.commit()
-        canonical = await WorkspaceStore(factory).get_by_name("canonical")
-        admin = {u.username: u.id for u in await UserStore(factory).list()}["admin"]
+        canonical = await WorkspaceStore(factory, 1).get_by_name("canonical")
+        admin = {u.username: u.id for u in await UserStore(factory, 1).list()}["admin"]
         doc = CaseFile(key="doc.pdf", sha256=digest, context="c")
         await PgStore(factory).sync(
             workspace=canonical,

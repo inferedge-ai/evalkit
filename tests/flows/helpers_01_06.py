@@ -58,7 +58,7 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
     async def setup():
         factory = make_session_factory(db_url)
         await seed_identity(factory, USERS, shared=("dev",), reviewers=["ravi"], writers=["alice"])
-        await WorkspaceStore(factory).create_shared("prod", None)
+        await WorkspaceStore(factory, 1).create_shared("prod", None)
         await seed_agent(factory, "ouragent", "dev")
         await seed_agent(factory, "ouragent", "prod")
         await seed_evaluators(factory, "dev")

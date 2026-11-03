@@ -155,7 +155,7 @@ async def sync_cases(
     kind: DatasetKind = DatasetKind.SUITE,
     actor: str = "admin",
 ) -> None:
-    ws = await WorkspaceStore(env.session_factory).get_by_name(workspace)
+    ws = await WorkspaceStore(env.session_factory, 1).get_by_name(workspace)
     await env.store.sync(
         workspace=ws,
         dataset=dataset,
@@ -213,7 +213,7 @@ async def seed_env(
     await seed_agent(session_factory)
     await seed_agent(session_factory, "fake", "akshat")
     await seed_evaluators(session_factory)
-    user_ids = {u.username: u.id for u in await UserStore(session_factory).list()}
+    user_ids = {u.username: u.id for u in await UserStore(session_factory, 1).list()}
     store = PgStore(session_factory)
     blob_store = blob or DictBlobStore()
     deps = RunnerDeps(

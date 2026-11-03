@@ -30,11 +30,11 @@ async def seed_identity(
     writers: Iterable[str] = (),
 ) -> None:
     admins = set(admins)
-    store = UserStore(session_factory)
+    store = UserStore(session_factory, 1)
     ids = {}
     for name, password in users.items():
         ids[name] = (await store.create(name, password, is_admin=name in admins)).id
-    workspaces = WorkspaceStore(session_factory)
+    workspaces = WorkspaceStore(session_factory, 1)
     granter = next(ids[name] for name in users if name in admins)
     for name in shared:
         await workspaces.create_shared(name, granter)

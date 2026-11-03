@@ -34,7 +34,7 @@ async def users(tmp_path, stub_judges, session_factory):
     async with serve(env, tmp_path) as admin:
         for name in ("bob", "carol"):
             await admin.post("/api/users", json={"username": name, "password": "password"})
-        await WorkspaceStore(session_factory).add_member(
+        await WorkspaceStore(session_factory, 1).add_member(
             "canonical", "bob", WorkspaceRole.WRITER, granted_by=env.user_ids["admin"]
         )
         clients = {"admin": admin, "akshat": await login_as(admin, "akshat")}

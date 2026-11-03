@@ -143,7 +143,7 @@ async def test_logout_revokes(client):
 
 async def test_archived_user_cannot_log_in_or_use_a_token(client, session_factory):
     token = await login(client)
-    await UserStore(session_factory).archive("alice")
+    await UserStore(session_factory, 1).archive("alice")
     resp = await client.post(
         "/api/auth/login", json={"username": "alice", "password": "wonderland"}
     )
@@ -155,7 +155,7 @@ async def test_archived_user_cannot_log_in_or_use_a_token(client, session_factor
 
 
 async def test_archived_placeholder_user_gets_401_not_500(client, session_factory):
-    await UserStore(session_factory).archive("alice")
+    await UserStore(session_factory, 1).archive("alice")
     placeholder = hash_password(secrets.token_urlsafe(32))
     async with session_factory() as s:
         await s.execute(
@@ -165,8 +165,8 @@ async def test_archived_placeholder_user_gets_401_not_500(client, session_factor
     resp = await client.post("/api/auth/login", json={"username": "alice", "password": "x"})
     assert resp.status_code == 401
     assert resp.json()["detail"] == "invalid username or password"
-    await UserStore(session_factory).restore("alice")
-    await UserStore(session_factory).set_password("alice", "fresh-password")
+    await UserStore(session_factory, 1).restore("alice")
+    await UserStore(session_factory, 1).set_password("alice", "fresh-password")
     assert await login(client, "alice", "fresh-password")
 
 

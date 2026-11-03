@@ -3,17 +3,19 @@ from datetime import UTC, datetime
 import pytest
 
 from evalkit.contracts.enums import WorkspaceRole
-from evalkit.db.users import NameTaken, UserStore
+from evalkit.db.models import Tenant
+from evalkit.db.session import ALL_TENANTS, tenant_session
+from evalkit.db.users import NameTaken, UnknownUser, UserStore
 from evalkit.db.workspaces import PromotionLinkError, UnknownWorkspace, WorkspaceStore
 
 
 @pytest.fixture
 async def stores(session_factory):
-    users = UserStore(session_factory)
+    users = UserStore(session_factory, 1)
     admin = await users.create("admin", "password", is_admin=True)
     await users.create("bob", "password")
     await users.create("carol", "password")
-    return WorkspaceStore(session_factory), admin.id
+    return WorkspaceStore(session_factory, 1), admin.id
 
 
 async def test_create_shared_and_duplicate(stores):
@@ -96,3 +98,16 @@ async def test_promotes_to_rules(linked):
     await ws.set_promotes_to("dev", None)
     with pytest.raises(PromotionLinkError):
         await ws.set_promotes_to("dev", "qa")
+
+
+async def test_member_grant_refuses_a_user_from_another_tenant(raw_session_factory):
+    async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
+        s.add(Tenant(id=2, name="other"))
+        await s.commit()
+    admin = await UserStore(raw_session_factory, 1).create("admin", "password", is_admin=True)
+    await WorkspaceStore(raw_session_factory, 1).create_shared("dev", admin.id)
+    await UserStore(raw_session_factory, 2).create("eve", "password")
+    with pytest.raises(UnknownUser):
+        await WorkspaceStore(raw_session_factory, 1).add_member(
+            "dev", "eve", WorkspaceRole.WRITER, admin.id
+        )

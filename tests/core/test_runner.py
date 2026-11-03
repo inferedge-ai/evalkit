@@ -640,7 +640,7 @@ async def seed_overlaid(env) -> None:
         full=True,
     )
     await approve(env)
-    ws = await WorkspaceStore(env.session_factory).get_by_name("canonical")
+    ws = await WorkspaceStore(env.session_factory, 1).get_by_name("canonical")
     await env.store.sync(
         workspace=ws,
         dataset="fake-cases",

@@ -80,45 +80,60 @@ async def any_admin_exists(session_factory: async_sessionmaker[AsyncSession]) ->
     return found is not None
 
 
-async def name_taken(session: AsyncSession, name: str) -> bool:
+async def name_taken(session: AsyncSession, tenant_id: int, name: str) -> bool:
     count = await session.scalar(
         select(func.count()).select_from(
             union_all(
-                select(User.id).where(User.username == name),
-                select(Workspace.id).where(Workspace.name == name),
+                select(User.id).where(User.tenant_id == tenant_id, User.username == name),
+                select(Workspace.id).where(
+                    Workspace.tenant_id == tenant_id, Workspace.name == name
+                ),
             ).subquery()
         )
     )
     return bool(count)
 
 
-async def user_id(session: AsyncSession, username: str) -> int:
-    found = await session.scalar(select(User.id).where(User.username == username))
+async def user_id(session: AsyncSession, tenant_id: int, username: str) -> int:
+    found = await session.scalar(
+        select(User.id).where(User.tenant_id == tenant_id, User.username == username)
+    )
     if found is None:
         raise UnknownUser(username)
     return found
 
 
 class UserStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
         self._sf = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._sf, self._tenant_id)
 
     async def create(self, username: str, password: str, *, is_admin: bool = False) -> User:
         check_name(username)
         check_new_password(password)
-        async with self._sf() as s:
+        async with self._session() as s:
             await lock_names(s)
-            if await name_taken(s, username):
+            if await name_taken(s, self._tenant_id, username):
                 raise NameTaken(username)
-            user = User(username=username, password_hash=hash_password(password), is_admin=is_admin)
+            user = User(
+                tenant_id=self._tenant_id,
+                username=username,
+                password_hash=hash_password(password),
+                is_admin=is_admin,
+            )
             s.add(user)
             await s.flush()
-            s.add(Workspace(name=username, owner_user_id=user.id))
+            s.add(Workspace(tenant_id=self._tenant_id, name=username, owner_user_id=user.id))
             await s.commit()
             return user
 
     async def _get(self, s: AsyncSession, username: str) -> User:
-        user = await s.scalar(select(User).where(User.username == username))
+        user = await s.scalar(
+            select(User).where(User.tenant_id == self._tenant_id, User.username == username)
+        )
         if user is None:
             raise UnknownUser(username)
         return user
@@ -129,7 +144,10 @@ class UserStore:
         await lock_name(s, "admins")
         others = await s.scalar(
             select(func.count()).where(
-                User.is_admin.is_(True), User.archived_at.is_(None), User.id != user.id
+                User.tenant_id == self._tenant_id,
+                User.is_admin.is_(True),
+                User.archived_at.is_(None),
+                User.id != user.id,
             )
         )
         if not others:
@@ -137,7 +155,7 @@ class UserStore:
 
     async def archive(self, username: str) -> None:
         now = datetime.now(UTC)
-        async with self._sf() as s:
+        async with self._session() as s:
             user = await self._get(s, username)
             await self._ensure_other_admin(s, user)
             user.archived_at = now
@@ -154,7 +172,7 @@ class UserStore:
             await s.commit()
 
     async def restore(self, username: str) -> None:
-        async with self._sf() as s:
+        async with self._session() as s:
             user = await self._get(s, username)
             if user.archived_at is not None:
                 await s.execute(
@@ -170,7 +188,7 @@ class UserStore:
 
     async def set_password(self, username: str, password: str) -> None:
         check_new_password(password)
-        async with self._sf() as s:
+        async with self._session() as s:
             user = await self._get(s, username)
             user.password_hash = hash_password(password)
             await s.execute(
@@ -181,7 +199,7 @@ class UserStore:
             await s.commit()
 
     async def set_admin(self, username: str, value: bool) -> None:
-        async with self._sf() as s:
+        async with self._session() as s:
             user = await self._get(s, username)
             if not value:
                 await self._ensure_other_admin(s, user)
@@ -189,5 +207,5 @@ class UserStore:
             await s.commit()
 
     async def list(self) -> list[User]:
-        async with self._sf() as s:
+        async with self._session() as s:
             return list((await s.scalars(select(User).order_by(User.username))).all())

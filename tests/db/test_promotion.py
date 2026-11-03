@@ -12,9 +12,9 @@ from tests.seed import World, incoming, overlay, seed_world, sync
 @pytest.fixture
 async def world(session_factory) -> World:
     world = await seed_world(session_factory)
-    await WorkspaceStore(session_factory).set_promotes_to("dev", "prod")
-    world.dev = await WorkspaceStore(session_factory).get_by_name("dev")
-    world.prod = await WorkspaceStore(session_factory).get_by_name("prod")
+    await WorkspaceStore(session_factory, 1).set_promotes_to("dev", "prod")
+    world.dev = await WorkspaceStore(session_factory, 1).get_by_name("dev")
+    world.prod = await WorkspaceStore(session_factory, 1).get_by_name("prod")
     return world
 
 

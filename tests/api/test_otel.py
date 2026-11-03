@@ -329,7 +329,7 @@ async def shared_agent_token(api, session_factory) -> httpx2.AsyncClient:
         mapping=reference_mapping(),
     )
     alice = await login_as(api, "alice", "password")
-    await WorkspaceStore(session_factory).add_member(
+    await WorkspaceStore(session_factory, 1).add_member(
         "canonical", "alice", WorkspaceRole.WRITER, granted_by=1
     )
     minted = await alice.post("/api/tokens", json={"agent": "team@canonical"})

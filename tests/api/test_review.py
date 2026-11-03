@@ -28,10 +28,10 @@ cases:
 @pytest.fixture
 async def env(tmp_path, session_factory):
     env = await seed_env(session_factory, tmp_path, FakeHarness(), approved=False)
-    users = UserStore(session_factory)
+    users = UserStore(session_factory, 1)
     for name in ("sme", "other"):
         await users.create(name, "password")
-    workspaces = WorkspaceStore(session_factory)
+    workspaces = WorkspaceStore(session_factory, 1)
     await workspaces.add_member(
         "canonical", "sme", WorkspaceRole.REVIEWER, granted_by=env.user_ids["admin"]
     )
