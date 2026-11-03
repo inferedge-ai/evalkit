@@ -38,8 +38,8 @@ sequenceDiagram
   S-->>CLI: "draft vN for research-agent" (or "… is unchanged")
   Dev->>CLI: evalkit traces check research-agent SESSION --mapping draft
   CLI-->>Dev: same check lines, built with the draft
-  Dev->>CLI: evalkit traces mapping activate research-agent [VERSION]
-  CLI->>S: GET mappings, then POST activate for the draft (or VERSION)
+  Dev->>CLI: evalkit traces mapping activate research-agent VERSION
+  CLI->>S: GET mappings, then POST activate for VERSION
   S-->>CLI: "active vN for research-agent, replacing vM"
 
   Dev->>UI: Agents → research-agent@akshat → Mappings
@@ -72,7 +72,7 @@ sequenceDiagram
   - An existing draft becomes `retired`.
   - A document equal to the current draft keeps the draft and its version; the CLI prints `… is unchanged`.
 - **`mapping activate`:**
-  - With no version, activates the current draft; fails when there is none.
+  - The version is required: the one push printed for the checked draft, or an older one to roll back.
   - The old active version is retired. Prints the version activated and the one it replaced.
 - **`mapping list`:** prints `vN  status  by <user>  <created_at>` for every version.
 - **UI Mappings tab:**

@@ -228,24 +228,16 @@ def register(
     @mapping_app.command("activate")
     def mapping_activate(
         agent: str,
-        version: int | None = typer.Argument(
-            None, help="Version to activate. Defaults to the current draft."
-        ),
+        version: int = typer.Argument(..., help="Version to activate, as push printed it."),
     ):
         """Make a mapping version the active one, which every later run uses.
 
-        Example: evalkit traces mapping activate research-agent
+        Example: evalkit traces mapping activate research-agent 3
         """
         client = client_factory()
         base = f"/api/agents/{encode(agent_slug(agent))}/mappings"
         rows = client.get(base).json()
         previous = next((r["version"] for r in rows if r["status"] == "active"), None)
-        if version is None:
-            version = next((r["version"] for r in rows if r["status"] == "draft"), None)
-            if version is None:
-                raise typer.BadParameter(
-                    f"{agent} has no draft mapping; push one with evalkit traces mapping push"
-                )
         body = client.post(f"{base}/{version}/activate").json()
         replaced = f", replacing v{previous}" if previous not in (None, body["version"]) else ""
         typer.echo(f"active v{body['version']} for {agent}{replaced}")

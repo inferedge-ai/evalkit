@@ -2,9 +2,9 @@
 
 ## Unreleased
 
-- New `evalkit traces mapping activate <agent> [<version>]` makes the
-  current draft (or the given version) the active mapping and prints the
-  version it replaced. `mapping push --activate` is removed: push uploads
+- New `evalkit traces mapping activate <agent> <version>` makes that
+  version the active mapping and prints the version it replaced. The
+  version is required: pass the one `mapping push` printed. `mapping push --activate` is removed: push uploads
   the draft, activate makes it live, so the draft you checked is the one
   that goes live. The `activate` query parameter on
   `PUT /api/agents/{agent}/mappings/draft` is removed too.

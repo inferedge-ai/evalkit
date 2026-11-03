@@ -232,7 +232,7 @@ Do the same in your own repository:
    ```
 
    When it reads right, activate it: `evalkit traces mapping activate
-   myagent`, or use the agent's Mappings tab in the web
+   myagent <version>` with the version push printed, or use the agent's Mappings tab in the web
    UI. Runs always use the active mapping. The connect-traces skill walks a
    coding agent through the same loop.
 

@@ -149,9 +149,9 @@ evalkit traces check myagent <session id> --dump spans.json   # read the raw att
 evalkit traces mapping push myagent eval/span-mapping.json    # upload a draft
 evalkit traces check myagent <session id> --mapping draft     # preview with the draft
 evalkit traces mapping list myagent
-evalkit traces mapping activate myagent                       # make the draft active
+evalkit traces mapping activate myagent 2                     # make version 2 active
 ```
 
-Repeat until the unmapped list holds nothing that matters and the counts look right, then activate the draft with `evalkit traces mapping activate myagent` or on the agent's Mappings tab. Pushing a document identical to the draft keeps the draft's version. `mapping activate myagent 3` activates version 3 instead, for example to roll back; it prints the version it activated and the one it replaced. A coding agent activates only when the developer has approved the document.
+Repeat until the unmapped list holds nothing that matters and the counts look right, then activate the draft with `evalkit traces mapping activate myagent <version>`, using the version push printed, or on the agent's Mappings tab. Pushing a document identical to the draft keeps the draft's version. The version is required, so activate makes live exactly the draft you checked, even if someone pushes another one meanwhile; an older version works too, for example to roll back. Activate prints the version it activated and the one it replaced. A coding agent activates only when the developer has approved the document.
 
 Runs record the mapping version they were converted with; a later mapping change never alters a scored run. The Runs page converts sessions on demand with the active mapping.

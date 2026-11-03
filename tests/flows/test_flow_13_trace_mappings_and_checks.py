@@ -87,7 +87,7 @@ def test_flow_13_mapping_push_list_activate(live, tmp_path):
     ]
     assert [(r[0], r[1]) for r in rows] == [("v1", "active"), ("v2", "retired"), ("v3", "draft")]
     assert all(r[2:4] == ["by", "admin"] for r in rows[1:])
-    activated = live.run("traces", "mapping", "activate", AGENT)
+    activated = live.run("traces", "mapping", "activate", AGENT, "3")
     assert activated.exit_code == 0 and "active v3" in activated.output
     assert "replacing v1" in activated.output
     statuses = {
@@ -96,8 +96,8 @@ def test_flow_13_mapping_push_list_activate(live, tmp_path):
     assert statuses == {1: "retired", 2: "retired", 3: "active"}
     after = live.http().get(f"/api/agents/{AGENT}/sessions/s-1/trajectory").json()
     assert after["mapping_version"] == 3
-    no_draft = live.run("traces", "mapping", "activate", AGENT)
-    assert no_draft.exit_code != 0 and "no draft mapping" in no_draft.output
+    no_version = live.run("traces", "mapping", "activate", AGENT)
+    assert no_version.exit_code != 0
     back = live.run("traces", "mapping", "activate", AGENT, "1")
     assert "active v1" in back.output and "replacing v3" in back.output
     assert live.http().post(f"/api/agents/{AGENT}/mappings/9/activate").status_code == 404
