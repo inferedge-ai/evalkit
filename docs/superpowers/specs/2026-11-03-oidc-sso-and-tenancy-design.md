@@ -211,10 +211,8 @@ alone. Today `HEAD` and `GET /api/fixtures/sha256/{sha}` answer for any
 hash any user knows, and an upload of a known hash is skipped, so across
 tenants a hash would reveal that a file exists and allow reading it. Its
 primary key becomes `(tenant_id, sha256)`; each tenant declares and reads
-its own rows. The bytes in the blob store stay content-addressed by
-`sha256`, so identical files across tenants share storage, which leaks
-nothing: the API only serves a hash the tenant has a row for.
-`case_version_files` gains `tenant_id` so its foreign key can be the
+its own rows and its own bytes, under its own prefix in the blob store
+(below). `case_version_files` gains `tenant_id` so its foreign key can be the
 composite `(tenant_id, sha256)`; the column is backfilled to 1 and
 otherwise reachable through `cases`.
 
@@ -301,6 +299,48 @@ the token itself.
 Machine users are ordinary `users` rows with a subject, no password and no
 email. They get a personal workspace, can be granted writer or
 reviewer, and can be archived, exactly like a person. No new table.
+
+### Blob storage
+
+Every object key starts with the tenant, so a tenant is one prefix in the
+bucket and bucket policies, lifecycle rules, export and deletion can work
+per tenant:
+
+| Family | Key today | Key after |
+| --- | --- | --- |
+| Fixtures | `fixtures/sha256/<sha>` | `tenants/<tenant_id>/fixtures/sha256/<sha>` |
+| Trajectories | `trajectories/<agent_id>/<run>.json` | `tenants/<tenant_id>/trajectories/<agent_id>/<run>.json` |
+| Artifacts | `artifacts/<agent_id>/<run>/<path>` | `tenants/<tenant_id>/artifacts/<agent_id>/<run>/<path>` |
+| Run workspaces | `workspaces/<agent_id>/<run>.json` | `tenants/<tenant_id>/workspaces/<agent_id>/<run>.json` |
+
+The four key functions in `core/blob.py` take `tenant_id` as their first
+argument. Callers already hold a scoped store or a `WorkspaceRef`, which
+carry it. Identical fixture bytes in two tenants are stored twice; that is
+the cost of separation and is accepted. The `Blob` protocol and
+`store/blob.py` do not change.
+
+Existing objects move once. A new server command, `evalkit blobs relocate
+--config config.yaml`, lists every object under the four old prefixes,
+copies it to its tenant 1 key with the store's server-side copy, verifies
+the copy exists, and deletes the old key. It is idempotent: an object
+already at its new key is skipped, an old key with no object is skipped.
+It runs after `evalkit db upgrade` and before the new server starts
+serving; the server refuses to start while any object remains under an old
+prefix, with a message naming the command, so a missed step cannot
+silently 404 every trajectory. The release notes and the deployment skill
+carry the step. The try-it stack and `init-server` need nothing: a fresh
+store has no old objects.
+
+```
+relocate(blob, tenant_id=1):
+    for old_prefix in ["fixtures/", "trajectories/", "artifacts/", "workspaces/"]:
+        for key, size in blob.list_objects(old_prefix):
+            new_key = f"tenants/{tenant_id}/{key}"
+            if not blob.exists(new_key):
+                blob.copy_object(key, new_key)
+            assert blob.exists(new_key)
+            blob.delete(key)
+```
 
 ### Migration
 
@@ -1541,7 +1581,8 @@ Access token, with the meanings from this spec's terms section.
 - `evalkit-usage`: `evalkit login` under SSO, `--no-browser`, the CI
   credentials, `EVALKIT_OTEL_TOKEN` required.
 - `evalkit-deployment`: `config.example.yaml` with the `auth.oidc` block
-  and `password_login`; the config-load error for `mcp.oauth`. For the IdP
+  and `password_login`; the config-load error for `mcp.oauth`; the
+  `blobs relocate` step in the upgrade instructions. For the IdP
   registration and the admin runbook it links to `../evalkit-docs/sso.md`
   rather than repeating them, as it does for the other user pages.
 - `connect-traces`: `EVALKIT_OTEL_TOKEN` is required, with the
@@ -1570,6 +1611,9 @@ Under `## Unreleased`, one entry per change, as the changelog rule in
   `admin`.
 - Schema: migration `0016` adds tenants and per-tenant unique keys; no
   behaviour change for a single installation.
+- Blob storage: every object now lives under `tenants/<id>/`. After
+  upgrading, run `evalkit blobs relocate --config config.yaml` once; the
+  server refuses to start until it has been run.
 
 ### Versioning and packaging
 
@@ -1585,6 +1629,8 @@ Under `## Unreleased`, one entry per change, as the changelog rule in
   and the workspace payload; the drift test fails CI otherwise.
 - Migration `0016` from Alembic autogenerate plus the hand-written data
   steps, as the data model section says.
+- `evalkit blobs relocate` is a one-time operator step after the migration;
+  the server refuses to start while old-prefix objects remain.
 
 ### Tests
 
