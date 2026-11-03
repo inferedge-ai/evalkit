@@ -85,6 +85,12 @@ class OtelConfig(ConfigModel):
     import_page_traces: int = 25
 
 
+class CacheConfig(ConfigModel):
+    redis_url: str | None = None
+    ttl_days: int = Field(default=30, ge=1)
+    memory_entries: int = Field(default=5000, ge=1)
+
+
 class SentryConfig(ConfigModel):
     dsn: str
     environment: str | None = None
@@ -146,6 +152,7 @@ class Config(RunnerConfig):
     otel: OtelConfig = OtelConfig()
     limits: LimitsConfig = LimitsConfig()
     runner: ServerRunnerConfig = ServerRunnerConfig()
+    cache: CacheConfig = CacheConfig()
     sentry: SentryConfig | None = None
     encryption_key: str | None = None
     allow_private_endpoints: bool = False

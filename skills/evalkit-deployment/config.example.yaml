@@ -39,6 +39,11 @@ limits: # optional block; request body caps, 413 beyond them
   case_upload_bytes: 52428800 # the case YAML files of one evalkit sync or lint (50 MB)
   request_bytes: 10485760 # any other request body (10 MB); the collector uses otel.max_batch_bytes
 
+# cache: # optional; the MCP run tools cache answered sessions' metrics, in memory without it
+#   redis_url: env:EVALKIT_REDIS_URL # shared by every replica and kept across restarts
+#   ttl_days: 30 # how long a Redis entry lives
+#   memory_entries: 5000 # sessions one process keeps when redis_url is not set
+
 # sentry: # optional; report server errors to Sentry
 #   dsn: env:SENTRY_DSN
 #   environment: production

@@ -19,6 +19,7 @@ from evalkit.api import runs as runs_api
 from evalkit.api.agents import agent_view
 from evalkit.api.mcp import descriptions as d
 from evalkit.api.mcp.auth import SCOPE_READ
+from evalkit.api.mcp.digest_cache import CachedDigest, digest_cache, digest_key
 from evalkit.api.mcp.models import (
     AgentRow,
     BatchMeta,
@@ -303,10 +304,20 @@ def clipped_step(step: Step, max_chars: int) -> dict:
 Digested = tuple[RunDigest, list[Turn]]
 
 
+def session_heads(listed: list[runs_api.BrowserRun]) -> set[str]:
+    return {run.run_id for run in listed if run.session_id is not None}
+
+
+def answered(result: Digested) -> bool:
+    return bool(result[1]) and result[1][-1].status != "no_answer"
+
+
 class Runs:
     def __init__(self, state: State) -> None:
         self.state = state
         self.gate = asyncio.Semaphore(FETCH_CONCURRENCY_TOTAL)
+        self.cache = digest_cache(state.cfg.cache)
+        self.inflight: dict[str, asyncio.Task[Digested]] = {}
 
     async def agent(self, ref: str) -> AgentDefinition:
         return await runs_api.agent_or_404(self.state.agents, check_agent_id(ref))
@@ -324,13 +335,22 @@ class Runs:
         return trajectory, reported
 
     async def digests(
-        self, record: AgentDefinition, run_ids: list[str], budget: float
+        self,
+        record: AgentDefinition,
+        run_ids: list[str],
+        budget: float,
+        cacheable: set[str] | None = None,
     ) -> list[Digested | HTTPException]:
         # One stored-run lookup and one cost map per call, and no DB connection
         # held across harness calls; whatever is not read within the budget
         # comes back as a per-run failure rather than outliving the request.
+        # A harness that keeps several runs per session gives each new message
+        # a new newest run, so a session head's answered digest never changes:
+        # those are cached, and concurrent calls share one read of a run.
+        keys = {run_id: digest_key(record.id, run_id) for run_id in run_ids}
+        cached = await self.cache.get_many(list(dict.fromkeys(keys.values())))
         async with self.state.session_factory() as session:
-            keys = await trajectory_keys(session, record.id, run_ids)
+            stored = await trajectory_keys(session, record.id, run_ids)
         cost_map = await self.cost_map()
         deps = self.state.runner_deps
         client = (
@@ -341,14 +361,32 @@ class Runs:
 
         call_gate = asyncio.Semaphore(FETCH_CONCURRENCY)
 
-        async def one(run_id: str) -> Digested:
+        async def read(run_id: str) -> Digested:
             async with call_gate, self.gate:
                 trajectory = await runs_api.read_trajectory(
-                    record, run_id, deps, self.state.sessions, keys.get(run_id), client
+                    record, run_id, deps, self.state.sessions, stored.get(run_id), client
                 )
             reported = priced_steps(trajectory)
             backfill_step_costs(trajectory, cost_map)
-            return digest(run_id, trajectory, reported), turns(trajectory)
+            result = digest(run_id, trajectory, reported), turns(trajectory)
+            if cacheable and run_id in cacheable and answered(result):
+                await self.cache.put(keys[run_id], CachedDigest(digest=result[0], turns=result[1]))
+            return result
+
+        async def one(run_id: str) -> Digested:
+            key = keys[run_id]
+            hit = cached.get(key)
+            if hit is not None:
+                return hit.digest, hit.turns
+            shared = self.inflight.get(key)
+            if shared is not None:
+                # Another call owns this read, its harness client and its
+                # budget: waiting must not cancel it.
+                return await asyncio.shield(shared)
+            own = asyncio.create_task(read(run_id))
+            self.inflight[key] = own
+            own.add_done_callback(lambda _: self.inflight.pop(key, None))
+            return await own
 
         tasks = [asyncio.create_task(one(run_id)) for run_id in run_ids]
         try:
@@ -532,7 +570,12 @@ def register(mcp: FastMCP, state: State) -> None:
             listing = await runs.page(
                 record, limit=STATS_MAX_RUNS, offset=0, budget=budget, **filters
             )
-            results = await runs.digests(record, [run.run_id for run in listing.runs], budget)
+            results = await runs.digests(
+                record,
+                [run.run_id for run in listing.runs],
+                budget,
+                session_heads(listing.runs),
+            )
             # A run that could not be read might match: it stays, carrying its
             # note, rather than vanishing from the count.
             hits = [
@@ -557,7 +600,9 @@ def register(mcp: FastMCP, state: State) -> None:
         rows = [run_row(run) for run in page.runs]
         note = harness_note(page)
         if wanted:
-            results = await runs.digests(record, [run.run_id for run in page.runs], budget)
+            results = await runs.digests(
+                record, [run.run_id for run in page.runs], budget, session_heads(page.runs)
+            )
             rows = [with_digest(r, res, wanted) for r, res in zip(rows, results, strict=True)]
             note = note or unread_note(results, truncated=False)
         meta = PagedMeta(**paged_meta(len(rows), page.total, offset), note=note)
@@ -628,7 +673,9 @@ def register(mcp: FastMCP, state: State) -> None:
         }
         page = await runs.page(record, limit=max_runs, offset=0, budget=budget, **filters)
         listed, in_window = page.runs, page.total
-        results = await runs.digests(record, [run.run_id for run in listed], budget)
+        results = await runs.digests(
+            record, [run.run_id for run in listed], budget, session_heads(listed)
+        )
         note = harness_note(page) or unread_note(results, truncated=False)
         items = [
             StatsInput(
