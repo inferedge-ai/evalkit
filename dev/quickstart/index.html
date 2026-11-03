@@ -90,10 +90,7 @@
           <aside class="md-banner md-banner--warning">
             <div class="md-banner__inner md-grid md-typeset">
               
-  You're viewing docs for an older or unreleased version.
-  <a href="../..">
-    <strong>Go to latest.</strong>
-  </a>
+  <span data-evalkit-outdated data-root=".."></span>
 
             </div>
             <script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL(".."),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>
@@ -1105,7 +1102,7 @@
 <p>The Workspace tab on a run lists the files the agent wrote. evalkit reads them through the Harness API files endpoints, so only the two Harness API paths have it. See <a href="../harness-api/">Harness API</a> for what each endpoint enables.</p>
 <h2 id="2-install-and-log-in">2. Install and log in<a class="headerlink" href="#2-install-and-log-in" title="Permanent link">&para;</a></h2>
 <p>evalkit needs Python 3.12 or newer.</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev33"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev34"</span>
 evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020
 </code></pre></div>
 <p>More in <a href="../install/">Install</a> and <a href="../login/">Login</a>.</p>
@@ -1287,6 +1284,8 @@ evalkit<span class="w"> </span>review<span class="w"> </span>approve<span class=
     
     
       <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+        <script src="../javascripts/outdated.js"></script>
       
     
   </body>
