@@ -58,8 +58,7 @@ Rules:
 
 1. Run the case single-case (`evalkit run <dataset> --agent <agent>
    --case-id <id>`; the run syncs first; for a code-driven agent,
-   `evalkit sync <suite-dir>`, then the eval script with
-   `run_experiment(..., case_ids=[<id>])`); collect the experiment.
+   run the eval script with `case_ids=[<id>]`); collect the experiment.
 2. Read the observed trajectory from the collected bundle. Derive the
    enrichment from what actually happened:
    - required tools: the real data tools the run used;

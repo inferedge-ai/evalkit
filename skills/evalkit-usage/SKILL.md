@@ -146,9 +146,8 @@ Put an `evalkit.yaml` in your repo. `evalkit run finance --agent myagent`
 then syncs `<cases>/finance` to `finance@<you>`, drives `myagent` from this
 machine, scores, and writes everything to the server. Run `finance@dev` to
 use the shared cases instead (Approved ones only, no sync). `evalkit run`
-drives agents with a `harness_url`; for a code-driven agent, `evalkit sync`
-the suite and run your script that calls `run_experiment` (`case_ids=` or
-`tags=` pick a subset; see `sdk-runs.md`). Fixture bytes are
+drives agents with a `harness_url`; for a code-driven agent, run the eval
+script with `case_ids=[...]` (see `sdk-runs.md`). Fixture bytes are
 read from the `fixtures` directory and uploaded by sha256 on every run or
 sync.
 

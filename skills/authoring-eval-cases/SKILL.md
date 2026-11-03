@@ -367,8 +367,7 @@ server check case ids and overlay targets against every other dataset.
 A jargon-leak error is fixed by rewording the case, never by renaming
 internals. Then `evalkit run <dataset> --agent <agent>` syncs the directory
 to your workspace and runs it (for a code-driven agent, one without a
-`harness_url`: `evalkit sync <dir>`, then the eval script that calls
-`run_experiment`); CI, logged in as `admin`, runs `evalkit sync
+`harness_url`: run the eval script with `case_ids=[...]`); CI, logged in as `admin`, runs `evalkit sync
 <dir> --workspace dev` (the team's shared workspace) on merge (see
 `evalkit --help` for exact flags).
 

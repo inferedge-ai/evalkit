@@ -73,9 +73,11 @@ which applies:
 - **Harness API agent** (`harness_url` set): `evalkit run <dataset> --agent
   <agent>` drives it.
 - **Code-driven agent** (no `harness_url`): `evalkit run` cannot drive it.
-  Sync the suite with `evalkit sync <suite-dir>`, then run the client's eval
-  script, which calls `run_experiment`; pass `case_ids=[...]` or
-  `tags=[...]` to run a subset (see
+  Run the client's eval script, which calls `run_experiment`; pass
+  `case_ids=[...]` or `tags=[...]` to run a subset.
+  `run_experiment(dataset=<dir name>)` syncs the directory when it is under
+  `cases` in `evalkit.yaml`; otherwise run `evalkit sync <dir>` first and pass
+  the dataset reference (`<name>@<workspace>`) (see
   [`sdk-runs.md`](../evalkit-docs/sdk-runs.md)).
 
 ## Pick a loop
@@ -92,8 +94,8 @@ mix with Loop 1's Steps 1–6.
 ## Runs are history
 
 This applies to both loops. Every pulled run shows the agent as it was when
-the run happened (`run.json` `started_at`, always present; `index.json`
-`created_at` holds the same time), not as
+the run happened (`run.json` `started_at`; `null` when the harness listing gave no creation
+time), not as
 the code is now. Prompts,
 skills, tools and data may have changed since, so a failure in a run may
 already be fixed. Before diagnosing or proposing a fix, check the git history
@@ -103,6 +105,10 @@ of the agent repo for changes made after the run:
 git log --since=<run started_at> --oneline -- <paths of the surfaces involved>
 git log --since=<run started_at> --oneline -S '<tool or prompt text from the trajectory>'
 ```
+
+If `started_at` is `null`, skip the `--since` commands, read the last few
+commits that touch the surface instead, and say in the diagnosis that the
+run's time was unknown.
 
 `--since` compares commit dates, which a rebase or squash merge resets, so
 treat it as a first pass: also read the last few commits that touch the
@@ -197,11 +203,9 @@ run the dataset the way the agent is run (see "How the agent is run"):
   run only the relevant cases (`evalkit run <dataset>/<file>.yaml`,
   `evalkit run <dataset>/<subfolder>`, or `--case-id`, repeatable) rather
   than the whole dataset.
-- **Code-driven agent** — `evalkit sync <suite-dir>`, then run the client's
-  eval script, the one that calls `run_experiment`. For a tight loop, pass
-  `case_ids=[...]` or `tags=[...]` to `run_experiment` (see
-  [`sdk-runs.md`](../evalkit-docs/sdk-runs.md)); if the script takes no
-  case-subset option, add one rather than running the whole dataset.
+- **Code-driven agent** — run the eval script with `case_ids=[...]` (see
+  "How the agent is run"); if the script takes no case-subset option, add
+  one rather than running the whole dataset.
 
 `evalkit run` executes every selected case, in personal and shared datasets
 alike; review state never filters a run.
@@ -342,8 +346,8 @@ surfaces the proposal touches (search the case YAML for related scenarios).
    the behaviour persisted, prefer deterministic guards, no eval awareness.
 2. Run the working set: `evalkit run <dataset> --agent <agent> --case-id
    <id> [--case-id …]` for a Harness API agent (the run syncs your edits
-   first); for a code-driven agent, `evalkit sync <suite-dir>`, then the
-   client's eval script with `run_experiment(..., case_ids=[...])`.
+   first); for a code-driven agent, run the eval script with
+   `case_ids=[...]`.
 3. `evalkit runs pull --experiment <id>` for that experiment and pick the
    failures from the new `index.json`.
 4. Stop when no failure scores below threshold (**green**) or when the

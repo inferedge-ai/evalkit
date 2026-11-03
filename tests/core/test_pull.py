@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from evalkit.contracts.enums import EvaluationSource, EvaluatorKind, RunStatus
 from evalkit.core.pull import (
@@ -43,7 +43,7 @@ def eval_bundle() -> RunBundle:
         source="eval",
         status="completed",
         created_at=STARTED,
-        run=run_body("r/1", "eval", record, context, STARTED),
+        run=run_body("r/1", "eval", record, context, created_at=STARTED - timedelta(minutes=1)),
         trajectory={"steps": []},
         eval=context,
     )
@@ -106,5 +106,14 @@ def test_merge_index_keeps_old_runs_and_takes_new_filters():
 
 
 def test_run_body_without_record_takes_started_at_from_listing():
-    body = run_body("app-1", "app", None, None, STARTED)
+    body = run_body("app-1", "app", None, None, created_at=STARTED)
     assert body["started_at"] == STARTED.isoformat()
+
+
+def test_run_body_prefers_the_record_start_time():
+    run = json.loads(bundle_files(eval_bundle())["runs/r_1/run.json"])
+    assert run["started_at"] == STARTED.isoformat()
+
+
+def test_run_body_without_record_or_listing_time_has_null_started_at():
+    assert run_body("app-1", "app", None, None, created_at=None)["started_at"] is None

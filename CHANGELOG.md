@@ -4,13 +4,12 @@
 
 - `evalkit runs pull` now writes `started_at` in every `run.json`. A run with
   no agent-run record (most app runs) takes it from the run's listed
-  `created_at`; before, the field was missing.
+  `created_at`; before, the field was missing. It is `null` when the harness
+  listing gives no creation time.
 - The eval-driven-development skill gives both run forms: `evalkit run` for
-  a Harness API agent, and `evalkit sync` plus the client's
-  `run_experiment(..., case_ids=[...])` script for a code-driven agent. Loop 2
-  groups runs by `question_kind` (free text) instead of a `task_type` no
-  skill defined.
-
+  a Harness API agent, and the client's `run_experiment(..., case_ids=[...])`
+  script for a code-driven agent. Loop 2 groups runs by `question_kind` (free
+  text) instead of a `task_type` no skill defined.
 - Traces from Google ADK / Gemini and LangChain-style instrumentors now keep
   the model's messages and tool calls. evalkit reads the message roles
   `model`, `ai` and `bot` as `assistant`, `human` as `user`, `developer` as
