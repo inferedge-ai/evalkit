@@ -84,6 +84,17 @@ def test_flow_16_workspaces_rename_archive_and_shared_namespace(live):
     assert admin.get("/api/workspaces/nope").status_code == 404
 
 
+def test_flow_16_workspaces_list_shows_the_promotion_link(live):
+    assert live.run("workspaces", "create", "qa").exit_code == 0
+    linked = live.run("workspaces", "promote-to", DEV, "qa")
+    assert linked.exit_code == 0, linked.output
+    listed = live.run("workspaces", "list").output
+    assert lines_starting(listed, DEV)[0][4:7] == ["promotes", "to", "qa"]
+    assert lines_starting(listed, "qa")[0][4:7] == ["promoted", "from", DEV]
+    assert live.run("workspaces", "promote-to", DEV, "--none").exit_code == 0
+    assert len(lines_starting(live.run("workspaces", "list").output, DEV)[0]) == 4
+
+
 def test_flow_16_members_and_what_grants_allow(live):
     assert live.run("workspaces", "members", "add", DEV, "alice", "--role", "writer").exit_code == 0
     assert (

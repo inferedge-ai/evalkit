@@ -505,23 +505,29 @@ def datasets_list(
         None, "--state", help="Only cases in this review state (shared workspaces only)."
     ),
     tag: str | None = typer.Option(None, "--tag", help="Only cases carrying this tag."),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Only datasets in this workspace, e.g. dev; defaults to all."
+    ),
 ):
     """List datasets with kind and version, or one dataset's cases.
 
     With a dataset, prints each case's id, review state (shared workspaces only; `-`
     elsewhere), tags and fixture keys.
 
-    Example: evalkit datasets list · evalkit datasets list finance@dev --state approved
-    · evalkit datasets list finance --tag statement-analysis
+    Example: evalkit datasets list --workspace dev · evalkit datasets list finance@dev
+    --state approved · evalkit datasets list finance --tag statement-analysis
     """
     if dataset is None:
         if state is not None or tag is not None:
             raise ApiError("--state and --tag filter a dataset's cases; pass a dataset")
-        for ds in _client().get("/api/datasets").json():
+        params = {"workspace": workspace} if workspace is not None else {}
+        for ds in _client().get("/api/datasets", params=params).json():
             last = ds.get("last_sync") or {}
             sha = (last.get("detail") or {}).get("sha") or "-"
             typer.echo(f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}")
         return
+    if workspace is not None:
+        raise ApiError("--workspace filters the dataset list; name the dataset as finance@dev")
     dataset_slug = slug(_parse(dataset, _connection().username or ""))
     params = {"tag": tag} if tag is not None else {}
     rows = _client().get(f"/api/datasets/{encode(dataset_slug)}/cases", params=params).json()
@@ -1410,13 +1416,16 @@ def review_queue(
     changes_requested: bool = typer.Option(
         False, "--changes-requested", help="Cases sent back to their authors instead."
     ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Only cases in this workspace, e.g. dev; defaults to all."
+    ),
 ):
     """List cases waiting for review, or with --changes-requested, cases awaiting an edit.
 
-    Example: evalkit review queue
+    Example: evalkit review queue · evalkit review queue --workspace dev
     """
     client = _client()
-    params: dict = {}
+    params: dict = {} if workspace is None else {"workspace": workspace}
     if changes_requested:
         params["state"] = "changes_requested"
     elif not everyone:

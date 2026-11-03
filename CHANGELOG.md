@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `evalkit datasets list --workspace dev` lists only the datasets in `@dev`,
+  and `evalkit review queue --workspace dev` only the cases waiting there.
+  Without the flag both still cover every workspace you can see. Passing
+  `--workspace` together with a dataset is refused: name it as `finance@dev`.
+- `evalkit workspaces list` now shows promotion links: `promotes to prod` on
+  the source row and `promoted from dev` on the target row.
 - `evalkit runs pull` now writes `started_at` in every `run.json`. A run with
   no agent-run record (most app runs) takes it from the run's listed
   `created_at`; before, the field was missing. It is `null` when the harness

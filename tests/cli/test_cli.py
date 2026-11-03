@@ -488,6 +488,17 @@ def test_datasets_list(env):
     assert "finance" in result.output
 
 
+def test_datasets_list_by_workspace(env):
+    shared = runner.invoke(cli_app, ["datasets", "list", "--workspace", "canonical"])
+    assert shared.exit_code == 0, shared.output
+    assert "finance@canonical" in shared.output
+    empty = runner.invoke(cli_app, ["datasets", "list", "--workspace", "admin"])
+    assert empty.exit_code == 0, empty.output
+    assert "finance@canonical" not in empty.output
+    both = runner.invoke(cli_app, ["datasets", "list", "finance@canonical", "--workspace", "dev"])
+    assert both.exit_code == 1
+
+
 def _write_registry(path, key: str, data: bytes) -> None:
     path.write_text(
         f"fixtures:\n- key: {key}\n  sha256: {hashlib.sha256(data).hexdigest()}\n  context: ctx\n"
@@ -783,6 +794,8 @@ def test_review_request_show_and_approve(env):
     queue = runner.invoke(cli_app, ["review", "queue"])
     assert queue.exit_code == 0, queue.output
     assert "case-2" in queue.output
+    elsewhere = runner.invoke(cli_app, ["review", "queue", "--workspace", "admin"])
+    assert "nothing waiting" in elsewhere.output
 
     commented = runner.invoke(
         cli_app, ["review", "comment", "finance@canonical", "case-2", "looks fine"]
