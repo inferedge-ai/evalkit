@@ -11,7 +11,23 @@
   `run_experiment(dry_run=...)` now checks case inputs against the schema,
   as the real run does. `evalkit lint --agent` on a code-driven agent lints
   against its schema instead of failing with an `AssertionError`. The Case
-  schema page documents the default schema.
+  schema, Harness API and SDK runs pages document the default schema and
+  how each kind of agent sets its own.
+- New docs page "Server config" lists every key of the server's
+  `config.yaml` with its default, including the database pool
+  (`db.pool_size` 20, `db.max_overflow` 10, `db.pool_timeout_seconds` 5) and
+  `runner.evaluation_concurrency` (16), and how to size them against
+  Postgres `max_connections`. `evalkit init-server` now writes
+  `db.pool_size: 5`, `db.max_overflow: 5` and
+  `runner.evaluation_concurrency: 4` into the `config.yaml` it creates, with
+  a comment naming the server defaults, so several local servers can share
+  one Postgres.
+- The Install page shows how to run the CLI from inside a uv project
+  (`uv add "evalkit-py==…"`, then `uv run evalkit`), how to get the
+  skills (`evalkit skills install`, and where the span mappings land), and
+  that `skills install` records its target in `~/.evalkit/skills-targets`.
+  The server install lines on Install and Try locally now pin the version,
+  and Workspaces shows `evalkit users add`.
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of
   a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch

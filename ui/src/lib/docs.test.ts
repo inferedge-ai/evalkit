@@ -10,6 +10,7 @@ describe("docs", () => {
       "install",
       "login",
       "config",
+      "server-config",
       "workspaces",
       "ci-sync",
       "case-schema",
