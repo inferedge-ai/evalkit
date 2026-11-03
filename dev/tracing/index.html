@@ -864,6 +864,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#message-roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message roles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#checking-a-session" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1142,6 +1153,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#message-roles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message roles
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#checking-a-session" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1295,6 +1317,35 @@ user can import traces from it into an OTel agent they can write, with
   workspace, so traces imported into your personal workspace are visible to
   everyone on the server. See <a href="../workspaces/">Where runs happen</a>.</li>
 </ul>
+<h2 id="message-roles">Message roles<a class="headerlink" href="#message-roles" title="Permanent link">&para;</a></h2>
+<p>evalkit reads message roles in any letter case and maps the names some frameworks use to four roles:</p>
+<table>
+<thead>
+<tr>
+<th>Role on the span</th>
+<th>Read as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>assistant</code>, <code>model</code> (Gemini, Google ADK), <code>ai</code> (LangChain), <code>bot</code></td>
+<td><code>assistant</code></td>
+</tr>
+<tr>
+<td><code>user</code>, <code>human</code></td>
+<td><code>user</code></td>
+</tr>
+<tr>
+<td><code>system</code>, <code>developer</code> (OpenAI)</td>
+<td><code>system</code></td>
+</tr>
+<tr>
+<td><code>tool</code>, <code>function</code></td>
+<td><code>tool</code></td>
+</tr>
+</tbody>
+</table>
+<p>The trajectory drops messages with any other role, along with their tool calls. <code>evalkit traces check</code> warns on its <code>llm</code> line and names the unknown roles it found.</p>
 <h2 id="checking-a-session">Checking a session<a class="headerlink" href="#checking-a-session" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>check<span class="w"> </span>myagent-sdk<span class="w"> </span>&lt;session<span class="w"> </span>id&gt;
 </code></pre></div>
