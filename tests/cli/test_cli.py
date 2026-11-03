@@ -495,6 +495,9 @@ def test_datasets_list_by_workspace(env):
     empty = runner.invoke(cli_app, ["datasets", "list", "--workspace", "admin"])
     assert empty.exit_code == 0, empty.output
     assert "finance@canonical" not in empty.output
+    at_form = runner.invoke(cli_app, ["datasets", "list", "--workspace", "@canonical"])
+    assert "finance@canonical" in at_form.output
+    assert runner.invoke(cli_app, ["datasets", "list", "--workspace", "nope"]).exit_code == 1
     both = runner.invoke(cli_app, ["datasets", "list", "finance@canonical", "--workspace", "dev"])
     assert both.exit_code == 1
 
@@ -805,6 +808,7 @@ def test_review_request_show_and_approve(env):
     assert "case-2" in queue.output
     elsewhere = runner.invoke(cli_app, ["review", "queue", "--workspace", "admin"])
     assert "nothing waiting" in elsewhere.output
+    assert runner.invoke(cli_app, ["review", "queue", "--workspace", "nope"]).exit_code == 1
 
     commented = runner.invoke(
         cli_app, ["review", "comment", "finance@canonical", "case-2", "looks fine"]

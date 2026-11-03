@@ -244,6 +244,8 @@ async def queue(
     state: QueueState = "review_requested",
     workspace: str | None = None,
 ) -> dict:
+    if workspace is not None:
+        await workspace_ref(session, workspace)
     items: list[dict] = []
     for dataset in await list_datasets(session, workspace):
         if not is_reviewable(dataset):

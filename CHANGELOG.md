@@ -4,11 +4,13 @@
 
 - `evalkit datasets list --workspace dev` lists only the datasets in `@dev`,
   and `evalkit review queue --workspace dev` only the cases waiting there.
-  Without the flag both still cover every workspace you can see. Passing
+  Without the flag both still cover every workspace you can see. `@dev` works
+  too; an unknown workspace is an error, not an empty list (the same 404
+  applies to `GET /api/datasets?workspace=` and `GET /api/review/queue?workspace=`). Passing
   `--workspace` together with a dataset is refused: name it as `finance@dev`.
 - `evalkit datasets show finance@dev` prints one dataset's kind, last sync
-  (time, author, sha, branch), case count, cases per review state (shared
-  workspaces only) and tag counts.
+  (time, author, sha, branch), case count, cases per review state (reviewable
+  suites only) and tag counts.
 - `evalkit workspaces list` now shows promotion links: `promotes to prod` on
   the source row and `promoted from dev` on the target row.
 - `evalkit runs pull` now writes `started_at` in every `run.json`. A run with

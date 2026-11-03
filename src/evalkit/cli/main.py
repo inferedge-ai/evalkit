@@ -520,7 +520,7 @@ def datasets_list(
     if dataset is None:
         if state is not None or tag is not None:
             raise ApiError("--state and --tag filter a dataset's cases; pass a dataset")
-        params = {"workspace": workspace} if workspace is not None else {}
+        params = {"workspace": workspace.removeprefix("@")} if workspace is not None else {}
         for ds in _client().get("/api/datasets", params=params).json():
             last = ds.get("last_sync") or {}
             sha = (last.get("detail") or {}).get("sha") or "-"
@@ -571,7 +571,7 @@ def datasets_show(
             + (" dirty" if detail.get("dirty") else "")
         )
     typer.echo(f"cases: {len(cases)}")
-    if ds["workspace_is_shared"]:
+    if any(case["review"] is not None for case in cases):
         states: dict[str, int] = {}
         for case in cases:
             state = (case["review"] or {}).get("state", "-")
@@ -1460,7 +1460,7 @@ def review_queue(
     Example: evalkit review queue · evalkit review queue --workspace dev
     """
     client = _client()
-    params: dict = {} if workspace is None else {"workspace": workspace}
+    params: dict = {} if workspace is None else {"workspace": workspace.removeprefix("@")}
     if changes_requested:
         params["state"] = "changes_requested"
     elif not everyone:
