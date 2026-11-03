@@ -287,8 +287,8 @@ Rules of the road:
 - A code-driven agent's case inputs must pass its input schema, by default
   an object with a required string `question`. For other inputs (multi-turn
   `turns`, structured fields), write a JSON Schema file and run
-  `evalkit agents edit <agent> --input-schema schema.json`; don't add a dummy
-  `question` key. `run_experiment(dry_run=...)` checks it too.
+  `evalkit agents edit <agent> --input-schema schema.json`.
+  `run_experiment(dry_run=...)` checks it too.
 - Python evaluators (`@evaluator`) see the same payload as the HTTP Custom
   Evaluator API and are selected by name under a case's `evaluators.custom`.
   Re-score with `evaluate_experiment(...)` from the same script;

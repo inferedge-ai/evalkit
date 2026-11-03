@@ -67,8 +67,7 @@ general conversational rule). Stop asking when the slots are full, not before.
 with a required string `question`, which the slots above assume. When the
 agent takes another shape (multi-turn `turns`, structured fields), write the
 input in that shape and check it with `evalkit lint <dir> --agent <name>`
-before syncing. Never add a dummy `question` key to get past the check: a
-code-driven agent sets its own schema with
+before syncing. A code-driven agent sets its own schema with
 `evalkit agents edit <name> --input-schema schema.json`, and a harness
 declares one as `input_schema` in `GET /capabilities`.
 
