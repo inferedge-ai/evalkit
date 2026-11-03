@@ -86,3 +86,8 @@ tokens written to the prompt cache; it lands in the step's
   with `role`, `content` (a string or a list of `{"type": "text", "text"}`
   parts), `tool_calls` (`id`, `function.name`, `function.arguments` as a JSON
   string) and `tool_call_id`.
+
+Roles are read case-insensitively in every format. `model`, `ai` and `bot`
+count as `assistant`, `human` as `user`, `developer` as `system` and
+`function` as `tool`. The trajectory ignores messages with any other role,
+and `evalkit traces check` warns about them.

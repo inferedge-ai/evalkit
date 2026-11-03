@@ -26,6 +26,7 @@ ROLE_ALIASES = {
     "ai": "assistant",
     "bot": "assistant",
     "human": "user",
+    "developer": "system",
     "function": "tool",
 }
 KINDS: frozenset[str] = frozenset({"llm", "tool", "agent", "chain", "retriever", "other"})

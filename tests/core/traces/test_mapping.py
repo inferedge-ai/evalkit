@@ -356,3 +356,29 @@ def test_framework_roles_become_canonical_roles():
     )
     assert [m.role for m in span.output_messages] == ["assistant", "tool", "assistant"]
     assert span.output_messages[0].tool_calls[0].name == "lookup"
+
+
+def test_openinference_model_role_keeps_its_tool_call():
+    attributes = {
+        **OPENINFERENCE_LLM,
+        "llm.input_messages.0.message.role": "developer",
+        "llm.output_messages.0.message.role": "model",
+    }
+    span = to_esf(raw(attributes), REFERENCE["openinference"])
+    assert [m.role for m in span.input_messages] == ["system", "user"]
+    assert span.output_messages[0].role == "assistant"
+    assert span.output_messages[0].tool_calls[0].name == "lookup"
+
+
+def test_openai_format_normalizes_roles():
+    doc = MappingDocument.model_validate(
+        {
+            "schema_version": "1",
+            "kind": {"attribute": "k", "values": {"chat": "llm"}},
+            "output_messages": {"attribute": "out", "message_format": "openai"},
+        }
+    )
+    out = [{"role": "Model", "tool_calls": [{"id": "c", "function": {"name": "f"}}]}]
+    span = to_esf(raw({"k": "chat", "out": json.dumps(out)}), doc)
+    assert span.output_messages[0].role == "assistant"
+    assert span.output_messages[0].tool_calls[0].name == "f"
