@@ -1231,7 +1231,13 @@ evalkit<span class="w"> </span>datasets<span class="w"> </span>create<span class
    Unreviewed.</li>
 <li><strong>Review.</strong> Alice asks for a review:
    <code>evalkit review request finance@dev --case-id net-debt --reviewer bob</code>.
-   Bob approves it: <code>evalkit review approve finance@dev net-debt</code>.</li>
+   Bob approves it: <code>evalkit review approve finance@dev net-debt</code>.
+   He can approve several at once (<code>evalkit review approve finance@dev
+   net-debt fx-rate</code>) or every case waiting on him
+   (<code>evalkit review approve finance@dev --all-waiting</code>). To ask a question
+   first: <code>evalkit review comment finance@dev net-debt --comment "which
+   fiscal year?"</code>; resolve it later by its id: <code>evalkit review resolve 12</code>.
+   <code>evalkit review queue finance@dev</code> lists what is waiting in one dataset.</li>
 <li><strong>Promotion.</strong> The approval adds that version of the case to
    <code>finance@prod</code>, approved.</li>
 <li><strong>Run.</strong> <code>finance@dev</code> holds every merged case, for regression runs
@@ -1241,6 +1247,10 @@ evalkit<span class="w"> </span>datasets<span class="w"> </span>create<span class
 <p>Changing a case starts the loop again. The new version is Unreviewed in
 <code>@dev</code>, and <code>@prod</code> keeps the old approved version until the new one is
 approved.</p>
+<p>A change to a case that is waiting for review, or was sent back with
+changes requested, goes back to the same reviewer on sync: you don't need
+to run <code>review request</code> again. If you do, cases already waiting on that
+reviewer are left as they are.</p>
 <h2 id="several-branches">Several branches<a class="headerlink" href="#several-branches" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>evalkit run</code> syncs the dataset directory first. The dataset in your

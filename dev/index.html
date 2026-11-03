@@ -1150,8 +1150,9 @@ evalkit's skills; evalkit keeps the cases, reviews, runs and history.</p>
    and proposes fixes that name the prompt, tool description, skill or data
    source to change.</li>
 <li><strong>Prove it.</strong> Apply the fixes, re-run, and compare the two experiments
-   case by case: what got fixed, what broke. The cases stay as regression
-   guards for every change after.</li>
+   case by case with <code>evalkit summary &lt;new-id&gt; --baseline &lt;old-id&gt;</code>: what
+   got fixed, what broke. The cases stay as regression guards for every
+   change after.</li>
 </ol>
 <p>Steps 1, 4 and 5 run as agent skills (<code>evalkit skills install</code>) in Claude
 Code or another coding agent. Alongside them are skills for writing cases
