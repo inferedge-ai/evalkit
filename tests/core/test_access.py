@@ -23,7 +23,7 @@ def actor(uid, admin=False, tenant_id=1):
     return Actor(uid, f"u{uid}", admin, tenant_id, {})
 
 
-def test_everyone_reads_everything():
+def test_everyone_in_the_tenant_reads_everything():
     assert can_read(actor(20), AKSHAT) and can_read(actor(20), DEV)
 
 

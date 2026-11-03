@@ -88,3 +88,13 @@ def test_0016_downgrades_cleanly_with_one_tenant(fresh_db_url):
     [(judge,)] = _rows(fresh_db_url, "SELECT default_judge->>'model' FROM server_settings")
     assert judge == "m"
     run_migrations(fresh_db_url, "0016")
+
+
+def test_0016_refuses_to_downgrade_with_a_passwordless_user(fresh_db_url):
+    run_migrations(fresh_db_url, "0016")
+    _exec(
+        fresh_db_url,
+        ["INSERT INTO users (tenant_id, username, password_hash) VALUES (1, 'sso', NULL)"],
+    )
+    with pytest.raises(RuntimeError, match="password"):
+        downgrade_migrations(fresh_db_url, "0015")

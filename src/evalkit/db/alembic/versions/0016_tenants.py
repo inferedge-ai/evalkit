@@ -113,6 +113,11 @@ def downgrade() -> None:
         raise RuntimeError(
             f"{tenants} tenant(s) other than the default exist; 0016 cannot be downgraded"
         )
+    passwordless = bind.execute(
+        sa.text("SELECT count(*) FROM users WHERE password_hash IS NULL")
+    ).scalar_one()
+    if passwordless:
+        raise RuntimeError(f"{passwordless} user(s) have no password; 0016 cannot be downgraded")
     op.drop_index("uq_users_tenant_subject", table_name="users")
     op.alter_column("users", "password_hash", existing_type=sa.String(length=200), nullable=False)
     op.drop_column("users", "email")
