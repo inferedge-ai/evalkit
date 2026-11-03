@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- A code-driven agent can set its own input schema:
+  `evalkit agents create|edit <name> --input-schema schema.json`, and
+  `evalkit agents edit <name> --clear-input-schema` goes back to the
+  default (an object with a required string `question`). `agents show`
+  prints the schema, or the default. An agent with a `harness_url` is
+  refused: its harness declares the schema in `GET /capabilities`.
+  `run_experiment(dry_run=...)` now checks case inputs against the schema,
+  as the real run does. `evalkit lint --agent` on a code-driven agent lints
+  against its schema instead of failing with an `AssertionError`. The Case
+  schema page documents the default schema.
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of
   a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch

@@ -39,6 +39,15 @@ CLEAR_API_KEY = typer.Option(False, "--clear-api-key", help="Remove the stored A
 
 ROLE = typer.Option(..., "--role", help="writer or reviewer.")
 
+INPUT_SCHEMA = typer.Option(
+    None,
+    "--input-schema",
+    exists=True,
+    dir_okay=False,
+    help="JSON Schema file every case input must pass; code-driven agents only. Default: "
+    "an object with a required string question.",
+)
+
 
 def _provides(pairs: list[str]) -> dict[str, bool] | None:
     if not pairs:
@@ -52,11 +61,15 @@ def _provides(pairs: list[str]) -> dict[str, bool] | None:
     return parsed
 
 
-def _settings(values: dict[str, int | None], provides: list[str]) -> dict:
+def _settings(
+    values: dict[str, int | None], provides: list[str], input_schema: Path | None
+) -> dict:
     settings: dict = {key: value for key, value in values.items() if value is not None}
     flags = _provides(provides)
     if flags is not None:
         settings["provides"] = flags
+    if input_schema is not None:
+        settings["input_schema"] = json.loads(input_schema.read_text())
     return settings
 
 
@@ -66,6 +79,10 @@ def _print_agent(agent: dict) -> None:
     typer.echo(f"  trajectory_source  {agent['trajectory_source']}")
     typer.echo(f"  repo_url           {agent['repo_url'] or '-'}")
     for key, value in agent["settings"].items():
+        if key == "input_schema" and value is None and agent["harness_url"] is None:
+            value = "default (a required string question)"
+        elif isinstance(value, dict) and key == "input_schema":
+            value = json.dumps(value)
         typer.echo(f"  {key:<18} {'-' if value is None else value}")
     if agent["workspace_type"] == "shared":
         typer.echo(f"  api key            {'set' if agent['has_api_key'] else 'not set'}")
@@ -362,6 +379,7 @@ def register(
         stop_grace: int | None = typer.Option(None, "--stop-grace"),
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
+        input_schema: Path | None = INPUT_SCHEMA,
         api_key_env: str | None = API_KEY_ENV,
     ):
         """Create an agent. In a shared workspace its key is stored on the server
@@ -379,6 +397,7 @@ def register(
                 "trajectory_wait_seconds": trajectory_wait,
             },
             provides,
+            input_schema,
         )
         body = {
             "workspace": workspace or whoami(),
@@ -416,6 +435,10 @@ def register(
         stop_grace: int | None = typer.Option(None, "--stop-grace"),
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
+        input_schema: Path | None = INPUT_SCHEMA,
+        clear_input_schema: bool = typer.Option(
+            False, "--clear-input-schema", help="Go back to the default input schema."
+        ),
         api_key_env: str | None = API_KEY_ENV,
         clear_api_key: bool = CLEAR_API_KEY,
     ):
@@ -439,7 +462,12 @@ def register(
                 "trajectory_wait_seconds": trajectory_wait,
             },
             provides,
+            input_schema,
         )
+        if clear_input_schema:
+            if input_schema is not None:
+                raise ApiError("pass --input-schema or --clear-input-schema, not both")
+            changed["input_schema"] = None
         body: dict = {"settings": {**current["settings"], **changed}}
         if harness_url is not None:
             body["harness_url"] = harness_url
