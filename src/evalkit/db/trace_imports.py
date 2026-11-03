@@ -13,6 +13,7 @@ from evalkit.core.traces.importer import (
 )
 from evalkit.db import models
 from evalkit.db.locks import lock_name
+from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.store.base import Conflict
 
 ACTIVE = [s.value for s in ACTIVE_IMPORT]
@@ -287,7 +288,7 @@ class TraceImportStore:
 
 
 async def reap_imports(session_factory: async_sessionmaker[AsyncSession]) -> list[int]:
-    async with session_factory() as session:
+    async with tenant_session(session_factory, ALL_TENANTS) as session:
         reaped = await session.scalars(
             update(models.TraceImport)
             .where(
@@ -306,3 +307,18 @@ async def reap_imports(session_factory: async_sessionmaker[AsyncSession]) -> lis
         ids = list(reaped.all())
         await session.commit()
     return ids
+
+
+async def tenant_of_import(
+    session_factory: async_sessionmaker[AsyncSession], import_id: int
+) -> int:
+    async with tenant_session(session_factory, ALL_TENANTS) as session:
+        tenant_id = await session.scalar(
+            select(models.Workspace.tenant_id)
+            .join(models.Agent, models.Agent.workspace_id == models.Workspace.id)
+            .join(models.TraceImport, models.TraceImport.agent_id == models.Agent.id)
+            .where(models.TraceImport.id == import_id)
+        )
+    if tenant_id is None:
+        raise UnknownTraceImport(import_id)
+    return tenant_id

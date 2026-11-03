@@ -4,12 +4,14 @@ from typing import Annotated
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from evalkit.api.auth import CurrentUser
 from evalkit.config import Config
 from evalkit.core.runner import RunnerDeps
 from evalkit.db.agents import AgentStore
 from evalkit.db.keys import KeyLoader
 from evalkit.db.mappings import MappingStore
 from evalkit.db.review import ReviewLog
+from evalkit.db.session import tenant_session
 from evalkit.db.sessions import DbSessionReader
 from evalkit.db.spans import SpanStore
 from evalkit.db.store import PgStore
@@ -60,8 +62,8 @@ def get_sessions(request: Request) -> DbSessionReader:
     return request.app.state.sessions
 
 
-async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
-    async with request.app.state.session_factory() as session:
+async def get_session(request: Request, user: CurrentUser) -> AsyncIterator[AsyncSession]:
+    async with tenant_session(request.app.state.session_factory, user.tenant_id) as session:
         yield session
 
 

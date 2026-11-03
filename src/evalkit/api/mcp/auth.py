@@ -33,19 +33,21 @@ class EvalkitTokenVerifier(TokenVerifier):
         self._session_factory = session_factory
 
     async def verify_token(self, token: str) -> AccessToken | None:
-        async with self._session_factory() as session:
-            try:
-                row, user = await bearer_login(session, token)
-            except HTTPException:
-                return None
-            await session.commit()
+        try:
+            row, user = await bearer_login(self._session_factory, token)
+        except HTTPException:
+            return None
         expires = token_expiry(row)
         return AccessToken(
             token=token,
             client_id=f"evalkit:{user.username}",
             scopes=[SCOPE_READ],
             expires_at=int(expires.timestamp()) if expires is not None else None,
-            claims={"sub": user.username, "evalkit_user": user.username},
+            claims={
+                "sub": user.username,
+                "evalkit_user": user.username,
+                "tenant_id": user.tenant_id,
+            },
         )
 
 

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from evalkit.contracts.enums import TokenKind
 from evalkit.db.locks import lock_name
 from evalkit.db.models import AuthToken, User, Workspace
+from evalkit.db.session import ALL_TENANTS, tenant_session
 
 NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
@@ -71,6 +72,12 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode(), password_hash.encode())
+
+
+async def any_admin_exists(session_factory: async_sessionmaker[AsyncSession]) -> bool:
+    async with tenant_session(session_factory, ALL_TENANTS) as session:
+        found = await session.scalar(select(User.id).where(User.is_admin.is_(True)).limit(1))
+    return found is not None
 
 
 async def name_taken(session: AsyncSession, name: str) -> bool:

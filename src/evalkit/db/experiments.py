@@ -10,6 +10,7 @@ from evalkit.core.runner import ACTIVE, ALLOWED, LEASE_SECONDS
 from evalkit.core.workspace import parse_slug
 from evalkit.db import models
 from evalkit.db.cases import case_views, dataset_by_ref
+from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.workspaces import to_ref, workspace_row
 from evalkit.store.base import (
     CaseView,
@@ -345,7 +346,7 @@ async def pinned_cases(session: AsyncSession, exp_id: int) -> list[CaseView]:
 
 
 async def reap(session_factory: async_sessionmaker[AsyncSession]) -> list[int]:
-    async with session_factory() as s:
+    async with tenant_session(session_factory, ALL_TENANTS) as s:
         reaped = [
             exp_id
             for exp_id in await stale_active(s, datetime.now(UTC))
@@ -353,6 +354,21 @@ async def reap(session_factory: async_sessionmaker[AsyncSession]) -> list[int]:
         ]
         await s.commit()
     return reaped
+
+
+async def tenant_of_experiment(
+    session_factory: async_sessionmaker[AsyncSession], experiment_id: int
+) -> int:
+    async with tenant_session(session_factory, ALL_TENANTS) as s:
+        tenant_id = await s.scalar(
+            select(models.Workspace.tenant_id)
+            .join(models.Dataset, models.Dataset.workspace_id == models.Workspace.id)
+            .join(models.Experiment, models.Experiment.dataset_id == models.Dataset.id)
+            .where(models.Experiment.id == experiment_id)
+        )
+    if tenant_id is None:
+        raise UnknownExperiment(experiment_id)
+    return tenant_id
 
 
 async def experiment_of_run(session: AsyncSession, experiment_run_id: int) -> int | None:
