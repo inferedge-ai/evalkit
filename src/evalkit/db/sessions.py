@@ -84,7 +84,8 @@ class DbSessionReader:
             )
             if result.root_present or not result.span_count:
                 return result
-            return result.model_copy(update={"root_present": await rows.roots_received()})
+            received = result.settled or await rows.roots_received()
+            return result.model_copy(update={"root_present": received})
 
     async def trajectory(self, agent: str, session_id: str) -> SessionTrajectory:
         result = await self.read(agent, session_id)

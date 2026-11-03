@@ -29,12 +29,15 @@ from evalkit.core.agents import UnknownAgent
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE, AttributeKeys
 from evalkit.core.traces.raw import RawSpan
 from evalkit.db import models
-from evalkit.db.locks import lock_name
 from evalkit.db.runs import RunSource, eval_run_ids
 from evalkit.db.session import tenant_session
 
 UPSERT_CHUNK = 1000
 SPAN_KEY = ("agent_id", "trace_id", "span_id")
+LOCK_TRACES = text(
+    "SELECT pg_advisory_xact_lock(hashtext(n)) "
+    "FROM unnest(CAST(:names AS text[])) WITH ORDINALITY AS t(n, i) ORDER BY i"
+)
 SESSION_FROM_ANCESTORS = text(
     """
     WITH RECURSIVE trace AS (
@@ -216,8 +219,9 @@ class SpanStore:
         trace_ids = sorted({s.trace_id for s in spans})
         async with self._session() as session:
             await self._check_agent(session, agent_id)
-            for trace_id in trace_ids:
-                await lock_name(session, f"spans:{agent_id}", trace_id)
+            await session.execute(
+                LOCK_TRACES, {"names": [f"spans:{agent_id}:{t}" for t in trace_ids]}
+            )
             now = datetime.now(UTC)
             rows = {
                 (span.trace_id, span.span_id): dict(

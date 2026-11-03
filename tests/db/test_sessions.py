@@ -243,3 +243,15 @@ async def test_a_sessionless_http_root_counts_as_the_root_once_received(stores):
     await spans.upsert(agent_id, [http])
     result = await reader.trajectory("support-bot@akshat", SESSION)
     assert result.root_present and result.span_count == 1
+
+
+async def test_a_settled_session_counts_as_rooted_when_the_root_never_arrives(stores, monkeypatch):
+    reader, spans, _, agent_id = stores
+    clock = Clock()
+    turn = _span(clock, "t1", "turn", "browser", "turn", {"session.id": SESSION})
+    turn.session_id_hint = SESSION
+    await spans.upsert(agent_id, [turn])
+    assert not (await reader.trajectory("support-bot@akshat", SESSION)).root_present
+    monkeypatch.setattr(reader._otel, "settle_seconds", -60)
+    result = await reader.trajectory("support-bot@akshat", SESSION)
+    assert result.settled and result.root_present

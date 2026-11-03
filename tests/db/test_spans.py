@@ -136,6 +136,19 @@ async def test_spans_under_a_sessionless_root_take_the_outermost_ancestors_sessi
     assert total == 1 and items[0].session_id == "S" and items[0].span_count == 4
 
 
+async def test_parent_cycles_end_and_keep_their_own_session(db):
+    store, agent_id = db
+    batch = [
+        span("self", parent="self", session="A"),
+        span("a", parent="b", session="B"),
+        span("b", parent="a"),
+        span("child", parent="self"),
+    ]
+    assert await store.upsert(agent_id, batch) == 4
+    assert [r.span_id for r in await store.session_spans(agent_id, "A")] == ["self"]
+    assert [r.span_id for r in await store.session_spans(agent_id, "B")] == ["a"]
+
+
 async def test_session_read_drops_keys_on_listed_rows_only(db):
     store, agent_id = db
     big = {
