@@ -327,9 +327,16 @@ already at its new key is skipped, an old key with no object is skipped.
 It runs after `evalkit db upgrade` and before the new server starts
 serving; the server refuses to start while any object remains under an old
 prefix, with a message naming the command, so a missed step cannot
-silently 404 every trajectory. The release notes and the deployment skill
-carry the step. The try-it stack and `init-server` need nothing: a fresh
-store has no old objects.
+silently 404 every trajectory. The upgrade therefore has downtime between
+the migration and the relocation, which is accepted. The release notes and
+the deployment skill carry the step. The try-it stack and `init-server`
+need nothing: a fresh store has no old objects.
+
+The command, the start-up check and the old-prefix constants are
+transitional. Each carries the repo's usual removal note,
+`# TODO: remove in 0.6.0, two minor versions after 0.4.0 moved blobs under tenants/`,
+with the versions filled in at release time, following the pattern the
+`credentials` config error uses today.
 
 ```
 relocate(blob, tenant_id=1):
@@ -785,7 +792,7 @@ async def sso_user(request, session, token) -> User:
     tenant_id = resolve_tenant(request, claims)
     user = await session.scalar(select(User).where(
         User.tenant_id == tenant_id, User.issuer == claims["iss"], User.subject == claims["sub"]))
-    if user is None:               401 f"not registered: subject {claims['sub']} has no user"   # a person registers and retries; a machine's admin binds it
+    if user is None:               401 f"not registered: subject {claims['sub']} has no user"   # a person signs in again; a machine's admin binds it
     if user.archived_at:           401 "user is archived"
     request.state.token_expires_at = datetime.fromtimestamp(claims["exp"], UTC)
     return user
@@ -802,11 +809,12 @@ def verify_access_token(oidc, token, audience: list[str]) -> dict:
     )
 ```
 
-What each 401 means to a client: `not registered` is expected exactly once,
-on the first request after a fresh sign-in, and the client answers it by
-calling the register route (next section) and retrying. Every other 401 is
-a sign-in problem: expired, wrong audience, wrong issuer, bad signature,
-archived.
+What each 401 means to a client: `not registered` means no row exists for
+the subject. A client never sees it after a fresh sign-in, because it
+registers (next section) before its first other request; seeing it later
+means signing in again, or, for a machine, an admin binding the subject.
+Every other 401 is a sign-in problem: expired, wrong audience, wrong
+issuer, bad signature, archived.
 
 Each endpoint accepts only the audiences meant for it. `/api` accepts the
 configured `audience` and nothing else. `/mcp` accepts that and also the
@@ -872,8 +880,12 @@ access too, which closes the gap the MCP docs describe today.
 ### `POST /api/auth/oidc/register`
 
 The one call that turns an IdP identity into a `users` row. Every client
-makes it right after obtaining tokens, before any other request, and again
-whenever a request answers 401 `not registered`. It is idempotent.
+makes it once, right after obtaining tokens and before any other request.
+It is idempotent. Neither client keeps the ID token after that, so a
+`not registered` answer later cannot be retried in place: the UI sends the
+person to `/login` and the CLI's answer is `evalkit login` again. In
+practice it cannot happen after a successful register, since rows are
+archived, never deleted.
 
 Request: the access token as bearer, `{"id_token": "..."}` as the body. The
 ID token is required because many IdPs put only `sub` in the access token;
@@ -920,10 +932,12 @@ sequenceDiagram
 ```
 async def register(request, session, body):
     oidc    = request.app.state.oidc                         # 401 / 503 as in the verifier
-    access  = verify_access_token(oidc, bearer(request))     # same function as every request
-    idtok   = jwt.decode(body.id_token, key, algorithms=oidc.cfg.algorithms,
+    access  = verify_access_token(oidc, bearer(request), [oidc.cfg.audience])   # same function as every /api request
+    key     = oidc.keys.signing_key(body.id_token)           # its own lookup: the ID token may carry a different kid
+    idtok   = jwt.decode(body.id_token, key.key, algorithms=oidc.cfg.algorithms,
                          issuer=oidc.cfg.issuer, audience=oidc.cfg.client_id,
                          options={"require": ["exp", "iat", "sub"]}, leeway=30)
+    # jwt.decode has checked iss against the configured issuer, so `issuer` below is always that value
     if idtok["sub"] != access["sub"]:        400 "id_token and access token name different subjects"
     if "email" not in idtok:                 400 "the ID token has no email claim; ask the IdP admin to grant the email scope"
 
