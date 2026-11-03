@@ -49,6 +49,7 @@ from evalkit.core.runner import (
     rescore_experiment,
     run_leased,
 )
+from evalkit.core.traces.check import render_check
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE, TASK_SESSION_ATTRIBUTE
 from evalkit.core.traces.poll import poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
@@ -449,12 +450,14 @@ async def _session_summary(api: AsyncApi, path: str, session_id: str) -> str:
     for esf_span in session.get("esf") or []:
         kinds[esf_span["kind"]] = kinds.get(esf_span["kind"], 0) + 1
     version = session.get("mapping_version")
-    return (
+    summary = (
         f"  session {session_id}: {session['span_count']} spans "
         f"({', '.join(f'{k} {n}' for k, n in sorted(kinds.items())) or 'none'}), "
         f"mapping {f'v{version}' if version else 'built-in'}, "
         f"unmapped {', '.join(session.get('unmapped_attributes') or []) or 'none'}"
     )
+    problems = [line for line in render_check(session)[0] if line.lstrip()[0] in "!✗"]
+    return "\n".join([summary, *problems])
 
 
 async def _report_session(

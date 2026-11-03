@@ -106,7 +106,7 @@ The server has two limits, both set in its config:
 | `otel.max_batch_bytes`   | 16 MiB  | One export request (after gzip is undone) gets `413` and its spans are dropped. Exporters do not split a refused batch, so keep batches small.                                                                                            |
 | `otel.max_session_bytes` | 384 MiB | Reading the session (a run's trajectory, `evalkit traces check`, the Mappings tab) gets `413` with the session's size and the limit. A run records the trajectory as `unavailable` and logs the message. `--dump spans.json` still works. |
 
-`otel.max_session_bytes` counts the span attributes a trajectory build loads, not everything stored. evalkit reads the input messages (and system prompt) of an LLM span only for the first LLM call of each agent and subagent; later calls add only their output, tool calls and tokens to the trajectory. So the build leaves the input of every later LLM call in the database and does not count it. The limit keeps one session from using up the server's memory, so raise it only together with the server's memory limit.
+`otel.max_session_bytes` counts the span attributes a trajectory build loads, not everything stored. evalkit reads the input messages (and system prompt) of an LLM span only for the first LLM call under each root span and in each subagent; later calls add only their output, tool calls and tokens to the trajectory. So the build leaves the input of every later LLM call in the database and does not count it. The limit keeps one session from using up the server's memory, so raise it only together with the server's memory limit.
 
 For agents with large spans, send fewer spans per export and give each export more time. For the Python SDK, `tracing.register` included:
 
@@ -142,7 +142,16 @@ The collector speaks OTLP over HTTP only, not gRPC. Bodies may be chunked with n
 
 ## The main agent and subagents
 
-Mark the agent's top-level span as an AGENT span (`openinference.span.kind=AGENT`, or `gen_ai.operation.name=invoke_agent`). evalkit builds the main trajectory from it, and every AGENT span inside it becomes a subagent trajectory named by the span's `agent.name` (`gen_ai.agent.name`), or by the span name when that is missing. When the root span is not an AGENT span, as with the SDK's `evalkit.run` span, evalkit takes the earliest AGENT span that is not inside another one as the main agent. If that span is a tool call that starts a subagent partway through the run, the subagent's steps land in the main trajectory and the call has no result, so mark the top-level span as an AGENT span rather than relying on this.
+An AGENT span (`openinference.span.kind=AGENT`, or `gen_ai.operation.name=invoke_agent`) becomes a subagent trajectory only when another agent started it: it sits under a tool span, or it carries the `tool_call_id` of the call that started it. The subagent is named by the span's `agent.name` (`gen_ai.agent.name`), or by the span name when that is missing. Every other AGENT span is part of the main agent's own work, so an outer wrapper span, graph nodes tagged AGENT and one root span per chat turn all end up in one trajectory.
+
+The main agent is the root span when it is an AGENT span; otherwise, as with the SDK's `evalkit.run` span, the earliest AGENT span that is not inside another one. When a session holds several root spans, one per chat turn, evalkit puts them in time order and takes the answer from the last one.
+
+Each user message appears in the trajectory once, as a `user` step, before the first LLM call that has it in its input. So a chat's later turns show up as new user steps. Two limits:
+
+- evalkit loads the input messages only of the first LLM call under each root span (see the size limit above). When every turn of a chat runs inside one trace, only the first user message is loaded; give each turn its own root span to see them all.
+- When a framework sends only the latest user message instead of the whole history, evalkit adds a user step for each text it has not seen yet. A user message repeated word for word ("yes", then "yes" again) then shows up once.
+
+Two mapping fields change this when the shape is wrong for your agent: `main_agent` pins the main agent, and `subagent_spans` keeps sibling agents (a crew whose agents hand over without a tool call) as separate subagent trajectories. See [Mappings](mappings.md).
 
 ## Harness agents with traces
 

@@ -55,6 +55,136 @@
       "title": "AttributeRule",
       "type": "object"
     },
+    "SpanMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Span name; glob patterns such as OpenAILike.* are allowed.",
+          "title": "Name"
+        },
+        "attribute": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A span attribute key to compare.",
+          "title": "Attribute"
+        },
+        "equals": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The value the attribute must hold, compared as text: 1, 1.0 and \"1\" match, and so do true and \"true\". Leave out to match any span that has the attribute.",
+          "title": "Equals"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Instrumentation scope name, e.g. mcp; glob patterns are allowed.",
+          "title": "Scope"
+        }
+      },
+      "title": "SpanMatch",
+      "type": "object"
+    },
+    "SpanRekind": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Span name; glob patterns such as OpenAILike.* are allowed.",
+          "title": "Name"
+        },
+        "attribute": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A span attribute key to compare.",
+          "title": "Attribute"
+        },
+        "equals": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The value the attribute must hold, compared as text: 1, 1.0 and \"1\" match, and so do true and \"true\". Leave out to match any span that has the attribute.",
+          "title": "Equals"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Instrumentation scope name, e.g. mcp; glob patterns are allowed.",
+          "title": "Scope"
+        },
+        "kind": {
+          "description": "The kind matching spans get instead of the kind rule's.",
+          "enum": [
+            "llm",
+            "tool",
+            "agent",
+            "chain",
+            "retriever",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "SpanRekind",
+      "type": "object"
+    },
     "TokenRules": {
       "additionalProperties": false,
       "properties": {
@@ -298,11 +428,57 @@
       "type": "string"
     },
     "exclude_spans": {
-      "description": "Span names left out of the trajectory.",
+      "description": "Spans left out of the trajectory: a span name (glob patterns allowed) or a match on name, attribute and scope; every field given must match.",
       "items": {
-        "type": "string"
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/$defs/SpanMatch"
+          }
+        ]
       },
       "title": "Exclude Spans",
+      "type": "array"
+    },
+    "rekind_spans": {
+      "description": "Spans that get another kind than the kind rule gives, e.g. a graph node tagged agent that is only a step: {name: agent, kind: chain}. The first match wins.",
+      "items": {
+        "$ref": "#/$defs/SpanRekind"
+      },
+      "title": "Rekind Spans",
+      "type": "array"
+    },
+    "main_agent": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/SpanMatch"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "The agent span whose answer and id the trajectory carries, when the earliest top-level agent span is not it.",
+      "title": "Main Agent"
+    },
+    "subagent_spans": {
+      "description": "Agent spans that become subagent trajectories even when no tool span spawns them, e.g. sibling crew members to keep apart.",
+      "items": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "$ref": "#/$defs/SpanMatch"
+          }
+        ]
+      },
+      "title": "Subagent Spans",
       "type": "array"
     }
   },

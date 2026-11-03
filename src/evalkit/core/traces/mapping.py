@@ -14,6 +14,7 @@ from evalkit.contracts.esf import (
     EsfToolCall,
     MappingDocument,
     MessageFormat,
+    SpanMatch,
 )
 from evalkit.core.traces.raw import RawSpan
 
@@ -49,9 +50,48 @@ def mapping_for(
     return active
 
 
+def _matches(doc: MappingDocument) -> list[str | SpanMatch]:
+    main = [doc.main_agent] if doc.main_agent is not None else []
+    return [*doc.exclude_spans, *doc.rekind_spans, *main, *doc.subagent_spans]
+
+
+def match_attributes(doc: MappingDocument) -> set[str]:
+    return {m.attribute for m in _matches(doc) if isinstance(m, SpanMatch) and m.attribute}
+
+
 def kind_attributes(active: MappingDocument | None) -> set[str]:
     docs = [active, SDK_ROOT_MAPPING]
-    return {SDK_ROOT_ATTRIBUTE} | {d.kind.attribute for d in docs if d and d.kind}
+    kinds = {d.kind.attribute for d in docs if d and d.kind}
+    call_ids = {d.tool.call_id.attribute for d in docs if d and d.tool.call_id}
+    return {SDK_ROOT_ATTRIBUTE} | kinds | call_ids | (match_attributes(active) if active else set())
+
+
+def _normalize_match_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).lower() if str(value).lower() in ("true", "false") else str(value)
+
+
+def span_matches(match: str | SpanMatch, raw: RawSpan) -> bool:
+    if isinstance(match, str):
+        return fnmatchcase(raw.name, match)
+    if match.name is not None and not fnmatchcase(raw.name, match.name):
+        return False
+    if match.scope is not None and not fnmatchcase(raw.scope or "", match.scope):
+        return False
+    if match.attribute is None:
+        return True
+    if match.attribute not in raw.attributes:
+        return False
+    return match.equals is None or _normalize_match_value(
+        raw.attributes[match.attribute]
+    ) == _normalize_match_value(match.equals)
+
+
+def _matched(matches: list[str | SpanMatch], raw: RawSpan) -> bool:
+    return any(span_matches(m, raw) for m in matches)
 
 
 class AttributeKeys(NamedTuple):
@@ -355,7 +395,10 @@ def to_esf(raw: RawSpan, mapping: MappingDocument | None) -> EsfSpan:
     known = doc.known_attributes
     rule(doc.session_id)
     kind_value = rule(doc.kind)
-    kind: EsfKind = kind_value if kind_value in KINDS else "other"
+    rekind = next((r.kind for r in doc.rekind_spans if span_matches(r, raw)), None)
+    kind: EsfKind = rekind or (kind_value if kind_value in KINDS else "other")
+    read.update(match_attributes(doc))
+    main = doc.main_agent is not None and span_matches(doc.main_agent, raw)
     is_llm = kind == "llm"
     span = EsfSpan(
         span_id=raw.span_id,
@@ -379,6 +422,9 @@ def to_esf(raw: RawSpan, mapping: MappingDocument | None) -> EsfSpan:
         cached_tokens=_int(rule(doc.tokens.cached)),
         cache_write_tokens=_int(rule(doc.tokens.cache_write)),
         cost_usd=_float(rule(doc.cost_usd)),
+        scope=raw.scope,
+        excluded=_matched(doc.exclude_spans, raw),
+        agent_role="main" if main else "subagent" if _matched(doc.subagent_spans, raw) else None,
     )
     if is_llm and (system := _instructions(rule(doc.system_instructions))):
         span.input_messages = [EsfMessage(role="system", text=system), *(span.input_messages or [])]

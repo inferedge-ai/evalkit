@@ -266,6 +266,7 @@ class Span(Base):
     attributes: Mapped[dict] = mapped_column(JSONB)
     events: Mapped[list] = mapped_column(JSONB)
     resource: Mapped[dict] = mapped_column(JSONB)
+    scope: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False
     )

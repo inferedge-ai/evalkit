@@ -91,6 +91,7 @@ async def test_json_export_by_resource_attribute_and_gzip(api):
                 },
                 "scopeSpans": [
                     {
+                        "scope": {"name": "mcp"},
                         "spans": [
                             {
                                 "traceId": "0af7651916cd43dd8448eb211c80319c",
@@ -109,7 +110,7 @@ async def test_json_export_by_resource_attribute_and_gzip(api):
                                 ],
                                 "status": {"code": 2, "message": "boom"},
                             }
-                        ]
+                        ],
                     }
                 ],
             }
@@ -125,6 +126,7 @@ async def test_json_export_by_resource_attribute_and_gzip(api):
     assert spans[0]["attributes"] == {"session.id": "j-1", "n": 3, "tags": ["a"]}
     assert spans[0]["status_code"] == "ERROR" and spans[0]["status_message"] == "boom"
     assert spans[0]["trace_id"] == "0af7651916cd43dd8448eb211c80319c"
+    assert spans[0]["scope"] == "mcp"
 
 
 async def test_foreign_workspace_unknown_agent_and_size_cap(api):
