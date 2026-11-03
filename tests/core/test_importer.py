@@ -482,7 +482,7 @@ async def test_sync_records_synced_events_with_actor(tmp_path, ctx):
     sf, _, _ = ctx
     suite = write_suite(tmp_path)
     await do_import(ctx, sorted(suite.glob("*.yaml")), actor="akshat")
-    review = ReviewLog(sf)
+    review = ReviewLog(sf, 1)
     for case_id in ("case-1", "case-2"):
         [event] = await review.history("finance@canonical", case_id)
         assert event.kind is CaseEventKind.SYNCED and event.actor == "akshat"
@@ -499,7 +499,7 @@ async def test_unchanged_resync_records_nothing(tmp_path, ctx):
 
 async def test_edit_of_approved_case_reports_now_unreviewed(tmp_path, ctx):
     sf, _, _ = ctx
-    review = ReviewLog(sf)
+    review = ReviewLog(sf, 1)
     files = sorted(write_suite(tmp_path).glob("*.yaml"))
     await do_import(ctx, files)
     await review.append(
@@ -521,7 +521,7 @@ async def test_edit_of_approved_case_reports_now_unreviewed(tmp_path, ctx):
 
 async def test_edit_under_review_carries_the_request_over(tmp_path, ctx):
     sf, _, _ = ctx
-    review = ReviewLog(sf)
+    review = ReviewLog(sf, 1)
     files = sorted(write_suite(tmp_path).glob("*.yaml"))
     await do_import(ctx, files)
     r = CaseReview.unreviewed("finance@canonical", "case-1", await current_hash_of(ctx, "case-1"))

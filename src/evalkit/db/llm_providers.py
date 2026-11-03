@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.db import models
 from evalkit.db.locks import lock_name
+from evalkit.db.session import tenant_session
 
 
 class UnknownLlmProvider(KeyError):
@@ -41,24 +42,31 @@ def _view(row: models.LlmProvider) -> LlmProviderView:
 
 
 class LlmProviderStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
         self._sessions = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._sessions, self._tenant_id)
 
     async def _row(self, session: AsyncSession, name: str) -> models.LlmProvider:
         row = await session.scalar(
-            select(models.LlmProvider).where(models.LlmProvider.name == name)
+            select(models.LlmProvider).where(
+                models.LlmProvider.tenant_id == self._tenant_id, models.LlmProvider.name == name
+            )
         )
         if row is None:
             raise UnknownLlmProvider(name)
         return row
 
     async def _tenant(self, session: AsyncSession) -> models.Tenant:
-        return await session.get_one(models.Tenant, 1)
+        return await session.get_one(models.Tenant, self._tenant_id)
 
     async def _check_free(self, session: AsyncSession, name: str, base_url: str) -> None:
         taken = await session.scalar(
             select(models.LlmProvider.name).where(
-                (models.LlmProvider.name == name) | (models.LlmProvider.base_url == base_url)
+                models.LlmProvider.tenant_id == self._tenant_id,
+                (models.LlmProvider.name == name) | (models.LlmProvider.base_url == base_url),
             )
         )
         if taken is not None:
@@ -67,11 +75,14 @@ class LlmProviderStore:
     async def create(
         self, name: str, base_url: str, api_key_encrypted: bytes | None
     ) -> LlmProviderView:
-        async with self._sessions() as session:
-            await lock_name(session, "llm-provider", name)
+        async with self._session() as session:
+            await lock_name(session, f"llm-provider:{self._tenant_id}", name)
             await self._check_free(session, name, base_url)
             row = models.LlmProvider(
-                name=name, base_url=base_url, api_key_encrypted=api_key_encrypted
+                tenant_id=self._tenant_id,
+                name=name,
+                base_url=base_url,
+                api_key_encrypted=api_key_encrypted,
             )
             session.add(row)
             await session.commit()
@@ -85,7 +96,7 @@ class LlmProviderStore:
         api_key_encrypted: bytes | None = None,
         clear_api_key: bool = False,
     ) -> LlmProviderView:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row = await self._row(session, name)
             if base_url is not None and base_url != row.base_url:
                 tenant = await self._tenant(session)
@@ -102,7 +113,7 @@ class LlmProviderStore:
             return _view(row)
 
     async def archive(self, name: str) -> LlmProviderView:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row = await self._row(session, name)
             tenant = await self._tenant(session)
             if (tenant.default_judge or {}).get("base_url") == row.base_url:
@@ -114,27 +125,32 @@ class LlmProviderStore:
             return _view(row)
 
     async def restore(self, name: str) -> LlmProviderView:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row = await self._row(session, name)
             row.archived_at = None
             await session.commit()
             return _view(row)
 
     async def get(self, name: str) -> LlmProviderView:
-        async with self._sessions() as session:
+        async with self._session() as session:
             return _view(await self._row(session, name))
 
     async def list_providers(self, include_archived: bool = False) -> list[LlmProviderView]:
-        query = select(models.LlmProvider).order_by(models.LlmProvider.name)
+        query = (
+            select(models.LlmProvider)
+            .where(models.LlmProvider.tenant_id == self._tenant_id)
+            .order_by(models.LlmProvider.name)
+        )
         if not include_archived:
             query = query.where(models.LlmProvider.archived_at.is_(None))
-        async with self._sessions() as session:
+        async with self._session() as session:
             return [_view(row) for row in (await session.scalars(query)).all()]
 
     async def active_by_base_url(self, base_url: str) -> LlmProviderView | None:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row = await session.scalar(
                 select(models.LlmProvider).where(
+                    models.LlmProvider.tenant_id == self._tenant_id,
                     models.LlmProvider.base_url == base_url,
                     models.LlmProvider.archived_at.is_(None),
                 )
@@ -142,16 +158,17 @@ class LlmProviderStore:
         return _view(row) if row is not None else None
 
     async def sealed_key(self, base_url: str) -> bytes | None:
-        async with self._sessions() as session:
+        async with self._session() as session:
             return await session.scalar(
                 select(models.LlmProvider.api_key_encrypted).where(
+                    models.LlmProvider.tenant_id == self._tenant_id,
                     models.LlmProvider.base_url == base_url,
                     models.LlmProvider.archived_at.is_(None),
                 )
             )
 
     async def default_judge(self) -> JudgeSettings | None:
-        async with self._sessions() as session:
+        async with self._session() as session:
             tenant = await self._tenant(session)
         if tenant.default_judge is None:
             return None
@@ -160,7 +177,7 @@ class LlmProviderStore:
     async def set_default_judge(self, judge: JudgeSettings) -> JudgeSettings:
         if await self.active_by_base_url(judge.base_url) is None:
             raise UnknownLlmProvider(judge.base_url)
-        async with self._sessions() as session:
+        async with self._session() as session:
             tenant = await self._tenant(session)
             tenant.default_judge = judge.model_dump()
             await session.commit()

@@ -101,7 +101,7 @@ async def test_rekey_covers_every_sealed_table(session_factory):
     await seed_identity(session_factory, {"admin": "password1"})
     await seed_agent(session_factory)
     old, new = TEST_BOX, box()
-    await TraceSourceStore(session_factory, old).create(
+    await TraceSourceStore(session_factory, 1, old).create(
         "phx", TraceProvider.PHOENIX, "https://p", "pk"
     )
     await AgentStore(session_factory, 1).edit("fake@canonical", api_key_encrypted=old.seal("ak"))

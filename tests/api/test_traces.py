@@ -73,12 +73,12 @@ async def test_mapping_lifecycle_and_previews(api):
 
 def with_encryption(api) -> None:
     box = SecretBox(Fernet.generate_key().decode())
-    api.app.state.trace_sources = TraceSourceStore(api.app.state.session_factory, box)
+    api.app.state.trace_sources = TraceSourceStore(api.app.state.session_factory, 1, box)
 
 
 async def test_trace_sources_are_admin_rows_and_hide_keys(api):
     body = {"name": "phx", "provider": "phoenix", "url": "u", "api_key": "secret"}
-    api.app.state.trace_sources = TraceSourceStore(api.app.state.session_factory, None)
+    api.app.state.trace_sources = TraceSourceStore(api.app.state.session_factory, 1, None)
     refused = await api.post("/api/trace-sources", json=body)
     assert refused.status_code == 400 and "encryption_key" in refused.json()["detail"]
     with_encryption(api)

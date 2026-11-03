@@ -97,7 +97,7 @@ def new_encryption_key() -> str:
 
 async def _has_llm_setup(url: str) -> bool:
     factory = make_session_factory(url)
-    store = LlmProviderStore(factory)
+    store = LlmProviderStore(factory, 1)
     providers = await store.list_providers(include_archived=True)
     judge = await store.default_judge()
     await factory.kw["bind"].dispose()
@@ -112,7 +112,7 @@ async def _register_default_judge(
     url: str, encryption_key: str, base_url: str, api_key: str, model: str
 ) -> None:
     factory = make_session_factory(url)
-    store = LlmProviderStore(factory)
+    store = LlmProviderStore(factory, 1)
     sealed = SecretBox(encryption_key).seal(api_key)
     existing = await store.active_by_base_url(base_url)
     if existing is None:

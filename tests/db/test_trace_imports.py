@@ -27,11 +27,11 @@ async def db(session_factory):
     agent = await AgentStore(session_factory, 1).create(
         await workspace_ref(session_factory, "akshat"), "research-agent"
     )
-    source = await TraceSourceStore(session_factory, None).create(
+    source = await TraceSourceStore(session_factory, 1, None).create(
         "phx", TraceProvider.PHOENIX, "https://phoenix.example.com", None
     )
     user = next(u for u in await UserStore(session_factory, 1).list() if u.username == "akshat")
-    store = TraceImportStore(session_factory)
+    store = TraceImportStore(session_factory, 1)
 
     async def start(holder: str = "pod:a") -> int:
         view = await store.create(

@@ -5,6 +5,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import TraceImportStatus
+from evalkit.core.agents import UnknownAgent
 from evalkit.core.traces.importer import (
     ACTIVE_IMPORT,
     IMPORT_LEASE_SECONDS,
@@ -14,6 +15,7 @@ from evalkit.core.traces.importer import (
 from evalkit.db import models
 from evalkit.db.locks import lock_name
 from evalkit.db.session import ALL_TENANTS, tenant_session
+from evalkit.db.trace_sources import UnknownTraceSource
 from evalkit.store.base import Conflict
 
 ACTIVE = [s.value for s in ACTIVE_IMPORT]
@@ -57,22 +59,6 @@ def _lease() -> datetime:
     return datetime.now(UTC) + timedelta(seconds=IMPORT_LEASE_SECONDS)
 
 
-def _views():
-    return (
-        select(
-            models.TraceImport,
-            models.Agent.name,
-            models.Workspace.name,
-            models.TraceSource.name,
-            models.User.username,
-        )
-        .join(models.Agent, models.Agent.id == models.TraceImport.agent_id)
-        .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
-        .join(models.TraceSource, models.TraceSource.id == models.TraceImport.trace_source_id)
-        .join(models.User, models.User.id == models.TraceImport.created_by)
-    )
-
-
 def _view(
     row: models.TraceImport, agent: str, workspace: str, source: str, user: str
 ) -> TraceImportView:
@@ -107,13 +93,49 @@ async def _refuse_second(session: AsyncSession, agent_id: int) -> None:
 
 
 class TraceImportStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
         self._sessions = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._sessions, self._tenant_id)
+
+    def _views(self):
+        return (
+            select(
+                models.TraceImport,
+                models.Agent.name,
+                models.Workspace.name,
+                models.TraceSource.name,
+                models.User.username,
+            )
+            .join(models.Agent, models.Agent.id == models.TraceImport.agent_id)
+            .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+            .join(models.TraceSource, models.TraceSource.id == models.TraceImport.trace_source_id)
+            .join(models.User, models.User.id == models.TraceImport.created_by)
+            .where(models.Workspace.tenant_id == self._tenant_id)
+        )
+
+    async def _check_same_tenant(
+        self, session: AsyncSession, agent_id: int, trace_source_id: int
+    ) -> None:
+        agent_tenant = await session.scalar(
+            select(models.Workspace.tenant_id)
+            .join(models.Agent, models.Agent.workspace_id == models.Workspace.id)
+            .where(models.Agent.id == agent_id)
+        )
+        if agent_tenant != self._tenant_id:
+            raise UnknownAgent(str(agent_id))
+        source_tenant = await session.scalar(
+            select(models.TraceSource.tenant_id).where(models.TraceSource.id == trace_source_id)
+        )
+        if source_tenant != self._tenant_id:
+            raise UnknownTraceSource(str(trace_source_id))
 
     async def _one(self, session: AsyncSession, agent_id: int, import_id: int) -> TraceImportView:
         found = (
             await session.execute(
-                _views().where(
+                self._views().where(
                     models.TraceImport.id == import_id, models.TraceImport.agent_id == agent_id
                 )
             )
@@ -132,7 +154,8 @@ class TraceImportStore:
         created_by: int,
         holder: str,
     ) -> TraceImportView:
-        async with self._sessions() as session:
+        async with self._session() as session:
+            await self._check_same_tenant(session, agent_id, trace_source_id)
             await _refuse_second(session, agent_id)
             row = models.TraceImport(
                 agent_id=agent_id,
@@ -154,13 +177,13 @@ class TraceImportStore:
             return await self._one(session, agent_id, row.id)
 
     async def get(self, agent_id: int, import_id: int) -> TraceImportView:
-        async with self._sessions() as session:
+        async with self._session() as session:
             return await self._one(session, agent_id, import_id)
 
     async def recent(self, agent_id: int, limit: int = 20) -> list[TraceImportView]:
-        async with self._sessions() as session:
+        async with self._session() as session:
             rows = await session.execute(
-                _views()
+                self._views()
                 .where(models.TraceImport.agent_id == agent_id)
                 .order_by(models.TraceImport.id.desc())
                 .limit(limit)
@@ -168,7 +191,7 @@ class TraceImportStore:
             return [_view(*row) for row in rows.all()]
 
     async def stop(self, agent_id: int, import_id: int) -> TraceImportView:
-        async with self._sessions() as session:
+        async with self._session() as session:
             current = await self._one(session, agent_id, import_id)
             if current.status is not TraceImportStatus.RUNNING:
                 raise ImportNotActive(import_id, current.status, "a running import can be stopped")
@@ -184,7 +207,7 @@ class TraceImportStore:
             return await self._one(session, agent_id, import_id)
 
     async def restart(self, agent_id: int, import_id: int, holder: str) -> TraceImportView:
-        async with self._sessions() as session:
+        async with self._session() as session:
             current = await self._one(session, agent_id, import_id)
             if current.status not in RESTARTABLE:
                 raise ImportNotActive(
@@ -206,8 +229,16 @@ class TraceImportStore:
             return await self._one(session, agent_id, import_id)
 
     async def job(self, import_id: int) -> ImportJob:
-        async with self._sessions() as session:
-            row = await session.get(models.TraceImport, import_id)
+        async with self._session() as session:
+            row = await session.scalar(
+                select(models.TraceImport)
+                .join(models.Agent, models.Agent.id == models.TraceImport.agent_id)
+                .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+                .where(
+                    models.TraceImport.id == import_id,
+                    models.Workspace.tenant_id == self._tenant_id,
+                )
+            )
             if row is None:
                 raise UnknownTraceImport(import_id)
             return ImportJob(
@@ -231,7 +262,7 @@ class TraceImportStore:
         spans: int,
         sample_session: str | None,
     ) -> TraceImportStatus | None:
-        async with self._sessions() as session:
+        async with self._session() as session:
             status = await session.scalar(
                 update(models.TraceImport)
                 .where(
@@ -253,7 +284,7 @@ class TraceImportStore:
         return TraceImportStatus(status) if status is not None else None
 
     async def renew(self, import_id: int, holder: str) -> TraceImportStatus | None:
-        async with self._sessions() as session:
+        async with self._session() as session:
             status = await session.scalar(
                 update(models.TraceImport)
                 .where(
@@ -270,7 +301,7 @@ class TraceImportStore:
     async def finish(
         self, import_id: int, holder: str, status: TraceImportStatus, error: str | None = None
     ) -> None:
-        async with self._sessions() as session:
+        async with self._session() as session:
             await session.execute(
                 update(models.TraceImport)
                 .where(

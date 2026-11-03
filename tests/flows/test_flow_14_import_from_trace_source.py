@@ -35,7 +35,7 @@ def serve_spans(router: Router) -> Route:
 async def api(tmp_path, session_factory, stub_judges):
     async with flow_api(tmp_path, session_factory) as (client, _env):
         client.app.state.trace_sources = TraceSourceStore(
-            session_factory, SecretBox(Fernet.generate_key().decode())
+            session_factory, 1, SecretBox(Fernet.generate_key().decode())
         )
         source = {"name": "phx", "provider": "phoenix", "url": PHOENIX, "api_key": "pk"}
         assert (await client.post("/api/trace-sources", json=source)).status_code == 200

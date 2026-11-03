@@ -226,7 +226,7 @@ async def seed_env(
         harness_transport=httpx2.ASGITransport(app=(fake or FakeHarness()).app),
         custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),
     )
-    env = Env(session_factory, store, blob_store, deps, user_ids, ReviewLog(session_factory))
+    env = Env(session_factory, store, blob_store, deps, user_ids, ReviewLog(session_factory, 1))
     evaluators_2 = dict(CASE_EVALUATORS)
     if broken_on_case_2:
         evaluators_2 = {

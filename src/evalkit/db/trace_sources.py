@@ -8,6 +8,7 @@ from evalkit.contracts.enums import TraceProvider
 from evalkit.db import models
 from evalkit.db.crypto import SecretBox
 from evalkit.db.locks import lock_name
+from evalkit.db.session import tenant_session
 
 
 class UnknownTraceSource(KeyError):
@@ -52,9 +53,18 @@ def _view(row: models.TraceSource) -> TraceSourceView:
 
 
 class TraceSourceStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], box: SecretBox | None):
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        tenant_id: int,
+        box: SecretBox | None,
+    ):
         self._sessions = session_factory
+        self._tenant_id = tenant_id
         self._box = box
+
+    def _session(self):
+        return tenant_session(self._sessions, self._tenant_id)
 
     def _seal(self, api_key: str) -> bytes:
         if self._box is None:
@@ -63,7 +73,9 @@ class TraceSourceStore:
 
     async def _row(self, session: AsyncSession, name: str) -> models.TraceSource:
         row = await session.scalar(
-            select(models.TraceSource).where(models.TraceSource.name == name)
+            select(models.TraceSource).where(
+                models.TraceSource.tenant_id == self._tenant_id, models.TraceSource.name == name
+            )
         )
         if row is None:
             raise UnknownTraceSource(name)
@@ -73,14 +85,21 @@ class TraceSourceStore:
         self, name: str, provider: TraceProvider, url: str, api_key: str | None
     ) -> TraceSourceView:
         sealed = self._seal(api_key) if api_key else None
-        async with self._sessions() as session:
-            await lock_name(session, "trace-source", name)
+        async with self._session() as session:
+            await lock_name(session, f"trace-source:{self._tenant_id}", name)
             if await session.scalar(
-                select(models.TraceSource.id).where(models.TraceSource.name == name)
+                select(models.TraceSource.id).where(
+                    models.TraceSource.tenant_id == self._tenant_id,
+                    models.TraceSource.name == name,
+                )
             ):
                 raise TraceSourceExists(name)
             row = models.TraceSource(
-                name=name, provider=provider.value, config={"url": url}, api_key_encrypted=sealed
+                tenant_id=self._tenant_id,
+                name=name,
+                provider=provider.value,
+                config={"url": url},
+                api_key_encrypted=sealed,
             )
             session.add(row)
             await session.commit()
@@ -89,7 +108,7 @@ class TraceSourceStore:
     async def edit(
         self, name: str, *, url: str | None = None, api_key: str | None = None
     ) -> TraceSourceView:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row = await self._row(session, name)
             if url is not None:
                 row.config = {**row.config, "url": url}
@@ -99,21 +118,25 @@ class TraceSourceStore:
             return _view(row)
 
     async def archive(self, name: str) -> TraceSourceView:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row = await self._row(session, name)
             row.archived_at = datetime.now(UTC)
             await session.commit()
             return _view(row)
 
     async def list_sources(self, include_archived: bool = False) -> list[TraceSourceView]:
-        query = select(models.TraceSource).order_by(models.TraceSource.name)
+        query = (
+            select(models.TraceSource)
+            .where(models.TraceSource.tenant_id == self._tenant_id)
+            .order_by(models.TraceSource.name)
+        )
         if not include_archived:
             query = query.where(models.TraceSource.archived_at.is_(None))
-        async with self._sessions() as session:
+        async with self._session() as session:
             return [_view(row) for row in (await session.scalars(query)).all()]
 
     async def resolve(self, name: str) -> ResolvedTraceSource:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row = await self._row(session, name)
         if row.archived_at is not None:
             raise UnknownTraceSource(name)
