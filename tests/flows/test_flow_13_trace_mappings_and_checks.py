@@ -77,6 +77,9 @@ def test_flow_13_mapping_push_list_activate(live, tmp_path):
     assert pushed.exit_code == 0 and "draft v2" in pushed.output
     preview = live.run("traces", "check", AGENT, "s-1", "--mapping", "draft")
     assert check_lines(preview.output)["mapping"][1] == "v2"
+    same = live.run("traces", "mapping", "push", AGENT, str(document))
+    assert same.exit_code == 0 and f"draft v2 for {AGENT} is unchanged" in same.output
+    document.write_text(json.dumps({**DRAFT, "model": {"attribute": "gen_ai.request.model"}}))
     again = live.run("traces", "mapping", "push", AGENT, str(document))
     assert "draft v3" in again.output
     rows = [
@@ -84,14 +87,19 @@ def test_flow_13_mapping_push_list_activate(live, tmp_path):
     ]
     assert [(r[0], r[1]) for r in rows] == [("v1", "active"), ("v2", "retired"), ("v3", "draft")]
     assert all(r[2:4] == ["by", "admin"] for r in rows[1:])
-    activated = live.run("traces", "mapping", "push", AGENT, str(document), "--activate")
-    assert "active v4" in activated.output
+    activated = live.run("traces", "mapping", "activate", AGENT, "3")
+    assert activated.exit_code == 0 and "active v3" in activated.output
+    assert "replacing v1" in activated.output
     statuses = {
         r["version"]: r["status"] for r in live.http().get(f"/api/agents/{AGENT}/mappings").json()
     }
-    assert statuses == {1: "retired", 2: "retired", 3: "retired", 4: "active"}
+    assert statuses == {1: "retired", 2: "retired", 3: "active"}
     after = live.http().get(f"/api/agents/{AGENT}/sessions/s-1/trajectory").json()
-    assert after["mapping_version"] == 4
+    assert after["mapping_version"] == 3
+    no_version = live.run("traces", "mapping", "activate", AGENT)
+    assert no_version.exit_code == 2 and "Missing argument" in no_version.output
+    back = live.run("traces", "mapping", "activate", AGENT, "1")
+    assert "active v1" in back.output and "replacing v3" in back.output
     assert live.http().post(f"/api/agents/{AGENT}/mappings/9/activate").status_code == 404
     bad = tmp_path / "bad.json"
     bad.write_text(json.dumps({"schema_version": "1", "kind": {"attr": "x"}}))

@@ -231,9 +231,9 @@ Do the same in your own repository:
    evalkit traces check myagent <session id> --mapping draft
    ```
 
-   When it reads right, activate it: `evalkit traces mapping push myagent
-   my-mapping.json --activate`, or use the agent's Mappings tab in the web
-   UI. Runs always use the active mapping. The connect-traces skill walks a
+   When it reads right, activate it with the version push printed:
+   `evalkit traces mapping activate myagent <version>`, or use the agent's
+   Mappings tab in the web UI. Runs always use the active mapping. The connect-traces skill walks a
    coding agent through the same loop.
 
 [SDK runs](sdk-runs.md) covers the rest: agents in another process, Python

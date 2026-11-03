@@ -185,10 +185,12 @@ lacks it. That is what a wrong mapping looks like in the check.
    ```
 
    Repeat until the unmapped list holds nothing that matters and the counts
-   are right. A push replaces the previous draft and gets the next version.
+   are right. A push replaces the previous draft and gets the next version;
+   pushing the same document again keeps the draft's version.
 7. **Activation needs the developer's approval.** If the developer has
    approved the document in this conversation, run
-   `evalkit traces mapping push <agent> eval/span-mapping.json --activate`.
+   `evalkit traces mapping activate <agent> <version>` with the version
+   `mapping push` printed for the draft you checked.
    Otherwise tell them to review it on the agent's Mappings tab (Agents →
    the agent → Mappings in the web UI) and activate it there. Green check
    output is not approval; a mapping applies to every future run of the agent.

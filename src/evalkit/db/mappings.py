@@ -48,11 +48,15 @@ async def active_mapping(session: AsyncSession, agent_id: int) -> models.SpanMap
     )
 
 
-async def retire_active(session: AsyncSession, agent_id: int, keep: int | None = None) -> None:
+async def retire_active(
+    session: AsyncSession, agent_id: int, keep: int | None = None
+) -> int | None:
     current = await active_mapping(session, agent_id)
-    if current is not None and current.id != keep:
-        current.status = MappingStatus.RETIRED.value
-        await session.flush()
+    if current is None or current.id == keep:
+        return None
+    current.status = MappingStatus.RETIRED.value
+    await session.flush()
+    return current.version
 
 
 async def next_version(session: AsyncSession, agent_id: int) -> int:
@@ -118,7 +122,7 @@ class MappingStore:
 
     async def put_draft(
         self, agent_id: int, document: dict[str, Any], created_by: str
-    ) -> MappingRecord:
+    ) -> tuple[MappingRecord, bool]:
         async with self._sessions() as session:
             current = (
                 await session.execute(
@@ -128,6 +132,11 @@ class MappingStore:
                     )
                 )
             ).scalar_one_or_none()
+            if current is not None and current.mapping == document:
+                author = await session.scalar(
+                    select(models.User.username).where(models.User.id == current.created_by_id)
+                )
+                return _to_record(current, author), True
             if current is not None:
                 current.status = "retired"
                 await session.flush()
@@ -143,9 +152,9 @@ class MappingStore:
             session.add(row)
             await session.commit()
             await session.refresh(row)
-            return _to_record(row, created_by)
+            return _to_record(row, created_by), False
 
-    async def activate(self, agent_id: int, version: int) -> MappingRecord:
+    async def activate(self, agent_id: int, version: int) -> tuple[MappingRecord, int | None]:
         async with self._sessions() as session:
             row = (
                 await session.execute(
@@ -157,7 +166,7 @@ class MappingStore:
             ).scalar_one_or_none()
             if row is None:
                 raise KeyError(f"no mapping version {version}")
-            await retire_active(session, agent_id, keep=row.id)
+            replaced = await retire_active(session, agent_id, keep=row.id)
             row.status = "active"
             row.activated_at = datetime.now(UTC)
             await session.commit()
@@ -165,4 +174,4 @@ class MappingStore:
             author = await session.scalar(
                 select(models.User.username).where(models.User.id == row.created_by_id)
             )
-            return _to_record(row, author)
+            return _to_record(row, author), replaced

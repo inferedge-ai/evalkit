@@ -105,10 +105,19 @@ async def request_review(
         )
     matched = select_cases(cases, body.selection)
     reviews = await review_log.load(slug, [CaseVersion.of(case) for case in matched])
+    pending = {
+        case_id
+        for case_id, r in reviews.items()
+        if r.state() is CaseState.REVIEW_REQUESTED and r.requested_to == body.reviewer
+    }
     await review_log.append(
-        [r.request_review(user.username, body.reviewer) for r in reviews.values()]
+        [
+            r.request_review(user.username, body.reviewer)
+            for case_id, r in reviews.items()
+            if case_id not in pending
+        ]
     )
-    return {"requested": sorted(reviews)}
+    return {"requested": sorted(set(reviews) - pending), "already_requested": sorted(pending)}
 
 
 @router.post("/datasets/{slug}/cases/{case_id}/review")
@@ -244,6 +253,8 @@ async def queue(
     state: QueueState = "review_requested",
     workspace: str | None = None,
 ) -> dict:
+    if workspace is not None:
+        await workspace_ref(session, workspace)
     items: list[dict] = []
     for dataset in await list_datasets(session, workspace):
         if not is_reviewable(dataset):
@@ -263,6 +274,7 @@ async def queue(
                     "case_id": case.case_id,
                     "requested_to": r.requested_to,
                     "requested_by": r.last_event.actor,
+                    "author": r.requested_by,
                     "requested_at": r.last_event.created_at,
                     "input": question if isinstance(question, str) else str(case.input),
                 }

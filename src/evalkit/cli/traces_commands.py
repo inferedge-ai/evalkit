@@ -209,27 +209,38 @@ def register(
     def mapping_push(
         agent: str,
         file: Path = typer.Argument(..., exists=True, dir_okay=False, help="Mapping JSON file."),
-        activate: bool = typer.Option(
-            False,
-            "--activate",
-            help="Also make it the active mapping, which every later run uses.",
-        ),
     ):
-        """Upload a mapping document as the agent's draft.
+        """Upload a mapping document as the agent's draft. Activate it with mapping activate.
 
         Example: evalkit traces mapping push research-agent eval/span-mapping.json
         """
         document = json.loads(file.read_text())
         body = (
             client_factory()
-            .put(
-                f"/api/agents/{encode(agent_slug(agent))}/mappings/draft",
-                params={"activate": str(activate).lower()},
-                json=document,
-            )
+            .put(f"/api/agents/{encode(agent_slug(agent))}/mappings/draft", json=document)
             .json()
         )
-        typer.echo(f"{body['status']} v{body['version']} for {agent}")
+        if body["unchanged"]:
+            typer.echo(f"draft v{body['version']} for {agent} is unchanged")
+            return
+        typer.echo(f"draft v{body['version']} for {agent}")
+
+    @mapping_app.command("activate")
+    def mapping_activate(
+        agent: str,
+        version: int = typer.Argument(..., help="Version to activate, as push printed it."),
+    ):
+        """Make a mapping version the active one, which every later run uses.
+
+        Example: evalkit traces mapping activate research-agent 3
+        """
+        body = (
+            client_factory()
+            .post(f"/api/agents/{encode(agent_slug(agent))}/mappings/{version}/activate")
+            .json()
+        )
+        replaced = f", replacing v{body['replaced_version']}" if body["replaced_version"] else ""
+        typer.echo(f"active v{body['version']} for {agent}{replaced}")
 
     @mapping_app.command("list")
     def mapping_list(agent: str):

@@ -503,7 +503,15 @@ def register(
         for ws in rows.json():
             state = "archived" if ws["archived"] else ""
             owner = ws["owner"] or "-"
-            typer.echo(f"{ws['name']:<24} {ws['type']:<9} owner {owner:<16} {state}")
+            if ws["promotes_to"]:
+                link = f"promotes to {ws['promotes_to']}"
+            elif ws["promoted_from"]:
+                link = f"promoted from {ws['promoted_from']}"
+            else:
+                link = ""
+            typer.echo(
+                f"{ws['name']:<24} {ws['type']:<9} owner {owner:<16} {link:<30} {state}".rstrip()
+            )
 
     @workspaces_app.command("create")
     def workspaces_create(name: str):

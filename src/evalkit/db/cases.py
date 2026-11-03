@@ -185,6 +185,7 @@ async def _carry_or_reset(
     dataset_id: int,
     changed: dict[int, tuple[str, str]],
     actor_id: int,
+    sync_id: int,
 ) -> tuple[dict[int, int], set[int]]:
     if not changed:
         return {}, set()
@@ -207,6 +208,7 @@ async def _carry_or_reset(
                 case_ref=case_ref,
                 content_hash=current,
                 kind=CaseEventKind.REVIEW_REQUESTED.value,
+                sync_id=sync_id,
                 actor_id=actor_id,
                 target_id=target,
             )
@@ -378,7 +380,9 @@ async def sync_dataset(
             )
         )
     session.add_all(synced)
-    carried_to, now_unreviewed = await _carry_or_reset(session, dataset_id, changed, actor_id)
+    carried_to, now_unreviewed = await _carry_or_reset(
+        session, dataset_id, changed, actor_id, sync.id
+    )
     carried = [
         (case.case_id, carried_to[case_ref])
         for case_ref, case in by_ref.items()
