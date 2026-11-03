@@ -87,8 +87,6 @@ class OtelConfig(ConfigModel):
 
 class CacheConfig(ConfigModel):
     redis_url: str | None = None
-    ttl_days: int = Field(default=30, ge=1)
-    memory_entries: int = Field(default=5000, ge=1)
 
 
 class SentryConfig(ConfigModel):

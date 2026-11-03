@@ -4,6 +4,8 @@ from typing import Protocol
 
 import redis.asyncio as redis
 from pydantic import BaseModel, ValidationError
+from redis.asyncio.retry import Retry
+from redis.backoff import NoBackoff
 
 from evalkit.config import CacheConfig
 from evalkit.core.run_digest import RunDigest, Turn
@@ -13,6 +15,8 @@ LOGGER = logging.getLogger(__name__)
 # server are never read as the new shape.
 DIGEST_VERSION = 1
 REDIS_TIMEOUT_SECONDS = 1
+TTL_SECONDS = 30 * 24 * 3600
+MEMORY_ENTRIES = 5000
 
 
 class CachedDigest(BaseModel):
@@ -60,6 +64,7 @@ class RedisDigestCache:
             url,
             socket_timeout=REDIS_TIMEOUT_SECONDS,
             socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
+            retry=Retry(NoBackoff(), 0),
         )
 
     # The cache only saves harness reads: when Redis is unreachable, or an entry
@@ -94,5 +99,5 @@ class RedisDigestCache:
 
 def digest_cache(cfg: CacheConfig) -> DigestCache:
     if cfg.redis_url:
-        return RedisDigestCache(cfg.redis_url, cfg.ttl_days * 24 * 3600)
-    return MemoryDigestCache(cfg.memory_entries)
+        return RedisDigestCache(cfg.redis_url, TTL_SECONDS)
+    return MemoryDigestCache(MEMORY_ENTRIES)

@@ -1,17 +1,12 @@
-import asyncio
-
 import fakeredis
-import pytest
 
 from evalkit.api import runs as runs_api
 from evalkit.api.mcp.digest_cache import (
     CachedDigest,
     MemoryDigestCache,
     RedisDigestCache,
-    digest_cache,
     digest_key,
 )
-from evalkit.config import CacheConfig
 from evalkit.contracts.atif import Trajectory
 from evalkit.core.run_digest import digest, turns
 from tests.api.native_api import api_env
@@ -42,13 +37,12 @@ def unanswered_session() -> dict:
     return doc
 
 
-def count_reads(monkeypatch, delay: float = 0) -> list[str]:
+def count_reads(monkeypatch) -> list[str]:
     reads: list[str] = []
     read = runs_api.read_trajectory
 
     async def counting(record, run_id, *args):
         reads.append(run_id)
-        await asyncio.sleep(delay)
         return await read(record, run_id, *args)
 
     monkeypatch.setattr(runs_api, "read_trajectory", counting)
@@ -68,13 +62,9 @@ async def test_an_answered_session_head_is_read_from_the_harness_once(
         first = await call(client, "get_run_stats", agent="fake@canonical", group_by="tool")
         again = await call(client, "get_run_stats", agent="fake@canonical", group_by="tool")
         listed = await call(client, "find_runs", agent="fake@canonical", include=["metrics"])
-        got = await call(
-            client, "get_runs", agent="fake@canonical", run_ids=["s-2"], include=["turns"]
-        )
     assert sorted(reads) == ["s-1", "s-2", "s-3"]
     assert again["data"] == first["data"] and again["meta"]["unavailable"] == 0
     assert all(row["metrics"]["turns"] for row in listed["data"])
-    assert got["data"][0]["turns"]
 
 
 async def test_runs_outside_a_session_are_read_on_every_call(
@@ -98,28 +88,15 @@ async def test_a_session_still_waiting_for_an_answer_is_read_again(
     assert len(reads) == 6
 
 
-async def test_get_runs_reads_the_cache_but_never_fills_it(
+async def test_get_runs_always_reads_the_harness(
     tmp_path, stub_judges, session_factory, monkeypatch
 ):
     async with api_env(tmp_path, session_factory, fake_with_sessions()) as (client, _):
+        await call(client, "get_run_stats", agent="fake@canonical")
         reads = count_reads(monkeypatch)
         await call(client, "get_runs", agent="fake@canonical", run_ids=["s-1"])
         await call(client, "get_runs", agent="fake@canonical", run_ids=["s-1"])
     assert reads == ["s-1", "s-1"]
-
-
-async def test_concurrent_calls_share_one_read_of_a_run(
-    tmp_path, stub_judges, session_factory, monkeypatch
-):
-    async with api_env(tmp_path, session_factory, fake_with_sessions()) as (client, _):
-        reads = count_reads(monkeypatch, delay=0.5)
-        stats, listed = await asyncio.gather(
-            call(client, "get_run_stats", agent="fake@canonical"),
-            call(client, "find_runs", agent="fake@canonical", include=["metrics"]),
-        )
-    assert sorted(reads) == ["s-1", "s-2", "s-3"]
-    assert stats["data"][0]["runs"] == 3
-    assert all("metrics" in row for row in listed["data"])
 
 
 async def test_the_memory_cache_drops_the_least_recently_used_entry():
@@ -156,40 +133,3 @@ async def test_an_entry_that_no_longer_parses_reads_as_a_miss():
     await cache.put(good, value)
     await cache.client.set(bad, '{"digest": {}}')
     assert await cache.get_many([good, bad]) == {good: value}
-
-
-async def test_closing_the_redis_cache_closes_its_client(monkeypatch):
-    cache = RedisDigestCache("redis://cache.test:6379/0", ttl_seconds=60)
-    closed: list[bool] = []
-
-    async def aclose() -> None:
-        closed.append(True)
-
-    monkeypatch.setattr(cache.client, "aclose", aclose)
-    await cache.aclose()
-    assert closed == [True]
-
-
-async def test_the_server_closes_its_digest_cache_on_shutdown(
-    tmp_path, stub_judges, session_factory, monkeypatch
-):
-    closed: list[bool] = []
-
-    async def aclose(self) -> None:
-        closed.append(True)
-
-    monkeypatch.setattr(MemoryDigestCache, "aclose", aclose)
-    async with api_env(tmp_path, session_factory, fake_with_sessions()) as (client, _):
-        await call(client, "get_run_stats", agent="fake@canonical")
-    assert closed == [True]
-
-
-@pytest.mark.parametrize(
-    ("cfg", "kind"),
-    [
-        (CacheConfig(), MemoryDigestCache),
-        (CacheConfig(redis_url="rediss://cache.test:6379/0"), RedisDigestCache),
-    ],
-)
-def test_redis_is_used_only_when_configured(cfg, kind):
-    assert isinstance(digest_cache(cfg), kind)

@@ -317,7 +317,6 @@ class Runs:
         self.state = state
         self.gate = asyncio.Semaphore(FETCH_CONCURRENCY_TOTAL)
         self.cache: DigestCache = state.digest_cache
-        self.inflight: dict[str, asyncio.Task[Digested]] = {}
 
     async def agent(self, ref: str) -> AgentDefinition:
         return await runs_api.agent_or_404(self.state.agents, check_agent_id(ref))
@@ -344,13 +343,12 @@ class Runs:
         # One stored-run lookup and one cost map per call, and no DB connection
         # held across harness calls; whatever is not read within the budget
         # comes back as a per-run failure rather than outliving the request.
-        # A harness that keeps several runs per session gives each new message
-        # a new newest run, so a session head's answered digest never changes:
-        # those are cached, and concurrent calls share one read of a run.
-        keys = {run_id: digest_key(record.id, run_id) for run_id in run_ids}
-        cached = await self.cache.get_many(list(dict.fromkeys(keys.values())))
+        # A harness that gives each new message a new run lists only a session's
+        # newest run; once answered, its digest never changes, so it is cached.
+        cache_keys = {r: digest_key(record.id, r) for r in run_ids if cacheable and r in cacheable}
+        cached = await self.cache.get_many(list(cache_keys.values()))
         async with self.state.session_factory() as session:
-            stored = await trajectory_keys(session, record.id, run_ids)
+            keys = await trajectory_keys(session, record.id, run_ids)
         cost_map = await self.cost_map()
         deps = self.state.runner_deps
         client = (
@@ -361,32 +359,21 @@ class Runs:
 
         call_gate = asyncio.Semaphore(FETCH_CONCURRENCY)
 
-        async def read(run_id: str) -> Digested:
+        async def one(run_id: str) -> Digested:
+            key = cache_keys.get(run_id)
+            hit = cached.get(key) if key else None
+            if hit is not None:
+                return hit.digest, hit.turns
             async with call_gate, self.gate:
                 trajectory = await runs_api.read_trajectory(
-                    record, run_id, deps, self.state.sessions, stored.get(run_id), client
+                    record, run_id, deps, self.state.sessions, keys.get(run_id), client
                 )
             reported = priced_steps(trajectory)
             backfill_step_costs(trajectory, cost_map)
             result = digest(run_id, trajectory, reported), turns(trajectory)
-            if cacheable and run_id in cacheable and answered(result):
-                await self.cache.put(keys[run_id], CachedDigest(digest=result[0], turns=result[1]))
+            if key and answered(result):
+                await self.cache.put(key, CachedDigest(digest=result[0], turns=result[1]))
             return result
-
-        async def one(run_id: str) -> Digested:
-            key = keys[run_id]
-            hit = cached.get(key)
-            if hit is not None:
-                return hit.digest, hit.turns
-            shared = self.inflight.get(key)
-            if shared is not None:
-                # Another call owns this read, its harness client and its
-                # budget: waiting must not cancel it.
-                return await asyncio.shield(shared)
-            own = asyncio.create_task(read(run_id))
-            self.inflight[key] = own
-            own.add_done_callback(lambda _: self.inflight.pop(key, None))
-            return await own
 
         tasks = [asyncio.create_task(one(run_id)) for run_id in run_ids]
         try:

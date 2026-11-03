@@ -2,22 +2,12 @@
 
 ## Unreleased
 
-- The MCP run tools no longer read every session's trajectory from the
-  harness on every call. `get_run_stats`, `find_runs` (with `include`,
-  `tool_error` or `failed_only`) and `get_runs` cache each answered session's
-  metrics and turns, so a window already read comes back in seconds instead
-  of timing out on wide ranges.
-  - Only a harness's sessions are cached (runs listed with a `session_id`),
-    and only once their last message has an answer or failed. A new message
-    makes a new run, which is read fresh; a session still waiting for an
-    answer is read on every call. `get_trajectory` is never cached.
-  - Calls running at the same time share one harness read of a session
-    instead of each reading it.
-  - Set `cache.redis_url` in the server's `config.yaml` to keep the cache in
-    Redis, shared by every replica and kept across restarts, with entries
-    expiring after `cache.ttl_days` (default 30). Without it each server
-    process keeps up to `cache.memory_entries` sessions (default 5000) in
-    memory. A Redis error is treated as a miss and never fails a call.
+- `get_run_stats` and `find_runs` (with `include`, `tool_error` or
+  `failed_only`) read an answered session from the harness once, then from a
+  cache, so wide windows come back in seconds instead of timing out. Set
+  `cache.redis_url` in `config.yaml` to share the cache across replicas and
+  keep it across restarts; without it each process caches in memory. A Redis
+  error never fails a call.
 
 - Scoring experiments of more than about 40 runs no longer fails with `500`s
   on `POST /api/experiment-runs/{id}/evaluations`.
