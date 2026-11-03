@@ -10,6 +10,18 @@
   library retried it, and the second send of a spent stream failed). The
   try-it stack's sample agent (`try/agent.py`) and the SDK-runs doc sample
   import `httpx2`.
+- The database gains a `tenants` table with one row, `default`, and a
+  `tenant_id` on `users`, `workspaces`, `cases`, `llm_providers`,
+  `trace_sources` and `fixture_blobs`. Usernames, workspace names, case ids,
+  provider names and trace source names are now unique per tenant. The
+  default judge moved from `server_settings` onto the tenant row. Migration
+  `0016`; no behaviour change for a single installation.
+- Blob objects now live under `tenants/<id>/`. After `evalkit db upgrade`,
+  run `evalkit blobs relocate --config <config>` once to move existing
+  trajectories, artifacts, run workspaces and fixtures; the server refuses to
+  start while any object remains under the old layout. The upgrade has
+  downtime between the migration and the relocation.
+- `GET /api/workspaces/...` payloads include `tenant_id`.
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of
   a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch
