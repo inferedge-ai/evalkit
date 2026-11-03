@@ -256,3 +256,27 @@ async def test_queue_can_list_changes_requested(env):
     assert (
         await clients["alice"].get("/api/review/queue", params={"state": "unreviewed"})
     ).status_code == 422
+
+
+async def test_queue_author_survives_a_resync_by_someone_else(env):
+    clients, *_ = env
+    await clients["alice"].post(
+        f"{BASE}/review-requests",
+        json={"selection": {"case_ids": ["case-1"]}, "reviewer": "sme"},
+    )
+    edited = CASES_YAML.replace(b"q1 edited", b"q1 edited again")
+    assert edited != CASES_YAML
+    resynced = await clients["admin"].post(
+        "/api/sync",
+        params={"dataset": "finance", "workspace": "canonical"},
+        files=upload(body=edited),
+    )
+    assert resynced.json()["review"]["carried"] == [{"case_id": "case-1", "reviewer": "sme"}]
+    await clients["sme"].post(
+        f"{BASE}/cases/case-1/review",
+        json={"action": "request_changes", "comment": "anchor the date"},
+    )
+    changes = (
+        await clients["alice"].get("/api/review/queue", params={"state": "changes_requested"})
+    ).json()
+    assert [(i["case_id"], i["author"]) for i in changes["items"]] == [("case-1", "alice")]

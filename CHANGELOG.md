@@ -4,10 +4,13 @@
 
 - Review CLI fixes:
   - `evalkit review show <dataset> <case>` prints the case (id, input,
-    expected, evaluators, tags) as YAML above the changelog. `--yaml` prints
+    expected, evaluators with overlays applied, file names, tags) as YAML
+    above the changelog. `--yaml` prints
     only the case.
   - `evalkit review queue --changes-requested` names the author the case went
-    back to: "by <reviewer> to <author>". The queue API returns it as `author`.
+    back to: "by <reviewer> to <author>". The author is the last person who
+    asked for review; a re-sync does not change it. The queue API returns it
+    as `author`.
   - `evalkit sync` says that edited cases under review are back in review and
     need no second `review request`.
   - `evalkit review request` skips cases already waiting on the same reviewer

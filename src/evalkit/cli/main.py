@@ -1280,7 +1280,11 @@ def _fmt_comment(comment: dict, *, indent: int) -> str:
 
 def _case_yaml(case: dict) -> str:
     fields = {"id": case["case_id"], "input": case["input"], "expected": case.get("expected")}
-    fields |= {"evaluators": case.get("evaluators") or None, "tags": case.get("tags") or None}
+    fields |= {
+        "evaluators": case.get("effective_evaluators") or None,
+        "files": [f["key"] for f in case.get("files") or []] or None,
+        "tags": case.get("tags") or None,
+    }
     return yaml.safe_dump(
         {k: v for k, v in fields.items() if v is not None}, sort_keys=False, allow_unicode=True
     )
@@ -1321,25 +1325,24 @@ def review_request(
 def review_show(
     dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
     case_id: str = typer.Argument(None, help="Case id; omit to list every case's state."),
-    as_yaml: bool = typer.Option(False, "--yaml", help="Print only the case as YAML."),
+    as_yaml: bool = typer.Option(
+        False, "--yaml", help="Print only the case as YAML, with overlay evaluators applied."
+    ),
 ):
     """Show review state for a dataset, or the case, state, changelog and comments for one case.
 
     Example: evalkit review show finance us10k-conv-04
     """
     client = _client()
-    rows = client.get(f"/api/datasets/{_dataset_ref(dataset)}/cases").json()
     if case_id is None:
-        for ex in rows:
+        for ex in client.get(f"/api/datasets/{_dataset_ref(dataset)}/cases").json():
             review = ex.get("review") or {}
             typer.echo(
                 f"{ex['case_id']:<40} {review.get('state', '-'):<18} "
                 f"{review.get('requested_to') or ''}"
             )
         return
-    match = next((ex for ex in rows if ex["case_id"] == case_id), None)
-    if match is None:
-        raise ApiError(f"unknown case: {case_id}")
+    match = client.get(_case_path(dataset, case_id)).json()
     case_yaml = _case_yaml(match)
     if as_yaml:
         typer.echo(case_yaml, nl=False)
