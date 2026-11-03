@@ -56,12 +56,21 @@ general conversational rule). Stop asking when the slots are full, not before.
 | Slot | Becomes | Notes |
 |---|---|---|
 | The scenario, in the author's words | — | The raw material for everything below. |
-| A realistic user phrasing | `input.question` | Derive it FROM the scenario and play it back for confirmation — authors are not expected to produce verbatim input. |
+| A realistic user phrasing | `input.question` | Derive it FROM the scenario and play it back for confirmation — authors are not expected to produce verbatim input. The input must pass the agent's input schema; see below the table. |
 | A date anchor in the input | part of `input.question` | Whenever the answer is time-sensitive, anchor the question itself ("as of 30 September 2025") so pinned ground truth cannot drift under the case. |
 | What a correct answer contains | `answer_rubrics` | Concrete values (or the correct honest negative), dated — see the rubric sections below. |
 | The intermediate values and visible steps the work should show | `trajectory_rubrics` | Checkpoint sentences — see below. |
 | Presentation requirements, if any | `presentation_judge` | Units shown, columns present, an artifact relayed rather than restated. |
 | A latency bound, if the case has one | `max_response_time` | `max_response_time: {max_seconds: 90}` under `evaluators.output`; settable file-wide via `defaults.max_response_time: 90`. |
+
+`input` must pass the agent's input schema. By default that is an object
+with a required string `question`, which the slots above assume. When the
+agent takes another shape (multi-turn `turns`, structured fields), write the
+input in that shape and check it with `evalkit lint <dir> --agent <name>`
+before syncing. Never add a dummy `question` key to get past the check: a
+code-driven agent sets its own schema with
+`evalkit agents edit <name> --input-schema schema.json`, and a harness
+declares one as `input_schema` in `GET /capabilities`.
 
 For agents that return a structured `output` (classifiers, taggers,
 extractors) instead of prose: `answer_rubrics` still works, since the judge
