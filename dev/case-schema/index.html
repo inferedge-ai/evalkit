@@ -680,6 +680,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#input-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#evaluators" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1084,6 +1095,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#input-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#evaluators" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1267,7 +1289,7 @@
 <tr>
 <td><code>input</code></td>
 <td>mapping</td>
-<td>Sent to the agent as is. Most agents read <code>input.question</code>.</td>
+<td>Sent to the agent as is. It must pass the agent's input schema; see <a href="#input-schema">Input schema</a>.</td>
 </tr>
 <tr>
 <td><code>fixtures</code></td>
@@ -1286,6 +1308,13 @@
 </tr>
 </tbody>
 </table>
+<h2 id="input-schema">Input schema<a class="headerlink" href="#input-schema" title="Permanent link">&para;</a></h2>
+<p>Every agent has an input schema, a JSON Schema each case's <code>input</code> must pass. <code>evalkit run</code>, <code>run_experiment</code> (dry runs too) and <code>evalkit lint --agent</code> refuse inputs that fail it. When the agent sets none, the default applies:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"object"</span><span class="p">,</span><span class="w"> </span><span class="nt">"required"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"question"</span><span class="p">],</span><span class="w"> </span><span class="nt">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"question"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">}}}</span>
+</code></pre></div>
+<p>A harness declares its own <code>input_schema</code> in <code>GET /capabilities</code> (<a href="../harness-api/">Harness API</a>). A code-driven agent stores one on the agent: <code>evalkit agents create &lt;name&gt; --input-schema schema.json</code>, or <code>evalkit agents edit &lt;name&gt; --input-schema schema.json</code>; <code>--clear-input-schema</code> goes back to the default. <code>evalkit agents show</code> prints it. For a multi-turn agent:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"object"</span><span class="p">,</span><span class="w"> </span><span class="nt">"required"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"turns"</span><span class="p">],</span><span class="w"> </span><span class="nt">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"turns"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"array"</span><span class="p">,</span><span class="w"> </span><span class="nt">"items"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">}}}}</span>
+</code></pre></div>
 <h2 id="evaluators">Evaluators<a class="headerlink" href="#evaluators" title="Permanent link">&para;</a></h2>
 <p>Evaluators sit under <code>evaluators.output</code>, <code>evaluators.trajectory</code> or <code>evaluators.custom</code>. The scorecard groups their scores into buckets, but the bucket names are not YAML keys:</p>
 <table>

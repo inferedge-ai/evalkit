@@ -834,6 +834,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#input-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#already-have-a-harness-keep-it" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -944,6 +955,17 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#input-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#already-have-a-harness-keep-it" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1051,6 +1073,19 @@
 <li><strong>Capabilities honesty.</strong> Declare only what works. evalkit neutral-skips evaluators whose inputs the harness does not provide; a false <code>true</code> produces failing scores blamed on the agent.</li>
 <li><strong>Implement stop.</strong> evalkit calls stop on timeout when <code>accepts.stop</code> is true; a harness without it leaks resources on every timed-out run.</li>
 </ul>
+<h2 id="input-schema">Input schema<a class="headerlink" href="#input-schema" title="Permanent link">&para;</a></h2>
+<p>Every case input must pass the agent's input schema; <code>evalkit run</code> and <code>evalkit lint --agent</code> refuse inputs that fail it. A harness declares its schema as <code>input_schema</code> in <code>GET /capabilities</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"agent"</span><span class="p">:</span><span class="w"> </span><span class="s2">"support-bot"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"input_schema"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"object"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"required"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"turns"</span><span class="p">],</span>
+<span class="w">    </span><span class="nt">"properties"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"turns"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"array"</span><span class="p">,</span><span class="w"> </span><span class="nt">"items"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"string"</span><span class="p">}}}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"check_input"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"turns"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"Hi. Reply with one word."</span><span class="p">]}</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>Without <code>input_schema</code>, the default applies: an object with a required string <code>question</code>. Declare <code>check_input</code> too when the default probe <code>{"question": "Hi. Reply with one word."}</code> does not pass your schema, so <code>evalkit harness check</code> can run. See <a href="../case-schema/#input-schema">Input schema</a>.</p>
 <h2 id="already-have-a-harness-keep-it">Already have a harness? Keep it<a class="headerlink" href="#already-have-a-harness-keep-it" title="Permanent link">&para;</a></h2>
 <p>A harness that already emits OpenTelemetry traces can skip the trajectory endpoint: create the agent with <code>--trajectory-source otel --mapping FILE</code> and export spans to the collector with the run id it returned from <code>POST /runs</code> in the attribute the mapping's <code>session_id</code> rule names (<code>session.id</code> for OpenInference, <code>gen_ai.conversation.id</code> for GenAI). Everything else stays: server runs, <code>evalkit run</code>, the Workspace tab. The harness declares <code>provides.trajectory: false</code>. See <a href="../tracing/">Tracing</a>.</p>
 <p>The session evalkit polls is the <code>run_id</code> that <code>POST /runs</code> returns; there is no separate session field. A queue-backed agent whose worker opens its own session can return that session id as <code>run_id</code>, or stamp the <code>run_id</code> it returned on the job's spans in the mapping's session id attribute. Either way the ids must also work with the other <code>/runs/{id}</code> endpoints.</p>
