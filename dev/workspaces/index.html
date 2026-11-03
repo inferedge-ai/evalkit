@@ -1175,7 +1175,9 @@ your agent:</p>
 </code></pre></div>
 <h3 id="set-it-up">Set it up<a class="headerlink" href="#set-it-up" title="Permanent link">&para;</a></h3>
 <p>An admin runs these once:</p>
-<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>workspaces<span class="w"> </span>create<span class="w"> </span>dev
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>users<span class="w"> </span>add<span class="w"> </span>alice<span class="w">                                 </span><span class="c1"># prompts for a password; once per user</span>
+evalkit<span class="w"> </span>users<span class="w"> </span>add<span class="w"> </span>bob
+evalkit<span class="w"> </span>workspaces<span class="w"> </span>create<span class="w"> </span>dev
 evalkit<span class="w"> </span>workspaces<span class="w"> </span>create<span class="w"> </span>prod
 evalkit<span class="w"> </span>workspaces<span class="w"> </span>promote-to<span class="w"> </span>dev<span class="w"> </span>prod<span class="w">                  </span><span class="c1"># approvals in @dev land in @prod</span>
 evalkit<span class="w"> </span>workspaces<span class="w"> </span>members<span class="w"> </span>add<span class="w"> </span>dev<span class="w"> </span>alice<span class="w"> </span>--role<span class="w"> </span>writer<span class="w">  </span><span class="c1"># may sync and run in @dev</span>
