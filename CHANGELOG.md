@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The docs site reads right without a browser (fetch tools, `curl`,
+  crawlers). The root page now lists links to every page under `latest/`
+  instead of an empty redirect, and the "older or unreleased version" banner
+  text appears only on older or `dev` pages, linking to the same page under
+  `latest/`. The README links `https://inferedge-ai.github.io/evalkit/latest/`.
 - `evalkit runs pull` now writes `started_at` in every `run.json`. A run with
   no agent-run record (most app runs) takes it from the run's listed
   `created_at`; before, the field was missing. It is `null` when the harness

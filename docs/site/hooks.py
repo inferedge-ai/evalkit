@@ -10,6 +10,7 @@ ROOT = SITE.parent.parent
 GENERATED = {
     "sdk-reference.md": SITE / "sdk-reference.md",
     "stylesheets/evalkit.css": SITE / "stylesheets" / "evalkit.css",
+    "javascripts/outdated.js": SITE / "javascripts" / "outdated.js",
     "favicon.svg": ROOT / "ui" / "public" / "favicon.svg",
 }
 PLACEHOLDER = re.compile(r"\{\{(origin|version)\}\}")

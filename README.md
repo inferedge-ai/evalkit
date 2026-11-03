@@ -149,7 +149,7 @@ On GitHub, `{{origin}}` in the docs stands for your server's URL.
 ## Reference
 
 The docs and the Python SDK reference are published at
-[inferedge-ai.github.io/evalkit](https://inferedge-ai.github.io/evalkit/).
+[inferedge-ai.github.io/evalkit](https://inferedge-ai.github.io/evalkit/latest/).
 
 - [Concepts](docs/user/concepts.md): the terms
 - [Install](docs/user/install.md), [Login](docs/user/login.md),

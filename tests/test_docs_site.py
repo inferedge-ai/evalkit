@@ -38,3 +38,13 @@ def test_site_nav_lists_the_ui_docs_pages_in_order():
     site_only = {"index.md", "sdk-reference.md"}
     assert [page for page in pages if page not in site_only] == _ui_pages()
     assert site_only <= set(pages)
+
+
+def test_root_page_links_every_nav_page():
+    config = yaml.load((ROOT / "mkdocs.yml").read_text(), Loader=_Loader)
+    expected = {
+        "" if page == "index.md" else f"{page.removesuffix('.md')}/"
+        for page in _nav_pages(config["nav"])
+    }
+    template = (ROOT / "docs" / "site" / "redirect.html").read_text()
+    assert set(re.findall(r'<li><a href="\{\{href\}\}([\w/-]*)">', template)) == expected

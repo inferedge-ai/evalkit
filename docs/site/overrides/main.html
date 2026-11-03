@@ -1,8 +1,5 @@
 {% extends "base.html" %}
 
 {% block outdated %}
-  You're viewing docs for an older or unreleased version.
-  <a href="{{ '../' ~ base_url }}">
-    <strong>Go to latest.</strong>
-  </a>
+  <span data-evalkit-outdated data-root="{{ base_url }}"></span>
 {% endblock %}

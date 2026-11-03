@@ -169,13 +169,13 @@ jobs:
           export DOCS_REF="$GITHUB_REF_NAME"
           if [ "$GITHUB_REF_NAME" = "main" ]; then
             uv run --frozen --group docs mike deploy --push --update-aliases "$DOCS_VERSION" latest
-            uv run --frozen --group docs mike set-default --push latest
+            uv run --frozen --group docs mike set-default --push -T docs/site/redirect.html latest
           else
             uv run --frozen --group docs mike deploy --push dev
             # Until the first release adds `latest`, the site root opens `dev`.
             if ! uv run --frozen --group docs mike list latest >/dev/null 2>&1 \
               && ! git show gh-pages:index.html 2>/dev/null | grep -q 'dev/'; then
-              uv run --frozen --group docs mike set-default --push dev
+              uv run --frozen --group docs mike set-default --push -T docs/site/redirect.html dev
             fi
           fi
 
