@@ -182,12 +182,14 @@ path-filtered against the PR base) and on pushes to those branches:
 ## Changelog
 
 `CHANGELOG.md` has one section per released version plus `## Unreleased` at
-the top. Every PR that changes what a user can do or see (a command, flag,
-endpoint, field, UI control, review or run behaviour) adds its entry under
-`## Unreleased`, in the same PR; the release PR renames that section.
-Write it for the person upgrading: what they can do now, how to invoke it, and
-what is refused or different. Internal refactors and test-only changes do
-not need an entry.
+the top. It is a general record of what changed in each version, for anyone
+reading it: users, operators, contributors. Every PR that changes behaviour,
+an interface, a dependency, the schema, packaging or the build adds its
+entry under `## Unreleased`, in the same PR; the release PR renames that
+section. An entry says what changed and, when it is not obvious, why; name
+the command, flag, endpoint, field or config key so a reader can find it.
+Note anything refused or different from before in the same entry. Test-only
+changes and refactors with no visible effect do not need an entry.
 
 ## Code style
 
