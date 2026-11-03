@@ -327,7 +327,10 @@ already at its new key is skipped, an old key with no object is skipped.
 It runs after `evalkit db upgrade` and before the new server starts
 serving; the server refuses to start while any object remains under an old
 prefix, with a message naming the command, so a missed step cannot
-silently 404 every trajectory. The upgrade therefore has downtime between
+silently 404 every trajectory. The check does not list the bucket: the
+`Blob` protocol gains `has_any(prefix) -> bool`, which returns on the first
+object found, so on a relocated or fresh store it is four empty listings
+and on an unrelocated one it stops at the first object. The upgrade therefore has downtime between
 the migration and the relocation, which is accepted. The release notes and
 the deployment skill carry the step. The try-it stack and `init-server`
 need nothing: a fresh store has no old objects.
@@ -423,6 +426,7 @@ store, and the access rules keep a tenant equality check as a second line.
 | Password login | `resolve_tenant(request, claims=None)` |
 | `bootstrap_admin`, `init-server` | Tenant 1, passed explicitly; the "does any admin exist" check runs `ALL_TENANTS` |
 | Server runner (`prepare_experiment`, lease, reaper) | The experiment id is globally unique: an `ALL_TENANTS` lookup of the experiment joined to `datasets` and `workspaces` yields its `tenant_id`; the runner then builds its scoped `PgStore` |
+| Trace import job (`TraceImportStore.job`, its lease, `interrupt_imports` at startup) | The import id is globally unique: an `ALL_TENANTS` lookup of the import joined to `agents` and `workspaces` yields its `tenant_id`; the job then runs scoped |
 | Migrations | None; migrations are installation-wide |
 
 `resolve_tenant` is the one function a wrapper replaces. The public repo
@@ -596,16 +600,17 @@ Two kinds of code open sessions with `session.info["tenant_id"] = ALL_TENANTS`
 and nothing else may:
 
 - The installation-wide paths listed below.
-- The pre-tenant lookups: the four places that must find the tenant before
+- The pre-tenant lookups: the five places that must find the tenant before
   any scoped work can start, each by a key that is unique across the whole
   database. They are listed in the "Where the tenant comes from" table:
   an evalkit token by hash, an agent token by hash, an experiment by id for
-  the runner and reaper, and the "any admin exists" check in
+  the runner and reaper, a trace import by id for its job, lease and the
+  startup `interrupt_imports`, and the "any admin exists" check in
   `bootstrap_admin`. Each does one select, reads the tenant off the row,
   and opens a scoped session for everything after. They are small, named
-  functions in `db/auth.py` and `db/experiments.py`, and a test asserts
-  the list of `ALL_TENANTS` openers is exactly these plus the
-  installation-wide paths.
+  functions in `db/auth.py`, `db/experiments.py` and `db/trace_imports.py`,
+  and a test asserts the list of `ALL_TENANTS` openers is exactly these
+  plus the installation-wide paths.
 
 ### Name resolution in one place
 
@@ -946,21 +951,21 @@ async def register(request, session, body):
 
     await lock_names(session)                                # the existing users-and-workspaces advisory lock, held to commit
     user = row by (tenant_id, issuer, subject)
-        if user is not None:
-            if user.archived_at:                 401 "user is archived"
-            if user.email != email: user.email = email       # the IdP is the source of truth for email
-            return {"username": user.username, "is_admin": user.is_admin, "email": email,
-                    "kind": "human", "created": False}
+    if user is not None:
+        if user.archived_at:                 401 "user is archived"
+        if user.email != email: user.email = email           # the IdP is the source of truth for email
+        return {"username": user.username, "is_admin": user.is_admin, "email": email,
+                "kind": "human", "created": False}
 
-        username = derive_username(idtok)                    # the rule in the data model section
-        if await name_taken(session, tenant_id, username):     # users and workspaces, as UserStore.create checks
-            409 f"username {username} is taken by a user or workspace; ask an admin to bind subject {subject} to an account"
-        user = User(tenant_id=tenant_id, username=username, password_hash=None,
-                    issuer=issuer, subject=subject, email=email, is_admin=False)
-        add user; flush
-        add Workspace(tenant_id=tenant_id, name=username, owner_user_id=user.id)
-        commit
-        return {..., "created": True}
+    username = derive_username(idtok)                        # the rule in the data model section
+    if await name_taken(session, tenant_id, username):       # users and workspaces, as UserStore.create checks
+        409 f"username {username} is taken by a user or workspace; ask an admin to bind subject {subject} to an account"
+    user = User(tenant_id=tenant_id, username=username, password_hash=None,
+                issuer=issuer, subject=subject, email=email, is_admin=False)
+    add user; flush
+    add Workspace(tenant_id=tenant_id, name=username, owner_user_id=user.id)
+    commit
+    return {..., "created": True}
 ```
 
 Notes on the choices:
