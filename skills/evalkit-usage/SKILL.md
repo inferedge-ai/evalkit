@@ -356,6 +356,7 @@ Harness API page has the full table.
 | You want to | Command |
 |---|---|
 | See what datasets exist and their versions | `evalkit datasets list` (`--workspace dev` for one workspace) |
+| See one dataset's last sync, case count and review progress | `evalkit datasets show <dataset>` |
 | List a dataset's cases with review state, tags and fixtures (to pick `--case-id`s) | `evalkit datasets list <dataset>` (`--state`, `--tag`) |
 | Check case YAML before pushing | `evalkit lint` |
 | Check case inputs against an agent's `input_schema` (on demand, not CI) | `evalkit lint <dir> --agent <name>` |

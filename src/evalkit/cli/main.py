@@ -545,6 +545,41 @@ def datasets_list(
     typer.echo(f"{len(shown)} case(s) in {dataset_slug}")
 
 
+@datasets_app.command("show")
+def datasets_show(
+    dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
+):
+    """Show a dataset's kind, last sync, case count, review states and tags.
+
+    Example: evalkit datasets show finance@dev
+    """
+    client = _client()
+    ref = encode(slug(_parse(dataset, _connection().username or "")))
+    ds = client.get(f"/api/datasets/{ref}").json()
+    cases = client.get(f"/api/datasets/{ref}/cases").json()
+    tags = client.get(f"/api/datasets/{ref}/tags").json()
+    typer.echo(f"dataset: {ds['ref']}")
+    typer.echo(f"kind: {ds['kind']}")
+    last = ds.get("last_sync")
+    if last is None:
+        typer.echo("last sync: -")
+    else:
+        detail = last["detail"]
+        typer.echo(
+            f"last sync: {last['created_at']} by {last['actor']} ({last['source']}) "
+            f"sha={(detail.get('sha') or '-')[:12]} branch={detail.get('branch') or '-'}"
+            + (" dirty" if detail.get("dirty") else "")
+        )
+    typer.echo(f"cases: {len(cases)}")
+    if ds["workspace_is_shared"]:
+        states: dict[str, int] = {}
+        for case in cases:
+            state = (case["review"] or {}).get("state", "-")
+            states[state] = states.get(state, 0) + 1
+        typer.echo("review: " + (", ".join(f"{k} {v}" for k, v in sorted(states.items())) or "-"))
+    typer.echo("tags: " + (", ".join(f"{t['name']} {t['count']}" for t in tags) or "-"))
+
+
 class _Progress:
     def __init__(self) -> None:
         self.exp_id: int | None = None

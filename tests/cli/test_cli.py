@@ -499,6 +499,15 @@ def test_datasets_list_by_workspace(env):
     assert both.exit_code == 1
 
 
+def test_datasets_show(env):
+    shown = runner.invoke(cli_app, ["datasets", "show", "finance@canonical"])
+    assert shown.exit_code == 0, shown.output
+    assert "dataset: finance@canonical" in shown.output
+    assert re.search(r"cases: \d+", shown.output)
+    assert "review: " in shown.output and "tags: " in shown.output
+    assert runner.invoke(cli_app, ["datasets", "show", "nope@canonical"]).exit_code == 1
+
+
 def _write_registry(path, key: str, data: bytes) -> None:
     path.write_text(
         f"fixtures:\n- key: {key}\n  sha256: {hashlib.sha256(data).hexdigest()}\n  context: ctx\n"

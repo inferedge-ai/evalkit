@@ -6,6 +6,9 @@
   and `evalkit review queue --workspace dev` only the cases waiting there.
   Without the flag both still cover every workspace you can see. Passing
   `--workspace` together with a dataset is refused: name it as `finance@dev`.
+- `evalkit datasets show finance@dev` prints one dataset's kind, last sync
+  (time, author, sha, branch), case count, cases per review state (shared
+  workspaces only) and tag counts.
 - `evalkit workspaces list` now shows promotion links: `promotes to prod` on
   the source row and `promoted from dev` on the target row.
 - `evalkit runs pull` now writes `started_at` in every `run.json`. A run with
