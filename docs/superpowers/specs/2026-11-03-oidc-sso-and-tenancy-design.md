@@ -1,7 +1,6 @@
 # OIDC single sign-on and tenant-ready data models
 
-Status: working draft, 2026-11-03. Sections are written as they are agreed;
-a section marked *not yet drafted* has not been discussed.
+Status: draft, complete, 2026-11-03. Under review in PR #66.
 
 ## Problem
 
@@ -65,9 +64,9 @@ assume them.
    and refresh tokens. The evalkit server is a resource server: it verifies
    the access token on every request with the IdP's published keys. It
    issues no login token of its own for SSO users.
-2. The IdP must issue JWT access tokens that name evalkit in `aud`. IdPs that
-   issue opaque access tokens are not supported. This is a documented
-   requirement.
+2. The IdP must issue JWT access tokens that name evalkit in `aud`, and
+   must rotate refresh tokens for public clients. IdPs that issue opaque
+   access tokens are not supported. Both are documented requirements.
 3. Evalkit registers at the IdP as one public client. There is no client
    secret anywhere in evalkit's own flows.
 4. A person's `users` row is created on their first registration call. Admin
@@ -100,6 +99,8 @@ erDiagram
     tenants ||--o{ cases : "has"
     tenants ||--o{ llm_providers : "has"
     tenants ||--o{ trace_sources : "has"
+    tenants ||--o{ fixture_blobs : "has"
+    fixture_blobs ||--o{ case_version_files : "backs"
     users ||--o{ auth_tokens : "owns"
     users ||--o{ workspace_members : "is granted"
     users |o--o{ workspaces : "owns personal"
@@ -155,6 +156,19 @@ erDiagram
         bytes api_key_encrypted "nullable"
         timestamptz archived_at "nullable"
     }
+    fixture_blobs {
+        int tenant_id PK_FK "not null, no default"
+        string sha256 PK
+        bigint size
+        int uploaded_by FK "nullable"
+    }
+    case_version_files {
+        int case_ref PK_FK
+        string content_hash PK_FK
+        string key PK
+        int tenant_id FK "with sha256, to fixture_blobs"
+        string sha256 FK
+    }
     auth_tokens {
         int id PK
         int user_id FK
@@ -182,14 +196,27 @@ default judge is per tenant without a one-to-one join.
 The migration copies that value onto tenant 1 before dropping the table. The
 judge-default store reads and writes the tenant row instead.
 
-**`tenant_id`** on `users`, `workspaces`, `cases`, `llm_providers` and
-`trace_sources`: not null, foreign key to `tenants.id`, and no database
-default. Every insert in code passes the tenant explicitly; a forgotten one
-fails at the database rather than silently landing in tenant 1. These five
-are the tables whose names or identities were unique across the installation.
-Every other table reaches its tenant through a foreign key chain: agents,
-datasets and remote evaluators through their workspace, experiments through
-their dataset, runs through their agent, tokens through their user.
+**`tenant_id`** on `users`, `workspaces`, `cases`, `llm_providers`,
+`trace_sources` and `fixture_blobs`: not null, foreign key to `tenants.id`,
+and no database default. Every insert in code passes the tenant explicitly;
+a forgotten one fails at the database rather than silently landing in
+tenant 1. These six are the root tables: the ones whose names or identities
+were unique across the installation. Every other table reaches its tenant
+through a foreign key chain: agents, datasets and remote evaluators through
+their workspace, experiments through their dataset, runs through their
+agent, tokens through their user.
+
+**`fixture_blobs`** is a root table because it is keyed by content hash
+alone. Today `HEAD` and `GET /api/fixtures/sha256/{sha}` answer for any
+hash any user knows, and an upload of a known hash is skipped, so across
+tenants a hash would reveal that a file exists and allow reading it. Its
+primary key becomes `(tenant_id, sha256)`; each tenant declares and reads
+its own rows. The bytes in the blob store stay content-addressed by
+`sha256`, so identical files across tenants share storage, which leaks
+nothing: the API only serves a hash the tenant has a row for.
+`case_version_files` gains `tenant_id` so its foreign key can be the
+composite `(tenant_id, sha256)`; the column is backfilled to 1 and
+otherwise reachable through `cases`.
 
 **Unique keys** widen from installation-wide to per tenant:
 
@@ -201,6 +228,7 @@ their dataset, runs through their agent, tokens through their user.
 | `cases` | `case_id` | `(tenant_id, case_id)` |
 | `llm_providers` | `name`; `base_url` | `(tenant_id, name)`; `(tenant_id, base_url)` |
 | `trace_sources` | `name` | `(tenant_id, name)` |
+| `fixture_blobs` | primary key `sha256` | primary key `(tenant_id, sha256)` |
 
 **`users`** gains the identity columns. Subject, email and username are three
 different things: the subject is the key that never changes, the email is
@@ -246,14 +274,24 @@ No column records whether a row is a person or a machine. The model derives
 it:
 
 ```
-User.kind = "machine" if subject is not None and email is None else "human"
+User.kind = "machine" if subject is not None and email is None and password_hash is None
+            else "human"
 ```
 
-This is sound because registration always stores an email and
-`users add --subject` never does, so a subject without an email can only be a
-machine client. Password accounts have neither and read as human. `kind` is a
-hybrid property so it works in Python and in a query filter; there is no
-separate `is_machine`.
+A machine user is the only row with a subject and neither an email nor a
+password: registration always stores an email, a password account always
+has a hash, and `users add --subject` sets neither. So a password user
+bound to a subject with `users bind` keeps reading as human through the
+hash, and an SSO user reads as human through the email. `kind` is a hybrid
+property so it works in Python and in a query filter; there is no separate
+`is_machine`.
+
+The one case the rule gets wrong: a person pre-created by an admin with
+`users add --subject`, which is the machine path, reads as machine until
+their first sign-in stores an email. `users promote` would refuse them
+until then. Admins create people through sign-in, not `add --subject`, and
+the `add` help text says so. If this ever bites, an explicit column is the
+fix; it was left out to keep one source of truth per fact.
 
 **`auth_tokens`** is unchanged. Its kinds stay `user` (admin password login),
 `agent` and `ticket`. SSO sessions do not create rows here: the bearer on an
@@ -278,12 +316,21 @@ insert tenants (id=1, name='default',
                 default_judge = (select default_judge from server_settings where id = 1))
 drop table server_settings
 
-for table in [users, workspaces, cases, llm_providers, trace_sources]:
+for table in [users, workspaces, cases, llm_providers, trace_sources, fixture_blobs]:
     add column tenant_id int null references tenants(id)
     update table set tenant_id = 1
     alter column tenant_id set not null        # no server default
     drop the old installation-wide unique constraint(s)
     add the per-tenant unique constraint(s) from the table above
+
+# fixture_blobs: the primary key becomes (tenant_id, sha256), and
+# case_version_files follows with a composite foreign key
+alter case_version_files add column tenant_id int null
+update case_version_files set tenant_id = 1
+alter case_version_files alter column tenant_id set not null
+drop the foreign key case_version_files(sha256) -> fixture_blobs(sha256)
+alter fixture_blobs drop primary key; add primary key (tenant_id, sha256)
+add foreign key case_version_files(tenant_id, sha256) -> fixture_blobs(tenant_id, sha256)
 
 alter users add column issuer text null
 alter users add column subject text null
@@ -320,15 +367,15 @@ store, and the access rules keep a tenant equality check as a second line.
 
 | Entry point | Tenant source |
 | --- | --- |
-| Any `/api` route, evalkit token | `user.tenant_id`, loaded with the user row the token points at |
+| Any `/api` route, evalkit token | The token hash is globally unique: an `ALL_TENANTS` lookup of `auth_tokens` joined to `users` yields the user and its `tenant_id`; everything after runs in a session scoped to it |
 | Any `/api` route, IdP access token | `resolve_tenant(request, claims)` first, then the user row by `(tenant, issuer, sub)`; the same subject may exist in two tenants, so the tenant must be known before the lookup |
 | `/mcp` tools | Same as `/api`: the verifier yields the user, the user carries the tenant |
-| Collector, agent token | The agent's workspace's `tenant_id` |
+| Collector, agent token | The token hash is globally unique: an `ALL_TENANTS` lookup of `auth_tokens` joined to `agents` and `workspaces` yields the agent and its `tenant_id` |
 | Collector, user credential | As for `/api` |
 | Registration (`POST /api/auth/oidc/register`) | `resolve_tenant(request, claims)`; there is no user yet |
 | Password login | `resolve_tenant(request, claims=None)` |
-| `bootstrap_admin`, `init-server` | Tenant 1, passed explicitly |
-| Server runner (`prepare_experiment`, lease, reaper) | The experiment's dataset's workspace's `tenant_id`, loaded with the experiment |
+| `bootstrap_admin`, `init-server` | Tenant 1, passed explicitly; the "does any admin exist" check runs `ALL_TENANTS` |
+| Server runner (`prepare_experiment`, lease, reaper) | The experiment id is globally unique: an `ALL_TENANTS` lookup of the experiment joined to `datasets` and `workspaces` yields its `tenant_id`; the runner then builds its scoped `PgStore` |
 | Migrations | None; migrations are installation-wide |
 
 `resolve_tenant` is the one function a wrapper replaces. The public repo
@@ -413,8 +460,15 @@ Inside a scoped store:
   A row in another tenant is simply not found, and the route returns 404 as
   it does for any unknown id.
 - A create passes `t` as `tenant_id` on the root rows it inserts: a user, a
-  workspace, a case, an LLM provider, a trace source. Child rows get no tenant
-  column and need nothing.
+  workspace, a case, an LLM provider, a trace source, a fixture blob. Child
+  rows get no tenant column and need nothing.
+- Rows that link two other rows check both sides are in `t` before
+  inserting, as a stated rule rather than an accident of scoping:
+  a promotion link (`workspace_promotions`) requires source and target
+  workspaces in `t`, added to `_check_link`; a trace import requires its
+  agent's workspace and its trace source in `t`; a workspace member grant
+  requires the user and the workspace in `t`. Each is one comparison of
+  `tenant_id` values already loaded, and each has a test.
 
 The runner's `Store` protocol in `store/base.py` does not change: the tenant
 is a constructor argument of `PgStore`, invisible to `drive_experiment` and
@@ -431,10 +485,11 @@ registers one SQLAlchemy event.
 
 It is SQLAlchemy's own global-criteria recipe, documented under "Adding
 global WHERE / ON criteria" with multi-tenancy as a named use. On
-`do_orm_execute` it attaches `with_loader_criteria` for each of the five
+`do_orm_execute` it attaches `with_loader_criteria` for each of the six
 root models, so every ORM `SELECT`, and every ORM-enabled `UPDATE` and
-`DELETE`, that mentions `users`, `workspaces`, `cases`, `llm_providers` or
-`trace_sources` gets `tenant_id = t` added, including relationship loads:
+`DELETE`, that mentions `users`, `workspaces`, `cases`, `llm_providers`,
+`trace_sources` or `fixture_blobs` gets `tenant_id = t` added, including
+relationship loads:
 
 ```
 ALL_TENANTS = object()      # the sentinel installation-wide code sets on purpose
@@ -447,7 +502,7 @@ def scope_to_tenant(state):
     t = info["tenant_id"]
     if t is ALL_TENANTS:
         return
-    for model in (User, Workspace, Case, LlmProvider, TraceSource):
+    for model in (User, Workspace, Case, LlmProvider, TraceSource, FixtureBlob):
         state.statement = state.statement.options(
             with_loader_criteria(model, lambda cls: cls.tenant_id == t, include_aliases=True)
         )
@@ -465,7 +520,7 @@ without naming a tenant, and a session opened without a tenant fails on its
 first query.
 
 Cost: the listener runs in process and touches no database. It attaches
-five options to the statement, and SQLAlchemy's statement cache treats the
+six options to the statement, and SQLAlchemy's statement cache treats the
 lambda's closed-over `t` as a bound parameter, so the compiled SQL is cached
 once per statement shape, not once per tenant. The added predicate is
 `tenant_id = ?` on tables whose unique indexes now lead with `tenant_id`, so
@@ -490,9 +545,20 @@ This spec does not add them; the public repo has one tenant and the join
 rule is cheap to review. A wrapper that wants the complete guard can add
 them in its own session factory without a schema change.
 
-The installation-wide code paths listed below open sessions with
-`session.info["tenant_id"] = ALL_TENANTS` and are the only places allowed
-to.
+Two kinds of code open sessions with `session.info["tenant_id"] = ALL_TENANTS`
+and nothing else may:
+
+- The installation-wide paths listed below.
+- The pre-tenant lookups: the four places that must find the tenant before
+  any scoped work can start, each by a key that is unique across the whole
+  database. They are listed in the "Where the tenant comes from" table:
+  an evalkit token by hash, an agent token by hash, an experiment by id for
+  the runner and reaper, and the "any admin exists" check in
+  `bootstrap_admin`. Each does one select, reads the tenant off the row,
+  and opens a scoped session for everything after. They are small, named
+  functions in `db/auth.py` and `db/experiments.py`, and a test asserts
+  the list of `ALL_TENANTS` openers is exactly these plus the
+  installation-wide paths.
 
 ### Name resolution in one place
 
@@ -684,13 +750,13 @@ async def sso_user(request, session, token) -> User:
     request.state.token_expires_at = datetime.fromtimestamp(claims["exp"], UTC)
     return user
 
-def verify_access_token(oidc, token) -> dict:
+def verify_access_token(oidc, token, audience: list[str]) -> dict:
     key = oidc.keys.signing_key(token)                  # cached by kid; refetches once on unknown kid
     return jwt.decode(
         token, key.key,
         algorithms=oidc.cfg.algorithms,
         issuer=oidc.cfg.issuer,
-        audience=[oidc.cfg.audience, oidc.mcp_resource_url],
+        audience=audience,                               # /api: [cfg.audience]; /mcp: [cfg.audience, mcp_resource_url]
         options={"require": ["exp", "iat", "sub"]},
         leeway=30,
     )
@@ -702,12 +768,15 @@ calling the register route (next section) and retrying. Every other 401 is
 a sign-in problem: expired, wrong audience, wrong issuer, bad signature,
 archived.
 
-The `audience` list has two entries because MCP clients follow the MCP
-specification and request a token for the MCP server's own URL
-(`<server.base_url>/mcp`, RFC 8707), while the UI and CLI request the
-configured `audience`. A token for either is an evalkit user. `iss` is
-checked against the configured issuer and `sub` is required, so the pair
-that keys the `users` row is always present.
+Each endpoint accepts only the audiences meant for it. `/api` accepts the
+configured `audience` and nothing else. `/mcp` accepts that and also the
+MCP server's own URL (`<server.base_url>/mcp`), because MCP clients follow
+the MCP specification and request a token for the resource they connect
+to (RFC 8707). The asymmetry is deliberate: a token an MCP client obtained
+for the read-only `/mcp` must not become a read-write `/api` credential,
+while a person's own `/api` token may read `/mcp`, as an evalkit login
+token can today. `iss` is checked against the configured issuer and `sub`
+is required, so the pair that keys the `users` row is always present.
 
 The user row lookup is by the partial unique index on
 `(tenant_id, issuer, subject)`. No `auth_tokens` row is read or written for
@@ -821,8 +890,8 @@ async def register(request, session, body):
     tenant_id = resolve_tenant(request, access)
     issuer, subject, email = idtok["iss"], idtok["sub"], idtok["email"]
 
-    async with lock_names(session):                          # the existing users-and-workspaces lock
-        user = row by (tenant_id, issuer, subject)
+    await lock_names(session)                                # the existing users-and-workspaces advisory lock, held to commit
+    user = row by (tenant_id, issuer, subject)
         if user is not None:
             if user.archived_at:                 401 "user is archived"
             if user.email != email: user.email = email       # the IdP is the source of truth for email
@@ -830,8 +899,8 @@ async def register(request, session, body):
                     "kind": "human", "created": False}
 
         username = derive_username(idtok)                    # the rule in the data model section
-        taken = row by (tenant_id, username)
-        if taken is not None:                409 f"username {username} is taken; ask an admin to bind subject {subject} to an account"
+        if await name_taken(session, tenant_id, username):     # users and workspaces, as UserStore.create checks
+            409 f"username {username} is taken by a user or workspace; ask an admin to bind subject {subject} to an account"
         user = User(tenant_id=tenant_id, username=username, password_hash=None,
                     issuer=issuer, subject=subject, email=email, is_admin=False)
         add user; flush
@@ -935,7 +1004,7 @@ new UserManager({
   scope: oidc.scopes.join(" "),
   extraQueryParams: oidc.authorize_params,    # audience / resource, verbatim
   response_type: "code",
-  userStore: new WebStorageStateStore({ store: localStorage }),   # survives reload and tabs, as the evalkit token does today
+  userStore: new WebStorageStateStore({ store: localStorage }),   # survives reload and tabs; see the risk note below
   automaticSilentRenew: false,                # refresh happens on demand, below
 })
 ```
@@ -976,6 +1045,19 @@ sequenceDiagram
         I-->>B: {access_token, refresh_token (rotated), expires_in}
     end
 ```
+
+### The refresh token in local storage
+
+The refresh token lives in `localStorage`, readable by any script running
+on evalkit's origin. This is accepted, in writing: the evalkit login token
+has lived in the same place with a thirty-day life since the UI was built,
+and the UI loads no third-party scripts. What this spec adds to limit the
+blast radius: the IdP requirements make refresh token rotation for public
+clients mandatory, so a stolen refresh token is good for one use and its
+use invalidates the session the moment the real client refreshes; and the
+access token's life is the IdP's, minutes to an hour. Moving the tokens to
+a cookie-backed session would reintroduce a server-side session store, the
+thing Model A removes, and is not done.
 
 ### Routes and pages
 
@@ -1114,7 +1196,11 @@ StoredOidcLogin.bearer():
             tokens = authlib.refresh_token(token_endpoint, refresh_token, client_id)
             save access_token, rotated refresh_token, expires_at back to the file
         return access_token
-    # refresh refused (token revoked or expired at the IdP):
+    # refresh refused: another process may have rotated the refresh token and saved
+    # the result since this process read the file, so re-read before giving up
+    #   fresh = load(path)
+    #   if fresh.access_token != self.access_token and fresh.expires_at - now > 60 s:
+    #       adopt fresh; return fresh.access_token
     #   raise ApiError("your login has expired; run `evalkit login --url <url>`")
 
 ClientCredentials.bearer():
@@ -1134,11 +1220,12 @@ ClientCredentials.bearer():
 | `EVALKIT_SERVER_URL` + `EVALKIT_TOKEN` | `StaticToken`, as today |
 | neither | the file: `StoredOidcLogin` when it has `[oidc]`, else `StaticToken(token)` |
 
-Two CLI processes on one machine can refresh at once; with rotation the
-second refresh fails and that process reports the expired-login error.
-Refreshing only inside the last minute of life makes it rare, most IdPs
-allow a short reuse window, and the cost is one `evalkit login`. No file
-locking.
+Two CLI processes on one machine refreshing at once is ordinary: a shell
+loop over `evalkit runs pull`, or an SDK run beside a CLI command. With
+rotation the second refresh is refused. The re-read above resolves it
+without a lock: the first process has already written the rotated tokens,
+so the second adopts them. Only when the file holds nothing newer is the
+login really over. No file locking.
 
 ### `evalkit login`
 
@@ -1419,7 +1506,9 @@ alone. It covers, in this order:
    issuer; JWT access tokens (not opaque) that carry evalkit's audience in
    `aud`; `sub`, `exp`, `iat` in every access token; `email` and
    `preferred_username` (or `email` alone) in the ID token; PKCE with S256;
-   refresh tokens for a public client; the client credentials grant for
+   refresh tokens for a public client with rotation on, which is required
+   because the UI keeps its refresh token in browser storage; the client
+   credentials grant for
    machine clients; optionally the device authorization grant. Which IdPs
    and modes are known not to meet them (opaque access tokens from Google
    and from Okta's default authorization server).
