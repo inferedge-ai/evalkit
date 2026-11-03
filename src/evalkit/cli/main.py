@@ -42,6 +42,7 @@ from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, l
 from evalkit.contracts.cases import REGISTRY_FILENAME, CaseEvaluators, is_case_yaml
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import AgentDefinition, Driver, driver, explicit, server_may_drive
+from evalkit.core.capabilities import sdk_capabilities
 from evalkit.core.fixtures import load_registries
 from evalkit.core.harness import HarnessClient
 from evalkit.core.importer import load_files
@@ -368,6 +369,8 @@ def lint(
         _require_own_agent(definition, me, "lint against")
         if server_may_drive(definition):
             params["agent"] = slug(ref)
+        elif definition.harness_url is None:
+            form["input_schema"] = json.dumps(sdk_capabilities(definition).effective_input_schema)
         else:
             local = _with_secrets(_local_config(), scoring=False)
             try:

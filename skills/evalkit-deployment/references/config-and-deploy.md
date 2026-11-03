@@ -148,6 +148,8 @@ indirection, resolved at load time — keep secrets out of the file.
 
 ### Database connections and scoring
 
+Every `config.yaml` key and its default: [Server config](../../evalkit-docs/server-config.md).
+
 ```yaml
 db:
   pool_size: 20             # connections the server keeps open to Postgres
