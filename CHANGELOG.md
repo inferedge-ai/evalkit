@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- New docs page "Server config" lists every key of the server's
+  `config.yaml` with its default, including the database pool
+  (`db.pool_size` 20, `db.max_overflow` 10, `db.pool_timeout_seconds` 5) and
+  `runner.evaluation_concurrency` (16), and how to size them against
+  Postgres `max_connections`. `evalkit init-server` now writes
+  `db.pool_size: 5`, `db.max_overflow: 5` and
+  `runner.evaluation_concurrency: 4` into the `config.yaml` it creates, with
+  a comment naming the server defaults, so several local servers can share
+  one Postgres.
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of
   a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch
