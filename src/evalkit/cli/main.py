@@ -39,7 +39,7 @@ from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
 from evalkit.client.sync import ResolvedPath, git_revision, resolve_path, sync_dataset
 from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, load_config
-from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml
+from evalkit.contracts.cases import REGISTRY_FILENAME, CaseEvaluators, is_case_yaml
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import AgentDefinition, Driver, driver, explicit, server_may_drive
 from evalkit.core.capabilities import sdk_capabilities
@@ -77,6 +77,7 @@ skills_app = typer.Typer(no_args_is_help=True, help="Install the bundled agent s
 contracts_app = typer.Typer(no_args_is_help=True, help="Export the bundled API contracts.")
 db_app = typer.Typer(no_args_is_help=True, help="Server database schema upgrades (server only).")
 review_app = typer.Typer(no_args_is_help=True, help="Request, give and read case reviews.")
+experiments_app = typer.Typer(no_args_is_help=True, help="List experiments.")
 app.add_typer(datasets_app, name="datasets")
 app.add_typer(harness_app, name="harness")
 app.add_typer(users_app, name="users")
@@ -84,6 +85,7 @@ app.add_typer(skills_app, name="skills")
 app.add_typer(contracts_app, name="contracts")
 app.add_typer(db_app, name="db")
 app.add_typer(review_app, name="review")
+app.add_typer(experiments_app, name="experiments")
 
 
 def _print_version(value: bool) -> None:
@@ -920,6 +922,41 @@ def summary(
     _render_summary(reports["compare"], reports["base"])
 
 
+@experiments_app.command("list")
+def experiments_list(
+    agent: str | None = typer.Option(None, "--agent", help="myagent (yours) or myagent@dev."),
+    dataset: str | None = typer.Option(None, "--dataset", help="finance (yours) or finance@dev."),
+    limit: int = typer.Option(20, "--limit", help="How many, newest first."),
+):
+    """List experiments, newest first, with their bucket scores.
+
+    Example: evalkit experiments list --dataset finance@dev
+    """
+    me = _connection().username or ""
+    params: dict = {"limit": limit}
+    if agent is not None:
+        params["agent"] = slug(_parse(agent, me))
+    if dataset is not None:
+        params["dataset"] = slug(_parse(dataset, me))
+    found = _client().get("/api/experiments", params=params).json()
+    if not found:
+        typer.echo("no experiments")
+        return
+    typer.echo(
+        f"{'id':>5}  {'dataset':<28} {'agent':<24} {'status':<10} {'started':<16}  bucket scores"
+    )
+    for exp in found:
+        scores = " ".join(f"{bucket} {_fmt_score(v)}" for bucket, v in exp["scores"].items())
+        typer.echo(
+            f"{exp['id']:>5}  {exp['dataset']:<28} {exp['agent']:<24} {exp['status']:<10} "
+            f"{exp['started_at'][:16].replace('T', ' ')}  {scores or '-'}"
+        )
+
+
+def _fmt_score(value: float | None) -> str:
+    return "-" if value is None else f"{value:.2f}"
+
+
 def _require_own_agent(definition: AgentDefinition, me: str, action: str) -> None:
     if not definition.workspace_is_shared and definition.workspace != me:
         raise ApiError(
@@ -1322,10 +1359,16 @@ def _fmt_comment(comment: dict, *, indent: int) -> str:
     return f"{head}\n{pad}{comment['body']}"
 
 
+def _authored_evaluators(evaluators: dict | None) -> dict | None:
+    if not evaluators:
+        return None
+    return CaseEvaluators.model_validate(evaluators).model_dump(exclude_defaults=True) or None
+
+
 def _case_yaml(case: dict) -> str:
     fields = {"id": case["case_id"], "input": case["input"], "expected": case.get("expected")}
     fields |= {
-        "evaluators": case.get("effective_evaluators") or None,
+        "evaluators": _authored_evaluators(case.get("effective_evaluators")),
         "files": [f["key"] for f in case.get("files") or []] or None,
         "tags": case.get("tags") or None,
     }
@@ -1397,11 +1440,13 @@ def review_show(
     if review.get("requested_to"):
         typer.echo(f"requested to: {review['requested_to']}")
     typer.echo("changelog:")
+    shown_ref = slug(_parse(dataset, _connection().username or ""))
     for event in client.get(f"{_case_path(dataset, case_id)}/events").json()["events"]:
         target = f" → {event['target']}" if event.get("target") else ""
+        where = f"  in {event['dataset']}" if event["dataset"] != shown_ref else ""
         typer.echo(
             f"  {event['created_at']}  {event['kind']:<18} {event['actor']}{target}  "
-            f"[{event['content_hash']}]"
+            f"[{event['content_hash']}]{where}"
         )
     typer.echo("comments:")
     for thread in client.get(f"{_case_path(dataset, case_id)}/comments").json()["threads"]:
@@ -1413,14 +1458,29 @@ def review_show(
 @review_app.command("approve")
 def review_approve(
     dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
-    case_id: str = typer.Argument(..., help="Case id."),
-    comment: str = typer.Option(None, "--comment", help="Optional note."),
+    case_ids: list[str] = typer.Argument(None, help="Case ids, one or more."),
+    all_waiting: bool = typer.Option(
+        False, "--all-waiting", help="Every case in the dataset waiting on your review."
+    ),
+    comment: str = typer.Option(None, "--comment", help="Optional note, added to each case."),
 ):
-    """Approve a case (reviewers only).
+    """Approve one or more cases (reviewers only).
 
-    Example: evalkit review approve finance us10k-conv-04
+    Example: evalkit review approve finance@dev us10k-conv-04 us10k-conv-05 ·
+    evalkit review approve finance@dev --all-waiting
     """
-    _post_decision(dataset, case_id, "approve", comment)
+    if bool(case_ids) == all_waiting:
+        raise ApiError("pass case ids or --all-waiting, exactly one")
+    if all_waiting:
+        client = _client()
+        params = {"reviewer": client.get("/api/auth/me").json()["username"]}
+        case_ids = [item["case_id"] for item in _queue_items(client, dataset, params)]
+        if not case_ids:
+            typer.echo("nothing waiting on you")
+            return
+    typer.echo(f"approving {len(case_ids)} case(s) in {dataset}")
+    for case_id in case_ids:
+        _post_decision(dataset, case_id, "approve", comment)
 
 
 @review_app.command("request-changes")
@@ -1457,25 +1517,39 @@ def review_comment(
 
 @review_app.command("resolve")
 def review_resolve(
-    dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
-    case_id: str = typer.Argument(..., help="Case id."),
-    comment_id: int = typer.Argument(..., help="Comment id."),
+    ids: list[str] = typer.Argument(
+        ...,
+        metavar="COMMENT_ID",
+        help="Comment id (the older DATASET CASE_ID COMMENT_ID works too).",
+    ),
     undo: bool = typer.Option(False, "--undo", help="Mark the comment unresolved again."),
 ):
     """Resolve (or with --undo, unresolve) a comment.
 
-    Example: evalkit review resolve finance us10k-conv-04 12
+    Example: evalkit review resolve 12
     """
-    result = (
-        _client()
-        .patch(f"{_case_path(dataset, case_id)}/comments/{comment_id}", json={"resolved": not undo})
-        .json()
+    if len(ids) not in (1, 3) or not ids[-1].isdigit():
+        raise ApiError("pass a comment id, e.g. evalkit review resolve 12")
+    path = (
+        f"/api/review/comments/{ids[0]}"
+        if len(ids) == 1
+        else f"{_case_path(ids[0], ids[1])}/comments/{ids[2]}"
     )
+    result = _client().patch(path, json={"resolved": not undo}).json()
     typer.echo(f"comment {result['id']} {'resolved' if result['resolved'] else 'unresolved'}")
+
+
+def _queue_items(client: ApiClient, dataset: str | None, params: dict) -> list[dict]:
+    if dataset is not None:
+        params = {**params, "dataset": slug(_parse(dataset, _connection().username or ""))}
+    return client.get("/api/review/queue", params=params).json()["items"]
 
 
 @review_app.command("queue")
 def review_queue(
+    dataset: str | None = typer.Argument(
+        None, help="Only this dataset: finance (yours) or finance@dev; defaults to all."
+    ),
     reviewer: str = typer.Option(None, "--reviewer", help="Whose queue; defaults to you."),
     everyone: bool = typer.Option(False, "--all", help="Every case under review."),
     changes_requested: bool = typer.Option(
@@ -1487,15 +1561,18 @@ def review_queue(
 ):
     """List cases waiting for review, or with --changes-requested, cases awaiting an edit.
 
-    Example: evalkit review queue · evalkit review queue --workspace dev
+    Example: evalkit review queue · evalkit review queue finance@dev ·
+    evalkit review queue --workspace dev
     """
+    if dataset is not None and workspace is not None:
+        raise ApiError("pass a dataset or --workspace, not both")
     client = _client()
     params: dict = {} if workspace is None else {"workspace": workspace.removeprefix("@")}
     if changes_requested:
         params["state"] = "changes_requested"
     elif not everyone:
         params["reviewer"] = reviewer or client.get("/api/auth/me").json()["username"]
-    items = client.get("/api/review/queue", params=params).json()["items"]
+    items = _queue_items(client, dataset, params)
     if not items:
         typer.echo("nothing waiting")
         return

@@ -197,6 +197,12 @@ async def test_comments_threads_and_resolve_permissions(env):
     missing = await clients["sme"].patch(f"{base}/9999", json={"resolved": True})
     assert missing.status_code == 404
 
+    by_id = f"/api/review/comments/{root_id}"
+    assert (await clients["admin"].patch(by_id, json={"resolved": True})).status_code == 403
+    assert (await clients["alice"].patch(by_id, json={"resolved": True})).json()["resolved"] is True
+    missing = await clients["sme"].patch("/api/review/comments/9999", json={"resolved": True})
+    assert missing.status_code == 404
+
 
 async def test_queue_filters_by_reviewer_and_current_state(env):
     clients, ctx, hashes = env
@@ -225,6 +231,12 @@ async def test_queue_filters_by_reviewer_and_current_state(env):
         await clients["sme"].get("/api/review/queue", params={"workspace": "alice"})
     ).json()["items"]
     assert elsewhere == []
+    in_dataset = (
+        await clients["sme"].get("/api/review/queue", params={"dataset": FINANCE})
+    ).json()["items"]
+    assert {i["case_id"] for i in in_dataset} == {"case-1", "case-2"}
+    missing = await clients["sme"].get("/api/review/queue", params={"dataset": "nope@canonical"})
+    assert missing.status_code == 404
 
     await clients["sme"].post(f"{BASE}/cases/case-1/review", json={"action": "approve"})
     after = (await clients["sme"].get("/api/review/queue", params={"reviewer": "sme"})).json()
