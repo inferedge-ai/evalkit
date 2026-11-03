@@ -5,8 +5,8 @@
 - Traces from Google ADK / Gemini and LangChain-style instrumentors now keep
   the model's messages and tool calls. evalkit reads the message roles
   `model`, `ai` and `bot` as `assistant`, `human` as `user` and `function`
-  as `tool`, in any letter case. Before, it dropped those messages from the trajectory without
-  a warning, so tool evaluators scored 0.
+  as `tool`, in any letter case. Before, it dropped those messages from the
+  trajectory without a warning, so tool evaluators scored 0.
   - `evalkit traces check` now warns on the `llm` line when any output
     message has a role other than `assistant`, `user`, `system` or `tool`,
     and lists those roles: the trajectory drops such messages.
