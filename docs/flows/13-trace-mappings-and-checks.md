@@ -39,7 +39,7 @@ sequenceDiagram
   Dev->>CLI: evalkit traces check research-agent SESSION --mapping draft
   CLI-->>Dev: same check lines, built with the draft
   Dev->>CLI: evalkit traces mapping activate research-agent VERSION
-  CLI->>S: GET mappings, then POST activate for VERSION
+  CLI->>S: POST activate for VERSION (response carries replaced_version)
   S-->>CLI: "active vN for research-agent, replacing vM"
 
   Dev->>UI: Agents → research-agent@akshat → Mappings

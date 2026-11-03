@@ -64,7 +64,7 @@ async def test_mapping_lifecycle_and_previews(api):
     before = (await api.get("/api/agents/sdk@admin/sessions/sess-1/trajectory")).json()
     assert before["mapping_version"] == 1
     activated = (await api.post("/api/agents/sdk@admin/mappings/2/activate")).json()
-    assert activated["status"] == "active"
+    assert activated["status"] == "active" and activated["replaced_version"] == 1
     after = (await api.get("/api/agents/sdk@admin/sessions/sess-1/trajectory")).json()
     assert after["mapping_version"] == 2
     assert (await api.post("/api/agents/sdk@admin/mappings/9/activate")).status_code == 404

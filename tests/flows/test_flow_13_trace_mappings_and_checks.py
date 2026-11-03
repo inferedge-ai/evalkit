@@ -97,7 +97,7 @@ def test_flow_13_mapping_push_list_activate(live, tmp_path):
     after = live.http().get(f"/api/agents/{AGENT}/sessions/s-1/trajectory").json()
     assert after["mapping_version"] == 3
     no_version = live.run("traces", "mapping", "activate", AGENT)
-    assert no_version.exit_code != 0
+    assert no_version.exit_code == 2 and "Missing argument" in no_version.output
     back = live.run("traces", "mapping", "activate", AGENT, "1")
     assert "active v1" in back.output and "replacing v3" in back.output
     assert live.http().post(f"/api/agents/{AGENT}/mappings/9/activate").status_code == 404

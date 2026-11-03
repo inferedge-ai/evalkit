@@ -234,12 +234,12 @@ def register(
 
         Example: evalkit traces mapping activate research-agent 3
         """
-        client = client_factory()
-        base = f"/api/agents/{encode(agent_slug(agent))}/mappings"
-        rows = client.get(base).json()
-        previous = next((r["version"] for r in rows if r["status"] == "active"), None)
-        body = client.post(f"{base}/{version}/activate").json()
-        replaced = f", replacing v{previous}" if previous not in (None, body["version"]) else ""
+        body = (
+            client_factory()
+            .post(f"/api/agents/{encode(agent_slug(agent))}/mappings/{version}/activate")
+            .json()
+        )
+        replaced = f", replacing v{body['replaced_version']}" if body["replaced_version"] else ""
         typer.echo(f"active v{body['version']} for {agent}{replaced}")
 
     @mapping_app.command("list")
