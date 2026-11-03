@@ -30,7 +30,7 @@ def _llm_steps(trajectory: dict) -> int:
     )
 
 
-def _root_line(spans: list[dict], root: dict | None) -> str:
+def _root_line(spans: list[dict], root: dict | None, settled: bool) -> str:
     if root is not None:
         ended = "ended" if root["ended_at"] else "not ended"
         return _line("pass", "root", f'"{root["name"]}" ({root["kind"]}), {ended}')
@@ -41,7 +41,8 @@ def _root_line(spans: list[dict], root: dict | None) -> str:
         return _line(
             "warn",
             "root",
-            f'the trace root is outside this session; the top span is "{top["name"]}" '
+            f"the trace root is outside this session{'' if settled else ' or not received yet'}; "
+            f'the top span is "{top["name"]}" '
             f"under parent {top['parent_id']} (often an HTTP server's request span); its spans "
             "join the session of their outermost ancestor that carries one",
         )
@@ -126,7 +127,7 @@ def render_check(session: dict[str, Any]) -> tuple[list[str], bool]:
             "session",
             f"{session['span_count']} spans in {len(traces)} trace{plural}, {settled}",
         ),
-        _root_line(spans, root),
+        _root_line(spans, root, session["settled"]),
     ]
     version = session.get("mapping_version")
     lines.append(

@@ -19,6 +19,7 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    tuple_,
     type_coerce,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
@@ -28,6 +29,7 @@ from evalkit.core.agents import UnknownAgent
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE, AttributeKeys
 from evalkit.core.traces.raw import RawSpan
 from evalkit.db import models
+from evalkit.db.locks import lock_name
 from evalkit.db.runs import RunSource, eval_run_ids
 from evalkit.db.session import tenant_session
 
@@ -161,6 +163,17 @@ class SessionRead:
         kept = select(rebuilt).select_from(each).where(not_(removed)).scalar_subquery()
         return type_coerce(case((dropped, kept), else_=attributes), models.Span.attributes.type)
 
+    async def roots_received(self) -> bool:
+        traces = select(models.Span.agent_id, models.Span.trace_id).where(self._where).distinct()
+        found = (await self._session.execute(traces)).all()
+        if not found:
+            return False
+        roots = select(func.count(func.distinct(models.Span.trace_id))).where(
+            tuple_(models.Span.agent_id, models.Span.trace_id).in_(found),
+            models.Span.parent_span_id.is_(None),
+        )
+        return (await self._session.execute(roots)).scalar_one() == len(found)
+
     async def attribute_bytes(self, drop: AttributeDrop) -> int:
         size = func.octet_length(cast(self._attributes(drop), Text))
         statement = select(func.coalesce(func.sum(size), 0)).where(self._where)
@@ -200,8 +213,11 @@ class SpanStore:
     ) -> int:
         if not spans:
             return 0
+        trace_ids = sorted({s.trace_id for s in spans})
         async with self._session() as session:
             await self._check_agent(session, agent_id)
+            for trace_id in trace_ids:
+                await lock_name(session, f"spans:{agent_id}", trace_id)
             now = datetime.now(UTC)
             rows = {
                 (span.trace_id, span.span_id): dict(
@@ -236,7 +252,7 @@ class SpanStore:
                 )
             await session.execute(
                 SESSION_FROM_ANCESTORS,
-                {"agent_id": agent_id, "trace_ids": sorted({s.trace_id for s in spans})},
+                {"agent_id": agent_id, "trace_ids": trace_ids},
             )
             await session.commit()
         return len(spans)

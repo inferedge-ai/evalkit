@@ -103,7 +103,7 @@ When the agent runs behind FastAPI, Express or any other instrumented HTTP serve
 
 - Turn off the server framework's tracing, so the agent's own spans are the roots.
 
-Pydantic AI sets its own `gen_ai.conversation.id` on its spans. Pass yours, `agent.run(question, conversation_id=session_id)`, so its spans carry the same id as your turn span.
+Pydantic AI sets its own `gen_ai.conversation.id` on its spans. Your turn span's id already wins over it in evalkit. Passing yours anyway, `agent.run(question, conversation_id=session_id)`, is optional: it keeps the ids the same in other trace tools.
 
 `evalkit traces check` warns when a session's trace root is outside the session and names the top span the session starts from.
 

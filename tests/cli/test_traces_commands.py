@@ -356,6 +356,13 @@ def test_render_check_names_the_top_span_when_the_root_is_outside_the_session():
     )
 
 
+def test_render_check_says_an_unsettled_root_may_not_have_arrived():
+    lines, _ = render_check({**SESSION, "settled": False, "esf": SESSION["esf"][1:]})
+    assert lines[1].startswith(
+        "  ! root           the trace root is outside this session or not received yet; "
+    )
+
+
 def test_render_check_warns_when_subagents_hold_all_the_work():
     sub = {"schema_version": "ATIF-v1.8", "steps": [{"source": "agent", "timestamp": "t"}]}
     trajectory = {"schema_version": "ATIF-v1.8", "steps": [], "subagent_trajectories": [sub]}
