@@ -21,7 +21,7 @@ from evalkit.client.api import ApiRequestError
 from evalkit.config import OtelConfig
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource
 from evalkit.contracts.settings import AgentSettings, RemoteEvaluatorSettings
-from evalkit.core.runner import ScoringFailed
+from evalkit.core.runner import InvalidCaseInputs, ScoringFailed
 from evalkit.credentials import MissingCredential
 from evalkit.db import models
 from evalkit.db.evaluators import RemoteEvaluatorStore
@@ -54,6 +54,10 @@ LLM_ATTRS = {
 }
 
 
+NOT_Q2_SCHEMA = {"type": "object", "properties": {"question": {"not": {"const": "q2"}}}}
+TURNS_SCHEMA = {"type": "object", "required": ["turns"], "properties": {"turns": {"type": "array"}}}
+
+
 @pytest.fixture(scope="module")
 def server(tmp_path_factory, stub_judges_module, module_db_url):
     tmp_path = tmp_path_factory.mktemp("sdk")
@@ -72,6 +76,20 @@ def server(tmp_path_factory, stub_judges_module, module_db_url):
         )
         await seed_agent(factory, "pushed", "admin", harness_url=None, settings=AgentSettings())
         await seed_agent(factory, "harnessy", "admin", harness_url="http://x")
+        await seed_agent(
+            factory,
+            "typed",
+            "admin",
+            harness_url=None,
+            settings=AgentSettings(input_schema=TURNS_SCHEMA),
+        )
+        await seed_agent(
+            factory,
+            "picky",
+            "admin",
+            harness_url=None,
+            settings=AgentSettings(input_schema=NOT_Q2_SCHEMA),
+        )
         await RemoteEvaluatorStore(factory).create(
             "admin",
             "http_eval",
@@ -502,6 +520,24 @@ async def test_dry_run_creates_nothing_and_prints(env, capsys):
     assert result.experiment_id is None and await srv.count() == before
     assert len(result.runs) == 1
     assert "dry" in capsys.readouterr().out
+
+
+async def test_dry_run_and_real_run_check_inputs_against_the_agent_schema(env):
+    srv, blob, provider = env
+    common = {
+        "dataset": "finance",
+        "workspace": "canonical",
+        "task": lambda q: RunResult(answer="dry", trajectory=DEFAULT_TRAJECTORY),
+        "tracer_provider": provider,
+    }
+    with pytest.raises(InvalidCaseInputs, match="'turns' is a required property"):
+        await arun_experiment(**common, agent="typed", dry_run=True)
+    with pytest.raises(ApiRequestError, match="'turns' is a required property"):
+        await arun_experiment(**common, agent="typed")
+    dry = await arun_experiment(**common, agent="pushed", dry_run=True)
+    assert len(dry.runs) == 1
+    with pytest.raises(InvalidCaseInputs, match="case-2"):
+        await arun_experiment(**common, agent="picky", dry_run=1)
 
 
 async def test_dry_run_skips_judge_key_and_a_real_run_names_it_before_any_task(env, monkeypatch):

@@ -1069,6 +1069,46 @@ def test_run_and_harness_check_refuse_code_driven_agents(env, tmp_path, monkeypa
     assert result.exit_code == 1 and "evalkit traces check" in result.output
 
 
+def test_code_driven_agent_input_schema_drives_lint(env, tmp_path, monkeypatch, harness_url):
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    case = tmp_path / "turns.yaml"
+    case.write_text("- id: multi\n  input: {turns: [hi, again]}\n")
+    created = runner.invoke(cli_app, ["agents", "create", "multiturn"])
+    assert created.exit_code == 0, created.output
+    assert "default (a required string question)" in created.output
+    refused = runner.invoke(cli_app, ["lint", str(case), "--agent", "multiturn"])
+    assert refused.exit_code == 1 and "'question' is a required property" in refused.output
+    schema = tmp_path / "schema.json"
+    schema.write_text(json.dumps({"type": "object", "required": ["turns"]}))
+    edited = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--input-schema", str(schema)])
+    assert edited.exit_code == 0, edited.output
+    assert '{"type": "object", "required": ["turns"]}' in edited.output
+    passed = runner.invoke(cli_app, ["lint", str(case), "--agent", "multiturn"])
+    assert passed.exit_code == 0, passed.output
+    not_json = tmp_path / "schema.yaml"
+    not_json.write_text("type: object\n")
+    bad = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--input-schema", str(not_json)])
+    assert bad.exit_code == 2
+    kept = runner.invoke(cli_app, ["agents", "show", "multiturn"]).output
+    assert '{"type": "object", "required": ["turns"]}' in kept
+    cleared = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--clear-input-schema"])
+    assert "default (a required string question)" in cleared.output
+    harness = runner.invoke(
+        cli_app,
+        [
+            "agents",
+            "create",
+            "typedharness",
+            "--harness-url",
+            "http://h",
+            "--input-schema",
+            str(schema),
+        ],
+    )
+    assert harness.exit_code == 1 and "code-driven" in harness.output
+
+
 def test_evaluate_refuses_python_evaluator_experiments(
     env, tmp_path, monkeypatch, harness_url, module_db_url
 ):

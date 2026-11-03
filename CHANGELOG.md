@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- A code-driven agent can set its own input schema:
+  `evalkit agents create|edit <name> --input-schema schema.json`, and
+  `evalkit agents edit <name> --clear-input-schema` goes back to the
+  default (an object with a required string `question`). `agents show`
+  prints the schema, or the default. An agent with a `harness_url` is
+  refused: its harness declares the schema in `GET /capabilities`.
+  `run_experiment(dry_run=...)` now checks case inputs against the schema,
+  as the real run does. `evalkit lint --agent` on a code-driven agent lints
+  against its schema instead of failing with an `AssertionError`. The Case
+  schema, Harness API and SDK runs pages document the default schema and
+  how each kind of agent sets its own.
 - New docs page "Server config" lists every key of the server's
   `config.yaml` with its default, including the database pool
   (`db.pool_size` 20, `db.max_overflow` 10, `db.pool_timeout_seconds` 5) and
