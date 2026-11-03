@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- New `evalkit traces mapping activate <agent> [<version>]` makes the
+  current draft (or the given version) the active mapping and prints the
+  version it replaced. `mapping push --activate` is removed: push uploads
+  the draft, activate makes it live, so the draft you checked is the one
+  that goes live. The `activate` query parameter on
+  `PUT /api/agents/{agent}/mappings/draft` is removed too.
+- `evalkit traces mapping push` with a document equal to the current draft
+  keeps the draft's version and says it is unchanged, instead of minting a
+  new version. The endpoint's response has a new `unchanged` field.
+
 - `evalkit runs pull` now writes `started_at` in every `run.json`. A run with
   no agent-run record (most app runs) takes it from the run's listed
   `created_at`; before, the field was missing. It is `null` when the harness

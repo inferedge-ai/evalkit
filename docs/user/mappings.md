@@ -6,7 +6,7 @@ Every agent whose trajectories come from traces has its own mapping. `evalkit ag
 
 An existing agent switches between ATIF and traces with `evalkit agents edit NAME --trajectory-source otel --mapping FILE` (or `--trajectory-source atif`), or from the agent's Edit dialog. Switching to traces without a file reuses the agent's last active mapping. The switch is refused while one of the agent's experiments is running, and experiments that already ran keep the source they ran with.
 
-A mapping applies to every span of the agent and is versioned: `evalkit traces mapping push` creates a draft, you review the draft against recent sessions on the agent's Mappings tab (Agents → the agent → Mappings), and activate it there. The `connect-traces` skill walks a coding agent through writing one.
+A mapping applies to every span of the agent and is versioned: `evalkit traces mapping push` creates a draft, you review the draft against recent sessions on the agent's Mappings tab (Agents → the agent → Mappings), and activate it there or with `evalkit traces mapping activate`. The `connect-traces` skill walks a coding agent through writing one.
 
 ## The document
 
@@ -149,8 +149,9 @@ evalkit traces check myagent <session id> --dump spans.json   # read the raw att
 evalkit traces mapping push myagent eval/span-mapping.json    # upload a draft
 evalkit traces check myagent <session id> --mapping draft     # preview with the draft
 evalkit traces mapping list myagent
+evalkit traces mapping activate myagent                       # make the draft active
 ```
 
-Repeat until the unmapped list holds nothing that matters and the counts look right, then activate the draft on the agent's Mappings tab. `--activate` on push activates in the same step; a coding agent passes it only when the developer has approved the document.
+Repeat until the unmapped list holds nothing that matters and the counts look right, then activate the draft with `evalkit traces mapping activate myagent` or on the agent's Mappings tab. Pushing a document identical to the draft keeps the draft's version. `mapping activate myagent 3` activates version 3 instead, for example to roll back; it prints the version it activated and the one it replaced. A coding agent activates only when the developer has approved the document.
 
 Runs record the mapping version they were converted with; a later mapping change never alters a scored run. The Runs page converts sessions on demand with the active mapping.

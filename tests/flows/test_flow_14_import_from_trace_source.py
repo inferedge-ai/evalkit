@@ -271,9 +271,8 @@ async def test_flow_14_range_import_rules(api):
     release.set()
     await settled(api, first)
     no_session = {"schema_version": "1"}
-    await api.put(
-        f"/api/agents/{AGENT}/mappings/draft", params={"activate": "true"}, json=no_session
-    )
+    pushed = (await api.put(f"/api/agents/{AGENT}/mappings/draft", json=no_session)).json()
+    await api.post(f"/api/agents/{AGENT}/mappings/{pushed['version']}/activate")
     refused = await api.post(url, json=RANGE)
     assert refused.status_code == 409 and "session_id" in refused.json()["detail"]
     atif = await api.post("/api/agents", json={"workspace": DEV, "name": "harnessed"})

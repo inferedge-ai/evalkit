@@ -122,7 +122,6 @@ async def put_draft(
     mappings: MappingStoreDep,
     session: SessionDep,
     actor: ActorDep,
-    activate: bool = False,
 ) -> dict:
     _, record = await agent_or_404(agents, agent)
     await require_write(session, actor, record)
@@ -132,12 +131,12 @@ async def put_draft(
         first = exc.errors()[0]
         location = ".".join(str(p) for p in first["loc"])
         raise HTTPException(status_code=400, detail=f"{location}: {first['msg']}") from exc
-    draft = await mappings.put_draft(
-        record.id, document.model_dump(by_alias=True, exclude_none=True), actor.username
-    )
-    if activate:
-        draft = await mappings.activate(record.id, draft.version)
-    return draft.model_dump(mode="json")
+    stored = document.model_dump(by_alias=True, exclude_none=True)
+    current = await mappings.draft(record.id)
+    if current is not None and current.document == stored:
+        return {**current.model_dump(mode="json"), "unchanged": True}
+    draft = await mappings.put_draft(record.id, stored, actor.username)
+    return {**draft.model_dump(mode="json"), "unchanged": False}
 
 
 @router.post("/agents/{agent}/mappings/{version}/activate")

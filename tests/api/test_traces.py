@@ -50,7 +50,9 @@ async def test_mapping_lifecycle_and_previews(api):
     bad = await api.put("/api/agents/sdk@admin/mappings/draft", json=bad_doc)
     assert bad.status_code == 400 and "attribute" in bad.json()["detail"]
     draft = (await api.put("/api/agents/sdk@admin/mappings/draft", json=DOC)).json()
-    assert draft["version"] == 2 and draft["status"] == "draft"
+    assert draft["version"] == 2 and draft["status"] == "draft" and not draft["unchanged"]
+    same = (await api.put("/api/agents/sdk@admin/mappings/draft", json=DOC)).json()
+    assert same["version"] == 2 and same["unchanged"]
     preview = (
         await api.get(
             "/api/agents/sdk@admin/sessions/sess-1/trajectory",
@@ -65,10 +67,6 @@ async def test_mapping_lifecycle_and_previews(api):
     assert activated["status"] == "active"
     after = (await api.get("/api/agents/sdk@admin/sessions/sess-1/trajectory")).json()
     assert after["mapping_version"] == 2
-    pushed = (
-        await api.put("/api/agents/sdk@admin/mappings/draft", params={"activate": "true"}, json=DOC)
-    ).json()
-    assert pushed["version"] == 3 and pushed["status"] == "active"
     assert (await api.post("/api/agents/sdk@admin/mappings/9/activate")).status_code == 404
     assert (await api.get("/api/agents/nope@admin/sessions/x/trajectory")).status_code == 404
 
