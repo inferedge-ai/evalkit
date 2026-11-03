@@ -231,6 +231,12 @@ async def test_queue_filters_by_reviewer_and_current_state(env):
         await clients["sme"].get("/api/review/queue", params={"workspace": "alice"})
     ).json()["items"]
     assert elsewhere == []
+    in_dataset = (
+        await clients["sme"].get("/api/review/queue", params={"dataset": FINANCE})
+    ).json()["items"]
+    assert {i["case_id"] for i in in_dataset} == {"case-1", "case-2"}
+    missing = await clients["sme"].get("/api/review/queue", params={"dataset": "nope@canonical"})
+    assert missing.status_code == 404
 
     await clients["sme"].post(f"{BASE}/cases/case-1/review", json={"action": "approve"})
     after = (await clients["sme"].get("/api/review/queue", params={"reviewer": "sme"})).json()

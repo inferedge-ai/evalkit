@@ -808,8 +808,7 @@ def test_review_request_show_and_approve(env):
     assert "case-2" in queue.output
     in_dataset = runner.invoke(cli_app, ["review", "queue", "finance@canonical"])
     assert in_dataset.exit_code == 0 and "case-2" in in_dataset.output
-    other = runner.invoke(cli_app, ["review", "queue", "other@canonical"])
-    assert "nothing waiting" in other.output
+    assert runner.invoke(cli_app, ["review", "queue", "other@canonical"]).exit_code == 1
     elsewhere = runner.invoke(cli_app, ["review", "queue", "--workspace", "admin"])
     assert "nothing waiting" in elsewhere.output
     assert runner.invoke(cli_app, ["review", "queue", "--workspace", "nope"]).exit_code == 1
@@ -826,6 +825,7 @@ def test_review_request_show_and_approve(env):
         cli_app, ["review", "approve", "finance@canonical", "--all-waiting", "--comment", "ok"]
     )
     assert approved.exit_code == 0, approved.output
+    assert "approving 1 case(s) in finance@canonical" in approved.output
     assert "case-2: approved" in approved.output
     again = runner.invoke(cli_app, ["review", "approve", "finance@canonical", "--all-waiting"])
     assert "nothing waiting on you" in again.output
@@ -1563,7 +1563,9 @@ def test_experiments_list_filters_by_dataset(env):
     assert listed.exit_code == 0, listed.output
     rows = api_get("/api/experiments", dataset="finance@canonical")
     if rows:
-        assert listed.output.split()[0] == str(rows[0]["id"])
+        header, first = listed.output.splitlines()[:2]
+        assert header.split()[:2] == ["id", "dataset"]
+        assert first.split()[0] == str(rows[0]["id"])
     else:
         assert "no experiments" in listed.output
     missing = runner.invoke(cli_app, ["experiments", "list", "--dataset", "nope@canonical"])

@@ -942,6 +942,9 @@ def experiments_list(
     if not found:
         typer.echo("no experiments")
         return
+    typer.echo(
+        f"{'id':>5}  {'dataset':<28} {'agent':<24} {'status':<10} {'started':<16}  bucket scores"
+    )
     for exp in found:
         scores = " ".join(f"{bucket} {_fmt_score(v)}" for bucket, v in exp["scores"].items())
         typer.echo(
@@ -1475,6 +1478,7 @@ def review_approve(
         if not case_ids:
             typer.echo("nothing waiting on you")
             return
+    typer.echo(f"approving {len(case_ids)} case(s) in {dataset}")
     for case_id in case_ids:
         _post_decision(dataset, case_id, "approve", comment)
 
@@ -1536,12 +1540,9 @@ def review_resolve(
 
 
 def _queue_items(client: ApiClient, dataset: str | None, params: dict) -> list[dict]:
-    if dataset is None:
-        return client.get("/api/review/queue", params=params).json()["items"]
-    ref = _parse(dataset, _connection().username or "")
-    params = {**params, "workspace": ref.workspace}
-    items = client.get("/api/review/queue", params=params).json()["items"]
-    return [item for item in items if item["dataset"] == slug(ref)]
+    if dataset is not None:
+        params = {**params, "dataset": slug(_parse(dataset, _connection().username or ""))}
+    return client.get("/api/review/queue", params=params).json()["items"]
 
 
 @review_app.command("queue")

@@ -3,6 +3,7 @@ from evalkit.core.scorecard import ANSWER_RUBRIC_DIAGNOSTICS
 
 CHANGE_THRESHOLD = 0.05
 SHOWN_DELTA = 0.005
+SHOWN_GAUGE_CHANGE = 0.005
 
 
 def _fmt(value: float | None) -> str:
@@ -28,7 +29,9 @@ def _num(value: float | None) -> str:
 
 def _fmt_gauge_delta(base: float | None, value: float | None) -> str:
     delta = _delta(base, value)
-    return f"  Δmean {'+' if delta > 0 else ''}{_num(delta)}" if delta else ""
+    if delta is None or abs(delta) < SHOWN_GAUGE_CHANGE * max(abs(base or 0), abs(value or 0)):
+        return ""
+    return f"  Δmean {'+' if delta > 0 else ''}{_num(delta)}"
 
 
 def _change(base: dict | None, case: dict | None) -> str:

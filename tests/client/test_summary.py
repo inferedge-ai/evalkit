@@ -132,9 +132,12 @@ def test_summary_with_baseline_shows_gauge_deltas():
             {"name": "wall_time_s", "mean": 8.44, "median": 7.0},
             {"name": "gauge_agent_cost_usd", "mean": 0.001, "median": 0.001},
             {"name": "tokens", "mean": 500.0, "median": 500.0},
+            {"name": "input_tokens", "mean": 1000.004, "median": 1000.0},
         ],
     }
+    base["gauges"].append({"name": "input_tokens", "mean": 1000.0, "median": 1000.0})
     lines = summary_lines(compare, base)
+    assert any(line.endswith("mean=1000 median=1000") for line in lines)
     assert any(line.endswith("mean=1.4 median=1  Δmean -8.6") for line in lines)
     assert any(line.endswith("mean=8.44 median=7") for line in lines)
     assert any(line.endswith("mean=0.001 median=0.001  Δmean -0.002") for line in lines)

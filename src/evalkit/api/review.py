@@ -289,15 +289,21 @@ async def queue(
     reviewer: str | None = None,
     state: QueueState = "review_requested",
     workspace: str | None = None,
+    dataset: str | None = None,
 ) -> dict:
     if workspace is not None:
         await workspace_ref(session, workspace)
+    datasets = (
+        [await dataset_by_ref(session, dataset)]
+        if dataset is not None
+        else await list_datasets(session, workspace)
+    )
     items: list[dict] = []
-    for dataset in await list_datasets(session, workspace):
-        if not is_reviewable(dataset):
+    for dataset_row in datasets:
+        if not is_reviewable(dataset_row):
             continue
-        cases = await current_cases(session, dataset)
-        reviews = await review_log.load(dataset.ref, [CaseVersion.of(case) for case in cases])
+        cases = await current_cases(session, dataset_row)
+        reviews = await review_log.load(dataset_row.ref, [CaseVersion.of(case) for case in cases])
         for case in cases:
             r = reviews[case.case_id]
             if r.last_event is None or r.state() is not CaseState(state):
@@ -307,7 +313,7 @@ async def queue(
             question = case.input.get("question")
             items.append(
                 {
-                    "dataset": dataset.ref,
+                    "dataset": dataset_row.ref,
                     "case_id": case.case_id,
                     "requested_to": r.requested_to,
                     "requested_by": r.last_event.actor,

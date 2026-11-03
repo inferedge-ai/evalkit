@@ -13,7 +13,8 @@
 - `evalkit review approve` takes several case ids, or `--all-waiting` for
   every case in the dataset waiting on you.
 - `evalkit review queue` takes a dataset (`evalkit review queue
-  finance@dev`) to list only that dataset's cases.
+  finance@dev`) to list only that dataset's cases. `GET /api/review/queue`
+  takes a `dataset` filter.
 - `evalkit review resolve <comment-id>` resolves a comment by its id alone;
   the older `resolve <dataset> <case> <comment-id>` form still works. New
   `PATCH /api/review/comments/{comment_id}`.
