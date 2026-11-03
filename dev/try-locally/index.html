@@ -710,6 +710,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../server-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../workspaces/" class="md-nav__link">
         
   
@@ -1241,7 +1269,7 @@ same.</p>
 <h3 id="without-docker">Without Docker<a class="headerlink" href="#without-docker" title="Permanent link">&para;</a></h3>
 <p>evalkit is on PyPI as <code>evalkit-py</code> and needs Python 3.12 or newer. Install it with the server extra, then
 let <code>evalkit init-server</code> set up the rest:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py[server]==0.3.0.dev35"</span><span class="w">   </span><span class="c1"># or: pip install "evalkit-py[server]==0.3.0.dev35"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py[server]==0.3.0.dev36"</span><span class="w">   </span><span class="c1"># or: pip install "evalkit-py[server]==0.3.0.dev36"</span>
 evalkit<span class="w"> </span>init-server
 <span class="nb">cd</span><span class="w"> </span>evalkit-try
 evalkit<span class="w"> </span>serve
@@ -1256,7 +1284,9 @@ lists both); <code>--yes</code> never asks. It then:</p>
 <li>registers your LLM as the LLM provider <code>try</code> and makes it the default judge,
   with its API key stored encrypted in the database</li>
 <li>copies the try kit into <code>./evalkit-try</code></li>
-<li>writes <code>config.yaml</code> there, with blobs stored under <code>evalkit-try/data</code></li>
+<li>writes <code>config.yaml</code> there, with blobs stored under <code>evalkit-try/data</code> and a
+  database pool sized for one machine (<a href="../server-config/">Server config</a> lists
+  every key and its default)</li>
 <li>writes <code>.env</code> beside it, with your LLM settings, the admin password and the
   key that encrypts stored API keys; <code>evalkit serve</code> reads it. Keep <code>.env</code>:
   without that key the server cannot read the stored LLM key</li>
@@ -1324,10 +1354,10 @@ every start.</p>
 </tbody>
 </table>
 <h2 id="1-install-the-cli-and-log-in">1. Install the CLI and log in<a class="headerlink" href="#1-install-the-cli-and-log-in" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev35"</span><span class="w">   </span><span class="c1"># with Docker only</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev36"</span><span class="w">   </span><span class="c1"># with Docker only</span>
 evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020<span class="w"> </span>--username<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span>evalkit-admin
 </code></pre></div>
-<p><code>0.3.0.dev35</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
+<p><code>0.3.0.dev36</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
 prints it.</p>
 <p><code>evalkit login</code> replaces any login you already saved. To keep it, skip
 <code>evalkit login</code> and give this shell a token for the try-it server instead
