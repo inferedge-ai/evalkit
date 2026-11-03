@@ -1,6 +1,10 @@
+import ast
+from pathlib import Path
+
 import pytest
 from sqlalchemy import select, text, update
 
+import evalkit
 from evalkit.db.models import Tenant, User, Workspace
 from evalkit.db.session import ALL_TENANTS, tenant_session
 
@@ -57,3 +61,34 @@ async def test_the_default_test_factory_is_tenant_1(session_factory):
         assert s.info["tenant_id"] == 1
         s.add(Workspace(tenant_id=1, name="dev"))
         await s.commit()
+
+
+EXPECTED_OPENERS = {
+    ("evalkit.db.auth", "find_token"),
+    ("evalkit.db.experiments", "reap"),
+    ("evalkit.db.experiments", "tenant_of_experiment"),
+    ("evalkit.db.trace_imports", "reap_imports"),
+    ("evalkit.db.trace_imports", "tenant_of_import"),
+    ("evalkit.db.users", "any_admin_exists"),
+    ("evalkit.db.rekey", "count_sealed"),
+    ("evalkit.db.rekey", "rekey_all"),
+    ("evalkit.db.session", "scope_to_tenant"),
+}
+
+
+def _openers() -> set[tuple[str, str]]:
+    root = Path(evalkit.__file__).parent
+    found = set()
+    for path in root.rglob("*.py"):
+        module = "evalkit." + ".".join(path.relative_to(root).with_suffix("").parts)
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                names = {n.id for n in ast.walk(node) if isinstance(n, ast.Name)}
+                if "ALL_TENANTS" in names:
+                    found.add((module, node.name))
+    return found
+
+
+def test_only_the_named_functions_open_all_tenants_sessions():
+    assert _openers() == EXPECTED_OPENERS
