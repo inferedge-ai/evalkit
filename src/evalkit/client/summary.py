@@ -26,9 +26,14 @@ def _num(value: float | None) -> str:
     return f"{value:.2f}".rstrip("0").rstrip(".")
 
 
+def _fmt_gauge_delta(base: float | None, value: float | None) -> str:
+    delta = _delta(base, value)
+    return f"  Δmean {'+' if delta > 0 else ''}{_num(delta)}" if delta else ""
+
+
 def _change(base: dict | None, case: dict | None) -> str:
     if case is None:
-        return "removed"
+        return "not run"
     if base is None:
         return "new"
     delta = _delta(base["overall"], case["overall"])
@@ -48,15 +53,18 @@ def _changed_cases(report: dict, base: dict) -> list[str]:
         "regressed": [],
         "improved": [],
         "new": [],
-        "removed": [],
         "unscored": [],
     }
     unchanged = 0
+    not_run = 0
     for case_id in sorted(before.keys() | after.keys()):
         old, new = before.get(case_id), after.get(case_id)
         change = _change(old, new)
         if change == "unchanged":
             unchanged += 1
+            continue
+        if change == "not run":
+            not_run += 1
             continue
         old_overall = old["overall"] if old else None
         new_overall = new["overall"] if new else None
@@ -70,6 +78,8 @@ def _changed_cases(report: dict, base: dict) -> list[str]:
     if len(lines) == 1:
         lines.append("  none")
     lines.append(f"  unchanged: {unchanged}")
+    if not_run:
+        lines.append(f"  not run here (in the baseline only): {not_run}")
     return lines
 
 
@@ -131,9 +141,11 @@ def summary_lines(report: dict, base: dict | None = None) -> list[str]:
                 first_line = error.splitlines()[0][:120] if error else ""
                 lines.append(f"  {case['case_id']:<48} {name}: {first_line}")
     if report["gauges"]:
+        base_gauges = {gauge["name"]: gauge["mean"] for gauge in base["gauges"]} if base else {}
         lines.append("gauges:")
         lines += [
             f"  {gauge['name']:<32} mean={_num(gauge['mean'])} median={_num(gauge['median'])}"
+            f"{_fmt_gauge_delta(base_gauges.get(gauge['name']), gauge['mean'])}"
             for gauge in report["gauges"]
         ]
     return lines

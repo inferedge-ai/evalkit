@@ -806,6 +806,10 @@ def test_review_request_show_and_approve(env):
     queue = runner.invoke(cli_app, ["review", "queue"])
     assert queue.exit_code == 0, queue.output
     assert "case-2" in queue.output
+    in_dataset = runner.invoke(cli_app, ["review", "queue", "finance@canonical"])
+    assert in_dataset.exit_code == 0 and "case-2" in in_dataset.output
+    other = runner.invoke(cli_app, ["review", "queue", "other@canonical"])
+    assert "nothing waiting" in other.output
     elsewhere = runner.invoke(cli_app, ["review", "queue", "--workspace", "admin"])
     assert "nothing waiting" in elsewhere.output
     assert runner.invoke(cli_app, ["review", "queue", "--workspace", "nope"]).exit_code == 1
@@ -816,15 +820,17 @@ def test_review_request_show_and_approve(env):
     assert commented.exit_code == 0, commented.output
     comment_id = re.search(r"comment (\d+)", commented.output).group(1)
 
+    neither = runner.invoke(cli_app, ["review", "approve", "finance@canonical"])
+    assert neither.exit_code == 1
     approved = runner.invoke(
-        cli_app, ["review", "approve", "finance@canonical", "case-2", "--comment", "ok"]
+        cli_app, ["review", "approve", "finance@canonical", "--all-waiting", "--comment", "ok"]
     )
     assert approved.exit_code == 0, approved.output
     assert "case-2: approved" in approved.output
+    again = runner.invoke(cli_app, ["review", "approve", "finance@canonical", "--all-waiting"])
+    assert "nothing waiting on you" in again.output
 
-    resolved = runner.invoke(
-        cli_app, ["review", "resolve", "finance@canonical", "case-2", comment_id]
-    )
+    resolved = runner.invoke(cli_app, ["review", "resolve", comment_id])
     assert resolved.exit_code == 0, resolved.output
     assert f"comment {comment_id} resolved" in resolved.output
 
@@ -1506,3 +1512,34 @@ def test_offline_lint_reports_schema_errors_as_findings(tmp_path):
     result = runner.invoke(cli_app, ["lint", "--offline", str(tmp_path)])
     assert result.exit_code != 0
     assert "E-SCHEMA [q1] acme/cases.yaml: evaluators.output.max_response_time" in result.output
+
+
+def test_experiments_list_filters_by_dataset(env):
+    listed = runner.invoke(cli_app, ["experiments", "list", "--dataset", "finance@canonical"])
+    assert listed.exit_code == 0, listed.output
+    rows = api_get("/api/experiments", dataset="finance@canonical")
+    if rows:
+        assert listed.output.split()[0] == str(rows[0]["id"])
+    else:
+        assert "no experiments" in listed.output
+    missing = runner.invoke(cli_app, ["experiments", "list", "--dataset", "nope@canonical"])
+    assert missing.exit_code == 1
+
+
+def test_review_show_yaml_drops_filled_in_defaults():
+    stored = {
+        "output": {
+            "answer_rubrics": {
+                "rubrics": [{"rubric": "Net debt is $1.2B", "type": "derived_computation"}]
+            },
+            "max_response_time": {"max_seconds": 120.0},
+        },
+        "trajectory": {
+            "tool_trajectory_match": {"expected": [{"name": "search"}], "ordered": False}
+        },
+    }
+    full = main_module.CaseEvaluators.model_validate(stored).as_metadata()
+    shown = main_module._authored_evaluators(full)
+    assert "source" not in str(shown) and "args_mode" not in str(shown)
+    assert shown["trajectory"] == {"tool_trajectory_match": {"expected": [{"name": "search"}]}}
+    assert main_module._authored_evaluators({}) is None

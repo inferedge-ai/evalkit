@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- `evalkit summary <id> --baseline <id>` now prints a `Δmean` for each
+  gauge (tokens, cost, duration, tool calls). Cases that ran in the
+  baseline but not in the newer experiment (a `--tag` or `--case-id` run)
+  are counted on one line, "not run here (in the baseline only)", instead
+  of being listed as "removed".
+- New `evalkit experiments list [--agent A] [--dataset D] [--limit N]`
+  prints id, dataset, agent, status, start time and bucket scores, newest
+  first. `GET /api/experiments` takes `agent` and `dataset` filters.
+- `evalkit review approve` takes several case ids, or `--all-waiting` for
+  every case in the dataset waiting on you.
+- `evalkit review queue` takes a dataset (`evalkit review queue
+  finance@dev`) to list only that dataset's cases.
+- `evalkit review resolve <comment-id>` resolves a comment by its id alone;
+  the older `resolve <dataset> <case> <comment-id>` form still works. New
+  `PATCH /api/review/comments/{comment_id}`.
+- `evalkit review show` prints the case's evaluators without filled-in
+  defaults (`source: null`, `args_mode: subset`, ...), closer to what the
+  author wrote. Its changelog, and the case page's, include the promotion
+  source's events for a case in a promotion target, so a promoted case
+  shows its sync and review history from `@dev`, not only the promotion.
+- The Reviews page in a personal workspace lists the queue across every
+  workspace instead of "Personal datasets have no review state".
+
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of
   a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch

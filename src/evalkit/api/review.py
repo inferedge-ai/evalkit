@@ -22,7 +22,7 @@ from evalkit.core.review import (
     review_summary,
 )
 from evalkit.core.workspace import parse_slug
-from evalkit.db.cases import current_cases, dataset_by_ref, list_datasets
+from evalkit.db.cases import current_cases, dataset_by_ref, find_dataset_row, list_datasets
 from evalkit.db.promotion import execute_promotion, plan_promotion
 from evalkit.db.review import ReviewLog
 from evalkit.db.workspaces import WorkspaceStore
@@ -172,10 +172,28 @@ async def decide(
     return {**summary, "promoted_to": plan.target_ref if plan is not None else None}
 
 
+async def _source_dataset(request: Request, session: SessionDep, slug: str) -> str | None:
+    ws = await _dataset_workspace(session, slug)
+    if not ws.is_target:
+        return None
+    assert ws.promoted_from is not None
+    source = await WorkspaceStore(request.app.state.session_factory).get_by_id(ws.promoted_from)
+    name = parse_slug(slug).name
+    found = await find_dataset_row(session, source.name, name)
+    return None if found is None else found.ref
+
+
 @router.get("/datasets/{slug}/cases/{case_id}/events")
-async def events(slug: str, case_id: str, session: SessionDep, review_log: ReviewLogDep) -> dict:
+async def events(
+    slug: str, case_id: str, request: Request, session: SessionDep, review_log: ReviewLogDep
+) -> dict:
     await _load_case_review(session, review_log, slug, case_id)
-    return {"events": [e.model_dump() for e in await review_log.history(slug, case_id)]}
+    found = await review_log.history(slug, case_id)
+    source = await _source_dataset(request, session, slug)
+    if source is not None:
+        found += await review_log.history(source, case_id)
+        found.sort(key=lambda e: (e.created_at, e.id), reverse=True)
+    return {"events": [e.model_dump() for e in found]}
 
 
 @router.get("/datasets/{slug}/cases/{case_id}/comments")
@@ -240,6 +258,22 @@ async def resolve_comment(
     if comment.author != user.username and not can_review(user, ws):
         raise HTTPException(status_code=403, detail="only a reviewer or the author may resolve")
     return (await review_log.set_resolved(comment_id, body.resolved)).model_dump()
+
+
+@router.patch("/review/comments/{comment_id}")
+async def resolve_comment_by_id(
+    comment_id: int,
+    body: ResolveRequest,
+    review_log: ReviewLogDep,
+    session: SessionDep,
+    user: ActorDep,
+) -> dict:
+    comment = await review_log.get_comment(comment_id)
+    if comment is None:
+        raise HTTPException(status_code=404, detail=f"unknown comment: {comment_id}")
+    return await resolve_comment(
+        comment.dataset, comment.case_id, comment_id, body, review_log, session, user
+    )
 
 
 QueueState = Literal["review_requested", "changes_requested"]

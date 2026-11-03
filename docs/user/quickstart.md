@@ -130,6 +130,8 @@ A run or sync uploads any fixture whose sha256 the server doesn't hold yet, and 
 ## 7. Iterate and promote
 
 ```bash
+evalkit experiments list --dataset smoke       # experiment ids, newest first
+evalkit summary <new-id> --baseline <old-id>    # compare two experiments: fixed, broken, gauge deltas
 evalkit evaluate <experiment-id>        # re-score the same runs after an evaluator change; no agent calls
 evalkit runs pull --experiment <experiment-id>   # download every run (trajectory, case, scores) to diagnose failures
 ```

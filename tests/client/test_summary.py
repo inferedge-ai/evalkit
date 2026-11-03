@@ -47,7 +47,7 @@ def _case(case_id, overall, **scores):
     }
 
 
-def test_summary_with_baseline_shows_fixed_new_and_removed_cases_and_deltas():
+def test_summary_with_baseline_shows_fixed_new_and_not_run_cases_and_deltas():
     base = {
         **REPORT,
         "experiment_id": "1",
@@ -72,8 +72,9 @@ def test_summary_with_baseline_shows_fixed_new_and_removed_cases_and_deltas():
     assert "  improved (1):" in lines
     assert any("fixed" in line and "0.00 → 1.00  Δ+1.00" in line for line in lines)
     assert any("added" in line and "  -  → 1.00" in line for line in lines)
-    assert any("gone" in line and "1.00 →   - " in line for line in lines)
+    assert not any("gone" in line for line in lines)
     assert "  unchanged: 1" in lines
+    assert "  not run here (in the baseline only): 1" in lines
     assert "failing cases" not in text
 
 
@@ -113,3 +114,28 @@ def test_summary_with_baseline_shows_the_base_case_count_when_it_differs():
 def test_summary_failing_list_ignores_rubric_diagnostics():
     report = {**REPORT, "cases": [_case("c1", 0.9, answer_rubric_citation=0.0)]}
     assert not any(line.startswith("failing cases") for line in summary_lines(report))
+
+
+def test_summary_with_baseline_shows_gauge_deltas():
+    base = {
+        **REPORT,
+        "gauges": [
+            {"name": "tool_calls", "mean": 10.0, "median": 10.0},
+            {"name": "wall_time_s", "mean": 8.44, "median": 7.0},
+            {"name": "gauge_agent_cost_usd", "mean": 0.003, "median": 0.003},
+        ],
+    }
+    compare = {
+        **REPORT,
+        "gauges": [
+            {"name": "tool_calls", "mean": 1.4, "median": 1.0},
+            {"name": "wall_time_s", "mean": 8.44, "median": 7.0},
+            {"name": "gauge_agent_cost_usd", "mean": 0.001, "median": 0.001},
+            {"name": "tokens", "mean": 500.0, "median": 500.0},
+        ],
+    }
+    lines = summary_lines(compare, base)
+    assert any(line.endswith("mean=1.4 median=1  Δmean -8.6") for line in lines)
+    assert any(line.endswith("mean=8.44 median=7") for line in lines)
+    assert any(line.endswith("mean=0.001 median=0.001  Δmean -0.002") for line in lines)
+    assert any(line.endswith("mean=500 median=500") for line in lines)
