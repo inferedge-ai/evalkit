@@ -25,6 +25,21 @@
   suites only) and tag counts.
 - `evalkit workspaces list` now shows promotion links: `promotes to prod` on
   the source row and `promoted from dev` on the target row.
+- Review CLI fixes:
+  - `evalkit review show <dataset> <case>` prints the case (id, input,
+    expected, evaluators with overlays applied, file names, tags) as YAML
+    above the changelog. `--yaml` prints only the case.
+  - `evalkit review queue --changes-requested` names the author the case went
+    back to: "by <reviewer> to <author>". The author is the last person who
+    asked for review; a re-sync does not change it. The queue API returns it
+    as `author`.
+  - `evalkit sync` says that edited cases under review are back in review and
+    need no second `review request`.
+  - `evalkit review request` skips cases already waiting on the same reviewer
+    and lists them, instead of adding a duplicate changelog event. The API
+    returns them as `already_requested`.
+  - `evalkit review comment` takes `--comment "text"` like `approve` and
+    `request-changes`. The positional form still works.
 - `evalkit runs pull` now writes `started_at` in every `run.json`. A run with
   no agent-run record (most app runs) takes it from the run's listed
   `created_at`; before, the field was missing. It is `null` when the harness

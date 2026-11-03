@@ -560,6 +560,7 @@ export interface QueueItem {
   case_id: string;
   requested_to: string | null;
   requested_by: string;
+  author: string | null;
   requested_at: string | null;
   input: string;
 }

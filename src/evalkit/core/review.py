@@ -106,6 +106,7 @@ class CaseReview:
     content_hash: str
     last_event: CaseEvent | None
     requested_to: str | None
+    requested_by: str | None = None
 
     @classmethod
     def unreviewed(cls, dataset: str, case_id: str, content_hash: str) -> CaseReview:
