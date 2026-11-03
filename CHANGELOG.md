@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
+  the latest release's pages directly, version switcher included, instead of
+  a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch
+  tools read real pages there. The "older or unreleased version" banner text
+  appears only on older or `dev` pages and links to the same page under
+  `latest/`. Every release still keeps its own version folder.
 - New `evalkit traces mapping activate <agent> <version>` makes that
   version the active mapping and prints the version it replaced. Pass the
   version `mapping push` printed, so the draft you checked is the one that
