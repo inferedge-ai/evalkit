@@ -20,8 +20,9 @@
 - `evalkit review show` prints the case's evaluators without filled-in
   defaults (`source: null`, `args_mode: subset`, ...), closer to what the
   author wrote. Its changelog, and the case page's, include the promotion
-  source's events for a case in a promotion target, so a promoted case
-  shows its sync and review history from `@dev`, not only the promotion.
+  source's events for a case in a promotion target, limited to the
+  versions promoted there, so a promoted case shows its sync and review
+  history from `@dev`, not only the promotion.
 - The Reviews page in a personal workspace lists the queue across every
   workspace instead of "Personal datasets have no review state".
 

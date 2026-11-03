@@ -1523,7 +1523,12 @@ def review_resolve(
     """
     if len(ids) not in (1, 3) or not ids[-1].isdigit():
         raise ApiError("pass a comment id, e.g. evalkit review resolve 12")
-    result = _client().patch(f"/api/review/comments/{ids[-1]}", json={"resolved": not undo}).json()
+    path = (
+        f"/api/review/comments/{ids[0]}"
+        if len(ids) == 1
+        else f"{_case_path(ids[0], ids[1])}/comments/{ids[2]}"
+    )
+    result = _client().patch(path, json={"resolved": not undo}).json()
     typer.echo(f"comment {result['id']} {'resolved' if result['resolved'] else 'unresolved'}")
 
 

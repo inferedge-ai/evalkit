@@ -133,6 +133,8 @@ async def test_prod_stays_on_last_approved_version(env):
     dev = await _cases(clients["sme"], DEV)
     assert dev["case-1"]["review"]["state"] == "unreviewed"
     assert (await _cases(clients["sme"], PROD))["case-1"]["content_hash"] == first
+    events = (await clients["sme"].get(f"/api/datasets/{PROD}/cases/case-1/events")).json()
+    assert {e["content_hash"] for e in events["events"]} == {first}
 
     resp = await _decide(clients["sme"], DEV, "case-1", "approve")
     assert resp.status_code == 200

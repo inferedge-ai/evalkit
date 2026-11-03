@@ -830,6 +830,10 @@ def test_review_request_show_and_approve(env):
     again = runner.invoke(cli_app, ["review", "approve", "finance@canonical", "--all-waiting"])
     assert "nothing waiting on you" in again.output
 
+    wrong_case = runner.invoke(
+        cli_app, ["review", "resolve", "finance@canonical", "case-1", comment_id]
+    )
+    assert wrong_case.exit_code == 1
     resolved = runner.invoke(cli_app, ["review", "resolve", comment_id])
     assert resolved.exit_code == 0, resolved.output
     assert f"comment {comment_id} resolved" in resolved.output

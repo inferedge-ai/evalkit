@@ -191,7 +191,10 @@ async def events(
     found = await review_log.history(slug, case_id)
     source = await _source_dataset(request, session, slug)
     if source is not None:
-        found += await review_log.history(source, case_id)
+        promoted = {e.content_hash for e in found}
+        found += [
+            e for e in await review_log.history(source, case_id) if e.content_hash in promoted
+        ]
         found.sort(key=lambda e: (e.created_at, e.id), reverse=True)
     return {"events": [e.model_dump() for e in found]}
 
