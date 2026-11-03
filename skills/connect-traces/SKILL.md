@@ -33,7 +33,12 @@ two run-level settings:
 
 - `answer`: where the run's answer comes from. `root` (the usual value), a
   span name, or `<span name>.<output key>`.
-- `exclude_spans`: span names left out of the trajectory.
+- `exclude_spans`: spans left out of the trajectory, by name glob
+  (`"OpenAILike.*"`), attribute (`{"attribute": K, "equals": V}`) or
+  instrumentation scope (`{"scope": "mcp"}`).
+- `rekind_spans`, `main_agent`, `subagent_spans`: change a span's kind, pin the
+  main agent, or keep sibling agents apart. See
+  `references/span-mapping-schema.md`.
 
 A span the agent's mapping cannot read is not an error: it comes out as kind
 `other` with every attribute listed as unmapped, and the trajectory simply
@@ -141,21 +146,28 @@ lacks it. That is what a wrong mapping looks like in the check.
    | `tools` | spans read as `tool`, and how many carry a `tool_call_id` that matches a call the LLM spans emitted; a gap means tool spans exist but their call ids are not read, so results only match by time and order; `in no step` names tool spans that started before any LLM span and so are not in the trajectory |
    | `unmapped` | attributes no rule read, apart from the mapping's `known_attributes` |
    | `trajectory` | ATIF steps, tool calls, subagents |
+   | `steps` | shown only when there are more LLM spans than LLM steps; check `exclude_spans` and the kind rule |
+   | `subagents` | shown only when subagents hold every LLM call and the main agent none; usually an outer wrapper span; set `main_agent` or `exclude_spans` |
 
-   Then check the agent's top-level span is an AGENT span
-   (`openinference.span.kind=AGENT` or `gen_ai.operation.name=invoke_agent`).
-   evalkit builds the main trajectory from it, and every AGENT span inside it
-   becomes a subagent named by its `agent.name` (`gen_ai.agent.name`). When
-   the root span is not an AGENT span, evalkit takes the earliest AGENT span
-   that is not inside another one as the main agent. If that span is a tool
-   call that starts a subagent partway through the run, the subagent's steps
-   end up in the main trajectory and its call has no result. Fix that in the
-   agent's instrumentation: mark its top-level span as an AGENT span.
+   Each line of the check output starts with `✓` (fine), `!` (a warning) or
+   `✗` (a failure). Read every `!` line, even when the check exits 0: each
+   one names a trajectory that is likely wrong, such as tool spans with no
+   tool calls in the trajectory, or subagents holding all the LLM calls while
+   the main agent has none.
+
+   An AGENT span (`openinference.span.kind=AGENT` or
+   `gen_ai.operation.name=invoke_agent`) becomes a subagent named by its
+   `agent.name` (`gen_ai.agent.name`) only when it sits under a tool span or
+   carries the `tool_call_id` that started it. Every other AGENT span (an
+   outer wrapper, graph nodes tagged AGENT, one root span per chat turn) is
+   merged into the main agent. When that is wrong for the agent, set
+   `main_agent` or `subagent_spans` in the mapping; drop duplicate spans with
+   `exclude_spans` and fix a wrong kind with `rekind_spans`.
 
    If the check fails with `413` and names `otel.max_session_bytes`, the
    session holds more span attributes than the server will build into a
    trajectory (384 MiB by default). The limit counts what a build loads: the
-   input messages of each agent's first LLM call, and the output, tool calls
+   input messages of the first LLM call under each root span and in each subagent, and the output, tool calls
    and tokens of every LLM call, not the input of later calls. Check a shorter session, and tell the
    developer: the deployment's admin can raise the limit together with the
    server's memory.

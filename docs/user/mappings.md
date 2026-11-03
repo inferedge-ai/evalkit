@@ -118,7 +118,27 @@ Rule shapes:
 | `{"attribute": K, "message_format": F}` | the messages laid out under `K` per format `F`: `openinference` (flattened indexed keys), `gen_ai` (JSON list of messages with parts), `openai` (JSON list of chat messages) |
 | `null`                                  | never read                                                                                                                                                                   |
 
-Two more fields shape the trajectory: `answer` (`root`, a span name, or `<span name>.<output key>`; default `root`) and `exclude_spans` (span names left out; default none).
+More fields shape the trajectory:
+
+- `answer`: where the run's answer comes from: `root`, a span name, or `<span name>.<output key>`. Default `root`.
+- `exclude_spans`: spans left out of the trajectory. Default none.
+- `rekind_spans`: spans that get another kind than the `kind` rule gives, e.g. `{"name": "agent", "kind": "chain"}` for a graph node tagged AGENT that is only a step. The first match wins.
+- `main_agent`: the agent span whose answer and id the trajectory carries, when evalkit picks the wrong one.
+- `subagent_spans`: agent spans to keep as subagent trajectories even though no tool span starts them.
+
+Each entry is a span match:
+
+| Match | Matches a span when |
+| -- | -- |
+| `"OpenAILike.*"` | its name matches the glob |
+| `{"name": G}` | its name matches the glob `G` |
+| `{"attribute": K}` | it has attribute `K` |
+| `{"attribute": K, "equals": V}` | attribute `K` holds `V` |
+| `{"scope": G}` | its instrumentation scope name (e.g. `mcp`) matches the glob `G` |
+
+An object match may give several of `name`, `attribute` and `scope`; every one given must match.
+
+The span name alone is not always enough: two LLM spans with the same name, or spans that come from another library's instrumentation. Match on an attribute or the scope then.
 
 Every mapping is complete on its own; there is no inheritance. The schema ships as `span-mapping-v1.json` with `evalkit contracts export`.
 

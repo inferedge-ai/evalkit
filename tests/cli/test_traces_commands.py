@@ -8,9 +8,9 @@ from typer.testing import CliRunner
 from evalkit.cli import main as main_module
 from evalkit.cli.client import ApiClient
 from evalkit.cli.main import app as cli_app
-from evalkit.cli.traces_commands import render_check
 from evalkit.client import connection
 from evalkit.client.api import AsyncApi
+from evalkit.core.traces.check import render_check
 from evalkit.sdk.runner import _session_summary
 
 SESSION = {
@@ -326,3 +326,48 @@ def test_render_check_warns_on_output_messages_with_unknown_roles():
     llm = next(line for line in lines if " llm " in line)
     assert llm.startswith("  ! llm")
     assert "output messages with unknown roles are dropped (robot)" in llm
+
+
+def test_render_check_warns_on_tool_spans_but_no_tool_calls():
+    trajectory = {**SESSION["trajectory"], "steps": [{"step_id": 1, "source": "agent"}]}
+    lines, _ = render_check({**SESSION, "trajectory": trajectory})
+    assert lines[4] == (
+        "  ! tools          1 spans, 0 matched to calls by id, but the trajectory has 0 tool "
+        "calls (do the llm output messages carry them?)"
+    )
+
+
+def test_render_check_skips_excluded_spans():
+    excluded = {**SESSION["esf"][1], "span_id": "l9", "output_messages": None, "excluded": True}
+    lines, _ = render_check({**SESSION, "esf": [*SESSION["esf"], excluded]})
+    assert lines[3] == "  ✓ llm            1 spans, model m, tokens in=10 out=2 cached=4"
+
+
+def test_render_check_explains_a_missing_root():
+    lines, ok = render_check({**SESSION, "esf": SESSION["esf"][1:]})
+    assert not ok
+    assert lines[1] == (
+        "  ✗ root           no root span (parent_span_id null) in this session: 2 spans were "
+        "grouped without it; put the session id on the root span, or stamp it on every span"
+    )
+
+
+def test_render_check_warns_when_subagents_hold_all_the_work():
+    sub = {"schema_version": "ATIF-v1.8", "steps": [{"source": "agent", "timestamp": "t"}]}
+    trajectory = {"schema_version": "ATIF-v1.8", "steps": [], "subagent_trajectories": [sub]}
+    lines, _ = render_check({**SESSION, "trajectory": trajectory})
+    assert lines[-1].startswith("  ! subagents      the main agent has no llm calls")
+
+
+def test_render_check_warns_on_more_llm_spans_than_llm_steps():
+    second = {**SESSION["esf"][1], "span_id": "l2"}
+    steps = [{"step_id": 1, "source": "agent", "timestamp": "2026-10-09T00:00:01Z"}]
+    trajectory = {**SESSION["trajectory"], "steps": steps}
+    lines, _ = render_check({**SESSION, "esf": [*SESSION["esf"], second], "trajectory": trajectory})
+    assert "  ! steps          2 llm spans but 1 llm steps" in lines[-1]
+
+
+def test_render_check_counts_llm_steps_without_a_model_name():
+    steps = [{"step_id": 1, "source": "agent", "timestamp": "2026-10-09T00:00:01Z"}]
+    lines, _ = render_check({**SESSION, "trajectory": {**SESSION["trajectory"], "steps": steps}})
+    assert not any(" steps " in line for line in lines)

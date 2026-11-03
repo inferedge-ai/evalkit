@@ -11,6 +11,34 @@
   - `evalkit traces check` now warns on the `llm` line when any output
     message has a role other than `assistant`, `user`, `system` or `tool`,
     and lists those roles: the trajectory drops such messages.
+- Trajectories built from OTel spans are right for more agent shapes, and
+  `evalkit traces check` and the SDK dry run say when one looks wrong.
+  - An AGENT span becomes a subagent trajectory only when it sits under a
+    tool span or carries the `tool_call_id` that started it. Other AGENT
+    spans are merged into the main agent: outer wrapper spans (OpenAI
+    Agents, LangChain, CrewAI), graph nodes tagged AGENT (LangGraph) and one
+    root span per chat turn. **Changed:** sibling agents that hand over
+    without a tool call (e.g. CrewAI sequential tasks) are now one
+    trajectory instead of one subagent each; list them in the mapping's
+    `subagent_spans` to keep them apart.
+  - Each new user message shows up as a `user` step, so a chat's later turns
+    are in the trajectory, not only the first message. With one root span
+    per turn, the answer comes from the last turn.
+  - Mapping fields: `exclude_spans` entries may be a name glob
+    (`"OpenAILike.*"`), an attribute match (`{"attribute": K, "equals": V}`)
+    or an instrumentation scope (`{"scope": "mcp"}`). New `rekind_spans`
+    (`[{"name": "agent", "kind": "chain"}]`), `main_agent` and
+    `subagent_spans` use the same matches.
+  - `evalkit traces check` warns (`!`) when tool spans exist but the
+    trajectory has no tool calls, when there are more LLM spans than LLM
+    steps, and when subagents hold every LLM call and the main agent none.
+    A missing root span now says how to fix it. Excluded spans no longer
+    count as "without messages".
+  - `run_experiment(dry_run=...)` prints the same check lines.
+  - The collector stores each span's instrumentation scope. **Migration
+    0015** adds the `spans.scope` column; run `evalkit db upgrade` before
+    starting the new server.
+
 - Scoring experiments of more than about 40 runs no longer fails with `500`s
   on `POST /api/experiment-runs/{id}/evaluations`.
   - A run (or `evalkit evaluate`) now scores at most 16 runs at once instead

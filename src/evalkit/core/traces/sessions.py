@@ -76,7 +76,7 @@ def later_llm_spans(probes: list[RawSpan], active: MappingDocument | None) -> La
     kept = agent_spans(probes)
     mappings = [mapping_for(span.attributes, active) for span in kept]
     esf = [to_esf(span, mapping) for span, mapping in zip(kept, mappings, strict=True)]
-    first = {id(span) for span in first_llm_spans(esf, active)}
+    first = {id(span) for span in first_llm_spans(esf)}
     later = [
         (position[id(raw)], mapping)
         for raw, mapping, span in zip(kept, mappings, esf, strict=True)

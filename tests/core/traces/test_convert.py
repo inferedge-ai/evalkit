@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 from evalkit.contracts.atif import validate_trajectory
 from evalkit.contracts.esf import EsfMessage, EsfSpan, EsfToolCall, MappingDocument
-from evalkit.core.traces.convert import to_atif
+from evalkit.core.traces.convert import first_llm_spans, to_atif
 from evalkit.core.trajectory import TrajectoryView
 
 T0 = datetime(2026, 10, 9, tzinfo=UTC)
@@ -92,11 +92,12 @@ def test_unmatched_tool_span_has_no_source_call_id():
     assert ids == ["a", None]
 
 
-def test_nested_agent_spans_become_subagents():
+def test_agent_spans_under_a_tool_span_become_subagents():
     spans = [
         span("root", "agent"),
-        llm("l1", parent="root", at=1),
-        span("sub", "agent", parent="root", at=2, end=4),
+        llm("l1", parent="root", at=1, calls=["a"]),
+        tool("delegate", parent="root", at=1.9, call_id="a"),
+        span("sub", "agent", parent="delegate", at=2, end=4),
         llm("l_sub", parent="sub", at=2.5, text="sub answer"),
         llm("l2", parent="root", at=5, text="done"),
     ]
@@ -255,9 +256,11 @@ def test_root_final_metrics_include_subagent_tokens():
     spans = [
         span("root", "agent"),
         llm("l1", parent="root", at=1, calls=["a"], tokens=(10, 1)),
-        span("sub", "agent", parent="root", at=2, end=4),
+        tool("delegate", parent="root", at=1.9, call_id="a"),
+        span("sub", "agent", parent="delegate", at=2, end=4),
         llm("l_sub", parent="sub", at=2.5, text="sub answer", tokens=(100, 20)),
-        span("subsub", "agent", parent="sub", at=3, end=3.9),
+        tool("delegate_deeper", parent="sub", at=2.9),
+        span("subsub", "agent", parent="delegate_deeper", at=3, end=3.9),
         llm("l_subsub", parent="subsub", at=3.1, text="deep", tokens=(1000, 300)),
         llm("l2", parent="root", at=5, text="done", tokens=(10, 1)),
     ]
@@ -300,11 +303,24 @@ def test_tool_call_that_spawned_a_subagent_points_at_it():
     assert [s.trajectory_id for s in doc.subagent_trajectories] == ["trace:sub_a", "trace:sub_b"]
 
 
-def test_subagent_without_a_call_id_takes_the_next_pending_call():
+def test_agent_span_under_an_agent_without_a_tool_is_merged_into_it():
     spans = [
         span("root", "agent"),
         llm("l1", parent="root", at=1, calls=["a"]),
         span("sub", "agent", parent="root", at=2, end=2.5),
+        llm("l_sub", parent="sub", at=2.1, text="sub"),
+        llm("l2", parent="root", at=3, text="done"),
+    ]
+    doc = convert(spans)
+    assert doc.subagent_trajectories is None
+    assert [s.message for s in doc.steps] == ["", "sub", "done"]
+
+
+def test_subagent_spans_keeps_an_agent_span_apart_and_takes_the_next_pending_call():
+    spans = [
+        span("root", "agent"),
+        llm("l1", parent="root", at=1, calls=["a"]),
+        span("sub", "agent", parent="root", at=2, end=2.5, agent_role="subagent"),
         llm("l_sub", parent="sub", at=2.1, text="sub"),
         llm("l2", parent="root", at=3, text="done"),
     ]
@@ -351,9 +367,10 @@ def test_subagent_is_named_by_its_agent_name_else_its_span_name():
             at=2,
             end=2.4,
             agent_name="researcher",
+            tool_call_id="a",
         ),
         llm("l_a", parent="sub_a", at=2.1, text="sub a"),
-        span("sub_b", "agent", name="Task", parent="root", at=2.5, end=2.9),
+        span("sub_b", "agent", name="Task", parent="root", at=2.5, end=2.9, tool_call_id="b"),
         llm("l_b", parent="sub_b", at=2.6, text="sub b"),
     ]
     subs = convert(spans).subagent_trajectories
@@ -370,3 +387,96 @@ def test_every_span_built_step_has_a_message():
     spans[1].output_messages[0].text = None
     dumped = convert(spans).model_dump(exclude_none=True)
     assert [s["message"] for s in dumped["steps"]] == ["", "", "done"]
+
+
+def test_sibling_agent_nodes_under_a_chain_root_are_one_trajectory():
+    spans = [
+        span("graph", "chain", name="LangGraph", output="the answer", end=9),
+        span("n1", "agent", name="agent", parent="graph", at=0.5, end=2),
+        llm("l1", parent="n1", at=1, calls=["a"]),
+        span("n2", "agent", name="agent", parent="graph", at=2, end=4),
+        tool("get_accounts", parent="n2", at=2.5, call_id="a"),
+        span("n3", "agent", name="agent", parent="graph", at=4, end=6),
+        llm("l2", parent="n3", at=5, text="the answer"),
+    ]
+    doc = convert(spans)
+    assert doc.subagent_trajectories is None
+    assert len(doc.steps) == 2 and doc.steps[0].observation.results[0].content == "ok"
+    assert "unplaced_tool_spans" not in doc.extra
+
+
+def test_an_outer_agent_wrapper_is_merged_with_the_real_agent():
+    spans = [
+        span("wrapper", "agent", name="invoke_agent", output="42", end=9),
+        span("real", "agent", name="Assistant", parent="wrapper", at=0.5, end=8),
+        llm("l1", parent="real", at=1, calls=["a"]),
+        tool("t", parent="real", at=2, call_id="a"),
+        llm("l2", parent="real", at=3, text="42"),
+    ]
+    doc = convert(spans)
+    assert doc.subagent_trajectories is None
+    assert [s.source for s in doc.steps] == ["agent", "agent"]
+    assert doc.steps[0].tool_calls[0].tool_call_id == "a"
+
+
+def turn(n, at, inputs, text):
+    root = f"turn{n}"
+    return [
+        span(root, "agent", output=text, at=at, end=at + 2).model_copy(
+            update={"trace_id": f"trace{n}"}
+        ),
+        llm(f"l{n}", parent=root, at=at + 0.5, inputs=inputs, text=text).model_copy(
+            update={"trace_id": f"trace{n}"}
+        ),
+    ]
+
+
+def test_sibling_root_turns_emit_each_new_user_message_and_answer_from_the_last():
+    u1, u2 = EsfMessage(role="user", text="hi"), EsfMessage(role="user", text="and now?")
+    a1 = EsfMessage(role="assistant", text="hello")
+    spans = [*turn(1, 0, [u1], "hello"), *turn(2, 5, [u1, a1, u2], "now this")]
+    doc = convert(spans)
+    assert doc.subagent_trajectories is None
+    assert [(s.source, s.message) for s in doc.steps] == [
+        ("user", "hi"),
+        ("agent", "hello"),
+        ("user", "and now?"),
+        ("agent", "now this"),
+    ]
+
+
+def test_a_truncated_history_still_emits_user_text_not_yet_seen():
+    u1, u2 = EsfMessage(role="user", text="hi"), EsfMessage(role="user", text="and now?")
+    doc = convert([*turn(1, 0, [u1], "hello"), *turn(2, 5, [u2], "now this")])
+    assert [s.message for s in doc.steps if s.source == "user"] == ["hi", "and now?"]
+
+
+def test_main_agent_pins_the_answer_span():
+    spans = [
+        span("root", "chain", output="root output", end=9),
+        span("a", "agent", parent="root", at=0.5, end=2, output="early"),
+        llm("l1", parent="a", at=1, calls=["x"]),
+        span("b", "agent", parent="root", at=3, end=5, output="pinned", agent_role="main"),
+    ]
+    doc = convert(spans)
+    assert doc.trajectory_id == "trace:b" and doc.steps[-1].message == "pinned"
+
+
+def test_excluded_spans_are_left_out():
+    spans = [
+        span("root", "agent"),
+        llm("outer", parent="root", at=1, text="dup"),
+        llm("inner", parent="outer", at=1.1, text="real"),
+    ]
+    spans[1] = spans[1].model_copy(update={"excluded": True})
+    assert [s.message for s in convert(spans).steps] == ["real"]
+
+
+def test_first_llm_spans_are_the_first_under_each_root_and_in_each_subagent():
+    u = [EsfMessage(role="user", text="q")]
+    spans = [
+        *turn(1, 0, u, "a"),
+        llm("l1b", parent="turn1", at=1, text="b").model_copy(update={"trace_id": "trace1"}),
+        *turn(2, 5, u, "c"),
+    ]
+    assert [s.span_id for s in first_llm_spans(spans)] == ["l1", "l2"]

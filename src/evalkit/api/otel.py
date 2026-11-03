@@ -75,7 +75,7 @@ def _iso(nanos: int) -> str | None:
     return at.isoformat() if at else None
 
 
-def _from_proto(span: ProtoSpan, resource: dict[str, Any]) -> RawSpan:
+def _from_proto(span: ProtoSpan, resource: dict[str, Any], scope: str | None) -> RawSpan:
     start = _time(span.start_time_unix_nano)
     if start is None:
         raise HTTPException(status_code=400, detail=f"span {span.name!r} has no start time")
@@ -99,6 +99,7 @@ def _from_proto(span: ProtoSpan, resource: dict[str, Any]) -> RawSpan:
             for e in span.events
         ],
         resource=resource,
+        scope=scope,
     )
 
 
@@ -124,7 +125,7 @@ def _json_attributes(items: list[dict[str, Any]] | None) -> dict[str, Any]:
     return {kv["key"]: _json_any(kv.get("value", {})) for kv in items or []}
 
 
-def _from_json(span: dict[str, Any], resource: dict[str, Any]) -> RawSpan:
+def _from_json(span: dict[str, Any], resource: dict[str, Any], scope: str | None) -> RawSpan:
     start = _time(int(span.get("startTimeUnixNano") or 0))
     if start is None:
         raise HTTPException(status_code=400, detail="span without startTimeUnixNano")
@@ -149,6 +150,7 @@ def _from_json(span: dict[str, Any], resource: dict[str, Any]) -> RawSpan:
             for e in span.get("events") or []
         ],
         resource=resource,
+        scope=scope,
     )
 
 
@@ -159,14 +161,18 @@ def _decode(body: bytes, content_type: str) -> list[RawSpan]:
         for resource_spans in request.resource_spans:
             resource = _attributes(resource_spans.resource.attributes)
             for scope_spans in resource_spans.scope_spans:
-                spans.extend(_from_proto(span, resource) for span in scope_spans.spans)
+                scope = scope_spans.scope.name or None
+                spans.extend(_from_proto(span, resource, scope) for span in scope_spans.spans)
         return spans
     if content_type.startswith("application/json"):
         payload = json.loads(body)
         for resource_spans in payload.get("resourceSpans", []):
             resource = _json_attributes((resource_spans.get("resource") or {}).get("attributes"))
             for scope_spans in resource_spans.get("scopeSpans", []):
-                spans.extend(_from_json(span, resource) for span in scope_spans.get("spans", []))
+                scope = (scope_spans.get("scope") or {}).get("name") or None
+                spans.extend(
+                    _from_json(span, resource, scope) for span in scope_spans.get("spans", [])
+                )
         return spans
     raise HTTPException(
         status_code=415,
