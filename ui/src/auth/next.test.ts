@@ -15,6 +15,9 @@ describe("safeNext", () => {
     "/\\evil.example",
     "/login",
     "/login?next=/",
+    "/\t/evil.example",
+    "/a\nb",
+    "/a\u007fb",
   ])("falls back to / for %s", (raw) => {
     expect(safeNext(raw)).toBe("/");
   });
