@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../lib/api";
 import { Select } from "../lib/Select";
 import { othersPersonal, workspaceHint } from "../lib/workspace";
-import type { WorkspaceInfo } from "../lib/types";
+import type { Me, WorkspaceInfo } from "../lib/types";
 import { useMe } from "./capabilities";
 import { JumpPalette } from "./JumpPalette";
 import { ADMIN_NAV, MORE_NAV, NAV } from "./nav";
@@ -142,6 +142,20 @@ function MoreMenu() {
   );
 }
 
+export function AccountChip({ me }: { me: Me }) {
+  return (
+    <span
+      className="chip muted flex flex-col items-end leading-tight"
+      title="signed in as"
+    >
+      <span>{me.username}</span>
+      {me.email !== null && (
+        <span className="text-micro text-ink-4">{me.email}</span>
+      )}
+    </span>
+  );
+}
+
 export function Shell() {
   const me = useMe();
   const navigate = useNavigate();
@@ -165,9 +179,7 @@ export function Shell() {
           <MoreMenu />
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          <span className="chip muted" title="signed in as">
-            {me.username}
-          </span>
+          <AccountChip me={me} />
           <button
             className="btn"
             title="search datasets, experiments, cases, runs and pages"
