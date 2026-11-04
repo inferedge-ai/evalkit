@@ -12,11 +12,14 @@ from sqlalchemy import select
 
 from evalkit.contracts.enums import TrajectorySource, WorkspaceRole
 from evalkit.db.models import AuthToken
+from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from tests.api.native_api import CAPS, api_env, login_as
+from tests.api.test_auth_sso import sso_app
 from tests.fake_agents import reference_mapping
 from tests.fake_harness import FakeHarness
-from tests.identity import seed_agent
+from tests.identity import FakeIdp, seed_agent
+from tests.native import seed_env
 
 PROTO = {"content-type": "application/x-protobuf"}
 
@@ -373,3 +376,19 @@ async def test_login_token_cannot_export_to_an_archived_agent(api):
     assert (await api.post("/api/agents/deployed@admin/archive")).status_code == 200
     headers = {**PROTO, "X-Evalkit-Agent": "deployed"}
     assert await export(api, otlp_payload(session_id="p-1"), headers) == 409
+
+
+async def test_an_idp_token_can_export_to_its_own_agent(tmp_path, stub_judges, session_factory):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(session_factory, 1).create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp) as client:
+        headers = {
+            **PROTO,
+            "Authorization": f"Bearer {idp.access_token('sub-ann')}",
+            "X-Evalkit-Agent": "fake@ann",
+        }
+        resp = await client.post("/api/otel/v1/traces", content=otlp_payload(), headers=headers)
+    assert resp.status_code != 401

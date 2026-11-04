@@ -167,8 +167,13 @@ class Principal:
 
 
 async def collector_principal(request: Request) -> Principal:
+    token = _bearer(request)
+    if is_jwt(token):
+        state = request.app.state
+        user = await sso_user(state, token, api_audience(state), request)
+        return Principal(user=user, agent_id=None, tenant_id=user.tenant_id)
     session_factory = request.app.state.session_factory
-    found = await find_token(session_factory, token_hash(_bearer(request)))
+    found = await find_token(session_factory, token_hash(token))
     if found is None:
         raise HTTPException(status_code=401, detail="invalid token")
     row, tenant_id = found
