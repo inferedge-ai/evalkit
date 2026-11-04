@@ -248,7 +248,9 @@ async def login(body: LoginRequest, request: Request) -> dict:
         )
     async with tenant_session(request.app.state.session_factory, tenant_id) as session:
         user = (
-            await session.execute(select(User).where(User.username == body.username))
+            await session.execute(
+                select(User).where(User.tenant_id == tenant_id, User.username == body.username)
+            )
         ).scalar_one_or_none()
         if user is None or user.password_hash is None:
             verify_password(body.password, _dummy_password_hash())

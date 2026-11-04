@@ -6,7 +6,12 @@ from evalkit.contracts.enums import WorkspaceRole
 from evalkit.db.models import Tenant
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.users import NameTaken, UnknownUser, UserStore
-from evalkit.db.workspaces import PromotionLinkError, UnknownWorkspace, WorkspaceStore
+from evalkit.db.workspaces import (
+    PromotionLinkError,
+    UnknownWorkspace,
+    WorkspaceStore,
+    _check_link,
+)
 
 
 @pytest.fixture
@@ -113,3 +118,15 @@ async def test_member_grant_refuses_a_user_from_another_tenant(raw_session_facto
         await WorkspaceStore(raw_session_factory, 1).add_member(
             "dev", "eve", WorkspaceRole.WRITER, admin.id
         )
+
+
+async def test_promotion_link_refuses_workspaces_in_different_tenants(raw_session_factory):
+    async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
+        s.add(Tenant(id=2, name="other"))
+        await s.commit()
+    admin = await UserStore(raw_session_factory, 1).create("admin", "password", is_admin=True)
+    root = await UserStore(raw_session_factory, 2).create("root", "password", is_admin=True)
+    dev = await WorkspaceStore(raw_session_factory, 1).create_shared("dev", admin.id)
+    prod = await WorkspaceStore(raw_session_factory, 2).create_shared("prod", root.id)
+    with pytest.raises(PromotionLinkError, match="different tenants"):
+        _check_link(dev, prod)
