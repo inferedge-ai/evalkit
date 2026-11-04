@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
-import httpx
+import httpx2
 import pytest
 from fastapi import HTTPException
 
@@ -220,7 +220,7 @@ async def test_single_file_closes_the_harness_client_on_any_error(
     original = HarnessClient.aclose
 
     async def refuse(self, run_id, path):
-        raise httpx.ConnectError("harness down")
+        raise httpx2.ConnectError("harness down")
 
     async def tracked(self):
         closed.append(True)
@@ -229,7 +229,7 @@ async def test_single_file_closes_the_harness_client_on_any_error(
     monkeypatch.setattr(HarnessClient, "stream_file", refuse)
     monkeypatch.setattr(HarnessClient, "aclose", tracked)
     async with api_env(tmp_path, session_factory, harness) as (client, _):
-        with pytest.raises(httpx.ConnectError):
+        with pytest.raises(httpx2.ConnectError):
             await client.get("/api/agents/fake@canonical/runs/sess-1/files/a.md")
     assert closed == [True]
 
@@ -265,14 +265,14 @@ async def test_zip_aborts_when_the_harness_fails_mid_stream(
 
     async def flaky(self, run_id, path):
         if path == "b.md":
-            request = httpx.Request("GET", "http://fake/b.md")
-            response = httpx.Response(502, request=request)
-            raise httpx.HTTPStatusError("gone", request=request, response=response)
+            request = httpx2.Request("GET", "http://fake/b.md")
+            response = httpx2.Response(502, request=request)
+            raise httpx2.HTTPStatusError("gone", request=request, response=response)
         return await original(self, run_id, path)
 
     monkeypatch.setattr(HarnessClient, "stream_file", flaky)
     async with api_env(tmp_path, session_factory, harness) as (client, _):
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(httpx2.HTTPStatusError):
             await client.get("/api/agents/fake@canonical/runs/sess-1/zip")
 
 
@@ -352,7 +352,7 @@ async def test_harness_down_still_lists_db_runs_with_a_note(shared, monkeypatch)
     client, _, _ = shared
 
     async def down(self, params):
-        raise httpx.ConnectError("refused")
+        raise httpx2.ConnectError("refused")
 
     monkeypatch.setattr(HarnessClient, "list_runs", down)
     listed = (await client.get("/api/agents/fake@canonical/runs")).json()

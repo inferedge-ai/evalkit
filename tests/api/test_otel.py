@@ -1,7 +1,7 @@
 import gzip
 import json
 
-import httpx
+import httpx2
 import pytest
 from opentelemetry.exporter.otlp.proto.common.trace_encoder import encode_spans
 from opentelemetry.sdk.resources import Resource
@@ -55,12 +55,12 @@ async def api(tmp_path, stub_judges, session_factory):
         yield client
 
 
-async def export(client: httpx.AsyncClient, payload: bytes, headers: dict) -> int:
+async def export(client: httpx2.AsyncClient, payload: bytes, headers: dict) -> int:
     return (await client.post("/api/otel/v1/traces", content=payload, headers=headers)).status_code
 
 
-def bearer(client: httpx.AsyncClient, token: str) -> httpx.AsyncClient:
-    return httpx.AsyncClient(
+def bearer(client: httpx2.AsyncClient, token: str) -> httpx2.AsyncClient:
+    return httpx2.AsyncClient(
         transport=client._transport,
         base_url="http://test",
         headers={"Authorization": f"Bearer {token}"},
@@ -242,7 +242,7 @@ def two_agent_payload(resource_agent=None) -> bytes:
     return encode_spans(exporter.get_finished_spans()).SerializeToString()
 
 
-async def span_count(client: httpx.AsyncClient, agent: str, session: str) -> int:
+async def span_count(client: httpx2.AsyncClient, agent: str, session: str) -> int:
     resp = await client.get(f"/api/agents/{agent}/sessions/{session}/trajectory")
     return resp.json()["span_count"] if resp.status_code == 200 else 0
 
@@ -319,7 +319,7 @@ async def test_archived_workspace_refuses_trace_writes(api):
     assert draft.status_code == 409
 
 
-async def shared_agent_token(api, session_factory) -> httpx.AsyncClient:
+async def shared_agent_token(api, session_factory) -> httpx2.AsyncClient:
     await seed_agent(
         session_factory,
         "team",

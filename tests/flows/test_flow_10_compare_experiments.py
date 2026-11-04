@@ -1,6 +1,6 @@
 import os
 
-import httpx
+import httpx2
 
 from evalkit.cli.main import app as cli_app
 from evalkit.core.evaluators import rubrics
@@ -35,8 +35,8 @@ def run_cli(*args: str, code: int = 0):
     return result
 
 
-def api(method: str, path: str, **kwargs) -> httpx.Response:
-    return httpx.request(
+def api(method: str, path: str, **kwargs) -> httpx2.Response:
+    return httpx2.request(
         method,
         f"{os.environ['EVALKIT_SERVER_URL']}{path}",
         headers={"Authorization": f"Bearer {os.environ['EVALKIT_TOKEN']}"},

@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from evalkit import version
@@ -38,8 +38,8 @@ def running(monkeypatch):
 
 async def test_every_response_carries_version_header(tmp_path, running):
     app = make_app(tmp_path)
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+    transport = httpx2.ASGITransport(app=app)
+    async with httpx2.AsyncClient(transport=transport, base_url="http://t") as c:
         ok = await c.get("/api/health")
         missing = await c.get("/api/nope")
     assert ok.headers["X-Evalkit-Version"] == RUNNING
@@ -49,8 +49,8 @@ async def test_every_response_carries_version_header(tmp_path, running):
 
 async def test_cli_info_reports_version(tmp_path, running):
     app = make_app(tmp_path)
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+    transport = httpx2.ASGITransport(app=app)
+    async with httpx2.AsyncClient(transport=transport, base_url="http://t") as c:
         info = await c.get("/api/cli")
         gone = [
             await c.get(path)

@@ -2,7 +2,7 @@ import hashlib
 import subprocess
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 import typer
 
@@ -179,10 +179,10 @@ def test_upload_fixtures_shows_the_size_limit_the_server_hit(tmp_path, capsys):
         "fixture upload is larger than the 500 MB limit (server config limits.fixture_upload_bytes)"
     )
 
-    def handle(request: httpx.Request) -> httpx.Response:
+    def handle(request: httpx2.Request) -> httpx2.Response:
         if request.method == "PUT":
-            return httpx.Response(413, json={"detail": detail})
-        return httpx.Response(404)
+            return httpx2.Response(413, json={"detail": detail})
+        return httpx2.Response(404)
 
     fixtures = tmp_path / "fixtures"
     fixtures.mkdir()
@@ -190,7 +190,7 @@ def test_upload_fixtures_shows_the_size_limit_the_server_hit(tmp_path, capsys):
     registry = _registry(tmp_path, {"big.csv": b"big"})
     case = tmp_path / "c.yaml"
     case.write_text("- id: a\n  fixtures: [big.csv]\n  input: {question: q}\n")
-    client = ApiClient("http://test", transport=httpx.MockTransport(handle), check_version=False)
+    client = ApiClient("http://test", transport=httpx2.MockTransport(handle), check_version=False)
     with pytest.raises(typer.Exit):
         upload_fixtures(client, [("c.yaml", case), ("fixtures.yaml", registry)], fixtures)
     assert f"→ 413: {detail}" in capsys.readouterr().err

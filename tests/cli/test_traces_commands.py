@@ -1,8 +1,8 @@
 import json
 
-import httpx
+import httpx2
 import pytest
-import respx
+from respx import MockResponse
 from typer.testing import CliRunner
 
 from evalkit.cli import main as main_module
@@ -110,10 +110,10 @@ PROXY_502 = "<html><head><title>502 Bad Gateway</title></head><body>nginx</body>
 
 @pytest.fixture
 def proxy_down(monkeypatch):
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/api/auth/me":
-            return httpx.Response(200, json={"username": "akshat"})
-        return httpx.Response(502, text=PROXY_502, headers={"content-type": "text/html"})
+            return httpx2.Response(200, json={"username": "akshat"})
+        return httpx2.Response(502, text=PROXY_502, headers={"content-type": "text/html"})
 
     monkeypatch.setattr(
         connection, "active", lambda path=None: connection.Connection("http://t", "tok", None)
@@ -121,7 +121,7 @@ def proxy_down(monkeypatch):
     monkeypatch.setattr(
         main_module,
         "ApiClient",
-        lambda url, token: ApiClient(url, token, transport=httpx.MockTransport(handler)),
+        lambda url, token: ApiClient(url, token, transport=httpx2.MockTransport(handler)),
     )
 
 
@@ -141,27 +141,25 @@ def test_server_502_exits_1_with_a_status_line(proxy_down, args, line):
     assert result.output.strip() == line
 
 
-@respx.mock
-def test_traces_check_prints_the_size_limit_on_413(tmp_path, monkeypatch):
+def test_traces_check_prints_the_size_limit_on_413(httpx2_mock, tmp_path, monkeypatch):
     monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
     monkeypatch.setenv("EVALKIT_SERVER_URL", "http://srv")
     monkeypatch.setenv("EVALKIT_TOKEN", "tok")
     detail = "session big of agent sdk holds 900.0 MiB of span attributes, over this server's "
-    respx.get("http://srv/api/auth/me").mock(
-        return_value=httpx.Response(200, json={"username": "admin"})
+    httpx2_mock.get("http://srv/api/auth/me").mock(
+        return_value=MockResponse(200, json={"username": "admin"})
     )
-    respx.get("http://srv/api/agents/sdk@canonical/sessions/big/trajectory").mock(
-        return_value=httpx.Response(413, json={"detail": detail})
+    httpx2_mock.get("http://srv/api/agents/sdk@canonical/sessions/big/trajectory").mock(
+        return_value=MockResponse(413, json={"detail": detail})
     )
     result = CliRunner().invoke(cli_app, ["traces", "check", "sdk@canonical", "big"])
     assert result.exit_code == 1
     assert "413" in result.output and "900.0 MiB" in result.output
 
 
-@respx.mock
-async def test_dry_run_session_summary_shows_the_size_limit_on_413():
-    respx.get("http://srv/s").mock(
-        return_value=httpx.Response(413, json={"detail": "holds 900.0 MiB, over the limit"})
+async def test_dry_run_session_summary_shows_the_size_limit_on_413(httpx2_mock):
+    httpx2_mock.get("http://srv/s").mock(
+        return_value=MockResponse(413, json={"detail": "holds 900.0 MiB, over the limit"})
     )
     api = AsyncApi("http://srv", "tok")
     assert (
@@ -225,36 +223,36 @@ def import_view(status: str, reached: str = "2026-10-03T00:00:00Z", **extra) -> 
 
 
 @pytest.fixture
-def srv(tmp_path, monkeypatch):
+def srv(tmp_path, monkeypatch, httpx2_mock):
     monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
     monkeypatch.setenv("EVALKIT_SERVER_URL", "http://srv")
     monkeypatch.setenv("EVALKIT_TOKEN", "tok")
     monkeypatch.setattr("evalkit.cli.traces_commands.time.sleep", lambda _: None)
-    with respx.mock(assert_all_called=False) as mock:
-        mock.get("http://srv/api/auth/me").mock(
-            return_value=httpx.Response(200, json={"username": "admin"})
-        )
-        mock.get("http://srv/api/health").mock(return_value=httpx.Response(200, json={"ok": True}))
-        yield mock
+    httpx2_mock.get("http://srv/api/auth/me").mock(
+        return_value=MockResponse(200, json={"username": "admin"})
+    )
+    httpx2_mock.get("http://srv/api/health").mock(return_value=MockResponse(200, json={"ok": True}))
+    return httpx2_mock
 
 
 IMPORTS = "http://srv/api/agents/sdk@canonical/imports"
 
 
+@pytest.mark.httpx2(assert_all_called=False)
 def test_range_import_starts_follows_and_checks_the_sample_session(srv):
-    started = srv.post(IMPORTS).mock(return_value=httpx.Response(202, json=import_view("running")))
+    started = srv.post(IMPORTS).mock(return_value=MockResponse(202, json=import_view("running")))
     srv.get(f"{IMPORTS}/12").mock(
         side_effect=[
-            httpx.Response(200, json=import_view("running")),
-            httpx.Response(200, json=import_view("running")),
-            httpx.Response(
+            MockResponse(200, json=import_view("running")),
+            MockResponse(200, json=import_view("running")),
+            MockResponse(
                 200, json=import_view("done", "2026-10-04T12:00:00Z", sample_session="s9")
             ),
         ]
     )
-    srv.get("http://srv/api/meta").mock(return_value=httpx.Response(200, json={}))
+    srv.get("http://srv/api/meta").mock(return_value=MockResponse(200, json={}))
     srv.get("http://srv/api/agents/sdk@canonical/sessions/s9/trajectory").mock(
-        return_value=httpx.Response(200, json=SESSION)
+        return_value=MockResponse(200, json=SESSION)
     )
     args = ["traces", "import", "sdk@canonical", "--source", "phx", "--project", "research-agent"]
     result = CliRunner().invoke(cli_app, [*args, "--since", "2026-10-01", "--until", "2026-10-05"])
@@ -274,9 +272,10 @@ def test_range_import_starts_follows_and_checks_the_sample_session(srv):
     assert lines[4].startswith("  ✓ session")
 
 
+@pytest.mark.httpx2(assert_all_called=False)
 def test_a_failed_import_prints_how_to_continue(srv):
     srv.get(f"{IMPORTS}/12").mock(
-        return_value=httpx.Response(200, json=import_view("failed", error="HTTPStatusError: 500"))
+        return_value=MockResponse(200, json=import_view("failed", error="HTTPStatusError: 500"))
     )
     result = CliRunner().invoke(cli_app, ["traces", "imports", "sdk@canonical", "12"])
     assert result.exit_code == 1
@@ -284,16 +283,17 @@ def test_a_failed_import_prints_how_to_continue(srv):
     assert "evalkit traces imports sdk@canonical 12 --continue" in result.output
 
 
+@pytest.mark.httpx2(assert_all_called=False)
 def test_imports_lists_stops_and_continues(srv):
-    srv.get(IMPORTS).mock(return_value=httpx.Response(200, json=[import_view("done")]))
+    srv.get(IMPORTS).mock(return_value=MockResponse(200, json=[import_view("done")]))
     stop = srv.post(f"{IMPORTS}/12/stop").mock(
-        return_value=httpx.Response(200, json=import_view("stopping"))
+        return_value=MockResponse(200, json=import_view("stopping"))
     )
     resume = srv.post(f"{IMPORTS}/12/continue").mock(
-        return_value=httpx.Response(200, json=import_view("running"))
+        return_value=MockResponse(200, json=import_view("running"))
     )
-    srv.get(f"{IMPORTS}/12").mock(return_value=httpx.Response(200, json=import_view("done")))
-    srv.get("http://srv/api/meta").mock(return_value=httpx.Response(200, json={}))
+    srv.get(f"{IMPORTS}/12").mock(return_value=MockResponse(200, json=import_view("done")))
+    srv.get("http://srv/api/meta").mock(return_value=MockResponse(200, json={}))
     listed = CliRunner().invoke(cli_app, ["traces", "imports", "sdk@canonical"])
     assert listed.exit_code == 0 and "phx/research-agent  by admin" in listed.output
     stopped = CliRunner().invoke(cli_app, ["traces", "imports", "sdk@canonical", "12", "--stop"])
@@ -309,6 +309,7 @@ def test_imports_lists_stops_and_continues(srv):
     "extra",
     [["abc", "--since", "2026-10-01"], [], ["abc", "--until", "2026-10-05"]],
 )
+@pytest.mark.httpx2(assert_all_called=False)
 def test_import_needs_exactly_one_of_a_session_or_since(srv, extra):
     args = ["traces", "import", "sdk@canonical", "--source", "phx", "--project", "p", *extra]
     result = CliRunner().invoke(cli_app, args, env={"COLUMNS": "200"})

@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 
-import httpx
+import httpx2
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import delete
@@ -81,8 +81,8 @@ async def api(tmp_path, session_factory):
         holder=HOLDER,
     )
     async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        transport = httpx2.ASGITransport(app=app)
+        async with httpx2.AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post(
                 "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
             )
@@ -158,7 +158,7 @@ async def test_resume_uses_snapshotted_model_and_caps(tmp_path, satisfied_judges
     )
     healthy = FakeHarness()
     healthy._counter = 100
-    env.deps.harness_transport = httpx.ASGITransport(app=healthy.app)
+    env.deps.harness_transport = httpx2.ASGITransport(app=healthy.app)
     await _reopen(env, exp.id)
     await run_experiment(env.deps, exp.id, HOLDER)
     payloads = list(healthy.received_payloads.values())

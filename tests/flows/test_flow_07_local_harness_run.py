@@ -1,7 +1,7 @@
 import hashlib
 import os
 
-import httpx
+import httpx2
 
 from evalkit.cli import main as main_module
 from evalkit.cli.main import app as cli_app
@@ -31,8 +31,8 @@ def run_cli(*args: str, code: int = 0):
     return result
 
 
-def api_post(path: str) -> httpx.Response:
-    return httpx.post(
+def api_post(path: str) -> httpx2.Response:
+    return httpx2.post(
         f"{os.environ['EVALKIT_SERVER_URL']}{path}",
         headers={"Authorization": f"Bearer {os.environ['EVALKIT_TOKEN']}"},
     )

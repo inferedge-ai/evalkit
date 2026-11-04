@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 
-import httpx
+import httpx2
 import uvicorn
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from typer.testing import CliRunner, Result
@@ -53,7 +53,7 @@ async def seed_flows(
 @asynccontextmanager
 async def flow_api(
     tmp_path, session_factory: async_sessionmaker[AsyncSession], fake: FakeHarness | None = None
-) -> AsyncIterator[tuple[httpx.AsyncClient, Env]]:
+) -> AsyncIterator[tuple[httpx2.AsyncClient, Env]]:
     env = await seed_flows(session_factory, tmp_path, fake or FakeHarness())
     async with serve(env, tmp_path) as client:
         yield client, env
@@ -79,7 +79,7 @@ class Live:
     monkeypatch: object
 
     def token(self, user: str) -> str:
-        resp = httpx.post(
+        resp = httpx2.post(
             f"{self.url}/api/auth/login", json={"username": user, "password": USERS[user]}
         )
         resp.raise_for_status()
@@ -88,8 +88,8 @@ class Live:
     def as_user(self, user: str) -> None:
         self.monkeypatch.setenv("EVALKIT_TOKEN", self.token(user))
 
-    def http(self, user: str = "admin") -> httpx.Client:
-        return httpx.Client(
+    def http(self, user: str = "admin") -> httpx2.Client:
+        return httpx2.Client(
             base_url=self.url, headers={"Authorization": f"Bearer {self.token(user)}"}
         )
 

@@ -1,7 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-import httpx
-import respx
+from respx import MockResponse
 
 from evalkit.contracts.enums import TraceProvider
 from evalkit.core.traces.sources import client_for
@@ -70,19 +69,18 @@ def test_flatten_attributes():
     }
 
 
-@respx.mock
-async def test_session_spans_lists_the_traces_then_reads_their_spans_on_every_page():
-    traces = respx.get(TRACES).mock(
+async def test_session_spans_lists_the_traces_then_reads_their_spans_on_every_page(httpx2_mock):
+    traces = httpx2_mock.get(TRACES).mock(
         side_effect=[
-            httpx.Response(200, json={"data": [phoenix_trace(1)], "next_cursor": "c2"}),
-            httpx.Response(200, json={"data": [phoenix_trace(2)]}),
+            MockResponse(200, json={"data": [phoenix_trace(1)], "next_cursor": "c2"}),
+            MockResponse(200, json={"data": [phoenix_trace(2)]}),
         ]
     )
-    spans = respx.get(SPANS).mock(
+    spans = httpx2_mock.get(SPANS).mock(
         side_effect=[
-            httpx.Response(200, json={"data": [phoenix_span(1)], "next_cursor": "s2"}),
-            httpx.Response(200, json={"data": [phoenix_span(11)]}),
-            httpx.Response(200, json={"data": [phoenix_span(2)]}),
+            MockResponse(200, json={"data": [phoenix_span(1)], "next_cursor": "s2"}),
+            MockResponse(200, json={"data": [phoenix_span(11)]}),
+            MockResponse(200, json={"data": [phoenix_span(2)]}),
         ]
     )
     found = await client().session_spans("research-agent", "sess-9")
@@ -109,11 +107,10 @@ async def test_session_spans_lists_the_traces_then_reads_their_spans_on_every_pa
     assert span.status_code == "OK" and span.events[0]["name"] == "exception"
 
 
-@respx.mock
-async def test_trace_pages_yield_ids_and_start_times_oldest_first():
-    route = respx.get(TRACES).mock(
+async def test_trace_pages_yield_ids_and_start_times_oldest_first(httpx2_mock):
+    route = httpx2_mock.get(TRACES).mock(
         side_effect=[
-            httpx.Response(
+            MockResponse(
                 200,
                 json={
                     "data": [
@@ -123,7 +120,7 @@ async def test_trace_pages_yield_ids_and_start_times_oldest_first():
                     "next_cursor": "c2",
                 },
             ),
-            httpx.Response(200, json={"data": [phoenix_trace(3, "2026-10-01T00:10:00+00:00")]}),
+            MockResponse(200, json={"data": [phoenix_trace(3, "2026-10-01T00:10:00+00:00")]}),
         ]
     )
     since = datetime(2026, 10, 1, tzinfo=UTC)
@@ -141,10 +138,9 @@ async def test_trace_pages_yield_ids_and_start_times_oldest_first():
     assert "include_spans" not in params and "session_identifier" not in params
 
 
-@respx.mock
-async def test_trace_pages_stop_on_an_empty_page():
-    route = respx.get(TRACES).mock(
-        return_value=httpx.Response(200, json={"data": [], "next_cursor": "again"})
+async def test_trace_pages_stop_on_an_empty_page(httpx2_mock):
+    route = httpx2_mock.get(TRACES).mock(
+        return_value=MockResponse(200, json={"data": [], "next_cursor": "again"})
     )
     since = datetime(2026, 10, 1, tzinfo=UTC)
     pages = [

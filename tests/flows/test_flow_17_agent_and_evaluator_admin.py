@@ -1,7 +1,7 @@
 import json
 import time
 
-import httpx
+import httpx2
 import pytest
 from cryptography.fernet import Fernet
 
@@ -17,7 +17,7 @@ def live(db_url, tmp_path, monkeypatch, stub_judges):
         yield stack
 
 
-def finished(client: httpx.Client, exp_id: int) -> dict:
+def finished(client: httpx2.Client, exp_id: int) -> dict:
     for _ in range(400):
         body = client.get(f"/api/experiments/{exp_id}").json()
         if body["status"] in ("completed", "failed"):

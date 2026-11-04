@@ -1,6 +1,6 @@
 import re
 
-import httpx
+import httpx2
 
 from tests.flows.helpers_01_06 import USERS, api, cli, live, stub_judges_module, token
 
@@ -24,9 +24,9 @@ def test_flow_02_admin_adds_lists_and_archives_users(cli):
 
     held = token(cli.live, "dana")
     assert "archived dana" in cli.ok("users", "archive", "dana")
-    me = httpx.get(f"{cli.live.url}/api/auth/me", headers={"Authorization": f"Bearer {held}"})
+    me = httpx2.get(f"{cli.live.url}/api/auth/me", headers={"Authorization": f"Bearer {held}"})
     assert me.status_code == 401
-    login = httpx.post(
+    login = httpx2.post(
         f"{cli.live.url}/api/auth/login", json={"username": "dana", "password": "password"}
     )
     assert login.status_code == 401
@@ -42,12 +42,12 @@ def test_flow_02_admin_adds_lists_and_archives_users(cli):
 
     assert "restored dana" in cli.ok("users", "restore", "dana")
     assert (
-        httpx.post(
+        httpx2.post(
             f"{cli.live.url}/api/auth/login", json={"username": "dana", "password": "password"}
         ).status_code
         == 200
     )
-    me = httpx.get(f"{cli.live.url}/api/auth/me", headers={"Authorization": f"Bearer {held}"})
+    me = httpx2.get(f"{cli.live.url}/api/auth/me", headers={"Authorization": f"Bearer {held}"})
     assert me.status_code == 401
 
 

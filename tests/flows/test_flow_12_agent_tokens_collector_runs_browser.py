@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from tests.api.test_otel import PROTO, otlp_payload
@@ -23,11 +23,11 @@ def live(db_url, tmp_path, monkeypatch, stub_judges):
         yield stack
 
 
-def bearer(live, token: str) -> httpx.Client:
-    return httpx.Client(base_url=live.url, headers={"Authorization": f"Bearer {token}"})
+def bearer(live, token: str) -> httpx2.Client:
+    return httpx2.Client(base_url=live.url, headers={"Authorization": f"Bearer {token}"})
 
 
-def export(client: httpx.Client, session_id: str, agent: str | None = None) -> httpx.Response:
+def export(client: httpx2.Client, session_id: str, agent: str | None = None) -> httpx2.Response:
     headers = {**PROTO, **({"X-Evalkit-Agent": agent} if agent else {})}
     return client.post("/api/otel/v1/traces", content=otlp_payload(session_id), headers=headers)
 

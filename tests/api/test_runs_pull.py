@@ -2,7 +2,7 @@ import io
 import json
 import zipfile
 
-import httpx
+import httpx2
 import pytest
 
 from evalkit.core import pull as pull_core
@@ -172,7 +172,7 @@ async def test_pull_experiment_survives_a_down_harness(
         assert (await wait_for(client, exp["id"]))["status"] == "completed"
 
         async def down(self):
-            raise httpx.ConnectError("refused")
+            raise httpx2.ConnectError("refused")
 
         monkeypatch.setattr(HarnessClient, "capabilities", down)
         files = unzip(

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 
 from evalkit import version
@@ -12,16 +12,16 @@ UV_PREFIX = Path("/home/x/.local/share/uv/tools/evalkit-py")
 PIPX_PREFIX = Path("/home/x/.local/pipx/venvs/evalkit-py")
 
 
-def fake_server() -> httpx.MockTransport:
-    def handler(request: httpx.Request) -> httpx.Response:
+def fake_server() -> httpx2.MockTransport:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         headers = {"X-Evalkit-Version": REMOTE}
         if request.url.path == "/api/cli":
-            return httpx.Response(
+            return httpx2.Response(
                 200, json={"version": REMOTE, "package": "evalkit-py"}, headers=headers
             )
-        return httpx.Response(404, headers=headers)
+        return httpx2.Response(404, headers=headers)
 
-    return httpx.MockTransport(handler)
+    return httpx2.MockTransport(handler)
 
 
 def client(check_version: bool = False) -> ApiClient:
@@ -121,10 +121,10 @@ def test_update_works_across_an_incompatible_minor(monkeypatch, tmp_path):
 def test_project_pin_is_moved_and_synced(monkeypatch, tmp_path):
     monkeypatch.setattr(version, "current", lambda: REMOTE)
     pyproject = tmp_path / "pyproject.toml"
-    pyproject.write_text('dependencies = ["evalkit-py[otel]==0.2.0", "httpx"]\n')
+    pyproject.write_text('dependencies = ["evalkit-py[otel]==0.2.0", "httpx2"]\n')
     calls: list[list[str]] = []
     run_update(client(), prefix=UV_PREFIX, run=calls.append, cwd=tmp_path, server_extra=False)
-    assert pyproject.read_text() == f'dependencies = ["evalkit-py[otel]=={REMOTE}", "httpx"]\n'
+    assert pyproject.read_text() == f'dependencies = ["evalkit-py[otel]=={REMOTE}", "httpx2"]\n'
     assert calls == [["uv", "sync"]]
 
 

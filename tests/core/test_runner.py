@@ -2,7 +2,7 @@ import asyncio
 import json
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 from fastapi import FastAPI
 from sqlalchemy import delete, update
@@ -510,7 +510,7 @@ async def test_gated_fixture_cases_are_not_checked(tmp_path, stub_judges, sessio
 
 @pytest.mark.parametrize(
     ("error", "expected"),
-    [(httpx.ReadError(""), "ReadError"), (RuntimeError("boom"), "RuntimeError: boom")],
+    [(httpx2.ReadError(""), "ReadError"), (RuntimeError("boom"), "RuntimeError: boom")],
     ids=["empty-message", "with-message"],
 )
 async def test_failed_experiment_error_names_exception_type(
@@ -817,7 +817,7 @@ async def test_rescoring_retries_errored_evaluators_and_replaces_their_error_row
     async def broken():
         return {"scores": [{"name": "broken_eval", "score": 1.0}]}
 
-    env.deps.custom_eval_transport = httpx.ASGITransport(app=fixed)
+    env.deps.custom_eval_transport = httpx2.ASGITransport(app=fixed)
     await evaluate_experiment(env.deps, exp.id)
 
     case_2 = next(run for run in await env.details(exp.id) if run.case_id == "case-2")
@@ -1012,7 +1012,7 @@ async def test_a_failed_workspace_listing_keeps_the_experiment(
     tmp_path, stub_judges, session_factory, monkeypatch
 ):
     async def down(self, run_id: str):
-        raise httpx.ConnectError("refused")
+        raise httpx2.ConnectError("refused")
 
     monkeypatch.setattr(HarnessClient, "list_files", down)
     env = await seed_env(session_factory, tmp_path, FakeHarness())

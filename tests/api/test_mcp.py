@@ -6,7 +6,6 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
-import httpx
 import httpx2
 import pytest
 from fastapi import HTTPException
@@ -63,7 +62,7 @@ def mcp_client(app, token: str | None) -> Client:
     )
 
 
-def bearer(client: httpx.AsyncClient) -> str:
+def bearer(client: httpx2.AsyncClient) -> str:
     return client.headers["Authorization"].removeprefix("Bearer ")
 
 
@@ -73,7 +72,7 @@ async def api(tmp_path, stub_judges, session_factory):
         yield client, env
 
 
-async def call(client: httpx.AsyncClient, tool: str, **args) -> dict:
+async def call(client: httpx2.AsyncClient, tool: str, **args) -> dict:
     async with mcp_client(client.app, bearer(client)) as mcp:  # type: ignore[attr-defined]
         result = await mcp.call_tool(tool, args)
     return result.structured_content or json.loads(result.content[0].text)
@@ -88,7 +87,7 @@ async def test_mcp_refuses_requests_without_a_token(api):
     assert resp.headers["www-authenticate"].startswith("Bearer")
 
 
-async def mcp_status(http: httpx.AsyncClient, token: str) -> int:
+async def mcp_status(http: httpx2.AsyncClient, token: str) -> int:
     resp = await http.post(
         "/mcp",
         json=INITIALIZE,
@@ -251,7 +250,7 @@ async def test_an_unreachable_trajectory_fails_its_row_not_the_call(api, monkeyp
 
     async def flaky(record, run_id, *args):
         if run_id == "s-2":
-            raise httpx.ConnectError("harness went away")
+            raise httpx2.ConnectError("harness went away")
         return await read(record, run_id, *args)
 
     monkeypatch.setattr(runs_api, "read_trajectory", flaky)
@@ -597,8 +596,8 @@ async def test_the_providers_own_scope_name_is_the_one_required(
     key = RSAKeyPair.generate()
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     async with oauth_app(env, tmp_path, key, scope="analytics:read") as app:
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+        transport = httpx2.ASGITransport(app=app)
+        async with httpx2.AsyncClient(transport=transport, base_url="http://test") as http:
             meta = (await http.get("/.well-known/oauth-protected-resource/mcp")).json()
             assert meta["scopes_supported"] == ["analytics:read"]
             theirs = key.create_token(issuer=ISSUER, audience=RESOURCE, scopes=["analytics:read"])
@@ -613,8 +612,8 @@ async def test_oauth_tokens_reach_mcp_and_evalkit_tokens_still_do(
     key = RSAKeyPair.generate()
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     async with oauth_app(env, tmp_path, key) as app:
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as http:
+        transport = httpx2.ASGITransport(app=app)
+        async with httpx2.AsyncClient(transport=transport, base_url="http://test") as http:
             meta = (await http.get("/.well-known/oauth-protected-resource/mcp")).json()
             assert meta["resource"] == RESOURCE
             assert meta["authorization_servers"] == [ISSUER]

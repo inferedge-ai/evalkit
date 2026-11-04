@@ -1,8 +1,7 @@
 import hashlib
 
-import httpx
 import pytest
-import respx
+from respx import MockResponse
 
 from evalkit.client.api import ApiRequestError, AsyncApi
 from evalkit.client.blob import HttpBlobStore
@@ -70,11 +69,10 @@ async def test_fixture_keys_are_cached_locally_with_server_fallback(ctx, tmp_pat
         await blob_store.put_object("trajectories/x/y.json", b"{}")
 
 
-@respx.mock
-async def test_fixture_downloads_once(tmp_path):
+async def test_fixture_downloads_once(httpx2_mock, tmp_path):
     digest = hashlib.sha256(b"x,y").hexdigest()
-    route = respx.get(f"http://srv/api/fixtures/sha256/{digest}").mock(
-        return_value=httpx.Response(200, content=b"x,y")
+    route = httpx2_mock.get(f"http://srv/api/fixtures/sha256/{digest}").mock(
+        return_value=MockResponse(200, content=b"x,y")
     )
     api = AsyncApi("http://srv", "tok")
     blob = HttpBlobStore(api, None, tmp_path)

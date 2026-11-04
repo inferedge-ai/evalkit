@@ -11,7 +11,7 @@ import zipfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 import sqlalchemy as sa
 import uvicorn
@@ -139,7 +139,7 @@ def server(tmp_path_factory, stub_judges_module, fake_harness, harness_url, modu
 def env(server, tmp_path, monkeypatch, module_db_url):
     base_url, application = server
     monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
-    resp = httpx.post(
+    resp = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
     )
     token = resp.json()["token"]
@@ -149,7 +149,7 @@ def env(server, tmp_path, monkeypatch, module_db_url):
 
 
 def api_get(path: str, **params):
-    resp = httpx.get(
+    resp = httpx2.get(
         f"{os.environ['EVALKIT_SERVER_URL']}{path}",
         params=params,
         headers={"Authorization": f"Bearer {os.environ['EVALKIT_TOKEN']}"},
@@ -1368,7 +1368,7 @@ def test_runs_list_notes_a_code_driven_agent_without_traces(env, monkeypatch):
 
     class StubClient:
         def get(self, path, **kwargs):
-            return httpx.Response(200, json={"runs": [], "total": 0})
+            return httpx2.Response(200, json={"runs": [], "total": 0})
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
     result = runner.invoke(cli_app, ["runs", "list", "task", "--source", "app"])
@@ -1389,7 +1389,7 @@ def test_runs_pull_pages_server_calls_above_100(env, tmp_path, monkeypatch):
     class StubClient:
         def post(self, path, json=None, **kwargs):
             calls.append(json)
-            return httpx.Response(200, content=page(json))
+            return httpx2.Response(200, content=page(json))
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
     monkeypatch.setattr(main_module, "_agent_definition", lambda ref: fake_agent())
@@ -1425,7 +1425,7 @@ def test_runs_list_personal_agent_with_a_down_harness_prints_a_note(
     monkeypatch.chdir(tmp_path)
 
     async def down(self, params=None):
-        raise httpx.ConnectError("refused")
+        raise httpx2.ConnectError("refused")
 
     monkeypatch.setattr(HarnessClient, "list_runs", down)
     result = runner.invoke(cli_app, ["runs", "list", "fake", "--source", "app"])

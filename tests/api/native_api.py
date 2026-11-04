@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-import httpx
+import httpx2
 
 from tests.fake_harness import FakeHarness
 from tests.identity import seed_agent
@@ -13,7 +13,7 @@ CAPS = FakeHarness().capabilities
 @asynccontextmanager
 async def api_env(
     tmp_path, session_factory, fake: FakeHarness | None = None
-) -> AsyncIterator[tuple[httpx.AsyncClient, Env]]:
+) -> AsyncIterator[tuple[httpx2.AsyncClient, Env]]:
     env = await seed_env(session_factory, tmp_path, fake or FakeHarness())
     await seed_agent(session_factory, "fake", "admin")
     await seed_agent(session_factory, "fake", "alice")
@@ -21,8 +21,8 @@ async def api_env(
         yield client, env
 
 
-async def login_as(client: httpx.AsyncClient, username: str, password: str) -> httpx.AsyncClient:
-    other = httpx.AsyncClient(transport=client._transport, base_url="http://test")
+async def login_as(client: httpx2.AsyncClient, username: str, password: str) -> httpx2.AsyncClient:
+    other = httpx2.AsyncClient(transport=client._transport, base_url="http://test")
     resp = await other.post("/api/auth/login", json={"username": username, "password": password})
     other.headers["Authorization"] = f"Bearer {resp.json()['token']}"
     return other
