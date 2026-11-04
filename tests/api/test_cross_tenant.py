@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-import httpx
+import httpx2
 
 from evalkit.api.auth import issue_token
 from evalkit.contracts.enums import WorkspaceRole
@@ -13,13 +13,13 @@ from tests.api.native_api import api_env
 from tests.native import start
 
 
-async def _second_tenant(client, raw_session_factory) -> httpx.AsyncClient:
+async def _second_tenant(client, raw_session_factory) -> httpx2.AsyncClient:
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
         s.add(Tenant(id=2, name="other"))
         await s.commit()
     root = await UserStore(raw_session_factory, 2).create("root", "password", is_admin=True)
     await WorkspaceStore(raw_session_factory, 2).create_shared("canonical", root.id)
-    other = httpx.AsyncClient(transport=client._transport, base_url="http://test")
+    other = httpx2.AsyncClient(transport=client._transport, base_url="http://test")
     async with tenant_session(raw_session_factory, 2) as session:
         token = await issue_token(session, root, timedelta(hours=1))
     other.headers["Authorization"] = f"Bearer {token}"
