@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "../lib/api";
+import { safeNext } from "./next";
 import { loadProviders, session, type Providers } from "./oidc";
 
 function LoginForm({ next }: { next: string }) {
@@ -55,6 +56,19 @@ function LoginForm({ next }: { next: string }) {
   );
 }
 
+export function runSso(
+  onSso: () => Promise<void>,
+  setBusy: (busy: boolean) => void,
+  setError: (message: string | null) => void,
+): void {
+  setBusy(true);
+  setError(null);
+  onSso().catch((err) => {
+    setError(err instanceof Error ? err.message : String(err));
+    setBusy(false);
+  });
+}
+
 export function LoginChoices({
   providers,
   next,
@@ -62,9 +76,11 @@ export function LoginChoices({
 }: {
   providers: Providers;
   next: string;
-  onSso: () => void;
+  onSso: () => Promise<void>;
 }) {
   const [adminOpen, setAdminOpen] = useState(false);
+  const [ssoBusy, setSsoBusy] = useState(false);
+  const [ssoError, setSsoError] = useState<string | null>(null);
   const oidc = providers.oidc;
   const formOpen = oidc === null || providers.password === "all" || adminOpen;
   return (
@@ -79,10 +95,14 @@ export function LoginChoices({
         <button
           type="button"
           className="btn btn-primary mb-4 w-full justify-center"
-          onClick={onSso}
+          disabled={ssoBusy}
+          onClick={() => runSso(onSso, setSsoBusy, setSsoError)}
         >
           Continue with {oidc.name}
         </button>
+      )}
+      {ssoError !== null && (
+        <div className="mb-3 text-meta text-err-text">{ssoError}</div>
       )}
       {formOpen ? (
         <LoginForm next={next} />
@@ -104,16 +124,17 @@ export function LoginPage() {
   const [providers, setProviders] = useState<Providers | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const rawNext = params.get("next") ?? "/";
-  const next = rawNext.startsWith("/login") ? "/" : rawNext;
+  const next = safeNext(params.get("next"));
 
   useEffect(() => {
-    loadProviders().then(setProviders, (e) => setError(String(e)));
+    loadProviders().then(setProviders, (e) =>
+      setError(e instanceof Error ? e.message : String(e)),
+    );
   }, []);
 
   const startSso = async () => {
     const s = await session();
-    if (s === null) return;
+    if (s === null) throw new Error("Single sign-on is not configured.");
     await s.signinRedirect({ state: next });
   };
 

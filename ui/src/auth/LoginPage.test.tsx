@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import { LoginChoices } from "./LoginPage";
+import { LoginChoices, runSso } from "./LoginPage";
 import type { Providers } from "./oidc";
 
 const okta = {
@@ -19,7 +19,11 @@ const okta = {
 function render(providers: Providers): string {
   return renderToStaticMarkup(
     <MemoryRouter>
-      <LoginChoices providers={providers} next="/" onSso={() => {}} />
+      <LoginChoices
+        providers={providers}
+        next="/"
+        onSso={() => Promise.resolve()}
+      />
     </MemoryRouter>,
   );
 }
@@ -45,5 +49,37 @@ describe("LoginChoices", () => {
     expect(html).toContain("Continue with Okta");
     expect(html).toContain("Username");
     expect(html).not.toContain("Admin sign-in");
+  });
+});
+
+describe("runSso", () => {
+  it("goes busy and stays busy while the redirect starts", async () => {
+    const calls: unknown[] = [];
+    runSso(
+      () => new Promise(() => {}),
+      (b) => calls.push(["busy", b]),
+      (m) => calls.push(["error", m]),
+    );
+    await Promise.resolve();
+    expect(calls).toEqual([
+      ["busy", true],
+      ["error", null],
+    ]);
+  });
+
+  it("shows the error and re-enables the button when the start fails", async () => {
+    const calls: unknown[] = [];
+    runSso(
+      () => Promise.reject(new Error("IdP unreachable")),
+      (b) => calls.push(["busy", b]),
+      (m) => calls.push(["error", m]),
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(calls).toEqual([
+      ["busy", true],
+      ["error", null],
+      ["error", "IdP unreachable"],
+      ["busy", false],
+    ]);
   });
 });
