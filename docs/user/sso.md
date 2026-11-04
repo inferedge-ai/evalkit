@@ -123,7 +123,11 @@ the UI, the CLI and MCP hosts only request the scopes listed there.
   <scope>") with a `WWW-Authenticate` header.
 - Put each required scope in `auth.oidc.scopes` too, so the UI and the CLI
   ask the IdP for it.
-- Grant the scope to the CI machine client as well.
+- The CLI's CI login (client credentials) asks the IdP for the required
+  scopes, which `GET /api/auth/providers` lists as `required_scopes`. Let the
+  CI machine client request them at the IdP. It does not ask for the rest of
+  `scopes`, because IdPs such as Okta refuse `openid` and `offline_access`
+  there.
 - Password login tokens and agent tokens are not checked. An empty list (the
   default) turns the check off.
 

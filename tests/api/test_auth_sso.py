@@ -5,6 +5,8 @@ import httpx2
 import pytest
 
 from evalkit.api.app import create_app
+from evalkit.client.connection import MachineLogin
+from evalkit.client.oidc import ClientCredentials
 from evalkit.config import OidcConfig
 from evalkit.db.users import UserStore
 from tests.identity import FakeIdp
@@ -79,11 +81,42 @@ async def test_providers_with_an_idp(env, idp):
         "client_id": idp.client_id,
         "audience": idp.audience,
         "scopes": ["openid", "profile", "email", "offline_access"],
+        "required_scopes": [],
         "authorize_params": {},
         "authorization_endpoint": f"{idp.issuer}/authorize",
         "token_endpoint": f"{idp.issuer}/token",
         "device_authorization_endpoint": f"{idp.issuer}/device",
     }
+
+
+async def test_providers_lists_the_required_scopes(env, idp):
+    async with sso_app(env, idp, required_scopes=[SCOPE, "evalkit:write"]) as client:
+        body = (await client.get("/api/auth/providers")).json()
+    assert body["oidc"]["required_scopes"] == [SCOPE, "evalkit:write"]
+
+
+async def test_machine_client_calls_api_with_the_required_scopes(env, idp):
+    idp.machine_clients["ci"] = ("s3cret", "client-ci-sub")
+    async with sso_app(env, idp, required_scopes=[SCOPE]) as client:
+        created = await client.post(
+            "/api/users", json={"username": "ci-bot", "subject": "client-ci-sub"}
+        )
+        assert created.status_code == 200, created.text
+        oidc = (await client.get("/api/auth/providers")).json()["oidc"]
+        source = ClientCredentials(
+            MachineLogin("ci", "s3cret"),
+            oidc["token_endpoint"],
+            oidc["authorize_params"],
+            oidc["required_scopes"],
+            transport=idp.transport(),
+        )
+        me = await client.get("/api/auth/me", headers=bearer(source.bearer()))
+        assert me.status_code == 200 and me.json()["username"] == "ci-bot"
+        bare = ClientCredentials(
+            MachineLogin("ci", "s3cret"), oidc["token_endpoint"], {}, transport=idp.transport()
+        )
+        refused = await client.get("/api/auth/me", headers=bearer(bare.bearer()))
+        assert refused.status_code == 403
 
 
 async def test_providers_is_503_while_discovery_is_down(env, idp):

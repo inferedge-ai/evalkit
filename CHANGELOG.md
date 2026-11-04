@@ -8,7 +8,9 @@
   answer 403 `access token lacks required scope <scope>`, and `/mcp` answers
   403 `insufficient_scope`. Password
   login and agent tokens are not checked. Every required scope must also be in
-  `auth.oidc.scopes`, or the config fails to load. `/mcp` no longer stamps `evalkit:read`
+  `auth.oidc.scopes`, or the config fails to load. `GET /api/auth/providers`
+  lists them as `required_scopes`, and the CLI sends them as `scope` on the
+  client credentials request. `/mcp` no longer stamps `evalkit:read`
   on every token it accepts, and its tools no longer carry a per-tool scope.
 - evalkit now uses `httpx2` instead of `httpx` and `httpx-retries`. The
   CLI, the SDK and the server make their HTTP calls through `httpx2`, with a

@@ -124,11 +124,13 @@ class ClientCredentials:
         machine: MachineLogin,
         token_endpoint: str,
         authorize_params: dict[str, str],
+        required_scopes: list[str] | None = None,
         transport: httpx2.BaseTransport | None = None,
     ) -> None:
         self.machine = machine
         self.token_endpoint = token_endpoint
         self.authorize_params = authorize_params
+        self.required_scopes = required_scopes or []
         self.transport = transport
         self.token: str | None = None
         self.expires_at = datetime.now(UTC)
@@ -148,6 +150,11 @@ class ClientCredentials:
                         tokens = http.fetch_token(
                             self.token_endpoint,
                             grant_type="client_credentials",
+                            **(
+                                {"scope": " ".join(self.required_scopes)}
+                                if self.required_scopes
+                                else {}
+                            ),
                             **self.authorize_params,
                         )
                     except OAuthError as exc:
@@ -194,7 +201,11 @@ def build_auth(
             )
         return EvalkitAuth(
             ClientCredentials(
-                conn.machine, oidc["token_endpoint"], oidc["authorize_params"], transport
+                conn.machine,
+                oidc["token_endpoint"],
+                oidc["authorize_params"],
+                oidc.get("required_scopes", []),
+                transport,
             )
         )
     if conn.oidc is not None:
