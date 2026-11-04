@@ -79,6 +79,16 @@ class OidcConfig(ConfigModel):
             raise ValueError("auth.oidc.scopes must include openid")
         return value
 
+    @model_validator(mode="after")
+    def _scopes_include_required_scopes(self) -> OidcConfig:
+        missing = [scope for scope in self.required_scopes if scope not in self.scopes]
+        if missing:
+            raise ValueError(
+                f"auth.oidc.required_scopes lists {', '.join(missing)}, "
+                "which auth.oidc.scopes does not request; add it to auth.oidc.scopes"
+            )
+        return self
+
     @field_validator("issuer")
     @classmethod
     def _issuer_has_no_trailing_slash(cls, value: str) -> str:

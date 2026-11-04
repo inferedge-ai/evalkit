@@ -273,6 +273,23 @@ def test_oidc_scopes_must_include_openid():
         Config.model_validate({**OIDC_BASE, "auth": {"oidc": {**OIDC, "scopes": ["email"]}}})
 
 
+def test_oidc_required_scopes_must_be_requested():
+    scopes = ["openid", "evalkit:read"]
+    with pytest.raises(ValidationError, match="required_scopes lists evalkit:read, which"):
+        Config.model_validate(
+            {**OIDC_BASE, "auth": {"oidc": {**OIDC, "required_scopes": ["evalkit:read"]}}}
+        )
+    cfg = Config.model_validate(
+        {
+            **OIDC_BASE,
+            "auth": {"oidc": {**OIDC, "scopes": scopes, "required_scopes": ["evalkit:read"]}},
+        }
+    )
+    assert cfg.auth.oidc.required_scopes == ["evalkit:read"]
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": {**OIDC, "required_scopes": []}}})
+    assert cfg.auth.oidc.required_scopes == []
+
+
 def test_password_login_is_admin_or_all():
     with pytest.raises(ValidationError):
         Config.model_validate({**OIDC_BASE, "auth": {"password_login": "nobody"}})

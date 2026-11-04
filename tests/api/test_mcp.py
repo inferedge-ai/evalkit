@@ -601,6 +601,14 @@ async def test_idp_tokens_reach_mcp_as_their_evalkit_user(tmp_path, stub_judges,
         assert await mcp_status(http, idp.access_token("sub-ann")) == 401
 
 
+async def test_mcp_metadata_lists_the_required_scopes(tmp_path, stub_judges, session_factory):
+    env = await seed_env(session_factory, tmp_path, fake_with_runs())
+    idp = FakeIdp(audience="http://evalkit.test")
+    async with sso_app(env, idp, required_scopes=["evalkit:read"]) as http:
+        meta = (await http.get("/.well-known/oauth-protected-resource/mcp")).json()
+        assert "evalkit:read" in meta["scopes_supported"]
+
+
 async def test_mcp_is_503_while_the_idp_is_down(tmp_path, stub_judges, session_factory):
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     idp = FakeIdp(audience="http://evalkit.test")

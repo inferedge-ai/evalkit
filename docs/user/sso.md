@@ -109,6 +109,9 @@ evalkit refuses every other IdP token:
         scopes: [openid, profile, email, offline_access, evalkit:read]
         required_scopes: [evalkit:read]
 
+The server refuses to start when a required scope is not also in `scopes`:
+the UI, the CLI and MCP hosts only request the scopes listed there.
+
 - The check covers `POST /api/auth/oidc/register` (no user is created), every
   `/api` request with an IdP token, and `/mcp`.
 - evalkit reads the scopes from the access token's `scope` claim (a

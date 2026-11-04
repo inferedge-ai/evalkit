@@ -26,6 +26,7 @@ async def sso_app(
         client_id=idp.client_id,
         audience=idp.audience,
         name="Fake",
+        scopes=["openid", "profile", "email", "offline_access", *(required_scopes or [])],
         required_scopes=required_scopes or [],
     )
     env.deps.cfg.auth.password_login = password_login
