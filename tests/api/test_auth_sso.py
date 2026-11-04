@@ -385,3 +385,9 @@ async def test_empty_required_scopes_accept_tokens_without_scopes(env, idp):
 async def test_password_login_tokens_ignore_required_scopes(env, idp):
     async with sso_app(env, idp, required_scopes=[SCOPE]) as client:
         assert (await client.get("/api/auth/me")).status_code == 200
+
+
+async def test_an_unregistered_identity_without_the_scope_gets_403_not_401(env, idp):
+    async with sso_app(env, idp, required_scopes=[SCOPE]) as client:
+        resp = await client.get("/api/auth/me", headers=bearer(idp.access_token("sub-nobody")))
+        assert resp.status_code == 403

@@ -9,9 +9,6 @@ from evalkit.api.oidc import IdpUnavailable, token_scopes
 MCP_PATH = "/mcp"
 
 
-# An IdP token carries its own scopes, checked against auth.oidc.required_scopes by
-# FastMCP. An evalkit login token is not an IdP token, so it gets those scopes
-# as granted; agent tokens stay collector-only here as on /api.
 class EvalkitTokenVerifier(TokenVerifier):
     def __init__(self, state, base_url: str, required_scopes: list[str] | None = None):
         super().__init__(base_url=base_url, required_scopes=required_scopes)
@@ -23,7 +20,9 @@ class EvalkitTokenVerifier(TokenVerifier):
             if is_jwt(token):
                 oidc = self._state.oidc
                 audience = [oidc.cfg.audience, oidc.mcp_resource_url] if oidc is not None else []
-                user, claims = await sso_identity(self._state, token, audience, None)
+                user, claims = await sso_identity(
+                    self._state, token, audience, None, enforce_scopes=False
+                )
                 expires = datetime.fromtimestamp(claims["exp"], UTC)
                 scopes = sorted(token_scopes(claims))
             else:

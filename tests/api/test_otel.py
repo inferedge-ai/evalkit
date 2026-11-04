@@ -392,3 +392,25 @@ async def test_an_idp_token_can_export_to_its_own_agent(tmp_path, stub_judges, s
         }
         resp = await client.post("/api/otel/v1/traces", content=otlp_payload(), headers=headers)
     assert resp.status_code != 401
+
+
+async def test_the_collector_refuses_an_idp_token_without_the_required_scope(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(session_factory, 1).create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp, required_scopes=["evalkit:read"]) as client:
+        headers = {
+            **PROTO,
+            "Authorization": f"Bearer {idp.access_token('sub-ann')}",
+            "X-Evalkit-Agent": "fake@ann",
+        }
+        resp = await client.post("/api/otel/v1/traces", content=otlp_payload(), headers=headers)
+        assert resp.status_code == 403
+        minted = await client.post("/api/tokens", json={"agent": "fake@canonical"})
+        agent = bearer(client, minted.json()["token"])
+        assert await export(agent, otlp_payload(session_id="s-1"), PROTO) == 200
+        await agent.aclose()

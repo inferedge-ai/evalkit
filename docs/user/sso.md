@@ -114,7 +114,10 @@ evalkit refuses every other IdP token:
   space-separated string), its `scp` claim (a list, or a space-separated
   string), or both.
 - A token that lacks one answers 403 `access token lacks required scope
-  <scope>`.
+  <scope>` on `/api` and on register. This check runs before evalkit looks for
+  the user, so a token without the scope gets 403 even for an unregistered
+  identity. `/mcp` answers 403 `insufficient_scope` ("Required scope:
+  <scope>") with a `WWW-Authenticate` header.
 - Put each required scope in `auth.oidc.scopes` too, so the UI and the CLI
   ask the IdP for it.
 - Grant the scope to the CI machine client as well.
@@ -152,7 +155,7 @@ and an IdP token is an evalkit user there too.
 | 401 `SSO is not configured on this server` | A JWT reached a server without `auth.oidc` | Configure `auth.oidc` or use password login |
 | 401 `user is archived` | Archived in evalkit | `evalkit users restore <username>` |
 | 403 `password login is for admins on this server` | `password_login: admin` | Sign in with SSO, or set `password_login: all` |
-| 403 `access token lacks required scope <scope>` | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
+| 403 `access token lacks required scope <scope>` (on `/api` and register; `/mcp` says `insufficient_scope`) | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
 | 503 `identity provider unreachable` | Discovery or the JWKS could not be fetched | Check the issuer URL and network egress from the server; it retries every 30 s |
 | No "Continue with ..." button on the login page | `/api/auth/providers` has no `oidc` | `auth.oidc` is absent or the server was not restarted |
 | `your login has expired; run evalkit login` | The refresh token was refused and nothing newer was on disk | `evalkit login --url <url>` again |
