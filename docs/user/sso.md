@@ -90,6 +90,9 @@ In the server's `config.yaml`:
         required_scopes: []         # scopes an access token must carry
         authorize_params: {}
         algorithms: [RS256]
+        tenant_claim: null          # claim naming the person's organisation; unset: one tenant
+        tenant_auto_create: false   # create a tenant for an organisation seen the first time
+        admin_claim: null           # {name: roles, value: evalkit-admin}: who is an admin
 
 `password_login: admin` keeps password login for admins only, so the
 bootstrap `admin` account stays a break-glass login while everyone else uses
@@ -131,6 +134,56 @@ the UI, the CLI and MCP hosts only request the scopes listed there.
   there.
 - Password login tokens and agent tokens are not checked. An empty list (the
   default) turns the check off.
+
+### One tenant per organisation
+
+By default everyone who signs in lands in one tenant. When the IdP puts the
+person's organisation in the access token, evalkit can give each
+organisation its own tenant, with its own users, workspaces, datasets and
+runs:
+
+    auth:
+      oidc:
+        tenant_claim: tenant_id     # grahak tenant_id, Auth0 org_id, Entra tid
+        tenant_auto_create: false
+
+- `tenant_claim` names the access token claim that holds the organisation
+  id. On every sign-in evalkit finds the tenant whose external id equals that
+  claim and signs the person into it. A token without the claim answers 403
+  `access token has no <claim> claim`.
+- An organisation evalkit has no tenant for is refused at registration with
+  403 `no tenant for <claim> <id>`. Create its tenant first, on the server:
+
+      evalkit tenants create acme --external-id ORG-7f3a --config config.yaml
+
+- `tenant_auto_create: true` creates the tenant (named after the id) at the
+  organisation's first registration instead. Anyone the IdP issues an
+  evalkit token to, with an organisation id evalkit has not seen, then
+  creates a tenant. Use it when the IdP decides which organisations may use
+  evalkit, for example by granting a required scope only to them.
+- The same IdP subject in two organisations is two evalkit users, one per
+  tenant.
+- Turning `tenant_claim` on for a server that already has users: those users
+  live in the default tenant, which has no external id, so they can no
+  longer sign in through SSO. Turn it on before people register.
+- Password login always signs into the default tenant.
+
+### Admins from the IdP
+
+    auth:
+      oidc:
+        admin_claim:
+          name: roles               # the access token claim
+          value: evalkit-admin      # the value that makes an admin
+
+With `admin_claim` set, every registration (each sign-in) sets the person's
+admin flag from the access token: admin when the claim equals the value, or
+is a list that contains it; not an admin otherwise. A person the IdP stops
+naming as an admin loses admin at their next sign-in. Unset (the default),
+registration never changes the flag, and admins are promoted with
+`evalkit users promote`. An admin's powers stay inside their tenant: users,
+workspaces and members, LLM providers and the default judge, trace sources
+and agent tokens of that tenant only.
 
 `mcp.oauth` is gone: `/mcp` verifies tokens with the same settings as `/api`,
 and an IdP token is an evalkit user there too.
@@ -174,6 +227,8 @@ identity provider session stays.
 | 401 `SSO is not configured on this server` | A JWT reached a server without `auth.oidc` | Configure `auth.oidc` or use password login |
 | 401 `user is archived` | Archived in evalkit | `evalkit users restore <username>` |
 | 403 `password login is for admins on this server` | `password_login: admin` | Sign in with SSO, or set `password_login: all` |
+| 403 `access token has no <claim> claim` | `auth.oidc.tenant_claim` is set and the access token does not carry it | Have the IdP put the organisation id in that claim |
+| 403 `no tenant for <claim> <id>` | No tenant has that external id and `tenant_auto_create` is off | `evalkit tenants create <name> --external-id <id>` on the server |
 | 403 `access token lacks required scope <scope>` (on `/api` and register; `/mcp` says `insufficient_scope`) | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
 | 503 `identity provider unreachable` | Discovery or the JWKS could not be fetched | Check the issuer URL and network egress from the server; it retries every 30 s |
 | No "Continue with ..." button on the login page | `/api/auth/providers` has no `oidc` | `auth.oidc` is absent or the server was not restarted |
