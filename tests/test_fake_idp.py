@@ -69,6 +69,11 @@ def test_code_flow_with_pkce_and_refresh_rotation(idp):
             assert sent["state"] == ["st-1"]
             return sent["code"][0]
 
+        no_pkce = http.get(
+            f"{idp.issuer}/authorize?{urlencode({'redirect_uri': redirect_uri, 'state': 'st-1'})}"
+        )
+        assert no_pkce.status_code == 400 and no_pkce.json()["error"] == "invalid_request"
+
         bad = exchange(authorize(), "w" * 43)
         assert bad.status_code == 400 and bad.json()["error"] == "invalid_grant"
 
@@ -129,6 +134,8 @@ def test_client_credentials_and_device_grant(idp):
             jwt.decode(done.json()["id_token"], options={"verify_signature": False})["sub"]
             == "sub-2"
         )
+        again = http.post(token_url, data=poll)
+        assert again.status_code == 400 and again.json()["error"] == "expired_token"
 
 
 async def test_asgi_adapter_serves_discovery(idp):

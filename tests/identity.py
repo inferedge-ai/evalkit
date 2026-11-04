@@ -225,6 +225,9 @@ class FakeIdp:
             self.jwks_fetches += 1
             return 200, {"content-type": "application/json"}, json.dumps(self.jwks()).encode()
         if path == "/authorize":
+            if not query.get("code_challenge") or query.get("code_challenge_method") != "S256":
+                body = {"error": "invalid_request", "error_description": "pkce"}
+                return 400, {"content-type": "application/json"}, json.dumps(body).encode()
             code = secrets.token_urlsafe(8)
             self.codes[code] = {
                 **self._login(),
@@ -260,7 +263,7 @@ class FakeIdp:
             verifier = form.get("code_verifier", "")
             digest = hashlib.sha256(verifier.encode()).digest()
             challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
-            if login["challenge"] and challenge != login["challenge"]:
+            if challenge != login["challenge"]:
                 return 400, headers, b'{"error": "invalid_grant", "error_description": "pkce"}'
             return 200, headers, json.dumps(self._issue(login)).encode()
         if grant == "refresh_token":
@@ -288,6 +291,7 @@ class FakeIdp:
             if pending["pending"] > 0:
                 pending["pending"] -= 1
                 return 400, headers, b'{"error": "authorization_pending"}'
+            self.devices.pop(form["device_code"])
             return 200, headers, json.dumps(self._issue(pending)).encode()
         return 400, headers, b'{"error": "unsupported_grant_type"}'
 
