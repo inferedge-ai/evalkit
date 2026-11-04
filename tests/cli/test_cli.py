@@ -10,6 +10,7 @@ import time
 import zipfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx2
 import pytest
@@ -19,11 +20,12 @@ from typer.testing import CliRunner
 
 from evalkit.api import experiments as experiments_api
 from evalkit.api.app import create_app
+from evalkit.cli import local_run, runs_commands
 from evalkit.cli import main as main_module
-from evalkit.cli import runs_commands
 from evalkit.cli.client import ApiError
 from evalkit.cli.main import app as cli_app
 from evalkit.client import connection
+from evalkit.client.oidc import EvalkitAuth, LoginExpired
 from evalkit.contracts.enums import DatasetKind, SyncSource, TrajectorySource
 from evalkit.core.harness import HarnessClient
 from evalkit.core.importer import incoming_case
@@ -1021,6 +1023,24 @@ def test_local_harness_check(env, tmp_path, monkeypatch, harness_url):
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 0, result.output
     assert "capabilities" in result.output and "✓" in result.output
+
+
+def test_local_harness_check_reports_an_expired_login_as_one_line(
+    env, tmp_path, monkeypatch, harness_url
+):
+    class ExpiredSource:
+        def bearer(self) -> str:
+            raise LoginExpired("http://x")
+
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        local_run, "oidc", SimpleNamespace(build_auth=lambda conn: EvalkitAuth(ExpiredSource()))
+    )
+    result = runner.invoke(cli_app, ["harness", "check", "fake"])
+    assert result.exit_code == 1
+    assert "run `evalkit login --url http://x`" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_run_rejects_another_users_agent_before_syncing(env, tmp_path, monkeypatch, harness_url):

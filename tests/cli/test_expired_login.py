@@ -2,7 +2,9 @@ import httpx
 import pytest
 import typer
 
+from evalkit.cli import main as main_module
 from evalkit.cli.client import ApiClient
+from evalkit.client import connection, oidc
 from evalkit.client.oidc import EvalkitAuth, LoginExpired
 
 
@@ -18,3 +20,19 @@ def test_expired_login_becomes_one_red_line(capsys):
         client.get("/api/auth/me")
     assert raised.value.exit_code == 1
     assert "run `evalkit login --url http://x`" in capsys.readouterr().err
+
+
+def test_unreachable_server_during_provider_lookup_is_one_red_line(monkeypatch, tmp_path, capsys):
+    def unreachable(url, transport=None):
+        raise httpx.ConnectError("refused")
+
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "http://x")
+    monkeypatch.setenv("EVALKIT_OIDC_CLIENT_ID", "ci")
+    monkeypatch.setenv("EVALKIT_OIDC_CLIENT_SECRET", "s3cret")
+    monkeypatch.delenv("EVALKIT_TOKEN", raising=False)
+    monkeypatch.setattr(oidc, "fetch_providers", unreachable)
+    with pytest.raises(typer.Exit) as raised:
+        main_module._client()
+    assert raised.value.exit_code == 1
+    assert capsys.readouterr().err.strip() == "refused"

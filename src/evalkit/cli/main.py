@@ -115,7 +115,7 @@ def _client() -> ApiClient:
     active = _active_connection()
     try:
         auth = oidc.build_auth(active)
-    except LookupError as exc:
+    except (LookupError, httpx2.HTTPError) as exc:
         raise ApiError(str(exc)) from exc
     return ApiClient(active.url, auth)
 
@@ -376,7 +376,13 @@ def lint(
             local = _with_secrets(_local_config(), scoring=False)
             try:
                 schema = asyncio.run(local_input_schema(conn, local, ref))
-            except (httpx2.HTTPError, ValueError, ApiRequestError) as exc:
+            except (
+                httpx2.HTTPError,
+                ValueError,
+                ApiRequestError,
+                oidc.LoginExpired,
+                LookupError,
+            ) as exc:
                 raise ApiError(f"harness {definition.ref}: {exc}") from exc
             form["input_schema"] = json.dumps(schema)
     files = _yaml_files(path)
@@ -778,7 +784,14 @@ def run(
             raise typer.Exit(code=130) from None
         except ScoringFailed as exc:
             raise ApiError(f"{exc}\nfinish it with: evalkit evaluate {exc.exp_id}") from exc
-        except (VersionMismatch, ApiRequestError, ValueError, KeyError) as exc:
+        except (
+            VersionMismatch,
+            ApiRequestError,
+            oidc.LoginExpired,
+            ValueError,
+            KeyError,
+            LookupError,
+        ) as exc:
             raise ApiError(str(exc)) from exc
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
 
@@ -859,7 +872,14 @@ def evaluate(
         )
     except ScoringFailed as exc:
         raise ApiError(f"{exc}\nfinish it with: evalkit evaluate {experiment_id}") from exc
-    except (VersionMismatch, ApiRequestError, ValueError, KeyError) as exc:
+    except (
+        VersionMismatch,
+        ApiRequestError,
+        oidc.LoginExpired,
+        ValueError,
+        KeyError,
+        LookupError,
+    ) as exc:
         raise ApiError(str(exc)) from exc
     typer.echo(f"evaluated {experiment_id}")
 
@@ -958,7 +978,7 @@ def harness_check(
         local = _with_secrets(_local_config(), scoring=False)
         try:
             checks = asyncio.run(check_local(conn, local, ref))
-        except (ValueError, KeyError, ApiRequestError) as exc:
+        except (ValueError, KeyError, ApiRequestError, oidc.LoginExpired, LookupError) as exc:
             raise ApiError(str(exc)) from exc
     failed = False
     for capability, entry in checks.items():

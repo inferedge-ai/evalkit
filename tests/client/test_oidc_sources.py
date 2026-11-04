@@ -164,3 +164,14 @@ def test_build_auth_picks_the_source(tmp_path):
 
 def test_static_auth():
     assert static_auth("t").source.bearer() == "t"
+
+
+def test_build_auth_without_an_identity_provider_names_it():
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, json={"password": "admin", "oidc": None})
+    )
+    machine = Connection(
+        "https://evalkit.test", None, None, from_env=True, machine=MachineLogin("ci", "s3cret")
+    )
+    with pytest.raises(LookupError, match="identity provider"):
+        build_auth(machine, transport=transport)
