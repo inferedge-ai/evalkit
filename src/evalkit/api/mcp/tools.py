@@ -10,7 +10,6 @@ import httpx2
 from fastapi import HTTPException
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
-from fastmcp.server.auth import require_scopes
 from fastmcp.server.dependencies import get_access_token
 from mcp.types import ToolAnnotations
 from starlette.datastructures import State
@@ -20,7 +19,6 @@ from evalkit.api import runs as runs_api
 from evalkit.api.access import TenantStores, build_tenant_stores
 from evalkit.api.agents import agent_view
 from evalkit.api.mcp import descriptions as d
-from evalkit.api.mcp.auth import SCOPE_READ
 from evalkit.api.mcp.models import (
     AgentRow,
     BatchMeta,
@@ -89,7 +87,6 @@ def _registration(open_world: bool) -> dict[str, Any]:
             read_only_hint=True, destructive_hint=False, open_world_hint=open_world
         ),
         "meta": {"anthropic/alwaysLoad": True},
-        "auth": require_scopes(SCOPE_READ),
     }
 
 

@@ -630,3 +630,34 @@ async def test_mcp_access_token_expires_with_the_verified_exp(
 async def test_without_an_idp_mcp_publishes_no_metadata(api):
     client, _ = api
     assert (await client.get("/.well-known/oauth-protected-resource/mcp")).status_code == 404
+
+
+async def test_mcp_needs_the_required_scopes_of_an_idp_token(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path, fake_with_runs())
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(session_factory, 1).create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp, required_scopes=["evalkit:read"]) as http:
+        assert await mcp_status(http, idp.access_token("sub-ann")) == 403
+        other = idp.access_token("sub-ann", extra={"scope": "other"})
+        assert await mcp_status(http, other) == 403
+        by_scope = idp.access_token("sub-ann", extra={"scope": "evalkit:read"})
+        assert await mcp_status(http, by_scope) == 200
+        by_scp = idp.access_token("sub-ann", extra={"scp": ["evalkit:read"]})
+        assert await mcp_status(http, by_scp) == 200
+        assert await mcp_status(http, bearer(http)) == 200
+
+
+async def test_mcp_without_required_scopes_accepts_idp_tokens_without_scopes(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path, fake_with_runs())
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(session_factory, 1).create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp) as http:
+        assert await mcp_status(http, idp.access_token("sub-ann")) == 200

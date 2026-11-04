@@ -86,6 +86,7 @@ In the server's `config.yaml`:
         audience: https://evalkit.example.com
         name: Okta                  # the login button's label
         scopes: [openid, profile, email, offline_access]
+        required_scopes: []         # scopes an access token must carry
         authorize_params: {}
         algorithms: [RS256]
 
@@ -95,6 +96,30 @@ SSO. `all` runs both side by side. Restart the server and check
 `GET /api/auth/providers`: it lists the IdP's name and endpoints, or answers
 503 while the IdP is unreachable (the server still starts, and admin password
 login keeps working).
+
+### Requiring a scope
+
+Some IdPs issue evalkit-audience tokens to anyone with an account. Set
+`auth.oidc.required_scopes` to a scope that only authorised people get, and
+evalkit refuses every other IdP token:
+
+    auth:
+      oidc:
+        scopes: [openid, profile, email, offline_access, evalkit:read]
+        required_scopes: [evalkit:read]
+
+- The check covers `POST /api/auth/oidc/register` (no user is created), every
+  `/api` request with an IdP token, and `/mcp`.
+- evalkit reads the scopes from the access token's `scope` claim (a
+  space-separated string), its `scp` claim (a list, or a space-separated
+  string), or both.
+- A token that lacks one answers 403 `access token lacks required scope
+  <scope>`.
+- Put each required scope in `auth.oidc.scopes` too, so the UI and the CLI
+  ask the IdP for it.
+- Grant the scope to the CI machine client as well.
+- Password login tokens and agent tokens are not checked. An empty list (the
+  default) turns the check off.
 
 `mcp.oauth` is gone: `/mcp` verifies tokens with the same settings as `/api`,
 and an IdP token is an evalkit user there too.
@@ -127,6 +152,7 @@ and an IdP token is an evalkit user there too.
 | 401 `SSO is not configured on this server` | A JWT reached a server without `auth.oidc` | Configure `auth.oidc` or use password login |
 | 401 `user is archived` | Archived in evalkit | `evalkit users restore <username>` |
 | 403 `password login is for admins on this server` | `password_login: admin` | Sign in with SSO, or set `password_login: all` |
+| 403 `access token lacks required scope <scope>` | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
 | 503 `identity provider unreachable` | Discovery or the JWKS could not be fetched | Check the issuer URL and network egress from the server; it retries every 30 s |
 | No "Continue with ..." button on the login page | `/api/auth/providers` has no `oidc` | `auth.oidc` is absent or the server was not restarted |
 | `your login has expired; run evalkit login` | The refresh token was refused and nothing newer was on disk | `evalkit login --url <url>` again |

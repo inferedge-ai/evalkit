@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `auth.oidc.required_scopes` (default empty) makes the server refuse IdP
+  access tokens that lack a scope, read from the `scope` and `scp` claims:
+  `POST /api/auth/oidc/register` (no user is created), every `/api` request and
+  `/mcp` answer 403 `access token lacks required scope <scope>`. Password
+  login and agent tokens are not checked. `/mcp` no longer stamps `evalkit:read`
+  on every token it accepts, and its tools no longer carry a per-tool scope.
 - evalkit now uses `httpx2` instead of `httpx` and `httpx-retries`. The
   CLI, the SDK and the server make their HTTP calls through `httpx2`, with a
   small retry transport of evalkit's own (`evalkit.client.retry`). Code that

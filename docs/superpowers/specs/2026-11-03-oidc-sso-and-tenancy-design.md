@@ -886,6 +886,19 @@ alone. `ProviderScopeVerifier`, the `mcp.oauth.scope` mapping and
 evalkit user has read scope on MCP. Archiving a user now cuts off MCP
 access too, which closes the gap the MCP docs describe today.
 
+`auth.oidc.required_scopes` (default empty) lets an operator whose IdP issues
+evalkit-audience tokens to every account demand a scope that only authorised
+people get. `token_scopes(claims)` in `api/oidc.py` returns the union of the
+`scope` claim (space-separated string) and the `scp` claim (list, or
+space-separated string). `sso_login` and `/api/auth/oidc/register` answer 403
+`access token lacks required scope <scope>` when a required scope is missing;
+register checks before it creates the user. For `/mcp`, the verifier puts the
+token's real scopes on the `AccessToken` and sets fastmcp's `required_scopes`
+to the configured list, so fastmcp answers 403 `insufficient_scope` itself. An
+evalkit login token is not an IdP token and gets the required scopes as
+granted. No tool carries its own scope requirement. Password-login and agent
+tokens are not checked.
+
 ## Registration and user lifecycle
 
 ### `POST /api/auth/oidc/register`

@@ -17,10 +17,15 @@ async def sso_app(
     idp: FakeIdp,
     *,
     password_login: str = "admin",
+    required_scopes: list[str] | None = None,
     transport: httpx2.AsyncBaseTransport | None = None,
 ) -> AsyncIterator[httpx2.AsyncClient]:
     env.deps.cfg.auth.oidc = OidcConfig(
-        issuer=idp.issuer, client_id=idp.client_id, audience=idp.audience, name="Fake"
+        issuer=idp.issuer,
+        client_id=idp.client_id,
+        audience=idp.audience,
+        name="Fake",
+        required_scopes=required_scopes or [],
     )
     env.deps.cfg.auth.password_login = password_login
     app = create_app(
@@ -325,3 +330,58 @@ async def test_binding_needs_an_idp(env, tmp_path):
     async with serve(env, tmp_path) as client:
         resp = await client.post("/api/users/akshat/identity", json={"subject": "s"})
     assert resp.status_code == 400 and "SSO is not configured" in resp.json()["detail"]
+
+
+SCOPE = "evalkit:read"
+
+
+async def test_register_is_refused_without_a_required_scope_and_creates_no_user(env, idp):
+    async with sso_app(env, idp, required_scopes=[SCOPE]) as client:
+        resp = await register(client, idp, "sub-ann", "ann@example.com", "ann")
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == f"access token lacks required scope {SCOPE}"
+        assert "ann" not in [u.username for u in await UserStore(env.session_factory, 1).list()]
+        resp = await register(
+            client, idp, "sub-ann", "ann@example.com", "ann", extra={"scope": SCOPE}
+        )
+        assert resp.status_code == 200
+
+
+async def test_api_requests_need_every_required_scope(env, idp):
+    await bind_user(env, idp, "ann", "sub-ann", "ann@example.com")
+    async with sso_app(env, idp, required_scopes=[SCOPE, "evalkit:write"]) as client:
+        none = await client.get("/api/auth/me", headers=bearer(idp.access_token("sub-ann")))
+        assert none.status_code == 403
+        partial = idp.access_token("sub-ann", extra={"scope": SCOPE})
+        resp = await client.get("/api/auth/me", headers=bearer(partial))
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == "access token lacks required scope evalkit:write"
+
+
+@pytest.mark.parametrize(
+    "claim, value",
+    [
+        ("scope", f"openid {SCOPE}"),
+        ("scp", [SCOPE, "other"]),
+        ("scp", f"other {SCOPE}"),
+    ],
+)
+async def test_api_accepts_a_token_with_the_scope_in_either_claim(env, idp, claim, value):
+    await bind_user(env, idp, "ann", "sub-ann", "ann@example.com")
+    async with sso_app(env, idp, required_scopes=[SCOPE]) as client:
+        idp.scope_claim, idp.scopes = claim, value
+        token = idp.access_token("sub-ann")
+        resp = await client.get("/api/auth/me", headers=bearer(token))
+        assert resp.status_code == 200
+
+
+async def test_empty_required_scopes_accept_tokens_without_scopes(env, idp):
+    await bind_user(env, idp, "ann", "sub-ann", "ann@example.com")
+    async with sso_app(env, idp) as client:
+        resp = await client.get("/api/auth/me", headers=bearer(idp.access_token("sub-ann")))
+        assert resp.status_code == 200
+
+
+async def test_password_login_tokens_ignore_required_scopes(env, idp):
+    async with sso_app(env, idp, required_scopes=[SCOPE]) as client:
+        assert (await client.get("/api/auth/me")).status_code == 200

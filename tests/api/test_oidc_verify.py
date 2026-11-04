@@ -4,7 +4,7 @@ import httpx2
 import pytest
 from fastapi import HTTPException
 
-from evalkit.api.oidc import OidcState, verify_access_token
+from evalkit.api.oidc import OidcState, token_scopes, verify_access_token
 from evalkit.config import OidcConfig
 from tests.identity import FakeIdp
 
@@ -190,3 +190,19 @@ async def test_a_known_kid_does_not_wait_on_an_inflight_refetch(oidc):
     finally:
         keys.lock.release()
     assert key.key_id == idp.kid
+
+
+@pytest.mark.parametrize(
+    "claims, expected",
+    [
+        ({}, set()),
+        ({"scope": "a b  c"}, {"a", "b", "c"}),
+        ({"scp": ["a", "b"]}, {"a", "b"}),
+        ({"scp": "a b"}, {"a", "b"}),
+        ({"scope": "a", "scp": ["b", "a"]}, {"a", "b"}),
+        ({"scp": ["a", 3]}, {"a"}),
+        ({"scope": 5}, set()),
+    ],
+)
+def test_token_scopes_unions_scope_and_scp(claims, expected):
+    assert token_scopes(claims) == expected

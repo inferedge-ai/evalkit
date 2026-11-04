@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from evalkit.api.oidc import IdpUnavailable, verify_access_token, verify_id_token
+from evalkit.api.oidc import IdpUnavailable, require_scopes, verify_access_token, verify_id_token
 from evalkit.contracts.enums import TokenKind
 from evalkit.db.auth import find_token
 from evalkit.db.models import AuthToken, User, Workspace, WorkspaceMember
@@ -99,9 +99,9 @@ def api_audience(state) -> list[str]:
     return [state.oidc.cfg.audience] if state.oidc is not None else []
 
 
-async def sso_login(
+async def sso_identity(
     state, token: str, audience: list[str], request: Request | None
-) -> tuple[User, datetime]:
+) -> tuple[User, dict]:
     if state.oidc is None:
         raise HTTPException(status_code=401, detail="SSO is not configured on this server")
     claims = await verify_access_token(state.oidc, token, audience)
@@ -120,6 +120,14 @@ async def sso_login(
         )
     if user.archived_at is not None:
         raise HTTPException(status_code=401, detail="user is archived")
+    return user, claims
+
+
+async def sso_login(
+    state, token: str, audience: list[str], request: Request | None
+) -> tuple[User, datetime]:
+    user, claims = await sso_identity(state, token, audience, request)
+    require_scopes(state.oidc, claims)
     return user, datetime.fromtimestamp(claims["exp"], UTC)
 
 
@@ -343,6 +351,7 @@ async def register_identity(body: RegisterRequest, request: Request) -> dict:
     if oidc is None:
         raise HTTPException(status_code=401, detail="SSO is not configured on this server")
     access = await verify_access_token(oidc, _bearer(request), api_audience(state))
+    require_scopes(oidc, access)
     idtok = await verify_id_token(oidc, body.id_token)
     if idtok["sub"] != access["sub"]:
         raise HTTPException(

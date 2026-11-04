@@ -112,6 +112,26 @@ async def verify_access_token(oidc: OidcState, token: str, audience: list[str]) 
         raise HTTPException(status_code=401, detail=f"invalid access token: {exc}") from exc
 
 
+def token_scopes(claims: dict) -> set[str]:
+    scopes: set[str] = set()
+    for claim in ("scope", "scp"):
+        value = claims.get(claim)
+        if isinstance(value, str):
+            scopes.update(value.split())
+        elif isinstance(value, list):
+            scopes.update(item for item in value if isinstance(item, str))
+    return scopes
+
+
+def require_scopes(oidc: OidcState, claims: dict) -> None:
+    missing = [scope for scope in oidc.cfg.required_scopes if scope not in token_scopes(claims)]
+    if missing:
+        raise HTTPException(
+            status_code=403,
+            detail=f"access token lacks required scope {' '.join(missing)}",
+        )
+
+
 async def verify_id_token(oidc: OidcState, token: str) -> dict:
     if oidc.keys is None:
         raise IdpUnavailable()
