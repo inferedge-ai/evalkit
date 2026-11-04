@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import base64
-import hashlib
 import secrets
 import threading
 import time
@@ -10,9 +8,12 @@ from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Protocol
-from urllib.parse import parse_qs, urlencode, urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 import httpx2
+from authlib.common.security import generate_token
+from authlib.integrations.base_client import OAuthError
+from authlib.integrations.httpx_client import OAuth2Client
 
 from evalkit.client import connection
 from evalkit.client.api import response_detail
@@ -77,19 +78,16 @@ class StoredOidcLogin:
             return refreshed.access_token
 
     def refresh(self, login: OidcLogin) -> OidcLogin | None:
-        with httpx2.Client(transport=self.transport, timeout=30.0) as http:
-            resp = http.post(
-                login.token_endpoint,
-                data={
-                    "grant_type": "refresh_token",
-                    "refresh_token": login.refresh_token,
-                    "client_id": login.client_id,
-                },
-            )
-        if resp.status_code in (400, 401):
-            return None
-        resp.raise_for_status()
-        tokens = resp.json()
+        with OAuth2Client(
+            client_id=login.client_id,
+            token_endpoint_auth_method="none",
+            transport=self.transport,
+            timeout=30.0,
+        ) as http:
+            try:
+                tokens = http.refresh_token(login.token_endpoint, refresh_token=login.refresh_token)
+            except OAuthError:
+                return None
         refreshed = login._replace(
             access_token=tokens["access_token"],
             refresh_token=tokens.get("refresh_token", login.refresh_token),
@@ -128,14 +126,18 @@ class ClientCredentials:
     def bearer(self) -> str:
         with self.lock:
             if self.token is None or expires_within(self.expires_at, REFRESH_WINDOW_SECONDS):
-                with httpx2.Client(transport=self.transport, timeout=30.0) as http:
-                    resp = http.post(
+                with OAuth2Client(
+                    client_id=self.machine.client_id,
+                    client_secret=self.machine.client_secret,
+                    token_endpoint_auth_method="client_secret_basic",
+                    transport=self.transport,
+                    timeout=30.0,
+                ) as http:
+                    tokens = http.fetch_token(
                         self.token_endpoint,
-                        data={"grant_type": "client_credentials", **self.authorize_params},
-                        auth=httpx2.BasicAuth(self.machine.client_id, self.machine.client_secret),
+                        grant_type="client_credentials",
+                        **self.authorize_params,
                     )
-                resp.raise_for_status()
-                tokens = resp.json()
                 self.token = tokens["access_token"]
                 self.expires_at = expiry_from(tokens)
             assert self.token is not None
@@ -205,15 +207,6 @@ class LoginRefused(Exception):
     pass
 
 
-def generate_verifier() -> str:
-    return secrets.token_urlsafe(48)
-
-
-def pkce_challenge(verifier: str) -> str:
-    digest = hashlib.sha256(verifier.encode()).digest()
-    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
-
-
 def run_loopback_flow(
     providers_oidc: dict,
     open_browser: Callable[[str], None],
@@ -242,22 +235,25 @@ def run_loopback_flow(
 
     server = HTTPServer(("127.0.0.1", 0), Callback)
     redirect_uri = f"http://127.0.0.1:{server.server_address[1]}/callback"
-    verifier = generate_verifier()
+    verifier = generate_token(64)
     state = secrets.token_urlsafe(16)
-    query = urlencode(
-        {
-            "response_type": "code",
-            "client_id": providers_oidc["client_id"],
-            "redirect_uri": redirect_uri,
-            "scope": " ".join(providers_oidc["scopes"]),
-            "state": state,
-            "code_challenge": pkce_challenge(verifier),
-            "code_challenge_method": "S256",
-            **providers_oidc["authorize_params"],
-        }
+    oauth = OAuth2Client(
+        client_id=providers_oidc["client_id"],
+        token_endpoint_auth_method="none",
+        code_challenge_method="S256",
+        transport=transport,
+        timeout=30.0,
+    )
+    authorization_url, _ = oauth.create_authorization_url(
+        providers_oidc["authorization_endpoint"],
+        code_verifier=verifier,
+        state=state,
+        redirect_uri=redirect_uri,
+        scope=" ".join(providers_oidc["scopes"]),
+        **providers_oidc["authorize_params"],
     )
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    open_browser(f"{providers_oidc['authorization_endpoint']}?{query}")
+    open_browser(authorization_url)
     finished = done.wait(timeout)
     server.shutdown()
     server.server_close()
@@ -271,19 +267,15 @@ def run_loopback_flow(
         )
     if "code" not in received:
         raise LoginRefused("the login callback carried no code")
-    with httpx2.Client(transport=transport, timeout=30.0) as http:
-        resp = http.post(
-            providers_oidc["token_endpoint"],
-            data={
-                "grant_type": "authorization_code",
-                "code": received["code"],
-                "redirect_uri": redirect_uri,
-                "client_id": providers_oidc["client_id"],
-                "code_verifier": verifier,
-            },
+    with oauth:
+        return dict(
+            oauth.fetch_token(
+                providers_oidc["token_endpoint"],
+                code=received["code"],
+                code_verifier=verifier,
+                redirect_uri=redirect_uri,
+            )
         )
-    resp.raise_for_status()
-    return resp.json()
 
 
 def run_device_flow(

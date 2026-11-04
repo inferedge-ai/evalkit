@@ -10,7 +10,6 @@ from evalkit.client.oidc import (
     LoginTimedOut,
     NoDeviceGrant,
     login_from_tokens,
-    pkce_challenge,
     register_identity,
     run_device_flow,
     run_loopback_flow,
@@ -51,11 +50,6 @@ def callback_for(url: str, **params: str) -> None:
     threading.Thread(
         target=lambda: httpx2.get(query["redirect_uri"][0], params=params), daemon=True
     ).start()
-
-
-def test_pkce_challenge_matches_the_rfc_example():
-    verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
-    assert pkce_challenge(verifier) == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
 
 
 def test_loopback_flow_sends_pkce_and_the_authorize_params():
