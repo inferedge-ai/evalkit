@@ -102,6 +102,21 @@ def test_stored_login_does_not_adopt_a_login_for_another_server(tmp_path):
         stale.bearer()
 
 
+def test_stored_login_treats_a_refresh_reply_without_an_access_token_as_expired(
+    tmp_path, monkeypatch
+):
+    idp = FakeIdp()
+    conn, path = stored(idp, tmp_path, seconds_left=30)
+    monkeypatch.setattr(
+        idp,
+        "_token",
+        lambda form: (400, {"content-type": "application/json"}, b'{"detail": "bad gateway"}'),
+    )
+    source = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    with pytest.raises(LoginExpired):
+        source.bearer()
+
+
 def test_stored_login_refreshes_once_under_concurrency(tmp_path):
     idp = FakeIdp()
     conn, path = stored(idp, tmp_path, seconds_left=30)

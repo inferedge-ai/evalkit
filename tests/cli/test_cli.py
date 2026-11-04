@@ -16,7 +16,6 @@ import httpx2
 import pytest
 import sqlalchemy as sa
 import uvicorn
-from authlib.integrations.base_client import OAuthError
 from typer.testing import CliRunner
 
 from evalkit.api import experiments as experiments_api
@@ -1622,7 +1621,7 @@ def test_login_reports_a_refused_code_exchange_as_one_line(tmp_path, monkeypatch
     monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
 
     def refused(oidc_cfg, open_browser, **kw):
-        raise OAuthError("invalid_grant", "code expired")
+        raise client_oidc.LoginRefused("invalid_grant: code expired")
 
     monkeypatch.setattr(client_oidc, "run_loopback_flow", refused)
     monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")

@@ -4,7 +4,9 @@ from urllib.parse import parse_qs, urlsplit
 import httpx2
 import jwt
 import pytest
+from authlib.integrations.httpx_client import OAuth2Client
 
+from evalkit.client import oidc
 from evalkit.client.oidc import (
     LoginRefused,
     LoginTimedOut,
@@ -182,3 +184,34 @@ def test_login_from_tokens_builds_the_connection():
     assert conn.oidc.refresh_token == tokens["refresh_token"]
     assert conn.oidc.token_endpoint == f"{idp.issuer}/token"
     assert conn.token is None
+
+
+def test_loopback_flow_closes_its_client_when_it_times_out(monkeypatch):
+    closed: list[bool] = []
+
+    class Spy(OAuth2Client):
+        def __exit__(self, *args) -> None:
+            closed.append(True)
+            super().__exit__(*args)
+
+    monkeypatch.setattr(oidc, "OAuth2Client", Spy)
+    idp = FakeIdp()
+    with pytest.raises(LoginTimedOut):
+        run_loopback_flow(providers_for(idp), lambda url: None, timeout=0.05)
+    assert closed == [True]
+
+
+def test_loopback_flow_reports_a_refused_code_exchange_as_login_refused(monkeypatch):
+    idp = FakeIdp()
+    idp.next_login = ("sub-1", "ann@example.com", "ann")
+    monkeypatch.setattr(
+        idp,
+        "_token",
+        lambda form: (
+            400,
+            {"content-type": "application/json"},
+            b'{"error": "invalid_grant", "error_description": "code expired"}',
+        ),
+    )
+    with pytest.raises(LoginRefused, match="invalid_grant: code expired"):
+        run_loopback_flow(providers_for(idp), browser_for(idp), transport=idp.transport())

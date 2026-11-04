@@ -97,6 +97,8 @@ class StoredOidcLogin:
                 tokens = http.refresh_token(login.token_endpoint, refresh_token=login.refresh_token)
             except OAuthError:
                 return None
+        if "access_token" not in tokens:
+            return None
         refreshed = login._replace(
             access_token=tokens["access_token"],
             refresh_token=tokens.get("refresh_token", login.refresh_token),
@@ -249,45 +251,46 @@ def run_loopback_flow(
     redirect_uri = f"http://127.0.0.1:{server.server_address[1]}/callback"
     verifier = generate_token(64)
     state = secrets.token_urlsafe(16)
-    oauth = OAuth2Client(
+    with OAuth2Client(
         client_id=providers_oidc["client_id"],
         token_endpoint_auth_method="none",
         code_challenge_method="S256",
         transport=transport,
         timeout=30.0,
-    )
-    authorization_url, _ = oauth.create_authorization_url(
-        providers_oidc["authorization_endpoint"],
-        code_verifier=verifier,
-        state=state,
-        redirect_uri=redirect_uri,
-        scope=" ".join(providers_oidc["scopes"]),
-        **providers_oidc["authorize_params"],
-    )
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    open_browser(authorization_url)
-    finished = done.wait(timeout)
-    server.shutdown()
-    server.server_close()
-    if not finished:
-        raise LoginTimedOut()
-    if received.get("state") != state:
-        raise LoginRefused("state mismatch on the login callback")
-    if "error" in received:
-        raise LoginRefused(
-            f"{received['error']}: {received.get('error_description', 'login refused')}"
+    ) as oauth:
+        authorization_url, _ = oauth.create_authorization_url(
+            providers_oidc["authorization_endpoint"],
+            code_verifier=verifier,
+            state=state,
+            redirect_uri=redirect_uri,
+            scope=" ".join(providers_oidc["scopes"]),
+            **providers_oidc["authorize_params"],
         )
-    if "code" not in received:
-        raise LoginRefused("the login callback carried no code")
-    with oauth:
-        return dict(
-            oauth.fetch_token(
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        open_browser(authorization_url)
+        finished = done.wait(timeout)
+        server.shutdown()
+        server.server_close()
+        if not finished:
+            raise LoginTimedOut()
+        if received.get("state") != state:
+            raise LoginRefused("state mismatch on the login callback")
+        if "error" in received:
+            raise LoginRefused(
+                f"{received['error']}: {received.get('error_description', 'login refused')}"
+            )
+        if "code" not in received:
+            raise LoginRefused("the login callback carried no code")
+        try:
+            tokens = oauth.fetch_token(
                 providers_oidc["token_endpoint"],
                 code=received["code"],
                 code_verifier=verifier,
                 redirect_uri=redirect_uri,
             )
-        )
+        except OAuthError as exc:
+            raise LoginRefused(f"{exc.error}: {exc.description}") from exc
+        return dict(tokens)
 
 
 def run_device_flow(
