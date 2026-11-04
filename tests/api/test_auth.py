@@ -10,8 +10,8 @@ from evalkit.api import auth as auth_module
 from evalkit.api.auth import bootstrap_admin, router
 from evalkit.config import AuthConfig
 from evalkit.core.tenant import resolve_tenant
-from evalkit.db.models import AuthToken, User
-from evalkit.db.session import head_revision, run_migrations
+from evalkit.db.models import AuthToken, Tenant, User
+from evalkit.db.session import ALL_TENANTS, head_revision, run_migrations, tenant_session
 from evalkit.db.users import InvalidPassword, UserStore, hash_password
 from tests.identity import seed_identity
 
@@ -230,3 +230,13 @@ async def test_login_accepts_short_passwords(client, session_factory):
 async def test_bootstrap_admin_refuses_a_bad_password(session_factory, password):
     with pytest.raises(InvalidPassword):
         await bootstrap_admin(session_factory, password)
+
+
+async def test_login_with_the_same_username_in_two_tenants(client, raw_session_factory):
+    async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
+        s.add(Tenant(id=2, name="other"))
+        await s.commit()
+    await UserStore(raw_session_factory, 2).create("alice", "other-pw")
+    assert await login(client, "alice", "wonderland")
+    resp = await client.post("/api/auth/login", json={"username": "alice", "password": "other-pw"})
+    assert resp.status_code == 401
