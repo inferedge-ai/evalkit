@@ -245,7 +245,15 @@ async def login(body: LoginRequest, request: Request) -> dict:
             raise HTTPException(status_code=401, detail="invalid username or password")
         if user.archived_at is not None:
             raise HTTPException(status_code=401, detail="user is archived")
-        ttl = timedelta(hours=request.app.state.cfg.auth.token_ttl_hours)
+        cfg = request.app.state.cfg
+        if cfg.auth.resolve_password_login() == "admin" and not user.is_admin:
+            assert cfg.auth.oidc is not None
+            name = cfg.auth.oidc.name
+            raise HTTPException(
+                status_code=403,
+                detail=f"password login is for admins on this server; sign in with {name}",
+            )
+        ttl = timedelta(hours=cfg.auth.token_ttl_hours)
         token = await issue_token(session, user, ttl)
     return {"token": token, "username": user.username, "is_admin": user.is_admin}
 

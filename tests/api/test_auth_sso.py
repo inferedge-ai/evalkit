@@ -246,3 +246,40 @@ async def test_register_checks_the_id_tokens_own_kid(env, idp):
             json={"id_token": idp.id_token("sub-1", "a@example.com", "a", kid="k2")},
         )
     assert resp.status_code == 401 and "signing key" in resp.json()["detail"]
+
+
+async def test_password_login_is_admin_only_by_default_with_an_idp(env, idp):
+    async with sso_app(env, idp) as client:
+        admin = await client.post(
+            "/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
+        )
+        assert admin.status_code == 200
+        akshat = await client.post(
+            "/api/auth/login", json={"username": "akshat", "password": "password"}
+        )
+        assert akshat.status_code == 403
+        assert (
+            akshat.json()["detail"]
+            == "password login is for admins on this server; sign in with Fake"
+        )
+        wrong = await client.post(
+            "/api/auth/login", json={"username": "akshat", "password": "nope"}
+        )
+        assert wrong.status_code == 401
+
+
+async def test_password_login_for_all_when_configured(env, idp):
+    async with sso_app(env, idp, password_login="all") as client:
+        resp = await client.post(
+            "/api/auth/login", json={"username": "akshat", "password": "password"}
+        )
+    assert resp.status_code == 200
+
+
+async def test_a_user_without_a_password_gets_401(env, idp):
+    async with sso_app(env, idp, password_login="all") as client:
+        assert (await register(client, idp, "sub-ann", "ann@example.com", "ann")).status_code == 200
+        resp = await client.post(
+            "/api/auth/login", json={"username": "ann", "password": "anything"}
+        )
+    assert resp.status_code == 401 and resp.json()["detail"] == "invalid username or password"
