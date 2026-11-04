@@ -386,7 +386,7 @@ def create_app(
         # refresh or a direct link. Unmatched /api/* paths stay 404s.
         @app.get("/{path:path}", include_in_schema=False)
         async def spa(path: str):
-            if path.startswith(("api/", "assets/")):
+            if path.startswith(("api/", "assets/", ".well-known/")):
                 raise HTTPException(status_code=404)
             candidate = (ui_dist / path).resolve()
             if candidate.is_relative_to(root) and candidate.is_file():

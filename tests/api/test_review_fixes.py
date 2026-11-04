@@ -99,6 +99,7 @@ async def test_spa_history_fallback(api):
     assert (await client.get("/assets/index.js")).status_code == 200
     assert (await client.get("/assets/missing.js")).status_code == 404
     assert (await client.get("/api/nope")).status_code == 404
+    assert (await client.get("/.well-known/oauth-protected-resource/mcp")).status_code == 404
 
 
 async def test_spa_fallback_never_serves_files_outside_dist(api, tmp_path):
