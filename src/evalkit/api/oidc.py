@@ -114,3 +114,21 @@ async def verify_access_token(oidc: OidcState, token: str, audience: list[str]) 
         )
     except jwt.PyJWTError as exc:
         raise HTTPException(status_code=401, detail=f"invalid access token: {exc}") from exc
+
+
+async def verify_id_token(oidc: OidcState, token: str) -> dict:
+    if oidc.keys is None:
+        raise IdpUnavailable()
+    try:
+        key = await oidc.keys.signing_key(token)
+        return jwt.decode(
+            token,
+            key.key,
+            algorithms=oidc.cfg.algorithms,
+            issuer=oidc.cfg.issuer,
+            audience=oidc.cfg.client_id,
+            options={"require": REQUIRED_CLAIMS},
+            leeway=LEEWAY_SECONDS,
+        )
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail=f"invalid id_token: {exc}") from exc

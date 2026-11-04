@@ -106,7 +106,7 @@ def server(tmp_path_factory, stub_judges_module, fake_harness, harness_url, modu
     async def setup_db():
         factory = make_session_factory(module_db_url)
         env = await seed_env(factory, tmp_path, fake_harness)
-        await UserStore(factory, 1).create("ravi", "password")
+        await UserStore(factory, 1).create("ravi", password="password")
         await seed_agent(factory, "fake", "admin", harness_url=harness_url)
         await seed_agent(factory, "fake", "ravi", harness_url=harness_url)
         await seed_agent(

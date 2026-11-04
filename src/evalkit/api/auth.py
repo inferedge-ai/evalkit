@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from evalkit.api.oidc import IdpUnavailable, verify_access_token
+from evalkit.api.oidc import IdpUnavailable, verify_access_token, verify_id_token
 from evalkit.contracts.enums import TokenKind
 from evalkit.db.auth import find_token
 from evalkit.db.models import AuthToken, User, Workspace, WorkspaceMember
@@ -17,6 +17,7 @@ from evalkit.db.session import tenant_session
 from evalkit.db.tokens import token_hash
 from evalkit.db.users import (
     PASSWORD_MAX_BYTES,
+    UserArchived,
     UserStore,
     any_admin_exists,
     hash_password,
@@ -306,4 +307,42 @@ async def bootstrap_admin(
             "no admin user exists and EVALKIT_ADMIN_PASSWORD is not set; "
             "set it and start the server again to create the admin user"
         )
-    await UserStore(session_factory, 1).create("admin", password, is_admin=True)
+    await UserStore(session_factory, 1).create("admin", password=password, is_admin=True)
+
+
+class RegisterRequest(BaseModel):
+    id_token: str
+
+
+@router.post("/oidc/register")
+async def register_identity(body: RegisterRequest, request: Request) -> dict:
+    state = request.app.state
+    oidc = state.oidc
+    if oidc is None:
+        raise HTTPException(status_code=401, detail="SSO is not configured on this server")
+    access = await verify_access_token(oidc, _bearer(request), api_audience(state))
+    idtok = await verify_id_token(oidc, body.id_token)
+    if idtok["sub"] != access["sub"]:
+        raise HTTPException(
+            status_code=400, detail="id_token and access token name different subjects"
+        )
+    if "email" not in idtok:
+        raise HTTPException(
+            status_code=400,
+            detail="the ID token has no email claim; ask the IdP admin to grant the email scope",
+        )
+    tenant_id = state.resolve_tenant(request, access)
+    store = UserStore(state.session_factory, tenant_id)
+    try:
+        user, created = await store.register(
+            idtok["iss"], idtok["sub"], idtok["email"], idtok.get("preferred_username")
+        )
+    except UserArchived as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    return {
+        "username": user.username,
+        "is_admin": user.is_admin,
+        "email": user.email,
+        "kind": user.kind,
+        "created": created,
+    }

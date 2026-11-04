@@ -20,7 +20,7 @@ from evalkit.db.workspaces import WorkspaceStore
 
 
 async def test_create_user_creates_personal_workspace(session_factory):
-    await UserStore(session_factory, 1).create("akshat", "password")
+    await UserStore(session_factory, 1).create("akshat", password="password")
     ws = await WorkspaceStore(session_factory, 1).get_by_name("akshat")
     assert ws.owner_user_id is not None and not ws.is_shared
 
@@ -28,18 +28,18 @@ async def test_create_user_creates_personal_workspace(session_factory):
 async def test_name_clash_with_shared_workspace(session_factory):
     await WorkspaceStore(session_factory, 1).create_shared("dev", actor_id=None)
     with pytest.raises(NameTaken):
-        await UserStore(session_factory, 1).create("dev", "password")
+        await UserStore(session_factory, 1).create("dev", password="password")
 
 
 async def test_name_clash_with_user(session_factory):
-    await UserStore(session_factory, 1).create("bob", "password")
+    await UserStore(session_factory, 1).create("bob", password="password")
     with pytest.raises(NameTaken):
         await WorkspaceStore(session_factory, 1).create_shared("bob", actor_id=None)
 
 
 async def test_archive_revokes_tokens_and_archives_workspace(session_factory):
     users = UserStore(session_factory, 1)
-    bob = await users.create("bob", "password")
+    bob = await users.create("bob", password="password")
     async with session_factory() as s:
         s.add(AuthToken(user_id=bob.id, token_hash="h" * 64))
         await s.commit()
@@ -54,7 +54,7 @@ async def test_archive_revokes_tokens_and_archives_workspace(session_factory):
 
 async def test_restore_keeps_a_workspace_archived_on_its_own(session_factory):
     users = UserStore(session_factory, 1)
-    await users.create("bob", "password")
+    await users.create("bob", password="password")
     workspaces = WorkspaceStore(session_factory, 1)
     await workspaces.set_archived("bob", datetime.now(UTC) - timedelta(days=1))
     await users.archive("bob")
@@ -64,8 +64,8 @@ async def test_restore_keeps_a_workspace_archived_on_its_own(session_factory):
 
 async def test_archive_keeps_agent_tokens(session_factory):
     users = UserStore(session_factory, 1)
-    await users.create("root", "password", is_admin=True)
-    minter = await users.create("minter", "password", is_admin=True)
+    await users.create("root", password="password", is_admin=True)
+    minter = await users.create("minter", password="password", is_admin=True)
     await WorkspaceStore(session_factory, 1).create_shared("dev", None)
     agent = await AgentStore(session_factory, 1).create(
         await WorkspaceStore(session_factory, 1).get_by_name("dev"), "ouragent"
@@ -86,7 +86,7 @@ async def test_archive_keeps_agent_tokens(session_factory):
 
 async def test_set_password_replaces_the_hash_and_signs_out(session_factory):
     users = UserStore(session_factory, 1)
-    bob = await users.create("bob", "old-password")
+    bob = await users.create("bob", password="old-password")
     async with session_factory() as s:
         s.add(AuthToken(user_id=bob.id, token_hash="h" * 64))
         await s.commit()
@@ -101,8 +101,8 @@ async def test_set_password_replaces_the_hash_and_signs_out(session_factory):
 async def test_create_and_set_password_enforce_the_password_rules(session_factory, password):
     users = UserStore(session_factory, 1)
     with pytest.raises(InvalidPassword):
-        await users.create("bob", password)
-    await users.create("bob", "12345678")
+        await users.create("bob", password=password)
+    await users.create("bob", password="12345678")
     with pytest.raises(InvalidPassword):
         await users.set_password("bob", password)
     await users.set_password("bob", "é" * 36)
@@ -111,7 +111,7 @@ async def test_create_and_set_password_enforce_the_password_rules(session_factor
 @pytest.mark.parametrize("name", ["", "a@b", "a/b", "Bob", "two words", "-x", "bob\n"])
 async def test_invalid_names_are_refused(session_factory, name):
     with pytest.raises(InvalidName):
-        await UserStore(session_factory, 1).create(name, "password")
+        await UserStore(session_factory, 1).create(name, password="password")
     with pytest.raises(InvalidName):
         await WorkspaceStore(session_factory, 1).create_shared(name, None)
 
@@ -119,8 +119,8 @@ async def test_invalid_names_are_refused(session_factory, name):
 async def test_concurrent_creates_of_one_name_raise_name_taken(session_factory):
     users = UserStore(session_factory, 1)
     results = await asyncio.gather(
-        users.create("twin", "password"),
-        users.create("twin", "password"),
+        users.create("twin", password="password"),
+        users.create("twin", password="password"),
         WorkspaceStore(session_factory, 1).create_shared("twin", None),
         return_exceptions=True,
     )
@@ -130,8 +130,8 @@ async def test_concurrent_creates_of_one_name_raise_name_taken(session_factory):
 
 async def test_concurrent_demotions_keep_one_admin(session_factory):
     users = UserStore(session_factory, 1)
-    await users.create("a1", "password", is_admin=True)
-    await users.create("a2", "password", is_admin=True)
+    await users.create("a1", password="password", is_admin=True)
+    await users.create("a2", password="password", is_admin=True)
     results = await asyncio.gather(
         users.set_admin("a1", False), users.set_admin("a2", False), return_exceptions=True
     )
@@ -141,12 +141,12 @@ async def test_concurrent_demotions_keep_one_admin(session_factory):
 
 async def test_cannot_demote_or_archive_last_admin(session_factory):
     users = UserStore(session_factory, 1)
-    await users.create("root", "password", is_admin=True)
+    await users.create("root", password="password", is_admin=True)
     with pytest.raises(LastAdmin):
         await users.set_admin("root", False)
     with pytest.raises(LastAdmin):
         await users.archive("root")
-    await users.create("second", "password")
+    await users.create("second", password="password")
     await users.set_admin("second", True)
     await users.set_admin("root", False)
 
@@ -155,8 +155,8 @@ async def test_user_store_is_bound_to_its_tenant(raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
         s.add(Tenant(id=2, name="other"))
         await s.commit()
-    await UserStore(raw_session_factory, 1).create("akshat", "password")
-    await UserStore(raw_session_factory, 2).create("akshat", "password")
+    await UserStore(raw_session_factory, 1).create("akshat", password="password")
+    await UserStore(raw_session_factory, 2).create("akshat", password="password")
     assert [u.username for u in await UserStore(raw_session_factory, 1).list()] == ["akshat"]
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
         rows = (await s.execute(select(User.tenant_id, User.username))).all()

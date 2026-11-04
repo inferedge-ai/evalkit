@@ -89,7 +89,9 @@ async def test_trace_import_refuses_a_source_from_another_tenant(raw_session_fac
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
         s.add(Tenant(id=2, name="other"))
         await s.commit()
-    admin = await UserStore(raw_session_factory, 1).create("admin", "password", is_admin=True)
+    admin = await UserStore(raw_session_factory, 1).create(
+        "admin", password="password", is_admin=True
+    )
     dev = await WorkspaceStore(raw_session_factory, 1).create_shared("dev", admin.id)
     agent = await AgentStore(raw_session_factory, 1).create(dev, "bot", harness_url="https://h")
     other = await TraceSourceStore(raw_session_factory, 2, None).create(

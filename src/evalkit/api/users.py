@@ -28,7 +28,7 @@ class CreateUserRequest(BaseModel):
 
 @router.post("")
 async def create_user(body: CreateUserRequest, stores: StoresDep, admin: AdminUser) -> dict:
-    await stores.users.create(body.username, body.password)
+    await stores.users.create(body.username, password=body.password)
     return {"username": body.username}
 
 

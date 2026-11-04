@@ -12,9 +12,9 @@ from evalkit.db.workspaces import PromotionLinkError, UnknownWorkspace, Workspac
 @pytest.fixture
 async def stores(session_factory):
     users = UserStore(session_factory, 1)
-    admin = await users.create("admin", "password", is_admin=True)
-    await users.create("bob", "password")
-    await users.create("carol", "password")
+    admin = await users.create("admin", password="password", is_admin=True)
+    await users.create("bob", password="password")
+    await users.create("carol", password="password")
     return WorkspaceStore(session_factory, 1), admin.id
 
 
@@ -104,9 +104,11 @@ async def test_member_grant_refuses_a_user_from_another_tenant(raw_session_facto
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
         s.add(Tenant(id=2, name="other"))
         await s.commit()
-    admin = await UserStore(raw_session_factory, 1).create("admin", "password", is_admin=True)
+    admin = await UserStore(raw_session_factory, 1).create(
+        "admin", password="password", is_admin=True
+    )
     await WorkspaceStore(raw_session_factory, 1).create_shared("dev", admin.id)
-    await UserStore(raw_session_factory, 2).create("eve", "password")
+    await UserStore(raw_session_factory, 2).create("eve", password="password")
     with pytest.raises(UnknownUser):
         await WorkspaceStore(raw_session_factory, 1).add_member(
             "dev", "eve", WorkspaceRole.WRITER, admin.id

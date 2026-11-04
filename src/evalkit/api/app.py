@@ -84,7 +84,14 @@ from evalkit.db.trace_sources import (
     TraceSourceExists,
     UnknownTraceSource,
 )
-from evalkit.db.users import InvalidName, InvalidPassword, LastAdmin, NameTaken, UnknownUser
+from evalkit.db.users import (
+    IdentityConflict,
+    InvalidName,
+    InvalidPassword,
+    LastAdmin,
+    NameTaken,
+    UnknownUser,
+)
 from evalkit.db.workspaces import PromotionLinkError, SharedOnly, UnknownWorkspace
 from evalkit.paths import ui_root
 from evalkit.store.base import Conflict, UnknownDataset, UnknownExperiment
@@ -287,6 +294,7 @@ def create_app(
         return JSONResponse(status_code=404, content={"detail": exc.args[0]})
 
     @app.exception_handler(NameTaken)
+    @app.exception_handler(IdentityConflict)
     @app.exception_handler(LastAdmin)
     @app.exception_handler(AgentExists)
     @app.exception_handler(EvaluatorExists)
