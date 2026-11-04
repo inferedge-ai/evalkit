@@ -62,6 +62,11 @@ class CostMapConfig(ConfigModel):
     source: str = "bundled"
 
 
+class AdminClaimConfig(ConfigModel):
+    name: str
+    value: str
+
+
 class OidcConfig(ConfigModel):
     issuer: str
     client_id: str
@@ -71,6 +76,9 @@ class OidcConfig(ConfigModel):
     required_scopes: list[str] = []
     authorize_params: dict[str, str] = {}
     algorithms: list[str] = ["RS256"]
+    tenant_claim: str | None = None
+    tenant_auto_create: bool = False
+    admin_claim: AdminClaimConfig | None = None
 
     @field_validator("scopes")
     @classmethod
@@ -87,6 +95,12 @@ class OidcConfig(ConfigModel):
                 f"auth.oidc.required_scopes lists {', '.join(missing)}, "
                 "which auth.oidc.scopes does not request; add it to auth.oidc.scopes"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _auto_create_needs_a_tenant_claim(self) -> OidcConfig:
+        if self.tenant_auto_create and self.tenant_claim is None:
+            raise ValueError("auth.oidc.tenant_auto_create needs auth.oidc.tenant_claim")
         return self
 
     @field_validator("issuer")

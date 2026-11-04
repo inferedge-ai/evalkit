@@ -79,6 +79,7 @@ from evalkit.db.llm_providers import (
 from evalkit.db.rekey import count_sealed
 from evalkit.db.session import make_session_factory, migrate_under_lock, verify_schema
 from evalkit.db.store import PgStore
+from evalkit.db.tenants import TenantExists
 from evalkit.db.trace_imports import UnknownTraceImport, reap_imports
 from evalkit.db.trace_sources import (
     EncryptionKeyMissing,
@@ -310,6 +311,7 @@ def create_app(
 
     @app.exception_handler(NameTaken)
     @app.exception_handler(IdentityConflict)
+    @app.exception_handler(TenantExists)
     @app.exception_handler(LastAdmin)
     @app.exception_handler(AgentExists)
     @app.exception_handler(EvaluatorExists)

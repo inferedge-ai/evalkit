@@ -77,6 +77,7 @@ skills_app = typer.Typer(no_args_is_help=True, help="Install the bundled agent s
 contracts_app = typer.Typer(no_args_is_help=True, help="Export the bundled API contracts.")
 db_app = typer.Typer(no_args_is_help=True, help="Server database schema upgrades (server only).")
 blobs_app = typer.Typer(no_args_is_help=True, help="Blob storage maintenance (server only).")
+tenants_app = typer.Typer(no_args_is_help=True, help="Create tenants (server only).")
 review_app = typer.Typer(no_args_is_help=True, help="Request, give and read case reviews.")
 app.add_typer(datasets_app, name="datasets")
 app.add_typer(harness_app, name="harness")
@@ -85,6 +86,7 @@ app.add_typer(skills_app, name="skills")
 app.add_typer(contracts_app, name="contracts")
 app.add_typer(db_app, name="db")
 app.add_typer(blobs_app, name="blobs")
+app.add_typer(tenants_app, name="tenants")
 app.add_typer(review_app, name="review")
 
 
@@ -1418,6 +1420,26 @@ def db_rekey(
         )
     )
     typer.echo(f"re-encrypted {count} stored API key(s)")
+
+
+@tenants_app.command("create")
+def tenants_create(
+    name: str = typer.Argument(..., help="The tenant's name, unique on this server."),
+    external_id: str | None = typer.Option(
+        None, "--external-id", help="The organisation id the IdP sends in auth.oidc.tenant_claim."
+    ),
+    config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),
+):
+    """Create a tenant (server-side). With auth.oidc.tenant_claim set, people whose access
+    token carries the tenant's external id sign in to it.
+
+    Example: evalkit tenants create acme --external-id ORG-7f3a --config config.yaml
+    """
+    if server_commands is None:
+        raise ApiError("`tenants create` needs the server extra — pip install 'evalkit-py[server]'")
+    server_cfg = _server_config(config)
+    tenant_id = asyncio.run(server_commands.create_tenant(server_cfg, name, external_id))
+    typer.echo(f"created tenant {name} (id {tenant_id})")
 
 
 # TODO: remove in 0.6.0, two minor versions after 0.4.0 moved blobs under tenants/

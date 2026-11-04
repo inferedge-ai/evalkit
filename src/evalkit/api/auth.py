@@ -14,6 +14,7 @@ from evalkit.contracts.enums import TokenKind
 from evalkit.db.auth import find_token
 from evalkit.db.models import AuthToken, User, Workspace, WorkspaceMember
 from evalkit.db.session import tenant_session
+from evalkit.db.tenants import create_tenant, find_identity
 from evalkit.db.tokens import token_hash
 from evalkit.db.users import (
     PASSWORD_MAX_BYTES,
@@ -107,14 +108,23 @@ async def sso_identity(
     claims = await verify_access_token(state.oidc, token, audience)
     if enforce_scopes:
         require_scopes(state.oidc, claims)
-    tenant_id = state.resolve_tenant(request, claims)
-    async with tenant_session(state.session_factory, tenant_id) as session:
-        user = await session.scalar(
-            select(User).where(
-                User.tenant_id == tenant_id,
-                User.issuer == claims["iss"],
-                User.subject == claims["sub"],
+    user: User | None
+    if state.oidc.cfg.tenant_claim is None:
+        tenant_id = state.resolve_tenant(request, claims)
+        async with tenant_session(state.session_factory, tenant_id) as session:
+            user = await session.scalar(
+                select(User).where(
+                    User.tenant_id == tenant_id,
+                    User.issuer == claims["iss"],
+                    User.subject == claims["sub"],
+                )
             )
+    else:
+        _, user = await find_identity(
+            state.session_factory,
+            tenant_claim_value(state.oidc, claims),
+            claims["iss"],
+            claims["sub"],
         )
     if user is None:
         raise HTTPException(
@@ -123,6 +133,43 @@ async def sso_identity(
     if user.archived_at is not None:
         raise HTTPException(status_code=401, detail="user is archived")
     return user, claims
+
+
+def tenant_claim_value(oidc, claims: dict) -> str:
+    claim = oidc.cfg.tenant_claim
+    value = claims.get(claim)
+    if not isinstance(value, str) or not value:
+        raise HTTPException(status_code=403, detail=f"access token has no {claim} claim")
+    return value
+
+
+def admin_from_claims(oidc, claims: dict) -> bool | None:
+    rule = oidc.cfg.admin_claim
+    if rule is None:
+        return None
+    value = claims.get(rule.name)
+    if isinstance(value, list):
+        return rule.value in value
+    return value == rule.value
+
+
+async def register_tenant(state, request: Request, claims: dict) -> int:
+    oidc = state.oidc
+    if oidc.cfg.tenant_claim is None:
+        return state.resolve_tenant(request, claims)
+    external_id = tenant_claim_value(oidc, claims)
+    tenant_id, _ = await find_identity(
+        state.session_factory, external_id, claims["iss"], claims["sub"]
+    )
+    if tenant_id is not None:
+        return tenant_id
+    if not oidc.cfg.tenant_auto_create:
+        raise HTTPException(
+            status_code=403,
+            detail=f"no tenant for {oidc.cfg.tenant_claim} {external_id}; "
+            "ask the operator to create one with evalkit tenants create",
+        )
+    return await create_tenant(state.session_factory, external_id, external_id, exist_ok=True)
 
 
 async def sso_login(
@@ -364,11 +411,15 @@ async def register_identity(body: RegisterRequest, request: Request) -> dict:
             status_code=400,
             detail="the ID token has no email claim; ask the IdP admin to grant the email scope",
         )
-    tenant_id = state.resolve_tenant(request, access)
+    tenant_id = await register_tenant(state, request, access)
     store = UserStore(state.session_factory, tenant_id)
     try:
         user, created = await store.register(
-            idtok["iss"], idtok["sub"], idtok["email"], idtok.get("preferred_username")
+            idtok["iss"],
+            idtok["sub"],
+            idtok["email"],
+            idtok.get("preferred_username"),
+            admin_from_claims(oidc, access),
         )
     except UserArchived as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc

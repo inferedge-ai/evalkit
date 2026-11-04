@@ -26,6 +26,8 @@ from evalkit.db.crypto import SecretBox
 from evalkit.db.llm_providers import LlmProviderStore
 from evalkit.db.rekey import rekey_all
 from evalkit.db.session import make_session_factory, run_migrations
+from evalkit.db.tenants import TenantExists
+from evalkit.db.tenants import create_tenant as create_tenant_row
 from evalkit.store.blob import Obstore
 
 
@@ -60,6 +62,16 @@ async def rekey(config: Config, old_key: str, new_key: str) -> int:
     count = await rekey_all(factory, SecretBox(old_key), SecretBox(new_key))
     await factory.kw["bind"].dispose()
     return count
+
+
+async def create_tenant(config: Config, name: str, external_id: str | None) -> int:
+    factory = make_session_factory(config.db.url)
+    try:
+        return await create_tenant_row(factory, name, external_id)
+    except TenantExists as exc:
+        raise ApiError(str(exc)) from exc
+    finally:
+        await factory.kw["bind"].dispose()
 
 
 # TODO: remove in 0.6.0, two minor versions after 0.4.0 moved blobs under tenants/

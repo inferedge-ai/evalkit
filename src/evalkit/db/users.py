@@ -182,7 +182,12 @@ class UserStore:
             return user
 
     async def register(
-        self, issuer: str, subject: str, email: str, preferred_username: str | None
+        self,
+        issuer: str,
+        subject: str,
+        email: str,
+        preferred_username: str | None,
+        is_admin: bool | None = None,
     ) -> tuple[User, bool]:
         async with self._session() as s:
             await lock_names(s)
@@ -196,8 +201,10 @@ class UserStore:
             if user is not None:
                 if user.archived_at is not None:
                     raise UserArchived(user.username)
-                if user.email != email:
+                if user.email != email or (is_admin is not None and user.is_admin != is_admin):
                     user.email = email
+                    if is_admin is not None:
+                        user.is_admin = is_admin
                     await s.commit()
                 return user, False
             username = derive_username(preferred_username, email)
@@ -210,7 +217,7 @@ class UserStore:
                 issuer=issuer,
                 subject=subject,
                 email=email,
-                is_admin=False,
+                is_admin=bool(is_admin),
             )
             s.add(user)
             await s.flush()

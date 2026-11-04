@@ -74,6 +74,8 @@ EXPECTED_OPENERS = {
     ("evalkit.db.rekey", "count_sealed"),
     ("evalkit.db.rekey", "rekey_all"),
     ("evalkit.db.session", "scope_to_tenant"),
+    ("evalkit.db.tenants", "find_identity"),
+    ("evalkit.db.tenants", "create_tenant"),
 }
 
 

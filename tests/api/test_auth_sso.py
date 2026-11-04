@@ -22,6 +22,7 @@ async def sso_app(
     password_login: str = "admin",
     required_scopes: list[str] | None = None,
     transport: httpx2.AsyncBaseTransport | None = None,
+    **oidc_options,
 ) -> AsyncIterator[httpx2.AsyncClient]:
     env.deps.cfg.auth.oidc = OidcConfig(
         issuer=idp.issuer,
@@ -30,6 +31,7 @@ async def sso_app(
         name="Fake",
         scopes=["openid", "profile", "email", "offline_access", *(required_scopes or [])],
         required_scopes=required_scopes or [],
+        **oidc_options,
     )
     env.deps.cfg.auth.password_login = password_login
     app = create_app(
