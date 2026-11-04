@@ -731,10 +731,10 @@ verifier uses.
 
 On startup, with `auth.oidc` set, the server fetches the discovery document
 and loads the key set from its `jwks_uri` into a small cache
-(`jwt.PyJWKSet` behind an httpx fetch): keys by `kid`, refetched once when
+(`jwt.PyJWKSet` behind an httpx2 fetch): keys by `kid`, refetched once when
 a token names an unknown `kid` and at most once a minute, so key rotation
 at the IdP needs no restart. PyJWT's own `PyJWKClient` is not used because
-it fetches with `urllib` and cannot be given an httpx transport, which the
+it fetches with `urllib` and cannot be given an httpx2 transport, which the
 tests need to fake the IdP.
 
 If the IdP is unreachable at startup the server still starts: it logs the
@@ -1197,14 +1197,18 @@ the browser streams the file as today.
 
 ### Library and placement
 
-The CLI uses `authlib`'s httpx `OAuth2Client` for the three grants it
-needs: authorization code with PKCE, refresh, and client credentials, plus
-the device authorization grant, which is a `fetch_token` call with the
-device grant type. Authlib builds the authorize URL, generates and checks
-`state`, derives the PKCE challenge, and posts the token requests. It
-becomes a base dependency of `evalkit-py`, which brings `cryptography`
-with it; the base package did not have that before and the wheel grows by
-a few megabytes. The alternative, four hand-written form posts and a PKCE
+The CLI uses `authlib`'s httpx2 `OAuth2Client` (the one in
+`authlib.integrations.httpx_client`, which runs on `httpx2`) for the three
+grants it needs: authorization code with PKCE, refresh, and client
+credentials. The device authorization grant stays a short hand-written
+polling loop on `httpx2`, because Authlib has no device helper. Authlib
+builds the authorize URL, derives the PKCE challenge, and posts the token
+requests; the CLI generates the verifier and `state` and checks `state` on
+the loopback callback. A refused refresh or grant is an Authlib
+`OAuthError`; a 5xx is an `httpx2.HTTPStatusError` and stays an outage.
+It becomes a base dependency of `evalkit-py`, which brings `joserfc` and
+`cryptography` with it; the base package did not have those before and the
+wheel grows by a few megabytes. The alternative, four hand-written form posts and a PKCE
 helper, is small but is exactly the code a library should own.
 
 All of it lives in `client/oidc.py`, next to `client/connection.py`,
@@ -1236,11 +1240,11 @@ here, as the evalkit token was before; the file's protections are the same.
 ### How a request gets its bearer
 
 `SyncApi` and `AsyncApi` take a token string today and set one header for
-the life of the client. They take an `httpx.Auth` instead, which httpx
+the life of the client. They take an `httpx2.Auth` instead, which httpx2
 calls on every request:
 
 ```
-class EvalkitAuth(httpx.Auth):
+class EvalkitAuth(httpx2.Auth):
     def __init__(self, source: TokenSource): ...
     def auth_flow(self, request):
         request.headers["Authorization"] = f"Bearer {self.source.bearer()}"
@@ -1398,7 +1402,7 @@ sequenceDiagram
 
 - `StoredOidcLogin.bearer()` refreshes inside the last minute, rewrites the
   file with the rotated refresh token, and raises the expired-login error
-  when the IdP refuses the refresh. Uses an httpx `MockTransport` as the
+  when the IdP refuses the refresh. Uses an httpx2 `MockTransport` as the
   IdP.
 - `ClientCredentials.bearer()` fetches once and reuses until expiry.
   This source is the CI path only (client credentials grant, no PKCE, no
@@ -1513,7 +1517,7 @@ CI setup is documented in three places, all updated in the same PR:
 ### `run_experiment` and `evaluate_experiment`
 
 Nothing visible changes. They build their `AsyncApi` through
-`connection.active()`, which now hands them the same `httpx.Auth` the CLI
+`connection.active()`, which now hands them the same `httpx2.Auth` the CLI
 uses, so an SDK run works with a stored SSO login, a static token, or
 client credentials, and refreshes mid-run without the task noticing. The
 SDK never imports the CLI; the auth hook lives in `client/oidc.py`.
@@ -1646,7 +1650,8 @@ Under `## Unreleased`, one entry per change, as the changelog rule in
   fields. On `0.x` that also makes an older CLI refuse every command except
   `evalkit update`, which is wanted here: an old CLI cannot read the
   `[oidc]` login.
-- Dependencies: `authlib` in the base package (brings `cryptography`),
+- Dependencies: `authlib` in the base package (brings `joserfc` and
+  `cryptography`),
   `pyjwt[crypto]` in the `server` extra, `oidc-client-ts` in `ui/`.
 - `contracts/` regenerated with `scripts/gen_schemas.py` for the new
   routes (`/api/auth/providers`, `/api/auth/oidc/register`,
@@ -1663,7 +1668,7 @@ A fake IdP is the one new fixture, used at three levels:
 
 - Unit, `tests/identity.py` grows a `FakeIdp`: generates an RSA key pair
   once per session, serves discovery, JWKS, token (code, refresh, client
-  credentials, device) through an httpx `MockTransport`, and mints access
+  credentials, device) through an httpx2 `MockTransport`, and mints access
   and ID tokens with chosen claims. Server tests give the app that
   transport; client tests give it to authlib's client.
 - End to end, `tests/e2e/services.py` serves the same fake IdP on port

@@ -26,7 +26,8 @@
   tokens: set `auth.oidc` (`issuer`, `client_id`, `audience`, `name`) in the
   server config. `evalkit login` then opens the browser at the identity
   provider and stores its tokens, which refresh themselves;
-  `--no-browser` uses the device authorization grant. The first sign-in
+  `--no-browser` uses the device authorization grant. The CLI makes its
+  OAuth requests with Authlib (its httpx2 `OAuth2Client`). The first sign-in
   creates the user; `GET /api/auth/providers` reports what the server
   offers and `POST /api/auth/oidc/register` creates the user from the ID
   token. See `docs/user/sso.md`.
@@ -48,9 +49,10 @@
 - `tracing.register`, `tracing.exporter` and `tracing.processor` require
   `EVALKIT_OTEL_TOKEN` (an agent token); the fallback to a login token is
   removed.
-- `SyncApi` and `AsyncApi` take an `httpx.Auth` instead of a token string;
+- `SyncApi` and `AsyncApi` take an `httpx2.Auth` instead of a token string;
   `evalkit.client.oidc.static_auth(token)` wraps a token.
-- Dependencies: `pyjwt[crypto]` in the `server` extra.
+- Dependencies: `authlib` (with `joserfc` and `cryptography`) is now a base
+  dependency; `pyjwt[crypto]` is in the `server` extra.
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of
   a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch

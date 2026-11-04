@@ -6,7 +6,7 @@
 
 **Architecture:** The CLI is a public OAuth client (authorization code + PKCE through authlib, device grant for headless, client credentials for CI) and holds the IdP's tokens in `~/.evalkit/config.toml`. The server is a resource server: `current_user` dispatches on token shape, verifies JWTs against a cached JWKS, resolves the tenant, and finds the `users` row by `(tenant, issuer, subject)`; one idempotent register route creates that row from the ID token. MCP and the collector reuse the same verifier. No evalkit login token is issued for SSO users.
 
-**Tech Stack:** Python 3.12, FastAPI, SQLAlchemy async, PyJWT (`pyjwt[crypto]`), authlib (httpx client), httpx, typer, fastmcp 4, pytest with `httpx.MockTransport` and a fake IdP.
+**Tech Stack:** Python 3.12, FastAPI, SQLAlchemy async, PyJWT (`pyjwt[crypto]`), authlib (httpx2 client), httpx2, typer, fastmcp 4, pytest with `httpx2.MockTransport` and a fake IdP.
 
 **Spec:** `docs/superpowers/specs/2026-11-03-oidc-sso-and-tenancy-design.md`, sections "Server configuration, startup and the request verifier", "Registration and user lifecycle", "CLI", "CI and machine users", "SDK and trace export", "Docs, changelog, versioning and tests". Plan overview and the shared names: `docs/superpowers/plans/2026-11-04-oidc-sso-and-tenancy/00-overview.md`. Plan 1 (`01-tenancy.md`) is merged before this plan starts.
 
@@ -36,7 +36,7 @@
 | `src/evalkit/db/users.py` | `derive_username`, `UserStore.create` with `subject`, `UserStore.register`, `UserStore.bind`, `MachineUser`, `IdentityConflict`, `UserArchived` |
 | `src/evalkit/client/oidc.py` (new) | `TokenSource`, `StaticToken`, `StoredOidcLogin`, `ClientCredentials`, `EvalkitAuth`, `fetch_providers`, `build_auth`, `run_loopback_flow`, `run_device_flow`, `register_identity` |
 | `src/evalkit/client/connection.py` | `OidcLogin`, `MachineLogin`, `Connection.oidc` / `Connection.machine`, the `[oidc]` table in the file, `active()` precedence |
-| `src/evalkit/client/api.py` | `SyncApi` / `AsyncApi` take `auth: httpx.Auth | None` |
+| `src/evalkit/client/api.py` | `SyncApi` / `AsyncApi` take `auth: httpx2.Auth | None` |
 | `src/evalkit/cli/client.py`, `src/evalkit/cli/main.py`, `src/evalkit/cli/local_run.py`, `src/evalkit/sdk/runner.py` | callers pass `auth`; `login`, `whoami`, `users add --subject`, `users bind`, `users list` |
 | `src/evalkit/sdk/tracing.py` | `EVALKIT_OTEL_TOKEN` required |
 | `tests/identity.py` | `FakeIdp` |
@@ -247,7 +247,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Test: `tests/test_fake_idp.py` (new)
 
 **Interfaces:**
-- Produces: `tests.identity.FakeIdp` with: attributes `issuer`, `audience`, `client_id`, `kid`, `private_key`, `next_login: tuple[str, str, str | None] | None` (sub, email, preferred_username used by the next `/authorize`), `machine_clients: dict[str, tuple[str, str]]` (client_id → (secret, sub)), `device_pending: int`, `access_ttl: int`; methods `discovery() -> dict`, `jwks() -> dict`, `access_token(sub, *, audience=None, expires_in=None, kid=None, issuer=None, extra: dict | None = None) -> str`, `id_token(sub, email, preferred_username=None, *, nonce=None, kid=None, audience=None) -> str`, `handle(method, path, query: dict[str, str], form: dict[str, str]) -> tuple[int, dict[str, str], bytes]`, `transport() -> httpx.MockTransport`, `asgi() -> FastAPI` (Task 17 uses it). Refresh tokens rotate: a used refresh token is refused with `invalid_grant`.
+- Produces: `tests.identity.FakeIdp` with: attributes `issuer`, `audience`, `client_id`, `kid`, `private_key`, `next_login: tuple[str, str, str | None] | None` (sub, email, preferred_username used by the next `/authorize`), `machine_clients: dict[str, tuple[str, str]]` (client_id → (secret, sub)), `device_pending: int`, `access_ttl: int`; methods `discovery() -> dict`, `jwks() -> dict`, `access_token(sub, *, audience=None, expires_in=None, kid=None, issuer=None, extra: dict | None = None) -> str`, `id_token(sub, email, preferred_username=None, *, nonce=None, kid=None, audience=None) -> str`, `handle(method, path, query: dict[str, str], form: dict[str, str]) -> tuple[int, dict[str, str], bytes]`, `transport() -> httpx2.MockTransport`, `asgi() -> FastAPI` (Task 17 uses it). Refresh tokens rotate: a used refresh token is refused with `invalid_grant`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -257,7 +257,7 @@ Create `tests/test_fake_idp.py`:
 import json
 from urllib.parse import parse_qs, urlsplit
 
-import httpx
+import httpx2
 import jwt
 import pytest
 from authlib.integrations.httpx_client import OAuth2Client
@@ -272,7 +272,7 @@ def idp() -> FakeIdp:
 
 
 def test_discovery_and_jwks(idp):
-    with httpx.Client(transport=idp.transport()) as http:
+    with httpx2.Client(transport=idp.transport()) as http:
         disc = http.get(f"{idp.issuer}/.well-known/openid-configuration").json()
         assert disc["issuer"] == idp.issuer
         assert disc["token_endpoint"] == f"{idp.issuer}/token"
@@ -294,7 +294,7 @@ def test_code_flow_with_pkce_and_refresh_rotation(idp):
         transport=idp.transport(),
     )
     url, state = client.create_authorization_url(f"{idp.issuer}/authorize", code_verifier="v" * 43)
-    with httpx.Client(transport=idp.transport()) as http:
+    with httpx2.Client(transport=idp.transport()) as http:
         resp = http.get(url)
     assert resp.status_code == 302
     sent = parse_qs(urlsplit(resp.headers["location"]).query)
@@ -319,7 +319,7 @@ def test_client_credentials_and_device_grant(idp):
     idp.next_login = ("sub-2", "bob@example.com", None)
     idp.device_pending = 1
     public = OAuth2Client(idp.client_id, transport=idp.transport())
-    with httpx.Client(transport=idp.transport()) as http:
+    with httpx2.Client(transport=idp.transport()) as http:
         started = http.post(f"{idp.issuer}/device", data={"client_id": idp.client_id, "scope": "openid"}).json()
     assert {"device_code", "user_code", "verification_uri", "interval"} <= set(started)
     with pytest.raises(Exception, match="authorization_pending"):
@@ -329,7 +329,7 @@ def test_client_credentials_and_device_grant(idp):
 
 
 async def test_asgi_adapter_serves_discovery(idp):
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=idp.asgi()), base_url=idp.issuer) as http:
+    async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=idp.asgi()), base_url=idp.issuer) as http:
         disc = (await http.get("/.well-known/openid-configuration")).json()
     assert disc["jwks_uri"] == f"{idp.issuer}/jwks"
 ```
@@ -350,7 +350,7 @@ import secrets
 import time
 from urllib.parse import parse_qs, urlencode, urlsplit
 
-import httpx
+import httpx2
 import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -530,7 +530,7 @@ class FakeIdp:
             return 200, headers, json.dumps(self._issue(pending)).encode()
         return 400, headers, b'{"error": "unsupported_grant_type"}'
 
-    def _handle_httpx(self, request: httpx.Request) -> httpx.Response:
+    def _handle_httpx(self, request: httpx2.Request) -> httpx2.Response:
         query = {k: v[0] for k, v in parse_qs(request.url.query.decode()).items()}
         form = {k: v[0] for k, v in parse_qs(request.content.decode()).items()} if request.content else {}
         if request.headers.get("authorization", "").startswith("Basic "):
@@ -538,10 +538,10 @@ class FakeIdp:
             form.setdefault("client_id", user)
             form.setdefault("client_secret", password)
         status, headers, body = self.handle(request.method, request.url.path, query, form)
-        return httpx.Response(status, headers=headers, content=body)
+        return httpx2.Response(status, headers=headers, content=body)
 
-    def transport(self) -> httpx.MockTransport:
-        return httpx.MockTransport(self._handle_httpx)
+    def transport(self) -> httpx2.MockTransport:
+        return httpx2.MockTransport(self._handle_httpx)
 
     def asgi(self) -> FastAPI:
         app = FastAPI()
@@ -587,14 +587,14 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `evalkit.config.OidcConfig`; `tests.identity.FakeIdp`.
-- Produces: `evalkit.api.oidc.Discovery` (frozen dataclass: `authorization_endpoint`, `token_endpoint`, `jwks_uri`, `device_authorization_endpoint: str | None`); `JwkCache(jwks_uri, http: httpx.AsyncClient)` with `async signing_key(token) -> jwt.PyJWK`; `OidcState(cfg: OidcConfig, http: httpx.AsyncClient, mcp_resource_url: str)` with `discovery: Discovery | None`, `keys: JwkCache | None`, `async load() -> bool`, `async retry_forever(interval: float = 30)`; `async verify_access_token(oidc: OidcState, token: str, audience: list[str]) -> dict` raising `fastapi.HTTPException` 401 with the reason or 503 while discovery is missing; `IdpUnavailable` is the 503 exception class used by the providers route too.
+- Produces: `evalkit.api.oidc.Discovery` (frozen dataclass: `authorization_endpoint`, `token_endpoint`, `jwks_uri`, `device_authorization_endpoint: str | None`); `JwkCache(jwks_uri, http: httpx2.AsyncClient)` with `async signing_key(token) -> jwt.PyJWK`; `OidcState(cfg: OidcConfig, http: httpx2.AsyncClient, mcp_resource_url: str)` with `discovery: Discovery | None`, `keys: JwkCache | None`, `async load() -> bool`, `async retry_forever(interval: float = 30)`; `async verify_access_token(oidc: OidcState, token: str, audience: list[str]) -> dict` raising `fastapi.HTTPException` 401 with the reason or 503 while discovery is missing; `IdpUnavailable` is the 503 exception class used by the providers route too.
 
 - [ ] **Step 1: Write the failing tests**
 
 Create `tests/api/test_oidc_verify.py`:
 
 ```python
-import httpx
+import httpx2
 import pytest
 from fastapi import HTTPException
 
@@ -612,7 +612,7 @@ def cfg_for(idp: FakeIdp) -> OidcConfig:
 @pytest.fixture
 async def oidc():
     idp = FakeIdp()
-    state = OidcState(cfg_for(idp), httpx.AsyncClient(transport=idp.transport()), RESOURCE)
+    state = OidcState(cfg_for(idp), httpx2.AsyncClient(transport=idp.transport()), RESOURCE)
     assert await state.load() is True
     yield idp, state
     await state.http.aclose()
@@ -679,13 +679,13 @@ async def test_discovery_down_means_503_until_it_comes_back():
     idp = FakeIdp()
     calls = {"n": 0}
 
-    def flaky(request: httpx.Request) -> httpx.Response:
+    def flaky(request: httpx2.Request) -> httpx2.Response:
         calls["n"] += 1
         if calls["n"] == 1:
-            raise httpx.ConnectError("down")
+            raise httpx2.ConnectError("down")
         return idp._handle_httpx(request)
 
-    state = OidcState(cfg_for(idp), httpx.AsyncClient(transport=httpx.MockTransport(flaky)), RESOURCE)
+    state = OidcState(cfg_for(idp), httpx2.AsyncClient(transport=httpx2.MockTransport(flaky)), RESOURCE)
     assert await state.load() is False
     with pytest.raises(HTTPException) as info:
         await verify_access_token(state, idp.access_token("sub-1"), [idp.audience])
@@ -717,7 +717,7 @@ import logging
 import time
 from dataclasses import dataclass
 
-import httpx
+import httpx2
 import jwt
 from fastapi import HTTPException
 
@@ -745,7 +745,7 @@ class Discovery:
 
 
 class JwkCache:
-    def __init__(self, jwks_uri: str, http: httpx.AsyncClient) -> None:
+    def __init__(self, jwks_uri: str, http: httpx2.AsyncClient) -> None:
         self.jwks_uri = jwks_uri
         self.http = http
         self.keys: dict[str, jwt.PyJWK] = {}
@@ -771,7 +771,7 @@ class JwkCache:
 
 
 class OidcState:
-    def __init__(self, cfg: OidcConfig, http: httpx.AsyncClient, mcp_resource_url: str) -> None:
+    def __init__(self, cfg: OidcConfig, http: httpx2.AsyncClient, mcp_resource_url: str) -> None:
         self.cfg = cfg
         self.http = http
         self.mcp_resource_url = mcp_resource_url
@@ -785,7 +785,7 @@ class OidcState:
             doc = resp.json()
             keys = JwkCache(doc["jwks_uri"], self.http)
             await keys.fetch()
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             LOGGER.warning("identity provider %s unreachable: %s", self.cfg.issuer, exc)
             return False
         self.discovery = Discovery(
@@ -849,7 +849,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Consumes: `OidcState`, `IdpUnavailable` from Task 4.
-- Produces: `create_app(..., oidc_transport: httpx.AsyncBaseTransport | None = None)`; `app.state.oidc: OidcState | None`; `app.state.oidc_retry: asyncio.Task | None`; `GET /api/auth/providers` returning `{"password": "admin" | "all", "oidc": null | {name, issuer, client_id, audience, scopes, authorize_params, authorization_endpoint, token_endpoint, device_authorization_endpoint}}`.
+- Produces: `create_app(..., oidc_transport: httpx2.AsyncBaseTransport | None = None)`; `app.state.oidc: OidcState | None`; `app.state.oidc_retry: asyncio.Task | None`; `GET /api/auth/providers` returning `{"password": "admin" | "all", "oidc": null | {name, issuer, client_id, audience, scopes, authorize_params, authorization_endpoint, token_endpoint, device_authorization_endpoint}}`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -859,7 +859,7 @@ Create `tests/api/test_auth_sso.py`:
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-import httpx
+import httpx2
 import pytest
 
 from evalkit.api.app import create_app
@@ -870,8 +870,8 @@ from tests.native import HOLDER, Env, seed_env
 
 @asynccontextmanager
 async def sso_app(
-    env: Env, idp: FakeIdp, *, password_login: str = "admin", transport: httpx.AsyncBaseTransport | None = None
-) -> AsyncIterator[httpx.AsyncClient]:
+    env: Env, idp: FakeIdp, *, password_login: str = "admin", transport: httpx2.AsyncBaseTransport | None = None
+) -> AsyncIterator[httpx2.AsyncClient]:
     env.deps.cfg.auth.oidc = OidcConfig(
         issuer=idp.issuer, client_id=idp.client_id, audience=idp.audience, name="Fake"
     )
@@ -887,7 +887,7 @@ async def sso_app(
         oidc_transport=transport or idp.transport(),
     )
     async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        async with httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), base_url="http://test") as client:
             client.app = app  # type: ignore[attr-defined]
             yield client
 
@@ -931,10 +931,10 @@ async def test_providers_with_an_idp(env, idp):
 
 
 async def test_providers_is_503_while_discovery_is_down(env, idp):
-    def down(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("down")
+    def down(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("down")
 
-    async with sso_app(env, idp, transport=httpx.MockTransport(down)) as client:
+    async with sso_app(env, idp, transport=httpx2.MockTransport(down)) as client:
         resp = await client.get("/api/auth/providers")
         assert resp.status_code == 503
         assert client.app.state.oidc_retry is not None and not client.app.state.oidc_retry.done()
@@ -949,15 +949,15 @@ Expected: FAIL with `TypeError: create_app() got an unexpected keyword argument 
 
 In `src/evalkit/api/app.py`:
 
-- Add `import httpx` and `from evalkit.api.oidc import OidcState` and `from evalkit.api.mcp.auth import MCP_PATH`.
-- Add the keyword parameter `oidc_transport: httpx.AsyncBaseTransport | None = None` to `create_app`, and delete the `mcp_jwt_verifier` parameter (Task 10 rewrites MCP auth; delete it now and fix `mount_mcp(app, mcp_jwt_verifier)` to `mount_mcp(app)` at the same time, with `mount_mcp` and `build_mcp` losing their `jwt_verifier` parameter in `api/mcp/server.py`).
+- Add `import httpx2` and `from evalkit.api.oidc import OidcState` and `from evalkit.api.mcp.auth import MCP_PATH`.
+- Add the keyword parameter `oidc_transport: httpx2.AsyncBaseTransport | None = None` to `create_app`, and delete the `mcp_jwt_verifier` parameter (Task 10 rewrites MCP auth; delete it now and fix `mount_mcp(app, mcp_jwt_verifier)` to `mount_mcp(app)` at the same time, with `mount_mcp` and `build_mcp` losing their `jwt_verifier` parameter in `api/mcp/server.py`).
 - After `app.state.import_tasks = {}` add:
 
 ```python
     app.state.oidc = (
         OidcState(
             cfg.auth.oidc,
-            httpx.AsyncClient(transport=oidc_transport, timeout=10.0),
+            httpx2.AsyncClient(transport=oidc_transport, timeout=10.0),
             f"{cfg.server.base_url.rstrip('/')}{MCP_PATH}",
         )
         if cfg.auth.oidc is not None
@@ -1113,11 +1113,11 @@ async def test_a_jwt_without_an_idp_configured_is_401(env, tmp_path, idp):
 
 
 async def test_sso_requests_are_503_while_discovery_is_down(env, idp):
-    def down(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("down")
+    def down(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("down")
 
     await bind_user(env, idp, "ann", "sub-ann", "ann@example.com")
-    async with sso_app(env, idp, transport=httpx.MockTransport(down)) as client:
+    async with sso_app(env, idp, transport=httpx2.MockTransport(down)) as client:
         resp = await client.get("/api/auth/me", headers=bearer(idp.access_token("sub-ann")))
         assert resp.status_code == 503
         login = await client.post("/api/auth/login", json={"username": "admin", "password": "hunter2-pw"})
@@ -1429,7 +1429,7 @@ Expected: PASS.
 Append to `tests/api/test_auth_sso.py`:
 
 ```python
-async def register(client: httpx.AsyncClient, idp: FakeIdp, sub: str, email: str | None, preferred: str | None = None, **token_kwargs):
+async def register(client: httpx2.AsyncClient, idp: FakeIdp, sub: str, email: str | None, preferred: str | None = None, **token_kwargs):
     access = idp.access_token(sub, **token_kwargs)
     return await client.post(
         "/api/auth/oidc/register",
@@ -2218,7 +2218,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
 **Interfaces:**
 - Produces in `evalkit.client.connection`: `OidcLogin(NamedTuple)` with `issuer`, `client_id`, `token_endpoint`, `access_token`, `refresh_token`, `expires_at: datetime`; `MachineLogin(NamedTuple)` with `client_id`, `client_secret`; `Connection(url, token, username, from_env=False, oidc: OidcLogin | None = None, machine: MachineLogin | None = None)`; `save` writes the `[oidc]` table; `load` reads it; `active()` precedence: `EVALKIT_SERVER_URL` + `EVALKIT_OIDC_CLIENT_ID` + `EVALKIT_OIDC_CLIENT_SECRET` → `machine`; `EVALKIT_SERVER_URL` + `EVALKIT_TOKEN` → `token`; else the file.
-- Produces in `evalkit.client.oidc`: `TokenSource` (Protocol, `bearer() -> str`); `StaticToken(token)`; `StoredOidcLogin(connection: Connection, path: Path | None = None, transport: httpx.BaseTransport | None = None)`; `ClientCredentials(machine: MachineLogin, token_endpoint: str, authorize_params: dict[str, str], transport=None)`; `EvalkitAuth(source: TokenSource)` (an `httpx.Auth`); `LoginExpired(Exception)`; `REFRESH_WINDOW_SECONDS = 60`.
+- Produces in `evalkit.client.oidc`: `TokenSource` (Protocol, `bearer() -> str`); `StaticToken(token)`; `StoredOidcLogin(connection: Connection, path: Path | None = None, transport: httpx2.BaseTransport | None = None)`; `ClientCredentials(machine: MachineLogin, token_endpoint: str, authorize_params: dict[str, str], transport=None)`; `EvalkitAuth(source: TokenSource)` (an `httpx2.Auth`); `LoginExpired(Exception)`; `REFRESH_WINDOW_SECONDS = 60`.
 - The overview put `token_source` in `connection`; it lives in `oidc.py` (Task 13) because `oidc.py` imports `connection` for the file and the reverse import would be circular. Callers use `evalkit.client.oidc.build_auth`.
 
 - [ ] **Step 1: Write the failing connection tests**
@@ -2378,7 +2378,7 @@ Create `tests/client/test_oidc_sources.py`:
 import threading
 from datetime import UTC, datetime, timedelta
 
-import httpx
+import httpx2
 import jwt
 import pytest
 
@@ -2481,9 +2481,9 @@ def test_client_credentials_fetches_once_and_keeps_it_in_memory(tmp_path):
 def test_evalkit_auth_sets_the_header_per_request():
     calls: list[str] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         calls.append(request.headers["Authorization"])
-        return httpx.Response(200)
+        return httpx2.Response(200)
 
     class Counter:
         n = 0
@@ -2492,7 +2492,7 @@ def test_evalkit_auth_sets_the_header_per_request():
             self.n += 1
             return f"t{self.n}"
 
-    with httpx.Client(transport=httpx.MockTransport(handler), auth=EvalkitAuth(Counter())) as http:
+    with httpx2.Client(transport=httpx2.MockTransport(handler), auth=EvalkitAuth(Counter())) as http:
         http.get("https://x/a")
         http.get("https://x/b")
     assert calls == ["Bearer t1", "Bearer t2"]
@@ -2513,7 +2513,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Protocol
 
-import httpx
+import httpx2
 from authlib.integrations.httpx_client import OAuth2Client
 
 from evalkit.client import connection
@@ -2552,7 +2552,7 @@ class StoredOidcLogin:
         self,
         conn: Connection,
         path: Path | None = None,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx2.BaseTransport | None = None,
     ) -> None:
         assert conn.oidc is not None
         self.conn = conn
@@ -2611,7 +2611,7 @@ class ClientCredentials:
         machine: MachineLogin,
         token_endpoint: str,
         authorize_params: dict[str, str],
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx2.BaseTransport | None = None,
     ) -> None:
         self.machine = machine
         self.token_endpoint = token_endpoint
@@ -2635,28 +2635,28 @@ class ClientCredentials:
             return self.token
 
 
-class EvalkitAuth(httpx.Auth):
+class EvalkitAuth(httpx2.Auth):
     def __init__(self, source: TokenSource) -> None:
         self.source = source
 
-    def auth_flow(self, request: httpx.Request):
+    def auth_flow(self, request: httpx2.Request):
         request.headers["Authorization"] = f"Bearer {self.source.bearer()}"
         yield request
 ```
 
-`refresh` posts the form itself rather than calling `client.refresh_token` so a refused refresh is a `None`, not an exception to catch; authlib's `OAuth2Client` is still the HTTP client so the public-client form (`client_id` in the body, no secret) is the standard one. `ClientCredentials` uses `fetch_token`, which raises `OAuthError` on a refused grant; that error reaches the user as the IdP's own message, which is the right outcome for a wrong secret.
+`refresh` calls `client.refresh_token` on authlib's httpx2 `OAuth2Client` (public client, `token_endpoint_auth_method="none"`, so `client_id` is in the body); a refused refresh raises `OAuthError`, which `refresh` turns into `None`, and a 5xx stays an `httpx2.HTTPStatusError`. `ClientCredentials` uses `fetch_token`, which raises `OAuthError` on a refused grant; that error reaches the user as the IdP's own message, which is the right outcome for a wrong secret.
 
 - [ ] **Step 8: Run the tests**
 
 Run: `uv run pytest tests/client/test_oidc_sources.py tests/cli/test_connection.py -v`
-Expected: PASS. If `withhold_token=True` is rejected by this authlib version, replace that `client.post` with a plain `httpx.Client(transport=self.transport).post(...)`.
+Expected: PASS. If `withhold_token=True` is rejected by this authlib version, drop `withhold_token=True` and use the plain `fetch_token`/`refresh_token` calls.
 
 - [ ] **Step 9: Commit**
 
 ```bash
 uv run ruff check src/evalkit/client tests/client/test_oidc_sources.py tests/cli/test_connection.py && uv run ruff format src/evalkit/client/oidc.py src/evalkit/client/connection.py tests/client/test_oidc_sources.py tests/cli/test_connection.py && uv run mypy src/evalkit
 git add src/evalkit/client/oidc.py src/evalkit/client/connection.py tests/client/test_oidc_sources.py tests/cli/test_connection.py
-git commit -m "client/oidc: token sources, the httpx auth hook and the [oidc] login on disk
+git commit -m "client/oidc: token sources, the httpx2 auth hook and the [oidc] login on disk
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
@@ -2673,7 +2673,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Test: `tests/client/test_oidc_sources.py`
 
 **Interfaces:**
-- Produces: `evalkit.client.oidc.fetch_providers(url: str, transport=None) -> dict` (GET `{url}/api/auth/providers`); `evalkit.client.oidc.build_auth(conn: Connection, *, path=None, transport=None) -> EvalkitAuth | None` (`None` when the connection has no credential at all); `evalkit.client.oidc.static_auth(token: str) -> EvalkitAuth`; `SyncApi(server_url, auth: httpx.Auth | None = None, *, transport=None)`, `AsyncApi(server_url, auth: httpx.Auth | None = None, *, transport=None)`, `ApiClient(server_url, auth=None, *, transport=None, check_version=True)`.
+- Produces: `evalkit.client.oidc.fetch_providers(url: str, transport=None) -> dict` (GET `{url}/api/auth/providers`); `evalkit.client.oidc.build_auth(conn: Connection, *, path=None, transport=None) -> EvalkitAuth | None` (`None` when the connection has no credential at all); `evalkit.client.oidc.static_auth(token: str) -> EvalkitAuth`; `SyncApi(server_url, auth: httpx2.Auth | None = None, *, transport=None)`, `AsyncApi(server_url, auth: httpx2.Auth | None = None, *, transport=None)`, `ApiClient(server_url, auth=None, *, transport=None, check_version=True)`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2683,13 +2683,13 @@ Append to `tests/client/test_oidc_sources.py`:
 from evalkit.client.oidc import build_auth, fetch_providers, static_auth
 
 
-def providers_transport(idp: FakeIdp) -> httpx.MockTransport:
-    def handler(request: httpx.Request) -> httpx.Response:
+def providers_transport(idp: FakeIdp) -> httpx2.MockTransport:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/api/auth/providers":
-            return httpx.Response(200, json={"password": "admin", "oidc": {"token_endpoint": f"{idp.issuer}/token", "authorize_params": {"resource": idp.audience}}})
+            return httpx2.Response(200, json={"password": "admin", "oidc": {"token_endpoint": f"{idp.issuer}/token", "authorize_params": {"resource": idp.audience}}})
         return idp._handle_httpx(request)
 
-    return httpx.MockTransport(handler)
+    return httpx2.MockTransport(handler)
 
 
 def test_build_auth_picks_the_source(tmp_path):
@@ -2720,8 +2720,8 @@ Expected: FAIL on the imports.
 Append to `src/evalkit/client/oidc.py`:
 
 ```python
-def fetch_providers(url: str, transport: httpx.BaseTransport | None = None) -> dict:
-    with httpx.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
+def fetch_providers(url: str, transport: httpx2.BaseTransport | None = None) -> dict:
+    with httpx2.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
         resp = http.get("/api/auth/providers")
         resp.raise_for_status()
         return resp.json()
@@ -2735,7 +2735,7 @@ def build_auth(
     conn: Connection,
     *,
     path: Path | None = None,
-    transport: httpx.BaseTransport | None = None,
+    transport: httpx2.BaseTransport | None = None,
 ) -> EvalkitAuth | None:
     if conn.machine is not None:
         oidc = fetch_providers(conn.url, transport)["oidc"]
@@ -2763,11 +2763,11 @@ In `src/evalkit/client/api.py`, both constructors become:
     def __init__(
         self,
         server_url: str,
-        auth: httpx.Auth | None = None,
+        auth: httpx2.Auth | None = None,
         *,
         transport: ... = None,
     ):
-        self._client = httpx.AsyncClient(   # or httpx.Client
+        self._client = httpx2.AsyncClient(   # or httpx2.Client
             base_url=server_url.rstrip("/"),
             auth=auth,
             timeout=timeout_seconds(),
@@ -2775,7 +2775,7 @@ In `src/evalkit/client/api.py`, both constructors become:
         )
 ```
 
-(delete the `headers={"Authorization": ...}` line in each). In `src/evalkit/cli/client.py`, `ApiClient.__init__(self, server_url, auth: httpx.Auth | None = None, *, transport=None, check_version=True)` and `super().__init__(server_url, auth, transport=transport)`.
+(delete the `headers={"Authorization": ...}` line in each). In `src/evalkit/cli/client.py`, `ApiClient.__init__(self, server_url, auth: httpx2.Auth | None = None, *, transport=None, check_version=True)` and `super().__init__(server_url, auth, transport=transport)`.
 
 - [ ] **Step 5: Update the callers**
 
@@ -2814,7 +2814,7 @@ Expected: PASS.
 ```bash
 uv run ruff check src tests && uv run ruff format src/evalkit/client src/evalkit/cli src/evalkit/sdk tests/client tests/cli tests/api/test_traces.py && uv run mypy src/evalkit
 git add src/evalkit/client/oidc.py src/evalkit/client/api.py src/evalkit/cli/client.py src/evalkit/cli/main.py src/evalkit/cli/local_run.py src/evalkit/sdk/runner.py tests/client tests/cli tests/api/test_traces.py
-git commit -m "API clients take an httpx.Auth; build_auth picks the token source per connection
+git commit -m "API clients take an httpx2.Auth; build_auth picks the token source per connection
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
@@ -2839,7 +2839,7 @@ Create `tests/client/test_oidc_flows.py`:
 import threading
 from urllib.parse import parse_qs, urlsplit
 
-import httpx
+import httpx2
 import jwt
 import pytest
 
@@ -2871,10 +2871,10 @@ def providers_for(idp: FakeIdp, *, device: bool = True) -> dict:
 def browser_for(idp: FakeIdp):
     def open_browser(url: str) -> None:
         def follow() -> None:
-            with httpx.Client(transport=idp.transport()) as at_idp:
+            with httpx2.Client(transport=idp.transport()) as at_idp:
                 redirect = at_idp.get(url)
             assert redirect.status_code == 302, redirect.text
-            httpx.get(redirect.headers["location"])
+            httpx2.get(redirect.headers["location"])
 
         threading.Thread(target=follow, daemon=True).start()
 
@@ -2971,7 +2971,7 @@ def run_loopback_flow(
     open_browser: Callable[[str], None],
     *,
     timeout: float = LOOPBACK_TIMEOUT_SECONDS,
-    transport: httpx.BaseTransport | None = None,
+    transport: httpx2.BaseTransport | None = None,
 ) -> dict:
     received: dict[str, str] = {}
     done = threading.Event()
@@ -3026,7 +3026,7 @@ def run_device_flow(
     echo: Callable[[str], None],
     *,
     sleep: Callable[[float], None] = time.sleep,
-    transport: httpx.BaseTransport | None = None,
+    transport: httpx2.BaseTransport | None = None,
 ) -> dict:
     endpoint = providers_oidc["device_authorization_endpoint"]
     if endpoint is None:
@@ -3060,8 +3060,8 @@ def run_device_flow(
     raise LoginTimedOut()
 
 
-def register_identity(url: str, tokens: dict, transport: httpx.BaseTransport | None = None) -> dict:
-    with httpx.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
+def register_identity(url: str, tokens: dict, transport: httpx2.BaseTransport | None = None) -> dict:
+    with httpx2.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
         resp = http.post(
             "/api/auth/oidc/register",
             headers={"Authorization": f"Bearer {tokens['access_token']}"},
@@ -3724,7 +3724,7 @@ Under `## Unreleased` in `CHANGELOG.md`:
 - `tracing.register`, `tracing.exporter` and `tracing.processor` require
   `EVALKIT_OTEL_TOKEN` (an agent token); the fallback to a login token is
   removed.
-- `SyncApi` and `AsyncApi` take an `httpx.Auth` instead of a token string;
+- `SyncApi` and `AsyncApi` take an `httpx2.Auth` instead of a token string;
   `evalkit.client.oidc.static_auth(token)` wraps a token.
 - Dependencies: `authlib` in the base package, `pyjwt[crypto]` in the
   `server` extra.
