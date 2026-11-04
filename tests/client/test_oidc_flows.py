@@ -104,6 +104,39 @@ def test_loopback_flow_refuses_a_state_mismatch():
         run_loopback_flow(providers_for(idp), spy, transport=idp.transport())
 
 
+def test_loopback_listener_answers_only_the_callback_path():
+    idp = FakeIdp()
+    idp.next_login = ("sub-1", "ann@example.com", "ann")
+    stray: list[int] = []
+
+    def spy(url: str) -> None:
+        redirect_uri = parse_qs(urlsplit(url).query)["redirect_uri"][0]
+        stray.append(httpx.get(redirect_uri.replace("/callback", "/favicon.ico")).status_code)
+        browser_for(idp)(url)
+
+    tokens = run_loopback_flow(providers_for(idp), spy, transport=idp.transport())
+    assert stray == [404] and "access_token" in tokens
+
+
+def test_loopback_flow_refuses_a_callback_without_a_code():
+    idp = FakeIdp()
+
+    def spy(url: str) -> None:
+        state = parse_qs(urlsplit(url).query)["state"][0]
+        callback_for(url, state=state)
+
+    with pytest.raises(LoginRefused, match="no code"):
+        run_loopback_flow(providers_for(idp), spy, transport=idp.transport())
+
+
+def test_device_flow_refuses_a_non_json_error(monkeypatch):
+    idp = FakeIdp()
+    idp.next_login = ("sub-2", "bob@example.com", None)
+    monkeypatch.setattr(idp, "_token", lambda form: (502, {"content-type": "text/html"}, b"bad"))
+    with pytest.raises(LoginRefused, match="HTTP 502"):
+        run_device_flow(providers_for(idp), print, sleep=lambda s: None, transport=idp.transport())
+
+
 def test_device_flow_polls_until_the_person_finishes():
     idp = FakeIdp()
     idp.next_login = ("sub-2", "bob@example.com", None)

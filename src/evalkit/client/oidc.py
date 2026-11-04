@@ -221,6 +221,10 @@ def run_loopback_flow(
 
     class Callback(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
+            if urlsplit(self.path).path != "/callback":
+                self.send_response(404)
+                self.end_headers()
+                return
             received.update({k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()})
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
@@ -260,6 +264,8 @@ def run_loopback_flow(
         raise LoginRefused(
             f"{received['error']}: {received.get('error_description', 'login refused')}"
         )
+    if "code" not in received:
+        raise LoginRefused("the login callback carried no code")
     with httpx.Client(transport=transport, timeout=30.0) as http:
         resp = http.post(
             providers_oidc["token_endpoint"],
@@ -310,6 +316,8 @@ def run_device_flow(
             )
             if resp.status_code == 200:
                 return resp.json()
+            if not resp.headers.get("content-type", "").startswith("application/json"):
+                raise LoginRefused(f"device authorization failed: HTTP {resp.status_code}")
             error = resp.json().get("error") if resp.status_code == 400 else None
             if error == "slow_down":
                 interval += 5
