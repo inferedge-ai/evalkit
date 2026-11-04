@@ -62,8 +62,29 @@ class RetryTransport(httpx2.BaseTransport, httpx2.AsyncBaseTransport):
         transport: httpx2.BaseTransport | httpx2.AsyncBaseTransport,
         retry: Retry,
     ):
+        if not isinstance(transport, httpx2.BaseTransport | httpx2.AsyncBaseTransport):
+            raise TypeError(
+                "RetryTransport wraps an httpx2.BaseTransport or httpx2.AsyncBaseTransport, "
+                f"got {type(transport).__name__}"
+            )
         self.transport = transport
         self.retry = retry
+
+    def _sync_transport(self) -> httpx2.BaseTransport:
+        if not isinstance(self.transport, httpx2.BaseTransport):
+            raise TypeError(
+                f"{type(self.transport).__name__} is not an httpx2.BaseTransport, "
+                "so it cannot serve a sync client"
+            )
+        return self.transport
+
+    def _async_transport(self) -> httpx2.AsyncBaseTransport:
+        if not isinstance(self.transport, httpx2.AsyncBaseTransport):
+            raise TypeError(
+                f"{type(self.transport).__name__} is not an httpx2.AsyncBaseTransport, "
+                "so it cannot serve an async client"
+            )
+        return self.transport
 
     def _policy(self, request: httpx2.Request) -> Retry:
         return request.extensions.get("retry", self.retry)
@@ -76,13 +97,13 @@ class RetryTransport(httpx2.BaseTransport, httpx2.AsyncBaseTransport):
         )
 
     def handle_request(self, request: httpx2.Request) -> httpx2.Response:
-        assert isinstance(self.transport, httpx2.BaseTransport)
+        transport = self._sync_transport()
         policy = self._policy(request)
         attempt = 0
         while True:
             last = self._is_last(policy, request, attempt)
             try:
-                response = self.transport.handle_request(request)
+                response = transport.handle_request(request)
             except policy.retry_on_exceptions:
                 if last:
                     raise
@@ -96,13 +117,13 @@ class RetryTransport(httpx2.BaseTransport, httpx2.AsyncBaseTransport):
             attempt += 1
 
     async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
-        assert isinstance(self.transport, httpx2.AsyncBaseTransport)
+        transport = self._async_transport()
         policy = self._policy(request)
         attempt = 0
         while True:
             last = self._is_last(policy, request, attempt)
             try:
-                response = await self.transport.handle_async_request(request)
+                response = await transport.handle_async_request(request)
             except policy.retry_on_exceptions:
                 if last:
                     raise
@@ -116,9 +137,7 @@ class RetryTransport(httpx2.BaseTransport, httpx2.AsyncBaseTransport):
             attempt += 1
 
     def close(self) -> None:
-        assert isinstance(self.transport, httpx2.BaseTransport)
-        self.transport.close()
+        self._sync_transport().close()
 
     async def aclose(self) -> None:
-        assert isinstance(self.transport, httpx2.AsyncBaseTransport)
-        await self.transport.aclose()
+        await self._async_transport().aclose()
