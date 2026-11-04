@@ -460,7 +460,7 @@ organisation in the access token (grahak `tenant_id`, Auth0 `org_id`, Entra
 | --- | --- |
 | `tenant_claim` | The access token claim holding the organisation id. Unset: `resolve_tenant` as above |
 | `tenant_auto_create` | Create a tenant for an organisation id seen the first time, at registration. Needs `tenant_claim` |
-| `admin_claim` (`name`, `value`) | Set `users.is_admin` from the access token at every registration |
+| `admin_claim` (`name`, `value`) | Set `users.is_admin` from the access token at every registration. Required when `tenant_claim` is set: tenants other than the default have no password admin, so the IdP names their admins |
 
 The claim is a lookup value against `tenants.external_id`, never a tenant
 primary key, and it is trusted exactly as far as `sub` and `email` are: it
@@ -477,6 +477,11 @@ def tenant_claim_value(oidc, claims):
 # request verifier, after verify_access_token and the required-scope check
 if oidc.tenant_claim is None:
     tenant = resolve_tenant(request, claims); user = user by (tenant, iss, sub)
+elif oidc.tenant_claim not in claims:
+    # client credentials tokens often carry no organisation claim
+    rows = SELECT users WHERE issuer = iss AND subject = sub LIMIT 2   # ALL_TENANTS
+    user = rows[0] if len(rows) == 1 and rows[0].kind == "machine" else None
+    if user is None: raise 403 "access token has no <claim> claim"
 else:
     # one ALL_TENANTS query, no extra round trip
     user = SELECT users JOIN tenants ON users.tenant_id = tenants.id
@@ -493,31 +498,40 @@ else:
         if not oidc.tenant_auto_create: 403 "no tenant for <claim> <org>"
         tenant = create_tenant(name=org, external_id=org)   # under the "tenants" advisory lock;
                                                             # a concurrent first sign-in reuses it
-is_admin = None if oidc.admin_claim is None
-           else claims[admin.name] == admin.value or admin.value in claims[admin.name]
+claim = access.get(admin.name)
+is_admin = None                    if oidc.admin_claim is None
+           admin.value in claim    if claim is a list
+           claim == admin.value    otherwise
 register(tenant, iss, sub, email, preferred_username, is_admin)
 # register sets users.is_admin = is_admin on create and on every later call when not None
 ```
 
+- `tenant_claim` replaces `resolve_tenant`: `create_app` refuses to start
+  when both `tenant_claim` is set and a custom `resolve_tenant` is passed.
+- A machine user's tenant is the one its admin bound it in (`users add
+  --subject`); the binding decides, so a client credentials token without the
+  organisation claim is accepted when its `(issuer, sub)` matches exactly one
+  machine user. A person's token without the claim is always refused.
+- `evalkit tenants set-external-id <name> <id>` gives an existing tenant
+  (including `default`) an external id, so a live server can turn
+  `tenant_claim` on without stranding its users.
 - `evalkit tenants create <name> [--external-id <id>]` is a server command
   (direct database access, like `blobs relocate`), not an API route: creating
   tenants is the operator's power, not a tenant admin's.
 - `admin_claim` is applied at registration, which runs once per sign-in, so a
   person the IdP stops naming as admin is demoted at their next sign-in; a
   token they hold keeps its user's current flag until then. It bypasses the
-  last-admin check: the IdP is the authority once this is on.
+  last-admin check, so the IdP can demote a tenant's last admin: the IdP is
+  the authority once this is on.
 - An admin's powers are all tenant-scoped: users and their identities,
   workspaces and members, LLM providers and the default judge, trace sources
   and agent tokens all go through the request's `TenantStores`, and the
   agent token list and revoke filter on the user's tenant. Nothing an admin
   reaches through `/api` is installation-wide; migrations, `db rekey`,
   `blobs relocate` and `tenants create` are server commands.
-- Turning `tenant_claim` on for a server with existing SSO users strands
-  them in the default tenant, which has no external id. Turn it on before
-  people register.
 - Password login always resolves the default tenant.
-- `find_identity` and `create_tenant` (`db/tenants.py`) join the pinned set
-  of `ALL_TENANTS` openers.
+- `find_identity`, `find_machine`, `create_tenant` and `set_external_id`
+  (`db/tenants.py`) join the pinned set of `ALL_TENANTS` openers.
 
 ### The two objects that carry it
 

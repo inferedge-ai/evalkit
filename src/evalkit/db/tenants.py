@@ -55,3 +55,38 @@ async def create_tenant(
         session.add(tenant)
         await session.commit()
         return tenant.id
+
+
+class UnknownTenant(KeyError):
+    pass
+
+
+async def find_machine(
+    session_factory: async_sessionmaker[AsyncSession], issuer: str, subject: str
+) -> User | None:
+    async with tenant_session(session_factory, ALL_TENANTS) as session:
+        rows = (
+            await session.scalars(
+                select(User).where(User.issuer == issuer, User.subject == subject).limit(2)
+            )
+        ).all()
+    if len(rows) != 1 or rows[0].kind != "machine":
+        return None
+    return rows[0]
+
+
+async def set_external_id(
+    session_factory: async_sessionmaker[AsyncSession], name: str, external_id: str
+) -> None:
+    async with tenant_session(session_factory, ALL_TENANTS) as session:
+        await lock_name(session, "tenants")
+        tenant = await session.scalar(select(Tenant).where(Tenant.name == name))
+        if tenant is None:
+            raise UnknownTenant(f"no tenant named {name}")
+        other = await session.scalar(
+            select(Tenant.name).where(Tenant.external_id == external_id, Tenant.id != tenant.id)
+        )
+        if other is not None:
+            raise TenantExists(f"tenant {other} already has external id {external_id}")
+        tenant.external_id = external_id
+        await session.commit()

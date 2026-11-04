@@ -163,9 +163,19 @@ runs:
   evalkit, for example by granting a required scope only to them.
 - The same IdP subject in two organisations is two evalkit users, one per
   tenant.
-- Turning `tenant_claim` on for a server that already has users: those users
-  live in the default tenant, which has no external id, so they can no
-  longer sign in through SSO. Turn it on before people register.
+- `tenant_claim` needs `admin_claim` (below): tenants other than the default
+  get their admins from the IdP. The server refuses to start without it.
+- A machine user (CI, client credentials) belongs to the tenant whose admin
+  bound it with `evalkit users add --subject`. Client credentials tokens often
+  carry no organisation claim, so when the claim is missing evalkit looks the
+  token's subject up across tenants and accepts it only if it matches exactly
+  one machine user. A person's token without the claim still answers 403. A
+  machine client bound in two tenants must carry the claim.
+- Turning `tenant_claim` on for a server that already has users: they live in
+  the default tenant, which has no external id yet. Give it the
+  organisation's id first, or they can no longer sign in:
+
+      evalkit tenants set-external-id default ORG-7f3a --config config.yaml
 - Password login always signs into the default tenant.
 
 ### Admins from the IdP
@@ -179,7 +189,9 @@ runs:
 With `admin_claim` set, every registration (each sign-in) sets the person's
 admin flag from the access token: admin when the claim equals the value, or
 is a list that contains it; not an admin otherwise. A person the IdP stops
-naming as an admin loses admin at their next sign-in. Unset (the default),
+naming as an admin loses admin at their next sign-in, even when they are the
+tenant's last admin: the IdP owns admins once this is on, so `evalkit users
+demote`'s last-admin check does not apply. Unset (the default),
 registration never changes the flag, and admins are promoted with
 `evalkit users promote`. An admin's powers stay inside their tenant: users,
 workspaces and members, LLM providers and the default judge, trace sources

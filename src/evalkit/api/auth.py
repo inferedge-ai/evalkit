@@ -14,7 +14,7 @@ from evalkit.contracts.enums import TokenKind
 from evalkit.db.auth import find_token
 from evalkit.db.models import AuthToken, User, Workspace, WorkspaceMember
 from evalkit.db.session import tenant_session
-from evalkit.db.tenants import create_tenant, find_identity
+from evalkit.db.tenants import create_tenant, find_identity, find_machine
 from evalkit.db.tokens import token_hash
 from evalkit.db.users import (
     PASSWORD_MAX_BYTES,
@@ -118,6 +118,13 @@ async def sso_identity(
                     User.issuer == claims["iss"],
                     User.subject == claims["sub"],
                 )
+            )
+    elif state.oidc.cfg.tenant_claim not in claims:
+        user = await find_machine(state.session_factory, claims["iss"], claims["sub"])
+        if user is None:
+            raise HTTPException(
+                status_code=403,
+                detail=f"access token has no {state.oidc.cfg.tenant_claim} claim",
             )
     else:
         _, user = await find_identity(

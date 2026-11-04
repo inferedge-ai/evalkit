@@ -26,8 +26,9 @@ from evalkit.db.crypto import SecretBox
 from evalkit.db.llm_providers import LlmProviderStore
 from evalkit.db.rekey import rekey_all
 from evalkit.db.session import make_session_factory, run_migrations
-from evalkit.db.tenants import TenantExists
+from evalkit.db.tenants import TenantExists, UnknownTenant
 from evalkit.db.tenants import create_tenant as create_tenant_row
+from evalkit.db.tenants import set_external_id as set_tenant_external_id
 from evalkit.store.blob import Obstore
 
 
@@ -70,6 +71,16 @@ async def create_tenant(config: Config, name: str, external_id: str | None) -> i
         return await create_tenant_row(factory, name, external_id)
     except TenantExists as exc:
         raise ApiError(str(exc)) from exc
+    finally:
+        await factory.kw["bind"].dispose()
+
+
+async def set_external_id(config: Config, name: str, external_id: str) -> None:
+    factory = make_session_factory(config.db.url)
+    try:
+        await set_tenant_external_id(factory, name, external_id)
+    except (TenantExists, UnknownTenant) as exc:
+        raise ApiError(str(exc.args[0])) from exc
     finally:
         await factory.kw["bind"].dispose()
 

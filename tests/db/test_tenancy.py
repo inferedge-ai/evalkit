@@ -76,6 +76,8 @@ EXPECTED_OPENERS = {
     ("evalkit.db.session", "scope_to_tenant"),
     ("evalkit.db.tenants", "find_identity"),
     ("evalkit.db.tenants", "create_tenant"),
+    ("evalkit.db.tenants", "find_machine"),
+    ("evalkit.db.tenants", "set_external_id"),
 }
 
 

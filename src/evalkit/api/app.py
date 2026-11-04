@@ -271,6 +271,14 @@ def create_app(
     app = FastAPI(title="evalkit", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.add_exception_handler(StarletteHTTPException, otel.log_rejection)
     app.state.cfg = cfg
+    if (
+        cfg.auth.oidc is not None
+        and cfg.auth.oidc.tenant_claim is not None
+        and resolve_tenant is not default_resolve_tenant
+    ):
+        raise ValueError(
+            "auth.oidc.tenant_claim and a custom resolve_tenant both map tenants; use one"
+        )
     app.state.resolve_tenant = resolve_tenant
     app.state.runner_deps = resolved_deps
     app.state.holder = holder or pod_holder()

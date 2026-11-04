@@ -1442,6 +1442,25 @@ def tenants_create(
     typer.echo(f"created tenant {name} (id {tenant_id})")
 
 
+@tenants_app.command("set-external-id")
+def tenants_set_external_id(
+    name: str = typer.Argument(..., help="The tenant's name; the first tenant is `default`."),
+    external_id: str = typer.Argument(..., help="The organisation id the IdP sends."),
+    config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),
+):
+    """Give an existing tenant the organisation id from auth.oidc.tenant_claim (server-side),
+    so its people keep signing in to it once tenant_claim is on.
+
+    Example: evalkit tenants set-external-id default ORG-7f3a --config config.yaml
+    """
+    if server_commands is None:
+        raise ApiError(
+            "`tenants set-external-id` needs the server extra — pip install 'evalkit-py[server]'"
+        )
+    asyncio.run(server_commands.set_external_id(_server_config(config), name, external_id))
+    typer.echo(f"tenant {name} now has external id {external_id}")
+
+
 # TODO: remove in 0.6.0, two minor versions after 0.4.0 moved blobs under tenants/
 @blobs_app.command("relocate")
 def blobs_relocate(

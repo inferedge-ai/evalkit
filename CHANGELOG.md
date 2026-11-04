@@ -6,10 +6,14 @@
   access token claim holding the organisation id; people sign into the tenant
   whose `external_id` matches. An unknown organisation is refused (403) unless
   `auth.oidc.tenant_auto_create` is on, which creates the tenant at its first
-  registration. New server command `evalkit tenants create <name>
-  --external-id <id>`. `auth.oidc.admin_claim` (`name`, `value`) sets a
-  person's admin flag from the access token at every sign-in. All three are
-  off by default: one tenant, admins promoted by hand, as before.
+  registration. New server commands `evalkit tenants create <name>
+  --external-id <id>` and `evalkit tenants set-external-id <name> <id>`.
+  `auth.oidc.admin_claim` (`name`, `value`) sets a person's admin flag from
+  the access token at every sign-in, and is required with `tenant_claim`. A
+  machine token without the organisation claim finds its tenant through its
+  bound machine user. A custom `create_app(resolve_tenant=...)` and
+  `tenant_claim` together refuse to start. All off by default: one tenant,
+  admins promoted by hand, as before.
 - `auth.oidc.required_scopes` (default empty) makes the server refuse IdP
   access tokens that lack a scope, read from the `scope` and `scp` claims:
   `POST /api/auth/oidc/register` (no user is created) and every `/api` request
