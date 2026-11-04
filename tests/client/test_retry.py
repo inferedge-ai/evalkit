@@ -254,3 +254,30 @@ def test_non_replayable_stream_body_is_sent_once(waits):
         response = client.post("/x", content=chunks(), extensions={"retry": WRITE})
     assert response.status_code == 503
     assert seen == ["POST"]
+
+
+def test_init_rejects_a_non_transport():
+    with pytest.raises(TypeError, match="BaseTransport"):
+        RetryTransport(object(), READ)  # type: ignore[arg-type]
+
+
+class SyncOnly(httpx2.BaseTransport):
+    def handle_request(self, request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200)
+
+
+class AsyncOnly(httpx2.AsyncBaseTransport):
+    async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200)
+
+
+async def test_sync_only_transport_fails_clearly_in_an_async_client():
+    client = httpx2.AsyncClient(base_url="http://t", transport=RetryTransport(SyncOnly(), READ))
+    with pytest.raises(TypeError, match="AsyncBaseTransport"):
+        await client.get("/x")
+
+
+def test_async_only_transport_fails_clearly_in_a_sync_client():
+    client = httpx2.Client(base_url="http://t", transport=RetryTransport(AsyncOnly(), READ))
+    with pytest.raises(TypeError, match="BaseTransport"):
+        client.get("/x")
