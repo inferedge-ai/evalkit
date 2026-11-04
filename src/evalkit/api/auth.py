@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from evalkit.api.oidc import IdpUnavailable
+from evalkit.api.oidc import IdpUnavailable, verify_access_token
 from evalkit.contracts.enums import TokenKind
 from evalkit.db.auth import find_token
 from evalkit.db.models import AuthToken, User, Workspace, WorkspaceMember
@@ -90,6 +90,38 @@ async def bearer_login(
     return row, user
 
 
+def is_jwt(token: str) -> bool:
+    return token.count(".") == 2
+
+
+def api_audience(state) -> list[str]:
+    return [state.oidc.cfg.audience] if state.oidc is not None else []
+
+
+async def sso_user(state, token: str, audience: list[str], request: Request | None) -> User:
+    if state.oidc is None:
+        raise HTTPException(status_code=401, detail="SSO is not configured on this server")
+    claims = await verify_access_token(state.oidc, token, audience)
+    tenant_id = state.resolve_tenant(request, claims)
+    async with tenant_session(state.session_factory, tenant_id) as session:
+        user = await session.scalar(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.issuer == claims["iss"],
+                User.subject == claims["sub"],
+            )
+        )
+    if user is None:
+        raise HTTPException(
+            status_code=401, detail=f"not registered: subject {claims['sub']} has no user"
+        )
+    if user.archived_at is not None:
+        raise HTTPException(status_code=401, detail="user is archived")
+    if request is not None:
+        request.state.token_expires_at = datetime.fromtimestamp(claims["exp"], UTC)
+    return user
+
+
 def token_expiry(row: AuthToken) -> datetime | None:
     if row.expires_at is None:
         return None
@@ -115,7 +147,10 @@ async def current_user(request: Request) -> User:
             user = await _active_user(session, row.user_id)
             await session.commit()
         return user
-    row, user = await bearer_login(session_factory, _bearer(request))
+    token = _bearer(request)
+    if is_jwt(token):
+        return await sso_user(request.app.state, token, api_audience(request.app.state), request)
+    row, user = await bearer_login(session_factory, token)
     request.state.token_expires_at = token_expiry(row)
     return user
 
@@ -252,6 +287,8 @@ async def me(request: Request, user: CurrentUser) -> dict:
         roles.setdefault(name, []).append(role)
     return {
         "username": user.username,
+        "email": user.email,
+        "kind": user.kind,
         "is_admin": user.is_admin,
         "personal_workspace": personal,
         "roles": roles,

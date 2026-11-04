@@ -116,6 +116,8 @@ async def test_me_and_last_used(app, client):
     expires = datetime.fromisoformat(body.pop("token_expires_at"))
     assert body == {
         "username": "alice",
+        "email": None,
+        "kind": "human",
         "is_admin": False,
         "personal_workspace": "alice",
         "roles": {},
