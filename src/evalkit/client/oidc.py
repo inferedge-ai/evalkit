@@ -1,17 +1,27 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import secrets
 import threading
-from collections.abc import Generator
+import time
+from collections.abc import Callable, Generator
 from datetime import UTC, datetime, timedelta
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 import httpx
 
 from evalkit.client import connection
+from evalkit.client.api import response_detail
 from evalkit.client.connection import Connection, MachineLogin, OidcLogin
 
 REFRESH_WINDOW_SECONDS = 60
+LOOPBACK_TIMEOUT_SECONDS = 300.0
+LOOPBACK_PAGE = b"<!doctype html><title>evalkit</title><p>Logged in. You can close this tab."
+DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 
 
 class LoginExpired(Exception):
@@ -171,3 +181,167 @@ def build_auth(
     if conn.token is not None:
         return static_auth(conn.token)
     return None
+
+
+class LoginTimedOut(Exception):
+    def __init__(self) -> None:
+        super().__init__("login timed out; run `evalkit login` again")
+
+
+class NoDeviceGrant(Exception):
+    def __init__(self) -> None:
+        super().__init__(
+            "this identity provider has no device authorization endpoint; "
+            "log in from a machine with a browser"
+        )
+
+
+class LoginRefused(Exception):
+    pass
+
+
+def generate_verifier() -> str:
+    return secrets.token_urlsafe(48)
+
+
+def pkce_challenge(verifier: str) -> str:
+    digest = hashlib.sha256(verifier.encode()).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
+
+
+def run_loopback_flow(
+    providers_oidc: dict,
+    open_browser: Callable[[str], None],
+    *,
+    timeout: float = LOOPBACK_TIMEOUT_SECONDS,
+    transport: httpx.BaseTransport | None = None,
+) -> dict:
+    received: dict[str, str] = {}
+    done = threading.Event()
+
+    class Callback(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            received.update({k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()})
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.end_headers()
+            self.wfile.write(LOOPBACK_PAGE)
+            done.set()
+
+        def log_message(self, format: str, *args: object) -> None:
+            return
+
+    server = HTTPServer(("127.0.0.1", 0), Callback)
+    redirect_uri = f"http://127.0.0.1:{server.server_address[1]}/callback"
+    verifier = generate_verifier()
+    state = secrets.token_urlsafe(16)
+    query = urlencode(
+        {
+            "response_type": "code",
+            "client_id": providers_oidc["client_id"],
+            "redirect_uri": redirect_uri,
+            "scope": " ".join(providers_oidc["scopes"]),
+            "state": state,
+            "code_challenge": pkce_challenge(verifier),
+            "code_challenge_method": "S256",
+            **providers_oidc["authorize_params"],
+        }
+    )
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    open_browser(f"{providers_oidc['authorization_endpoint']}?{query}")
+    finished = done.wait(timeout)
+    server.shutdown()
+    server.server_close()
+    if not finished:
+        raise LoginTimedOut()
+    if received.get("state") != state:
+        raise LoginRefused("state mismatch on the login callback")
+    if "error" in received:
+        raise LoginRefused(
+            f"{received['error']}: {received.get('error_description', 'login refused')}"
+        )
+    with httpx.Client(transport=transport, timeout=30.0) as http:
+        resp = http.post(
+            providers_oidc["token_endpoint"],
+            data={
+                "grant_type": "authorization_code",
+                "code": received["code"],
+                "redirect_uri": redirect_uri,
+                "client_id": providers_oidc["client_id"],
+                "code_verifier": verifier,
+            },
+        )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def run_device_flow(
+    providers_oidc: dict,
+    echo: Callable[[str], None],
+    *,
+    sleep: Callable[[float], None] = time.sleep,
+    transport: httpx.BaseTransport | None = None,
+) -> dict:
+    endpoint = providers_oidc["device_authorization_endpoint"]
+    if endpoint is None:
+        raise NoDeviceGrant()
+    with httpx.Client(transport=transport, timeout=30.0) as http:
+        started_resp = http.post(
+            endpoint,
+            data={
+                "client_id": providers_oidc["client_id"],
+                "scope": " ".join(providers_oidc["scopes"]),
+                **providers_oidc["authorize_params"],
+            },
+        )
+        started_resp.raise_for_status()
+        started = started_resp.json()
+        echo(f"open {started['verification_uri']} and enter {started['user_code']}")
+        interval = float(started.get("interval", 5))
+        deadline = time.monotonic() + float(started.get("expires_in", 300))
+        while time.monotonic() < deadline:
+            resp = http.post(
+                providers_oidc["token_endpoint"],
+                data={
+                    "grant_type": DEVICE_GRANT,
+                    "device_code": started["device_code"],
+                    "client_id": providers_oidc["client_id"],
+                },
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            error = resp.json().get("error") if resp.status_code == 400 else None
+            if error == "slow_down":
+                interval += 5
+            elif error != "authorization_pending":
+                raise LoginRefused(error or response_detail(resp))
+            sleep(interval)
+    raise LoginTimedOut()
+
+
+def register_identity(url: str, tokens: dict, transport: httpx.BaseTransport | None = None) -> dict:
+    with httpx.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
+        resp = http.post(
+            "/api/auth/oidc/register",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+            json={"id_token": tokens["id_token"]},
+        )
+    if resp.status_code >= 400:
+        raise LookupError(response_detail(resp))
+    return resp.json()
+
+
+def login_from_tokens(url: str, providers_oidc: dict, tokens: dict) -> Connection:
+    return Connection(
+        url,
+        None,
+        None,
+        oidc=OidcLogin(
+            issuer=providers_oidc["issuer"],
+            client_id=providers_oidc["client_id"],
+            token_endpoint=providers_oidc["token_endpoint"],
+            access_token=tokens["access_token"],
+            refresh_token=tokens["refresh_token"],
+            expires_at=expiry_from(tokens),
+        ),
+    )

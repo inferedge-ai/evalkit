@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import time
+import webbrowser
 from datetime import UTC, datetime
 from importlib.util import find_spec
 from pathlib import Path
@@ -235,24 +236,63 @@ def _print_findings(findings: list[dict]) -> None:
 @app.command()
 def login(
     url: str = typer.Option(None, "--url", help="Server base URL, e.g. https://evalkit.internal"),
-    username: str = typer.Option(None, "--username"),
+    username: str = typer.Option(
+        None,
+        "--username",
+        help="Password login; with SSO configured, admins only unless password_login is all.",
+    ),
     password: str = typer.Option(None, "--password"),
+    no_browser: bool = typer.Option(
+        False,
+        "--no-browser",
+        help="Headless machine: show a code to enter on another device "
+        "(device authorization grant).",
+    ),
 ):
     """Log in to a server and store the login in ~/.evalkit/config.toml, replacing any
     earlier one.
 
+    With single sign-on configured on the server, the command opens your browser at
+    the identity provider and stores the IdP's tokens; they refresh themselves. Pass
+    --username for a password login instead.
     Example: evalkit login --url https://evalkit.example.com
     """
     url = url or typer.prompt("Server URL")
-    username = username or typer.prompt("Username")
-    password = password or typer.prompt("Password", hide_input=True)
-    body = (
-        ApiClient(url)
-        .post("/api/auth/login", json={"username": username, "password": password})
-        .json()
-    )
-    path = connection.save(connection.Connection(url, body["token"], body["username"]))
-    typer.echo(f"logged in as {username} on {url}; saved to {path}")
+    providers_oidc = None if username is not None else oidc.fetch_providers(url)["oidc"]
+    if providers_oidc is None:
+        username = username or typer.prompt("Username")
+        password = password or typer.prompt("Password", hide_input=True)
+        body = (
+            ApiClient(url)
+            .post("/api/auth/login", json={"username": username, "password": password})
+            .json()
+        )
+        path = connection.save(connection.Connection(url, body["token"], body["username"]))
+        typer.echo(f"logged in as {username} on {url}; saved to {path}")
+        return
+    try:
+        if no_browser:
+            tokens = oidc.run_device_flow(providers_oidc, typer.echo)
+        else:
+            typer.echo("opening your browser to sign in; if it does not open, use the URL below")
+            tokens = oidc.run_loopback_flow(providers_oidc, open_browser)
+        me = oidc.register_identity(url, tokens)
+    except (
+        oidc.LoginTimedOut,
+        oidc.NoDeviceGrant,
+        oidc.LoginRefused,
+        LookupError,
+        httpx.HTTPError,
+    ) as exc:
+        raise ApiError(str(exc)) from exc
+    stored = oidc.login_from_tokens(url, providers_oidc, tokens)._replace(username=me["username"])
+    path = connection.save(stored)
+    typer.echo(f"logged in as {me['username']} on {url}; saved to {path}")
+
+
+def open_browser(url: str) -> None:
+    typer.echo(url)
+    webbrowser.open(url)
 
 
 @app.command()
@@ -266,6 +306,13 @@ def whoami():
     me = _client().get("/api/auth/me").json()
     source = " (from EVALKIT_SERVER_URL)" if active.from_env else ""
     typer.echo(f"{me['username']} on {active.url}{source}")
+    if active.machine is not None:
+        kind = "client credentials"
+    elif active.oidc is not None:
+        kind = "sso (refresh token stored; the access token renews itself)"
+    else:
+        kind = "password"
+    typer.echo(f"login: {kind}")
     expires_at = me.get("token_expires_at")
     if expires_at is None:
         typer.echo("token does not expire")
