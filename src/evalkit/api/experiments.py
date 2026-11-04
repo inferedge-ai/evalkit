@@ -5,7 +5,7 @@ from collections.abc import Coroutine
 from dataclasses import replace
 from typing import Any
 
-import httpx
+import httpx2
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -306,7 +306,7 @@ async def create_experiment(
         )
     except (InvalidCaseInputs, NothingRunnable) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except httpx.HTTPError as exc:
+    except httpx2.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"could not start experiment: {exc}") from exc
     if server_driven:
         _track(request, exp.id, holder, f"run:{exp.id}", run_experiment(run_deps, exp.id, holder))

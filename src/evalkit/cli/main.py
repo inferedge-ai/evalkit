@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from importlib.util import find_spec
 from pathlib import Path
 
-import httpx
+import httpx2
 import typer
 import yaml
 from dotenv import load_dotenv
@@ -370,7 +370,7 @@ def lint(
             local = _with_secrets(_local_config(), scoring=False)
             try:
                 schema = asyncio.run(local_input_schema(conn, local, ref))
-            except (httpx.HTTPError, ValueError, ApiRequestError) as exc:
+            except (httpx2.HTTPError, ValueError, ApiRequestError) as exc:
                 raise ApiError(f"harness {definition.ref}: {exc}") from exc
             form["input_schema"] = json.dumps(schema)
     files = _yaml_files(path)

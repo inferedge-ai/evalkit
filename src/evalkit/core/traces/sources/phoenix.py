@@ -4,7 +4,7 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
 
-import httpx
+import httpx2
 
 from evalkit.core.traces.raw import RawSpan
 from evalkit.core.traces.sources.base import TracePage
@@ -60,7 +60,7 @@ class PhoenixClient:
         api_key: str | None,
         page_traces: int,
         *,
-        transport: httpx.AsyncBaseTransport | None = None,
+        transport: httpx2.AsyncBaseTransport | None = None,
     ):
         self._url = url.rstrip("/")
         self._api_key = api_key
@@ -71,7 +71,7 @@ class PhoenixClient:
         self, path: str, params: dict[str, str | list[str]]
     ) -> AsyncIterator[list[dict[str, Any]]]:
         cursor: str | None = None
-        async with httpx.AsyncClient(
+        async with httpx2.AsyncClient(
             base_url=self._url,
             headers={"Authorization": f"Bearer {self._api_key}"} if self._api_key else {},
             timeout=120,

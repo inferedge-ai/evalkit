@@ -4,7 +4,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-import httpx
+import httpx2
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -109,7 +109,7 @@ async def _bundle(ctx: PullContext, session: AsyncSession, run: BrowserRun) -> R
             backfill_step_costs(trajectory, ctx.cost_map)
             bundle.trajectory = trajectory.model_dump(exclude_none=True)
     except (
-        httpx.HTTPError,
+        httpx2.HTTPError,
         TrajectoryValidationError,
         LookupError,
         UnsafePathError,

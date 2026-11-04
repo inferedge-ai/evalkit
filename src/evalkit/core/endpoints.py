@@ -2,7 +2,7 @@ import asyncio
 import ipaddress
 import socket
 
-import httpx
+import httpx2
 
 
 class BlockedEndpoint(ValueError):
@@ -16,7 +16,7 @@ def blocked(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
 async def check_endpoint(url: str, *, allow_private: bool) -> None:
     if allow_private:
         return
-    host = httpx.URL(url).host
+    host = httpx2.URL(url).host
     if not host:
         raise BlockedEndpoint(f"{url} has no host")
     try:

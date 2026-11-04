@@ -9,7 +9,7 @@ declared.
 
 from datetime import UTC, datetime, timedelta
 
-import httpx
+import httpx2
 
 from evalkit.contracts.atif import TrajectoryValidationError, subagent_link_warnings
 from evalkit.contracts.harness import FileRef, RunListParams, input_errors
@@ -36,7 +36,7 @@ async def check_harness(
     api_key: str | None,
     blob_store: BlobStore,
     *,
-    transport: httpx.AsyncBaseTransport | None = None,
+    transport: httpx2.AsyncBaseTransport | None = None,
     sessions: SessionReader | None = None,
     agent_slug: str | None = None,
 ) -> dict[str, dict]:
@@ -52,7 +52,7 @@ async def check_harness(
                 if caps.branch:
                     detail += f" branch={caps.branch}"
             report["capabilities"] = _entry("pass", detail)
-        except (httpx.HTTPError, ValueError) as exc:
+        except (httpx2.HTTPError, ValueError) as exc:
             report["capabilities"] = _entry("fail", str(exc))
             return report
 
@@ -98,7 +98,7 @@ async def check_harness(
                 )
             else:
                 report["run"] = _entry("fail", f"run ended {status.status}, error={status.error}")
-        except (httpx.HTTPError, RunTimeout) as exc:
+        except (httpx2.HTTPError, RunTimeout) as exc:
             report["run"] = _entry("fail", str(exc))
         except UnsafePathError:
             report["run"] = _entry("fail", f"run id {run_id!r} must be one plain path segment")
@@ -147,7 +147,7 @@ async def check_harness(
                     if warnings
                     else _entry("pass", detail)
                 )
-            except (httpx.HTTPError, TrajectoryValidationError) as exc:
+            except (httpx2.HTTPError, TrajectoryValidationError) as exc:
                 report["trajectory"] = _entry("fail", str(exc))
 
         if not caps.provides.workspace:
@@ -158,7 +158,7 @@ async def check_harness(
             try:
                 files = await client.list_files(run_id)
                 report["workspace"] = _entry("pass", f"{len(files.files)} file(s) listed")
-            except httpx.HTTPError as exc:
+            except httpx2.HTTPError as exc:
                 report["workspace"] = _entry("fail", str(exc))
 
         if not caps.provides.run_listing:
@@ -174,7 +174,7 @@ async def check_harness(
                     if future.runs
                     else _entry("pass", f"total={runs.total}")
                 )
-            except httpx.HTTPError as exc:
+            except httpx2.HTTPError as exc:
                 report["run_listing"] = _entry("fail", str(exc))
 
         if not caps.accepts.stop:
@@ -184,7 +184,7 @@ async def check_harness(
                 stop_run_id = await client.start_run(probe)
                 await client.stop(stop_run_id)
                 report["stop"] = _entry("pass", f"run {stop_run_id} stopped")
-            except (httpx.HTTPError, UnsafePathError) as exc:
+            except (httpx2.HTTPError, UnsafePathError) as exc:
                 report["stop"] = _entry("fail", str(exc))
     finally:
         await client.aclose()

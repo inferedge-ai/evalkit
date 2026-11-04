@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- evalkit now uses `httpx2` instead of `httpx` and `httpx-retries`. The
+  CLI, the SDK and the server make their HTTP calls through `httpx2`, with a
+  small retry transport of evalkit's own (`evalkit.client.retry`). Code that
+  embeds `evalkit.sdk` now installs `httpx2`, not `httpx`. Retry waits no
+  longer use random jitter, and a request whose body is a one-shot stream
+  is sent once, never retried. The try-it stack's sample agent
+  (`try/agent.py`) imports `httpx2`.
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of
   a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch

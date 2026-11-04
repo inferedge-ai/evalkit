@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
-import httpx
+import httpx2
 import typer
 
 from evalkit.cli.client import ApiClient, ApiError
@@ -215,7 +215,7 @@ async def _harness_bundle(harness: HarnessClient, row: dict) -> RunBundle:
 
     try:
         bundle.trajectory = (await harness.trajectory(run_id)).model_dump(exclude_none=True)
-    except (httpx.HTTPError, TrajectoryValidationError, UnsafePathError) as exc:
+    except (httpx2.HTTPError, TrajectoryValidationError, UnsafePathError) as exc:
         bundle.pull_error = str(exc)
     return bundle
 
@@ -258,7 +258,7 @@ def _local_rows(
                     limit + offset,
                 )
             )
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             listed, note = [], f"harness unreachable: {exc}"
         extra = [
             {**run.model_dump(mode="json"), "source": "app", "stored": False} for run in listed

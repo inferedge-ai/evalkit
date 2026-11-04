@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from typing import Annotated
 
-import httpx
+import httpx2
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
 from evalkit.api.access import ensure_active, load_actor, require, workspace_ref
@@ -66,7 +66,7 @@ async def _agent_input_schema(deps: RunnerDeps, agent: str) -> dict:
     client = await harness_client(deps, definition)
     try:
         caps = await client.capabilities()
-    except (httpx.HTTPError, ValueError) as exc:
+    except (httpx2.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=502, detail=f"harness {agent}: {exc}") from exc
     finally:
         await client.aclose()
