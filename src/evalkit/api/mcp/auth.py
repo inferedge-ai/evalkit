@@ -1,7 +1,10 @@
+from datetime import datetime
+
 from fastapi import HTTPException
 from fastmcp.server.auth import AccessToken, AuthProvider, RemoteAuthProvider, TokenVerifier
 
-from evalkit.api.auth import bearer_login, is_jwt, sso_user, token_expiry
+from evalkit.api.auth import bearer_login, is_jwt, sso_login, token_expiry
+from evalkit.api.oidc import IdpUnavailable
 
 SCOPE_READ = "evalkit:read"
 MCP_PATH = "/mcp"
@@ -15,15 +18,17 @@ class EvalkitTokenVerifier(TokenVerifier):
         self._state = state
 
     async def verify_token(self, token: str) -> AccessToken | None:
+        expires: datetime | None
         try:
             if is_jwt(token):
                 oidc = self._state.oidc
                 audience = [oidc.cfg.audience, oidc.mcp_resource_url] if oidc is not None else []
-                user = await sso_user(self._state, token, audience, None)
-                expires = None
+                user, expires = await sso_login(self._state, token, audience, None)
             else:
                 row, user = await bearer_login(self._state.session_factory, token)
                 expires = token_expiry(row)
+        except IdpUnavailable:
+            raise
         except HTTPException:
             return None
         return AccessToken(

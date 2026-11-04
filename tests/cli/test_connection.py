@@ -114,4 +114,22 @@ def test_active_prefers_client_credentials_from_env(tmp_path, monkeypatch):
         "https://env", None, None, from_env=True, machine=MachineLogin("ci", "s3cret")
     )
     monkeypatch.delenv("EVALKIT_OIDC_CLIENT_SECRET")
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_ID")
     assert connection.active(path=path) == Connection("https://env", "envtok", None, from_env=True)
+
+
+@pytest.mark.parametrize(
+    "present,missing",
+    [
+        ("EVALKIT_OIDC_CLIENT_ID", "EVALKIT_OIDC_CLIENT_SECRET"),
+        ("EVALKIT_OIDC_CLIENT_SECRET", "EVALKIT_OIDC_CLIENT_ID"),
+    ],
+)
+def test_active_refuses_half_of_the_client_credentials(tmp_path, monkeypatch, present, missing):
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "https://env")
+    monkeypatch.setenv("EVALKIT_TOKEN", "envtok")
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_ID", raising=False)
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_SECRET", raising=False)
+    monkeypatch.setenv(present, "x")
+    with pytest.raises(LookupError, match=missing):
+        connection.active(path=tmp_path / "config.toml")

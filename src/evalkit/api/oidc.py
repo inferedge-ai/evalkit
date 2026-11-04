@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
 
 import httpx2
 import jwt
 from fastapi import HTTPException
+from pydantic import BaseModel
 
 from evalkit.config import OidcConfig
 
@@ -24,12 +24,11 @@ class IdpUnavailable(HTTPException):
         super().__init__(status_code=503, detail="identity provider unreachable")
 
 
-@dataclass(frozen=True)
-class Discovery:
+class Discovery(BaseModel, frozen=True):
     authorization_endpoint: str
     token_endpoint: str
     jwks_uri: str
-    device_authorization_endpoint: str | None
+    device_authorization_endpoint: str | None = None
 
 
 class JwkCache:
@@ -51,12 +50,14 @@ class JwkCache:
         kid = jwt.get_unverified_header(token).get("kid")
         if kid is None:
             raise HTTPException(status_code=401, detail="invalid access token: no kid in header")
+        if kid in self.keys:
+            return self.keys[kid]
         async with self.lock:
             if kid not in self.keys and time.monotonic() - self.last_fetch >= JWKS_REFETCH_SECONDS:
                 self.last_fetch = time.monotonic()
                 try:
                     await self.fetch()
-                except httpx2.HTTPError as exc:
+                except (httpx2.HTTPError, jwt.PyJWTError, ValueError) as exc:
                     raise IdpUnavailable() from exc
         if kid not in self.keys:
             raise HTTPException(
@@ -77,18 +78,13 @@ class OidcState:
         try:
             resp = await self.http.get(f"{self.cfg.issuer}{DISCOVERY_PATH}")
             resp.raise_for_status()
-            doc = resp.json()
-            keys = JwkCache(doc["jwks_uri"], self.http)
+            discovery = Discovery.model_validate_json(resp.content)
+            keys = JwkCache(discovery.jwks_uri, self.http)
             await keys.fetch()
-        except httpx2.HTTPError as exc:
-            LOGGER.warning("identity provider %s unreachable: %s", self.cfg.issuer, exc)
+        except (httpx2.HTTPError, jwt.PyJWTError, ValueError) as exc:
+            LOGGER.warning("identity provider %s unusable: %s", self.cfg.issuer, exc)
             return False
-        self.discovery = Discovery(
-            authorization_endpoint=doc["authorization_endpoint"],
-            token_endpoint=doc["token_endpoint"],
-            jwks_uri=doc["jwks_uri"],
-            device_authorization_endpoint=doc.get("device_authorization_endpoint"),
-        )
+        self.discovery = discovery
         self.keys = keys
         return True
 

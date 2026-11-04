@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx2
 import pytest
 from fastapi import HTTPException
@@ -137,3 +139,54 @@ async def test_failed_jwks_refetch_is_503_and_keeps_the_throttle():
     assert second.value.status_code == 401 and "signing key" in second.value.detail
     assert attempts["jwks"] == 1
     await state.http.aclose()
+
+
+@pytest.mark.parametrize(
+    "discovery_body",
+    [
+        b"<html>maintenance</html>",
+        b"{}",
+        b'{"authorization_endpoint": "a", "token_endpoint": "t"}',
+        b'{"authorization_endpoint": "a", "jwks_uri": "j"}',
+    ],
+)
+async def test_a_bad_discovery_body_is_an_unreachable_idp(discovery_body):
+    idp = FakeIdp()
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(200, content=discovery_body)
+
+    state = OidcState(
+        cfg_for(idp), httpx2.AsyncClient(transport=httpx2.MockTransport(handler)), RESOURCE
+    )
+    assert await state.load() is False
+    assert state.discovery is None and state.keys is None
+    await state.http.aclose()
+
+
+@pytest.mark.parametrize("jwks_body", [b"<html>maintenance</html>", b"{}", b'{"keys": []}'])
+async def test_a_bad_jwks_body_is_an_unreachable_idp(jwks_body):
+    idp = FakeIdp()
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        if request.url.path == "/jwks":
+            return httpx2.Response(200, content=jwks_body)
+        return httpx2.Response(200, json=idp.discovery())
+
+    state = OidcState(
+        cfg_for(idp), httpx2.AsyncClient(transport=httpx2.MockTransport(handler)), RESOURCE
+    )
+    assert await state.load() is False
+    assert state.keys is None
+    await state.http.aclose()
+
+
+async def test_a_known_kid_does_not_wait_on_an_inflight_refetch(oidc):
+    idp, state = oidc
+    keys = state.keys
+    await keys.lock.acquire()
+    try:
+        key = await asyncio.wait_for(keys.signing_key(idp.access_token("sub-1")), timeout=1)
+    finally:
+        keys.lock.release()
+    assert key.key_id == idp.kid

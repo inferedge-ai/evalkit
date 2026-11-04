@@ -93,6 +93,9 @@ def active(path: Path | None = None) -> Connection:
     if env_url:
         client_id = os.environ.get("EVALKIT_OIDC_CLIENT_ID")
         client_secret = os.environ.get("EVALKIT_OIDC_CLIENT_SECRET")
+        if bool(client_id) != bool(client_secret):
+            missing = "EVALKIT_OIDC_CLIENT_SECRET" if client_id else "EVALKIT_OIDC_CLIENT_ID"
+            raise LookupError(f"{missing} is not set; client credentials need both")
         if client_id and client_secret:
             return Connection(
                 env_url, None, None, from_env=True, machine=MachineLogin(client_id, client_secret)

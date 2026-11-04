@@ -40,12 +40,20 @@
   `evalkit users add` also takes `--password` for a password user.
   `evalkit users bind <name> --subject <sub>` links an existing user
   (`POST /api/users/{username}/identity`). `users list` shows `kind` and
-  `email`; `users promote` refuses a machine user.
+  `email`; `users promote` refuses a machine user. If only one of the two
+  variables is set, the CLI now stops with an error naming the missing one
+  instead of falling back to `EVALKIT_TOKEN`.
 - `/mcp` verifies tokens with the same settings as `/api`; a token for the
   configured audience or for `<base_url>/mcp` is its evalkit user, and
   archiving the user cuts off MCP. `mcp.oauth` is removed: a config that
   still has it fails to load and names `auth.oidc`. `create_app` no longer
-  takes `mcp_jwt_verifier`.
+  takes `mcp_jwt_verifier`. While the identity provider is unreachable,
+  `/mcp` answers 503 (as `/api` does) instead of 401, so MCP clients keep
+  their tokens and retry. The token's expiry now comes from its `exp` claim.
+- During `evalkit login`, a browser callback with the wrong `state` is
+  answered with 400 and ignored; the login keeps waiting for the real
+  callback until it times out. A body from the identity provider that is
+  not valid discovery or JWKS JSON counts as the provider being unreachable.
 - `tracing.register`, `tracing.exporter` and `tracing.processor` require
   `EVALKIT_OTEL_TOKEN` (an agent token); the fallback to a login token is
   removed.

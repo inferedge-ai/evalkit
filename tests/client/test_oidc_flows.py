@@ -90,14 +90,29 @@ def test_loopback_flow_refuses_a_callback_with_an_error():
         run_loopback_flow(providers_for(idp), spy, transport=idp.transport())
 
 
-def test_loopback_flow_refuses_a_state_mismatch():
+def test_loopback_flow_ignores_a_callback_with_the_wrong_state():
+    idp = FakeIdp()
+    idp.next_login = ("sub-1", "ann@example.com", "ann")
+    stray: list[int] = []
+
+    def spy(url: str) -> None:
+        redirect_uri = parse_qs(urlsplit(url).query)["redirect_uri"][0]
+        stray.append(httpx2.get(redirect_uri, params={"code": "c", "state": "forged"}).status_code)
+        stray.append(httpx2.get(redirect_uri, params={"error": "x"}).status_code)
+        browser_for(idp)(url)
+
+    tokens = run_loopback_flow(providers_for(idp), spy, transport=idp.transport())
+    assert stray == [400, 400] and "access_token" in tokens
+
+
+def test_loopback_flow_times_out_when_only_wrong_state_callbacks_arrive():
     idp = FakeIdp()
 
     def spy(url: str) -> None:
         callback_for(url, code="c", state="forged")
 
-    with pytest.raises(LoginRefused, match="state mismatch"):
-        run_loopback_flow(providers_for(idp), spy, transport=idp.transport())
+    with pytest.raises(LoginTimedOut):
+        run_loopback_flow(providers_for(idp), spy, timeout=0.5, transport=idp.transport())
 
 
 def test_loopback_listener_answers_only_the_callback_path():
