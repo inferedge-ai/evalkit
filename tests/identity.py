@@ -11,6 +11,7 @@ import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from jwt.algorithms import RSAAlgorithm
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -317,6 +318,9 @@ class FakeIdp:
 
     def asgi(self) -> FastAPI:
         app = FastAPI()
+        app.add_middleware(
+            CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+        )
 
         @app.api_route("/{path:path}", methods=["GET", "POST"])
         async def serve(path: str, request: Request) -> Response:
