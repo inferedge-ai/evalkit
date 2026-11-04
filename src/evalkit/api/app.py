@@ -9,7 +9,7 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import httpx
+import httpx2
 from fastapi import Depends, FastAPI, HTTPException, Request
 from sqlalchemy.exc import TimeoutError as PoolTimeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -182,7 +182,7 @@ def create_app(
     check_schema: bool = True,
     ui_dist: Path | None = None,
     holder: str | None = None,
-    oidc_transport: httpx.AsyncBaseTransport | None = None,
+    oidc_transport: httpx2.AsyncBaseTransport | None = None,
     resolve_tenant: Callable[[Request, dict | None], int] = default_resolve_tenant,
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
@@ -267,7 +267,7 @@ def create_app(
     app.state.oidc = (
         OidcState(
             cfg.auth.oidc,
-            httpx.AsyncClient(transport=oidc_transport, timeout=10.0),
+            httpx2.AsyncClient(transport=oidc_transport, timeout=10.0),
             f"{cfg.server.base_url.rstrip('/')}{MCP_PATH}",
         )
         if cfg.auth.oidc is not None

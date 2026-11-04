@@ -6,7 +6,7 @@ import time
 from collections.abc import Iterable
 from urllib.parse import parse_qs, urlencode
 
-import httpx
+import httpx2
 import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -296,7 +296,7 @@ class FakeIdp:
             return 200, headers, json.dumps(self._issue(pending)).encode()
         return 400, headers, b'{"error": "unsupported_grant_type"}'
 
-    def _handle_httpx(self, request: httpx.Request) -> httpx.Response:
+    def _handle_httpx(self, request: httpx2.Request) -> httpx2.Response:
         query = {k: v[0] for k, v in parse_qs(request.url.query.decode()).items()}
         form = (
             {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
@@ -310,10 +310,10 @@ class FakeIdp:
             form.setdefault("client_id", user)
             form.setdefault("client_secret", password)
         status, headers, body = self.handle(request.method, request.url.path, query, form)
-        return httpx.Response(status, headers=headers, content=body)
+        return httpx2.Response(status, headers=headers, content=body)
 
-    def transport(self) -> httpx.MockTransport:
-        return httpx.MockTransport(self._handle_httpx)
+    def transport(self) -> httpx2.MockTransport:
+        return httpx2.MockTransport(self._handle_httpx)
 
     def asgi(self) -> FastAPI:
         app = FastAPI()

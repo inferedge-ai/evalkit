@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 import typer
 
@@ -14,7 +14,7 @@ class ExpiredSource:
 
 
 def test_expired_login_becomes_one_red_line(capsys):
-    transport = httpx.MockTransport(lambda request: httpx.Response(200, json={}))
+    transport = httpx2.MockTransport(lambda request: httpx2.Response(200, json={}))
     client = ApiClient("http://x", EvalkitAuth(ExpiredSource()), transport=transport)
     with pytest.raises(typer.Exit) as raised:
         client.get("/api/auth/me")
@@ -24,7 +24,7 @@ def test_expired_login_becomes_one_red_line(capsys):
 
 def test_unreachable_server_during_provider_lookup_is_one_red_line(monkeypatch, tmp_path, capsys):
     def unreachable(url, transport=None):
-        raise httpx.ConnectError("refused")
+        raise httpx2.ConnectError("refused")
 
     monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
     monkeypatch.setenv("EVALKIT_SERVER_URL", "http://x")

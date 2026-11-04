@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 from fastapi import HTTPException
 
@@ -18,7 +18,7 @@ def cfg_for(idp: FakeIdp) -> OidcConfig:
 @pytest.fixture
 async def oidc():
     idp = FakeIdp()
-    state = OidcState(cfg_for(idp), httpx.AsyncClient(transport=idp.transport()), RESOURCE)
+    state = OidcState(cfg_for(idp), httpx2.AsyncClient(transport=idp.transport()), RESOURCE)
     assert await state.load() is True
     yield idp, state
     await state.http.aclose()
@@ -85,14 +85,14 @@ async def test_discovery_down_means_503_until_it_comes_back():
     idp = FakeIdp()
     calls = {"n": 0}
 
-    def flaky(request: httpx.Request) -> httpx.Response:
+    def flaky(request: httpx2.Request) -> httpx2.Response:
         calls["n"] += 1
         if calls["n"] == 1:
-            raise httpx.ConnectError("down")
+            raise httpx2.ConnectError("down")
         return idp._handle_httpx(request)
 
     state = OidcState(
-        cfg_for(idp), httpx.AsyncClient(transport=httpx.MockTransport(flaky)), RESOURCE
+        cfg_for(idp), httpx2.AsyncClient(transport=httpx2.MockTransport(flaky)), RESOURCE
     )
     assert await state.load() is False
     with pytest.raises(HTTPException) as info:
@@ -117,14 +117,14 @@ async def test_failed_jwks_refetch_is_503_and_keeps_the_throttle():
     attempts = {"jwks": 0}
     down = {"on": False}
 
-    def flaky(request: httpx.Request) -> httpx.Response:
+    def flaky(request: httpx2.Request) -> httpx2.Response:
         if down["on"] and request.url.path.endswith("/jwks"):
             attempts["jwks"] += 1
-            raise httpx.ConnectError("down")
+            raise httpx2.ConnectError("down")
         return idp._handle_httpx(request)
 
     state = OidcState(
-        cfg_for(idp), httpx.AsyncClient(transport=httpx.MockTransport(flaky)), RESOURCE
+        cfg_for(idp), httpx2.AsyncClient(transport=httpx2.MockTransport(flaky)), RESOURCE
     )
     assert await state.load() is True
     down["on"] = True

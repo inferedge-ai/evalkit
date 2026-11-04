@@ -85,7 +85,7 @@ class AsyncApi:
     def __init__(
         self,
         server_url: str,
-        auth: httpx.Auth | None = None,
+        auth: httpx2.Auth | None = None,
         *,
         transport: httpx2.AsyncBaseTransport | None = None,
     ):
@@ -145,7 +145,7 @@ class SyncApi:
     def __init__(
         self,
         server_url: str,
-        auth: httpx.Auth | None = None,
+        auth: httpx2.Auth | None = None,
         *,
         transport: httpx2.BaseTransport | None = None,
     ):

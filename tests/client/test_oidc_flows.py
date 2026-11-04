@@ -1,7 +1,7 @@
 import threading
 from urllib.parse import parse_qs, urlsplit
 
-import httpx
+import httpx2
 import jwt
 import pytest
 
@@ -36,10 +36,10 @@ def providers_for(idp: FakeIdp, *, device: bool = True) -> dict:
 def browser_for(idp: FakeIdp):
     def open_browser(url: str) -> None:
         def follow() -> None:
-            with httpx.Client(transport=idp.transport()) as at_idp:
+            with httpx2.Client(transport=idp.transport()) as at_idp:
                 redirect = at_idp.get(url)
             assert redirect.status_code == 302, redirect.text
-            httpx.get(redirect.headers["location"])
+            httpx2.get(redirect.headers["location"])
 
         threading.Thread(target=follow, daemon=True).start()
 
@@ -49,7 +49,7 @@ def browser_for(idp: FakeIdp):
 def callback_for(url: str, **params: str) -> None:
     query = parse_qs(urlsplit(url).query)
     threading.Thread(
-        target=lambda: httpx.get(query["redirect_uri"][0], params=params), daemon=True
+        target=lambda: httpx2.get(query["redirect_uri"][0], params=params), daemon=True
     ).start()
 
 
@@ -111,7 +111,7 @@ def test_loopback_listener_answers_only_the_callback_path():
 
     def spy(url: str) -> None:
         redirect_uri = parse_qs(urlsplit(url).query)["redirect_uri"][0]
-        stray.append(httpx.get(redirect_uri.replace("/callback", "/favicon.ico")).status_code)
+        stray.append(httpx2.get(redirect_uri.replace("/callback", "/favicon.ico")).status_code)
         browser_for(idp)(url)
 
     tokens = run_loopback_flow(providers_for(idp), spy, transport=idp.transport())
@@ -170,8 +170,8 @@ def test_device_flow_refuses_any_other_error(monkeypatch):
 
 
 def test_register_identity_raises_the_servers_detail():
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(409, json={"detail": "bind sub-1 first"})
+    transport = httpx2.MockTransport(
+        lambda request: httpx2.Response(409, json={"detail": "bind sub-1 first"})
     )
     with pytest.raises(LookupError, match="bind sub-1 first"):
         register_identity(

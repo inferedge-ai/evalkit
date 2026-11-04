@@ -1,7 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-import httpx
+import httpx2
 import pytest
 
 from evalkit.api.app import create_app
@@ -17,8 +17,8 @@ async def sso_app(
     idp: FakeIdp,
     *,
     password_login: str = "admin",
-    transport: httpx.AsyncBaseTransport | None = None,
-) -> AsyncIterator[httpx.AsyncClient]:
+    transport: httpx2.AsyncBaseTransport | None = None,
+) -> AsyncIterator[httpx2.AsyncClient]:
     env.deps.cfg.auth.oidc = OidcConfig(
         issuer=idp.issuer, client_id=idp.client_id, audience=idp.audience, name="Fake"
     )
@@ -33,8 +33,8 @@ async def sso_app(
         oidc_transport=transport or idp.transport(),
     )
     async with app.router.lifespan_context(app):
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        async with httpx2.AsyncClient(
+            transport=httpx2.ASGITransport(app=app), base_url="http://test"
         ) as client:
             client.app = app  # type: ignore[attr-defined]
             login = await client.post(
@@ -81,10 +81,10 @@ async def test_providers_with_an_idp(env, idp):
 
 
 async def test_providers_is_503_while_discovery_is_down(env, idp):
-    def down(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("down")
+    def down(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("down")
 
-    async with sso_app(env, idp, transport=httpx.MockTransport(down)) as client:
+    async with sso_app(env, idp, transport=httpx2.MockTransport(down)) as client:
         resp = await client.get("/api/auth/providers")
         assert resp.status_code == 503
         assert client.app.state.oidc_retry is not None and not client.app.state.oidc_retry.done()
@@ -154,11 +154,11 @@ async def test_a_jwt_without_an_idp_configured_is_401(env, tmp_path, idp):
 
 
 async def test_sso_requests_are_503_while_discovery_is_down(env, idp):
-    def down(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("down")
+    def down(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("down")
 
     await bind_user(env, idp, "ann", "sub-ann", "ann@example.com")
-    async with sso_app(env, idp, transport=httpx.MockTransport(down)) as client:
+    async with sso_app(env, idp, transport=httpx2.MockTransport(down)) as client:
         resp = await client.get("/api/auth/me", headers=bearer(idp.access_token("sub-ann")))
         assert resp.status_code == 503
         login = await client.post(
@@ -168,7 +168,7 @@ async def test_sso_requests_are_503_while_discovery_is_down(env, idp):
 
 
 async def register(
-    client: httpx.AsyncClient,
+    client: httpx2.AsyncClient,
     idp: FakeIdp,
     sub: str,
     email: str | None,

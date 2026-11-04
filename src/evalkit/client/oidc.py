@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import parse_qs, urlencode, urlsplit
 
-import httpx
+import httpx2
 
 from evalkit.client import connection
 from evalkit.client.api import response_detail
@@ -54,7 +54,7 @@ class StoredOidcLogin:
         self,
         conn: Connection,
         path: Path | None = None,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx2.BaseTransport | None = None,
     ) -> None:
         assert conn.oidc is not None
         self.conn = conn
@@ -77,7 +77,7 @@ class StoredOidcLogin:
             return refreshed.access_token
 
     def refresh(self, login: OidcLogin) -> OidcLogin | None:
-        with httpx.Client(transport=self.transport, timeout=30.0) as http:
+        with httpx2.Client(transport=self.transport, timeout=30.0) as http:
             resp = http.post(
                 login.token_endpoint,
                 data={
@@ -115,7 +115,7 @@ class ClientCredentials:
         machine: MachineLogin,
         token_endpoint: str,
         authorize_params: dict[str, str],
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx2.BaseTransport | None = None,
     ) -> None:
         self.machine = machine
         self.token_endpoint = token_endpoint
@@ -128,11 +128,11 @@ class ClientCredentials:
     def bearer(self) -> str:
         with self.lock:
             if self.token is None or expires_within(self.expires_at, REFRESH_WINDOW_SECONDS):
-                with httpx.Client(transport=self.transport, timeout=30.0) as http:
+                with httpx2.Client(transport=self.transport, timeout=30.0) as http:
                     resp = http.post(
                         self.token_endpoint,
                         data={"grant_type": "client_credentials", **self.authorize_params},
-                        auth=httpx.BasicAuth(self.machine.client_id, self.machine.client_secret),
+                        auth=httpx2.BasicAuth(self.machine.client_id, self.machine.client_secret),
                     )
                 resp.raise_for_status()
                 tokens = resp.json()
@@ -142,17 +142,19 @@ class ClientCredentials:
             return self.token
 
 
-class EvalkitAuth(httpx.Auth):
+class EvalkitAuth(httpx2.Auth):
     def __init__(self, source: TokenSource) -> None:
         self.source = source
 
-    def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
+    def auth_flow(
+        self, request: httpx2.Request
+    ) -> Generator[httpx2.Request, httpx2.Response, None]:
         request.headers["Authorization"] = f"Bearer {self.source.bearer()}"
         yield request
 
 
-def fetch_providers(url: str, transport: httpx.BaseTransport | None = None) -> dict:
-    with httpx.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
+def fetch_providers(url: str, transport: httpx2.BaseTransport | None = None) -> dict:
+    with httpx2.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
         resp = http.get("/api/auth/providers")
         resp.raise_for_status()
         return resp.json()
@@ -166,7 +168,7 @@ def build_auth(
     conn: Connection,
     *,
     path: Path | None = None,
-    transport: httpx.BaseTransport | None = None,
+    transport: httpx2.BaseTransport | None = None,
 ) -> EvalkitAuth | None:
     if conn.machine is not None:
         oidc = fetch_providers(conn.url, transport)["oidc"]
@@ -217,7 +219,7 @@ def run_loopback_flow(
     open_browser: Callable[[str], None],
     *,
     timeout: float = LOOPBACK_TIMEOUT_SECONDS,
-    transport: httpx.BaseTransport | None = None,
+    transport: httpx2.BaseTransport | None = None,
 ) -> dict:
     received: dict[str, str] = {}
     done = threading.Event()
@@ -269,7 +271,7 @@ def run_loopback_flow(
         )
     if "code" not in received:
         raise LoginRefused("the login callback carried no code")
-    with httpx.Client(transport=transport, timeout=30.0) as http:
+    with httpx2.Client(transport=transport, timeout=30.0) as http:
         resp = http.post(
             providers_oidc["token_endpoint"],
             data={
@@ -289,12 +291,12 @@ def run_device_flow(
     echo: Callable[[str], None],
     *,
     sleep: Callable[[float], None] = time.sleep,
-    transport: httpx.BaseTransport | None = None,
+    transport: httpx2.BaseTransport | None = None,
 ) -> dict:
     endpoint = providers_oidc["device_authorization_endpoint"]
     if endpoint is None:
         raise NoDeviceGrant()
-    with httpx.Client(transport=transport, timeout=30.0) as http:
+    with httpx2.Client(transport=transport, timeout=30.0) as http:
         started_resp = http.post(
             endpoint,
             data={
@@ -330,8 +332,10 @@ def run_device_flow(
     raise LoginTimedOut()
 
 
-def register_identity(url: str, tokens: dict, transport: httpx.BaseTransport | None = None) -> dict:
-    with httpx.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
+def register_identity(
+    url: str, tokens: dict, transport: httpx2.BaseTransport | None = None
+) -> dict:
+    with httpx2.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
         resp = http.post(
             "/api/auth/oidc/register",
             headers={"Authorization": f"Bearer {tokens['access_token']}"},

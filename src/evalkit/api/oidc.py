@@ -5,7 +5,7 @@ import logging
 import time
 from dataclasses import dataclass
 
-import httpx
+import httpx2
 import jwt
 from fastapi import HTTPException
 
@@ -33,7 +33,7 @@ class Discovery:
 
 
 class JwkCache:
-    def __init__(self, jwks_uri: str, http: httpx.AsyncClient) -> None:
+    def __init__(self, jwks_uri: str, http: httpx2.AsyncClient) -> None:
         self.jwks_uri = jwks_uri
         self.http = http
         self.keys: dict[str, jwt.PyJWK] = {}
@@ -56,7 +56,7 @@ class JwkCache:
                 self.last_fetch = time.monotonic()
                 try:
                     await self.fetch()
-                except httpx.HTTPError as exc:
+                except httpx2.HTTPError as exc:
                     raise IdpUnavailable() from exc
         if kid not in self.keys:
             raise HTTPException(
@@ -66,7 +66,7 @@ class JwkCache:
 
 
 class OidcState:
-    def __init__(self, cfg: OidcConfig, http: httpx.AsyncClient, mcp_resource_url: str) -> None:
+    def __init__(self, cfg: OidcConfig, http: httpx2.AsyncClient, mcp_resource_url: str) -> None:
         self.cfg = cfg
         self.http = http
         self.mcp_resource_url = mcp_resource_url
@@ -80,7 +80,7 @@ class OidcState:
             doc = resp.json()
             keys = JwkCache(doc["jwks_uri"], self.http)
             await keys.fetch()
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             LOGGER.warning("identity provider %s unreachable: %s", self.cfg.issuer, exc)
             return False
         self.discovery = Discovery(

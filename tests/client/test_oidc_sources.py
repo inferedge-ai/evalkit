@@ -1,7 +1,7 @@
 import threading
 from datetime import UTC, datetime, timedelta
 
-import httpx
+import httpx2
 import jwt
 import pytest
 
@@ -81,9 +81,9 @@ def test_stored_login_raises_when_nothing_newer_exists(tmp_path):
 def test_stored_login_surfaces_an_idp_outage_instead_of_expiry(tmp_path):
     idp = FakeIdp()
     conn, path = stored(idp, tmp_path, seconds_left=30)
-    outage = httpx.MockTransport(lambda request: httpx.Response(503))
+    outage = httpx2.MockTransport(lambda request: httpx2.Response(503))
     source = StoredOidcLogin(conn, path=path, transport=outage)
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(httpx2.HTTPStatusError):
         source.bearer()
 
 
@@ -131,9 +131,9 @@ def test_client_credentials_fetches_once_and_keeps_it_in_memory(tmp_path):
 def test_evalkit_auth_sets_the_header_per_request():
     calls: list[str] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         calls.append(request.headers["Authorization"])
-        return httpx.Response(200)
+        return httpx2.Response(200)
 
     class Counter:
         n = 0
@@ -142,16 +142,18 @@ def test_evalkit_auth_sets_the_header_per_request():
             self.n += 1
             return f"t{self.n}"
 
-    with httpx.Client(transport=httpx.MockTransport(handler), auth=EvalkitAuth(Counter())) as http:
+    with httpx2.Client(
+        transport=httpx2.MockTransport(handler), auth=EvalkitAuth(Counter())
+    ) as http:
         http.get("https://x/a")
         http.get("https://x/b")
     assert calls == ["Bearer t1", "Bearer t2"]
 
 
-def providers_transport(idp: FakeIdp) -> httpx.MockTransport:
-    def handler(request: httpx.Request) -> httpx.Response:
+def providers_transport(idp: FakeIdp) -> httpx2.MockTransport:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/api/auth/providers":
-            return httpx.Response(
+            return httpx2.Response(
                 200,
                 json={
                     "password": "admin",
@@ -163,7 +165,7 @@ def providers_transport(idp: FakeIdp) -> httpx.MockTransport:
             )
         return idp._handle_httpx(request)
 
-    return httpx.MockTransport(handler)
+    return httpx2.MockTransport(handler)
 
 
 def test_build_auth_picks_the_source(tmp_path):
@@ -190,8 +192,8 @@ def test_static_auth():
 
 
 def test_build_auth_without_an_identity_provider_names_it():
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(200, json={"password": "admin", "oidc": None})
+    transport = httpx2.MockTransport(
+        lambda request: httpx2.Response(200, json={"password": "admin", "oidc": None})
     )
     machine = Connection(
         "https://evalkit.test", None, None, from_env=True, machine=MachineLogin("ci", "s3cret")

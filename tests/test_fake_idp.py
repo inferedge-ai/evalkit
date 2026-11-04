@@ -2,7 +2,7 @@ import base64
 import hashlib
 from urllib.parse import parse_qs, urlencode, urlsplit
 
-import httpx
+import httpx2
 import jwt
 import pytest
 
@@ -15,7 +15,7 @@ def idp() -> FakeIdp:
 
 
 def test_discovery_and_jwks(idp):
-    with httpx.Client(transport=idp.transport()) as http:
+    with httpx2.Client(transport=idp.transport()) as http:
         disc = http.get(f"{idp.issuer}/.well-known/openid-configuration").json()
         assert disc["issuer"] == idp.issuer
         assert disc["token_endpoint"] == f"{idp.issuer}/token"
@@ -48,9 +48,9 @@ def test_code_flow_with_pkce_and_refresh_rotation(idp):
         }
     )
     token_url = f"{idp.issuer}/token"
-    with httpx.Client(transport=idp.transport()) as http:
+    with httpx2.Client(transport=idp.transport()) as http:
 
-        def exchange(code: str, code_verifier: str) -> httpx.Response:
+        def exchange(code: str, code_verifier: str) -> httpx2.Response:
             return http.post(
                 token_url,
                 data={
@@ -85,7 +85,7 @@ def test_code_flow_with_pkce_and_refresh_rotation(idp):
         assert idtok["email"] == "ann@example.com" and idtok["preferred_username"] == "ann"
         first = tokens["refresh_token"]
 
-        def refresh(token: str) -> httpx.Response:
+        def refresh(token: str) -> httpx2.Response:
             return http.post(
                 token_url,
                 data={
@@ -105,11 +105,11 @@ def test_code_flow_with_pkce_and_refresh_rotation(idp):
 def test_client_credentials_and_device_grant(idp):
     idp.machine_clients["ci"] = ("s3cret", "machine-sub")
     token_url = f"{idp.issuer}/token"
-    with httpx.Client(transport=idp.transport()) as http:
+    with httpx2.Client(transport=idp.transport()) as http:
         resp = http.post(
             token_url,
             data={"grant_type": "client_credentials"},
-            auth=httpx.BasicAuth("ci", "s3cret"),
+            auth=httpx2.BasicAuth("ci", "s3cret"),
         )
         assert resp.status_code == 200
         claims = jwt.decode(resp.json()["access_token"], options={"verify_signature": False})
@@ -139,8 +139,8 @@ def test_client_credentials_and_device_grant(idp):
 
 
 async def test_asgi_adapter_serves_discovery(idp):
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=idp.asgi()), base_url=idp.issuer
+    async with httpx2.AsyncClient(
+        transport=httpx2.ASGITransport(app=idp.asgi()), base_url=idp.issuer
     ) as http:
         disc = (await http.get("/.well-known/openid-configuration")).json()
     assert disc["jwks_uri"] == f"{idp.issuer}/jwks"

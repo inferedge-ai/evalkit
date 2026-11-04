@@ -287,7 +287,7 @@ def login(
         oidc.NoDeviceGrant,
         oidc.LoginRefused,
         LookupError,
-        httpx.HTTPError,
+        httpx2.HTTPError,
     ) as exc:
         raise ApiError(str(exc)) from exc
     stored = oidc.login_from_tokens(url, providers_oidc, tokens)._replace(username=me["username"])
