@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from evalkit.api.oidc import IdpUnavailable
 from evalkit.contracts.enums import TokenKind
 from evalkit.db.auth import find_token
 from evalkit.db.models import AuthToken, User, Workspace, WorkspaceMember
@@ -165,6 +166,29 @@ AdminUser = Annotated[User, Depends(require_admin)]
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+@router.get("/providers")
+async def providers(request: Request) -> dict:
+    cfg = request.app.state.cfg
+    oidc = request.app.state.oidc
+    body: dict = {"password": cfg.auth.resolve_password_login(), "oidc": None}
+    if oidc is None:
+        return body
+    if oidc.discovery is None:
+        raise IdpUnavailable()
+    body["oidc"] = {
+        "name": oidc.cfg.name,
+        "issuer": oidc.cfg.issuer,
+        "client_id": oidc.cfg.client_id,
+        "audience": oidc.cfg.audience,
+        "scopes": oidc.cfg.scopes,
+        "authorize_params": oidc.cfg.authorize_params,
+        "authorization_endpoint": oidc.discovery.authorization_endpoint,
+        "token_endpoint": oidc.discovery.token_endpoint,
+        "device_authorization_endpoint": oidc.discovery.device_authorization_endpoint,
+    }
+    return body
 
 
 @router.post("/login")

@@ -27,6 +27,7 @@ async def app(session_factory):
     application.state.cfg = FakeCfg()
     application.state.session_factory = session_factory
     application.state.resolve_tenant = resolve_tenant
+    application.state.oidc = None
     await seed_identity(session_factory, {"admin": "hunter2-pw", "alice": "wonderland"}, shared=())
     return application
 

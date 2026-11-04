@@ -44,9 +44,5 @@ class EvalkitTokenVerifier(TokenVerifier):
         )
 
 
-def build_auth(
-    cfg: Config,
-    session_factory: async_sessionmaker[AsyncSession],
-    jwt_verifier: TokenVerifier | None = None,
-) -> AuthProvider:
+def build_auth(cfg: Config, session_factory: async_sessionmaker[AsyncSession]) -> AuthProvider:
     return EvalkitTokenVerifier(session_factory, cfg.server.base_url, required_scopes=[SCOPE_READ])

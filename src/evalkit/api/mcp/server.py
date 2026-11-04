@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
-from fastmcp.server.auth import TokenVerifier
 from fastmcp.server.dependencies import get_access_token
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from starlette.applications import Starlette
@@ -47,12 +46,12 @@ class ToolErrors(Middleware):
             )
 
 
-def build_mcp(app: FastAPI, jwt_verifier: TokenVerifier | None = None) -> FastMCP:
+def build_mcp(app: FastAPI) -> FastMCP:
     mcp = FastMCP(
         "evalkit",
         version=version.current(),
         instructions=INSTRUCTIONS,
-        auth=build_auth(app.state.cfg, app.state.session_factory, jwt_verifier),
+        auth=build_auth(app.state.cfg, app.state.session_factory),
         middleware=[ToolErrors()],
         mask_error_details=True,
     )
@@ -62,8 +61,8 @@ def build_mcp(app: FastAPI, jwt_verifier: TokenVerifier | None = None) -> FastMC
 
 # Only the MCP endpoint and its RFC 9728 metadata are routed to the MCP app,
 # so /api keeps its own auth and the SPA fallback never sees /mcp.
-def mount_mcp(app: FastAPI, jwt_verifier: TokenVerifier | None = None):
-    mcp_app = build_mcp(app, jwt_verifier).http_app(
+def mount_mcp(app: FastAPI):
+    mcp_app = build_mcp(app).http_app(
         path=MCP_PATH,
         transport="streamable-http",
         stateless_http=True,
