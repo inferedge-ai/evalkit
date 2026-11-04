@@ -11,6 +11,8 @@ import type { Me, MemberRow } from "./types";
 const akshat: Me = {
   username: "akshat",
   is_admin: false,
+  email: null,
+  kind: "human",
   personal_workspace: "akshat",
   roles: { dev: ["writer"], prod: ["reviewer"] },
 };

@@ -2,6 +2,8 @@
 export interface Me {
   username: string;
   is_admin: boolean;
+  email: string | null;
+  kind: "human" | "machine";
   personal_workspace: string | null;
   // workspace name → the roles this user holds there (writer, reviewer).
   roles: Record<string, WorkspaceRole[]>;

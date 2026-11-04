@@ -1,8 +1,10 @@
+import { session } from "../auth/oidc";
+import type { Me } from "./types";
+
 const API = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const TOKEN_KEY = "evalkit.token";
 
-// Absent under test / SSR — the token simply lives in memory there.
 const store: Storage | null =
   typeof localStorage !== "undefined" ? localStorage : null;
 
@@ -14,8 +16,24 @@ export function setToken(value: string | null): void {
   else store?.setItem(TOKEN_KEY, value);
 }
 
-export function hasToken(): boolean {
-  return token !== null;
+const REFRESH_WINDOW_SECONDS = 60;
+
+export async function bearer(): Promise<string | null> {
+  if (token !== null) return token;
+  const s = await session();
+  if (s === null) return null;
+  let user = await s.getUser();
+  if (user === null) return null;
+  if ((user.expires_in ?? 0) < REFRESH_WINDOW_SECONDS) {
+    user = await s.signinSilent();
+  }
+  return user?.access_token ?? null;
+}
+
+export async function signOutLocally(): Promise<void> {
+  setToken(null);
+  const s = await session();
+  if (s !== null) await s.removeUser();
 }
 
 export class ApiError extends Error {
@@ -71,9 +89,19 @@ export async function apiFetch(
   init?: RequestInit,
 ): Promise<Response> {
   const headers = new Headers(init?.headers);
-  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const b = await bearer();
+  if (b) headers.set("Authorization", `Bearer ${b}`);
   const resp = await fetch(`${API}/api${path}`, { ...init, headers });
   noteServerDate(resp.headers.get("Date"));
+  if (resp.status === 401) {
+    await signOutLocally();
+    if (path !== "/auth/me" && typeof window !== "undefined") {
+      const next = encodeURIComponent(
+        window.location.pathname + window.location.search,
+      );
+      window.location.assign(`/login?next=${next}`);
+    }
+  }
   return resp;
 }
 
@@ -144,7 +172,13 @@ export async function login(username: string, password: string): Promise<void> {
   setToken(String(body.token));
 }
 
+export async function register(idToken: string): Promise<Me> {
+  return apiJson<Me>("/auth/oidc/register", "POST", { id_token: idToken });
+}
+
 export async function logout(): Promise<void> {
-  await apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
-  setToken(null);
+  if (token !== null) {
+    await apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
+  }
+  await signOutLocally();
 }
