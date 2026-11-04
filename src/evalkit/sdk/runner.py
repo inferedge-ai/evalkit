@@ -16,7 +16,7 @@ from opentelemetry.context import Context
 from pydantic import BaseModel
 
 from evalkit import version
-from evalkit.client import connection
+from evalkit.client import connection, oidc
 from evalkit.client.agents import HttpAgents
 from evalkit.client.api import ApiRequestError, AsyncApi, SyncApi, encode
 from evalkit.client.blob import HttpBlobStore
@@ -595,7 +595,7 @@ async def arun_experiment(
             "parameter, so the agent never sees it"
         )
     active = connection.active()
-    api = AsyncApi(active.url, active.token, transport=api_transport)
+    api = AsyncApi(active.url, oidc.build_auth(active), transport=api_transport)
     try:
         await api.require_same_version()
         me = await _username(api, active, progress)
@@ -619,7 +619,7 @@ async def arun_experiment(
         if own_dataset and on_disk is not None and on_disk.is_dir():
             await asyncio.to_thread(
                 sync_dataset,
-                SyncApi(active.url, active.token),
+                SyncApi(active.url, oidc.build_auth(active)),
                 on_disk,
                 name=dataset_ref.name,
                 workspace=me,
@@ -777,7 +777,7 @@ async def aevaluate_experiment(
     """
     local = _local_config().resolve_env(scoring=True)
     active = connection.active()
-    api = AsyncApi(active.url, active.token, transport=api_transport)
+    api = AsyncApi(active.url, oidc.build_auth(active), transport=api_transport)
     try:
         await api.require_same_version()
         store = HttpStore(api)

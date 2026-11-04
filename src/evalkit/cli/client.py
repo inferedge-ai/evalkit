@@ -15,12 +15,12 @@ class ApiClient(SyncApi):
     def __init__(
         self,
         server_url: str,
-        token: str | None = None,
+        auth: httpx.Auth | None = None,
         *,
         transport: httpx2.BaseTransport | None = None,
         check_version: bool = True,
     ):
-        super().__init__(server_url, token, transport=transport)
+        super().__init__(server_url, auth, transport=transport)
         self._server_url = server_url.rstrip("/")
         self._version_checked = not check_version
 

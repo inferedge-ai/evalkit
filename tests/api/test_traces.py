@@ -5,6 +5,7 @@ from cryptography.fernet import Fernet
 
 from evalkit.api.access import build_tenant_stores
 from evalkit.client.api import AsyncApi
+from evalkit.client.oidc import static_auth
 from evalkit.client.sessions import HttpSessionReader
 from evalkit.contracts.enums import TrajectorySource
 from evalkit.core.traces.poll import poll_trajectory
@@ -121,7 +122,7 @@ async def test_session_over_the_size_cap_is_refused_with_413(api):
     spans = await api.get("/api/agents/sdk@admin/sessions/sess-1/spans")
     assert spans.status_code == 200 and len(spans.json()) == 2
     token = api.headers["Authorization"].removeprefix("Bearer ")
-    client = AsyncApi("http://test", token, transport=api._transport)
+    client = AsyncApi("http://test", static_auth(token), transport=api._transport)
     sessions = HttpSessionReader(client)
     with pytest.raises(SessionTooLarge, match="otel.max_session_bytes"):
         await sessions.trajectory("sdk@admin", "sess-1")

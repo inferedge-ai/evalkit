@@ -13,6 +13,8 @@ from evalkit.client.oidc import (
     LoginExpired,
     StaticToken,
     StoredOidcLogin,
+    build_auth,
+    static_auth,
 )
 from tests.identity import FakeIdp
 
@@ -121,3 +123,44 @@ def test_evalkit_auth_sets_the_header_per_request():
         http.get("https://x/a")
         http.get("https://x/b")
     assert calls == ["Bearer t1", "Bearer t2"]
+
+
+def providers_transport(idp: FakeIdp) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/auth/providers":
+            return httpx.Response(
+                200,
+                json={
+                    "password": "admin",
+                    "oidc": {
+                        "token_endpoint": f"{idp.issuer}/token",
+                        "authorize_params": {"resource": idp.audience},
+                    },
+                },
+            )
+        return idp._handle_httpx(request)
+
+    return httpx.MockTransport(handler)
+
+
+def test_build_auth_picks_the_source(tmp_path):
+    idp = FakeIdp()
+    idp.machine_clients["ci"] = ("s3cret", "machine-sub")
+    assert build_auth(Connection("https://x", None, None)) is None
+    assert build_auth(Connection("https://x", "tok", None)).source.bearer() == "tok"
+    conn, path = stored(idp, tmp_path, seconds_left=3600)
+    assert (
+        build_auth(conn, path=path, transport=idp.transport()).source.bearer()
+        == conn.oidc.access_token
+    )
+    machine = Connection(
+        "https://evalkit.test", None, None, from_env=True, machine=MachineLogin("ci", "s3cret")
+    )
+    auth = build_auth(machine, transport=providers_transport(idp))
+    assert jwt.decode(auth.source.bearer(), options={"verify_signature": False})["sub"] == (
+        "machine-sub"
+    )
+
+
+def test_static_auth():
+    assert static_auth("t").source.bearer() == "t"

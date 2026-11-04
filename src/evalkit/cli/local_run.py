@@ -5,6 +5,7 @@ from collections.abc import Callable
 import httpx2
 
 from evalkit import version
+from evalkit.client import oidc
 from evalkit.client.agents import HttpAgents
 from evalkit.client.api import AsyncApi
 from evalkit.client.blob import HttpBlobStore
@@ -83,7 +84,7 @@ async def run_local(
     custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
     api_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> int:
-    api = AsyncApi(conn.url, conn.token, transport=api_transport)
+    api = AsyncApi(conn.url, oidc.build_auth(conn), transport=api_transport)
     holder = holder_for(conn)
     try:
         await api.require_same_version()
@@ -143,7 +144,7 @@ async def evaluate_local(
     refetch_trajectories: bool = False,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
 ) -> None:
-    api = AsyncApi(conn.url, conn.token, transport=api_transport)
+    api = AsyncApi(conn.url, oidc.build_auth(conn), transport=api_transport)
     holder = holder_for(conn)
     try:
         await api.require_same_version()
@@ -164,7 +165,7 @@ async def evaluate_local(
 
 
 async def mark_interrupted(conn: Connection, exp_id: int, user: str) -> None:
-    api = AsyncApi(conn.url, conn.token)
+    api = AsyncApi(conn.url, oidc.build_auth(conn))
     try:
         await HttpStore(api).transition(
             exp_id,
@@ -184,7 +185,7 @@ async def local_input_schema(
     transport: httpx2.AsyncBaseTransport | None = None,
     api_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> dict:
-    api = AsyncApi(conn.url, conn.token, transport=api_transport)
+    api = AsyncApi(conn.url, oidc.build_auth(conn), transport=api_transport)
     try:
         definition = await HttpAgents(api).get(explicit(agent))
     finally:
@@ -202,7 +203,7 @@ async def check_local(
     transport: httpx2.AsyncBaseTransport | None = None,
     api_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> dict[str, dict]:
-    api = AsyncApi(conn.url, conn.token, transport=api_transport)
+    api = AsyncApi(conn.url, oidc.build_auth(conn), transport=api_transport)
     try:
         blob_store = HttpBlobStore(api, None)
         definition = await HttpAgents(api).get(explicit(agent))

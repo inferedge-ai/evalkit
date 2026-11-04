@@ -136,3 +136,38 @@ class EvalkitAuth(httpx.Auth):
     def auth_flow(self, request: httpx.Request) -> Generator[httpx.Request, httpx.Response, None]:
         request.headers["Authorization"] = f"Bearer {self.source.bearer()}"
         yield request
+
+
+def fetch_providers(url: str, transport: httpx.BaseTransport | None = None) -> dict:
+    with httpx.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
+        resp = http.get("/api/auth/providers")
+        resp.raise_for_status()
+        return resp.json()
+
+
+def static_auth(token: str) -> EvalkitAuth:
+    return EvalkitAuth(StaticToken(token))
+
+
+def build_auth(
+    conn: Connection,
+    *,
+    path: Path | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> EvalkitAuth | None:
+    if conn.machine is not None:
+        oidc = fetch_providers(conn.url, transport)["oidc"]
+        if oidc is None:
+            raise LookupError(
+                "EVALKIT_OIDC_CLIENT_ID is set but the server has no identity provider configured"
+            )
+        return EvalkitAuth(
+            ClientCredentials(
+                conn.machine, oidc["token_endpoint"], oidc["authorize_params"], transport
+            )
+        )
+    if conn.oidc is not None:
+        return EvalkitAuth(StoredOidcLogin(conn, path=path, transport=transport))
+    if conn.token is not None:
+        return static_auth(conn.token)
+    return None

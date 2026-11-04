@@ -33,7 +33,7 @@ from evalkit.cli.skill_targets import record as record_skill_target
 from evalkit.cli.tokens_commands import register as register_tokens
 from evalkit.cli.traces_commands import register as register_traces
 from evalkit.cli.update import run_update
-from evalkit.client import connection
+from evalkit.client import connection, oidc
 from evalkit.client.agents import definition_of
 from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
@@ -113,7 +113,11 @@ def _active_connection() -> connection.Connection:
 
 def _client() -> ApiClient:
     active = _active_connection()
-    return ApiClient(active.url, active.token)
+    try:
+        auth = oidc.build_auth(active)
+    except LookupError as exc:
+        raise ApiError(str(exc)) from exc
+    return ApiClient(active.url, auth)
 
 
 def _connection() -> connection.Connection:
@@ -774,7 +778,7 @@ def run(
             raise typer.Exit(code=130) from None
         except ScoringFailed as exc:
             raise ApiError(f"{exc}\nfinish it with: evalkit evaluate {exc.exp_id}") from exc
-        except (VersionMismatch, ApiRequestError, ValueError, KeyError) as exc:
+        except (VersionMismatch, ApiRequestError, oidc.LoginExpired, ValueError, KeyError) as exc:
             raise ApiError(str(exc)) from exc
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
 
@@ -855,7 +859,7 @@ def evaluate(
         )
     except ScoringFailed as exc:
         raise ApiError(f"{exc}\nfinish it with: evalkit evaluate {experiment_id}") from exc
-    except (VersionMismatch, ApiRequestError, ValueError, KeyError) as exc:
+    except (VersionMismatch, ApiRequestError, oidc.LoginExpired, ValueError, KeyError) as exc:
         raise ApiError(str(exc)) from exc
     typer.echo(f"evaluated {experiment_id}")
 
@@ -954,7 +958,7 @@ def harness_check(
         local = _with_secrets(_local_config(), scoring=False)
         try:
             checks = asyncio.run(check_local(conn, local, ref))
-        except (ValueError, KeyError, ApiRequestError) as exc:
+        except (ValueError, KeyError, ApiRequestError, oidc.LoginExpired) as exc:
             raise ApiError(str(exc)) from exc
     failed = False
     for capability, entry in checks.items():
