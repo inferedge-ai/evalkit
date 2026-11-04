@@ -110,3 +110,30 @@ async def test_a_token_that_is_not_a_jwt_is_401(oidc):
     with pytest.raises(HTTPException) as info:
         await verify_access_token(state, "not.a.jwt", [idp.audience])
     assert info.value.status_code == 401
+
+
+async def test_failed_jwks_refetch_is_503_and_keeps_the_throttle():
+    idp = FakeIdp()
+    attempts = {"jwks": 0}
+    down = {"on": False}
+
+    def flaky(request: httpx.Request) -> httpx.Response:
+        if down["on"] and request.url.path.endswith("/jwks"):
+            attempts["jwks"] += 1
+            raise httpx.ConnectError("down")
+        return idp._handle_httpx(request)
+
+    state = OidcState(
+        cfg_for(idp), httpx.AsyncClient(transport=httpx.MockTransport(flaky)), RESOURCE
+    )
+    assert await state.load() is True
+    down["on"] = True
+    token = idp.access_token("sub-1", kid="k2")
+    with pytest.raises(HTTPException) as first:
+        await verify_access_token(state, token, [idp.audience])
+    assert first.value.status_code == 503
+    with pytest.raises(HTTPException) as second:
+        await verify_access_token(state, token, [idp.audience])
+    assert second.value.status_code == 401 and "signing key" in second.value.detail
+    assert attempts["jwks"] == 1
+    await state.http.aclose()

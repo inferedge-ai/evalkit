@@ -53,8 +53,11 @@ class JwkCache:
             raise HTTPException(status_code=401, detail="invalid access token: no kid in header")
         async with self.lock:
             if kid not in self.keys and time.monotonic() - self.last_fetch >= JWKS_REFETCH_SECONDS:
-                await self.fetch()
                 self.last_fetch = time.monotonic()
+                try:
+                    await self.fetch()
+                except httpx.HTTPError as exc:
+                    raise IdpUnavailable() from exc
         if kid not in self.keys:
             raise HTTPException(
                 status_code=401, detail=f"invalid access token: unknown signing key {kid}"
