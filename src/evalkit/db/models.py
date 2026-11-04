@@ -70,11 +70,15 @@ class AuditMixin:
 
 class Tenant(AuditMixin, Base):
     __tablename__ = "tenants"
-    __table_args__ = (UniqueConstraint("name", name="uq_tenants_name"),)
+    __table_args__ = (
+        UniqueConstraint("name", name="uq_tenants_name"),
+        UniqueConstraint("external_id", name="uq_tenants_external_id"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(150))
     default_judge: Mapped[dict | None] = mapped_column(JSONB, default=None)
+    external_id: Mapped[str | None] = mapped_column(Text, default=None)
 
 
 class User(AuditMixin, Base):

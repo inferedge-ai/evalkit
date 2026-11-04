@@ -43,6 +43,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=150), nullable=False),
         sa.Column("default_judge", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column("external_id", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -57,6 +58,7 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("name", name="uq_tenants_name"),
+        sa.UniqueConstraint("external_id", name="uq_tenants_external_id"),
     )
     op.execute(
         "INSERT INTO tenants (id, name, default_judge) "
