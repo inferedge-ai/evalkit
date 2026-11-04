@@ -239,7 +239,7 @@ async def test_login_with_the_same_username_in_two_tenants(client, raw_session_f
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
         s.add(Tenant(id=2, name="other"))
         await s.commit()
-    await UserStore(raw_session_factory, 2).create("alice", "other-pw")
+    await UserStore(raw_session_factory, 2).create("alice", password="other-pw")
     assert await login(client, "alice", "wonderland")
     resp = await client.post("/api/auth/login", json={"username": "alice", "password": "other-pw"})
     assert resp.status_code == 401

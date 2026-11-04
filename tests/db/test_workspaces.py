@@ -124,8 +124,12 @@ async def test_promotion_link_refuses_workspaces_in_different_tenants(raw_sessio
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
         s.add(Tenant(id=2, name="other"))
         await s.commit()
-    admin = await UserStore(raw_session_factory, 1).create("admin", "password", is_admin=True)
-    root = await UserStore(raw_session_factory, 2).create("root", "password", is_admin=True)
+    admin = await UserStore(raw_session_factory, 1).create(
+        "admin", password="password", is_admin=True
+    )
+    root = await UserStore(raw_session_factory, 2).create(
+        "root", password="password", is_admin=True
+    )
     dev = await WorkspaceStore(raw_session_factory, 1).create_shared("dev", admin.id)
     prod = await WorkspaceStore(raw_session_factory, 2).create_shared("prod", root.id)
     with pytest.raises(PromotionLinkError, match="different tenants"):
