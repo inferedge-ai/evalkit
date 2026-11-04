@@ -12,6 +12,7 @@ import {
   serverNow,
   setToken,
 } from "./api";
+import { ErrorResponse } from "oidc-client-ts";
 import { setSessionForTest, type OidcSession } from "../auth/oidc";
 
 function fakeSession(
@@ -183,5 +184,88 @@ describe("logout", () => {
     await logout();
     expect(fetchMock).not.toHaveBeenCalled();
     expect(s.calls).toContain("removeUser");
+  });
+});
+
+describe("refresh failures and single flight", () => {
+  const near = { access_token: "old", expires_in: 10 };
+
+  it("shares one signinSilent between parallel callers", async () => {
+    const s = fakeSession(near, { access_token: "new", expires_in: 3600 });
+    setSessionForTest(s);
+    const [a, b] = await Promise.all([bearer(), bearer()]);
+    expect([a, b]).toEqual(["new", "new"]);
+    expect(s.calls.filter((c) => c === "signinSilent")).toHaveLength(1);
+  });
+
+  it("removes the user and returns null when the IdP refuses the refresh", async () => {
+    const s = fakeSession(near);
+    s.signinSilent = async () => {
+      throw new ErrorResponse({ error: "invalid_grant" });
+    };
+    setSessionForTest(s);
+    expect(await bearer()).toBeNull();
+    expect(s.calls).toContain("removeUser");
+  });
+
+  it("propagates other refresh failures and keeps the user", async () => {
+    const s = fakeSession(near);
+    s.signinSilent = async () => {
+      throw new Error("network down");
+    };
+    setSessionForTest(s);
+    await expect(bearer()).rejects.toThrow("network down");
+    expect(s.calls).not.toContain("removeUser");
+  });
+});
+
+describe("401 redirect", () => {
+  function stub401(): void {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, _init?: RequestInit) => ({
+        ok: false,
+        status: 401,
+        headers: new Headers(),
+        json: async () => ({ detail: "nope" }),
+      })),
+    );
+  }
+
+  function stubWindow(pathname: string): ReturnType<typeof vi.fn> {
+    const assign = vi.fn();
+    vi.stubGlobal("window", {
+      location: { pathname, search: "?a=1", assign },
+    });
+    return assign;
+  }
+
+  it("navigates to login with the encoded path and search", async () => {
+    setSessionForTest(null);
+    stub401();
+    const assign = stubWindow("/x");
+    await apiFetch("/datasets");
+    expect(assign).toHaveBeenCalledWith("/login?next=%2Fx%3Fa%3D1");
+  });
+
+  it.each(["/auth/me", "/auth/oidc/register"])(
+    "does not navigate on a 401 from %s but clears credentials",
+    async (path) => {
+      const s = fakeSession(null);
+      setSessionForTest(s);
+      stub401();
+      const assign = stubWindow("/login/callback");
+      await apiFetch(path);
+      expect(assign).not.toHaveBeenCalled();
+      expect(s.calls).toContain("removeUser");
+    },
+  );
+
+  it("does not navigate when already on the login page", async () => {
+    setSessionForTest(null);
+    stub401();
+    const assign = stubWindow("/login");
+    await apiFetch("/datasets");
+    expect(assign).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
-import { session } from "../auth/oidc";
+import { ErrorResponse } from "oidc-client-ts";
+import { session, type SessionUser } from "../auth/oidc";
 import type { Me } from "./types";
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -18,6 +19,10 @@ export function setToken(value: string | null): void {
 
 const REFRESH_WINDOW_SECONDS = 60;
 
+let refreshing: Promise<SessionUser | null> | null = null;
+
+const NO_REDIRECT = new Set(["/auth/me", "/auth/oidc/register"]);
+
 export async function bearer(): Promise<string | null> {
   if (token !== null) return token;
   const s = await session();
@@ -25,7 +30,17 @@ export async function bearer(): Promise<string | null> {
   let user = await s.getUser();
   if (user === null) return null;
   if ((user.expires_in ?? 0) < REFRESH_WINDOW_SECONDS) {
-    user = await s.signinSilent();
+    refreshing ??= s
+      .signinSilent()
+      .catch(async (e: unknown) => {
+        if (!(e instanceof ErrorResponse)) throw e;
+        await s.removeUser();
+        return null;
+      })
+      .finally(() => {
+        refreshing = null;
+      });
+    user = await refreshing;
   }
   return user?.access_token ?? null;
 }
@@ -95,7 +110,11 @@ export async function apiFetch(
   noteServerDate(resp.headers.get("Date"));
   if (resp.status === 401) {
     await signOutLocally();
-    if (path !== "/auth/me" && typeof window !== "undefined") {
+    if (
+      !NO_REDIRECT.has(path) &&
+      typeof window !== "undefined" &&
+      !window.location.pathname.startsWith("/login")
+    ) {
       const next = encodeURIComponent(
         window.location.pathname + window.location.search,
       );
