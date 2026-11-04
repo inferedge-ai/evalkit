@@ -15,11 +15,15 @@ from evalkit.api import runs as runs_api
 from evalkit.api.mcp import descriptions as mcp_descriptions
 from evalkit.api.mcp import tools as mcp_tools
 from evalkit.db.agents import AgentStore
+from evalkit.db.users import UserStore
 from tests.api.native_api import api_env
+from tests.api.test_auth_sso import sso_app
 from tests.fake_harness import FakeHarness
+from tests.identity import FakeIdp
 from tests.mcp_trajectory import chat_session
-from tests.native import HOLDER, USERS
+from tests.native import HOLDER, USERS, seed_env
 
+RESOURCE = "http://evalkit.test/mcp"
 DAY_ONE = datetime(2026, 10, 20, 23, 0, tzinfo=UTC)
 DAY_TWO = datetime(2026, 10, 21, 9, 0, tzinfo=UTC)
 MCP_ACCEPT = "application/json, text/event-stream"
@@ -574,3 +578,27 @@ async def test_expected_tool_errors_log_as_warnings_and_bugs_as_errors(api, monk
                 await mcp.call_tool("find_agents", {})
     levels = [r.levelno for r in caplog.records if r.message.startswith("Error calling tool")]
     assert levels == [logging.WARNING, logging.WARNING, logging.ERROR]
+
+
+async def test_idp_tokens_reach_mcp_as_their_evalkit_user(tmp_path, stub_judges, session_factory):
+    env = await seed_env(session_factory, tmp_path, fake_with_runs())
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(session_factory, 1).create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp) as http:
+        meta = (await http.get("/.well-known/oauth-protected-resource/mcp")).json()
+        assert meta["authorization_servers"] == [idp.issuer]
+        assert meta["resource"] == RESOURCE
+        for audience in (idp.audience, RESOURCE):
+            assert await mcp_status(http, idp.access_token("sub-ann", audience=audience)) == 200
+        assert await mcp_status(http, idp.access_token("sub-ann", audience="https://other")) == 401
+        assert await mcp_status(http, idp.access_token("sub-nobody")) == 401
+        assert await mcp_status(http, bearer(http)) == 200
+        await UserStore(session_factory, 1).archive("ann")
+        assert await mcp_status(http, idp.access_token("sub-ann")) == 401
+
+
+async def test_without_an_idp_mcp_publishes_no_metadata(api):
+    client, _ = api
+    assert (await client.get("/.well-known/oauth-protected-resource/mcp")).status_code == 404

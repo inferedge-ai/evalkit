@@ -51,7 +51,7 @@ def build_mcp(app: FastAPI) -> FastMCP:
         "evalkit",
         version=version.current(),
         instructions=INSTRUCTIONS,
-        auth=build_auth(app.state.cfg, app.state.session_factory),
+        auth=build_auth(app.state),
         middleware=[ToolErrors()],
         mask_error_details=True,
     )

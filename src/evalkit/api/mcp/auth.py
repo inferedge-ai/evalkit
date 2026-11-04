@@ -1,36 +1,31 @@
 from fastapi import HTTPException
-from fastmcp.server.auth import AccessToken, AuthProvider, TokenVerifier
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from fastmcp.server.auth import AccessToken, AuthProvider, RemoteAuthProvider, TokenVerifier
 
-from evalkit.api.auth import bearer_login, token_expiry
-from evalkit.config import Config
+from evalkit.api.auth import bearer_login, is_jwt, sso_user, token_expiry
 
 SCOPE_READ = "evalkit:read"
 MCP_PATH = "/mcp"
 
 
-def resource_url(cfg: Config) -> str:
-    return f"{cfg.server.base_url.rstrip('/')}{MCP_PATH}"
-
-
 # An evalkit login token reaches MCP with the read scope; agent tokens stay
 # collector-only here as on /api.
 class EvalkitTokenVerifier(TokenVerifier):
-    def __init__(
-        self,
-        session_factory: async_sessionmaker[AsyncSession],
-        base_url: str,
-        required_scopes: list[str] | None = None,
-    ):
+    def __init__(self, state, base_url: str, required_scopes: list[str] | None = None):
         super().__init__(base_url=base_url, required_scopes=required_scopes)
-        self._session_factory = session_factory
+        self._state = state
 
     async def verify_token(self, token: str) -> AccessToken | None:
         try:
-            row, user = await bearer_login(self._session_factory, token)
+            if is_jwt(token):
+                oidc = self._state.oidc
+                audience = [oidc.cfg.audience, oidc.mcp_resource_url] if oidc is not None else []
+                user = await sso_user(self._state, token, audience, None)
+                expires = None
+            else:
+                row, user = await bearer_login(self._state.session_factory, token)
+                expires = token_expiry(row)
         except HTTPException:
             return None
-        expires = token_expiry(row)
         return AccessToken(
             token=token,
             client_id=f"evalkit:{user.username}",
@@ -44,5 +39,17 @@ class EvalkitTokenVerifier(TokenVerifier):
         )
 
 
-def build_auth(cfg: Config, session_factory: async_sessionmaker[AsyncSession]) -> AuthProvider:
-    return EvalkitTokenVerifier(session_factory, cfg.server.base_url, required_scopes=[SCOPE_READ])
+def build_auth(state) -> AuthProvider:
+    base_url = state.cfg.server.base_url
+    verifier = EvalkitTokenVerifier(state, base_url, required_scopes=[SCOPE_READ])
+    if state.oidc is None:
+        return verifier
+    return RemoteAuthProvider(
+        token_verifier=verifier,
+        # As configured: AnyHttpUrl would turn https://host into https://host/, which clients
+        # cannot match to the provider's issuer (RFC 8414).
+        authorization_servers=[state.oidc.cfg.issuer],  # type: ignore[list-item]
+        base_url=base_url,
+        scopes_supported=state.oidc.cfg.scopes,
+        resource_name="evalkit",
+    )
