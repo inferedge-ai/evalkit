@@ -15,7 +15,9 @@
   `trace_sources` and `fixture_blobs`. Usernames, workspace names, case ids,
   provider names and trace source names are now unique per tenant. The
   default judge moved from `server_settings` onto the tenant row. Migration
-  `0016`; no behaviour change for a single installation.
+  `0016`; no behaviour change for a single installation. `tenants.external_id`
+  (nullable, unique) exists but is unused for now; it will map an identity
+  provider's organisation id to a tenant later.
 - Blob objects now live under `tenants/<id>/`. After `evalkit db upgrade`,
   run `evalkit blobs relocate --config <config>` once to move existing
   trajectories, artifacts, run workspaces and fixtures; the server refuses to
