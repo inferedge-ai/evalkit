@@ -1,7 +1,9 @@
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from random import uniform
 
 import anyio
 import httpx2
@@ -15,12 +17,15 @@ class Retry:
     retry_on_exceptions: tuple[type[Exception], ...] = ()
     backoff_factor: float = 0.0
     max_backoff_wait: float = 120.0
+    jitter: Callable[[float, float], float] = uniform
 
     def is_retryable_method(self, method: str) -> bool:
         return method.upper() in self.allowed_methods
 
     def backoff(self, attempt: int) -> float:
-        return min(self.max_backoff_wait, self.backoff_factor * 2**attempt)
+        return min(
+            self.max_backoff_wait, self.backoff_factor * 2 ** (attempt + 1) * self.jitter(0, 1)
+        )
 
     def wait(self, response: httpx2.Response | None, attempt: int) -> float:
         if response is not None:

@@ -4,6 +4,15 @@ import pytest
 from evalkit.client import retry as retry_module
 from evalkit.client.retry import Retry, RetryTransport
 
+
+def top(low: float, high: float) -> float:
+    return high
+
+
+def bottom(low: float, high: float) -> float:
+    return low
+
+
 READ = Retry(
     total=3,
     allowed_methods=("GET", "HEAD"),
@@ -11,6 +20,7 @@ READ = Retry(
     retry_on_exceptions=(httpx2.NetworkError, httpx2.ConnectTimeout),
     backoff_factor=0.5,
     max_backoff_wait=2.0,
+    jitter=top,
 )
 WRITE = Retry(
     total=3,
@@ -19,6 +29,7 @@ WRITE = Retry(
     retry_on_exceptions=(httpx2.NetworkError,),
     backoff_factor=0.5,
     max_backoff_wait=2.0,
+    jitter=top,
 )
 
 
@@ -62,7 +73,7 @@ def test_sync_retries_a_503_then_returns_200(waits):
     with sync_client([httpx2.Response(503)], seen) as client:
         assert client.get("/x").status_code == 200
     assert seen == ["GET", "GET"]
-    assert waits == [0.5]
+    assert waits == [1.0]
 
 
 async def test_async_retries_a_503_then_returns_200(waits):
@@ -70,7 +81,7 @@ async def test_async_retries_a_503_then_returns_200(waits):
     async with async_client([httpx2.Response(503)], seen) as client:
         assert (await client.get("/x")).status_code == 200
     assert seen == ["GET", "GET"]
-    assert waits == [0.5]
+    assert waits == [1.0]
 
 
 def test_sync_gives_up_after_total_and_returns_last_503(waits):
@@ -78,7 +89,7 @@ def test_sync_gives_up_after_total_and_returns_last_503(waits):
     with sync_client([httpx2.Response(503)] * 10, seen) as client:
         assert client.get("/x").status_code == 503
     assert len(seen) == 4
-    assert waits == [0.5, 1.0, 2.0]
+    assert waits == [1.0, 2.0, 2.0]
 
 
 async def test_async_gives_up_after_total_and_returns_last_503(waits):
@@ -131,7 +142,7 @@ def test_retries_connect_error_and_reraises_after_total(waits):
         with pytest.raises(httpx2.ConnectError):
             client.get("/x")
     assert len(seen) == 4
-    assert waits == [0.5, 1.0, 2.0]
+    assert waits == [1.0, 2.0, 2.0]
 
 
 async def test_async_retries_connect_error_and_reraises_after_total(waits):
@@ -188,7 +199,7 @@ def test_retry_after_http_date_sets_the_wait(waits):
     busy = httpx2.Response(503, headers={"Retry-After": "Wed, 21 Oct 2015 07:28:00 GMT"})
     with sync_client([busy], seen) as client:
         client.get("/x")
-    assert waits == [0.5]
+    assert waits == [1.0]
 
 
 def test_invalid_retry_after_falls_back_to_backoff(waits):
@@ -196,7 +207,7 @@ def test_invalid_retry_after_falls_back_to_backoff(waits):
     busy = httpx2.Response(503, headers={"Retry-After": "soon"})
     with sync_client([busy], seen) as client:
         client.get("/x")
-    assert waits == [0.5]
+    assert waits == [1.0]
 
 
 async def test_async_retry_after_sets_the_wait(waits):
@@ -208,8 +219,29 @@ async def test_async_retry_after_sets_the_wait(waits):
 
 
 def test_backoff_grows_and_caps_at_max_backoff_wait():
-    retry = Retry(total=9, backoff_factor=0.5, max_backoff_wait=3.0)
-    assert [retry.backoff(attempt) for attempt in range(5)] == [0.5, 1.0, 2.0, 3.0, 3.0]
+    retry = Retry(total=9, backoff_factor=0.5, max_backoff_wait=3.0, jitter=top)
+    assert [retry.backoff(attempt) for attempt in range(5)] == [1.0, 2.0, 3.0, 3.0, 3.0]
+
+
+def test_backoff_is_a_uniform_draw_up_to_the_exponential_bound():
+    draws: list[tuple[float, float]] = []
+
+    def record(low: float, high: float) -> float:
+        draws.append((low, high))
+        return 0.25
+
+    retry = Retry(total=9, backoff_factor=0.5, max_backoff_wait=100.0, jitter=record)
+    assert retry.backoff(2) == 0.5 * 2**3 * 0.25
+    assert draws == [(0, 1)]
+
+
+def test_backoff_can_be_zero_with_the_lowest_draw():
+    assert Retry(backoff_factor=0.5, jitter=bottom).backoff(3) == 0.0
+
+
+def test_default_jitter_stays_within_bounds():
+    retry = Retry(backoff_factor=0.5, max_backoff_wait=3.0)
+    assert all(0.0 <= retry.backoff(1) <= 2.0 for _ in range(50))
 
 
 def test_non_replayable_stream_body_is_sent_once(waits):
