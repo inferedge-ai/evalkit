@@ -778,7 +778,7 @@ def run(
             raise typer.Exit(code=130) from None
         except ScoringFailed as exc:
             raise ApiError(f"{exc}\nfinish it with: evalkit evaluate {exc.exp_id}") from exc
-        except (VersionMismatch, ApiRequestError, oidc.LoginExpired, ValueError, KeyError) as exc:
+        except (VersionMismatch, ApiRequestError, ValueError, KeyError) as exc:
             raise ApiError(str(exc)) from exc
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
 
@@ -859,7 +859,7 @@ def evaluate(
         )
     except ScoringFailed as exc:
         raise ApiError(f"{exc}\nfinish it with: evalkit evaluate {experiment_id}") from exc
-    except (VersionMismatch, ApiRequestError, oidc.LoginExpired, ValueError, KeyError) as exc:
+    except (VersionMismatch, ApiRequestError, ValueError, KeyError) as exc:
         raise ApiError(str(exc)) from exc
     typer.echo(f"evaluated {experiment_id}")
 
@@ -958,7 +958,7 @@ def harness_check(
         local = _with_secrets(_local_config(), scoring=False)
         try:
             checks = asyncio.run(check_local(conn, local, ref))
-        except (ValueError, KeyError, ApiRequestError, oidc.LoginExpired) as exc:
+        except (ValueError, KeyError, ApiRequestError) as exc:
             raise ApiError(str(exc)) from exc
     failed = False
     for capability, entry in checks.items():

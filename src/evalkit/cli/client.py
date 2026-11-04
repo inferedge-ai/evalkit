@@ -2,6 +2,7 @@ import httpx2
 import typer
 
 from evalkit import version
+from evalkit.client import oidc
 from evalkit.client.api import ApiRequestError, SyncApi
 
 
@@ -15,7 +16,7 @@ class ApiClient(SyncApi):
     def __init__(
         self,
         server_url: str,
-        auth: httpx.Auth | None = None,
+        auth: httpx2.Auth | None = None,
         *,
         transport: httpx2.BaseTransport | None = None,
         check_version: bool = True,
@@ -51,9 +52,12 @@ class ApiClient(SyncApi):
     def request(
         self, method: str, path: str, *, retry: bool | None = None, **kwargs
     ) -> httpx2.Response:
-        if not self._version_checked and method not in ("GET", "HEAD"):
-            self._check_version(self._client.get("/api/health"))
-        return super().request(method, path, retry=retry, **kwargs)
+        try:
+            if not self._version_checked and method not in ("GET", "HEAD"):
+                self._check_version(self._client.get("/api/health"))
+            return super().request(method, path, retry=retry, **kwargs)
+        except oidc.LoginExpired as exc:
+            raise ApiError(str(exc)) from exc
 
     def _handle(self, resp: httpx2.Response) -> httpx2.Response:
         self._check_version(resp)

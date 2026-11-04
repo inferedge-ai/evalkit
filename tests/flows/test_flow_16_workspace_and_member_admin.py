@@ -24,9 +24,9 @@ def test_flow_16_users_get_personal_workspaces_and_admin_flags(live):
     carol_ws = admin.get("/api/workspaces/carol").json()
     assert carol_ws["type"] == "personal" and carol_ws["owner"] == "carol"
     assert live.run("users", "promote", "carol").exit_code == 0
-    assert lines_starting(live.run("users", "list").output, "carol")[0][1] == "ADMIN"
+    assert "ADMIN" in lines_starting(live.run("users", "list").output, "carol")[0]
     assert live.run("users", "demote", "carol").exit_code == 0
-    assert lines_starting(live.run("users", "list").output, "carol")[0][1] != "ADMIN"
+    assert "ADMIN" not in lines_starting(live.run("users", "list").output, "carol")[0]
     taken = live.run("users", "add", "dev", input="password\n")
     assert taken.exit_code == 1
     last = live.run("users", "demote", "admin")
