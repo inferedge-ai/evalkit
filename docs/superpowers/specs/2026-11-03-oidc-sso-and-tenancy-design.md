@@ -113,6 +113,7 @@ erDiagram
         int id PK
         string name
         jsonb default_judge "nullable; was server_settings.default_judge"
+        text external_id "nullable, unique; unused for now"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -190,7 +191,9 @@ erDiagram
 **`tenants`**, new. One row per organisation. The public repo creates row 1,
 named `default`, in the migration and never creates another. It carries
 `default_judge`, the JSONB document that lived in `server_settings`, so the
-default judge is per tenant without a one-to-one join.
+default judge is per tenant without a one-to-one join. It also has a
+nullable, unique `external_id`, unused for now, for mapping an identity
+provider's organisation id to a tenant later.
 
 **`server_settings`**, dropped. It was a single row holding `default_judge`.
 The migration copies that value onto tenant 1 before dropping the table. The
@@ -885,6 +888,19 @@ alone. `ProviderScopeVerifier`, the `mcp.oauth.scope` mapping and
 `MultiAuth` are deleted: a verified token is an evalkit user, and an
 evalkit user has read scope on MCP. Archiving a user now cuts off MCP
 access too, which closes the gap the MCP docs describe today.
+
+`auth.oidc.required_scopes` (default empty) lets an operator whose IdP issues
+evalkit-audience tokens to every account demand a scope that only authorised
+people get. `token_scopes(claims)` in `api/oidc.py` returns the union of the
+`scope` claim (space-separated string) and the `scp` claim (list, or
+space-separated string). `sso_login` and `/api/auth/oidc/register` answer 403
+`access token lacks required scope <scope>` when a required scope is missing;
+register checks before it creates the user. For `/mcp`, the verifier puts the
+token's real scopes on the `AccessToken` and sets fastmcp's `required_scopes`
+to the configured list, so fastmcp answers 403 `insufficient_scope` itself. An
+evalkit login token is not an IdP token and gets the required scopes as
+granted. No tool carries its own scope requirement. Password-login and agent
+tokens are not checked.
 
 ## Registration and user lifecycle
 

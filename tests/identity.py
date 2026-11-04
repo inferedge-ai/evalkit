@@ -128,6 +128,8 @@ class FakeIdp:
         self.refresh_tokens: dict[str, dict] = {}
         self.devices: dict[str, dict] = {}
         self.jwks_fetches = 0
+        self.scopes: str | list[str] | None = None
+        self.scope_claim = "scope"
 
     def discovery(self) -> dict:
         return {
@@ -170,6 +172,7 @@ class FakeIdp:
             "iat": now,
             "exp": now + (self.access_ttl if expires_in is None else expires_in),
             "jti": secrets.token_hex(8),
+            **({self.scope_claim: self.scopes} if self.scopes is not None else {}),
             **(extra or {}),
         }
         return self._sign(claims, kid)

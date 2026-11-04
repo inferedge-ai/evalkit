@@ -1,17 +1,14 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from fastmcp.server.auth import AccessToken, AuthProvider, RemoteAuthProvider, TokenVerifier
 
-from evalkit.api.auth import bearer_login, is_jwt, sso_login, token_expiry
-from evalkit.api.oidc import IdpUnavailable
+from evalkit.api.auth import bearer_login, is_jwt, sso_identity, token_expiry
+from evalkit.api.oidc import IdpUnavailable, token_scopes
 
-SCOPE_READ = "evalkit:read"
 MCP_PATH = "/mcp"
 
 
-# An evalkit login token reaches MCP with the read scope; agent tokens stay
-# collector-only here as on /api.
 class EvalkitTokenVerifier(TokenVerifier):
     def __init__(self, state, base_url: str, required_scopes: list[str] | None = None):
         super().__init__(base_url=base_url, required_scopes=required_scopes)
@@ -23,10 +20,15 @@ class EvalkitTokenVerifier(TokenVerifier):
             if is_jwt(token):
                 oidc = self._state.oidc
                 audience = [oidc.cfg.audience, oidc.mcp_resource_url] if oidc is not None else []
-                user, expires = await sso_login(self._state, token, audience, None)
+                user, claims = await sso_identity(
+                    self._state, token, audience, None, enforce_scopes=False
+                )
+                expires = datetime.fromtimestamp(claims["exp"], UTC)
+                scopes = sorted(token_scopes(claims))
             else:
                 row, user = await bearer_login(self._state.session_factory, token)
                 expires = token_expiry(row)
+                scopes = list(self.required_scopes)
         except IdpUnavailable:
             raise
         except HTTPException:
@@ -34,7 +36,7 @@ class EvalkitTokenVerifier(TokenVerifier):
         return AccessToken(
             token=token,
             client_id=f"evalkit:{user.username}",
-            scopes=[SCOPE_READ],
+            scopes=scopes,
             expires_at=int(expires.timestamp()) if expires is not None else None,
             claims={
                 "sub": user.username,
@@ -46,7 +48,10 @@ class EvalkitTokenVerifier(TokenVerifier):
 
 def build_auth(state) -> AuthProvider:
     base_url = state.cfg.server.base_url
-    verifier = EvalkitTokenVerifier(state, base_url, required_scopes=[SCOPE_READ])
+    oidc_cfg = state.cfg.auth.oidc
+    verifier = EvalkitTokenVerifier(
+        state, base_url, required_scopes=oidc_cfg.required_scopes if oidc_cfg else []
+    )
     if state.oidc is None:
         return verifier
     return RemoteAuthProvider(

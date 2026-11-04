@@ -68,6 +68,7 @@ class OidcConfig(ConfigModel):
     audience: str
     name: str
     scopes: list[str] = ["openid", "profile", "email", "offline_access"]
+    required_scopes: list[str] = []
     authorize_params: dict[str, str] = {}
     algorithms: list[str] = ["RS256"]
 

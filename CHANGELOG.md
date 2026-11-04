@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `auth.oidc.required_scopes` (default empty) makes the server refuse IdP
+  access tokens that lack a scope, read from the `scope` and `scp` claims:
+  `POST /api/auth/oidc/register` (no user is created) and every `/api` request
+  answer 403 `access token lacks required scope <scope>`, and `/mcp` answers
+  403 `insufficient_scope`. Password
+  login and agent tokens are not checked. `/mcp` no longer stamps `evalkit:read`
+  on every token it accepts, and its tools no longer carry a per-tool scope.
 - evalkit now uses `httpx2` instead of `httpx` and `httpx-retries`. The
   CLI, the SDK and the server make their HTTP calls through `httpx2`, with a
   small retry transport of evalkit's own (`evalkit.client.retry`). Code that
@@ -28,7 +35,9 @@
   `trace_sources` and `fixture_blobs`. Usernames, workspace names, case ids,
   provider names and trace source names are now unique per tenant. The
   default judge moved from `server_settings` onto the tenant row. Migration
-  `0016`; no behaviour change for a single installation.
+  `0016`; no behaviour change for a single installation. `tenants.external_id`
+  (nullable, unique) exists but is unused for now; it will map an identity
+  provider's organisation id to a tenant later.
 - Blob objects now live under `tenants/<id>/`. After `evalkit db upgrade`,
   run `evalkit blobs relocate --config <config>` once to move existing
   trajectories, artifacts, run workspaces and fixtures; the server refuses to
