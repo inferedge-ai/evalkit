@@ -240,6 +240,7 @@ async def providers(request: Request) -> dict:
         "client_id": oidc.cfg.client_id,
         "audience": oidc.cfg.audience,
         "scopes": oidc.cfg.scopes,
+        "required_scopes": oidc.cfg.required_scopes,
         "authorize_params": oidc.cfg.authorize_params,
         "authorization_endpoint": oidc.discovery.authorization_endpoint,
         "token_endpoint": oidc.discovery.token_endpoint,

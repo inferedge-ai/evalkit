@@ -144,6 +144,41 @@ def test_client_credentials_fetches_once_and_keeps_it_in_memory(tmp_path):
     assert not (tmp_path / "config.toml").exists()
 
 
+def test_client_credentials_requests_the_required_scopes():
+    idp = FakeIdp()
+    idp.machine_clients["ci"] = ("s3cret", "machine-sub")
+    source = ClientCredentials(
+        MachineLogin("ci", "s3cret"),
+        f"{idp.issuer}/token",
+        {},
+        ["evalkit:read", "evalkit:write"],
+        transport=idp.transport(),
+    )
+    token = jwt.decode(source.bearer(), options={"verify_signature": False})
+    assert idp.client_credentials_requests[0]["scope"] == "evalkit:read evalkit:write"
+    assert token["scope"] == "evalkit:read evalkit:write"
+
+
+def test_client_credentials_sends_no_scope_without_required_scopes():
+    idp = FakeIdp()
+    idp.machine_clients["ci"] = ("s3cret", "machine-sub")
+    ClientCredentials(
+        MachineLogin("ci", "s3cret"), f"{idp.issuer}/token", {}, [], transport=idp.transport()
+    ).bearer()
+    assert "scope" not in idp.client_credentials_requests[0]
+
+
+def test_build_auth_sends_the_providers_required_scopes_and_tolerates_old_servers():
+    idp = FakeIdp()
+    idp.machine_clients["ci"] = ("s3cret", "machine-sub")
+    machine = Connection(
+        "https://evalkit.test", None, None, from_env=True, machine=MachineLogin("ci", "s3cret")
+    )
+    build_auth(machine, transport=providers_transport(idp, ["evalkit:read"])).source.bearer()
+    build_auth(machine, transport=providers_transport(idp)).source.bearer()
+    assert [r.get("scope") for r in idp.client_credentials_requests] == ["evalkit:read", None]
+
+
 def test_client_credentials_refusal_names_the_grant_and_the_idp_error():
     idp = FakeIdp()
     source = ClientCredentials(
@@ -177,7 +212,9 @@ def test_evalkit_auth_sets_the_header_per_request():
     assert calls == ["Bearer t1", "Bearer t2"]
 
 
-def providers_transport(idp: FakeIdp) -> httpx2.MockTransport:
+def providers_transport(
+    idp: FakeIdp, required_scopes: list[str] | None = None
+) -> httpx2.MockTransport:
     def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/api/auth/providers":
             return httpx2.Response(
@@ -187,6 +224,7 @@ def providers_transport(idp: FakeIdp) -> httpx2.MockTransport:
                     "oidc": {
                         "token_endpoint": f"{idp.issuer}/token",
                         "authorize_params": {"resource": idp.audience},
+                        **({"required_scopes": required_scopes} if required_scopes else {}),
                     },
                 },
             )

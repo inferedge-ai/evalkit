@@ -130,6 +130,7 @@ class FakeIdp:
         self.jwks_fetches = 0
         self.scopes: str | list[str] | None = None
         self.scope_claim = "scope"
+        self.client_credentials_requests: list[dict[str, str]] = []
 
     def discovery(self) -> dict:
         return {
@@ -283,8 +284,12 @@ class FakeIdp:
                 or self.machine_clients[client_id][0] != secret
             ):
                 return 401, headers, b'{"error": "invalid_client"}'
+            self.client_credentials_requests.append(form)
+            granted = {self.scope_claim: form["scope"]} if "scope" in form else None
             body = {
-                "access_token": self.access_token(self.machine_clients[client_id][1]),
+                "access_token": self.access_token(
+                    self.machine_clients[client_id][1], extra=granted
+                ),
                 "expires_in": self.access_ttl,
                 "token_type": "Bearer",
             }
