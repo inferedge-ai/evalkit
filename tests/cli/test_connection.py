@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from evalkit.client import connection
-from evalkit.client.connection import Connection
+from evalkit.client.connection import Connection, MachineLogin, OidcLogin
 
 
 def test_save_replaces_the_stored_login(tmp_path):
@@ -70,3 +70,37 @@ def test_token_expiry_warning_within_a_day():
     )
     env = Connection("https://dev", "t", None, from_env=True)
     assert "EVALKIT_TOKEN" in (connection.token_expiry_warning(env, soon, now) or "")
+
+
+LOGIN = OidcLogin(
+    issuer="https://idp.test",
+    client_id="evalkit-ui",
+    token_endpoint="https://idp.test/token",
+    access_token="at-1",
+    refresh_token="rt-1",
+    expires_at=datetime(2026, 11, 4, 12, 0, tzinfo=UTC),
+)
+
+
+def test_save_and_load_an_oidc_login(tmp_path):
+    path = tmp_path / "config.toml"
+    connection.save(Connection("https://dev", None, "ann", oidc=LOGIN), path=path)
+    text = path.read_text()
+    assert "[oidc]" in text and 'refresh_token = "rt-1"' in text
+    assert "token = " not in text.split("[oidc]")[0]
+    assert connection.load(path) == Connection("https://dev", None, "ann", oidc=LOGIN)
+
+
+def test_active_prefers_client_credentials_from_env(tmp_path, monkeypatch):
+    path = tmp_path / "config.toml"
+    connection.save(Connection("https://dev", "t1", "a"), path=path)
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "https://env")
+    monkeypatch.setenv("EVALKIT_TOKEN", "envtok")
+    monkeypatch.setenv("EVALKIT_OIDC_CLIENT_ID", "ci")
+    monkeypatch.setenv("EVALKIT_OIDC_CLIENT_SECRET", "s3cret")
+    active = connection.active(path=path)
+    assert active == Connection(
+        "https://env", None, None, from_env=True, machine=MachineLogin("ci", "s3cret")
+    )
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_SECRET")
+    assert connection.active(path=path) == Connection("https://env", "envtok", None, from_env=True)

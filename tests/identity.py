@@ -168,6 +168,7 @@ class FakeIdp:
             "aud": audience or self.audience,
             "iat": now,
             "exp": now + (self.access_ttl if expires_in is None else expires_in),
+            "jti": secrets.token_hex(8),
             **(extra or {}),
         }
         return self._sign(claims, kid)

@@ -1,0 +1,123 @@
+import threading
+from datetime import UTC, datetime, timedelta
+
+import httpx
+import jwt
+import pytest
+
+from evalkit.client import connection
+from evalkit.client.connection import Connection, MachineLogin, OidcLogin
+from evalkit.client.oidc import (
+    ClientCredentials,
+    EvalkitAuth,
+    LoginExpired,
+    StaticToken,
+    StoredOidcLogin,
+)
+from tests.identity import FakeIdp
+
+
+def stored(idp: FakeIdp, tmp_path, *, seconds_left: int) -> tuple[Connection, object]:
+    idp.next_login = ("sub-1", "ann@example.com", "ann")
+    tokens = idp._issue(idp._login())
+    login = OidcLogin(
+        issuer=idp.issuer,
+        client_id=idp.client_id,
+        token_endpoint=f"{idp.issuer}/token",
+        access_token=tokens["access_token"],
+        refresh_token=tokens["refresh_token"],
+        expires_at=datetime.now(UTC) + timedelta(seconds=seconds_left),
+    )
+    conn = Connection("https://evalkit.test", None, "ann", oidc=login)
+    path = tmp_path / "config.toml"
+    connection.save(conn, path=path)
+    return conn, path
+
+
+def test_static_token():
+    assert StaticToken("abc").bearer() == "abc"
+
+
+def test_stored_login_returns_the_access_token_while_fresh(tmp_path):
+    idp = FakeIdp()
+    conn, path = stored(idp, tmp_path, seconds_left=3600)
+    source = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    assert source.bearer() == conn.oidc.access_token
+    assert connection.load(path).oidc.refresh_token == conn.oidc.refresh_token
+
+
+def test_stored_login_refreshes_inside_the_last_minute_and_rewrites_the_file(tmp_path):
+    idp = FakeIdp()
+    conn, path = stored(idp, tmp_path, seconds_left=30)
+    source = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    token = source.bearer()
+    assert token != conn.oidc.access_token
+    saved = connection.load(path).oidc
+    assert saved.access_token == token and saved.refresh_token != conn.oidc.refresh_token
+    assert saved.expires_at > datetime.now(UTC) + timedelta(seconds=3000)
+    assert jwt.decode(token, options={"verify_signature": False})["sub"] == "sub-1"
+
+
+def test_stored_login_adopts_tokens_another_process_saved(tmp_path):
+    idp = FakeIdp()
+    conn, path = stored(idp, tmp_path, seconds_left=30)
+    other = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    rotated = other.bearer()
+    stale = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    assert stale.bearer() == rotated
+
+
+def test_stored_login_raises_when_nothing_newer_exists(tmp_path):
+    idp = FakeIdp()
+    conn, path = stored(idp, tmp_path, seconds_left=30)
+    idp.refresh_tokens.clear()
+    source = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    with pytest.raises(LoginExpired, match="run `evalkit login --url https://evalkit.test`"):
+        source.bearer()
+
+
+def test_stored_login_refreshes_once_under_concurrency(tmp_path):
+    idp = FakeIdp()
+    conn, path = stored(idp, tmp_path, seconds_left=30)
+    source = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    results: list[str] = []
+    threads = [threading.Thread(target=lambda: results.append(source.bearer())) for _ in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(set(results)) == 1
+
+
+def test_client_credentials_fetches_once_and_keeps_it_in_memory(tmp_path):
+    idp = FakeIdp()
+    idp.machine_clients["ci"] = ("s3cret", "machine-sub")
+    source = ClientCredentials(
+        MachineLogin("ci", "s3cret"), f"{idp.issuer}/token", {}, transport=idp.transport()
+    )
+    first = source.bearer()
+    assert source.bearer() == first
+    assert jwt.decode(first, options={"verify_signature": False})["sub"] == "machine-sub"
+    source.expires_at = datetime.now(UTC)
+    assert source.bearer() != first
+    assert not (tmp_path / "config.toml").exists()
+
+
+def test_evalkit_auth_sets_the_header_per_request():
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.headers["Authorization"])
+        return httpx.Response(200)
+
+    class Counter:
+        n = 0
+
+        def bearer(self) -> str:
+            self.n += 1
+            return f"t{self.n}"
+
+    with httpx.Client(transport=httpx.MockTransport(handler), auth=EvalkitAuth(Counter())) as http:
+        http.get("https://x/a")
+        http.get("https://x/b")
+    assert calls == ["Bearer t1", "Bearer t2"]
