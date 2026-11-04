@@ -966,10 +966,42 @@ def harness_check(
 
 
 @users_app.command("add")
-def users_add(username: str, password: str = typer.Option(..., prompt=True, hide_input=True)):
-    """Create a user (admin only). Example: evalkit users add alice"""
-    _client().post("/api/users", json={"username": username, "password": password})
+def users_add(
+    username: str,
+    password: str = typer.Option(
+        None, "--password", hide_input=True, help="Prompted for when --subject is not given."
+    ),
+    subject: str = typer.Option(
+        None,
+        "--subject",
+        help="Bind the new user to this identity provider subject: a machine user, no password.",
+    ),
+):
+    """Create a user (admin only).
+
+    With --subject the user is a machine user bound to that subject at the identity
+    provider: no password, no browser login. Without it, a password user; with SSO
+    configured and password_login admin, that user can only sign in once made admin.
+
+    Examples: evalkit users add alice · evalkit users add ci-bot --subject 0oa...
+    """
+    if subject is not None:
+        _client().post("/api/users", json={"username": username, "subject": subject})
+    else:
+        password = password or typer.prompt("Password", hide_input=True)
+        _client().post("/api/users", json={"username": username, "password": password})
     typer.echo(f"created {username}")
+
+
+@users_app.command("bind")
+def users_bind(username: str, subject: str = typer.Option(..., "--subject")):
+    """Bind an existing user to an identity provider subject (admin only).
+
+    Resolves a 409 at sign-in, links a password account that predates SSO, or binds
+    a machine client to an existing user. Example: evalkit users bind alice --subject 0oa...
+    """
+    _client().post(f"/api/users/{username}/identity", json={"subject": subject})
+    typer.echo(f"bound {username} to subject {subject}")
 
 
 @users_app.command("archive")
@@ -1027,9 +1059,19 @@ def users_list():
     """List users (admin only). Example: evalkit users list"""
     for user in _client().get("/api/users").json():
         flags = " ".join(
-            flag for flag, on in (("ADMIN", user["is_admin"]), ("ARCHIVED", user["archived"])) if on
+            flag
+            for flag, on in (
+                ("ADMIN", user["is_admin"]),
+                ("ARCHIVED", user["archived"]),
+                ("SUBJECT", user["has_subject"]),
+            )
+            if on
         )
-        typer.echo(f"{user['username']:<24} {flags:<16} created {user['created_at']}")
+        email = user.get("email") or ""
+        typer.echo(
+            f"{user['username']:<24} {user['kind']:<8} {email:<32} {flags:<22} "
+            f"created {user['created_at']}"
+        )
 
 
 DOCS_DIR = "evalkit-docs"

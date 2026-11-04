@@ -89,6 +89,7 @@ from evalkit.db.users import (
     InvalidName,
     InvalidPassword,
     LastAdmin,
+    MachineUser,
     NameTaken,
     UnknownUser,
 )
@@ -313,6 +314,7 @@ def create_app(
     @app.exception_handler(SharedOnly)
     @app.exception_handler(InvalidName)
     @app.exception_handler(InvalidPassword)
+    @app.exception_handler(MachineUser)
     @app.exception_handler(InvalidEvaluator)
     @app.exception_handler(InvalidAgent)
     @app.exception_handler(MissingCredential)

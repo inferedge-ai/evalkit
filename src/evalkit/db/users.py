@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from datetime import UTC, datetime
 
@@ -37,13 +39,24 @@ async def lock_names(session: AsyncSession) -> None:
 
 
 class IdentityConflict(Exception):
-    def __init__(self, username: str, subject: str):
-        super().__init__(
+    def __init__(self, message: str):
+        super().__init__(message)
+
+    @classmethod
+    def name_taken(cls, username: str, subject: str) -> IdentityConflict:
+        return cls(
             f"username {username} is taken by a user or workspace; "
             f"ask an admin to bind subject {subject} to an account"
         )
-        self.username = username
-        self.subject = subject
+
+    @classmethod
+    def already_bound(cls, subject: str, username: str) -> IdentityConflict:
+        return cls(f"subject {subject} is already bound to {username}")
+
+
+class MachineUser(Exception):
+    def __init__(self, username: str):
+        super().__init__(f"{username} is a machine user and cannot be an admin")
 
 
 class UserArchived(Exception):
@@ -189,7 +202,7 @@ class UserStore:
                 return user, False
             username = derive_username(preferred_username, email)
             if await name_taken(s, self._tenant_id, username):
-                raise IdentityConflict(username, subject)
+                raise IdentityConflict.name_taken(username, subject)
             user = User(
                 tenant_id=self._tenant_id,
                 username=username,
@@ -204,6 +217,24 @@ class UserStore:
             s.add(Workspace(tenant_id=self._tenant_id, name=username, owner_user_id=user.id))
             await s.commit()
             return user, True
+
+    async def bind(self, username: str, issuer: str, subject: str) -> None:
+        async with self._session() as s:
+            await lock_names(s)
+            user = await self._get(s, username)
+            other = await s.scalar(
+                select(User.username).where(
+                    User.tenant_id == self._tenant_id,
+                    User.issuer == issuer,
+                    User.subject == subject,
+                    User.id != user.id,
+                )
+            )
+            if other is not None:
+                raise IdentityConflict.already_bound(subject, other)
+            user.issuer = issuer
+            user.subject = subject
+            await s.commit()
 
     async def _get(self, s: AsyncSession, username: str) -> User:
         user = await s.scalar(
@@ -278,6 +309,8 @@ class UserStore:
             user = await self._get(s, username)
             if not value:
                 await self._ensure_other_admin(s, user)
+            if value and user.kind == "machine":
+                raise MachineUser(username)
             user.is_admin = value
             await s.commit()
 

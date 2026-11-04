@@ -1506,3 +1506,14 @@ def test_offline_lint_reports_schema_errors_as_findings(tmp_path):
     result = runner.invoke(cli_app, ["lint", "--offline", str(tmp_path)])
     assert result.exit_code != 0
     assert "E-SCHEMA [q1] acme/cases.yaml: evaluators.output.max_response_time" in result.output
+
+
+def test_users_add_with_a_subject_skips_the_password(env):
+    result = runner.invoke(cli_app, ["users", "add", "ci-bot", "--subject", "client-1"])
+    assert result.exit_code == 1 and "SSO is not configured" in result.output
+
+
+def test_users_list_shows_kind_and_email(env):
+    result = runner.invoke(cli_app, ["users", "list"])
+    assert result.exit_code == 0
+    assert "human" in result.output

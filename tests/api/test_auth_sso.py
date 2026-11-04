@@ -8,7 +8,7 @@ from evalkit.api.app import create_app
 from evalkit.config import OidcConfig
 from evalkit.db.users import UserStore
 from tests.identity import FakeIdp
-from tests.native import HOLDER, Env, seed_env, serve
+from tests.native import HOLDER, USERS, Env, seed_env, serve
 
 
 @asynccontextmanager
@@ -37,6 +37,10 @@ async def sso_app(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         ) as client:
             client.app = app  # type: ignore[attr-defined]
+            login = await client.post(
+                "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
+            )
+            client.headers["Authorization"] = f"Bearer {login.json()['token']}"
             yield client
 
 
@@ -283,3 +287,41 @@ async def test_a_user_without_a_password_gets_401(env, idp):
             "/api/auth/login", json={"username": "ann", "password": "anything"}
         )
     assert resp.status_code == 401 and resp.json()["detail"] == "invalid username or password"
+
+
+async def test_admin_adds_a_machine_user_and_its_token_is_served(env, idp):
+    idp.machine_clients["ci"] = ("s3cret", "client-ci-sub")
+    async with sso_app(env, idp) as client:
+        unbound = await client.get(
+            "/api/auth/me", headers=bearer(idp.access_token("client-ci-sub"))
+        )
+        assert unbound.status_code == 401 and "subject client-ci-sub" in unbound.json()["detail"]
+        created = await client.post(
+            "/api/users", json={"username": "ci-bot", "subject": "client-ci-sub"}
+        )
+        assert created.status_code == 200, created.text
+        me = await client.get("/api/auth/me", headers=bearer(idp.access_token("client-ci-sub")))
+        assert me.status_code == 200 and me.json()["kind"] == "machine"
+        assert me.json()["username"] == "ci-bot"
+        rows = (await client.get("/api/users")).json()
+        bot = next(r for r in rows if r["username"] == "ci-bot")
+        assert bot["kind"] == "machine" and bot["email"] is None and bot["has_subject"] is True
+        promote = await client.post("/api/users/ci-bot/promote")
+        assert promote.status_code == 400 and "machine user" in promote.json()["detail"]
+
+
+async def test_admin_binds_an_existing_user(env, idp):
+    async with sso_app(env, idp) as client:
+        resp = await client.post("/api/users/akshat/identity", json={"subject": "sub-akshat"})
+        assert resp.status_code == 200
+        assert resp.json() == {"bound": "akshat", "subject": "sub-akshat"}
+        me = await client.get("/api/auth/me", headers=bearer(idp.access_token("sub-akshat")))
+        assert me.status_code == 200 and me.json()["username"] == "akshat"
+        again = await client.post("/api/users/admin/identity", json={"subject": "sub-akshat"})
+        assert again.status_code == 409
+
+
+async def test_binding_needs_an_idp(env, tmp_path):
+    async with serve(env, tmp_path) as client:
+        resp = await client.post("/api/users/akshat/identity", json={"subject": "s"})
+    assert resp.status_code == 400 and "SSO is not configured" in resp.json()["detail"]

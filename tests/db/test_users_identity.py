@@ -3,6 +3,7 @@ import pytest
 from evalkit.db.users import (
     IdentityConflict,
     InvalidName,
+    MachineUser,
     UserArchived,
     UserStore,
     derive_username,
@@ -60,3 +61,21 @@ async def test_register_refuses_a_taken_name_and_an_archived_user(session_factor
     await store.archive("cy")
     with pytest.raises(UserArchived):
         await store.register(ISSUER, "sub-3", "cy@example.com", "cy")
+
+
+async def test_bind_sets_the_identity_once(session_factory):
+    store = UserStore(session_factory, 1)
+    await store.create("ann", password="hunter2-pw")
+    await store.bind("ann", ISSUER, "sub-ann")
+    bound = next(u for u in await store.list() if u.username == "ann")
+    assert (bound.issuer, bound.subject, bound.kind) == (ISSUER, "sub-ann", "human")
+    await store.create("bob", password="hunter2-pw")
+    with pytest.raises(IdentityConflict, match="already bound"):
+        await store.bind("bob", ISSUER, "sub-ann")
+
+
+async def test_promote_refuses_a_machine_user(session_factory):
+    store = UserStore(session_factory, 1)
+    await store.create("ci-bot", issuer=ISSUER, subject="client-1")
+    with pytest.raises(MachineUser):
+        await store.set_admin("ci-bot", True)

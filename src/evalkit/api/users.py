@@ -1,10 +1,17 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from evalkit.api.access import StoresDep
 from evalkit.api.auth import AdminUser
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+
+
+def _issuer(request: Request) -> str:
+    oidc = request.app.state.oidc
+    if oidc is None:
+        raise HTTPException(status_code=400, detail="SSO is not configured on this server")
+    return oidc.cfg.issuer
 
 
 @router.get("")
@@ -16,6 +23,9 @@ async def list_users(stores: StoresDep, admin: AdminUser) -> list[dict]:
             "is_admin": u.is_admin,
             "archived": u.archived_at is not None,
             "created_at": u.created_at.isoformat(),
+            "email": u.email,
+            "kind": u.kind,
+            "has_subject": u.subject is not None,
         }
         for u in await stores.users.list()
     ]
@@ -23,13 +33,33 @@ async def list_users(stores: StoresDep, admin: AdminUser) -> list[dict]:
 
 class CreateUserRequest(BaseModel):
     username: str
-    password: str
+    password: str | None = None
+    subject: str | None = None
 
 
 @router.post("")
-async def create_user(body: CreateUserRequest, stores: StoresDep, admin: AdminUser) -> dict:
-    await stores.users.create(body.username, password=body.password)
+async def create_user(
+    body: CreateUserRequest, request: Request, stores: StoresDep, admin: AdminUser
+) -> dict:
+    if (body.password is None) == (body.subject is None):
+        raise HTTPException(status_code=400, detail="give exactly one of password or subject")
+    if body.subject is not None:
+        await stores.users.create(body.username, issuer=_issuer(request), subject=body.subject)
+    else:
+        await stores.users.create(body.username, password=body.password)
     return {"username": body.username}
+
+
+class BindRequest(BaseModel):
+    subject: str
+
+
+@router.post("/{username}/identity")
+async def bind_identity(
+    username: str, body: BindRequest, request: Request, stores: StoresDep, admin: AdminUser
+) -> dict:
+    await stores.users.bind(username, _issuer(request), body.subject)
+    return {"bound": username, "subject": body.subject}
 
 
 @router.post("/{username}/archive")
