@@ -10,6 +10,9 @@
   library retried it, and the second send of a spent stream failed). The
   try-it stack's sample agent (`try/agent.py`) and the SDK-runs doc sample
   import `httpx2`.
+- When `auth.oidc` is set, the `Content-Security-Policy` `connect-src` also allows
+  the origins of the IdP's issuer and its token endpoint, so the web UI can
+  sign in. Without `auth.oidc` the header is unchanged.
 - The database gains a `tenants` table with one row, `default`, and a
   `tenant_id` on `users`, `workspaces`, `cases`, `llm_providers`,
   `trace_sources` and `fixture_blobs`. Usernames, workspace names, case ids,

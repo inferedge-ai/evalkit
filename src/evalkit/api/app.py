@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx2
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -100,24 +101,37 @@ from evalkit.store.blob import Obstore
 
 LOGGER = logging.getLogger(__name__)
 
-CONTENT_SECURITY_POLICY = "; ".join(
-    [
-        "default-src 'self'",
-        "script-src 'self'",
-        "style-src 'self' 'unsafe-inline'",
-        "font-src 'self' data:",
-        "img-src 'self' data: blob:",
-        "frame-src 'self' blob:",
-        "worker-src 'self' blob:",
-        "connect-src 'self'",
-        "object-src 'none'",
-        "base-uri 'self'",
-        "form-action 'self'",
-        "frame-ancestors 'none'",
-    ]
-)
+
+def content_security_policy(oidc: OidcState | None) -> str:
+    connect_src = ["'self'"]
+    if oidc is not None:
+        urls = [oidc.cfg.issuer]
+        if oidc.discovery is not None:
+            urls.append(oidc.discovery.token_endpoint)
+        for url in urls:
+            parts = urlsplit(url)
+            origin = f"{parts.scheme}://{parts.netloc}"
+            if origin not in connect_src:
+                connect_src.append(origin)
+    return "; ".join(
+        [
+            "default-src 'self'",
+            "script-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "font-src 'self' data:",
+            "img-src 'self' data: blob:",
+            "frame-src 'self' blob:",
+            "worker-src 'self' blob:",
+            f"connect-src {' '.join(connect_src)}",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'",
+        ]
+    )
+
+
 SECURITY_HEADERS = {
-    "Content-Security-Policy": CONTENT_SECURITY_POLICY,
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
@@ -338,6 +352,7 @@ def create_app(
         response = await call_next(request)
         response.headers["X-Evalkit-Version"] = running_version
         response.headers.update(SECURITY_HEADERS)
+        response.headers["Content-Security-Policy"] = content_security_policy(app.state.oidc)
         if request.url.scheme == "https":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response

@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 import httpx2
 import pytest
 
-from evalkit.api.app import create_app
+from evalkit.api.app import content_security_policy, create_app
+from evalkit.api.oidc import Discovery, OidcState
 from evalkit.config import OidcConfig
 from evalkit.db.users import UserStore
 from tests.identity import FakeIdp
@@ -325,3 +326,35 @@ async def test_binding_needs_an_idp(env, tmp_path):
     async with serve(env, tmp_path) as client:
         resp = await client.post("/api/users/akshat/identity", json={"subject": "s"})
     assert resp.status_code == 400 and "SSO is not configured" in resp.json()["detail"]
+
+
+def connect_src(policy: str) -> str:
+    return next(d for d in policy.split("; ") if d.startswith("connect-src "))
+
+
+async def test_csp_connect_src_is_self_without_an_idp(env, tmp_path):
+    async with serve(env, tmp_path) as client:
+        policy = (await client.get("/api/health")).headers["Content-Security-Policy"]
+    assert connect_src(policy) == "connect-src 'self'"
+
+
+async def test_csp_connect_src_allows_the_idp_origin(env, idp):
+    async with sso_app(env, idp) as client:
+        policy = (await client.get("/api/health")).headers["Content-Security-Policy"]
+    assert connect_src(policy) == f"connect-src 'self' {idp.issuer}"
+
+
+def test_csp_connect_src_adds_a_token_endpoint_on_another_origin():
+    cfg = OidcConfig(issuer="https://idp.test/realms/x", client_id="c", audience="a", name="Fake")
+    oidc = OidcState(cfg, httpx.AsyncClient(), "http://evalkit.test/mcp")
+    assert connect_src(content_security_policy(oidc)) == "connect-src 'self' https://idp.test"
+    oidc.discovery = Discovery(
+        authorization_endpoint="https://idp.test/authorize",
+        token_endpoint="https://tokens.test:8443/token",
+        jwks_uri="https://idp.test/jwks",
+        device_authorization_endpoint=None,
+    )
+    assert (
+        connect_src(content_security_policy(oidc))
+        == "connect-src 'self' https://idp.test https://tokens.test:8443"
+    )
