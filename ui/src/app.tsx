@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { LoginCallbackPage } from "./auth/LoginCallbackPage";
 import { LoginPage } from "./auth/LoginPage";
 import { Home } from "./pages/Home";
 import { DocsPage } from "./pages/DocsPage";
@@ -27,6 +28,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/login/callback" element={<LoginCallbackPage />} />
       <Route element={<AuthGate />}>
         <Route element={<WorkspaceGate />}>
           <Route element={<Shell />}>
