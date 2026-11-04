@@ -30,6 +30,15 @@ class LoginExpired(Exception):
         super().__init__(f"your login has expired; run `evalkit login --url {url}`")
 
 
+class ClientCredentialsRefused(Exception):
+    def __init__(self, error: str, description: str | None) -> None:
+        detail = f" ({description})" if description else ""
+        super().__init__(
+            f"client credentials refused by the identity provider: {error}{detail}; "
+            "check EVALKIT_OIDC_CLIENT_ID / EVALKIT_OIDC_CLIENT_SECRET"
+        )
+
+
 class TokenSource(Protocol):
     def bearer(self) -> str: ...
 
@@ -133,11 +142,14 @@ class ClientCredentials:
                     transport=self.transport,
                     timeout=30.0,
                 ) as http:
-                    tokens = http.fetch_token(
-                        self.token_endpoint,
-                        grant_type="client_credentials",
-                        **self.authorize_params,
-                    )
+                    try:
+                        tokens = http.fetch_token(
+                            self.token_endpoint,
+                            grant_type="client_credentials",
+                            **self.authorize_params,
+                        )
+                    except OAuthError as exc:
+                        raise ClientCredentialsRefused(exc.error, exc.description) from exc
                 self.token = tokens["access_token"]
                 self.expires_at = expiry_from(tokens)
             assert self.token is not None

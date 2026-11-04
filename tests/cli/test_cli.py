@@ -27,7 +27,7 @@ from evalkit.cli.client import ApiError
 from evalkit.cli.main import app as cli_app
 from evalkit.client import connection
 from evalkit.client import oidc as client_oidc
-from evalkit.client.oidc import EvalkitAuth, LoginExpired
+from evalkit.client.oidc import ClientCredentialsRefused, EvalkitAuth, LoginExpired
 from evalkit.contracts.enums import DatasetKind, SyncSource, TrajectorySource
 from evalkit.core.harness import HarnessClient
 from evalkit.core.importer import incoming_case
@@ -1042,6 +1042,24 @@ def test_local_harness_check_reports_an_expired_login_as_one_line(
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 1
     assert "run `evalkit login --url http://x`" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_local_harness_check_reports_refused_client_credentials_as_one_line(
+    env, tmp_path, monkeypatch, harness_url
+):
+    class RefusedSource:
+        def bearer(self) -> str:
+            raise ClientCredentialsRefused("invalid_client", "bad secret")
+
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        local_run, "oidc", SimpleNamespace(build_auth=lambda conn: EvalkitAuth(RefusedSource()))
+    )
+    result = runner.invoke(cli_app, ["harness", "check", "fake"])
+    assert result.exit_code == 1
+    assert "client credentials refused by the identity provider: invalid_client" in result.output
     assert "Traceback" not in result.output
 
 

@@ -435,6 +435,7 @@ def lint(
                 ValueError,
                 ApiRequestError,
                 oidc.LoginExpired,
+                oidc.ClientCredentialsRefused,
                 LookupError,
             ) as exc:
                 raise ApiError(f"harness {definition.ref}: {exc}") from exc
@@ -842,6 +843,7 @@ def run(
             VersionMismatch,
             ApiRequestError,
             oidc.LoginExpired,
+            oidc.ClientCredentialsRefused,
             ValueError,
             KeyError,
             LookupError,
@@ -930,6 +932,7 @@ def evaluate(
         VersionMismatch,
         ApiRequestError,
         oidc.LoginExpired,
+        oidc.ClientCredentialsRefused,
         ValueError,
         KeyError,
         LookupError,
@@ -1032,7 +1035,14 @@ def harness_check(
         local = _with_secrets(_local_config(), scoring=False)
         try:
             checks = asyncio.run(check_local(conn, local, ref))
-        except (ValueError, KeyError, ApiRequestError, oidc.LoginExpired, LookupError) as exc:
+        except (
+            ValueError,
+            KeyError,
+            ApiRequestError,
+            oidc.LoginExpired,
+            oidc.ClientCredentialsRefused,
+            LookupError,
+        ) as exc:
             raise ApiError(str(exc)) from exc
     failed = False
     for capability, entry in checks.items():

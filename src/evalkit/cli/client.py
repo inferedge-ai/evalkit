@@ -56,7 +56,7 @@ class ApiClient(SyncApi):
             if not self._version_checked and method not in ("GET", "HEAD"):
                 self._check_version(self._client.get("/api/health"))
             return super().request(method, path, retry=retry, **kwargs)
-        except oidc.LoginExpired as exc:
+        except (oidc.LoginExpired, oidc.ClientCredentialsRefused) as exc:
             raise ApiError(str(exc)) from exc
 
     def _handle(self, resp: httpx2.Response) -> httpx2.Response:

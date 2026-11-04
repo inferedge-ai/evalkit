@@ -9,6 +9,7 @@ from evalkit.client import connection
 from evalkit.client.connection import Connection, MachineLogin, OidcLogin
 from evalkit.client.oidc import (
     ClientCredentials,
+    ClientCredentialsRefused,
     EvalkitAuth,
     LoginExpired,
     StaticToken,
@@ -126,6 +127,17 @@ def test_client_credentials_fetches_once_and_keeps_it_in_memory(tmp_path):
     source.expires_at = datetime.now(UTC)
     assert source.bearer() != first
     assert not (tmp_path / "config.toml").exists()
+
+
+def test_client_credentials_refusal_names_the_grant_and_the_idp_error():
+    idp = FakeIdp()
+    source = ClientCredentials(
+        MachineLogin("ci", "wrong"), f"{idp.issuer}/token", {}, transport=idp.transport()
+    )
+    with pytest.raises(ClientCredentialsRefused, match="client credentials refused") as raised:
+        source.bearer()
+    assert "invalid_client" in str(raised.value)
+    assert "EVALKIT_OIDC_CLIENT_ID / EVALKIT_OIDC_CLIENT_SECRET" in str(raised.value)
 
 
 def test_evalkit_auth_sets_the_header_per_request():
