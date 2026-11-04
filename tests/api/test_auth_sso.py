@@ -346,7 +346,7 @@ async def test_csp_connect_src_allows_the_idp_origin(env, idp):
 
 def test_csp_connect_src_adds_a_token_endpoint_on_another_origin():
     cfg = OidcConfig(issuer="https://idp.test/realms/x", client_id="c", audience="a", name="Fake")
-    oidc = OidcState(cfg, httpx.AsyncClient(), "http://evalkit.test/mcp")
+    oidc = OidcState(cfg, httpx2.AsyncClient(), "http://evalkit.test/mcp")
     assert connect_src(content_security_policy(oidc)) == "connect-src 'self' https://idp.test"
     oidc.discovery = Discovery(
         authorization_endpoint="https://idp.test/authorize",
