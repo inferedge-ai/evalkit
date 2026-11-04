@@ -1693,3 +1693,13 @@ def test_login_refuses_tokens_without_a_refresh_token(tmp_path, monkeypatch):
 def test_whoami_names_the_login_kind(env):
     result = runner.invoke(cli_app, ["whoami"])
     assert result.exit_code == 0 and "login: password" in result.output
+
+
+def test_half_of_the_client_credentials_is_a_one_line_error(monkeypatch):
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("EVALKIT_OIDC_CLIENT_ID", "ci")
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_SECRET", raising=False)
+    result = runner.invoke(cli_app, ["datasets", "list"])
+    assert result.exit_code == 1
+    assert "EVALKIT_OIDC_CLIENT_SECRET" in result.output
+    assert "Traceback" not in result.output

@@ -99,7 +99,9 @@ def api_audience(state) -> list[str]:
     return [state.oidc.cfg.audience] if state.oidc is not None else []
 
 
-async def sso_user(state, token: str, audience: list[str], request: Request | None) -> User:
+async def sso_login(
+    state, token: str, audience: list[str], request: Request | None
+) -> tuple[User, datetime]:
     if state.oidc is None:
         raise HTTPException(status_code=401, detail="SSO is not configured on this server")
     claims = await verify_access_token(state.oidc, token, audience)
@@ -118,8 +120,13 @@ async def sso_user(state, token: str, audience: list[str], request: Request | No
         )
     if user.archived_at is not None:
         raise HTTPException(status_code=401, detail="user is archived")
+    return user, datetime.fromtimestamp(claims["exp"], UTC)
+
+
+async def sso_user(state, token: str, audience: list[str], request: Request | None) -> User:
+    user, expires_at = await sso_login(state, token, audience, request)
     if request is not None:
-        request.state.token_expires_at = datetime.fromtimestamp(claims["exp"], UTC)
+        request.state.token_expires_at = expires_at
     return user
 
 
@@ -241,7 +248,9 @@ async def login(body: LoginRequest, request: Request) -> dict:
         )
     async with tenant_session(request.app.state.session_factory, tenant_id) as session:
         user = (
-            await session.execute(select(User).where(User.username == body.username))
+            await session.execute(
+                select(User).where(User.tenant_id == tenant_id, User.username == body.username)
+            )
         ).scalar_one_or_none()
         if user is None or user.password_hash is None:
             verify_password(body.password, _dummy_password_hash())

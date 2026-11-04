@@ -5,6 +5,7 @@ import re
 from datetime import UTC, datetime
 
 import httpx2
+import jwt
 import pytest
 from fastapi import HTTPException
 from fastmcp import Client
@@ -14,6 +15,7 @@ from fastmcp.exceptions import ToolError
 from evalkit.api import runs as runs_api
 from evalkit.api.mcp import descriptions as mcp_descriptions
 from evalkit.api.mcp import tools as mcp_tools
+from evalkit.api.mcp.auth import EvalkitTokenVerifier
 from evalkit.db.agents import AgentStore
 from evalkit.db.users import UserStore
 from tests.api.native_api import api_env
@@ -597,6 +599,32 @@ async def test_idp_tokens_reach_mcp_as_their_evalkit_user(tmp_path, stub_judges,
         assert await mcp_status(http, bearer(http)) == 200
         await UserStore(session_factory, 1).archive("ann")
         assert await mcp_status(http, idp.access_token("sub-ann")) == 401
+
+
+async def test_mcp_is_503_while_the_idp_is_down(tmp_path, stub_judges, session_factory):
+    env = await seed_env(session_factory, tmp_path, fake_with_runs())
+    idp = FakeIdp(audience="http://evalkit.test")
+
+    def down(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("idp down")
+
+    async with sso_app(env, idp, transport=httpx2.MockTransport(down)) as http:
+        assert await mcp_status(http, idp.access_token("sub-ann")) == 503
+
+
+async def test_mcp_access_token_expires_with_the_verified_exp(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path, fake_with_runs())
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(session_factory, 1).create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp) as http:
+        token = idp.access_token("sub-ann", expires_in=600)
+        exp = jwt.decode(token, options={"verify_signature": False})["exp"]
+        verified = await EvalkitTokenVerifier(http.app.state, RESOURCE).verify_token(token)
+        assert verified is not None and verified.expires_at == exp
 
 
 async def test_without_an_idp_mcp_publishes_no_metadata(api):

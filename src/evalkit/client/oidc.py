@@ -230,6 +230,7 @@ def run_loopback_flow(
 ) -> dict:
     received: dict[str, str] = {}
     done = threading.Event()
+    state = secrets.token_urlsafe(16)
 
     class Callback(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -237,7 +238,14 @@ def run_loopback_flow(
                 self.send_response(404)
                 self.end_headers()
                 return
-            received.update({k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()})
+            params = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
+            if params.get("state") != state:
+                self.send_response(400)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"unexpected login callback")
+                return
+            received.update(params)
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.end_headers()
@@ -250,7 +258,6 @@ def run_loopback_flow(
     server = HTTPServer(("127.0.0.1", 0), Callback)
     redirect_uri = f"http://127.0.0.1:{server.server_address[1]}/callback"
     verifier = generate_token(64)
-    state = secrets.token_urlsafe(16)
     with OAuth2Client(
         client_id=providers_oidc["client_id"],
         token_endpoint_auth_method="none",
@@ -273,8 +280,6 @@ def run_loopback_flow(
         server.server_close()
         if not finished:
             raise LoginTimedOut()
-        if received.get("state") != state:
-            raise LoginRefused("state mismatch on the login callback")
         if "error" in received:
             raise LoginRefused(
                 f"{received['error']}: {received.get('error_description', 'login refused')}"

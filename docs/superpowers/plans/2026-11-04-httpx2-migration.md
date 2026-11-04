@@ -49,16 +49,19 @@ Behaviour to keep (today's `retry_policy` and `retry_extensions` in
 ```
 class Retry:  # frozen dataclass
     total, allowed_methods, status_forcelist, retry_on_exceptions,
-    backoff_factor, max_backoff_wait
+    backoff_factor, max_backoff_wait, jitter   # jitter(a, b) defaults to random.uniform
 
     is_retryable_method(method) = method in allowed_methods
-    backoff(attempt) = min(max_backoff_wait, backoff_factor * 2 ** attempt)   # attempt counts from 0
+    backoff(attempt) = min(max_backoff_wait, backoff_factor * 2 ** (attempt + 1) * jitter(0, 1))   # attempt counts from 0
     wait(response | None, attempt) =
         retry_after(response) if response has a valid Retry-After (seconds or HTTP date), capped at max_backoff_wait
         else backoff(attempt)
+    # full jitter, as in httpx-retries; at evalkit's defaults the first retry waits at most 1 s
+    # a malformed Retry-After (a header evalkit does not control) falls back to backoff(attempt),
+    # so parsing it carries a narrow try/except that the plan sanctions
 
 class RetryTransport(httpx2.BaseTransport, httpx2.AsyncBaseTransport):
-    __init__(transport, retry)
+    __init__(transport, retry)   # raises TypeError unless transport is a sync or async httpx2 transport
     handle_request / handle_async_request(request):
         policy = request.extensions.get("retry", self.retry)
         for attempt in 0 .. policy.total:
