@@ -1,3 +1,4 @@
+import { WebStorageStateStore } from "oidc-client-ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   loadProviders,
@@ -75,6 +76,11 @@ describe("userManagerSettings", () => {
       resource: "https://evalkit.example.com",
     });
     expect(s.automaticSilentRenew).toBe(false);
+  });
+  it("keeps the signed-in user in localStorage", () => {
+    vi.stubGlobal("localStorage", {});
+    const s = userManagerSettings(okta, "https://evalkit.example.com");
+    expect(s.userStore).toBeInstanceOf(WebStorageStateStore);
   });
 });
 
