@@ -1,5 +1,5 @@
 import { ErrorResponse } from "oidc-client-ts";
-import { session, type SessionUser } from "../auth/oidc";
+import { session, type OidcSession, type SessionUser } from "../auth/oidc";
 import type { Me } from "./types";
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -18,10 +18,34 @@ export function setToken(value: string | null): void {
 }
 
 const REFRESH_WINDOW_SECONDS = 60;
+const REFRESH_LOCK = "evalkit-oidc-refresh";
 
 let refreshing: Promise<SessionUser | null> | null = null;
 
 const NO_REDIRECT = new Set(["/auth/me", "/auth/oidc/register"]);
+
+function needsRefresh(user: SessionUser): boolean {
+  return (
+    user.expires_in !== undefined && user.expires_in < REFRESH_WINDOW_SECONDS
+  );
+}
+
+async function refreshUser(s: OidcSession): Promise<SessionUser | null> {
+  const user = await s.getUser();
+  if (user === null) return null;
+  if (!needsRefresh(user)) return user;
+  if (!user.refresh_token) {
+    await s.removeUser();
+    return null;
+  }
+  try {
+    return await s.signinSilent();
+  } catch (e: unknown) {
+    if (!(e instanceof ErrorResponse)) throw e;
+    await s.removeUser();
+    return null;
+  }
+}
 
 export async function bearer(): Promise<string | null> {
   if (token !== null) return token;
@@ -29,21 +53,14 @@ export async function bearer(): Promise<string | null> {
   if (s === null) return null;
   let user = await s.getUser();
   if (user === null) return null;
-  if ((user.expires_in ?? 0) < REFRESH_WINDOW_SECONDS) {
-    if (!user.refresh_token) {
-      await s.removeUser();
-      return null;
-    }
-    refreshing ??= s
-      .signinSilent()
-      .catch(async (e: unknown) => {
-        if (!(e instanceof ErrorResponse)) throw e;
-        await s.removeUser();
-        return null;
-      })
-      .finally(() => {
-        refreshing = null;
-      });
+  if (needsRefresh(user)) {
+    refreshing ??= (
+      typeof navigator !== "undefined" && navigator.locks
+        ? navigator.locks.request(REFRESH_LOCK, () => refreshUser(s))
+        : refreshUser(s)
+    ).finally(() => {
+      refreshing = null;
+    });
     user = await refreshing;
   }
   return user?.access_token ?? null;

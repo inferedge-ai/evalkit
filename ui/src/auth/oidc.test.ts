@@ -14,7 +14,6 @@ const okta: OidcProviders = {
   name: "Okta",
   issuer: "https://id.example.com",
   client_id: "0oa1b2c3",
-  audience: "https://evalkit.example.com",
   scopes: ["openid", "profile", "email", "offline_access"],
   authorize_params: { resource: "https://evalkit.example.com" },
   authorization_endpoint: "https://id.example.com/oauth2/v1/authorize",

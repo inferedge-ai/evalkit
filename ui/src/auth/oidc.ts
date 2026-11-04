@@ -10,7 +10,6 @@ export type OidcProviders = {
   name: string;
   issuer: string;
   client_id: string;
-  audience: string;
   scopes: string[];
   authorize_params: Record<string, string>;
   authorization_endpoint: string;

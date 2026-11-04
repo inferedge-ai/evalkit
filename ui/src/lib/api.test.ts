@@ -104,7 +104,7 @@ describe("bearer", () => {
     );
     setSessionForTest(s);
     expect(await bearer()).toBe("new");
-    expect(s.calls).toEqual(["getUser", "signinSilent"]);
+    expect(s.calls).toEqual(["getUser", "getUser", "signinSilent"]);
   });
 
   it("is null when the refresh is refused", async () => {
@@ -126,7 +126,7 @@ describe("bearer", () => {
       );
       setSessionForTest(s);
       expect(await bearer()).toBeNull();
-      expect(s.calls).toEqual(["getUser", "removeUser"]);
+      expect(s.calls).toEqual(["getUser", "getUser", "removeUser"]);
     },
   );
 
@@ -288,5 +288,35 @@ describe("401 redirect", () => {
     const assign = stubWindow("/login");
     await apiFetch("/datasets");
     expect(assign).not.toHaveBeenCalled();
+  });
+});
+
+describe("cross-tab refresh", () => {
+  const near = { access_token: "old", expires_in: 10, refresh_token: "r" };
+
+  it("refreshes under the shared lock and skips it when another tab rotated the token", async () => {
+    const names: string[] = [];
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async (name: string, cb: () => Promise<unknown>) => {
+          names.push(name);
+          return cb();
+        },
+      },
+    });
+    const s = fakeSession(near, { access_token: "new", expires_in: 3600 });
+    const reads = [near, { access_token: "rotated", expires_in: 3600 }];
+    s.getUser = async () => reads.shift() ?? null;
+    setSessionForTest(s);
+    expect(await bearer()).toBe("rotated");
+    expect(names).toEqual(["evalkit-oidc-refresh"]);
+    expect(s.calls).not.toContain("signinSilent");
+  });
+
+  it("sends the token as is when expires_in is missing", async () => {
+    const s = fakeSession({ access_token: "idp", refresh_token: "r" });
+    setSessionForTest(s);
+    expect(await bearer()).toBe("idp");
+    expect(s.calls).not.toContain("signinSilent");
   });
 });
