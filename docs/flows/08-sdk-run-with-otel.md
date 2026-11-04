@@ -21,7 +21,7 @@ sequenceDiagram
   participant S as evalkit server
 
   Dev->>SDK: tracing.register("research-agent")
-  SDK->>SDK: add an exporter to the tracer provider → #lt;server#gt;/api/otel/v1/traces,<br/>headers X-Evalkit-Agent: research-agent + Bearer (EVALKIT_OTEL_TOKEN or the `evalkit login` token)
+  SDK->>SDK: add an exporter to the tracer provider → #lt;server#gt;/api/otel/v1/traces,<br/>headers X-Evalkit-Agent: research-agent + Bearer (EVALKIT_OTEL_TOKEN, required; a login token is not accepted)
   Dev->>SDK: run_experiment(dataset="finance", agent="research-agent", task=fn, evaluators=[...])
   SDK->>SDK: load evalkit.yaml
   SDK->>S: version check, whoami

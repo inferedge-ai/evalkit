@@ -12,18 +12,12 @@ claude mcp add --transport http evalkit {{origin}}/mcp --header "Authorization: 
 
 Only login tokens work here: agent tokens (`evalkit tokens create`) and download tickets are refused.
 
-When the server's config has an `mcp.oauth` block, MCP clients that speak OAuth (Claude, Cursor, Codex) can connect with the URL alone: the server points them to the identity provider, and a token issued for `{{origin}}/mcp` with the configured scope (`mcp.oauth.scope`, default `evalkit:read`) is accepted. Evalkit login tokens keep working next to it.
-
-```yaml
-mcp:
-  oauth:
-    issuer: https://id.example.com
-    jwks_uri: https://id.example.com/.well-known/jwks.json
-    # audience: defaults to <server.base_url>/mcp
-    # scope: your identity provider's name for read access; defaults to evalkit:read
-```
-
-An OAuth token is not an evalkit user. Whoever the identity provider gives that scope reads everything an evalkit login reads, which today is every workspace, and archiving someone in evalkit does not cut off their OAuth access: revoke it at the identity provider.
+With single sign-on configured (`auth.oidc`, see [Single sign-on](sso.md)),
+MCP clients that speak OAuth (Claude, Cursor, Codex) connect with the URL
+alone: the server points them to the identity provider, and a token issued
+for `{{origin}}/mcp` or for evalkit's configured audience is accepted. The
+token's subject must be an evalkit user, so archiving someone cuts off their
+MCP access too. Evalkit login tokens keep working next to it.
 
 ## Tools
 

@@ -22,6 +22,35 @@
   start while any object remains under the old layout. The upgrade has
   downtime between the migration and the relocation.
 - `GET /api/workspaces/...` payloads include `tenant_id`.
+- Single sign-on through any OIDC identity provider that issues JWT access
+  tokens: set `auth.oidc` (`issuer`, `client_id`, `audience`, `name`) in the
+  server config. `evalkit login` then opens the browser at the identity
+  provider and stores its tokens, which refresh themselves;
+  `--no-browser` uses the device authorization grant. The first sign-in
+  creates the user; `GET /api/auth/providers` reports what the server
+  offers and `POST /api/auth/oidc/register` creates the user from the ID
+  token. See `docs/user/sso.md`.
+- `auth.password_login` (`admin` by default when `auth.oidc` is set, or
+  `all`) governs `POST /api/auth/login`; non-admins get 403 under `admin`.
+  Stored password tokens keep working until they expire.
+- CI authenticates as a machine client with `EVALKIT_OIDC_CLIENT_ID` and
+  `EVALKIT_OIDC_CLIENT_SECRET` (client credentials grant). An admin binds
+  the client's subject with `evalkit users add <name> --subject <sub>`;
+  `evalkit users add` also takes `--password` for a password user.
+  `evalkit users bind <name> --subject <sub>` links an existing user
+  (`POST /api/users/{username}/identity`). `users list` shows `kind` and
+  `email`; `users promote` refuses a machine user.
+- `/mcp` verifies tokens with the same settings as `/api`; a token for the
+  configured audience or for `<base_url>/mcp` is its evalkit user, and
+  archiving the user cuts off MCP. `mcp.oauth` is removed: a config that
+  still has it fails to load and names `auth.oidc`. `create_app` no longer
+  takes `mcp_jwt_verifier`.
+- `tracing.register`, `tracing.exporter` and `tracing.processor` require
+  `EVALKIT_OTEL_TOKEN` (an agent token); the fallback to a login token is
+  removed.
+- `SyncApi` and `AsyncApi` take an `httpx.Auth` instead of a token string;
+  `evalkit.client.oidc.static_auth(token)` wraps a token.
+- Dependencies: `pyjwt[crypto]` in the `server` extra.
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of
   a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch

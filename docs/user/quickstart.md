@@ -70,7 +70,7 @@ More in [Config](config.md).
 
 ## 4. Run it
 
-SDK path: install the SDK into your project (see [Install](install.md)), then write `eval/run.py`:
+SDK path: install the SDK into your project (see [Install](install.md)). Mint an agent token and export it: `evalkit tokens create --agent myagent`, then `export EVALKIT_OTEL_TOKEN=<token>`. Then write `eval/run.py`:
 
 ```python
 from evalkit.sdk import run_experiment, tracing

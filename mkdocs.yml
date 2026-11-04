@@ -91,6 +91,7 @@ nav:
       - Try locally: try-locally.md
       - Install: install.md
       - Login: login.md
+      - Single sign-on: sso.md
       - Config: config.md
       - Workspaces: workspaces.md
       - CI sync: ci-sync.md

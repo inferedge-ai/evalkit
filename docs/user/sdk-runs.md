@@ -96,7 +96,7 @@ The SDK stamps `session.id` and the `evalkit.*` attributes only on spans made in
 
 Either way the Runs page links the session to its experiment and case.
 
-The agent's exporter needs its own token. Mint one with `evalkit tokens create --agent <name>`; it never expires. Your login token expires, and an exporter that holds it then drops every span with nothing but a line in its own log.
+The agent's exporter needs its own token in `EVALKIT_OTEL_TOKEN`. Mint one with `evalkit tokens create --agent <name>`; it never expires. A login token is not accepted: it expires, and an exporter that holds it would drop every span with nothing but a line in its own log.
 
 ## Datasets and workspaces
 

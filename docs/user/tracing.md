@@ -16,7 +16,7 @@ from evalkit.sdk import tracing
 tracing.register(agent="myagent-sdk")
 ```
 
-`register` adds an exporter for this server to your global tracer provider, creating one if none is set. Your existing exporters keep running. The exporter carries an `X-Evalkit-Agent` header, which names the agent on the server; the `evalkit.agent` resource attribute is only set when `register` creates the provider itself. It reads the server URL from `EVALKIT_SERVER_URL` or your `evalkit login`, and the token from `EVALKIT_OTEL_TOKEN` (an agent token), then `EVALKIT_TOKEN`, then your `evalkit login`. It needs the `otel` extra.
+`register` adds an exporter for this server to your global tracer provider, creating one if none is set. Your existing exporters keep running. The exporter carries an `X-Evalkit-Agent` header, which names the agent on the server; the `evalkit.agent` resource attribute is only set when `register` creates the provider itself. It reads the server URL from `EVALKIT_SERVER_URL` or your `evalkit login`, and the token from `EVALKIT_OTEL_TOKEN`, an agent token (`evalkit tokens create --agent <agent>`); a login token is not accepted, because it expires under a long-running process. It needs the `otel` extra.
 
 ### An existing span pipeline
 
@@ -91,7 +91,7 @@ evalkit tokens list
 evalkit tokens revoke <id>
 ```
 
-Set it on the deployment as `EVALKIT_OTEL_TOKEN` next to `EVALKIT_SERVER_URL`; `tracing.register`, `tracing.exporter` and `tracing.processor` pick both up. For a non-Python exporter put it in `OTEL_EXPORTER_OTLP_HEADERS`. Use an agent token for any exporter outside the process that calls `run_experiment` too, even on your laptop: the login token expires under a long-running worker.
+Set it on the deployment as `EVALKIT_OTEL_TOKEN` next to `EVALKIT_SERVER_URL`; `tracing.register`, `tracing.exporter` and `tracing.processor` require the token. For a non-Python exporter put it in `OTEL_EXPORTER_OTLP_HEADERS`. Use an agent token for any exporter outside the process that calls `run_experiment` too, even on your laptop: the login token expires under a long-running worker.
 
 The collector logs every refused export as `otel export rejected` with the status, the reason (`expired token`, `invalid token`, `unknown agent`, `forbidden`, `too large`, `malformed`) and the agent. OpenTelemetry exporters only log a failed export on their side, so a silent agent is worth checking in both logs.
 
