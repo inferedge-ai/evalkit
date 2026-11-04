@@ -276,6 +276,11 @@ def login(
         else:
             typer.echo("opening your browser to sign in; if it does not open, use the URL below")
             tokens = oidc.run_loopback_flow(providers_oidc, open_browser)
+        if "refresh_token" not in tokens:
+            raise ApiError(
+                "the identity provider issued no refresh token; ask its admin to allow "
+                "offline_access (refresh tokens) for this client"
+            )
         me = oidc.register_identity(url, tokens)
     except (
         oidc.LoginTimedOut,
@@ -1138,7 +1143,7 @@ def users_list():
             )
             if on
         )
-        email = user.get("email") or ""
+        email = user["email"] or ""
         typer.echo(
             f"{user['username']:<24} {user['kind']:<8} {email:<32} {flags:<22} "
             f"created {user['created_at']}"

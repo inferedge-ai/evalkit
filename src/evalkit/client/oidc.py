@@ -86,8 +86,9 @@ class StoredOidcLogin:
                     "client_id": login.client_id,
                 },
             )
-        if resp.status_code != 200:
+        if resp.status_code in (400, 401):
             return None
+        resp.raise_for_status()
         tokens = resp.json()
         refreshed = login._replace(
             access_token=tokens["access_token"],
@@ -99,7 +100,9 @@ class StoredOidcLogin:
 
     def adopt_newer(self, login: OidcLogin) -> OidcLogin | None:
         fresh = connection.load(self.path or connection.CONFIG_PATH)
-        if fresh is None or fresh.oidc is None or fresh.oidc.access_token == login.access_token:
+        if fresh is None or fresh.oidc is None or fresh.url != self.conn.url:
+            return None
+        if fresh.oidc.access_token == login.access_token:
             return None
         if expires_within(fresh.oidc.expires_at, REFRESH_WINDOW_SECONDS):
             return None

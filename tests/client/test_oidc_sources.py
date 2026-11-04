@@ -78,6 +78,29 @@ def test_stored_login_raises_when_nothing_newer_exists(tmp_path):
         source.bearer()
 
 
+def test_stored_login_surfaces_an_idp_outage_instead_of_expiry(tmp_path):
+    idp = FakeIdp()
+    conn, path = stored(idp, tmp_path, seconds_left=30)
+    outage = httpx.MockTransport(lambda request: httpx.Response(503))
+    source = StoredOidcLogin(conn, path=path, transport=outage)
+    with pytest.raises(httpx.HTTPStatusError):
+        source.bearer()
+
+
+def test_stored_login_does_not_adopt_a_login_for_another_server(tmp_path):
+    idp = FakeIdp()
+    conn, path = stored(idp, tmp_path, seconds_left=30)
+    other = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    rotated = other.bearer()
+    saved = connection.load(path)
+    connection.save(saved._replace(url="https://other.test"), path=path)
+    idp.refresh_tokens.clear()
+    stale = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    assert rotated
+    with pytest.raises(LoginExpired):
+        stale.bearer()
+
+
 def test_stored_login_refreshes_once_under_concurrency(tmp_path):
     idp = FakeIdp()
     conn, path = stored(idp, tmp_path, seconds_left=30)

@@ -170,7 +170,7 @@ def log_retry_failure(task: asyncio.Task) -> None:
         return
     exc = task.exception()
     if exc is not None:
-        logging.getLogger(__name__).warning("OIDC discovery retry stopped: %s", exc)
+        LOGGER.warning("OIDC discovery retry stopped", exc_info=exc)
 
 
 def create_app(

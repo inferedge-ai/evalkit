@@ -72,6 +72,17 @@ def test_token_expiry_warning_within_a_day():
     assert "EVALKIT_TOKEN" in (connection.token_expiry_warning(env, soon, now) or "")
 
 
+def test_token_expiry_warning_skips_logins_that_renew_themselves():
+    now = datetime(2026, 10, 11, 12, tzinfo=UTC)
+    soon = (now + timedelta(minutes=30)).isoformat()
+    sso = Connection("https://dev", None, "ann", oidc=LOGIN)
+    machine = Connection("https://dev", None, None, machine=MachineLogin("id", "secret"))
+    password = Connection("https://dev", "t", "ann")
+    assert connection.token_expiry_warning(sso, soon, now) is None
+    assert connection.token_expiry_warning(machine, soon, now) is None
+    assert connection.token_expiry_warning(password, soon, now) is not None
+
+
 LOGIN = OidcLogin(
     issuer="https://idp.test",
     client_id="evalkit-ui",

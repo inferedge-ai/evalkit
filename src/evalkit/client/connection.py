@@ -117,7 +117,7 @@ def renew_hint(connection: Connection) -> str:
 def token_expiry_warning(
     connection: Connection, expires_at: str | None, now: datetime
 ) -> str | None:
-    if expires_at is None:
+    if expires_at is None or connection.oidc is not None or connection.machine is not None:
         return None
     left = datetime.fromisoformat(expires_at) - now
     if left > TOKEN_WARNING_WINDOW:

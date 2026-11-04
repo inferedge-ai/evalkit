@@ -1636,6 +1636,26 @@ def test_login_reports_a_refused_login_as_one_line(tmp_path, monkeypatch):
     assert not (tmp_path / "login.toml").exists()
 
 
+def test_login_refuses_tokens_without_a_refresh_token(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    idp.next_login = ("sub-ann", "ann@example.com", "ann")
+    providers = idp_providers(idp, ["openid"])
+    tokens = {k: v for k, v in idp._issue(idp._login()).items() if k != "refresh_token"}
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+    monkeypatch.setattr(
+        client_oidc, "register_identity", lambda url, tokens, transport=None: REGISTERED
+    )
+    monkeypatch.setattr(
+        client_oidc, "run_loopback_flow", lambda oidc_cfg, open_browser, **kw: tokens
+    )
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert result.exit_code == 1
+    assert "issued no refresh token" in result.output and "offline_access" in result.output
+    assert not (tmp_path / "login.toml").exists()
+
+
 def test_whoami_names_the_login_kind(env):
     result = runner.invoke(cli_app, ["whoami"])
     assert result.exit_code == 0 and "login: password" in result.output
