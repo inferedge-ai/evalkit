@@ -30,6 +30,10 @@ export async function bearer(): Promise<string | null> {
   let user = await s.getUser();
   if (user === null) return null;
   if ((user.expires_in ?? 0) < REFRESH_WINDOW_SECONDS) {
+    if (!user.refresh_token) {
+      await s.removeUser();
+      return null;
+    }
     refreshing ??= s
       .signinSilent()
       .catch(async (e: unknown) => {

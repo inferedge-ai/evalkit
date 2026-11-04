@@ -16,7 +16,12 @@ import { ErrorResponse } from "oidc-client-ts";
 import { setSessionForTest, type OidcSession } from "../auth/oidc";
 
 function fakeSession(
-  user: { access_token: string; id_token?: string; expires_in?: number } | null,
+  user: {
+    access_token: string;
+    id_token?: string;
+    expires_in?: number;
+    refresh_token?: string;
+  } | null,
   renewed: { access_token: string; expires_in?: number } | null = null,
 ): OidcSession & { calls: string[] } {
   const calls: string[] = [];
@@ -94,7 +99,7 @@ describe("bearer", () => {
 
   it("refreshes when the access token expires within a minute", async () => {
     const s = fakeSession(
-      { access_token: "old", expires_in: 30 },
+      { access_token: "old", expires_in: 30, refresh_token: "r" },
       { access_token: "new", expires_in: 3600 },
     );
     setSessionForTest(s);
@@ -104,10 +109,26 @@ describe("bearer", () => {
 
   it("is null when the refresh is refused", async () => {
     setSessionForTest(
-      fakeSession({ access_token: "old", expires_in: 0 }, null),
+      fakeSession(
+        { access_token: "old", expires_in: 0, refresh_token: "r" },
+        null,
+      ),
     );
     expect(await bearer()).toBeNull();
   });
+
+  it.each([undefined, ""])(
+    "signs out without a silent refresh when the refresh token is %j",
+    async (refresh_token) => {
+      const s = fakeSession(
+        { access_token: "old", expires_in: 10, refresh_token },
+        { access_token: "new", expires_in: 3600 },
+      );
+      setSessionForTest(s);
+      expect(await bearer()).toBeNull();
+      expect(s.calls).toEqual(["getUser", "removeUser"]);
+    },
+  );
 
   it("is null with no session and no token", async () => {
     setSessionForTest(null);
@@ -188,7 +209,7 @@ describe("logout", () => {
 });
 
 describe("refresh failures and single flight", () => {
-  const near = { access_token: "old", expires_in: 10 };
+  const near = { access_token: "old", expires_in: 10, refresh_token: "r" };
 
   it("shares one signinSilent between parallel callers", async () => {
     const s = fakeSession(near, { access_token: "new", expires_in: 3600 });
