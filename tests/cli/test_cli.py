@@ -16,6 +16,7 @@ import httpx2
 import pytest
 import sqlalchemy as sa
 import uvicorn
+from authlib.integrations.base_client import OAuthError
 from typer.testing import CliRunner
 
 from evalkit.api import experiments as experiments_api
@@ -1595,6 +1596,22 @@ def test_login_runs_the_loopback_flow_and_registers(tmp_path, monkeypatch):
     saved = connection.load(config_path)
     assert saved is not None
     assert saved.username == "ann" and saved.oidc is not None and saved.token is None
+
+
+def test_login_reports_a_refused_code_exchange_as_one_line(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    providers = idp_providers(idp, ["openid", "email", "profile", "offline_access"])
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+
+    def refused(oidc_cfg, open_browser, **kw):
+        raise OAuthError("invalid_grant", "code expired")
+
+    monkeypatch.setattr(client_oidc, "run_loopback_flow", refused)
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert result.exit_code == 1
+    assert "invalid_grant" in result.output and "Traceback" not in result.output
 
 
 def test_login_no_browser_uses_the_device_flow(tmp_path, monkeypatch):

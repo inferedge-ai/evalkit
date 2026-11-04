@@ -12,6 +12,7 @@ from pathlib import Path
 import httpx2
 import typer
 import yaml
+from authlib.integrations.base_client import OAuthError
 from dotenv import load_dotenv
 
 from evalkit import version
@@ -288,6 +289,7 @@ def login(
         oidc.LoginRefused,
         LookupError,
         httpx2.HTTPError,
+        OAuthError,
     ) as exc:
         raise ApiError(str(exc)) from exc
     stored = oidc.login_from_tokens(url, providers_oidc, tokens)._replace(username=me["username"])
