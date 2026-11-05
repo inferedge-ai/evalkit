@@ -1,6 +1,6 @@
 from evalkit.contracts.enums import TokenKind
 from evalkit.db.auth import find_token
-from evalkit.db.models import Agent, AuthToken, Tenant, User, Workspace
+from evalkit.db.models import Agent, AuthToken, TenantSettings, User, Workspace
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.tokens import token_hash
 from evalkit.db.users import any_admin_exists
@@ -8,7 +8,7 @@ from evalkit.db.users import any_admin_exists
 
 async def _seed(raw_session_factory) -> tuple[int, int]:
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         akshat = User(tenant_id=1, username="akshat", password_hash="x")
         eve = User(tenant_id=2, username="eve", password_hash="x")
         s.add_all([akshat, eve])
@@ -54,7 +54,7 @@ async def test_find_token_unknown(raw_session_factory):
 async def test_any_admin_exists_looks_across_tenants(raw_session_factory):
     assert not await any_admin_exists(raw_session_factory)
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         s.add(User(tenant_id=2, username="root", password_hash="x", is_admin=True))
         await s.commit()
     assert await any_admin_exists(raw_session_factory)

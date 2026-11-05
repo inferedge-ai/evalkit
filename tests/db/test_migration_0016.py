@@ -46,8 +46,9 @@ def test_0016_backfills_tenant_1_and_folds_server_settings(fresh_db_url):
     _seed_at_0015(fresh_db_url)
     run_migrations(fresh_db_url, "0016")
     assert head_revision() == "0016"
-    assert _rows(fresh_db_url, "SELECT id, name FROM tenants") == [(1, "default")]
-    [(judge,)] = _rows(fresh_db_url, "SELECT default_judge->>'model' FROM tenants WHERE id = 1")
+    [(judge,)] = _rows(
+        fresh_db_url, "SELECT default_judge->>'model' FROM tenant_settings WHERE tenant_id = 1"
+    )
     assert judge == "m"
     for table in (
         "users",
@@ -61,6 +62,7 @@ def test_0016_backfills_tenant_1_and_folds_server_settings(fresh_db_url):
     engine = create_engine(fresh_db_url)
     inspector = inspect(engine)
     assert "server_settings" not in inspector.get_table_names()
+    assert "tenants" not in inspector.get_table_names()
     assert inspector.get_pk_constraint("fixture_blobs")["constrained_columns"] == [
         "tenant_id",
         "sha256",
@@ -75,7 +77,7 @@ def test_0016_backfills_tenant_1_and_folds_server_settings(fresh_db_url):
 
 def test_0016_refuses_to_downgrade_with_a_second_tenant(fresh_db_url):
     run_migrations(fresh_db_url, "0016")
-    _exec(fresh_db_url, ["INSERT INTO tenants (id, name) VALUES (2, 'other')"])
+    _exec(fresh_db_url, ["INSERT INTO tenant_settings (tenant_id) VALUES (2)"])
     with pytest.raises(RuntimeError, match="tenant"):
         downgrade_migrations(fresh_db_url, "0015")
 
@@ -97,4 +99,14 @@ def test_0016_refuses_to_downgrade_with_a_passwordless_user(fresh_db_url):
         ["INSERT INTO users (tenant_id, username, password_hash) VALUES (1, 'sso', NULL)"],
     )
     with pytest.raises(RuntimeError, match="password"):
+        downgrade_migrations(fresh_db_url, "0015")
+
+
+def test_0016_refuses_to_downgrade_with_a_user_in_a_second_tenant(fresh_db_url):
+    run_migrations(fresh_db_url, "0016")
+    _exec(
+        fresh_db_url,
+        ["INSERT INTO users (tenant_id, username, password_hash) VALUES (2, 'eve', 'x')"],
+    )
+    with pytest.raises(RuntimeError, match="tenant"):
         downgrade_migrations(fresh_db_url, "0015")
