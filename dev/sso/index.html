@@ -629,6 +629,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#signing-in-to-the-web-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signing in to the web UI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#admin-runbook" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1140,6 +1151,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#signing-in-to-the-web-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Signing in to the web UI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#admin-runbook" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1268,6 +1290,10 @@ who turns SSO on.</p>
 <td>The device authorization grant, optional</td>
 <td>Needed only for <code>evalkit login --no-browser</code></td>
 </tr>
+<tr>
+<td>CORS on the discovery document and the token endpoint for evalkit's origin</td>
+<td>The web UI calls both from the browser. <code>curl -i -H 'Origin: https://&lt;evalkit&gt;' &lt;token_endpoint&gt;</code> answers with <code>Access-Control-Allow-Origin</code></td>
+</tr>
 </tbody>
 </table>
 <h2 id="registering-the-public-client">Registering the public client<a class="headerlink" href="#registering-the-public-client" title="Permanent link">&para;</a></h2>
@@ -1386,6 +1412,14 @@ the UI, the CLI and MCP hosts only request the scopes listed there.</p>
 </ul>
 <p><code>mcp.oauth</code> is gone: <code>/mcp</code> verifies tokens with the same settings as <code>/api</code>,
 and an IdP token is an evalkit user there too.</p>
+<h2 id="signing-in-to-the-web-ui">Signing in to the web UI<a class="headerlink" href="#signing-in-to-the-web-ui" title="Permanent link">&para;</a></h2>
+<p>In the web UI, the login page shows <strong>Continue with <provider></strong> when single
+sign-on is configured. The first sign-in creates your evalkit user from the
+identity provider's account; later sign-ins find it. An admin can still use
+the username and password form behind <strong>Admin sign-in</strong> (or under the button
+when <code>auth.password_login</code> is <code>all</code>). The account chip shows your email under
+your username. Sign out clears the session in this browser only; your
+identity provider session stays.</p>
 <h2 id="admin-runbook">Admin runbook<a class="headerlink" href="#admin-runbook" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Start with <code>EVALKIT_ADMIN_PASSWORD</code> set, as before; <code>admin</code> is a password
@@ -1412,6 +1446,11 @@ and an IdP token is an evalkit user there too.</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>The login page shows <code>Failed to fetch</code> after <strong>Continue with <provider></strong></td>
+<td>The browser could not reach the IdP's discovery document or token endpoint</td>
+<td>Allow evalkit's origin in the IdP's CORS settings</td>
+</tr>
 <tr>
 <td>401 <code>not registered: subject &lt;sub&gt; has no user</code></td>
 <td>No user for that identity</td>
