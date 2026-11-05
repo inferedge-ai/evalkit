@@ -35,10 +35,25 @@ cases:
 | -- | -- | -- |
 | `id` | string, required | The case's identity, shared by every workspace. |
 | `tags` | list of strings | Labels for `evalkit run --tag`. The case's folder in the suite is added as a tag too. |
-| `input` | mapping | Sent to the agent as is. Most agents read `input.question`. |
+| `input` | mapping | Sent to the agent as is. It must pass the agent's input schema; see [Input schema](#input-schema). |
 | `fixtures` | list of strings | Keys from `fixtures.yaml` to attach as files. |
 | `expected` | mapping | Free-form ground truth, passed to custom evaluators. |
 | `evaluators` | mapping | Which evaluators score this case. See below. |
+
+
+## Input schema
+
+Every agent has an input schema, a JSON Schema each case's `input` must pass. `evalkit run`, `run_experiment` (dry runs too) and `evalkit lint --agent` refuse inputs that fail it. When the agent sets none, the default applies:
+
+```json
+{"type": "object", "required": ["question"], "properties": {"question": {"type": "string"}}}
+```
+
+A harness declares its own `input_schema` in `GET /capabilities` ([Harness API](harness-api.md)). A code-driven agent stores one on the agent: `evalkit agents create <name> --input-schema schema.json`, or `evalkit agents edit <name> --input-schema schema.json`; `--clear-input-schema` goes back to the default. `evalkit agents show` prints it. For a multi-turn agent:
+
+```json
+{"type": "object", "required": ["turns"], "properties": {"turns": {"type": "array", "items": {"type": "string"}}}}
+```
 
 ## Evaluators
 

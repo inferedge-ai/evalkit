@@ -148,6 +148,8 @@ indirection, resolved at load time — keep secrets out of the file.
 
 ### Database connections and scoring
 
+Every `config.yaml` key and its default: [Server config](../../evalkit-docs/server-config.md).
+
 ```yaml
 db:
   pool_size: 20             # connections the server keeps open to Postgres
@@ -261,8 +263,8 @@ Pull the new image → back up the database → with `migrate_on_start`, start
 the new server (it migrates first); without it, stop or hold the new server →
 `evalkit db upgrade` (same compose-run pattern as setup) → start the server → developers update the CLI with the install command
 or `evalkit update` (every CLI call nudges them until they do), which also moves a project's `evalkit-py` pin and
-refreshes the skills in client repos that vendor them. Deploy only builds that are on PyPI: every `develop`
-(`X.Y.Z.devN`) and `main` (`X.Y.Z`) build of the publish workflow is.
+refreshes the skills in client repos that vendor them. Deploy only builds that are on PyPI: only `main`
+(`X.Y.Z`) builds of the publish workflow are; `develop` (`X.Y.Z.devN`) builds are not.
 
 When upgrading to the release that added tenants (migration `0016`), stop the
 old server before `evalkit db upgrade`: the migration drops `server_settings`,

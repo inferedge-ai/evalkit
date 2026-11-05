@@ -1,6 +1,8 @@
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from jsonschema.exceptions import SchemaError
+from jsonschema.validators import validator_for
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class JudgeSettings(BaseModel):
@@ -39,6 +41,17 @@ class AgentSettings(BaseModel):
     poll_interval_seconds: int = Field(default=5, ge=0)
     stop_grace_seconds: int = Field(default=120, ge=0)
     provides: dict[str, bool] | None = None
+    input_schema: dict | None = None
+
+    @field_validator("input_schema")
+    @classmethod
+    def _check_input_schema(cls, schema: dict | None) -> dict | None:
+        if schema is not None:
+            try:
+                validator_for(schema).check_schema(schema)
+            except SchemaError as exc:
+                raise ValueError(f"input_schema is not a valid JSON Schema: {exc.message}") from exc
+        return schema
 
 
 class RemoteEvaluatorSettings(BaseModel):

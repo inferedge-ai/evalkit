@@ -28,6 +28,9 @@ all welcome.
 - Don't bump the version in `pyproject.toml`; releases do that.
 - If your change touches the UI, run it locally, click through what changed,
   and add screenshots to the pull request description.
+- Design specs and implementation plans are not checked in. If you wrote
+  one, share it in the pull request: paste it into the description or link
+  to it.
 - CI must pass before a pull request can merge.
 
 ## Development setup

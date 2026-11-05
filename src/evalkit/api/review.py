@@ -22,7 +22,7 @@ from evalkit.core.review import (
     review_summary,
 )
 from evalkit.core.workspace import parse_slug
-from evalkit.db.cases import current_cases, dataset_by_ref, list_datasets
+from evalkit.db.cases import current_cases, dataset_by_ref, find_dataset_row, list_datasets
 from evalkit.db.promotion import execute_promotion, plan_promotion
 from evalkit.store.base import CaseView, DatasetRow, Selection, select_cases
 
@@ -171,10 +171,29 @@ async def decide(
     return {**summary, "promoted_to": plan.target_ref if plan is not None else None}
 
 
+async def _source_dataset(stores: TenantStores, session: SessionDep, slug: str) -> str | None:
+    ws = await _dataset_workspace(stores, session, slug)
+    if not ws.is_target:
+        return None
+    assert ws.promoted_from is not None
+    source = await stores.workspaces.get_by_id(ws.promoted_from)
+    name = parse_slug(slug).name
+    found = await find_dataset_row(session, stores.tenant_id, source.name, name)
+    return None if found is None else found.ref
+
+
 @router.get("/datasets/{slug}/cases/{case_id}/events")
 async def events(slug: str, case_id: str, stores: StoresDep, session: SessionDep) -> dict:
     await _load_case_review(stores, session, slug, case_id)
-    return {"events": [e.model_dump() for e in await stores.review.history(slug, case_id)]}
+    found = await stores.review.history(slug, case_id)
+    source = await _source_dataset(stores, session, slug)
+    if source is not None:
+        promoted = {e.content_hash for e in found}
+        found += [
+            e for e in await stores.review.history(source, case_id) if e.content_hash in promoted
+        ]
+        found.sort(key=lambda e: (e.created_at, e.id), reverse=True)
+    return {"events": [e.model_dump() for e in found]}
 
 
 @router.get("/datasets/{slug}/cases/{case_id}/comments")
@@ -241,6 +260,22 @@ async def resolve_comment(
     return (await stores.review.set_resolved(comment_id, body.resolved)).model_dump()
 
 
+@router.patch("/review/comments/{comment_id}")
+async def resolve_comment_by_id(
+    comment_id: int,
+    body: ResolveRequest,
+    stores: StoresDep,
+    session: SessionDep,
+    user: ActorDep,
+) -> dict:
+    comment = await stores.review.get_comment(comment_id)
+    if comment is None:
+        raise HTTPException(status_code=404, detail=f"unknown comment: {comment_id}")
+    return await resolve_comment(
+        comment.dataset, comment.case_id, comment_id, body, stores, session, user
+    )
+
+
 QueueState = Literal["review_requested", "changes_requested"]
 
 
@@ -251,15 +286,23 @@ async def queue(
     reviewer: str | None = None,
     state: QueueState = "review_requested",
     workspace: str | None = None,
+    dataset: str | None = None,
 ) -> dict:
     if workspace is not None:
         await workspace_ref(stores, workspace)
+    datasets = (
+        [await dataset_by_ref(session, stores.tenant_id, dataset)]
+        if dataset is not None
+        else await list_datasets(session, stores.tenant_id, workspace)
+    )
     items: list[dict] = []
-    for dataset in await list_datasets(session, stores.tenant_id, workspace):
-        if not is_reviewable(dataset):
+    for dataset_row in datasets:
+        if not is_reviewable(dataset_row):
             continue
-        cases = await current_cases(session, dataset)
-        reviews = await stores.review.load(dataset.ref, [CaseVersion.of(case) for case in cases])
+        cases = await current_cases(session, dataset_row)
+        reviews = await stores.review.load(
+            dataset_row.ref, [CaseVersion.of(case) for case in cases]
+        )
         for case in cases:
             r = reviews[case.case_id]
             if r.last_event is None or r.state() is not CaseState(state):
@@ -269,7 +312,7 @@ async def queue(
             question = case.input.get("question")
             items.append(
                 {
-                    "dataset": dataset.ref,
+                    "dataset": dataset_row.ref,
                     "case_id": case.case_id,
                     "requested_to": r.requested_to,
                     "requested_by": r.last_event.actor,

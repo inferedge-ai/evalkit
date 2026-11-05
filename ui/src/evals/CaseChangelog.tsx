@@ -56,6 +56,7 @@ export function CaseChangelog({
                   <span className="min-w-0 truncate text-ink-3">
                     {e.actor}
                     {e.target ? ` → ${e.target}` : ""}
+                    {e.dataset !== dataset ? ` · in ${e.dataset}` : ""}
                   </span>
                 </div>
                 <div className="flex min-w-0 items-baseline gap-2 text-micro text-ink-3">

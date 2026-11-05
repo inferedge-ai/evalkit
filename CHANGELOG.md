@@ -21,6 +21,60 @@
   tenants other than `default` store objects under `tenants/<id>/`). Stop the
   old server before `evalkit db upgrade`: 0016 drops `server_settings`.
 - `GET /api/workspaces/...` payloads include `tenant_id`.
+- Only releases (`X.Y.Z` from `main`) are published to PyPI. `develop`
+  builds (`X.Y.Z.devN`) are no longer on PyPI; get them from the workflow
+  artifact or the GHCR image.
+- `evalkit summary <id> --baseline <id>` now prints a `Δmean` for each
+  gauge (tokens, cost, duration, tool calls). Cases that ran in the
+  baseline but not in the newer experiment (a `--tag` or `--case-id` run)
+  are counted on one line, "not run here (in the baseline only)", instead
+  of being listed as "removed".
+- New `evalkit experiments list [--agent A] [--dataset D] [--limit N]`
+  prints id, dataset, agent, status, start time and bucket scores, newest
+  first. `GET /api/experiments` takes `agent` and `dataset` filters.
+- `evalkit review approve` takes several case ids, or `--all-waiting` for
+  every case in the dataset waiting on you.
+- `evalkit review queue` takes a dataset (`evalkit review queue
+  finance@dev`) to list only that dataset's cases. `GET /api/review/queue`
+  takes a `dataset` filter.
+- `evalkit review resolve <comment-id>` resolves a comment by its id alone;
+  the older `resolve <dataset> <case> <comment-id>` form still works. New
+  `PATCH /api/review/comments/{comment_id}`.
+- `evalkit review show` prints the case's evaluators without filled-in
+  defaults (`source: null`, `args_mode: subset`, ...), closer to what the
+  author wrote. Its changelog, and the case page's, include the promotion
+  source's events for a case in a promotion target, limited to the
+  versions promoted there, so a promoted case shows its sync and review
+  history from `@dev`, not only the promotion.
+- The Reviews page in a personal workspace lists the queue across every
+  workspace instead of "Personal datasets have no review state".
+
+- A code-driven agent can set its own input schema:
+  `evalkit agents create|edit <name> --input-schema schema.json`, and
+  `evalkit agents edit <name> --clear-input-schema` goes back to the
+  default (an object with a required string `question`). `agents show`
+  prints the schema, or the default. An agent with a `harness_url` is
+  refused: its harness declares the schema in `GET /capabilities`.
+  `run_experiment(dry_run=...)` now checks case inputs against the schema,
+  as the real run does. `evalkit lint --agent` on a code-driven agent lints
+  against its schema instead of failing with an `AssertionError`. The Case
+  schema, Harness API and SDK runs pages document the default schema and
+  how each kind of agent sets its own.
+- New docs page "Server config" lists every key of the server's
+  `config.yaml` with its default, including the database pool
+  (`db.pool_size` 20, `db.max_overflow` 10, `db.pool_timeout_seconds` 5) and
+  `runner.evaluation_concurrency` (16), and how to size them against
+  Postgres `max_connections`. `evalkit init-server` now writes
+  `db.pool_size: 5`, `db.max_overflow: 5` and
+  `runner.evaluation_concurrency: 4` into the `config.yaml` it creates, with
+  a comment naming the server defaults, so several local servers can share
+  one Postgres.
+- The Install page shows how to run the CLI from inside a uv project
+  (`uv add "evalkit-py==…"`, then `uv run evalkit`), how to get the
+  skills (`evalkit skills install`, and where the span mappings land), and
+  that `skills install` records its target in `~/.evalkit/skills-targets`.
+  The server install lines on Install and Try locally now pin the version,
+  and Workspaces shows `evalkit users add`.
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of
   a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch
