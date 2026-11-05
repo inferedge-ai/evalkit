@@ -32,6 +32,7 @@ Check each before registering. Evalkit does not work around any of them.
 | Refresh tokens for the public client, with rotation on | Required, not recommended: the web UI keeps its refresh token in browser storage and rotation is what bounds the damage of a stolen one |
 | The client credentials grant for machine clients | A setting on each machine client |
 | The device authorization grant, optional | Needed only for `evalkit login --no-browser` |
+| CORS on the discovery document and the token endpoint for evalkit's origin | The web UI calls both from the browser. `curl -i -H 'Origin: https://<evalkit>' <token_endpoint>` answers with `Access-Control-Allow-Origin` |
 
 ## Registering the public client
 
@@ -134,6 +135,16 @@ the UI, the CLI and MCP hosts only request the scopes listed there.
 `mcp.oauth` is gone: `/mcp` verifies tokens with the same settings as `/api`,
 and an IdP token is an evalkit user there too.
 
+## Signing in to the web UI
+
+In the web UI, the login page shows **Continue with <provider>** when single
+sign-on is configured. The first sign-in creates your evalkit user from the
+identity provider's account; later sign-ins find it. An admin can still use
+the username and password form behind **Admin sign-in** (or under the button
+when `auth.password_login` is `all`). The account chip shows your email under
+your username. Sign out clears the session in this browser only; your
+identity provider session stays.
+
 ## Admin runbook
 
 1. Start with `EVALKIT_ADMIN_PASSWORD` set, as before; `admin` is a password
@@ -154,6 +165,7 @@ and an IdP token is an evalkit user there too.
 
 | Answer | Meaning | What to change |
 | --- | --- | --- |
+| The login page shows `Failed to fetch` after **Continue with <provider>** | The browser could not reach the IdP's discovery document or token endpoint | Allow evalkit's origin in the IdP's CORS settings |
 | 401 `not registered: subject <sub> has no user` | No user for that identity | A person signs in through the UI or `evalkit login`; a machine's admin runs `users add --subject <sub>` |
 | 401 `invalid access token: Audience doesn't match` | The token was not issued for evalkit | Fix the audience registration; check `authorize_params` or the scope |
 | 401 `invalid access token: Invalid issuer` | `auth.oidc.issuer` differs from the token's `iss` | Copy the issuer from the discovery document, without a trailing slash |

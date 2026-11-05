@@ -20,6 +20,19 @@
   library retried it, and the second send of a spent stream failed). The
   try-it stack's sample agent (`try/agent.py`) and the SDK-runs doc sample
   import `httpx2`.
+- The web UI signs in through the configured identity provider: the login
+  page shows "Continue with <name>" when the server has `auth.oidc`, with an
+  "Admin sign-in" link to the password form (or the form open under the
+  button when `auth.password_login` is `all`). The new `/login/callback`
+  route completes the sign-in. The account chip shows the SSO email under
+  the username, and sign out clears the SSO session locally. The IdP must
+  allow evalkit's origin through CORS.
+- The UI's history fallback answers 404 for `/.well-known/*`, so an MCP client
+  probing `/.well-known/oauth-protected-resource/mcp` on a server without SSO
+  no longer gets the UI's `index.html`.
+- When `auth.oidc` is set, the `Content-Security-Policy` `connect-src` also allows
+  the origins of the IdP's issuer and its token endpoint, so the web UI can
+  sign in. Without `auth.oidc` the header is unchanged.
 - The database gains a `tenant_id` on `users`, `workspaces`, `cases`,
   `llm_providers`, `trace_sources` and `fixture_blobs`: text, the
   organisation's id, `default` for existing rows and for a server without a

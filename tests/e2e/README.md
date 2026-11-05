@@ -36,3 +36,12 @@ auth:
      environment.
 6. Run `evalkit users archive e2e`. The next e2e command fails with 401
    `user is archived`.
+
+## Web UI pass
+
+The fake identity provider answers CORS preflights, so the web UI can call it
+from the browser. `tests/e2e/services.py` reads three optional variables:
+`E2E_IDP_AUDIENCE` (default `http://localhost:8020`), `E2E_IDP_ACCESS_TTL` in
+seconds (default 3600; set it low to watch the UI refresh) and
+`E2E_IDP_LOGIN` as `sub,email,preferred_username` (default
+`e2e-sub,e2e@example.com,e2e`).
