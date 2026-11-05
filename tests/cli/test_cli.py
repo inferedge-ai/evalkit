@@ -806,6 +806,9 @@ def test_review_request_show_and_approve(env):
     queue = runner.invoke(cli_app, ["review", "queue"])
     assert queue.exit_code == 0, queue.output
     assert "case-2" in queue.output
+    in_dataset = runner.invoke(cli_app, ["review", "queue", "finance@canonical"])
+    assert in_dataset.exit_code == 0 and "case-2" in in_dataset.output
+    assert runner.invoke(cli_app, ["review", "queue", "other@canonical"]).exit_code == 1
     elsewhere = runner.invoke(cli_app, ["review", "queue", "--workspace", "admin"])
     assert "nothing waiting" in elsewhere.output
     assert runner.invoke(cli_app, ["review", "queue", "--workspace", "nope"]).exit_code == 1
@@ -816,15 +819,22 @@ def test_review_request_show_and_approve(env):
     assert commented.exit_code == 0, commented.output
     comment_id = re.search(r"comment (\d+)", commented.output).group(1)
 
+    neither = runner.invoke(cli_app, ["review", "approve", "finance@canonical"])
+    assert neither.exit_code == 1
     approved = runner.invoke(
-        cli_app, ["review", "approve", "finance@canonical", "case-2", "--comment", "ok"]
+        cli_app, ["review", "approve", "finance@canonical", "--all-waiting", "--comment", "ok"]
     )
     assert approved.exit_code == 0, approved.output
+    assert "approving 1 case(s) in finance@canonical" in approved.output
     assert "case-2: approved" in approved.output
+    again = runner.invoke(cli_app, ["review", "approve", "finance@canonical", "--all-waiting"])
+    assert "nothing waiting on you" in again.output
 
-    resolved = runner.invoke(
-        cli_app, ["review", "resolve", "finance@canonical", "case-2", comment_id]
+    wrong_case = runner.invoke(
+        cli_app, ["review", "resolve", "finance@canonical", "case-1", comment_id]
     )
+    assert wrong_case.exit_code == 1
+    resolved = runner.invoke(cli_app, ["review", "resolve", comment_id])
     assert resolved.exit_code == 0, resolved.output
     assert f"comment {comment_id} resolved" in resolved.output
 
@@ -1067,6 +1077,46 @@ def test_run_and_harness_check_refuse_code_driven_agents(env, tmp_path, monkeypa
     assert result.exit_code == 1 and "run_experiment" in result.output
     result = runner.invoke(cli_app, ["harness", "check", "sdk"])
     assert result.exit_code == 1 and "evalkit traces check" in result.output
+
+
+def test_code_driven_agent_input_schema_drives_lint(env, tmp_path, monkeypatch, harness_url):
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    case = tmp_path / "turns.yaml"
+    case.write_text("- id: multi\n  input: {turns: [hi, again]}\n")
+    created = runner.invoke(cli_app, ["agents", "create", "multiturn"])
+    assert created.exit_code == 0, created.output
+    assert "default (a required string question)" in created.output
+    refused = runner.invoke(cli_app, ["lint", str(case), "--agent", "multiturn"])
+    assert refused.exit_code == 1 and "'question' is a required property" in refused.output
+    schema = tmp_path / "schema.json"
+    schema.write_text(json.dumps({"type": "object", "required": ["turns"]}))
+    edited = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--input-schema", str(schema)])
+    assert edited.exit_code == 0, edited.output
+    assert '{"type": "object", "required": ["turns"]}' in edited.output
+    passed = runner.invoke(cli_app, ["lint", str(case), "--agent", "multiturn"])
+    assert passed.exit_code == 0, passed.output
+    not_json = tmp_path / "schema.yaml"
+    not_json.write_text("type: object\n")
+    bad = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--input-schema", str(not_json)])
+    assert bad.exit_code == 2
+    kept = runner.invoke(cli_app, ["agents", "show", "multiturn"]).output
+    assert '{"type": "object", "required": ["turns"]}' in kept
+    cleared = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--clear-input-schema"])
+    assert "default (a required string question)" in cleared.output
+    harness = runner.invoke(
+        cli_app,
+        [
+            "agents",
+            "create",
+            "typedharness",
+            "--harness-url",
+            "http://h",
+            "--input-schema",
+            str(schema),
+        ],
+    )
+    assert harness.exit_code == 1 and "code-driven" in harness.output
 
 
 def test_evaluate_refuses_python_evaluator_experiments(
@@ -1506,3 +1556,36 @@ def test_offline_lint_reports_schema_errors_as_findings(tmp_path):
     result = runner.invoke(cli_app, ["lint", "--offline", str(tmp_path)])
     assert result.exit_code != 0
     assert "E-SCHEMA [q1] acme/cases.yaml: evaluators.output.max_response_time" in result.output
+
+
+def test_experiments_list_filters_by_dataset(env):
+    listed = runner.invoke(cli_app, ["experiments", "list", "--dataset", "finance@canonical"])
+    assert listed.exit_code == 0, listed.output
+    rows = api_get("/api/experiments", dataset="finance@canonical")
+    if rows:
+        header, first = listed.output.splitlines()[:2]
+        assert header.split()[:2] == ["id", "dataset"]
+        assert first.split()[0] == str(rows[0]["id"])
+    else:
+        assert "no experiments" in listed.output
+    missing = runner.invoke(cli_app, ["experiments", "list", "--dataset", "nope@canonical"])
+    assert missing.exit_code == 1
+
+
+def test_review_show_yaml_drops_filled_in_defaults():
+    stored = {
+        "output": {
+            "answer_rubrics": {
+                "rubrics": [{"rubric": "Net debt is $1.2B", "type": "derived_computation"}]
+            },
+            "max_response_time": {"max_seconds": 120.0},
+        },
+        "trajectory": {
+            "tool_trajectory_match": {"expected": [{"name": "search"}], "ordered": False}
+        },
+    }
+    full = main_module.CaseEvaluators.model_validate(stored).as_metadata()
+    shown = main_module._authored_evaluators(full)
+    assert "source" not in str(shown) and "args_mode" not in str(shown)
+    assert shown["trajectory"] == {"tool_trajectory_match": {"expected": [{"name": "search"}]}}
+    assert main_module._authored_evaluators({}) is None

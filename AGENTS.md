@@ -148,7 +148,7 @@ path-filtered against the PR base) and on pushes to those branches:
   packaging, Dockerfile), it builds the server image and pushes it to
   `ghcr.io/inferedge-ai/evalkit`, tagged with the full git sha and the branch
   name. It always builds the wheel (web UI included) as a workflow artifact,
-  and when code changed it publishes it to PyPI as `evalkit-py` (job `pypi`,
+  and on `main`, when code changed, it publishes it to PyPI as `evalkit-py` (job `pypi`,
   trusted publishing through the `pypi` environment).
 - `main` only: the image is also tagged with the version, and the workflow
   creates GitHub release `vX.Y.Z` with the wheel attached and the version's
@@ -190,6 +190,12 @@ section. An entry says what changed and, when it is not obvious, why; name
 the command, flag, endpoint, field or config key so a reader can find it.
 Note anything refused or different from before in the same entry. Test-only
 changes and refactors with no visible effect do not need an entry.
+
+## Specs and plans
+
+Design specs, implementation plans and other planning documents are not
+checked in to this repo. Share them in the pull request instead: paste them
+into the description or link to them.
 
 ## Code style
 

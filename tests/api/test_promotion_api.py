@@ -81,10 +81,13 @@ async def test_approve_promotes_and_rejection_does_not(env):
     assert prod["case-1"]["review"]["state"] == "approved"
     assert prod["case-1"]["review"]["updated_at"] is not None
     events = (await clients["sme"].get(f"/api/datasets/{PROD}/cases/case-1/events")).json()
-    assert [(e["kind"], e["actor"]) for e in events["events"]] == [
+    prod_events = [e for e in events["events"] if e["dataset"] == PROD]
+    assert [(e["kind"], e["actor"]) for e in prod_events] == [
         ("approved", "sme"),
         ("synced", "sme"),
     ]
+    dev_events = [(e["kind"], e["dataset"]) for e in events["events"] if e["dataset"] == DEV]
+    assert ("approved", DEV) in dev_events and ("synced", DEV) in dev_events
     last = (await clients["sme"].get(f"/api/datasets/{PROD}")).json()["last_sync"]
     assert last["source"] == "promotion" and last["detail"]["from"] == DEV
 
@@ -130,6 +133,8 @@ async def test_prod_stays_on_last_approved_version(env):
     dev = await _cases(clients["sme"], DEV)
     assert dev["case-1"]["review"]["state"] == "unreviewed"
     assert (await _cases(clients["sme"], PROD))["case-1"]["content_hash"] == first
+    events = (await clients["sme"].get(f"/api/datasets/{PROD}/cases/case-1/events")).json()
+    assert {e["content_hash"] for e in events["events"]} == {first}
 
     resp = await _decide(clients["sme"], DEV, "case-1", "approve")
     assert resp.status_code == 200

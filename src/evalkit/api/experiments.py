@@ -52,7 +52,7 @@ from evalkit.core.trajectory import backfill_step_costs
 from evalkit.core.workspace import Reference, parse_slug
 from evalkit.db import experiments as db_experiments
 from evalkit.db import scorecard as db_scorecard
-from evalkit.db.agents import agent_definition
+from evalkit.db.agents import agent_definition, agent_id_for
 from evalkit.db.cases import dataset_by_ref
 from evalkit.db.models import AgentRun as AgentRunRow
 from evalkit.db.models import ExperimentRun as ExperimentRunRow
@@ -334,6 +334,8 @@ async def list_experiments(
     session: SessionDep,
     workspace: str | None = None,
     status: ExperimentStatus | None = None,
+    agent: str | None = None,
+    dataset: str | None = None,
     limit: int = Query(50, ge=1),
     offset: int = Query(0, ge=0),
     brief: bool = False,
@@ -343,6 +345,8 @@ async def list_experiments(
         session,
         workspace_id=workspace_id,
         status=status,
+        agent_id=await agent_id_for(session, agent) if agent else None,
+        dataset_id=(await dataset_by_ref(session, dataset)).id if dataset else None,
         limit=min(limit, LIST_LIMIT),
         offset=offset,
     )

@@ -147,6 +147,9 @@ def test_init_server_creates_and_migrates_the_database(tmp_path, pg_server_url):
     cfg = _server_config(kit / "config.yaml")
     assert cfg.db.url == url
     assert cfg.db.migrate_on_start is False
+    assert (cfg.db.pool_size, cfg.db.max_overflow) == (5, 5)
+    assert cfg.runner.evaluation_concurrency == 4
+    assert init_server.CONFIG_FOOTER in (kit / "config.yaml").read_text()
     assert cfg.blob.url == (kit / "data").resolve().as_uri()
     assert cfg.encryption_key == key
     assert (kit / ".env").stat().st_mode & 0o777 == 0o600
