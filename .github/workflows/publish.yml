@@ -114,15 +114,15 @@ jobs:
           name: evalkit-wheel-${{ github.sha }}
           path: dist/*.whl
 
-  # Every run that pushes an image publishes its wheel to PyPI as evalkit-py,
-  # so a server's version is always installable. Trusted publishing through
-  # the `pypi` environment; no token secret.
+  # main only: each release publishes its wheel to PyPI as evalkit-py.
+  # develop builds stay on GHCR and as workflow artifacts. Trusted publishing
+  # through the `pypi` environment; no token secret.
   pypi:
     name: Publish to PyPI
     needs: [changes, wheel]
     if: >-
       needs.changes.outputs.code == 'true'
-      && (github.ref_name == 'develop' || github.ref_name == 'main')
+      && github.ref_name == 'main'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
@@ -143,8 +143,10 @@ jobs:
     name: Publish the docs
     needs: [changes, pypi]
     if: >-
-      github.event_name == 'push'
+      !cancelled()
+      && github.event_name == 'push'
       && needs.changes.outputs.code == 'true'
+      && (needs.pypi.result == 'success' || needs.pypi.result == 'skipped')
     runs-on: ubuntu-latest
     concurrency:
       group: gh-pages
