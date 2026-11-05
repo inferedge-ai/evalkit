@@ -189,6 +189,12 @@ Write it for the person upgrading: what they can do now, how to invoke it, and
 what is refused or different. Internal refactors and test-only changes do
 not need an entry.
 
+## Specs and plans
+
+Design specs, implementation plans and other planning documents are not
+checked in to this repo. Share them in the pull request instead: paste them
+into the description or link to them.
+
 ## Code style
 
 - No new docstrings or inline comments unless they state a constraint the code cannot show. Code is the single source of truth. The one exception: the public `evalkit.sdk` API (`evalkit.sdk.__all__`) has Google-style docstrings, because they are its published reference.
