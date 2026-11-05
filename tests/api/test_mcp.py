@@ -698,3 +698,16 @@ async def test_mcp_hands_resolve_tenant_the_real_request(tmp_path, stub_judges, 
         )
     assert resp.status_code == 200
     assert "ORG-acme" in seen
+
+
+async def test_mcp_refuses_a_malformed_tenant_id_as_an_invalid_token(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(env.session_factory, "default").create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp) as http:
+        http.app.state.resolve_tenant = lambda request, claims: "../evil"  # type: ignore[attr-defined]
+        assert await mcp_status(http, idp.access_token("sub-ann")) == 401
