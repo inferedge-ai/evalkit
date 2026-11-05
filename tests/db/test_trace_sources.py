@@ -10,7 +10,7 @@ from evalkit.core.runner import RunnerDeps
 from evalkit.db.agents import AgentStore
 from evalkit.db.crypto import SecretBox
 from evalkit.db.llm_providers import LlmProviderStore
-from evalkit.db.models import Tenant
+from evalkit.db.models import TenantSettings
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.store import PgStore
 from evalkit.db.trace_imports import TraceImportStore
@@ -81,13 +81,13 @@ async def test_default_judge_lives_on_the_tenant_row(session_factory):
     await store.set_default_judge(judge)
     assert await store.default_judge() == judge
     async with session_factory() as s:
-        row = await s.get(Tenant, 1)
+        row = await s.get(TenantSettings, 1)
     assert row is not None and row.default_judge["model"] == "m"
 
 
 async def test_trace_import_refuses_a_source_from_another_tenant(raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         await s.commit()
     admin = await UserStore(raw_session_factory, 1).create(
         "admin", password="password", is_admin=True
