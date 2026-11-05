@@ -484,6 +484,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sso/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sign-on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../config/" class="md-nav__link">
         
   
@@ -992,15 +1020,12 @@
 <div class="highlight"><pre><span></span><code>claude<span class="w"> </span>mcp<span class="w"> </span>add<span class="w"> </span>--transport<span class="w"> </span>http<span class="w"> </span>evalkit<span class="w"> </span>http://localhost:8020/mcp<span class="w"> </span>--header<span class="w"> </span><span class="s2">"Authorization: Bearer </span><span class="nv">$EVALKIT_TOKEN</span><span class="s2">"</span>
 </code></pre></div>
 <p>Only login tokens work here: agent tokens (<code>evalkit tokens create</code>) and download tickets are refused.</p>
-<p>When the server's config has an <code>mcp.oauth</code> block, MCP clients that speak OAuth (Claude, Cursor, Codex) can connect with the URL alone: the server points them to the identity provider, and a token issued for <code>http://localhost:8020/mcp</code> with the configured scope (<code>mcp.oauth.scope</code>, default <code>evalkit:read</code>) is accepted. Evalkit login tokens keep working next to it.</p>
-<div class="highlight"><pre><span></span><code><span class="nt">mcp</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">oauth</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">issuer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://id.example.com</span>
-<span class="w">    </span><span class="nt">jwks_uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://id.example.com/.well-known/jwks.json</span>
-<span class="w">    </span><span class="c1"># audience: defaults to &lt;server.base_url&gt;/mcp</span>
-<span class="w">    </span><span class="c1"># scope: your identity provider's name for read access; defaults to evalkit:read</span>
-</code></pre></div>
-<p>An OAuth token is not an evalkit user. Whoever the identity provider gives that scope reads everything an evalkit login reads, which today is every workspace, and archiving someone in evalkit does not cut off their OAuth access: revoke it at the identity provider.</p>
+<p>With single sign-on configured (<code>auth.oidc</code>, see <a href="../sso/">Single sign-on</a>),
+MCP clients that speak OAuth (Claude, Cursor, Codex) connect with the URL
+alone: the server points them to the identity provider, and a token issued
+for <code>http://localhost:8020/mcp</code> or for evalkit's configured audience is accepted. The
+token's subject must be an evalkit user, so archiving someone cuts off their
+MCP access too. Evalkit login tokens keep working next to it.</p>
 <h2 id="tools">Tools<a class="headerlink" href="#tools" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

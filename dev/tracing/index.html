@@ -484,6 +484,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sso/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sign-on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../config/" class="md-nav__link">
         
   
@@ -1229,7 +1257,7 @@
 
 <span class="n">tracing</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">agent</span><span class="o">=</span><span class="s2">"myagent-sdk"</span><span class="p">)</span>
 </code></pre></div>
-<p><code>register</code> adds an exporter for this server to your global tracer provider, creating one if none is set. Your existing exporters keep running. The exporter carries an <code>X-Evalkit-Agent</code> header, which names the agent on the server; the <code>evalkit.agent</code> resource attribute is only set when <code>register</code> creates the provider itself. It reads the server URL from <code>EVALKIT_SERVER_URL</code> or your <code>evalkit login</code>, and the token from <code>EVALKIT_OTEL_TOKEN</code> (an agent token), then <code>EVALKIT_TOKEN</code>, then your <code>evalkit login</code>. It needs the <code>otel</code> extra.</p>
+<p><code>register</code> adds an exporter for this server to your global tracer provider, creating one if none is set. Your existing exporters keep running. The exporter carries an <code>X-Evalkit-Agent</code> header, which names the agent on the server; the <code>evalkit.agent</code> resource attribute is only set when <code>register</code> creates the provider itself. It reads the server URL from <code>EVALKIT_SERVER_URL</code> or your <code>evalkit login</code>, and the token from <code>EVALKIT_OTEL_TOKEN</code>, an agent token (<code>evalkit tokens create --agent &lt;agent&gt;</code>); a login token is not accepted, because it expires under a long-running process. It needs the <code>otel</code> extra.</p>
 <h3 id="an-existing-span-pipeline">An existing span pipeline<a class="headerlink" href="#an-existing-span-pipeline" title="Permanent link">&para;</a></h3>
 <p><code>register</code> changes the global provider. When you build your own pipeline, take evalkit's parts and put them where you need them:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">tracing</span>
@@ -1275,7 +1303,7 @@
 evalkit<span class="w"> </span>tokens<span class="w"> </span>list
 evalkit<span class="w"> </span>tokens<span class="w"> </span>revoke<span class="w"> </span>&lt;id&gt;
 </code></pre></div>
-<p>Set it on the deployment as <code>EVALKIT_OTEL_TOKEN</code> next to <code>EVALKIT_SERVER_URL</code>; <code>tracing.register</code>, <code>tracing.exporter</code> and <code>tracing.processor</code> pick both up. For a non-Python exporter put it in <code>OTEL_EXPORTER_OTLP_HEADERS</code>. Use an agent token for any exporter outside the process that calls <code>run_experiment</code> too, even on your laptop: the login token expires under a long-running worker.</p>
+<p>Set it on the deployment as <code>EVALKIT_OTEL_TOKEN</code> next to <code>EVALKIT_SERVER_URL</code>; <code>tracing.register</code>, <code>tracing.exporter</code> and <code>tracing.processor</code> require the token. For a non-Python exporter put it in <code>OTEL_EXPORTER_OTLP_HEADERS</code>. Use an agent token for any exporter outside the process that calls <code>run_experiment</code> too, even on your laptop: the login token expires under a long-running worker.</p>
 <p>The collector logs every refused export as <code>otel export rejected</code> with the status, the reason (<code>expired token</code>, <code>invalid token</code>, <code>unknown agent</code>, <code>forbidden</code>, <code>too large</code>, <code>malformed</code>) and the agent. OpenTelemetry exporters only log a failed export on their side, so a silent agent is worth checking in both logs.</p>
 <h2 id="size-limits-and-large-spans">Size limits and large spans<a class="headerlink" href="#size-limits-and-large-spans" title="Permanent link">&para;</a></h2>
 <p>LLM spans from OpenInference and GenAI instrumentations carry the full input of each call: the messages so far, the system prompt and the tool schemas. Every turn repeats the whole context, so a long agent session grows with roughly the square of its turns. A 14-minute chat with subagents can store hundreds of MB of span attributes.</p>

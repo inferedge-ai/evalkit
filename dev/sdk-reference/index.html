@@ -482,6 +482,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sso/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sign-on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../config/" class="md-nav__link">
         
   
@@ -1766,8 +1794,10 @@ part of the experiment.</p>
         <p>Send this process's OpenTelemetry spans to the evalkit server.</p>
 <p>Adds an exporter to the global tracer provider, or creates one when none is set.
 Call it after your own tracing setup, so it joins your provider. Spans go to the
-server you logged in to (or <code>EVALKIT_SERVER_URL</code>), with your token or
-<code>EVALKIT_OTEL_TOKEN</code> (an agent token). Needs the <code>otel</code> extra.</p>
+server you logged in to (or <code>EVALKIT_SERVER_URL</code>) with the agent token in
+<code>EVALKIT_OTEL_TOKEN</code> (<code>evalkit tokens create --agent &lt;agent&gt;</code>); a person's login
+is not accepted, because it expires under a long-running process. Needs the
+<code>otel</code> extra.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>

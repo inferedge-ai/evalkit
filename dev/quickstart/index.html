@@ -610,6 +610,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sso/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sign-on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../config/" class="md-nav__link">
         
   
@@ -1130,7 +1158,7 @@
 <p>The Workspace tab on a run lists the files the agent wrote. evalkit reads them through the Harness API files endpoints, so only the two Harness API paths have it. See <a href="../harness-api/">Harness API</a> for what each endpoint enables.</p>
 <h2 id="2-install-and-log-in">2. Install and log in<a class="headerlink" href="#2-install-and-log-in" title="Permanent link">&para;</a></h2>
 <p>evalkit needs Python 3.12 or newer.</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev48"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.3.0.dev49"</span>
 evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020
 </code></pre></div>
 <p>More in <a href="../install/">Install</a> and <a href="../login/">Login</a>.</p>
@@ -1166,7 +1194,7 @@ evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="
 </code></pre></div>
 <p>More in <a href="../config/">Config</a>.</p>
 <h2 id="4-run-it">4. Run it<a class="headerlink" href="#4-run-it" title="Permanent link">&para;</a></h2>
-<p>SDK path: install the SDK into your project (see <a href="../install/">Install</a>), then write <code>eval/run.py</code>:</p>
+<p>SDK path: install the SDK into your project (see <a href="../install/">Install</a>). Mint an agent token and export it: <code>evalkit tokens create --agent myagent</code>, then <code>export EVALKIT_OTEL_TOKEN=&lt;token&gt;</code>. Then write <code>eval/run.py</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_experiment</span><span class="p">,</span> <span class="n">tracing</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">myagent</span><span class="w"> </span><span class="kn">import</span> <span class="n">ask</span>
 

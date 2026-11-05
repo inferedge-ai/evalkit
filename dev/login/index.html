@@ -16,7 +16,7 @@
         <link rel="prev" href="../install/">
       
       
-        <link rel="next" href="../config/">
+        <link rel="next" href="../sso/">
       
       
         
@@ -555,6 +555,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sso/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sign-on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../config/" class="md-nav__link">
         
   
@@ -990,22 +1018,45 @@
 <h1 id="login">Login<a class="headerlink" href="#login" title="Permanent link">&para;</a></h1>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020
 </code></pre></div>
-<p>The command asks for your username and password and stores the server URL and your token in <code>~/.evalkit/config.toml</code>. The CLI talks to one server at a time: logging in again, to the same server or another, replaces the stored login. Dev and prod are workspaces on one server (<code>finance@dev</code>, <code>finance@prod</code>), not separate logins.</p>
-<p>Tokens expire after the TTL the deployer configured (30 days by default). <code>evalkit whoami</code> shows who the token logs in as and when it expires, and exits 1 if the server rejects it; run it before a long run. Commands that talk to the server warn when the token expires within a day. When commands start failing with 401, log in again.</p>
+<p>With single sign-on configured on the server, the command opens your browser
+at your identity provider. Sign in there; the browser comes back to the CLI
+on a local port, and the CLI stores the identity provider's tokens in
+<code>~/.evalkit/config.toml</code>. They refresh themselves. On a machine without a
+browser, <code>evalkit login --url http://localhost:8020 --no-browser</code> prints a URL and a code
+to enter on any device.</p>
+<p>Without single sign-on, or with <code>--username</code>, the command asks for a username
+and password and stores an evalkit token instead. With single sign-on
+configured, password login is for admins unless the deployer set
+<code>password_login: all</code>.</p>
+<p>The CLI talks to one server at a time: logging in again, to the same server
+or another, replaces the stored login. Dev and prod are workspaces on one
+server (<code>finance@dev</code>, <code>finance@prod</code>), not separate logins.</p>
+<p><code>evalkit whoami</code> shows who the login is, its kind (<code>sso</code>, <code>password</code> or
+<code>client credentials</code>) and when the current token expires, and exits 1 if the
+server rejects it. An SSO access token expires within the hour and renews
+itself; that line is not a reason to log in again. When a command fails with
+<code>your login has expired</code>, run <code>evalkit login</code> again.</p>
+<p>The first sign-in creates your evalkit user, named after the part before <code>@</code>
+in your identity provider's username or email. If that name is taken, the
+command says so and names the subject an admin binds with
+<code>evalkit users bind</code>; see <a href="../sso/">Single sign-on</a>.</p>
 <h2 id="scripts-and-ci">Scripts and CI<a class="headerlink" href="#scripts-and-ci" title="Permanent link">&para;</a></h2>
-<p>Two environment variables bypass the config file:</p>
+<p>Pipelines authenticate as a machine client at the identity provider:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_SERVER_URL</span><span class="o">=</span>http://localhost:8020
-<span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_TOKEN</span><span class="o">=</span>&lt;token&gt;
+<span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_OIDC_CLIENT_ID</span><span class="o">=</span>&lt;client<span class="w"> </span>id&gt;
+<span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_OIDC_CLIENT_SECRET</span><span class="o">=</span>&lt;client<span class="w"> </span>secret&gt;
 </code></pre></div>
-<p>A stored token expires, so CI jobs should log in at the start of every run with a password from the secret store:</p>
-<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span><span class="s2">"</span><span class="nv">$EVALKIT_SERVER_URL</span><span class="s2">"</span><span class="w"> </span>--username<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span><span class="s2">"</span><span class="nv">$EVALKIT_ADMIN_PASSWORD</span><span class="s2">"</span>
-</code></pre></div>
+<p>No <code>evalkit login</code> is needed; every command fetches a token itself. An admin
+binds the client once: see <a href="../ci-sync/">CI sync</a>. Without single sign-on,
+<code>EVALKIT_SERVER_URL</code> and <code>EVALKIT_TOKEN</code> carry an evalkit token, or the job
+logs in with a dedicated non-admin password user.</p>
 <h2 id="timeout">Timeout<a class="headerlink" href="#timeout" title="Permanent link">&para;</a></h2>
 <p>The CLI and the SDK wait up to 120 seconds for each server call. Set <code>EVALKIT_TIMEOUT</code> (seconds) to wait longer, for example on a slow network:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_TIMEOUT</span><span class="o">=</span><span class="m">300</span>
 </code></pre></div>
 <p>It covers calls to the evalkit server only. The server's own calls to an agent's harness keep their fixed limits, and so does <code>evalkit harness check</code>.</p>
-<p>The SDK uses the same login and the same two variables. A deployed agent that only exports traces uses an agent token instead; see <a href="../tracing/">Tracing</a>.</p>
+<p>The SDK uses the same login and the same variables. A deployed agent that
+only exports traces uses an agent token; see <a href="../tracing/">Tracing</a>.</p>
 
 
 
@@ -1058,13 +1109,13 @@
         
         
           
-          <a href="../config/" class="md-footer__link md-footer__link--next" aria-label="Next: Config">
+          <a href="../sso/" class="md-footer__link md-footer__link--next" aria-label="Next: Single sign-on">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Config
+                Single sign-on
               </div>
             </div>
             <div class="md-footer__button md-icon">

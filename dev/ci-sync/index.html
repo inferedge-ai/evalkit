@@ -486,6 +486,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sso/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sign-on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../config/" class="md-nav__link">
         
   
@@ -1021,32 +1049,37 @@ differ, change <code>dev</code> below to the workspace CI should sync into.</p>
 <ul>
 <li><strong>On every PR:</strong> <code>evalkit lint &lt;suite-dir&gt; --dataset &lt;suite&gt;@dev</code> fails the
   job on errors.</li>
-<li><strong>On merge:</strong> <code>evalkit sync &lt;suite-dir&gt; --workspace dev --actor &lt;author&gt;</code>
+<li><strong>On merge:</strong> <code>evalkit sync &lt;suite-dir&gt; --workspace dev</code>
   writes the suite into <code>&lt;suite&gt;@dev</code>. The dataset name is the directory name.</li>
 </ul>
 <h2 id="what-you-need">What you need<a class="headerlink" href="#what-you-need" title="Permanent link">&para;</a></h2>
 <ul>
 <li>The server URL, as a CI variable <code>EVALKIT_SERVER_URL</code> (e.g. <code>http://localhost:8020</code>).</li>
-<li>The <code>admin</code> password, as a CI secret <code>EVALKIT_ADMIN_PASSWORD</code>. It is the
-  value the server was first started with. Store the password, not a token:
-  tokens expire, the password does not.</li>
+<li>Credentials for a machine user. With single sign-on: a machine client at
+  the identity provider (see <a href="../sso/">Single sign-on</a>), its id and secret as
+  CI secrets <code>EVALKIT_OIDC_CLIENT_ID</code> and <code>EVALKIT_OIDC_CLIENT_SECRET</code>, and
+  an admin runs <code>evalkit users add ci-bot --subject &lt;sub&gt;</code> once and grants it
+  writer on the workspace: <code>evalkit workspaces members add dev ci-bot --role
+  writer</code>. Without single sign-on: a dedicated user with a password, created
+  with <code>evalkit users add ci-bot</code> and granted writer the same way, with the
+  password as a CI secret. Never the admin account.</li>
 <li>A shared workspace to sync into, e.g. <code>dev</code> (see <a href="../workspaces/">Workspaces</a>).</li>
 </ul>
 <p>Each job does three things:</p>
 <ol>
 <li>Installs the CLI at the server's version, so CI always runs the server's
    build.</li>
-<li>Logs in as <code>admin</code>. Every server call needs a login, lint included.</li>
+<li>Authenticates as the machine user. Every server call needs a login, lint included.</li>
 <li>Runs <code>evalkit lint</code> or <code>evalkit sync</code>.</li>
 </ol>
-<p><code>--actor</code> is admin only. It records the merge author in the case changelog,
-instead of <code>admin</code>. It is a free-text label: the server stores it as given
-and does not look it up among evalkit users. The example passes the commit
-author's email; pass an evalkit username instead if your CI can map one.</p>
-<p>Pass values from the commit, such as the author's email, through <code>env:</code>, as
-the example does. Never write <code>${{ ... }}</code> straight into a <code>run:</code> script:
-whoever pushes the commit controls those values, and the job holds the admin
-password.</p>
+<p><code>--actor</code> is admin only. A machine user records itself as the actor, and
+<code>--actor</code> needs an admin machine user, which <code>users promote</code> refuses, so the
+case changelog shows <code>ci-bot</code> for a sync from CI. Where an admin does pass
+<code>--actor</code>, it is a free-text label: the server stores it as given and does
+not look it up among evalkit users.</p>
+<p>Pass values from the commit through <code>env:</code>. Never write <code>${{ ... }}</code> straight into a <code>run:</code> script:
+whoever pushes the commit controls those values, and the job holds the
+machine user's credentials.</p>
 <h2 id="github-actions-example">GitHub Actions example<a class="headerlink" href="#github-actions-example" title="Permanent link">&para;</a></h2>
 <p>The cases live in <code>eval-cases/&lt;suite&gt;/</code>. Change the paths and the workspace
 to match your repo.</p>
@@ -1064,15 +1097,14 @@ to match your repo.</p>
 <span class="nt">jobs</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">evalkit</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+<span class="w">    </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">EVALKIT_OIDC_CLIENT_ID</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.EVALKIT_OIDC_CLIENT_ID }}</span>
+<span class="w">      </span><span class="nt">EVALKIT_OIDC_CLIENT_SECRET</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.EVALKIT_OIDC_CLIENT_SECRET }}</span>
 <span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v4</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">astral-sh/setup-uv@v6</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Install the evalkit CLI</span>
 <span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv tool install --reinstall "evalkit-py==$(curl -fsSL "$EVALKIT_SERVER_URL/api/cli" | jq -r .version)"</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Log in</span>
-<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">evalkit login --url "$EVALKIT_SERVER_URL" --username admin --password "$EVALKIT_ADMIN_PASSWORD"</span>
-<span class="w">        </span><span class="nt">env</span><span class="p">:</span>
-<span class="w">          </span><span class="nt">EVALKIT_ADMIN_PASSWORD</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ secrets.EVALKIT_ADMIN_PASSWORD }}</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Lint</span>
 <span class="w">        </span><span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">github.event_name == 'pull_request'</span>
 <span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
@@ -1081,14 +1113,14 @@ to match your repo.</p>
 <span class="w">          </span><span class="no">done</span>
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Sync</span>
 <span class="w">        </span><span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">github.event_name == 'push'</span>
-<span class="w">        </span><span class="nt">env</span><span class="p">:</span>
-<span class="w">          </span><span class="nt">AUTHOR</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ github.event.head_commit.author.email }}</span>
 <span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
 <span class="w">          </span><span class="no">for suite in eval-cases/*/; do</span>
-<span class="w">            </span><span class="no">evalkit sync "$suite" --workspace dev --actor "$AUTHOR"</span>
+<span class="w">            </span><span class="no">evalkit sync "$suite" --workspace dev</span>
 <span class="w">          </span><span class="no">done</span>
 </code></pre></div>
-<p>The same steps work in any CI: install, log in, lint or sync.</p>
+<p>Without single sign-on, keep a <code>Log in</code> step: <code>evalkit login --url
+"$EVALKIT_SERVER_URL" --username ci-bot --password "$EVALKIT_CI_PASSWORD"</code>.</p>
+<p>The same steps work in any CI: install, authenticate, lint or sync.</p>
 <h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
 <ul>
 <li>Sync reads the git branch and sha itself. Pass <code>--version</code> and <code>--branch</code>

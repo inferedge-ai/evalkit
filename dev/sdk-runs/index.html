@@ -484,6 +484,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sso/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sign-on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../config/" class="md-nav__link">
         
   
@@ -1239,7 +1267,7 @@
     <span class="k">return</span> <span class="n">queue</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="nb">input</span><span class="p">[</span><span class="s2">"question"</span><span class="p">],</span> <span class="n">session_id</span><span class="o">=</span><span class="n">metadata</span><span class="p">[</span><span class="s2">"session_id"</span><span class="p">])</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
 </code></pre></div>
 <p>Either way the Runs page links the session to its experiment and case.</p>
-<p>The agent's exporter needs its own token. Mint one with <code>evalkit tokens create --agent &lt;name&gt;</code>; it never expires. Your login token expires, and an exporter that holds it then drops every span with nothing but a line in its own log.</p>
+<p>The agent's exporter needs its own token in <code>EVALKIT_OTEL_TOKEN</code>. Mint one with <code>evalkit tokens create --agent &lt;name&gt;</code>; it never expires. A login token is not accepted: it expires, and an exporter that holds it would drop every span with nothing but a line in its own log.</p>
 <h2 id="datasets-and-workspaces">Datasets and workspaces<a class="headerlink" href="#datasets-and-workspaces" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>dataset="finance"</code> runs your own workspace's copy; if <code>finance</code> is a directory under <code>cases</code> it is synced first.</li>

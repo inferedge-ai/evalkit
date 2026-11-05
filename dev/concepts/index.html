@@ -496,6 +496,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sso/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sign-on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../config/" class="md-nav__link">
         
   
@@ -943,6 +971,18 @@
 <tr>
 <td>Run</td>
 <td>One case answered once.</td>
+</tr>
+<tr>
+<td>Single sign-on</td>
+<td>Signing in through your organisation's identity provider. The first sign-in creates your evalkit user. See <a href="../sso/">Single sign-on</a>.</td>
+</tr>
+<tr>
+<td>Subject</td>
+<td>The stable id your identity provider assigns you; evalkit keys your user on it, not on your email.</td>
+</tr>
+<tr>
+<td>Machine user</td>
+<td>A user bound to a machine client at the identity provider, for CI. No password, no browser. <code>evalkit users add &lt;name&gt; --subject &lt;sub&gt;</code>.</td>
 </tr>
 <tr>
 <td>Trace, span, session</td>
