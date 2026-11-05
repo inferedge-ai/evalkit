@@ -101,7 +101,7 @@ def api_audience(state) -> list[str]:
 
 
 async def sso_identity(
-    state, token: str, audience: list[str], request: Request | None, *, enforce_scopes: bool
+    state, token: str, audience: list[str], request: Request, *, enforce_scopes: bool
 ) -> tuple[User, dict]:
     if state.oidc is None:
         raise HTTPException(status_code=401, detail="SSO is not configured on this server")
@@ -150,16 +150,15 @@ async def register_tenant(state, request: Request, claims: dict) -> int:
 
 
 async def sso_login(
-    state, token: str, audience: list[str], request: Request | None
+    state, token: str, audience: list[str], request: Request
 ) -> tuple[User, datetime]:
     user, claims = await sso_identity(state, token, audience, request, enforce_scopes=True)
     return user, datetime.fromtimestamp(claims["exp"], UTC)
 
 
-async def sso_user(state, token: str, audience: list[str], request: Request | None) -> User:
+async def sso_user(state, token: str, audience: list[str], request: Request) -> User:
     user, expires_at = await sso_login(state, token, audience, request)
-    if request is not None:
-        request.state.token_expires_at = expires_at
+    request.state.token_expires_at = expires_at
     return user
 
 

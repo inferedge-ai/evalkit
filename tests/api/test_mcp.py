@@ -669,3 +669,29 @@ async def test_mcp_without_required_scopes_accepts_idp_tokens_without_scopes(
     )
     async with sso_app(env, idp) as http:
         assert await mcp_status(http, idp.access_token("sub-ann")) == 200
+
+
+async def test_mcp_hands_resolve_tenant_the_real_request(tmp_path, stub_judges, session_factory):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(env.session_factory, 2).create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    seen: list[str | None] = []
+
+    async def by_header(request, claims):
+        seen.append(request.headers.get("x-tenant"))
+        return int(request.headers.get("x-tenant", "1"))
+
+    async with sso_app(env, idp, resolve_tenant=by_header) as http:
+        resp = await http.post(
+            "/mcp",
+            json=INITIALIZE,
+            headers={
+                "Authorization": f"Bearer {idp.access_token('sub-ann')}",
+                "Accept": MCP_ACCEPT,
+                "X-Tenant": "2",
+            },
+        )
+    assert resp.status_code == 200
+    assert "2" in seen

@@ -448,7 +448,10 @@ async def resolve_tenant(request, claims) -> int | None:
 and `create_app(cfg, resolve_tenant=resolve_tenant)` takes it as a parameter,
 so a wrapper passes its own without patching. It runs on every request that
 carries an IdP access token, before the user lookup, and at password login
-(`claims=None`) and registration. It is async because a wrapper's mapping
+(`claims=None`) and registration. `request` is always the incoming HTTP
+request, on `/api`, the collector and `/mcp` alike (the MCP verifier passes
+FastMCP's `get_http_request()`), so a wrapper may resolve from a header or the
+host name as well as from `claims`. It is async because a wrapper's mapping
 from organisation to tenant lives in the wrapper's store; it runs on every
 request, so a wrapper keeps it cheap (an in-memory map or a cache).
 `None` means "no tenant for this request": password login answers 403, as
@@ -865,7 +868,7 @@ async def sso_user(request, session, token) -> User:
     if oidc is None:               401 "SSO is not configured on this server"
     if oidc.keys is None:          503 "identity provider unreachable"
     claims = verify_access_token(oidc, token)                     # 401 with the reason on failure
-    tenant_id = resolve_tenant(request, claims)
+    tenant_id = await resolve_tenant(request, claims)
     user = await session.scalar(select(User).where(
         User.tenant_id == tenant_id, User.issuer == claims["iss"], User.subject == claims["sub"]))
     if user is None:               401 f"not registered: subject {claims['sub']} has no user"   # a person signs in again; a machine's admin binds it
@@ -917,7 +920,7 @@ evalkit tokens, so `evalkit whoami` keeps working for both.
 `auth.password_login` is `all`. With `admin`:
 
 ```
-user = row by (resolve_tenant(request, None), username)
+user = row by (await resolve_tenant(request, None), username)
 if user is None or user.password_hash is None:
     verify_password(password, dummy hash)       # constant time, as today
     401 "invalid username or password"
@@ -999,7 +1002,7 @@ sequenceDiagram
     C->>S: POST /api/auth/oidc/register  Authorization: Bearer access_token  {id_token}
     S->>I: GET jwks_uri (cached, refetched once on unknown kid)
     S->>S: verify access_token (sig, iss, aud, exp) and id_token (aud=client_id, same sub, has email)
-    S->>S: tenant_id = resolve_tenant(request, claims)
+    S->>S: tenant_id = await resolve_tenant(request, claims)
     S->>DB: SELECT users WHERE (tenant_id, issuer, subject)
     alt no row
         S->>DB: INSERT users (username derived from preferred_username or email, no password) + personal workspace
@@ -1030,7 +1033,7 @@ async def register(request, session, body):
     if idtok["sub"] != access["sub"]:        400 "id_token and access token name different subjects"
     if "email" not in idtok:                 400 "the ID token has no email claim; ask the IdP admin to grant the email scope"
 
-    tenant_id = resolve_tenant(request, access)
+    tenant_id = await resolve_tenant(request, access)
     issuer, subject, email = idtok["iss"], idtok["sub"], idtok["email"]
 
     await lock_names(session)                                # the existing users-and-workspaces advisory lock, held to commit

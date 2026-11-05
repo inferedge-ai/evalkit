@@ -200,9 +200,7 @@ def create_app(
     ui_dist: Path | None = None,
     holder: str | None = None,
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
-    resolve_tenant: Callable[
-        [Request, dict | None], Awaitable[int | None]
-    ] = default_resolve_tenant,
+    resolve_tenant: TenantResolver = default_resolve_tenant,
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (

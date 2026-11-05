@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from fastapi import HTTPException
 from fastmcp.server.auth import AccessToken, AuthProvider, RemoteAuthProvider, TokenVerifier
+from fastmcp.server.dependencies import get_http_request
 
 from evalkit.api.auth import bearer_login, is_jwt, sso_identity, token_expiry
 from evalkit.api.oidc import IdpUnavailable, token_scopes
@@ -21,7 +22,7 @@ class EvalkitTokenVerifier(TokenVerifier):
                 oidc = self._state.oidc
                 audience = [oidc.cfg.audience, oidc.mcp_resource_url] if oidc is not None else []
                 user, claims = await sso_identity(
-                    self._state, token, audience, None, enforce_scopes=False
+                    self._state, token, audience, get_http_request(), enforce_scopes=False
                 )
                 expires = datetime.fromtimestamp(claims["exp"], UTC)
                 scopes = sorted(token_scopes(claims))
