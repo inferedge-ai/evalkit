@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.settings import JudgeSettings
@@ -60,11 +61,12 @@ class LlmProviderStore:
         return row
 
     async def _settings(self, session: AsyncSession) -> models.TenantSettings:
-        row = await session.get(models.TenantSettings, self._tenant_id)
-        if row is None:
-            row = models.TenantSettings(tenant_id=self._tenant_id)
-            session.add(row)
-        return row
+        await session.execute(
+            insert(models.TenantSettings)
+            .values(tenant_id=self._tenant_id)
+            .on_conflict_do_nothing(index_elements=["tenant_id"])
+        )
+        return await session.get_one(models.TenantSettings, self._tenant_id)
 
     async def _check_free(self, session: AsyncSession, name: str, base_url: str) -> None:
         taken = await session.scalar(
@@ -173,10 +175,10 @@ class LlmProviderStore:
 
     async def default_judge(self) -> JudgeSettings | None:
         async with self._session() as session:
-            tenant = await self._settings(session)
-        if tenant.default_judge is None:
+            row = await session.get(models.TenantSettings, self._tenant_id)
+        if row is None or row.default_judge is None:
             return None
-        return JudgeSettings.model_validate(tenant.default_judge)
+        return JudgeSettings.model_validate(row.default_judge)
 
     async def set_default_judge(self, judge: JudgeSettings) -> JudgeSettings:
         if await self.active_by_base_url(judge.base_url) is None:
