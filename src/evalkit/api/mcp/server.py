@@ -5,7 +5,7 @@ import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import TokenVerifier
@@ -18,33 +18,11 @@ from evalkit import version
 from evalkit.api.mcp import tools
 from evalkit.api.mcp.auth import MCP_PATH, build_auth
 from evalkit.api.mcp.descriptions import INSTRUCTIONS
-from evalkit.core.agents import UnknownAgent
-from evalkit.db.workspaces import UnknownWorkspace
-from evalkit.store.base import UnknownExperiment
 
 LOGGER = logging.getLogger(__name__)
 LOGGED_ARGS_CHARS = 2000
 
-STATUS_CODES = {
-    400: "invalid_request",
-    401: "forbidden",
-    403: "forbidden",
-    404: "not_found",
-    409: "conflict",
-    413: "invalid_request",
-}
 
-
-def translate(exc: BaseException | None) -> ToolError | None:
-    if isinstance(exc, HTTPException):
-        return ToolError(f"{STATUS_CODES.get(exc.status_code, 'upstream_failed')}: {exc.detail}")
-    if isinstance(exc, (UnknownAgent, UnknownExperiment, UnknownWorkspace)):
-        return ToolError(f"not_found: {exc.args[0]}")
-    return None
-
-
-# FastMCP masks a tool's exception into a generic ToolError before middleware
-# runs; the original is its __cause__.
 class ToolErrors(Middleware):
     async def on_call_tool(self, context: MiddlewareContext, call_next):
         token = get_access_token()
@@ -56,11 +34,8 @@ class ToolErrors(Middleware):
         try:
             return await call_next(context)
         except ToolError as exc:
-            translated = translate(exc.__cause__) or exc
-            outcome = str(translated).split(":", 1)[0]
-            if translated is exc:
-                raise
-            raise translated from exc.__cause__
+            outcome = str(exc).split(":", 1)[0]
+            raise
         finally:
             LOGGER.info(
                 "mcp tool %s by %s: %s in %dms args=%s",

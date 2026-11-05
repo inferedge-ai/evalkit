@@ -40,7 +40,6 @@ export interface JudgeSettings {
   model: string;
   reasoning_effort: string;
   max_tokens: number;
-  concurrency: number;
 }
 
 export interface AgentSettings {
@@ -58,6 +57,14 @@ export interface RemoteEvaluatorInfo {
   ref: string;
   kind: "score" | "gauge";
   settings: { endpoint: string; timeout_seconds: number };
+  archived: boolean;
+  has_api_key: boolean;
+}
+
+export interface LlmProviderInfo {
+  name: string;
+  base_url: string;
+  has_api_key: boolean;
   archived: boolean;
 }
 
@@ -128,7 +135,7 @@ export interface TwinStatus {
   href: string;
 }
 
-export interface SplitInfo {
+export interface TagInfo {
   name: string;
   count: number;
 }
@@ -145,9 +152,11 @@ export interface GitRevision {
 export interface ExperimentConfig {
   model: string | null;
   judge: JudgeSettings;
-  selection: { all?: boolean; tag?: string | null; case_ids?: string[] | null };
-  include_drafts: boolean;
-  review_scope: "approved" | "all" | null;
+  selection: {
+    all?: boolean;
+    tags?: string[] | null;
+    case_ids?: string[] | null;
+  };
   revision: GitRevision | null;
   snapshot: {
     capabilities: Record<string, unknown>;
@@ -322,6 +331,8 @@ export interface AgentInfo {
   // Who drives the agent: the server, its owner's CLI, or the SDK.
   driver: "server" | "cli" | "sdk";
   archived: boolean;
+  // A key is stored on the server (shared agents only); its value is never returned.
+  has_api_key: boolean;
 }
 
 // ── Traces (mirrors db/mappings.py and core/traces/sessions.py) ──────────
@@ -377,7 +388,7 @@ export interface RunListItem {
   run_id: string;
   title: string | null;
   user_id: string | null;
-  client_id?: string | null;
+  org_id?: string | null;
   created_at: string | null;
   status?: string | null;
   experiment_id?: number | null;
@@ -509,7 +520,7 @@ export interface LintFinding {
 
 // ── Review ───────────────────────────────────────────────────────────────
 export type ReviewState =
-  "draft" | "review_requested" | "changes_requested" | "approved";
+  "unreviewed" | "review_requested" | "changes_requested" | "approved";
 
 export interface ReviewSummary {
   state: ReviewState;
@@ -549,13 +560,12 @@ export interface QueueItem {
   case_id: string;
   requested_to: string | null;
   requested_by: string;
+  author: string | null;
   requested_at: string | null;
   input: string;
 }
 
 export type CliInfo = {
   version: string;
-  filename: string;
-  sha256: string;
-  size: number;
+  package: string;
 };

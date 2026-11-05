@@ -3,12 +3,6 @@ from fastapi import APIRouter, Request
 from evalkit.api.deps import AgentStoreDep, ConfigDep
 
 router = APIRouter(prefix="/api/meta", tags=["meta"])
-judge_router = APIRouter(tags=["meta"])
-
-
-@judge_router.get("/api/judge-default")
-async def judge_default(cfg: ConfigDep) -> dict:
-    return cfg.judge_default.model_dump()
 
 
 @router.get("")

@@ -5,14 +5,14 @@ A developer checks how one OTel session of their agent turns into a trajectory, 
 ## Actors
 
 - **Developer**: can write the agent's workspace: the owner of a personal workspace, or a `writer` or admin on a shared one.
-- **CLI**: `evalkit traces check`, `evalkit traces mapping push|list`.
+- **CLI**: `evalkit traces check`, `evalkit traces mapping push|activate|list`.
 - **UI**: the agent page, Mappings tab.
 - **evalkit server**: holds the agent's spans and mapping versions, and builds trajectories on read.
 
 Terms:
 - **Session:** the spans of one run.
 - **Mapping:** a JSON document that says which span attribute holds each ESF field, plus `answer` and `exclude_spans`. Every OTel agent has its own mapping, created with the agent (`evalkit agents create … --trajectory-source otel --mapping file.json` stores v1 as active). Versions are `draft`, `active` or `retired`. An agent has at most one draft and one active version.
-- **Starting points:** the `connect-traces` skill ships `gen_ai.json` and `openinference.json`. They hold the common session id attributes (`session.id`, `gen_ai.conversation.id`, `langfuse.session.id`). evalkit's code has no built-in mapping.
+- **Starting points:** the `connect-traces` skill ships `gen_ai.json` and `openinference.json`. They hold the common session id attributes (`session.id`, `gen_ai.conversation.id`, `langfuse.session.id`).
 - **Agent references:** the API and UI always use `name@workspace` (`research-agent@dev`). The CLI also takes a bare name, meaning your personal workspace.
 
 ## Sequence
@@ -33,11 +33,14 @@ sequenceDiagram
   end
   CLI-->>Dev: check lines: session, root, mapping, llm, tools, unmapped, trajectory
 
-  Dev->>CLI: evalkit traces mapping push research-agent mapping.json [--activate]
-  CLI->>S: PUT draft mapping (activate=true|false)
-  S-->>CLI: "draft vN for research-agent" (or "active vN …")
+  Dev->>CLI: evalkit traces mapping push research-agent mapping.json
+  CLI->>S: PUT draft mapping
+  S-->>CLI: "draft vN for research-agent" (or "… is unchanged")
   Dev->>CLI: evalkit traces check research-agent SESSION --mapping draft
   CLI-->>Dev: same check lines, built with the draft
+  Dev->>CLI: evalkit traces mapping activate research-agent VERSION
+  CLI->>S: POST activate for VERSION (response carries replaced_version)
+  S-->>CLI: "active vN for research-agent, replacing vM"
 
   Dev->>UI: Agents → research-agent@akshat → Mappings
   UI->>S: list versions, last 10 runs
@@ -67,7 +70,10 @@ sequenceDiagram
 - **`mapping push`:**
   - Validates the document, then stores it as a draft with the next version number.
   - An existing draft becomes `retired`.
-  - With `--activate`, the version becomes active and the old active one is retired.
+  - A document equal to the current draft keeps the draft and its version; the CLI prints `… is unchanged`.
+- **`mapping activate`:**
+  - The version is required: the one push printed for the checked draft, or an older one to roll back.
+  - The old active version is retired. Prints the version activated and the one it replaced.
 - **`mapping list`:** prints `vN  status  by <user>  <created_at>` for every version.
 - **UI Mappings tab:**
   - Shown only for agents whose trajectory source is `otel`.

@@ -139,7 +139,7 @@ async def test_twin_status_both_sides(session_factory, world):
         prod_cases = await current_cases(s, prod)
         back = await twin_status(s, world.prod, prod, prod_cases)
         assert back["q-1"]["state"] == "same" and back["q-1"]["workspace"] == "dev"
-        assert back["q-1"]["review"]["state"] == "draft"
+        assert back["q-1"]["review"]["state"] == "unreviewed"
 
         await sync(s, world.dev, world.admin_id, [incoming("q-1", question="v2")])
         await s.commit()

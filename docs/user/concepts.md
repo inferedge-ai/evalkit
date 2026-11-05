@@ -18,8 +18,8 @@ The words you need before your first scorecard. Everything else is explained on 
 | Trajectory                 | The step-by-step record of a run that evalkit builds from the spans.                                                                 |
 | Judge                      | The LLM that grades an answer against the case's rubrics.                                                                            |
 | Evaluator                  | One scoring check, for example the rubric check or "did the agent call this tool".                                                   |
-| Scorecard                  | The table of scores for an experiment, per case and per bucket (content, trajectory, presentation, efficiency, custom).              |
-| Draft                      | A case in a shared dataset that no reviewer has approved yet. `--include-drafts` runs it anyway.                                     |
+| Scorecard                  | The table of scores for an experiment, per case and per bucket (content, trajectory, presentation, efficiency, custom). [Case schema](case-schema.md#evaluators) maps each bucket to its YAML key, e.g. presentation → `evaluators.output.presentation_judge`. |
+| Unreviewed                 | A case in a shared dataset with no review decision at its current content. It runs like any other case; review decides promotion.  |
 | Promotion                  | An admin links a shared workspace to a target (`evalkit workspaces promote-to dev prod`). Approving a case in `dev` adds it, approved, to the same-named dataset in `prod`. Datasets in `prod` are fed only that way. |
 | `evalkit.yaml`             | The file in your repo that says where your cases are and which environment variables hold API keys.                                  |
 

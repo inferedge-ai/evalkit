@@ -10,8 +10,8 @@ How a user runs a dataset against a shared agent: an agent in a shared workspace
   - the "Run experiment" launcher on a shared workspace's dataset page (`ui/src/evals/RunLauncher.tsx`)
   - the experiment page (`ui/src/evals/ExperimentPage.tsx`)
 - **evalkit server**: `src/evalkit/api/experiments.py`. Its experiment runner is in `src/evalkit/core/runner.py`.
-- **Agent harness**: the client's agent behind the Harness API, at the agent's `harness_url`. Admins or writers create the agent with `evalkit agents create` (flow 17); its API key comes from `credentials.agents` in the server config.
-- **Judge**: the LLM the built-in evaluators call. Chosen per experiment; the server's `judge_default` applies when the run doesn't set one.
+- **Agent harness**: the client's agent behind the Harness API, at the agent's `harness_url`. Admins or writers create the agent with `evalkit agents create` (flow 17); its API key is a stored key, set with `--api-key-env` and kept encrypted in the database.
+- **Judge**: the LLM the built-in evaluators call. Chosen per experiment; the default judge an admin set (`evalkit judge-default set`) applies when the run doesn't set one. Its base URL must be a registered LLM provider, whose stored key the server sends.
 
 ## Sequence
 
@@ -24,17 +24,17 @@ sequenceDiagram
   participant S as evalkit server
   participant H as Agent harness
   alt CLI
-    U->>C: evalkit run finance@dev --agent research-agent@dev [--runs N] [--case-id c…] [--model m] [--include-drafts] [--judge-model …]
+    U->>C: evalkit run finance@dev --agent research-agent@dev [--runs N] [--case-id c…] [--model m] [--judge-model …]
     opt dataset is your own (bare name) and on disk
       C->>S: sync it first (flow 03)
     end
   else UI
-    U->>C: shared dataset page → Run experiment<br/>(agent: shared agents only, scope: all / split / file / picked cases, drafts, repetitions, model, judge)
+    U->>C: shared dataset page → Run experiment<br/>(agent: shared agents only, scope: all / split / file / picked cases, repetitions, model, judge)
   end
-  C->>S: POST /api/experiments {dataset, agent, repetitions, selection, model, include_drafts, cases(git sha), judge, evalkit_version}
+  C->>S: POST /api/experiments {dataset, agent, repetitions, selection, model, cases(git sha), judge, evalkit_version}
   S->>S: check access, pick the experiment's workspace
   S->>H: GET capabilities
-  S->>S: suite in a shared workspace → keep only Approved cases (unless include_drafts)<br/>check every selected case's input against the agent's input schema<br/>pin each case version and its evaluators (incl. overlays)
+  S->>S: check every selected case's input against the agent's input schema<br/>pin each case version and its evaluators (incl. overlays)
   S->>S: create experiment (status running), take the lease, start a background task
   S-->>C: {id, dropped_cases}
 ```
@@ -57,7 +57,7 @@ sequenceDiagram
     C-->>U: "  running (R/N ran, E/N evaluated)" … "  completed (…)"
   end
   C->>S: GET /api/experiments/{id}/scorecard
-  C-->>U: buckets, evaluators, failing cases (< 0.80), errored cases, gauges
+  C-->>U: buckets, evaluators, failing cases (overall or any evaluator < 0.80, naming the evaluators), errored cases, gauges
   Note over U,S: UI: /experiments/{id} lists every selected case, a progress bar (ran, evaluated), scorecard
 ```
 
@@ -93,13 +93,13 @@ sequenceDiagram
   - Otherwise in the personal workspace of the user who starts it (`evalkit run finance --agent research-agent@dev` → `@you`).
 - **Who may start one:** any user may use a shared agent. An experiment that lands in a shared workspace needs a `writer` or `reviewer` role there, or admin. There is no per-agent grant.
 - **Who may change one** (resume, re-evaluate): admins and `writer` members of the experiment's workspace, plus its creator. Admins can't change another user's personal experiments.
-- **Approved-only:** for suite datasets in shared workspaces, only Approved cases run unless include-drafts is set. Other datasets run every selected case.
+- **Review state:** never filters a run. Every selected case runs, in personal and shared datasets alike.
 - **Selection:**
   - `--case-id` (repeatable), a split tag, a case file or picked cases.
   - The UI shows the run count on the Start button: "Start N runs" = cases × repetitions.
 - **Fixture cases** are skipped when the harness accepts neither files nor file URLs. The CLI prints "skipped N case(s) with fixture files; the agent accepts neither files nor file urls: …".
 - **`--model`** is passed only if the harness accepts a model override. Otherwise the run uses the harness default and the server logs a warning. The model the harness reports is recorded when none was given.
-- **Judge:** CLI `--judge-model`, `--judge-base-url`, `--judge-effort` or the UI judge panel override the server's `judge_default`. The judge is recorded on the experiment, and Re-evaluate reuses it.
+- **Judge:** CLI `--judge-model`, `--judge-base-url`, `--judge-effort` or the UI's "Judge provider" picker override the default judge. The judge is recorded on the experiment, and Re-evaluate reuses it.
 - **Recorded with every experiment:** the case revision (git sha, branch, dirty; UI launches take it from the dataset's last sync) and the agent's `revision` and `branch` from its capabilities response.
 - **Pinning:** each case's version and effective evaluators (including overlays) are pinned at start, so later edits don't change old results.
 - **Status moves** `running` → `evaluating` → `completed`, or to `failed` with an error.
@@ -119,14 +119,15 @@ sequenceDiagram
 
 ## Error cases
 
-- **No approved cases:** 400 "no approved cases in X match the selection; pass --include-drafts to run drafts". The UI disables Start and explains why.
 - **Nothing to run:** 400 "nothing to run in X: no cases match the selection" (or "every selected case needs fixture files and the harness accepts none: …").
 - **Case inputs don't match the agent's input schema:** 400, listing each failing case. Nothing runs.
 - **No start rights in the shared workspace:** 403 "experiments of D with A belong to @W; only its writers, reviewers and admins may start them".
 - **Someone else's personal agent:** CLI "A belongs to U's workspace; only its owner can run it"; API 403 "only the owner of @U can run A".
 - **Unknown agent:** 404.
 - **Archived agent:** 409 "agent A is archived".
-- **No agent key in the server config:** 400 "no credentials.agents entry for A in the server config".
+- **Judge not a registered LLM provider:** 400 "<url> is not a registered LLM provider; registered: …".
+- **No judge and no default judge:** 400 "no default judge; …".
+- **No stored key for the agent, an evaluator or the judge's provider:** the run still starts. The response carries `warnings: […]` (also logged), and the call goes out without a key header. A harness that needs a key then fails, e.g. 502 "could not start experiment: …" when capabilities return 401.
 - **Harness unreachable at start:** 502 "could not start experiment: …".
 - **Sending capabilities for a shared agent:** 400 "capabilities are fetched by the server for shared agents".
 - **Not allowed to change the experiment:** 403 "you cannot change this experiment".

@@ -31,10 +31,6 @@ async def test_keys_are_sealed_hidden_and_rekeyed(session_factory):
     resolved = await store.resolve("phx")
     assert resolved.api_key is not None and resolved.api_key.get_secret_value() == "pk"
     assert "pk" not in repr(resolved)
-    new = box()
-    assert await store.rekey(old, new) == 1
-    rekeyed = await TraceSourceStore(session_factory, new).resolve("phx")
-    assert rekeyed.api_key is not None and rekeyed.api_key.get_secret_value() == "pk"
 
 
 async def test_creating_without_a_box_is_refused(session_factory):
@@ -46,7 +42,7 @@ async def test_creating_without_a_box_is_refused(session_factory):
 
 async def test_server_refuses_to_start_with_sources_but_no_key(tmp_path, session_factory):
     await TraceSourceStore(session_factory, box()).create("phx", TraceProvider.PHOENIX, "u", "pk")
-    cfg = make_cfg(tmp_path)
+    cfg = make_cfg(tmp_path).model_copy(update={"encryption_key": None})
     store = PgStore(session_factory)
     app = create_app(
         cfg,

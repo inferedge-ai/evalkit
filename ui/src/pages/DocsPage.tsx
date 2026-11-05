@@ -77,8 +77,6 @@ export function DocsPage() {
   if (!isDocTab(tab)) return <Navigate to="/docs/quickstart" replace />;
   const values = {
     origin: window.location.origin,
-    filename: info?.filename ?? "<wheel filename>",
-    sha256: info?.sha256 ?? "<sha256>",
     version: info?.version ?? "<version>",
   };
   const body = DOC_TABS.find((t) => t.id === tab)?.body ?? "";

@@ -17,6 +17,7 @@ import sqlalchemy as sa
 import uvicorn
 from typer.testing import CliRunner
 
+from evalkit.api import experiments as experiments_api
 from evalkit.api.app import create_app
 from evalkit.cli import main as main_module
 from evalkit.cli import runs_commands
@@ -487,6 +488,29 @@ def test_datasets_list(env):
     assert "finance" in result.output
 
 
+def test_datasets_list_by_workspace(env):
+    shared = runner.invoke(cli_app, ["datasets", "list", "--workspace", "canonical"])
+    assert shared.exit_code == 0, shared.output
+    assert "finance@canonical" in shared.output
+    empty = runner.invoke(cli_app, ["datasets", "list", "--workspace", "admin"])
+    assert empty.exit_code == 0, empty.output
+    assert "finance@canonical" not in empty.output
+    at_form = runner.invoke(cli_app, ["datasets", "list", "--workspace", "@canonical"])
+    assert "finance@canonical" in at_form.output
+    assert runner.invoke(cli_app, ["datasets", "list", "--workspace", "nope"]).exit_code == 1
+    both = runner.invoke(cli_app, ["datasets", "list", "finance@canonical", "--workspace", "dev"])
+    assert both.exit_code == 1
+
+
+def test_datasets_show(env):
+    shown = runner.invoke(cli_app, ["datasets", "show", "finance@canonical"])
+    assert shown.exit_code == 0, shown.output
+    assert "dataset: finance@canonical" in shown.output
+    assert re.search(r"cases: \d+", shown.output)
+    assert "review: " in shown.output and "tags: " in shown.output
+    assert runner.invoke(cli_app, ["datasets", "show", "nope@canonical"]).exit_code == 1
+
+
 def _write_registry(path, key: str, data: bytes) -> None:
     path.write_text(
         f"fixtures:\n- key: {key}\n  sha256: {hashlib.sha256(data).hexdigest()}\n  context: ctx\n"
@@ -682,6 +706,25 @@ def test_offline_lint_unused_warning_only_when_registry_is_in_scope(tmp_path):
     assert "W-FIXTURE-UNUSED" in result.output and "other-suite.pdf" in result.output
 
 
+def test_server_lint_uploads_nearest_registry_with_scope(tmp_path, monkeypatch):
+    sent = _capture_post_files(monkeypatch, {"findings": [], "errors": 0, "warnings": 0})
+    root = tmp_path / "datasets"
+    (root / "finance").mkdir(parents=True)
+    _write_registry(root / "fixtures.yaml", "doc.pdf", b"x")
+    (root / "finance" / "one.yaml").write_text(
+        "- id: a\n  input: {question: 'q as of 2024-01-01'}\n  fixtures: [doc.pdf]\n"
+    )
+    result = runner.invoke(cli_app, ["lint", str(root / "finance")])
+    assert result.exit_code == 0, result.output
+    assert sent["names"] == ["fixtures.yaml", "one.yaml"]
+    assert sent["params"] == {"warn_unused_fixtures": "false"}
+
+    result = runner.invoke(cli_app, ["lint", str(root)])
+    assert result.exit_code == 0, result.output
+    assert sent["names"] == ["finance/one.yaml", "fixtures.yaml"]
+    assert sent["params"] == {"warn_unused_fixtures": "true"}
+
+
 def test_lint_passes_dataset_to_server(tmp_path, monkeypatch):
     sent = _capture_post_files(monkeypatch, {"findings": [], "errors": 0, "warnings": 0})
     case_dir = tmp_path / "cases"
@@ -763,33 +806,51 @@ def test_review_request_show_and_approve(env):
     queue = runner.invoke(cli_app, ["review", "queue"])
     assert queue.exit_code == 0, queue.output
     assert "case-2" in queue.output
+    in_dataset = runner.invoke(cli_app, ["review", "queue", "finance@canonical"])
+    assert in_dataset.exit_code == 0 and "case-2" in in_dataset.output
+    assert runner.invoke(cli_app, ["review", "queue", "other@canonical"]).exit_code == 1
+    elsewhere = runner.invoke(cli_app, ["review", "queue", "--workspace", "admin"])
+    assert "nothing waiting" in elsewhere.output
+    assert runner.invoke(cli_app, ["review", "queue", "--workspace", "nope"]).exit_code == 1
 
     commented = runner.invoke(
-        cli_app, ["review", "comment", "finance@canonical", "case-2", "looks fine"]
+        cli_app, ["review", "comment", "finance@canonical", "case-2", "--comment", "looks fine"]
     )
     assert commented.exit_code == 0, commented.output
     comment_id = re.search(r"comment (\d+)", commented.output).group(1)
 
+    neither = runner.invoke(cli_app, ["review", "approve", "finance@canonical"])
+    assert neither.exit_code == 1
     approved = runner.invoke(
-        cli_app, ["review", "approve", "finance@canonical", "case-2", "--comment", "ok"]
+        cli_app, ["review", "approve", "finance@canonical", "--all-waiting", "--comment", "ok"]
     )
     assert approved.exit_code == 0, approved.output
+    assert "approving 1 case(s) in finance@canonical" in approved.output
     assert "case-2: approved" in approved.output
+    again = runner.invoke(cli_app, ["review", "approve", "finance@canonical", "--all-waiting"])
+    assert "nothing waiting on you" in again.output
 
-    resolved = runner.invoke(
-        cli_app, ["review", "resolve", "finance@canonical", "case-2", comment_id]
+    wrong_case = runner.invoke(
+        cli_app, ["review", "resolve", "finance@canonical", "case-1", comment_id]
     )
+    assert wrong_case.exit_code == 1
+    resolved = runner.invoke(cli_app, ["review", "resolve", comment_id])
     assert resolved.exit_code == 0, resolved.output
     assert f"comment {comment_id} resolved" in resolved.output
 
     detail = runner.invoke(cli_app, ["review", "show", "finance@canonical", "case-2"])
     assert detail.exit_code == 0, detail.output
     assert "state: approved" in detail.output
+    assert "id: case-2" in detail.output
     assert "looks fine" in detail.output and "[resolved]" in detail.output
     assert "review_requested" in detail.output and "approved" in detail.output
 
     empty = runner.invoke(cli_app, ["review", "queue"])
     assert "nothing waiting" in empty.output
+
+    only_yaml = runner.invoke(cli_app, ["review", "show", "finance@canonical", "case-2", "--yaml"])
+    assert only_yaml.exit_code == 0, only_yaml.output
+    assert only_yaml.output.startswith("id: case-2\n") and "changelog" not in only_yaml.output
 
 
 def test_lint_agent_with_offline_is_a_usage_error(tmp_path):
@@ -815,7 +876,7 @@ def write_local_config(tmp_path, harness_url: str) -> Path:
         "cases: eval/cases\nfixtures: eval/fixtures\n"
         f"cost_map:\n  source: {cost_map}\n"
         "credentials:\n  agents:\n    fake: env:CLI_AGENT_KEY\n"
-        "  judges:\n    http://judge.test: env:CLI_JUDGE_KEY\n"
+        "  llm_providers:\n    http://judge.test: env:CLI_JUDGE_KEY\n"
     )
     (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
     return tmp_path
@@ -1018,6 +1079,46 @@ def test_run_and_harness_check_refuse_code_driven_agents(env, tmp_path, monkeypa
     assert result.exit_code == 1 and "evalkit traces check" in result.output
 
 
+def test_code_driven_agent_input_schema_drives_lint(env, tmp_path, monkeypatch, harness_url):
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    case = tmp_path / "turns.yaml"
+    case.write_text("- id: multi\n  input: {turns: [hi, again]}\n")
+    created = runner.invoke(cli_app, ["agents", "create", "multiturn"])
+    assert created.exit_code == 0, created.output
+    assert "default (a required string question)" in created.output
+    refused = runner.invoke(cli_app, ["lint", str(case), "--agent", "multiturn"])
+    assert refused.exit_code == 1 and "'question' is a required property" in refused.output
+    schema = tmp_path / "schema.json"
+    schema.write_text(json.dumps({"type": "object", "required": ["turns"]}))
+    edited = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--input-schema", str(schema)])
+    assert edited.exit_code == 0, edited.output
+    assert '{"type": "object", "required": ["turns"]}' in edited.output
+    passed = runner.invoke(cli_app, ["lint", str(case), "--agent", "multiturn"])
+    assert passed.exit_code == 0, passed.output
+    not_json = tmp_path / "schema.yaml"
+    not_json.write_text("type: object\n")
+    bad = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--input-schema", str(not_json)])
+    assert bad.exit_code == 2
+    kept = runner.invoke(cli_app, ["agents", "show", "multiturn"]).output
+    assert '{"type": "object", "required": ["turns"]}' in kept
+    cleared = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--clear-input-schema"])
+    assert "default (a required string question)" in cleared.output
+    harness = runner.invoke(
+        cli_app,
+        [
+            "agents",
+            "create",
+            "typedharness",
+            "--harness-url",
+            "http://h",
+            "--input-schema",
+            str(schema),
+        ],
+    )
+    assert harness.exit_code == 1 and "code-driven" in harness.output
+
+
 def test_evaluate_refuses_python_evaluator_experiments(
     env, tmp_path, monkeypatch, harness_url, module_db_url
 ):
@@ -1086,8 +1187,8 @@ def test_datasets_list_shows_a_canonical_datasets_cases(env, module_db_url):
     _seed_canonical(module_db_url, "listed")
     result = runner.invoke(cli_app, ["datasets", "list", "listed@canonical"])
     assert result.exit_code == 0, result.output
-    assert re.search(r"listed-1\s+draft\s+tags=plain fixtures=-", result.output)
-    assert re.search(r"listed-2\s+draft\s+tags=filed fixtures=doc.pdf", result.output)
+    assert re.search(r"listed-1\s+unreviewed\s+tags=plain fixtures=-", result.output)
+    assert re.search(r"listed-2\s+unreviewed\s+tags=filed fixtures=doc.pdf", result.output)
     assert "2 case(s) in listed" in result.output
     listing = ["datasets", "list", "listed@canonical"]
     approved = runner.invoke(cli_app, [*listing, "--state", "approved"])
@@ -1131,7 +1232,7 @@ def test_canonical_local_run_without_cases_or_fixtures(
     monkeypatch.chdir(tmp_path)
     _seed_canonical(module_db_url, "shared")
     args = ["run", "shared@canonical", "--agent", "fake", "--case-id", "shared-1"]
-    result = runner.invoke(cli_app, [*args, "--include-drafts"])
+    result = runner.invoke(cli_app, args)
     assert result.exit_code == 0, result.output
     own = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
     assert own.exit_code == 1 and "set `cases:` in evalkit.yaml" in own.output
@@ -1145,13 +1246,12 @@ def test_local_run_with_failed_scoring_says_how_to_finish(env, tmp_path, monkeyp
     _, application = env
     write_local_config(tmp_path, harness_url)
     monkeypatch.chdir(tmp_path)
-    store = application.state.store
-    real_publish = store.publish_evaluations
+    real_publish = experiments_api.db_publish_evaluations
 
-    async def publish_failing(experiment_run_id, rows, *, force, holder=None):
+    async def publish_failing(session, experiment_run_id, rows, **kwargs):
         raise RuntimeError("store down")
 
-    monkeypatch.setattr(store, "publish_evaluations", publish_failing)
+    monkeypatch.setattr(experiments_api, "db_publish_evaluations", publish_failing)
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
     assert result.exit_code == 1, result.output
     exp = latest_experiment("finance@admin")
@@ -1159,7 +1259,7 @@ def test_local_run_with_failed_scoring_says_how_to_finish(env, tmp_path, monkeyp
     assert "scoring failed for 1 of 1 runs" in result.output
     assert f"finish it with: evalkit evaluate {exp.id}" in result.output
 
-    monkeypatch.setattr(store, "publish_evaluations", real_publish)
+    monkeypatch.setattr(experiments_api, "db_publish_evaluations", real_publish)
     result = runner.invoke(cli_app, ["evaluate", str(exp.id)])
     assert result.exit_code == 0, result.output
     assert experiment_runs(exp.id)[0].evaluations
@@ -1408,3 +1508,84 @@ async def test_runs_files_refuses_an_unsafe_run_id_before_calling_the_harness():
         await runs_commands._harness_listing(harness, "../x")
     with pytest.raises(ApiError, match="must be one plain path segment"):
         await runs_commands._harness_fetch(harness, "a/b", ["f.txt"], lambda name, data: None)
+
+
+def test_summary_with_baseline_reads_the_compare_endpoint(monkeypatch):
+    def report(exp_id, overall):
+        case = {"case_id": "c1", "overall": overall, "scores": {}, "errors": {}, "run_errors": []}
+        return {
+            "name": f"#{exp_id}",
+            "experiment_id": str(exp_id),
+            "dataset": "finance@dev",
+            "buckets": {},
+            "evaluators": [],
+            "cases": [case],
+            "gauges": [],
+        }
+
+    class StubResponse:
+        def json(self):
+            return {"base": report(3, 0.0), "compare": report(4, 1.0)}
+
+    class StubClient:
+        def get(self, path, **kwargs):
+            assert path == "/api/experiments/compare"
+            assert kwargs["params"] == {"base": 3, "compare": 4}
+            return StubResponse()
+
+    monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    result = runner.invoke(cli_app, ["summary", "4", "--baseline", "3"])
+    assert result.exit_code == 0, result.output
+    assert "vs experiment 3  #3 of finance@dev" in result.output
+    assert re.search(r"c1\s+0\.00 → 1\.00  Δ\+1\.00$", result.output, re.M)
+
+
+def test_offline_lint_refuses_a_file_that_is_not_a_case_file(tmp_path):
+    registry = tmp_path / "fixtures.yaml"
+    registry.write_text("fixtures: []\n")
+    result = runner.invoke(cli_app, ["lint", "--offline", str(registry)])
+    assert result.exit_code != 0
+    assert "is not a case file" in result.output
+
+
+def test_offline_lint_reports_schema_errors_as_findings(tmp_path):
+    (tmp_path / "acme").mkdir()
+    (tmp_path / "acme" / "cases.yaml").write_text(
+        "- id: q1\n  input: {question: q}\n  evaluators: {output: {max_response_time: 90}}\n"
+    )
+    result = runner.invoke(cli_app, ["lint", "--offline", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "E-SCHEMA [q1] acme/cases.yaml: evaluators.output.max_response_time" in result.output
+
+
+def test_experiments_list_filters_by_dataset(env):
+    listed = runner.invoke(cli_app, ["experiments", "list", "--dataset", "finance@canonical"])
+    assert listed.exit_code == 0, listed.output
+    rows = api_get("/api/experiments", dataset="finance@canonical")
+    if rows:
+        header, first = listed.output.splitlines()[:2]
+        assert header.split()[:2] == ["id", "dataset"]
+        assert first.split()[0] == str(rows[0]["id"])
+    else:
+        assert "no experiments" in listed.output
+    missing = runner.invoke(cli_app, ["experiments", "list", "--dataset", "nope@canonical"])
+    assert missing.exit_code == 1
+
+
+def test_review_show_yaml_drops_filled_in_defaults():
+    stored = {
+        "output": {
+            "answer_rubrics": {
+                "rubrics": [{"rubric": "Net debt is $1.2B", "type": "derived_computation"}]
+            },
+            "max_response_time": {"max_seconds": 120.0},
+        },
+        "trajectory": {
+            "tool_trajectory_match": {"expected": [{"name": "search"}], "ordered": False}
+        },
+    }
+    full = main_module.CaseEvaluators.model_validate(stored).as_metadata()
+    shown = main_module._authored_evaluators(full)
+    assert "source" not in str(shown) and "args_mode" not in str(shown)
+    assert shown["trajectory"] == {"tool_trajectory_match": {"expected": [{"name": "search"}]}}
+    assert main_module._authored_evaluators({}) is None

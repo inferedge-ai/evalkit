@@ -1,6 +1,9 @@
 import json
 from datetime import UTC, datetime
 
+import pytest
+from pydantic import ValidationError
+
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.mapping import (
     SDK_ROOT_MAPPING,
@@ -336,3 +339,114 @@ def test_the_sdk_session_attribute_is_not_unmapped_on_sdk_stamped_spans():
     assert to_esf(raw(stamped), gen_ai).unmapped == []
     unstamped = {"gen_ai.operation.name": "chat", "session.id": "s1"}
     assert to_esf(raw(unstamped), gen_ai).unmapped == ["session.id"]
+
+
+def test_framework_roles_become_canonical_roles():
+    out = [
+        {
+            "role": "model",
+            "parts": [
+                {"type": "text", "content": "Checking."},
+                {"type": "tool_call", "id": "c1", "name": "lookup", "arguments": {}},
+            ],
+        },
+        {"role": "function", "parts": [{"type": "tool_call_response", "id": "c1", "result": "1"}]},
+        {"role": "AI", "parts": [{"type": "text", "content": "Done."}]},
+    ]
+    span = to_esf(
+        raw({"gen_ai.operation.name": "chat", "gen_ai.output.messages": json.dumps(out)}),
+        REFERENCE["gen_ai"],
+    )
+    assert [m.role for m in span.output_messages] == ["assistant", "tool", "assistant"]
+    assert span.output_messages[0].tool_calls[0].name == "lookup"
+
+
+def test_openinference_model_role_keeps_its_tool_call():
+    attributes = {
+        **OPENINFERENCE_LLM,
+        "llm.input_messages.0.message.role": "developer",
+        "llm.output_messages.0.message.role": "model",
+    }
+    span = to_esf(raw(attributes), REFERENCE["openinference"])
+    assert [m.role for m in span.input_messages] == ["system", "user"]
+    assert span.output_messages[0].role == "assistant"
+    assert span.output_messages[0].tool_calls[0].name == "lookup"
+
+
+def test_openai_format_normalizes_roles():
+    doc = MappingDocument.model_validate(
+        {
+            "schema_version": "1",
+            "kind": {"attribute": "k", "values": {"chat": "llm"}},
+            "output_messages": {"attribute": "out", "message_format": "openai"},
+        }
+    )
+    out = [{"role": "Model", "tool_calls": [{"id": "c", "function": {"name": "f"}}]}]
+    span = to_esf(raw({"k": "chat", "out": json.dumps(out)}), doc)
+    assert span.output_messages[0].role == "assistant"
+    assert span.output_messages[0].tool_calls[0].name == "f"
+
+
+MATCHING = MappingDocument.model_validate(
+    {
+        "schema_version": "1",
+        "kind": {"attribute": "openinference.span.kind", "values": {"AGENT": "agent"}},
+        "exclude_spans": [
+            "OpenAILike.*",
+            {"attribute": "llm.wrapper", "equals": True},
+            {"scope": "mcp"},
+        ],
+        "rekind_spans": [{"name": "agent", "kind": "chain"}],
+        "main_agent": {"attribute": "agent.name", "equals": "planner"},
+        "subagent_spans": ["crew.*"],
+    }
+)
+AGENT = {"openinference.span.kind": "AGENT"}
+
+
+def test_exclude_spans_match_by_glob_attribute_and_scope():
+    assert to_esf(raw({}, name="OpenAILike.achat"), MATCHING).excluded
+    assert to_esf(raw({"llm.wrapper": True}), MATCHING).excluded
+    assert not to_esf(raw({"llm.wrapper": False}), MATCHING).excluded
+    assert to_esf(raw({}, scope="mcp"), MATCHING).excluded
+    assert not to_esf(raw({}, scope="mcp.server"), MATCHING).excluded
+
+
+def test_rekind_main_agent_and_subagent_spans():
+    assert to_esf(raw(AGENT, name="agent"), MATCHING).kind == "chain"
+    pinned = to_esf(raw({**AGENT, "agent.name": "planner"}), MATCHING)
+    assert pinned.kind == "agent" and pinned.agent_role == "main"
+    assert to_esf(raw(AGENT, name="crew.writer"), MATCHING).agent_role == "subagent"
+    assert "agent.name" not in pinned.unmapped
+
+
+def test_match_attributes_are_probed():
+    assert {"llm.wrapper", "agent.name"} <= kind_attributes(MATCHING)
+
+
+def test_a_span_match_needs_a_field():
+    with pytest.raises(ValidationError):
+        MappingDocument.model_validate({"schema_version": "1", "exclude_spans": [{}]})
+    with pytest.raises(ValidationError):
+        MappingDocument.model_validate(
+            {"schema_version": "1", "exclude_spans": [{"name": "x", "equals": 1}]}
+        )
+
+
+def test_equals_compares_as_text():
+    doc = MappingDocument.model_validate(
+        {"schema_version": "1", "exclude_spans": [{"attribute": "n", "equals": "1"}]}
+    )
+    assert to_esf(raw({"n": 1}), doc).excluded
+    assert not to_esf(raw({"n": 2}), doc).excluded
+
+
+def test_equals_matches_bools_and_whole_floats_by_their_plain_spelling():
+    def excluded(equals, value):
+        doc = MappingDocument.model_validate(
+            {"schema_version": "1", "exclude_spans": [{"attribute": "a", "equals": equals}]}
+        )
+        return to_esf(raw({"a": value}), doc).excluded
+
+    assert excluded("true", True) and excluded(True, "True") and excluded(1, 1.0)
+    assert not excluded("true", False) and not excluded(1, 1.5)

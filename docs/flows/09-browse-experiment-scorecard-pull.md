@@ -72,14 +72,14 @@ sequenceDiagram
 
   D->>CLI: evalkit summary #lt;id#gt;
   CLI->>S: GET scorecard
-  CLI-->>D: scored buckets, evaluators (cases, errored), failing cases < 0.80, errored cases, gauges (2 decimals)
+  CLI-->>D: scored buckets, evaluators (cases, errored), failing cases (overall or any evaluator < 0.80, naming the evaluators), errored cases, gauges (2 decimals)
 
   D->>CLI: evalkit runs pull --experiment #lt;id#gt; [--out DIR]
   loop pages until every run is pulled
     CLI->>S: POST agent runs pull (experiment id, limit, offset)
     S-->>CLI: zip: index.json, runs/#lt;run_id#gt;/run.json, trajectory.json, case.json, evaluations.json
   end
-  CLI-->>D: "pulled N run(s) to ./evalkit-runs/experiment-#lt;id#gt;"
+  CLI-->>D: "pulled N run(s) to #lt;absolute path#gt;/evalkit-runs/experiment-#lt;id#gt;"
 
   D->>CLI: evalkit runs files #lt;dir#gt; #lt;run_id#gt; [--path P]
   CLI->>S: GET run files (list, or fetch each chosen path)

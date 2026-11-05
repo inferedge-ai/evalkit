@@ -9,7 +9,13 @@ from evalkit.core.access import can_write
 from evalkit.core.review import CaseVersion, is_reviewable, review_summary
 from evalkit.db import experiments as db_experiments
 from evalkit.db.agents import agent_id_for
-from evalkit.db.cases import create_dataset, current_cases, dataset_by_ref, list_datasets, splits
+from evalkit.db.cases import (
+    create_dataset,
+    current_cases,
+    dataset_by_ref,
+    list_datasets,
+    tag_counts,
+)
 from evalkit.db.promotion import twin_status
 from evalkit.db.review import ReviewLog
 from evalkit.db.scorecard import case_history
@@ -21,7 +27,6 @@ router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 class CaseSelection(BaseModel):
     selection: Selection
     agent: str | None = None
-    approved_only: bool = False
 
 
 def _dataset(row: DatasetRow) -> dict:
@@ -30,6 +35,8 @@ def _dataset(row: DatasetRow) -> dict:
 
 @router.get("")
 async def list_all(session: SessionDep, workspace: str | None = None) -> list[dict]:
+    if workspace is not None:
+        await workspace_ref(session, workspace)
     return [_dataset(row) for row in await list_datasets(session, workspace)]
 
 
@@ -105,16 +112,14 @@ async def get_case(ref: str, case_id: str, session: SessionDep, review_log: Revi
 
 @router.post("/{ref}/cases/select")
 async def select(ref: str, body: CaseSelection, store: PgStoreDep) -> list[dict]:
-    cases = await store.cases_for(
-        ref, body.selection, agent=body.agent, approved_only=body.approved_only
-    )
+    cases = await store.cases_for(ref, body.selection, agent=body.agent)
     return [case.model_dump(mode="json") for case in cases]
 
 
-@router.get("/{ref}/splits")
-async def list_splits(ref: str, session: SessionDep) -> list[dict]:
+@router.get("/{ref}/tags")
+async def list_tags(ref: str, session: SessionDep) -> list[dict]:
     dataset = await dataset_by_ref(session, ref)
-    return [{"name": tag, "count": count} for tag, count in await splits(session, dataset)]
+    return [{"name": tag, "count": count} for tag, count in await tag_counts(session, dataset)]
 
 
 @router.get("/{ref}/experiments")

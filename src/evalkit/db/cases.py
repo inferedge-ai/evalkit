@@ -185,6 +185,7 @@ async def _carry_or_reset(
     dataset_id: int,
     changed: dict[int, tuple[str, str]],
     actor_id: int,
+    sync_id: int,
 ) -> tuple[dict[int, int], set[int]]:
     if not changed:
         return {}, set()
@@ -192,13 +193,13 @@ async def _carry_or_reset(
         session, dataset_id, {ref: previous for ref, (previous, _) in changed.items()}
     )
     carried: dict[int, int] = {}
-    now_draft: set[int] = set()
+    now_unreviewed: set[int] = set()
     for case_ref, (_, current) in changed.items():
         decisive = events.decisive.get(case_ref)
         if decisive is None:
             continue
         if decisive.kind == CaseEventKind.APPROVED:
-            now_draft.add(case_ref)
+            now_unreviewed.add(case_ref)
             continue
         target = events.requested_to.get(case_ref) or decisive.actor_id
         session.add(
@@ -207,12 +208,13 @@ async def _carry_or_reset(
                 case_ref=case_ref,
                 content_hash=current,
                 kind=CaseEventKind.REVIEW_REQUESTED.value,
+                sync_id=sync_id,
                 actor_id=actor_id,
                 target_id=target,
             )
         )
         carried[case_ref] = target
-    return carried, now_draft
+    return carried, now_unreviewed
 
 
 class DatasetExists(ValueError):
@@ -378,13 +380,17 @@ async def sync_dataset(
             )
         )
     session.add_all(synced)
-    carried_to, now_draft = await _carry_or_reset(session, dataset_id, changed, actor_id)
+    carried_to, now_unreviewed = await _carry_or_reset(
+        session, dataset_id, changed, actor_id, sync.id
+    )
     carried = [
         (case.case_id, carried_to[case_ref])
         for case_ref, case in by_ref.items()
         if case_ref in carried_to
     ]
-    result.now_draft = [case.case_id for case_ref, case in by_ref.items() if case_ref in now_draft]
+    result.now_unreviewed = [
+        case.case_id for case_ref, case in by_ref.items() if case_ref in now_unreviewed
+    ]
     if full:
         stale = (
             await session.execute(
@@ -520,7 +526,7 @@ async def case_views(
             ref: (
                 CaseState(events.decisive[ref].kind).value
                 if ref in events.decisive
-                else CaseState.DRAFT.value
+                else CaseState.UNREVIEWED.value
             )
             for ref, _ in versions
         }
@@ -577,7 +583,7 @@ async def current_cases(
     )
 
 
-async def splits(session: AsyncSession, dataset: DatasetRow) -> list[tuple[str, int]]:
+async def tag_counts(session: AsyncSession, dataset: DatasetRow) -> list[tuple[str, int]]:
     counts: dict[str, int] = {}
     for view in await current_cases(session, dataset):
         for tag in view.split_tags:

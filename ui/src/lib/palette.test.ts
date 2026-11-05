@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { levelOne, rankItems, splitItems, workspaceItems } from "./palette";
+import { levelOne, rankItems, tagItems, workspaceItems } from "./palette";
 import type { PaletteItem } from "./palette";
 import type { CaseView, WorkspaceInfo } from "./types";
 
@@ -76,30 +76,30 @@ describe("levelOne", () => {
   });
 });
 
-describe("splitItems", () => {
+describe("tagItems", () => {
   const ex = (case_id: string, tags?: string[]) =>
     ({ case_id, split_tags: tags ?? [] }) as unknown as CaseView;
 
   it("makes one item per tag with its case count and a tag-filtered route", () => {
-    const got = splitItems("fin ance", [
+    const got = tagItems("fin ance", [
       ex("a", ["smoke", "q&a"]),
       ex("b", ["smoke"]),
       ex("c"),
     ]);
     expect(got).toEqual([
       {
-        key: "split:fin ance:smoke",
+        key: "tag:fin ance:smoke",
         label: "smoke",
         sub: "fin ance · 2 cases",
-        tag: "split",
+        tag: "tag",
         route: "/datasets/fin%20ance/cases?tag=smoke",
         terms: ["smoke"],
       },
       {
-        key: "split:fin ance:q&a",
+        key: "tag:fin ance:q&a",
         label: "q&a",
         sub: "fin ance · 1 cases",
-        tag: "split",
+        tag: "tag",
         route: "/datasets/fin%20ance/cases?tag=q%26a",
         terms: ["q&a"],
       },

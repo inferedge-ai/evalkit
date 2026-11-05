@@ -14,7 +14,13 @@ async def test_list_rows_carry_progress_scores_cost_and_latency(
         await wait_for(client, exp_id)
         [row] = (await client.get("/api/experiments", params={"workspace": "canonical"})).json()
         [same] = (await client.get("/api/datasets/finance@canonical/experiments")).json()
-    assert row == same
+        [by_both] = (
+            await client.get(
+                "/api/experiments",
+                params={"agent": "fake@canonical", "dataset": "finance@canonical"},
+            )
+        ).json()
+    assert row == same == by_both
     assert row["id"] == exp_id and row["number"] == 1
     assert row["progress"] == {"total": 2, "ran": 2, "evaluated": 2}
     assert row["scores"]["content"] == 0.5

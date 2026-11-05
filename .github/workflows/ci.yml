@@ -97,13 +97,20 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
-          python-version: "3.13"
+          python-version: "3.12"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - run: uv sync --frozen --extra server --extra otel
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy src/evalkit
+      - run: uv run --frozen --group docs mkdocs build --strict
+        env:
+          NO_MKDOCS_2_WARNING: "1"
+      - run: uv run --frozen --group docs mkdocs build --strict --site-dir /tmp/root-site
+        env:
+          NO_MKDOCS_2_WARNING: "1"
+          DOCS_ROOT_ALIAS: latest
       - run: uv run pytest -n 4
 
   ui:

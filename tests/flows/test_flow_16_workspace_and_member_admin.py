@@ -84,6 +84,17 @@ def test_flow_16_workspaces_rename_archive_and_shared_namespace(live):
     assert admin.get("/api/workspaces/nope").status_code == 404
 
 
+def test_flow_16_workspaces_list_shows_the_promotion_link(live):
+    assert live.run("workspaces", "create", "qa").exit_code == 0
+    linked = live.run("workspaces", "promote-to", DEV, "qa")
+    assert linked.exit_code == 0, linked.output
+    listed = live.run("workspaces", "list").output
+    assert lines_starting(listed, DEV)[0][4:7] == ["promotes", "to", "qa"]
+    assert lines_starting(listed, "qa")[0][4:7] == ["promoted", "from", DEV]
+    assert live.run("workspaces", "promote-to", DEV, "--none").exit_code == 0
+    assert len(lines_starting(live.run("workspaces", "list").output, DEV)[0]) == 4
+
+
 def test_flow_16_members_and_what_grants_allow(live):
     assert live.run("workspaces", "members", "add", DEV, "alice", "--role", "writer").exit_code == 0
     assert (
@@ -105,7 +116,7 @@ def test_flow_16_members_and_what_grants_allow(live):
     agent = {"workspace": DEV, "name": "alices"}
     assert alice.post("/api/agents", json=agent).status_code == 200
     with_url = alice.post("/api/agents", json={**agent, "name": "urls", "harness_url": "http://h"})
-    assert with_url.status_code == 403 and "only an admin" in with_url.json()["detail"]
+    assert with_url.status_code == 200, with_url.text
     denied = akshat.post("/api/agents", json={**agent, "name": "nope"})
     assert denied.status_code == 403 and DEV in denied.json()["detail"]
     evaluator = {
@@ -114,9 +125,7 @@ def test_flow_16_members_and_what_grants_allow(live):
         "kind": "score",
         "settings": {"endpoint": "http://e"},
     }
-    refused = alice.post("/api/evaluators", json=evaluator)
-    assert refused.status_code == 403 and "only an admin" in refused.json()["detail"]
-    assert live.http().post("/api/evaluators", json=evaluator).status_code == 200
+    assert alice.post("/api/evaluators", json=evaluator).status_code == 200
     assert akshat.post("/api/evaluators", json={**evaluator, "name": "x"}).status_code == 403
     assert akshat.post("/api/workspaces", json={"name": "mine"}).status_code == 403
     assert (

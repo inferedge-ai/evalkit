@@ -27,6 +27,7 @@ def _view(row: models.RemoteEvaluator, workspace: str) -> RemoteEvaluator:
         kind=EvaluatorKind(row.kind),
         settings=RemoteEvaluatorSettings.model_validate(row.config),
         archived=row.archived_at is not None,
+        has_api_key=row.api_key_encrypted is not None,
     )
 
 
@@ -55,6 +56,7 @@ class RemoteEvaluatorStore:
         name: str,
         kind: EvaluatorKind,
         settings: RemoteEvaluatorSettings,
+        api_key_encrypted: bytes | None = None,
     ) -> RemoteEvaluator:
         if "@" in name or not name:
             raise InvalidEvaluator(f"invalid evaluator name: {name!r}")
@@ -70,18 +72,60 @@ class RemoteEvaluatorStore:
             if exists is not None:
                 raise EvaluatorExists(f"{name}@{workspace}")
             row = models.RemoteEvaluator(
-                workspace_id=ws.id, name=name, kind=kind.value, config=settings.model_dump()
+                workspace_id=ws.id,
+                name=name,
+                kind=kind.value,
+                config=settings.model_dump(),
+                api_key_encrypted=api_key_encrypted,
             )
             session.add(row)
             await session.commit()
             return _view(row, workspace)
 
-    async def edit(self, ref: str, settings: RemoteEvaluatorSettings) -> RemoteEvaluator:
+    async def edit(
+        self,
+        ref: str,
+        settings: RemoteEvaluatorSettings | None = None,
+        *,
+        api_key_encrypted: bytes | None = None,
+        clear_api_key: bool = False,
+    ) -> RemoteEvaluator:
         async with self._sessions() as session:
             row = await self._row(session, ref)
-            row.config = settings.model_dump()
+            if settings is not None:
+                if settings.endpoint != row.config["endpoint"]:
+                    row.api_key_encrypted = None
+                row.config = settings.model_dump()
+            if api_key_encrypted is not None or clear_api_key:
+                row.api_key_encrypted = api_key_encrypted
             await session.commit()
             return _view(row, ref.partition("@")[2])
+
+    async def restore(self, ref: str) -> RemoteEvaluator:
+        async with self._sessions() as session:
+            row = await self._row(session, ref)
+            row.archived_at = None
+            await session.commit()
+            return _view(row, ref.partition("@")[2])
+
+    async def sealed_keys(self, workspace: str) -> dict[str, tuple[str, bytes]]:
+        query = (
+            select(
+                models.RemoteEvaluator.name,
+                models.RemoteEvaluator.config,
+                models.RemoteEvaluator.api_key_encrypted,
+            )
+            .join(models.Workspace, models.Workspace.id == models.RemoteEvaluator.workspace_id)
+            .where(
+                models.Workspace.name == workspace,
+                models.RemoteEvaluator.api_key_encrypted.is_not(None),
+            )
+        )
+        async with self._sessions() as session:
+            return {
+                name: (config["endpoint"], sealed)
+                for name, config, sealed in (await session.execute(query)).all()
+            }
 
     async def archive(self, ref: str) -> RemoteEvaluator:
         async with self._sessions() as session:

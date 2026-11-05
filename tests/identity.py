@@ -3,13 +3,21 @@ from collections.abc import Iterable
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource, WorkspaceRole
-from evalkit.contracts.settings import AgentSettings
+from evalkit.contracts.settings import AgentSettings, JudgeSettings
 from evalkit.core.agents import AgentDefinition
 from evalkit.db.agents import AgentStore
 from evalkit.db.evaluators import RemoteEvaluatorStore
+from evalkit.db.llm_providers import LlmProviderStore
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
-from tests.fake_agents import FAKE_EVALUATORS, FAKE_HARNESS_URL, FAKE_SETTINGS
+from tests.fake_agents import (
+    FAKE_EVALUATORS,
+    FAKE_HARNESS_URL,
+    FAKE_SETTINGS,
+    JUDGE_URL,
+    TEST_BOX,
+    TEST_ENV,
+)
 
 
 async def seed_identity(
@@ -34,6 +42,9 @@ async def seed_identity(
             await workspaces.add_member(name, user, WorkspaceRole.REVIEWER, granter)
         for user in writers:
             await workspaces.add_member(name, user, WorkspaceRole.WRITER, granter)
+    providers = LlmProviderStore(session_factory)
+    await providers.create("judge", JUDGE_URL, TEST_BOX.seal(TEST_ENV["JUDGE_KEY"]))
+    await providers.set_default_judge(JudgeSettings(base_url=JUDGE_URL, model="judge-model"))
 
 
 async def seed_agent(
@@ -53,6 +64,7 @@ async def seed_agent(
         trajectory_source=trajectory_source,
         settings=settings,
         mapping=mapping,
+        api_key_encrypted=TEST_BOX.seal(TEST_ENV["FAKE_AGENT_KEY"]) if harness_url else None,
     )
 
 
@@ -61,4 +73,10 @@ async def seed_evaluators(
 ) -> None:
     store = RemoteEvaluatorStore(session_factory)
     for name, settings in FAKE_EVALUATORS.items():
-        await store.create(workspace, name, EvaluatorKind.SCORE, settings)
+        await store.create(
+            workspace,
+            name,
+            EvaluatorKind.SCORE,
+            settings,
+            TEST_BOX.seal(TEST_ENV["CUSTOM_EVAL_KEY"]),
+        )

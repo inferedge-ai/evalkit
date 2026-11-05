@@ -20,14 +20,14 @@ import logging
 import tempfile
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Coroutine, Iterable
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import IO, Literal, Protocol
+from typing import IO, Any, Literal, Protocol
 
 import httpx
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from evalkit.config import RunnerConfig
 from evalkit.contracts.atif import Trajectory, TrajectoryValidationError, validate_trajectory
@@ -55,7 +55,7 @@ from evalkit.core.blob import (
     trajectory_key,
     workspace_key,
 )
-from evalkit.core.capabilities import traced_capabilities
+from evalkit.core.capabilities import SDK_CONTRACT_VERSION, traced_capabilities
 from evalkit.core.costmap import load_cost_map
 from evalkit.core.custom_eval import EvalError, score_with_custom_evaluator
 from evalkit.core.evaluators.base import (
@@ -69,7 +69,6 @@ from evalkit.core.harness import HarnessClient, RunTimeout
 from evalkit.core.paths import is_safe_path
 from evalkit.core.python_eval import PythonEvaluator, score_with_python_evaluator
 from evalkit.core.remote_evaluators import EvaluatorLookup, RemoteEvaluator
-from evalkit.core.review import NoApprovedCases, is_reviewable
 from evalkit.core.traces.poll import poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
 from evalkit.core.trajectory import (
@@ -79,7 +78,7 @@ from evalkit.core.trajectory import (
     derive_metrics,
 )
 from evalkit.core.workspace import parse_slug
-from evalkit.credentials import CredentialRegistry
+from evalkit.credentials import KeySource
 from evalkit.store.base import (
     AgentRunRecord,
     CaseView,
@@ -100,6 +99,7 @@ from evalkit.store.base import (
 LOGGER = logging.getLogger(__name__)
 
 LEASE_SECONDS = 60
+EVALUATION_CONCURRENCY = 16
 RENEW_EVERY_SECONDS = 15
 ACTIVE = frozenset({ExperimentStatus.RUNNING, ExperimentStatus.EVALUATING})
 ALLOWED: frozenset[tuple[ExperimentStatus | None, ExperimentStatus]] = frozenset(
@@ -123,7 +123,6 @@ class ExperimentRequest(BaseModel):
     selection: Selection = Selection(all=True)
     repetitions: int = 1
     model: str | None = None
-    include_drafts: bool = False
     capabilities: Capabilities | None = None
     cases: GitRevision | None = None
     evalkit_version: str | None = None
@@ -131,10 +130,15 @@ class ExperimentRequest(BaseModel):
     judge: JudgeSettings | None = None
     holder: str | None = None
     trajectory_wait_seconds: int | None = None
+    evaluation_concurrency: int | None = Field(default=None, ge=1)
 
 
 def _no_progress(message: str) -> None:
     return None
+
+
+class AgentKeySource(Protocol):
+    async def agent_key(self, agent: AgentDefinition) -> str | None: ...
 
 
 @dataclass
@@ -144,19 +148,21 @@ class RunnerDeps:
     blob_store: BlobStore
     agents: AgentLookup
     evaluators: EvaluatorLookup
-    credentials: CredentialRegistry
+    credentials: KeySource
     harness_transport: httpx.AsyncBaseTransport | None = None
     custom_eval_transport: httpx.AsyncBaseTransport | None = None
     progress: Callable[[str], None] = _no_progress
     sessions: SessionReader | None = None
     python_evaluators: dict[str, PythonEvaluator] = field(default_factory=dict)
+    agent_keys: AgentKeySource | None = None
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY
 
 
 class ExperimentFactory(Protocol):
     async def dataset(self, ref: str) -> DatasetRow: ...
 
     async def cases_for(
-        self, dataset: str, selection: Selection, *, agent: str | None, approved_only: bool
+        self, dataset: str, selection: Selection, *, agent: str | None
     ) -> list[CaseView]: ...
 
     async def create_experiment(self, req: NewExperiment) -> Experiment: ...
@@ -206,11 +212,17 @@ class NothingRunnable(ValueError):
 
 
 class InvalidCaseInputs(Exception):
-    def __init__(self, agent: str, bad: dict[str, str]):
+    def __init__(self, agent: str, bad: dict[str, str], *, default_schema: bool = False):
         self.agent = agent
         self.bad = bad
         lines = "\n".join(f"  {case_id}: {error}" for case_id, error in sorted(bad.items()))
-        super().__init__(f"{len(bad)} case input(s) fail agent {agent}'s input_schema:\n{lines}")
+        message = f"{len(bad)} case input(s) fail agent {agent}'s input_schema:\n{lines}"
+        if default_schema:
+            message += (
+                f"\n{agent} has the default input schema (a required string question); "
+                f"set its own with evalkit agents edit {agent} --input-schema <file>"
+            )
+        super().__init__(message)
 
 
 class LeaseLost(ValueError):
@@ -469,14 +481,15 @@ def runnable(cases: list[CaseView], caps: Capabilities) -> tuple[list[CaseView],
     return [case for case in cases if not case.files], gated
 
 
-def _check_inputs(agent: str, caps: Capabilities, cases: list[CaseView]) -> None:
+def check_inputs(agent: str, caps: Capabilities, cases: list[CaseView]) -> None:
     bad = {}
     for case in cases:
         errors = input_errors(caps.effective_input_schema, case.input)
         if errors:
             bad[case.case_id] = errors[0]
     if bad:
-        raise InvalidCaseInputs(agent, bad)
+        code_driven = caps.contract_version == SDK_CONTRACT_VERSION
+        raise InvalidCaseInputs(agent, bad, default_schema=code_driven and not caps.input_schema)
 
 
 async def harness_capabilities(
@@ -509,26 +522,15 @@ async def prepare_experiment(
         )
         model = None
     dataset = await factory.dataset(req.dataset)
-    reviewed = is_reviewable(dataset)
-    approved_only = reviewed and not req.include_drafts
-    cases = await factory.cases_for(
-        dataset.ref, req.selection, agent=agent.ref, approved_only=approved_only
-    )
-    if approved_only and not cases:
-        raise NoApprovedCases(dataset.ref)
+    cases = await factory.cases_for(dataset.ref, req.selection, agent=agent.ref)
     cases, dropped = runnable(cases, caps)
     if not cases:
         raise NothingRunnable(dataset.ref, dropped)
-    _check_inputs(req.agent, caps, cases)
-    review_scope: Literal["approved", "all"] | None = (
-        None if not reviewed else ("all" if req.include_drafts else "approved")
-    )
+    check_inputs(req.agent, caps, cases)
     config = ExperimentConfig(
         model=model,
         judge=judge,
         selection=req.selection,
-        include_drafts=req.include_drafts,
-        review_scope=review_scope,
         revision=req.cases or revision,
         snapshot=ExperimentSnapshot(
             capabilities=caps.model_dump(),
@@ -541,6 +543,7 @@ async def prepare_experiment(
             },
             code_evaluators=sorted(req.code_evaluators or []),
             evalkit_version=req.evalkit_version,
+            evaluation_concurrency=req.evaluation_concurrency,
         ),
     )
     exp = await factory.create_experiment(
@@ -567,11 +570,32 @@ async def _agent_for(deps: RunnerDeps, exp: Experiment) -> AgentDefinition:
     return agent
 
 
+async def missing_local_keys(
+    deps: RunnerDeps, agent: AgentDefinition, cases: Iterable[CaseView]
+) -> list[str]:
+    used = {name for case in cases for name in case.effective_evaluators.get("custom") or {}}
+    lines = []
+    if agent.harness_url is not None and deps.credentials.key_for("agent", agent.ref) is None:
+        lines.append(
+            f"no credentials.agents entry for {agent.ref} in evalkit.yaml; "
+            "calling the harness without x-api-key"
+        )
+    for name, evaluator in (await deps.evaluators.in_workspace(agent.workspace)).items():
+        if name in used and deps.credentials.key_for("evaluator", evaluator.ref) is None:
+            lines.append(
+                f"no credentials.evaluators entry for {evaluator.ref} in evalkit.yaml; "
+                "calling it without x-api-key"
+            )
+    return lines
+
+
 async def drive_experiment(deps: RunnerDeps, exp_id: int, holder: str | None = None) -> None:
     exp = await deps.store.get_experiment(exp_id)
     agent = await _agent_for(deps, exp)
     client = HarnessClient(
-        agent, deps.credentials.key_for("agent", agent.ref), transport=deps.harness_transport
+        agent,
+        deps.credentials.key_for("agent", agent.ref, agent.harness_url),
+        transport=deps.harness_transport,
     )
     # Runs execute under the experiment's snapshotted contract (capabilities,
     # model, pinned cases), never a fresh harness call, so resumed runs are
@@ -670,7 +694,7 @@ async def rescore_experiment(
 
 
 def judge_key_for(
-    credentials: CredentialRegistry, judge: JudgeSettings, cases: Iterable[CaseView]
+    credentials: KeySource, judge: JudgeSettings, cases: Iterable[CaseView]
 ) -> str | None:
     needed = any(
         BUILTIN_EVALUATORS[name].uses_judge
@@ -695,6 +719,20 @@ def _configured_builtins(evaluators: dict) -> dict[str, dict]:
 
 REFETCHABLE = (TrajectoryStatus.PARTIAL, TrajectoryStatus.UNAVAILABLE)
 REFETCH_CONCURRENCY = 8
+
+
+async def gather_bounded[T](
+    limit: int, coros: list[Coroutine[Any, Any, T]], *, return_exceptions: bool = False
+) -> list[Any]:
+    slots = asyncio.Semaphore(limit)
+
+    async def one(coro: Coroutine[Any, Any, T]) -> T:
+        async with slots:
+            return await coro
+
+    return await asyncio.gather(*(one(c) for c in coros), return_exceptions=return_exceptions)
+
+
 SCORABLE = (TrajectoryStatus.VALID, TrajectoryStatus.PARTIAL)
 
 
@@ -778,7 +816,6 @@ async def _evaluate_run(
     caps: Capabilities,
     cost_map: dict,
     run: RunForScoring,
-    judge_semaphore: asyncio.Semaphore,
     judge_api_key: str | None,
     configured_custom: dict[str, RemoteEvaluator],
     holder: str | None,
@@ -815,14 +852,11 @@ async def _evaluate_run(
         evaluator = BUILTIN_EVALUATORS[name]
         if set(evaluator.emits) <= already:
             continue
-        async with judge_semaphore:
-            try:
-                scores = await execute(evaluator, ctx, config, caps)
-            except Exception as exc:
-                LOGGER.warning(
-                    "evaluator %s errored on run %s: %s", name, run.experiment_run_id, exc
-                )
-                scores = [ScoreRow(name=name, score=None, label="error", error=str(exc))]
+        try:
+            scores = await execute(evaluator, ctx, config, caps)
+        except Exception as exc:
+            LOGGER.warning("evaluator %s errored on run %s: %s", name, run.experiment_run_id, exc)
+            scores = [ScoreRow(name=name, score=None, label="error", error=str(exc))]
         rows.extend(_rows(name, EvaluationSource.BUILTIN, scores))
 
     custom_config = evaluators.get("custom") or {}
@@ -875,7 +909,9 @@ async def _evaluate_run(
             continue
         result = await score_with_custom_evaluator(
             evaluator_cfg,
-            deps.credentials.key_for("evaluator", evaluator_cfg.ref),
+            deps.credentials.key_for(
+                "evaluator", evaluator_cfg.ref, evaluator_cfg.settings.endpoint
+            ),
             case=eval_case.model_copy(update={"config": config}),
             answer=answer,
             output=structured,
@@ -903,14 +939,10 @@ async def _refetch(
         raise ValueError("refetching trajectories needs a session reader")
     wait = exp.config.snapshot.trajectory_wait_seconds
     refetched: set[int] = set()
-    slots = asyncio.Semaphore(REFETCH_CONCURRENCY)
     sessions = deps.sessions
 
     async def one(run: RunForScoring) -> None:
-        async with slots:
-            doc, status = await poll_trajectory(
-                sessions, exp.agent, run.agent_run.harness_run_id, wait
-            )
+        doc, status = await poll_trajectory(sessions, exp.agent, run.agent_run.harness_run_id, wait)
         if doc is None:
             return
         trajectory = validate_trajectory(doc)
@@ -926,8 +958,9 @@ async def _refetch(
         refetched.add(run.experiment_run_id)
         deps.progress(f"refetched trajectory for {run.case.case_id} #{run.repetition}: {status}")
 
-    await asyncio.gather(
-        *(one(run) for run in runs if run.agent_run.trajectory_status in REFETCHABLE)
+    await gather_bounded(
+        REFETCH_CONCURRENCY,
+        [one(run) for run in runs if run.agent_run.trajectory_status in REFETCHABLE],
     )
     return refetched
 
@@ -945,15 +978,15 @@ async def evaluate_experiment(
     cost_map = load_cost_map(deps.cfg.cost_map)
     runs = await deps.store.runs_to_score(exp_id, force=False)
     refetched = await _refetch(deps, exp, agent, runs) if refetch_trajectories else set()
-    judge_semaphore = asyncio.Semaphore(exp.config.judge.concurrency)
     api_key = judge_key(deps, exp.config.judge, [run.case for run in runs])
     configured_custom = (
         await deps.evaluators.in_workspace(agent.workspace)
         if any(run.case.effective_evaluators.get("custom") for run in runs)
         else {}
     )
-    results = await asyncio.gather(
-        *(
+    results = await gather_bounded(
+        deps.evaluation_concurrency,
+        [
             _evaluate_run(
                 deps,
                 exp,
@@ -961,14 +994,13 @@ async def evaluate_experiment(
                 caps,
                 cost_map,
                 run,
-                judge_semaphore,
                 api_key,
                 configured_custom,
                 holder,
                 force=run.experiment_run_id in refetched,
             )
             for run in runs
-        ),
+        ],
         return_exceptions=True,
     )
     errors = [r for r in results if isinstance(r, BaseException)]

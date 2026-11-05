@@ -50,7 +50,9 @@ async def test_mapping_lifecycle_and_previews(api):
     bad = await api.put("/api/agents/sdk@admin/mappings/draft", json=bad_doc)
     assert bad.status_code == 400 and "attribute" in bad.json()["detail"]
     draft = (await api.put("/api/agents/sdk@admin/mappings/draft", json=DOC)).json()
-    assert draft["version"] == 2 and draft["status"] == "draft"
+    assert draft["version"] == 2 and draft["status"] == "draft" and not draft["unchanged"]
+    same = (await api.put("/api/agents/sdk@admin/mappings/draft", json=DOC)).json()
+    assert same["version"] == 2 and same["unchanged"]
     preview = (
         await api.get(
             "/api/agents/sdk@admin/sessions/sess-1/trajectory",
@@ -62,13 +64,9 @@ async def test_mapping_lifecycle_and_previews(api):
     before = (await api.get("/api/agents/sdk@admin/sessions/sess-1/trajectory")).json()
     assert before["mapping_version"] == 1
     activated = (await api.post("/api/agents/sdk@admin/mappings/2/activate")).json()
-    assert activated["status"] == "active"
+    assert activated["status"] == "active" and activated["replaced_version"] == 1
     after = (await api.get("/api/agents/sdk@admin/sessions/sess-1/trajectory")).json()
     assert after["mapping_version"] == 2
-    pushed = (
-        await api.put("/api/agents/sdk@admin/mappings/draft", params={"activate": "true"}, json=DOC)
-    ).json()
-    assert pushed["version"] == 3 and pushed["status"] == "active"
     assert (await api.post("/api/agents/sdk@admin/mappings/9/activate")).status_code == 404
     assert (await api.get("/api/agents/nope@admin/sessions/x/trajectory")).status_code == 404
 
@@ -80,6 +78,7 @@ def with_encryption(api) -> None:
 
 async def test_trace_sources_are_admin_rows_and_hide_keys(api):
     body = {"name": "phx", "provider": "phoenix", "url": "u", "api_key": "secret"}
+    api.app.state.trace_sources = TraceSourceStore(api.app.state.session_factory, None)
     refused = await api.post("/api/trace-sources", json=body)
     assert refused.status_code == 400 and "encryption_key" in refused.json()["detail"]
     with_encryption(api)

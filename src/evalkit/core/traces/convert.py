@@ -143,13 +143,24 @@ def _steps(
     steps: list[Step] = []
     agent_steps: list[Step] = []
     llms = sorted(llms, key=lambda s: s.started_at)
+    users_emitted = 0
+    seen: set[str] = set()
     for i, call in enumerate(llms):
-        if i == 0 and call.input_messages:
-            for m in call.input_messages:
-                if m.role == "user":
-                    steps.append(Step(step_id=0, source="user", message=m.text or ""))
-                elif m.role == "system":
-                    steps.append(Step(step_id=0, source="system", message=m.text or ""))
+        inputs = call.input_messages or []
+        if i == 0:
+            steps += [
+                Step(step_id=0, source="system", message=m.text or "")
+                for m in inputs
+                if m.role == "system"
+            ]
+        users = [m for m in inputs if m.role == "user"]
+        if len(users) > users_emitted:
+            new = users[users_emitted:]
+        else:
+            new = [m for m in users if (m.text or "") not in seen]
+        users_emitted += len(new)
+        seen |= {m.text or "" for m in new}
+        steps += [Step(step_id=0, source="user", message=m.text or "") for m in new]
         assistant = next(
             (m for m in reversed(call.output_messages or []) if m.role == "assistant"), None
         )
@@ -216,26 +227,35 @@ def _final_metrics(steps: list[Step], subagents: list[Trajectory]) -> FinalMetri
 
 class _Split(NamedTuple):
     tree: _Tree
-    original_root: EsfSpan | None
     main_root: EsfSpan | None
+    answer_root: EsfSpan | None
     top_nested: list[EsfSpan]
     main: list[EsfSpan]
+
+
+def _spawned(span: EsfSpan, tree: _Tree) -> bool:
+    if span.agent_role == "subagent" or span.tool_call_id is not None:
+        return True
+    return any(a.kind == "tool" for a in tree.ancestors(span))
 
 
 def _split(kept: list[EsfSpan]) -> _Split:
     tree = _Tree(kept)
     roots = tree.roots()
     original_root = roots[0] if len(roots) == 1 else None
-    main_root = original_root
-    if main_root is None or main_root.kind != "agent":
-        top_agents = [
-            s
-            for s in kept
-            if s.kind == "agent" and not any(a.kind == "agent" for a in tree.ancestors(s))
-        ]
-        if top_agents:
-            main_root = min(top_agents, key=lambda s: s.started_at)
-    nested_agent_ids = {s.span_id for s in kept if s.kind == "agent" and s is not main_root}
+    agents = [s for s in kept if s.kind == "agent"]
+    top_agents = sorted(
+        (s for s in agents if not any(a.kind == "agent" for a in tree.ancestors(s))),
+        key=lambda s: s.started_at,
+    )
+    pinned = sorted((s for s in agents if s.agent_role == "main"), key=lambda s: s.started_at)
+    main_root = pinned[0] if pinned else original_root
+    if (main_root is None or main_root.kind != "agent") and top_agents:
+        main_root = top_agents[0]
+    answer_root = (
+        pinned[-1] if pinned else original_root or (top_agents[-1] if top_agents else None)
+    )
+    nested_agent_ids = {s.span_id for s in agents if s is not main_root and _spawned(s, tree)}
     top_nested = [
         s
         for s in kept
@@ -245,26 +265,29 @@ def _split(kept: list[EsfSpan]) -> _Split:
     nested_ids = {n.span_id for n in top_nested}
     nested_ids |= {s.span_id for n in top_nested for s in tree.subtree(n.span_id)}
     main = [s for s in kept if s.span_id not in nested_ids]
-    return _Split(tree, original_root, main_root, top_nested, main)
+    return _Split(tree, main_root, answer_root or main_root, top_nested, main)
 
 
 def _main_llms(main: list[EsfSpan]) -> list[EsfSpan]:
     return [s for s in main if s.kind == "llm"]
 
 
-def _excluded(mapping: MappingDocument | None) -> set[str]:
-    return set(mapping.exclude_spans) if mapping is not None else set()
+def _top(span: EsfSpan, tree: _Tree) -> str:
+    ancestors = tree.ancestors(span)
+    return ancestors[-1].span_id if ancestors else span.span_id
 
 
-def first_llm_spans(spans: list[EsfSpan], mapping: MappingDocument | None) -> list[EsfSpan]:
-    split = _split([s for s in spans if s.name not in _excluded(mapping)])
-    llms = sorted(_main_llms(split.main), key=lambda s: s.started_at)
+def first_llm_spans(spans: list[EsfSpan]) -> list[EsfSpan]:
+    split = _split([s for s in spans if not s.excluded])
+    firsts: dict[str, EsfSpan] = {}
+    for llm in sorted(_main_llms(split.main), key=lambda s: s.started_at):
+        firsts.setdefault(_top(llm, split.tree), llm)
     nested = [
         first
         for n in split.top_nested
-        for first in first_llm_spans([n, *split.tree.subtree(n.span_id)], mapping)
+        for first in first_llm_spans([n, *split.tree.subtree(n.span_id)])
     ]
-    return llms[:1] + nested
+    return list(firsts.values()) + nested
 
 
 def to_atif(
@@ -276,7 +299,7 @@ def to_atif(
     mapping_version: int | None,
     incomplete_ended_at: datetime | None = None,
 ) -> Trajectory:
-    kept = [s for s in spans if s.name not in _excluded(mapping)]
+    kept = [s for s in spans if not s.excluded]
     incomplete = sum(1 for s in kept if s.ended_at is None)
     if incomplete_ended_at is not None:
         kept = [
@@ -284,7 +307,7 @@ def to_atif(
             for s in kept
         ]
     split = _split(kept)
-    tree, original_root, main_root = split.tree, split.original_root, split.main_root
+    tree, main_root = split.tree, split.main_root
     top_nested, main = split.top_nested, split.main
     tools = [
         s for s in main if s.kind == "tool" and not any(a.kind == "tool" for a in tree.ancestors(s))
@@ -300,7 +323,7 @@ def to_atif(
             outcomes.append(n)
     steps, unplaced = _steps(_main_llms(main), outcomes, refs)
     rule = mapping.answer if mapping is not None else "root"
-    answer = _answer_of(original_root or main_root, kept, rule)
+    answer = _answer_of(split.answer_root, kept, rule)
     if answer and (not steps or steps[-1].tool_calls):
         steps.append(Step(step_id=0, source="agent", message=answer))
     for i, step in enumerate(steps, 1):

@@ -61,6 +61,25 @@ Every case is layered:
   overlay leaves a portable case. See the authoring skill's
   [`references/overlays.md`](../authoring-eval-cases/references/overlays.md).
 
+## How the agent is run
+
+`evalkit skills install` puts the evalkit user docs in `evalkit-docs/`
+beside this skill; links to `../evalkit-docs/` point there. In the evalkit
+repository the same pages are in `docs/user/`.
+
+Every run step below has two forms. `evalkit agents show <agent>` tells you
+which applies:
+
+- **Harness API agent** (`harness_url` set): `evalkit run <dataset> --agent
+  <agent>` drives it.
+- **Code-driven agent** (no `harness_url`): `evalkit run` cannot drive it.
+  Run the client's eval script, which calls `run_experiment`; pass
+  `case_ids=[...]` or `tags=[...]` to run a subset.
+  `run_experiment(dataset=<dir name>)` syncs the directory when it is under
+  `cases` in `evalkit.yaml`; otherwise run `evalkit sync <dir>` first and pass
+  the dataset reference (`<name>@<workspace>`) (see
+  [`sdk-runs.md`](../evalkit-docs/sdk-runs.md)).
+
 ## Pick a loop
 
 | Developer gives | Wants back | Loop |
@@ -75,7 +94,8 @@ mix with Loop 1's Steps 1–6.
 ## Runs are history
 
 This applies to both loops. Every pulled run shows the agent as it was when
-the run happened (`run.json` `started_at`, `index.json` `created_at`), not as
+the run happened (`run.json` `started_at`; `null` when the harness listing gave no creation
+time), not as
 the code is now. Prompts,
 skills, tools and data may have changed since, so a failure in a run may
 already be fixed. Before diagnosing or proposing a fix, check the git history
@@ -85,6 +105,10 @@ of the agent repo for changes made after the run:
 git log --since=<run started_at> --oneline -- <paths of the surfaces involved>
 git log --since=<run started_at> --oneline -S '<tool or prompt text from the trajectory>'
 ```
+
+If `started_at` is `null`, skip the `--since` commands, read the last few
+commits that touch the surface instead, and say in the diagnosis that the
+run's time was unknown.
 
 `--since` compares commit dates, which a rebase or squash merge resets, so
 treat it as a first pass: also read the last few commits that touch the
@@ -171,15 +195,20 @@ what correct output looks like for this input and every sibling like it.
 
 After authoring or editing any case YAML — in any entry point — run
 `evalkit lint <file> --dataset <slug>` first; errors block sync. Then
-`evalkit run <dataset> --agent <agent>`: with an `evalkit.yaml` in the repo
-this syncs the dataset directory to your workspace and runs your local agent
-from this machine. For a tight loop, run only the relevant cases
-(`evalkit run <dataset>/<file>.yaml`, `evalkit run <dataset>/<subfolder>`, or
-`--case-id`, repeatable) rather than the whole dataset.
+run the dataset the way the agent is run (see "How the agent is run"):
 
-Runs on your personal datasets execute every case. Against a shared dataset
-such as `<dataset>@dev`, `evalkit run` executes approved cases only; a synced case starts as a draft, so pass
-`--include-drafts` there until the case is approved.
+- **Harness API agent** — `evalkit run <dataset> --agent <agent>`: with an
+  `evalkit.yaml` in the repo this syncs the dataset directory to your
+  workspace and runs your local agent from this machine. For a tight loop,
+  run only the relevant cases (`evalkit run <dataset>/<file>.yaml`,
+  `evalkit run <dataset>/<subfolder>`, or `--case-id`, repeatable) rather
+  than the whole dataset.
+- **Code-driven agent** — run the eval script with `case_ids=[...]` (see
+  "How the agent is run"); if the script takes no case-subset option, add
+  one rather than running the whole dataset.
+
+`evalkit run` executes every selected case, in personal and shared datasets
+alike; review state never filters a run.
 When you are confident the case is correct and it has reached a shared
 dataset, ask for review:
 `evalkit review request <dataset>@dev --case-id <id> --reviewer <user>`. If `dev` is
@@ -315,8 +344,10 @@ surfaces the proposal touches (search the case YAML for related scenarios).
    [`references/synthesize.md`](references/synthesize.md): describe the
    mechanism first, escalate to rule-style wording only when a re-run shows
    the behaviour persisted, prefer deterministic guards, no eval awareness.
-2. `evalkit run <dataset> --agent <agent> --case-id <id> [--case-id …]`
-   over the working set (the run syncs your edits first).
+2. Run the working set: `evalkit run <dataset> --agent <agent> --case-id
+   <id> [--case-id …]` for a Harness API agent (the run syncs your edits
+   first); for a code-driven agent, run the eval script with
+   `case_ids=[...]`.
 3. `evalkit runs pull --experiment <id>` for that experiment and pick the
    failures from the new `index.json`.
 4. Stop when no failure scores below threshold (**green**) or when the
@@ -423,7 +454,7 @@ For each pattern the developer picked:
 3. `evalkit sync <dataset dir>` (with `--workspace <ws>` for a shared
    workspace you write to).
 4. On a shared dataset, `evalkit review request <dataset>@<ws> --case-id <id>
-   --reviewer <user>`. The cases start as drafts.
+   --reviewer <user>`. The cases start Unreviewed.
 
 Loop 2 ends here. It does not run the new cases; that is Loop 1's job.
 
@@ -442,8 +473,7 @@ Two handoffs, nothing else:
 
 1. **Loop 2 → Loop 1.** After M5 the developer may ask to fix the agent for
    the new cases. Enter Loop 1 at **C** (new cases, red expected) with the new
-   case ids as the working set. Against a shared dataset, pass
-   `--include-drafts` until the cases are approved.
+   case ids as the working set.
 2. **Loop 1 → authoring.** A diagnosis may find that a failure shows a scenario
    no case covers, or that the case itself is wrong (`coverage_gap` on the
    finding). `synthesize.md` lists these as "Case proposals" in

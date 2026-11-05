@@ -5,6 +5,7 @@ import {
   createAgentBody,
   editAgentBody,
   emptyAgentForm,
+  urlClearsKey,
 } from "./agentForm";
 import type { AgentInfo } from "./types";
 
@@ -92,5 +93,35 @@ describe("agent form", () => {
     expect(agentFormErrors({ ...otel, mapping: "[1]" }, "edit")).toContain(
       "The span mapping is not a JSON object.",
     );
+  });
+
+  it("sends a key only when one is typed or cleared", () => {
+    const values = { ...emptyAgentForm("dev"), name: "a" };
+    expect(createAgentBody(values)).not.toHaveProperty("api_key");
+    const typed = { ...values, api_key: { key: "sk", clear: false } };
+    expect(createAgentBody(typed).api_key).toBe("sk");
+    const current = {
+      harness_url: "http://h",
+      has_api_key: true,
+      settings: { max_concurrent_runs: 4 },
+    } as unknown as AgentInfo;
+    const kept = { ...values, harness_url: "http://h" };
+    expect(editAgentBody(kept, current)).not.toHaveProperty("api_key");
+    const cleared = { ...kept, api_key: { key: "", clear: true } };
+    expect(editAgentBody(cleared, current).api_key).toBeNull();
+    expect(urlClearsKey(kept, current)).toBe(false);
+    expect(urlClearsKey({ ...kept, harness_url: "http://new" }, current)).toBe(
+      true,
+    );
+    expect(
+      urlClearsKey(
+        {
+          ...kept,
+          harness_url: "http://new",
+          api_key: { key: "k", clear: true },
+        },
+        current,
+      ),
+    ).toBe(false);
   });
 });

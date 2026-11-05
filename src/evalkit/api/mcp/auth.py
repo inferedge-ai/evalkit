@@ -7,7 +7,6 @@ from fastmcp.server.auth import (
     TokenVerifier,
 )
 from fastmcp.server.auth.providers.jwt import JWTVerifier
-from pydantic import AnyHttpUrl
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.api.auth import bearer_login, token_expiry
@@ -86,7 +85,9 @@ def build_auth(
     )
     remote = RemoteAuthProvider(
         token_verifier=ProviderScopeVerifier(verifier, oauth.scope, cfg.server.base_url),
-        authorization_servers=[AnyHttpUrl(oauth.issuer)],
+        # As configured: AnyHttpUrl would turn https://host into https://host/, which clients
+        # cannot match to the provider's issuer (RFC 8414).
+        authorization_servers=[oauth.issuer],  # type: ignore[list-item]
         base_url=cfg.server.base_url,
         scopes_supported=[oauth.scope],
         resource_name="evalkit",

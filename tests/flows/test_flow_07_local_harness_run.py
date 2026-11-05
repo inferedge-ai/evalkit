@@ -81,26 +81,16 @@ def test_flow_07_local_run_syncs_drives_scores_and_lands_in_my_workspace(
     assert [(r.case_id, r.repetition) for r in experiment_runs(one)] == [("f07-b", 1)]
 
 
-def test_flow_07_shared_dataset_runs_only_approved_cases_unless_include_drafts(
-    env, tmp_path, monkeypatch, harness_url
-):
+def test_flow_07_shared_dataset_runs_every_case(env, tmp_path, monkeypatch, harness_url):
     write_local_config(tmp_path, harness_url)
     write_cases(tmp_path, "flow07s", "s-1", "s-2")
     monkeypatch.chdir(tmp_path)
     run_cli("sync", "flow07s", "--workspace", "canonical")
-    refused = run_cli("run", "flow07s@canonical", "--agent", "fake", code=1)
-    assert "approved" in refused.output.lower()
-
     run_cli("review", "approve", "flow07s@canonical", "s-1")
-    approved = _exp_id(run_cli("run", "flow07s@canonical", "--agent", "fake").output)
-    assert {r.case_id for r in experiment_runs(approved)} == {"s-1"}
-    exp = api_get(f"/api/experiments/{approved}")
+    exp_id = _exp_id(run_cli("run", "flow07s@canonical", "--agent", "fake").output)
+    assert {r.case_id for r in experiment_runs(exp_id)} == {"s-1", "s-2"}
+    exp = api_get(f"/api/experiments/{exp_id}")
     assert exp["workspace"] == "admin" and exp["dataset"] == "flow07s@canonical"
-
-    drafts = _exp_id(
-        run_cli("run", "flow07s@canonical", "--agent", "fake", "--include-drafts").output
-    )
-    assert {r.case_id for r in experiment_runs(drafts)} == {"s-1", "s-2"}
 
 
 def test_flow_07_ctrl_c_marks_failed_and_resume_runs_only_pending(

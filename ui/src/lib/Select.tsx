@@ -5,21 +5,8 @@ import type { SelectOption } from "./selectModel";
 
 export type { SelectOption };
 
-export function Select<T extends string | number>({
-  value,
-  options,
-  onChange,
-  placeholder = "Select…",
-  title,
-  ariaLabel,
-  className = "",
-  searchable,
-  disabled = false,
-  more,
-}: {
-  value: T;
+interface CommonProps<T extends string | number> {
   options: SelectOption<T>[];
-  onChange: (value: T) => void;
   placeholder?: string;
   title?: string;
   ariaLabel?: string;
@@ -27,6 +14,74 @@ export function Select<T extends string | number>({
   searchable?: boolean;
   disabled?: boolean;
   more?: { label: string; options: SelectOption<T>[] };
+}
+
+export function Select<T extends string | number>({
+  value,
+  onChange,
+  ...common
+}: CommonProps<T> & { value: T; onChange: (value: T) => void }) {
+  const current = [...common.options, ...(common.more?.options ?? [])].find(
+    (o) => o.value === value,
+  );
+  return (
+    <SelectMenu
+      {...common}
+      focusValue={value}
+      isSelected={(v) => v === value}
+      onPick={onChange}
+      closeOnPick
+      label={current?.label ?? null}
+    />
+  );
+}
+
+export function MultiSelect<T extends string | number>({
+  values,
+  onChange,
+  ...common
+}: CommonProps<T> & { values: T[]; onChange: (values: T[]) => void }) {
+  const chosen = new Set(values);
+  const labels = [...common.options, ...(common.more?.options ?? [])]
+    .filter((o) => chosen.has(o.value))
+    .map((o) => o.label);
+  return (
+    <SelectMenu
+      {...common}
+      focusValue={values[0]}
+      isSelected={(v) => chosen.has(v)}
+      onPick={(v) =>
+        onChange(chosen.has(v) ? values.filter((x) => x !== v) : [...values, v])
+      }
+      closeOnPick={false}
+      label={labels.length ? labels.join(", ") : null}
+      multiselectable
+    />
+  );
+}
+
+function SelectMenu<T extends string | number>({
+  options,
+  placeholder = "Select…",
+  title,
+  ariaLabel,
+  className = "",
+  searchable,
+  disabled = false,
+  more,
+  focusValue,
+  isSelected,
+  onPick,
+  closeOnPick,
+  label,
+  multiselectable = false,
+}: CommonProps<T> & {
+  focusValue: T | undefined;
+  isSelected: (value: T) => boolean;
+  onPick: (value: T) => void;
+  closeOnPick: boolean;
+  label: string | null;
+  multiselectable?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -43,7 +98,6 @@ export function Select<T extends string | number>({
   const listed = expanded || filter.trim() ? every : options;
   const shown = withSearch ? filterOptions(listed, filter) : listed;
   const moreAt = extra.length > 0 && listed === options ? shown.length : -1;
-  const current = every.find((o) => o.value === value);
 
   useEffect(() => {
     if (!open) return;
@@ -57,9 +111,11 @@ export function Select<T extends string | number>({
   useEffect(() => {
     if (!open) return;
     setFilter("");
-    const inMore = extra.some((o) => o.value === value);
+    const inMore = extra.some((o) => o.value === focusValue);
     setExpanded(inMore);
-    const at = (inMore ? every : options).findIndex((o) => o.value === value);
+    const at = (inMore ? every : options).findIndex(
+      (o) => o.value === focusValue,
+    );
     setHi(Math.max(at, 0));
     if (withSearch) filterRef.current?.focus();
     else listRef.current?.focus();
@@ -79,8 +135,8 @@ export function Select<T extends string | number>({
 
   const pick = (option: SelectOption<T> | undefined) => {
     if (!option || option.disabled) return;
-    onChange(option.value);
-    close();
+    onPick(option.value);
+    if (closeOnPick) close();
   };
 
   const onListKey = (e: React.KeyboardEvent) => {
@@ -130,8 +186,8 @@ export function Select<T extends string | number>({
           }
         }}
       >
-        <span className={`truncate ${current ? "" : "text-ink-4"}`}>
-          {current ? current.label : placeholder}
+        <span className={`truncate ${label ? "" : "text-ink-4"}`}>
+          {label ?? placeholder}
         </span>
         <Chevron />
       </button>
@@ -153,6 +209,7 @@ export function Select<T extends string | number>({
             ref={listRef}
             id={listId}
             role="listbox"
+            aria-multiselectable={multiselectable || undefined}
             tabIndex={-1}
             className="select-list"
             aria-activedescendant={`${listId}-${hi}`}
@@ -163,14 +220,14 @@ export function Select<T extends string | number>({
                 id={`${listId}-${i}`}
                 data-idx={i}
                 role="option"
-                aria-selected={option.value === value}
+                aria-selected={isSelected(option.value)}
                 aria-disabled={option.disabled}
                 className={`select-option ${i === hi ? "active" : ""}`}
                 onMouseEnter={() => setHi(i)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(option)}
               >
-                <Check on={option.value === value} />
+                <Check on={isSelected(option.value)} />
                 <span className="truncate">{option.label}</span>
                 {option.hint != null && (
                   <span className="select-hint">{option.hint}</span>

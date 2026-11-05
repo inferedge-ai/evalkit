@@ -4,6 +4,8 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { canManageMembers, canWrite, groupMembers } from "../lib/access";
 import { api, apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
+import { PERSONAL_KEY_NOTE } from "../lib/endpoint";
+import { EvaluatorForm } from "./EvaluatorForm";
 import { Select } from "../lib/Select";
 import type {
   MemberRow,
@@ -33,99 +35,93 @@ function EvaluatorsTab({
   writable: boolean;
 }) {
   const [rows, setRows] = useState<RemoteEvaluatorInfo[] | null>(null);
-  const [name, setName] = useState("");
-  const [endpoint, setEndpoint] = useState("");
-  const [kind, setKind] = useState<"score" | "gauge">("score");
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<RemoteEvaluatorInfo | "new" | null>(
+    null,
+  );
   const load = useCallback(() => {
     api<RemoteEvaluatorInfo[]>(
-      `/evaluators?workspace=${encodeURIComponent(ws.name)}`,
+      `/evaluators?workspace=${encodeURIComponent(ws.name)}&include_archived=true`,
     )
       .then(setRows)
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [ws.name]);
   useEffect(load, [load]);
 
-  const create = async (e: FormEvent) => {
-    e.preventDefault();
+  const toggleArchive = async (row: RemoteEvaluatorInfo) => {
     setError(null);
     try {
-      await apiJson("/evaluators", "POST", {
-        workspace: ws.name,
-        name: name.trim(),
-        kind,
-        settings: { endpoint: endpoint.trim() },
-      });
-      setName("");
-      setEndpoint("");
-      load();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-  const archive = async (ref: string) => {
-    setError(null);
-    try {
-      await apiJson(`/evaluators/${encodeURIComponent(ref)}/archive`, "POST");
+      await apiJson(
+        `/evaluators/${encodeURIComponent(row.ref)}/${row.archived ? "restore" : "archive"}`,
+        "POST",
+      );
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
 
+  const canEdit = writable && !ws.archived;
   return (
     <>
-      <p className="row-meta mb-2">
-        Runs of this workspace's agents are scored with these evaluators. Their
-        API keys go in the driver's{" "}
-        <span className="font-mono">credentials.evaluators</span>.
-      </p>
-      {writable && !ws.archived && (
-        <form className="toolbar mb-2" onSubmit={create}>
-          <input
-            className="input"
-            placeholder="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <input
-            className="input min-w-0 flex-1"
-            placeholder="endpoint URL"
-            value={endpoint}
-            onChange={(e) => setEndpoint(e.target.value)}
-            required
-          />
-          <Select
-            ariaLabel="kind"
-            value={kind}
-            onChange={setKind}
-            options={[
-              { value: "score", label: "score" },
-              { value: "gauge", label: "gauge" },
-            ]}
-          />
-          <button className="btn btn-primary">Add evaluator</button>
-        </form>
-      )}
+      <div className="toolbar mb-2">
+        <p className="row-meta whitespace-normal">
+          Runs of this workspace's agents are scored with these evaluators.{" "}
+          {ws.type === "shared"
+            ? "Their API keys are stored encrypted on the server and never shown again."
+            : PERSONAL_KEY_NOTE}
+        </p>
+        {canEdit && (
+          <button
+            className="btn btn-sm ml-auto"
+            onClick={() => setEditing("new")}
+          >
+            New evaluator
+          </button>
+        )}
+      </div>
       {error && <div className="pane-status error">{error}</div>}
       <div className="card rows">
         {rows?.map((row) => (
           <div
             key={row.ref}
-            className="row grid-cols-[minmax(0,1fr)_auto_minmax(0,2fr)_auto]"
+            className="row grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,2fr)_auto_auto]"
           >
             <span className="row-strong">{row.name}</span>
             <span className="chip muted">{row.kind}</span>
+            <span className="chip muted">
+              {row.archived
+                ? "archived"
+                : ws.type === "shared"
+                  ? row.has_api_key
+                    ? "key set"
+                    : "no key"
+                  : ""}
+            </span>
             <span className="row-meta truncate font-mono">
               {row.settings.endpoint}
             </span>
-            {writable ? (
-              <button className="btn btn-sm" onClick={() => archive(row.ref)}>
-                archive
-              </button>
+            {canEdit ? (
+              <>
+                <button
+                  className="btn btn-sm"
+                  disabled={row.archived}
+                  onClick={() => setEditing(row)}
+                >
+                  edit
+                </button>
+                <button
+                  className="btn btn-sm"
+                  onClick={() => toggleArchive(row)}
+                >
+                  {row.archived ? "restore" : "archive"}
+                </button>
+              </>
             ) : (
-              <span />
+              <>
+                <span />
+                <span />
+              </>
             )}
           </div>
         ))}
@@ -133,6 +129,17 @@ function EvaluatorsTab({
           <div className="pane-status">No remote evaluators.</div>
         )}
       </div>
+      {editing && (
+        <EvaluatorForm
+          ws={ws}
+          evaluator={editing === "new" ? undefined : editing}
+          onSaved={() => {
+            setEditing(null);
+            load();
+          }}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </>
   );
 }

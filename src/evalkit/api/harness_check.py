@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from evalkit.api.access import ActorDep, require, workspace_ref
 from evalkit.api.deps import AgentStoreDep, RunnerDepsDep, SessionDep
+from evalkit.api.server_keys import server_keys
 from evalkit.core.access import can_use_agent
 from evalkit.core.agents import explicit, server_may_drive
 from evalkit.core.harness_check import check_harness
@@ -37,7 +38,7 @@ async def run_check(
     report = await asyncio.wait_for(
         check_harness(
             definition,
-            deps.credentials.key_for("agent", definition.ref),
+            (await server_keys(request, definition, None))[0].key_for("agent", definition.ref),
             deps.blob_store,
             transport=deps.harness_transport,
             sessions=request.app.state.sessions,

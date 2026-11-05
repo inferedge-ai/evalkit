@@ -18,6 +18,7 @@ class AgentDefinition(BaseModel):
     repo_url: str | None
     settings: AgentSettings
     archived: bool = False
+    has_api_key: bool = False
 
     @property
     def ref(self) -> str:

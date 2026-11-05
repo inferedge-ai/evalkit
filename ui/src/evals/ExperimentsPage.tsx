@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, qs } from "../lib/api";
-import { BUCKET_COLUMNS } from "../lib/bucketColumns";
+import { scoredBucketColumns } from "../lib/bucketColumns";
 import { ColumnsMenu, DataTable, useDataTable } from "../lib/DataTable";
 import type { Column } from "../lib/DataTable";
 import {
@@ -15,7 +15,7 @@ import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
 import { useWorkspace } from "../shell/workspace";
 
-const HIDDEN = ["latency", "took", "rev"];
+const HIDDEN = ["latency", "took", "rev", "judge"];
 
 export function ExperimentsPage() {
   const { workspace } = useWorkspace();
@@ -40,7 +40,7 @@ export function ExperimentsPage() {
     };
   }, [workspace.name]);
 
-  const buckets = BUCKET_COLUMNS;
+  const buckets = useMemo(() => scoredBucketColumns(rows ?? []), [rows]);
   const columns = useMemo<Column<ExperimentListItem>[]>(
     () => [
       {

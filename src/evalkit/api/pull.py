@@ -99,7 +99,7 @@ async def _bundle(ctx: PullContext, session: AsyncSession, run: BrowserRun) -> R
         status=run.status,
         created_at=run.created_at,
         title=run.title,
-        run=run_body(run.run_id, run.source, stored, context),
+        run=run_body(run.run_id, run.source, stored, context, created_at=run.created_at),
         eval=context,
     )
     try:
@@ -108,7 +108,13 @@ async def _bundle(ctx: PullContext, session: AsyncSession, run: BrowserRun) -> R
             trajectory = validate_trajectory(doc)
             backfill_step_costs(trajectory, ctx.cost_map)
             bundle.trajectory = trajectory.model_dump(exclude_none=True)
-    except (httpx.HTTPError, TrajectoryValidationError, LookupError, UnsafePathError) as exc:
+    except (
+        httpx.HTTPError,
+        TrajectoryValidationError,
+        LookupError,
+        UnsafePathError,
+        FileNotFoundError,
+    ) as exc:
         bundle.pull_error = str(exc)
     return bundle
 
@@ -161,7 +167,7 @@ async def pull_runs(
     record = await agent_or_404(agents, agent)
     selected, total, note = await _select(record, body, deps, spans, session)
     await session.commit()
-    harness = harness_client(deps, record) if server_may_drive(record) and selected else None
+    harness = await harness_client(deps, record) if server_may_drive(record) and selected else None
     ctx = PullContext(
         agent=record,
         deps=deps,

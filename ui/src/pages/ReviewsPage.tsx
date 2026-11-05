@@ -19,12 +19,16 @@ const VIEWS: { id: View; label: string }[] = [
 
 const NO_ITEMS: QueueItem[] = [];
 
-function queueColumns(changes: boolean): Column<QueueItem>[] {
+function queueColumns(
+  changes: boolean,
+  everyWorkspace: boolean,
+): Column<QueueItem>[] {
   return [
     {
       id: "dataset",
       header: "dataset",
-      accessorFn: (i) => splitRef(i.dataset).name,
+      accessorFn: (i) =>
+        everyWorkspace ? i.dataset : splitRef(i.dataset).name,
     },
     {
       id: "case",
@@ -79,15 +83,18 @@ export function ReviewsPage() {
   const [view, setView] = useState<View>("mine");
   const [items, setItems] = useState<QueueItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const everyWorkspace = workspace.type === "personal";
+  const queueWorkspace = everyWorkspace ? undefined : workspace.name;
 
   useEffect(() => {
     let stale = false;
     setItems(null);
+    setError(null);
     api<{ items: QueueItem[] }>(
       `/review/queue${qs({
         reviewer: view === "mine" ? me.username : undefined,
         state: view === "changes" ? "changes_requested" : undefined,
-        workspace: workspace.name,
+        workspace: queueWorkspace,
       })}`,
     )
       .then((r) => !stale && setItems(r.items))
@@ -95,18 +102,19 @@ export function ReviewsPage() {
     return () => {
       stale = true;
     };
-  }, [view, me.username, workspace.name]);
+  }, [view, me.username, queueWorkspace]);
 
   const changes = view === "changes";
-  const columns = useMemo(() => queueColumns(changes), [changes]);
+  const columns = useMemo(
+    () => queueColumns(changes, everyWorkspace),
+    [changes, everyWorkspace],
+  );
   const table = useDataTable({
     id: "review-queue",
     data: items ?? NO_ITEMS,
     columns,
     getRowId: (i) => `${i.dataset}/${i.case_id}`,
   });
-
-  if (error) return <div className="pane-status error">{error}</div>;
 
   return (
     <div className="page">
@@ -124,23 +132,29 @@ export function ReviewsPage() {
             </label>
           ))}
         </div>
+        {everyWorkspace && (
+          <span className="row-meta">across every workspace</span>
+        )}
         <span className="row-meta num ml-auto">
-          {items
-            ? `${items.length} ${changes ? "awaiting an edit" : "waiting"}`
-            : "Loading…"}
+          {error
+            ? ""
+            : items
+              ? `${items.length} ${changes ? "awaiting an edit" : "waiting"}`
+              : "Loading…"}
         </span>
       </div>
-      <DataTable
-        table={table}
-        loading={!items}
-        empty={
-          workspace.type === "personal"
-            ? "Personal datasets have no review state."
-            : changes
+      {error && <div className="pane-status error">{error}</div>}
+      {!error && (
+        <DataTable
+          table={table}
+          loading={!items}
+          empty={
+            changes
               ? "No cases are waiting on their author."
               : "Nothing waiting for review."
-        }
-      />
+          }
+        />
+      )}
     </div>
   );
 }

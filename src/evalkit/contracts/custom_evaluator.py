@@ -8,6 +8,8 @@ class CustomEvaluatorModel(BaseModel):
 
 
 class EvalCase(CustomEvaluatorModel):
+    """The case an evaluator scores."""
+
     id: str = Field(description="Case id.")
     input: dict = Field(description="Case input, verbatim.")
     expected: dict | None = Field(default=None, description="Case expected block, if any.")
@@ -18,6 +20,8 @@ class EvalCase(CustomEvaluatorModel):
 
 
 class EvalRun(CustomEvaluatorModel):
+    """The run an evaluator scores."""
+
     answer: str = Field(
         description="The agent's final answer. When the harness sent only a structured "
         "output, this is that output as canonical JSON (sorted keys)."
@@ -40,6 +44,8 @@ class EvalRequest(CustomEvaluatorModel):
 
 
 class ScoreItem(CustomEvaluatorModel):
+    """One named score an evaluator returns."""
+
     name: str = Field(
         description="Score name. Multi-score is first-class: one call may return "
         "several named scores."

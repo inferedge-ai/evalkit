@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import func, select
 
 from evalkit.contracts.enums import ExperimentStatus
+from evalkit.core import runner as runner_module
 from evalkit.db.models import FixtureBlob
 from tests.fake_harness import FakeHarness
 from tests.native import (
@@ -80,8 +81,8 @@ async def test_datasets_and_cases(api):
     assert {c["case_id"] for c in cases} == {"case-1", "case-2"}
     filtered = (await client.get(f"/api/datasets/{FINANCE}/cases", params={"q": "q1"})).json()
     assert [c["case_id"] for c in filtered] == ["case-1"]
-    splits = (await client.get(f"/api/datasets/{FINANCE}/splits")).json()
-    assert splits == [{"name": "finance", "count": 2}]
+    tags = (await client.get(f"/api/datasets/{FINANCE}/tags")).json()
+    assert tags == [{"name": "finance", "count": 2}]
 
 
 async def test_meta_reports_accent_color(api):
@@ -196,9 +197,7 @@ async def test_ui_create_without_cases_records_the_last_git_sync(api):
         files=[("files", ("c.yaml", CASES))],
     )
     assert resp.status_code == 200, resp.text
-    created = await client.post(
-        "/api/experiments", json={"dataset": FINANCE, "agent": AGENT, "include_drafts": True}
-    )
+    created = await client.post("/api/experiments", json={"dataset": FINANCE, "agent": AGENT})
     assert created.status_code == 200, created.text
     assert created.json()["config"]["revision"] == {"sha": "abc123", "branch": "dev", "dirty": None}
     await wait_for(client, created.json()["id"])
@@ -289,6 +288,37 @@ def overlay_yaml(target: str) -> bytes:
         f"- extends: {target}\n  agents: [fake]\n  evaluators:\n    custom:\n"
         "      required_tool_calls: {tools: [retrieve_passages]}\n"
     ).encode()
+
+
+async def test_lint_endpoint_runs_fixture_checks_when_registry_uploaded(api):
+    client, *_ = api
+    digest = hashlib.sha256(b"x").hexdigest()
+    registry = (
+        "fixtures:\n"
+        f"- key: used.pdf\n  sha256: {digest}\n  context: u\n"
+        f"- key: spare.pdf\n  sha256: {digest}\n  context: s\n"
+    ).encode()
+    case = b"- id: a\n  input: {question: 'q as of 2024-01-01'}\n  fixtures: [used.pdf, nope.pdf]\n"
+    files = [("files", ("c.yaml", case)), ("files", ("fixtures.yaml", registry))]
+
+    body = (await client.post("/api/lint", files=files)).json()
+    assert any(
+        f["code"] == "E-FIXTURE-UNKNOWN-KEY" and "nope.pdf" in f["message"]
+        for f in body["findings"]
+    )
+    assert not any(f["code"] == "W-FIXTURE-UNUSED" for f in body["findings"])
+
+    body = (
+        await client.post("/api/lint", params={"warn_unused_fixtures": True}, files=files)
+    ).json()
+    assert any(
+        f["code"] == "W-FIXTURE-UNUSED" and "spare.pdf" in f["message"] for f in body["findings"]
+    )
+
+    no_registry = (await client.post("/api/lint", files=files[:1])).json()
+    assert not any(
+        f["code"].startswith(("E-FIXTURE", "W-FIXTURE")) for f in no_registry["findings"]
+    )
 
 
 async def test_lint_endpoint_with_dataset_checks_overlay_targets(api):
@@ -542,9 +572,39 @@ async def test_unknown_dataset_returns_404_with_its_name(api):
     resp = await client.post("/api/experiments", json={"dataset": "finance@admin", "agent": AGENT})
     assert resp.status_code == 404
     assert resp.json()["detail"] == "unknown dataset: finance@admin"
-    for path in ("cases", "splits", "experiments"):
+    for path in ("cases", "tags", "experiments"):
         resp = await client.get(f"/api/datasets/nope@canonical/{path}")
         assert (resp.status_code, resp.json()["detail"]) == (
             404,
             "unknown dataset: nope@canonical",
         )
+
+
+async def test_server_runs_score_with_the_asked_evaluation_concurrency(api, monkeypatch):
+    client, env, _ = api
+    real = runner_module.gather_bounded
+    limits: list[int] = []
+
+    async def recording(limit, coros, **kwargs):
+        limits.append(limit)
+        return await real(limit, coros, **kwargs)
+
+    monkeypatch.setattr(runner_module, "gather_bounded", recording)
+    assert (await run_shared(client))["status"] == "completed"
+    exp = await run_shared(client, evaluation_concurrency=3)
+    assert exp["status"] == "completed"
+    evaluated = await client.post(
+        f"/api/experiments/{exp['id']}/evaluate", json={"evaluation_concurrency": 2}
+    )
+    assert evaluated.status_code == 200, evaluated.text
+    await wait_for(client, exp["id"])
+    assert (await client.post(f"/api/experiments/{exp['id']}/evaluate")).status_code == 200
+    await wait_for(client, exp["id"])
+    assert limits == [16, 3, 2, 3]
+
+    too_many = await client.post(
+        "/api/experiments",
+        json={"dataset": FINANCE, "agent": AGENT, "evaluation_concurrency": 17},
+    )
+    assert too_many.status_code == 400
+    assert "above this server's limit of 16" in too_many.json()["detail"]

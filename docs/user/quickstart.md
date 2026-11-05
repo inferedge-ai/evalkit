@@ -16,8 +16,10 @@ The Workspace tab on a run lists the files the agent wrote. evalkit reads them t
 
 ## 2. Install and log in
 
+evalkit needs Python 3.12 or newer.
+
 ```bash
-uv tool install --reinstall evalkit --index {{origin}}/api/cli/simple
+uv tool install --reinstall "evalkit-py=={{version}}"
 evalkit login --url {{origin}}
 ```
 
@@ -34,7 +36,7 @@ fixtures: eval/fixtures
 credentials:
   agents:
     myagent: env:MYAGENT_API_KEY # only for a Harness API agent that needs a key
-  judges:
+  llm_providers:
     https://litellm.example.com: env:LITELLM_API_KEY # the server's judge base URL
 ```
 
@@ -47,7 +49,7 @@ evalkit agents create myagent --trajectory-source otel --mapping openinference.j
 evalkit agents create myagent --harness-url http://localhost:8080/evalkit/v1
 ```
 
-`openinference.json` (or `gen_ai.json`) comes from the `connect-traces` skill.
+`openinference.json` (or `gen_ai.json`) comes from the `connect-traces` skill: `evalkit skills install` copies it to `.claude/skills/connect-traces/references/` (or `.agents/skills/…`). See [Install](install.md#the-skills).
 
 Each directory under `cases` is a dataset. Add `eval/cases/smoke/cases.yaml`:
 
@@ -92,7 +94,7 @@ evalkit harness check myagent    # exercises every capability the harness declar
 evalkit run smoke --agent myagent
 ```
 
-`smoke` is in your own workspace, so every case runs. A dataset in a shared workspace, such as `smoke@dev`, runs only the cases a reviewer has approved. Add `--include-drafts` (`include_drafts=True` in the SDK) to run the rest, for example on the first run after a sync.
+A run executes every case it selects, whether the dataset is in your own workspace (`smoke`) or a shared one (`smoke@dev`). Review state never filters a run.
 
 ## 5. Read the results
 
@@ -128,11 +130,13 @@ A run or sync uploads any fixture whose sha256 the server doesn't hold yet, and 
 ## 7. Iterate and promote
 
 ```bash
+evalkit experiments list --dataset smoke       # experiment ids, newest first
+evalkit summary <new-id> --baseline <old-id>    # compare two experiments: fixed, broken, gauge deltas
 evalkit evaluate <experiment-id>        # re-score the same runs after an evaluator change; no agent calls
 evalkit runs pull --experiment <experiment-id>   # download every run (trajectory, case, scores) to diagnose failures
 ```
 
-Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as `dev`, where they start as drafts; a reviewer of that workspace approves them, and from then on they run by default.
+Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as `dev`, where they start Unreviewed; a reviewer of that workspace approves them, and if `dev` is linked to `prod`, approval promotes them there. [CI sync](ci-sync.md) shows how to set up that CI job.
 
 ```bash
 evalkit review request finance@dev --case-id net-debt-fy2025 --reviewer <user>

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -13,13 +14,14 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
+from evalkit.api import experiments as experiments_api
 from evalkit.api.app import create_app
 from evalkit.client import connection
 from evalkit.client.api import ApiRequestError
 from evalkit.config import OtelConfig
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource
 from evalkit.contracts.settings import AgentSettings, RemoteEvaluatorSettings
-from evalkit.core.runner import ScoringFailed
+from evalkit.core.runner import InvalidCaseInputs, ScoringFailed
 from evalkit.credentials import MissingCredential
 from evalkit.db import models
 from evalkit.db.evaluators import RemoteEvaluatorStore
@@ -52,6 +54,10 @@ LLM_ATTRS = {
 }
 
 
+NOT_Q2_SCHEMA = {"type": "object", "properties": {"question": {"not": {"const": "q2"}}}}
+TURNS_SCHEMA = {"type": "object", "required": ["turns"], "properties": {"turns": {"type": "array"}}}
+
+
 @pytest.fixture(scope="module")
 def server(tmp_path_factory, stub_judges_module, module_db_url):
     tmp_path = tmp_path_factory.mktemp("sdk")
@@ -70,6 +76,20 @@ def server(tmp_path_factory, stub_judges_module, module_db_url):
         )
         await seed_agent(factory, "pushed", "admin", harness_url=None, settings=AgentSettings())
         await seed_agent(factory, "harnessy", "admin", harness_url="http://x")
+        await seed_agent(
+            factory,
+            "typed",
+            "admin",
+            harness_url=None,
+            settings=AgentSettings(input_schema=TURNS_SCHEMA),
+        )
+        await seed_agent(
+            factory,
+            "picky",
+            "admin",
+            harness_url=None,
+            settings=AgentSettings(input_schema=NOT_Q2_SCHEMA),
+        )
         await RemoteEvaluatorStore(factory).create(
             "admin",
             "http_eval",
@@ -111,7 +131,7 @@ def env(server, tmp_path, monkeypatch, module_db_url):
     (tmp_path / "evalkit.yaml").write_text(
         f"cases: eval/cases\nfixtures: eval/fixtures\ncost_map:\n  source: {cost_map}\n"
         "credentials:\n  evaluators:\n    http_eval: env:SDK_EVAL_KEY\n"
-        "  judges:\n    http://judge.test: env:SDK_JUDGE_KEY\n"
+        "  llm_providers:\n    http://judge.test: env:SDK_JUDGE_KEY\n"
     )
     (tmp_path / ".env").write_text("SDK_EVAL_KEY=k\nSDK_JUDGE_KEY=jk\n")
     monkeypatch.chdir(tmp_path)
@@ -502,6 +522,24 @@ async def test_dry_run_creates_nothing_and_prints(env, capsys):
     assert "dry" in capsys.readouterr().out
 
 
+async def test_dry_run_and_real_run_check_inputs_against_the_agent_schema(env):
+    srv, blob, provider = env
+    common = {
+        "dataset": "finance",
+        "workspace": "canonical",
+        "task": lambda q: RunResult(answer="dry", trajectory=DEFAULT_TRAJECTORY),
+        "tracer_provider": provider,
+    }
+    with pytest.raises(InvalidCaseInputs, match="'turns' is a required property"):
+        await arun_experiment(**common, agent="typed", dry_run=True)
+    with pytest.raises(ApiRequestError, match="'turns' is a required property"):
+        await arun_experiment(**common, agent="typed")
+    dry = await arun_experiment(**common, agent="pushed", dry_run=True)
+    assert len(dry.runs) == 1
+    with pytest.raises(InvalidCaseInputs, match="case-2"):
+        await arun_experiment(**common, agent="picky", dry_run=1)
+
+
 async def test_dry_run_skips_judge_key_and_a_real_run_names_it_before_any_task(env, monkeypatch):
     srv, blob, provider = env
     monkeypatch.delenv("SDK_JUDGE_KEY", raising=False)
@@ -527,7 +565,7 @@ async def test_dry_run_skips_judge_key_and_a_real_run_names_it_before_any_task(e
     assert called == []
 
 
-async def test_dry_run_applies_case_ids_and_split(env):
+async def test_dry_run_applies_case_ids_and_tags(env):
     srv, blob, provider = env
     common = {
         "dataset": "finance",
@@ -538,9 +576,9 @@ async def test_dry_run_applies_case_ids_and_split(env):
     }
     picked = await arun_experiment(**common, case_ids=["case-2"], dry_run=True)
     assert [run.case_id for run in picked.runs] == ["case-2"]
-    split = await arun_experiment(**common, split="finance", dry_run=5)
-    assert [run.case_id for run in split.runs] == ["case-1", "case-2"]
-    empty = await arun_experiment(**common, split="no-such-split", dry_run=5)
+    tagged = await arun_experiment(**common, tags=["finance"], dry_run=5)
+    assert [run.case_id for run in tagged.runs] == ["case-1", "case-2"]
+    empty = await arun_experiment(**common, tags=["no-such-tag"], dry_run=5)
     assert empty.runs == []
 
 
@@ -633,11 +671,10 @@ async def test_canonical_run_needs_no_cases_or_fixtures_in_evalkit_yaml(env, tmp
         agent="pushed",
         task=lambda q: RunResult(answer="x", trajectory=DEFAULT_TRAJECTORY),
         case_ids=["case-1"],
-        include_drafts=True,
         trajectory_wait_seconds=0,
     )
     exp, _ = await srv.experiment(created.experiment_id)
-    assert exp.status == "completed" and exp.config.include_drafts is True
+    assert exp.status == "completed"
     assert [run.status for run in created.runs] == ["completed"]
 
 
@@ -740,17 +777,16 @@ async def test_model_override_warns_when_the_task_cannot_receive_it(env):
 
 async def test_failed_scoring_finishes_the_other_runs_and_says_how_to_finish(env, monkeypatch):
     srv, blob, provider = env
-    store = srv.app.state.store
-    real_publish = store.publish_evaluations
+    real_publish = experiments_api.db_publish_evaluations
     failed: list[int] = []
 
-    async def publish_failing_once(experiment_run_id, rows, *, force, holder=None):
+    async def publish_failing_once(session, experiment_run_id, rows, **kwargs):
         if not failed:
             failed.append(experiment_run_id)
             raise RuntimeError("store down")
-        await real_publish(experiment_run_id, rows, force=force, holder=holder)
+        await real_publish(session, experiment_run_id, rows, **kwargs)
 
-    monkeypatch.setattr(store, "publish_evaluations", publish_failing_once)
+    monkeypatch.setattr(experiments_api, "db_publish_evaluations", publish_failing_once)
     lines: list[str] = []
     with pytest.raises(ScoringFailed) as raised:
         await arun_experiment(
@@ -772,7 +808,7 @@ async def test_failed_scoring_finishes_the_other_runs_and_says_how_to_finish(env
     assert exp.status == "failed"
     assert [bool(run.evaluations) for run in runs].count(True) == 3
 
-    monkeypatch.setattr(store, "publish_evaluations", real_publish)
+    monkeypatch.setattr(experiments_api, "db_publish_evaluations", real_publish)
     await aevaluate_experiment(experiment_id=exp_id, progress=lines.append)
     exp, runs = await srv.experiment(exp_id)
     assert all(run.evaluations for run in runs)
@@ -794,3 +830,30 @@ async def test_a_finished_run_prints_its_scorecard(env):
     )
     assert any(line.startswith(f"\nexperiment {result.experiment_id} ") for line in lines)
     assert "evaluators:" in lines
+
+
+async def test_sdk_runs_skip_keyless_evaluators_their_cases_do_not_use(env):
+    srv, blob, provider = env
+    created = httpx.post(
+        f"{srv.base_url}/api/evaluators",
+        headers={"Authorization": f"Bearer {os.environ['EVALKIT_TOKEN']}"},
+        json={
+            "workspace": "admin",
+            "name": "nokey_eval",
+            "kind": "score",
+            "settings": {"endpoint": "http://e"},
+        },
+    )
+    assert created.status_code == 200, created.text
+    lines: list[str] = []
+    await arun_experiment(
+        dataset="finance",
+        workspace="canonical",
+        agent="pushed",
+        task=lambda q: RunResult(answer="x", trajectory=DEFAULT_TRAJECTORY),
+        case_ids=["case-1"],
+        tracer_provider=provider,
+        progress=lines.append,
+    )
+    assert "experiment" in lines[0]
+    assert not any("nokey_eval" in line for line in lines)

@@ -38,5 +38,5 @@ Rules: keys are flat filenames. Replacing a file means changing the bytes in
 your `fixtures` directory, updating its `sha256`, and running or syncing
 again, which re-versions the cases that use it. Two branches with different
 bytes under the same key never overwrite each other.
-`evalkit lint --offline <suite-dir>` checks keys against the registry before
-you sync.
+`evalkit lint <suite-dir>` checks keys against the registry before you sync;
+`evalkit lint --offline` runs the same fixture checks without a server.

@@ -19,13 +19,18 @@ evaluator config, never in that text:
 - Checks scored by the client's own Custom Evaluator API endpoints go in an
   overlay. See [`references/overlays.md`](references/overlays.md).
 
+Every YAML key, with one example per evaluator, is in
+[Case schema](../evalkit-docs/case-schema.md). Check a key there before writing it.
+`evalkit skills install` puts the evalkit user docs in `evalkit-docs/` beside
+this skill; in the evalkit repo they are `docs/user/`.
+
 ## Terms
 
 | Term | Meaning |
 |---|---|
 | Case | One eval question: input, expected behaviour, evaluator config. One YAML document. |
 | Dataset | A named set of cases in the evalkit store; a YAML file or directory syncs into one. |
-| Split | A selectable subset of a dataset, built from case tags. |
+| Tag | A label on a case: from its YAML `tags`, its folder in the suite, or an overlay. `evalkit run --tag` (repeatable) runs the cases carrying any of the given tags. |
 | Rubric | One typed sentence in `answer_rubrics` asserting something a correct answer contains. |
 | Rubric type | `factual_retrieval`, `derived_computation`, or `analysis_interpretation`; drives the per-type rates. |
 | Source | The attribution a `factual_retrieval` rubric requires; graded on its own citation axis, never in the content score. |
@@ -51,12 +56,20 @@ general conversational rule). Stop asking when the slots are full, not before.
 | Slot | Becomes | Notes |
 |---|---|---|
 | The scenario, in the author's words | — | The raw material for everything below. |
-| A realistic user phrasing | `input.question` | Derive it FROM the scenario and play it back for confirmation — authors are not expected to produce verbatim input. |
+| A realistic user phrasing | `input.question` | Derive it FROM the scenario and play it back for confirmation — authors are not expected to produce verbatim input. The input must pass the agent's input schema; see below the table. |
 | A date anchor in the input | part of `input.question` | Whenever the answer is time-sensitive, anchor the question itself ("as of 30 September 2025") so pinned ground truth cannot drift under the case. |
 | What a correct answer contains | `answer_rubrics` | Concrete values (or the correct honest negative), dated — see the rubric sections below. |
 | The intermediate values and visible steps the work should show | `trajectory_rubrics` | Checkpoint sentences — see below. |
 | Presentation requirements, if any | `presentation_judge` | Units shown, columns present, an artifact relayed rather than restated. |
-| A latency bound, if the case has one | `max_response_time` | Seconds; settable file-wide via `defaults.max_response_time`. |
+| A latency bound, if the case has one | `max_response_time` | `max_response_time: {max_seconds: 90}` under `evaluators.output`; settable file-wide via `defaults.max_response_time: 90`. |
+
+`input` must pass the agent's input schema. By default that is an object
+with a required string `question`, which the slots above assume. When the
+agent takes another shape (multi-turn `turns`, structured fields), write the
+input in that shape and check it with `evalkit lint <dir> --agent <name>`
+before syncing. A code-driven agent sets its own schema with
+`evalkit agents edit <name> --input-schema schema.json`, and a harness
+declares one as `input_schema` in `GET /capabilities`.
 
 For agents that return a structured `output` (classifiers, taggers,
 extractors) instead of prose: `answer_rubrics` still works, since the judge
@@ -236,12 +249,25 @@ meant the same thing.
 
 How the answer displays its content — a table with named columns, an ordering,
 units shown, an artifact relayed rather than restated — goes under
-`presentation_judge`, never into `answer_rubrics`. Each entry is a property
-the answer must have, phrased as the property rather than a description of
-the answer having it ("A store count for each fiscal year FY2021–FY2025, as a
-table or a labelled list"); `forbid` entries name properties the answer must
-not have. Correctness of the figures stays in `answer_rubrics` — asserting
-the same thing in both places reweights it rather than making the case
+`evaluators.output.presentation_judge`, never into `answer_rubrics`. Each
+entry in its `rubrics` list carries exactly one of `rubric`, a property the
+answer must have, or `forbid`, a property it must not have. Phrase the
+property rather than a description of the answer having it. At least one
+entry must be a `rubric`.
+
+```yaml
+evaluators:
+  output:
+    presentation_judge:
+      rubrics:
+        - rubric: A store count for each fiscal year FY2021–FY2025, as a table or a labelled list.
+        - forbid: Figures given without a currency unit.
+          points: 2
+```
+
+`points` (1–10, default 1) weights an entry within the case.
+Correctness of the figures stays in `answer_rubrics` — asserting the same
+thing in both places reweights it rather than making the case
 stricter.
 
 ## Writing trajectory rubrics
@@ -348,7 +374,8 @@ are advisory). `--dataset` is the dataset you will sync into; it lets the
 server check case ids and overlay targets against every other dataset.
 A jargon-leak error is fixed by rewording the case, never by renaming
 internals. Then `evalkit run <dataset> --agent <agent>` syncs the directory
-to your workspace and runs it; CI, logged in as `admin`, runs `evalkit sync
+to your workspace and runs it (for a code-driven agent, one without a
+`harness_url`: run the eval script with `case_ids=[...]`); CI, logged in as `admin`, runs `evalkit sync
 <dir> --workspace dev` (the team's shared workspace) on merge (see
 `evalkit --help` for exact flags).
 
@@ -356,25 +383,25 @@ to your workspace and runs it; CI, logged in as `admin`, runs `evalkit sync
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Draft: sync
-    Draft --> ReviewRequested: request review
+    [*] --> Unreviewed: sync
+    Unreviewed --> ReviewRequested: request review
     ReviewRequested --> Approved: reviewer approves
     ReviewRequested --> ChangesRequested: reviewer requests changes
     ChangesRequested --> ReviewRequested: edit and re-sync
-    Approved --> Draft: edit and re-sync
+    Approved --> Unreviewed: edit and re-sync
     Approved --> ChangesRequested: reviewer requests changes
     Approved --> [*]: promoted to the target workspace (if linked)
 ```
 
 Review applies to datasets in a shared workspace (e.g. `finance@dev`);
-datasets in your personal workspace have no review state and run every case.
-In a shared dataset a synced case is a draft, and experiments skip drafts
-unless run with `--include-drafts`. When the case is right, request review:
+datasets in your personal workspace have no review state. Review never
+filters a run: experiments run every case, whatever its state. In a shared
+dataset a synced case starts Unreviewed. When the case is right, request review:
 `evalkit review request finance@dev --case-id <id> --reviewer <user>`, or
 use the case page in the UI. Reviewers are the
 workspace's members with the reviewer role. A reviewer approves it or
 requests changes with a comment; `evalkit review show <slug> <id>` prints the
-state, changelog and comments. Editing an approved case makes it a draft
+state, changelog and comments. Editing an approved case makes it Unreviewed
 again.
 
 If an admin has linked the workspace to a promotion target (for example

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from evalkit.contracts.enums import (
     EvaluationSource,
@@ -87,8 +87,10 @@ class DatasetRow(BaseModel):
 
 
 class Selection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     all: bool = False
-    tag: str | None = None
+    tags: list[str] | None = None
     case_ids: list[str] | None = None
 
 
@@ -126,7 +128,7 @@ class SyncResult(BaseModel):
     unchanged: int = 0
     overlays: int = 0
     carried: list[CarriedReview] = Field(default_factory=list)
-    now_draft: list[str] = Field(default_factory=list)
+    now_unreviewed: list[str] = Field(default_factory=list)
 
 
 class GitRevision(BaseModel):
@@ -142,14 +144,13 @@ class ExperimentSnapshot(BaseModel):
     remote_evaluators: dict[str, RemoteEvaluatorSettings] = Field(default_factory=dict)
     code_evaluators: list[str] = Field(default_factory=list)
     evalkit_version: str | None = None
+    evaluation_concurrency: int | None = None
 
 
 class ExperimentConfig(BaseModel):
     model: str | None = None
     judge: JudgeSettings
     selection: Selection
-    include_drafts: bool = False
-    review_scope: Literal["approved", "all"] | None = None
     revision: GitRevision | None = None
     snapshot: ExperimentSnapshot
 
@@ -304,7 +305,7 @@ class ScoreRow(BaseModel):
 
 class Store(Protocol):
     async def cases_for(
-        self, dataset: str, selection: Selection, *, agent: str | None, approved_only: bool
+        self, dataset: str, selection: Selection, *, agent: str | None
     ) -> list[CaseView]: ...
 
     async def get_experiment(self, exp_id: int) -> Experiment: ...
@@ -350,7 +351,8 @@ class Store(Protocol):
 def select_cases(cases: list[CaseView], selection: Selection) -> list[CaseView]:
     if selection.all:
         return list(cases)
-    if selection.tag:
-        return [case for case in cases if selection.tag in case.split_tags]
+    if selection.tags:
+        wanted_tags = set(selection.tags)
+        return [case for case in cases if wanted_tags & set(case.split_tags)]
     wanted = set(selection.case_ids or [])
     return [case for case in cases if case.case_id in wanted]

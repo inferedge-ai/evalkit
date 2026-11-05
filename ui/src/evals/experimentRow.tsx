@@ -9,7 +9,7 @@ import {
   fmtWhen,
   formatElapsed,
   formatMs,
-  splitLabel,
+  selectionLabel,
 } from "../lib/format";
 import { columnHelper } from "../lib/DataTable";
 import type { Column } from "../lib/DataTable";
@@ -130,12 +130,31 @@ export function experimentTailColumns(
         );
       },
     }),
+    helper.accessor((exp) => exp.config.judge?.model ?? "", {
+      id: "judge",
+      header: "judge",
+      meta: { title: "LLM judge model and reasoning effort" },
+      cell: (c) => {
+        const judge = c.row.original.config.judge;
+        if (!judge?.model) return null;
+        return (
+          <span className="flex flex-col items-start" title={judge.model}>
+            <span className="row-meta">{judge.model.split("/").pop()}</span>
+            {judge.reasoning_effort && (
+              <span className="row-meta text-ink-4">
+                {judge.reasoning_effort}
+              </span>
+            )}
+          </span>
+        );
+      },
+    }),
     helper.accessor(
-      (exp) => splitLabel({ selection: exp.config.selection }) ?? "",
+      (exp) => selectionLabel({ selection: exp.config.selection }) ?? "",
       {
-        id: "split",
-        header: "split",
-        meta: { wrap: true, title: "dataset split this experiment ran on" },
+        id: "cases",
+        header: "cases",
+        meta: { wrap: true, title: "the cases this experiment ran on" },
         cell: (c) => <span className="row-meta">{c.getValue()}</span>,
       },
     ),

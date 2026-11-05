@@ -1,32 +1,19 @@
 server:
-  base_url: https://evalkit.internal # used in links the CLI prints
+  base_url: https://evalkit.internal # used in links the CLI prints; `evalkit serve` binds its port unless --port is given (8020 when it has none)
 
 db:
   url: env:EVALKIT_DATABASE_URL # Postgres: users, workspaces, agents, cases, experiments, scores
   # migrate_on_start: true # run `evalkit db upgrade` at startup (default false); see references/config-and-deploy.md
+  # pool_size: 20 # connections the server keeps open to Postgres (default 20)
+  # max_overflow: 10 # extra connections opened under load (default 10)
+  # pool_timeout_seconds: 5 # a request that waits this long for a connection gets 503 + Retry-After (default 5)
+  # keep (pool_size + max_overflow) x server replicas well under Postgres max_connections, with room for migrations and psql
 
 blob:
   url: s3://client-bucket/evalkit # or file:///data/evalkit
 
-judge_default: # the judge an experiment uses unless it picks its own
-  base_url: https://llm.internal/v1 # any OpenAI-compatible endpoint; its key is credentials.judges[base_url]
-  model: vertex_ai/gemini-3.6-flash # must be reproducibility-tested
-  reasoning_effort: high
-  max_tokens: 32768
-  concurrency: 16
-
 cost_map:
   source: bundled # or a path/URL override
-
-credentials: # the only place API keys are configured; values are env:NAME, read when used
-  # Uncomment and fill in one entry per shared agent and remote evaluator that needs a key,
-  # and switch its line in docker-compose.yml to `:?` so a missing key stops compose.
-  # agents: # keyed by agent reference (name@workspace); agents themselves are created with `evalkit agents create`
-  #   ouragent@dev: env:OURAGENT_DEV_KEY
-  # evaluators: # keyed by remote evaluator reference (name@workspace); create them with `evalkit evaluators create`
-  #   required_tool_calls@dev: env:AGENT_EVALUATOR_KEY
-  judges: # keyed by judge base_url
-    https://llm.internal/v1: env:JUDGE_LLM_API_KEY
 
 auth:
   token_ttl_hours: 720
@@ -43,10 +30,27 @@ otel: # optional block; the OTLP collector at /api/otel/v1/traces
   max_session_bytes: 402653184 # span attributes one session read loads; 413 beyond it (size with the server's memory)
   import_page_traces: 25 # traces per request to a trace source during an import (size with the server's memory)
 
+runner: # optional block; server runs
+  evaluation_concurrency: 16 # runs scored at once; also the most a request may ask for (each holds a DB connection while it saves)
+
 limits: # optional block; request body caps, 413 beyond them
   fixture_upload_bytes: 524288000 # one fixture file uploaded by evalkit sync (500 MB)
   experiment_blob_bytes: 524288000 # one trajectory or artifact written by a local run (500 MB)
   case_upload_bytes: 52428800 # the case YAML files of one evalkit sync or lint (50 MB)
   request_bytes: 10485760 # any other request body (10 MB); the collector uses otel.max_batch_bytes
 
-encryption_key: env:EVALKIT_ENCRYPTION_KEY # Fernet key; encrypts trace source API keys (`evalkit trace-sources create`); the server refuses to start without it once any exist
+# sentry: # optional; report server errors to Sentry
+#   dsn: env:SENTRY_DSN
+#   environment: production
+#   traces_sample_rate: 0.0 # share of requests traced for performance (0.0-1.0)
+#   max_request_body_size: never # request bodies attached to events: never, small (1 KB), medium (10 KB), always; bodies can hold client case data
+
+encryption_key: env:EVALKIT_ENCRYPTION_KEY # Fernet key; encrypts the API keys of agents, remote evaluators, LLM providers and trace sources; the server refuses to start without it once any exist
+
+# allow_private_endpoints: true # let agents, evaluators and LLM providers point at loopback, private or link-local addresses (default false); set it when they run in the same cluster or on host.docker.internal
+
+# LLM providers, the default judge and the API keys of shared agents and remote evaluators
+# live in the database. Set them after the first start:
+#   evalkit llm-providers create openai --base-url https://api.openai.com/v1 --api-key-env OPENAI_API_KEY
+#   evalkit judge-default set --provider openai --model gpt-5
+#   evalkit agents edit ouragent@dev --api-key-env OURAGENT_DEV_KEY

@@ -215,6 +215,7 @@ export function AgentPage() {
           {editing && (
             <AgentForm
               workspace={agent.workspace}
+              shared={agent.workspace_type === "shared"}
               agent={agent}
               onSaved={(saved) => {
                 setAgent(saved);

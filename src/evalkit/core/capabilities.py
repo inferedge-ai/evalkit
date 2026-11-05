@@ -19,6 +19,7 @@ def sdk_capabilities(agent: AgentDefinition) -> Capabilities:
     return Capabilities(
         contract_version=SDK_CONTRACT_VERSION,
         agent=agent.name,
+        input_schema=agent.settings.input_schema,
         provides=Provides(**provides),
         accepts=Accepts(files=True, model_override=True, file_urls=False, stop=False),
         limits=Limits(max_concurrent_runs=agent.settings.max_concurrent_runs),

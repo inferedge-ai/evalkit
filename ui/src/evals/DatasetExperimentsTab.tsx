@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { BUCKET_COLUMNS } from "../lib/bucketColumns";
+import { scoredBucketColumns } from "../lib/bucketColumns";
 import { ColumnsMenu, DataTable, useDataTable } from "../lib/DataTable";
 import type { Column } from "../lib/DataTable";
 import { EXPERIMENT_LIST_LIMIT, listCapNote } from "../lib/experimentStatus";
 import type { ExperimentListItem } from "../lib/types";
 import { experimentTailColumns } from "./experimentRow";
 
-const HIDDEN = ["latency", "took", "rev"];
+const HIDDEN = ["latency", "took", "rev", "judge"];
 
 const NONE: ExperimentListItem[] = [];
 
@@ -17,7 +17,10 @@ export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
     null,
   );
   const [error, setError] = useState<string | null>(null);
-  const buckets = BUCKET_COLUMNS;
+  const buckets = useMemo(
+    () => scoredBucketColumns(experiments ?? []),
+    [experiments],
+  );
   const columns = useMemo<Column<ExperimentListItem>[]>(
     () => [
       {

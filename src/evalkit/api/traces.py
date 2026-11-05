@@ -19,7 +19,7 @@ from evalkit.api.deps import (
 from evalkit.api.experiments import slug_or_400
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.access import can_write
-from evalkit.core.agents import AgentDefinition, explicit
+from evalkit.core.agents import AgentDefinition, UnknownAgent, explicit
 from evalkit.core.traces.mapping import session_id_of
 from evalkit.core.traces.raw import RawSpan
 from evalkit.core.traces.sessions import SessionTrajectory
@@ -73,7 +73,7 @@ async def session_trajectory(
             )
     result = await sessions.read(agent, session_id, mapping=mapping, include_esf=esf)
     if result is None:
-        raise HTTPException(status_code=404, detail=f"unknown agent: {agent}")
+        raise UnknownAgent(agent)
     if result.esf is None:
         return Response(content=to_json(result), media_type="application/json")
     return StreamingResponse(_with_esf(result), media_type="application/json")
@@ -102,7 +102,7 @@ async def session_spans(
 ) -> StreamingResponse:
     record = await sessions.agent(agent)
     if record is None:
-        raise HTTPException(status_code=404, detail=f"unknown agent: {agent}")
+        raise UnknownAgent(agent)
     return StreamingResponse(
         _json_array(sessions.raw(record, session_id)), media_type="application/json"
     )
@@ -122,7 +122,6 @@ async def put_draft(
     mappings: MappingStoreDep,
     session: SessionDep,
     actor: ActorDep,
-    activate: bool = False,
 ) -> dict:
     _, record = await agent_or_404(agents, agent)
     await require_write(session, actor, record)
@@ -132,12 +131,10 @@ async def put_draft(
         first = exc.errors()[0]
         location = ".".join(str(p) for p in first["loc"])
         raise HTTPException(status_code=400, detail=f"{location}: {first['msg']}") from exc
-    draft = await mappings.put_draft(
+    draft, unchanged = await mappings.put_draft(
         record.id, document.model_dump(by_alias=True, exclude_none=True), actor.username
     )
-    if activate:
-        draft = await mappings.activate(record.id, draft.version)
-    return draft.model_dump(mode="json")
+    return {**draft.model_dump(mode="json"), "unchanged": unchanged}
 
 
 @router.post("/agents/{agent}/mappings/{version}/activate")
@@ -152,9 +149,10 @@ async def activate_mapping(
     _, record = await agent_or_404(agents, agent)
     await require_write(session, actor, record)
     try:
-        return (await mappings.activate(record.id, version)).model_dump(mode="json")
+        active, replaced = await mappings.activate(record.id, version)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {**active.model_dump(mode="json"), "replaced_version": replaced}
 
 
 class ImportRequest(BaseModel):

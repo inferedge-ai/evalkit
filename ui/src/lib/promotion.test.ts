@@ -92,6 +92,8 @@ describe("promotedImpliesApproved", () => {
     expect(
       promotedImpliesApproved(twin({ state: "differs" }), "source", "approved"),
     ).toBe(false);
-    expect(promotedImpliesApproved(twin({}), "source", "draft")).toBe(false);
+    expect(promotedImpliesApproved(twin({}), "source", "unreviewed")).toBe(
+      false,
+    );
   });
 });

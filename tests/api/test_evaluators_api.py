@@ -38,22 +38,27 @@ async def test_evaluator_crud_follows_workspace_write(api):
     await alice.aclose()
 
 
-async def test_only_admins_set_shared_evaluator_endpoints(api):
+async def test_writers_set_shared_evaluator_endpoints_and_keys(api):
     await api.post("/api/users", json={"username": "bob", "password": "password"})
     await api.post("/api/workspaces", json={"name": "dev"})
     await api.post("/api/workspaces/dev/members", json={"username": "bob", "role": "writer"})
     bob = await login_as(api, "bob", "password")
-    shared = {**BODY, "workspace": "dev"}
-    refused = await bob.post("/api/evaluators", json=shared)
-    assert refused.status_code == 403 and "only an admin" in refused.json()["detail"]
-    assert (await api.post("/api/evaluators", json=shared)).status_code == 200
-    moved = await bob.patch(
-        "/api/evaluators/compliance@dev", json={"settings": {"endpoint": "http://evil"}}
-    )
-    assert moved.status_code == 403
+    shared = {**BODY, "workspace": "dev", "api_key": "secret"}
+    created = await bob.post("/api/evaluators", json=shared)
+    assert created.status_code == 200, created.text
+    assert created.json()["has_api_key"] is True and "secret" not in created.text
     timeout = await bob.patch(
         "/api/evaluators/compliance@dev",
-        json={"settings": {"endpoint": "http://e", "timeout_seconds": 30}},
+        json={"settings": {**BODY["settings"], "timeout_seconds": 30}},
     )
-    assert timeout.status_code == 200 and timeout.json()["settings"]["timeout_seconds"] == 30
+    assert timeout.json()["settings"]["timeout_seconds"] == 30
+    assert timeout.json()["has_api_key"] is True
+    moved = await bob.patch(
+        "/api/evaluators/compliance@dev", json={"settings": {"endpoint": "http://moved"}}
+    )
+    assert moved.status_code == 200 and moved.json()["has_api_key"] is False
+    assert (await bob.get("/api/evaluators/compliance@dev")).json()["has_api_key"] is False
+    await bob.post("/api/evaluators/compliance@dev/archive")
+    restored = await bob.post("/api/evaluators/compliance@dev/restore")
+    assert restored.json()["archived"] is False
     await bob.aclose()

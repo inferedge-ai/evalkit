@@ -35,7 +35,7 @@ sequenceDiagram
   else stale
     CLI->>S: GET /api/cli/wheel
     CLI->>CLI: check sha256, reinstall (uv tool / pipx), replace ./vendor wheel + pyproject line, uv sync
-    CLI-->>Dev: "installed evalkit X, run `evalkit skills install` ..."
+    CLI-->>Dev: "installed evalkit X", then refreshes the installed skills
   end
 ```
 
@@ -83,7 +83,7 @@ sequenceDiagram
 - `/api/auth/me` returns `is_admin` (a stored user flag), the user's personal workspace, and `roles`: every shared workspace where the user is a `writer` or `reviewer`, with the roles held there.
 - `EVALKIT_SERVER_URL` + `EVALKIT_TOKEN` override the stored login (`whoami` adds "(from EVALKIT_SERVER_URL)"). This is how CI logs in.
 - Tokens from `login` expire after `auth.token_ttl_hours` (default 720 hours).
-- Within one day of expiry, most commands print a yellow warning: "the token for URL expires in N h; run `evalkit login --url URL` before a long run".
+- Within one day of expiry, most commands print a yellow warning: "the token for URL expires in N.Nh; run `evalkit login --url URL` before a long run" (with a login from `EVALKIT_TOKEN`: "…; set a fresh EVALKIT_TOKEN before a long run").
 - Every server response carries `X-Evalkit-Version`. The CLI compares it to its own version:
   - same: silent
   - different but compatible: yellow warning "evalkit A differs from server B; run `evalkit update --server URL`"

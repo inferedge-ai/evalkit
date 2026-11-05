@@ -1,16 +1,17 @@
+import { hasAnyTag } from "./tags";
 import type { CaseView, JudgeSettings } from "./types";
 
-export type Scope = "all" | "split" | "file" | "cases";
+export type Scope = "all" | "tags" | "file" | "cases";
 
 export interface ScopeChoice {
   scope: Scope;
-  tag: string;
+  tags: string[];
   file: string;
   caseIds: string[];
 }
 
 export type Selection =
-  { all: true } | { tag: string } | { case_ids: string[] };
+  { all: true } | { tags: string[] } | { case_ids: string[] };
 
 export interface LaunchRequest {
   dataset: string;
@@ -18,8 +19,8 @@ export interface LaunchRequest {
   repetitions: number;
   selection: Selection;
   model: string | null;
-  include_drafts: boolean;
   judge: JudgeSettings | null;
+  evaluation_concurrency: number | null;
 }
 
 export function sourceFiles(
@@ -42,8 +43,8 @@ export function casesInScope(
   switch (choice.scope) {
     case "all":
       return examples;
-    case "split":
-      return examples.filter((ex) => ex.split_tags.includes(choice.tag));
+    case "tags":
+      return examples.filter((ex) => hasAnyTag(ex.split_tags, choice.tags));
     case "file":
       return examples.filter((ex) => ex.source === choice.file);
     case "cases": {
@@ -58,34 +59,34 @@ export function selectionFor(
   choice: ScopeChoice,
 ): Selection | null {
   if (choice.scope === "all") return { all: true };
-  if (choice.scope === "split") return choice.tag ? { tag: choice.tag } : null;
+  if (choice.scope === "tags")
+    return choice.tags.length ? { tags: choice.tags } : null;
   const ids = casesInScope(examples, choice).map((ex) => ex.case_id);
   return ids.length ? { case_ids: ids } : null;
-}
-
-export function approvedCount(examples: CaseView[]): number {
-  return examples.filter((ex) => ex.review?.state === "approved").length;
 }
 
 const quote = (value: string) =>
   /^[\w./:@=+-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
 
 export function cliCommand(req: LaunchRequest): string {
-  const target =
-    "tag" in req.selection
-      ? `${req.dataset}/${req.selection.tag}`
-      : req.dataset;
-  const parts = ["evalkit run", quote(target), `--agent ${quote(req.agent)}`];
+  const parts = [
+    "evalkit run",
+    quote(req.dataset),
+    `--agent ${quote(req.agent)}`,
+  ];
   if (req.repetitions !== 1) parts.push(`--runs ${req.repetitions}`);
+  if ("tags" in req.selection)
+    parts.push(...req.selection.tags.map((tag) => `--tag ${quote(tag)}`));
   if ("case_ids" in req.selection)
     parts.push(...req.selection.case_ids.map((id) => `--case-id ${quote(id)}`));
   if (req.model) parts.push(`--model ${quote(req.model)}`);
-  if (req.include_drafts) parts.push("--include-drafts");
   if (req.judge)
     parts.push(
       `--judge-model ${quote(req.judge.model)}`,
       `--judge-base-url ${quote(req.judge.base_url)}`,
       `--judge-effort ${quote(req.judge.reasoning_effort)}`,
     );
+  if (req.evaluation_concurrency)
+    parts.push(`--evaluation-concurrency ${req.evaluation_concurrency}`);
   return parts.join(" ");
 }

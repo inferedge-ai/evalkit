@@ -9,10 +9,13 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Uplo
 from evalkit.api.access import ensure_active, load_actor, require, workspace_ref
 from evalkit.api.auth import current_user
 from evalkit.api.deps import PgStoreDep, RunnerDepsDep, SessionDep
+from evalkit.api.runs import harness_client
+from evalkit.contracts.cases import REGISTRY_FILENAME
 from evalkit.core.access import can_write
 from evalkit.core.agents import explicit, server_may_drive
-from evalkit.core.harness import HarnessClient
+from evalkit.core.fixtures import load_registries
 from evalkit.core.importer import import_dataset, load_files
+from evalkit.core.lint import fixture_findings
 from evalkit.core.lint import lint as lint_cases
 from evalkit.core.runner import RunnerDeps
 from evalkit.core.workspace import parse_slug
@@ -60,11 +63,7 @@ async def _agent_input_schema(deps: RunnerDeps, agent: str) -> dict:
             detail=f"the server does not drive {definition.ref}; evalkit lint --agent "
             "reads its input schema from your laptop and sends it as input_schema",
         )
-    client = HarnessClient(
-        definition,
-        deps.credentials.key_for("agent", definition.ref),
-        transport=deps.harness_transport,
-    )
+    client = await harness_client(deps, definition)
     try:
         caps = await client.capabilities()
     except (httpx.HTTPError, ValueError) as exc:
@@ -84,10 +83,22 @@ async def lint_endpoint(
     dataset: str | None = None,
     agent: str | None = None,
     input_schema: Annotated[str | None, Form()] = None,
+    warn_unused_fixtures: bool = False,
 ) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         paths = await _save_uploads(files, Path(tmp))
-        sourced_cases, overlays, findings = load_files(paths)
+        sourced_cases, overlays, findings = load_files(paths, Path(tmp))
+        registry = Path(tmp) / REGISTRY_FILENAME
+        if registry in paths:
+            entries, registry_findings = load_registries([registry])
+            findings.extend(registry_findings)
+            findings.extend(
+                fixture_findings(
+                    [case for case, _ in sourced_cases],
+                    entries,
+                    warn_unused=warn_unused_fixtures,
+                )
+            )
         other_cases: dict[str, str] | None = None
         if dataset is not None:
             ref = parse_slug(dataset)

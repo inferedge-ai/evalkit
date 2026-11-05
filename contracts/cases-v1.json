@@ -1,0 +1,610 @@
+{
+  "$defs": {
+    "AnswerRubrics": {
+      "additionalProperties": false,
+      "properties": {
+        "rubrics": {
+          "description": "Everything the answer must contain, one sentence each.",
+          "items": {
+            "$ref": "#/$defs/Rubric"
+          },
+          "minItems": 1,
+          "title": "Rubrics",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rubrics"
+      ],
+      "title": "AnswerRubrics",
+      "type": "object"
+    },
+    "Case": {
+      "additionalProperties": false,
+      "description": "A single eval case authored in YAML.",
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "input": {
+          "additionalProperties": true,
+          "title": "Input",
+          "type": "object"
+        },
+        "fixtures": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Fixtures",
+          "type": "array"
+        },
+        "expected": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected"
+        },
+        "evaluators": {
+          "$ref": "#/$defs/CaseEvaluators"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "title": "Case",
+      "type": "object"
+    },
+    "CaseEvaluators": {
+      "additionalProperties": false,
+      "description": "Case's evaluator opt-ins: built-ins split into output and trajectory\nfamilies, plus opaque custom-evaluator blocks keyed by registered name.",
+      "properties": {
+        "output": {
+          "$ref": "#/$defs/OutputEvaluators"
+        },
+        "trajectory": {
+          "$ref": "#/$defs/TrajectoryEvaluators"
+        },
+        "custom": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Custom",
+          "type": "object"
+        }
+      },
+      "title": "CaseEvaluators",
+      "type": "object"
+    },
+    "ExpectedToolCall": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Tool name, exactly as the trajectory records it.",
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": true,
+          "title": "Args",
+          "type": "object"
+        },
+        "args_mode": {
+          "default": "subset",
+          "description": "subset: every expected key present and equal, extras allowed. exact: args equal. ignore: name alone. substring: like subset, but each expected value need only appear, case-insensitively, inside the actual value (lists and dicts compared as JSON text).",
+          "enum": [
+            "subset",
+            "exact",
+            "ignore",
+            "substring"
+          ],
+          "title": "Args Mode",
+          "type": "string"
+        },
+        "match_overrides": {
+          "additionalProperties": {
+            "enum": [
+              "equals",
+              "substring"
+            ],
+            "type": "string"
+          },
+          "description": "Per-arg mode, overriding the one args_mode implies. Keys must be in args.",
+          "title": "Match Overrides",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ExpectedToolCall",
+      "type": "object"
+    },
+    "MaxResponseTime": {
+      "additionalProperties": false,
+      "description": "Wall-clock cap on the agent run.",
+      "properties": {
+        "max_seconds": {
+          "exclusiveMinimum": 0,
+          "title": "Max Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "max_seconds"
+      ],
+      "title": "MaxResponseTime",
+      "type": "object"
+    },
+    "OutputEvaluators": {
+      "additionalProperties": false,
+      "description": "Evaluators that look only at the agent's returned output.",
+      "properties": {
+        "answer_rubrics": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AnswerRubrics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "presentation_judge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PresentationJudge"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max_response_time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MaxResponseTime"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "OutputEvaluators",
+      "type": "object"
+    },
+    "Overlay": {
+      "additionalProperties": false,
+      "description": "Extends a case in another suite by id without touching its ground truth: only\nadditive tags, custom-evaluator config and tool trajectory evaluators are allowed.",
+      "properties": {
+        "extends": {
+          "minLength": 1,
+          "title": "Extends",
+          "type": "string"
+        },
+        "agents": {
+          "items": {
+            "minLength": 1,
+            "pattern": "^[^@]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Agents",
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "evaluators": {
+          "$ref": "#/$defs/OverlayEvaluators"
+        }
+      },
+      "required": [
+        "extends",
+        "agents",
+        "evaluators"
+      ],
+      "title": "Overlay",
+      "type": "object"
+    },
+    "OverlayEvaluators": {
+      "additionalProperties": false,
+      "properties": {
+        "custom": {
+          "additionalProperties": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Custom",
+          "type": "object"
+        },
+        "trajectory": {
+          "$ref": "#/$defs/OverlayTrajectoryEvaluators"
+        }
+      },
+      "title": "OverlayEvaluators",
+      "type": "object"
+    },
+    "OverlayTrajectoryEvaluators": {
+      "additionalProperties": false,
+      "description": "The harness-specific trajectory evaluators an overlay may attach.",
+      "properties": {
+        "tool_trajectory_match": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolTrajectoryMatch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "required_tools_called": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequiredToolsCalled"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "OverlayTrajectoryEvaluators",
+      "type": "object"
+    },
+    "PresentationJudge": {
+      "additionalProperties": false,
+      "description": "Grades HOW the reply presents its information \u2014 units shown, columns\npresent, an artifact relayed rather than restated. Correctness of the\nfigures belongs to answer_rubrics; asserting the same thing in both places\nreweights it rather than making the case stricter.",
+      "properties": {
+        "rubrics": {
+          "description": "The presentation properties this answer must satisfy. At least one must be a positive `rubric`.",
+          "items": {
+            "$ref": "#/$defs/PresentationRubric"
+          },
+          "minItems": 1,
+          "title": "Rubrics",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rubrics"
+      ],
+      "title": "PresentationJudge",
+      "type": "object"
+    },
+    "PresentationRubric": {
+      "additionalProperties": false,
+      "description": "One property of how the reply presents its information.",
+      "properties": {
+        "rubric": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A presentation property the answer must have. Write the property, not a description of the answer having it.",
+          "title": "Rubric"
+        },
+        "forbid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A presentation property the answer must NOT have. Costs its points when violated; it does not zero the case.",
+          "title": "Forbid"
+        },
+        "points": {
+          "default": 1,
+          "description": "Weight of this rubric, relative within the case.",
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Points",
+          "type": "integer"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Qualification of this rubric written by the case author, shown to the judge.",
+          "title": "Note"
+        }
+      },
+      "title": "PresentationRubric",
+      "type": "object"
+    },
+    "RequiredToolsCalled": {
+      "additionalProperties": false,
+      "description": "Tools the agent must call at least once. Scores the fraction called.",
+      "properties": {
+        "tools": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Tools",
+          "type": "array"
+        }
+      },
+      "required": [
+        "tools"
+      ],
+      "title": "RequiredToolsCalled",
+      "type": "object"
+    },
+    "Rubric": {
+      "additionalProperties": false,
+      "description": "One thing a correct answer contains, written as a sentence.",
+      "properties": {
+        "rubric": {
+          "description": "One assertion a correct answer contains, as a single sentence. Carries its own subject, period, unit and expected value \u2014 a figure with no stated band accepts normal roundings of itself; state a band only to tighten or widen that. Never names a tool, skill or data provider, and never refers to another rubric.",
+          "minLength": 1,
+          "title": "Rubric",
+          "type": "string"
+        },
+        "type": {
+          "description": "Which kind of check this is; drives the per-type rates.",
+          "enum": [
+            "factual_retrieval",
+            "derived_computation",
+            "analysis_interpretation"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The source the answer must credit this fact to, named at the level of detail the case cares about. Graded on its own citation axis. `factual_retrieval` only.",
+          "title": "Source"
+        }
+      },
+      "required": [
+        "rubric",
+        "type"
+      ],
+      "title": "Rubric",
+      "type": "object"
+    },
+    "SuiteDefaults": {
+      "additionalProperties": false,
+      "properties": {
+        "input": {
+          "additionalProperties": true,
+          "title": "Input",
+          "type": "object"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "max_response_time": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "$ref": "#/$defs/MaxResponseTime"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Response Time"
+        },
+        "agents": {
+          "anyOf": [
+            {
+              "items": {
+                "minLength": 1,
+                "pattern": "^[^@]+$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agents"
+        }
+      },
+      "title": "SuiteDefaults",
+      "type": "object"
+    },
+    "SuiteFile": {
+      "additionalProperties": false,
+      "properties": {
+        "defaults": {
+          "$ref": "#/$defs/SuiteDefaults"
+        },
+        "cases": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Case"
+              },
+              {
+                "$ref": "#/$defs/Overlay"
+              }
+            ]
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "overlays": {
+          "items": {
+            "$ref": "#/$defs/Overlay"
+          },
+          "title": "Overlays",
+          "type": "array"
+        }
+      },
+      "title": "SuiteFile",
+      "type": "object"
+    },
+    "ToolTrajectoryMatch": {
+      "additionalProperties": false,
+      "description": "Expected tool calls, matched by name and args, each against at most one\nactual call. Scores the fraction found; `ordered` also requires them to\nappear in this order.",
+      "properties": {
+        "expected": {
+          "items": {
+            "$ref": "#/$defs/ExpectedToolCall"
+          },
+          "minItems": 1,
+          "title": "Expected",
+          "type": "array"
+        },
+        "ordered": {
+          "default": false,
+          "title": "Ordered",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "expected"
+      ],
+      "title": "ToolTrajectoryMatch",
+      "type": "object"
+    },
+    "TrajectoryEvaluators": {
+      "additionalProperties": false,
+      "description": "Evaluators that look only at how the agent got to its output.",
+      "properties": {
+        "trajectory_rubrics": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrajectoryRubrics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tool_trajectory_match": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolTrajectoryMatch"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "required_tools_called": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequiredToolsCalled"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "TrajectoryEvaluators",
+      "type": "object"
+    },
+    "TrajectoryRubrics": {
+      "additionalProperties": false,
+      "description": "Checkpoints the recorded trajectory must show, one sentence each: an\nintermediate value the derivation needs (\"Retrieves FY2024 Platform revenue\nas $3,522,776,000\") or a process step in plain language (\"Rounds the final\nfigure to the nearest basis point\"). Order is not graded. By convention a\nrubric never names a tool, skill or MCP server, so the case stays portable\nacross harnesses.",
+      "properties": {
+        "rubrics": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Rubrics",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rubrics"
+      ],
+      "title": "TrajectoryRubrics",
+      "type": "object"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/SuiteFile"
+    },
+    {
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Case"
+          },
+          {
+            "$ref": "#/$defs/Overlay"
+          }
+        ]
+      },
+      "type": "array"
+    },
+    {
+      "$ref": "#/$defs/Case"
+    }
+  ]
+}

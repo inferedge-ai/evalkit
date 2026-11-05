@@ -1,6 +1,6 @@
 ---
 name: evalkit-deployment
-description: Deploys evalkit for a client and integrates their agent — deploy the server image, run migrations, implement the Harness API (with ATIF trajectory conversion) and any Custom Evaluator API endpoints, write config.yaml, sync a first suite, wire lint/sync into CI, verify with a live harness check. Use when trying evalkit on one machine with the try-it stack, standing up evalkit for the first time, upgrading a deployment, or adding a new agent or custom evaluator. Not for everyday CLI use — see evalkit-usage.
+description: Deploys evalkit for a client and integrates their agent — deploy the server image, run migrations, implement the Harness API (with ATIF trajectory conversion) and any Custom Evaluator API endpoints, write config.yaml, sync a first suite, set up CI that lints eval cases on PRs and syncs them into a shared workspace on merge, verify with a live harness check. Use when trying evalkit on one machine with the try-it stack, standing up evalkit for the first time, setting up eval-case sync from a repo's CI (GitHub Actions or other), upgrading a deployment, or adding a new agent or custom evaluator. Not for everyday CLI use — see evalkit-usage.
 ---
 
 # evalkit deployment
@@ -16,9 +16,9 @@ cases, running experiments, reviewing cases — is the **evalkit-usage** skill.
 Every developer on the client's team needs that one; only the deployer needs
 this one. You need no CLI before the server is up: the image contains one
 (`docker compose run --rm server evalkit …`). Once the server runs, install
-it on your machine from the server, like everyone after you:
-`uv tool install --reinstall evalkit --index <server url>/api/cli/simple`
-(see evalkit-usage).
+it on your machine from PyPI at the server's version, like everyone after you:
+`uv tool install --reinstall "evalkit-py==<version>"` (Python 3.12 or newer), where
+`curl <server url>/api/cli` prints the version (see evalkit-usage).
 
 `evalkit skills install` puts the evalkit user docs in `evalkit-docs/`
 beside this skill; links to `../evalkit-docs/` point there. In the evalkit
@@ -26,8 +26,9 @@ repository the same pages are in `docs/user/`, and every evalkit server shows
 them under `/docs`. In the docs, `{{origin}}` means your evalkit server's URL.
 
 Just trying evalkit out? Start with the try-it stack in [`try/`](try/),
-following [Try locally](../evalkit-docs/try-locally.md): one `docker compose
-up` runs the server on this machine with your LLM as the judge, and a sample
+following [Try locally](../evalkit-docs/try-locally.md): `evalkit init-server`
+(no Docker, a local Postgres) or one `docker compose up` runs the server on
+this machine with your LLM as the judge, and a sample
 agent shows the default path (3a, an SDK run with traces) end to end. Come
 back here for a real deployment.
 
@@ -43,11 +44,11 @@ Deployment:
 - [ ] 3b. Implement the full Harness API in the client's harness (references/harness-api.md), trajectory endpoint included, and `evalkit agents create` it in each shared workspace
 - [ ] 3c. Implement the Harness API without its trajectory endpoint; create the agent with `--trajectory-source otel --mapping`, mint an agent token, point the exporter at the collector
 - [ ] 4. Implement Custom Evaluator API endpoints, if the client wants whitebox checks, and `evalkit evaluators create` each one
-- [ ] 5. Write config.yaml (references/config-and-deploy.md), including `credentials:`, and restart the server
+- [ ] 5. Write config.yaml (references/config-and-deploy.md), including `encryption_key`, restart the server, then create an LLM provider and set the default judge
 - [ ] 6. evalkit sync a suite of your cases
 - [ ] 7. Wire `evalkit lint` / `evalkit sync` into the client's CI
 - [ ] 8. (3b/3c) evalkit harness check <name>@dev — all declared capabilities pass
-- [ ] 9. first experiment completes: (3a) `run_experiment(..., include_drafts=True)` from the client's script, (3b/3c) evalkit run finance@dev --agent <name>@dev --include-drafts
+- [ ] 9. first experiment completes: (3a) `run_experiment(...)` from the client's script, (3b/3c) evalkit run finance@dev --agent <name>@dev
 - [ ] 10. Hand off: server URL, usernames, and the evalkit-usage skill to the team
 ```
 
@@ -74,8 +75,8 @@ There are two types:
 - **Personal:** one per user, named after them. Only the owner writes to it.
   Nobody reviews cases there.
 - **Shared:** created by an admin. Admins and its writers write to it. Its
-  reviewers approve cases, and `evalkit run` on its datasets runs only
-  Approved cases unless `--include-drafts`.
+  reviewers approve cases. Review never filters a run: `evalkit run` on its
+  datasets runs every case.
 
 Every user can read every workspace, including other users' personal
 workspaces: datasets, cases, experiments, runs, trajectories, spans and
@@ -89,6 +90,8 @@ Recommended setup: one shared workspace per deployed environment of the
 client's agent, usually `dev` and `prod`. Cases move personal → `@dev` →
 `@prod`: a developer drafts in their own workspace, CI syncs merged cases
 into `@dev` where reviewers approve them, and `@prod` holds the released set.
+The full setup, with commands, is "Example setup: personal → dev → prod" on
+the [Workspaces](../evalkit-docs/workspaces.md) page.
 
 ```bash
 evalkit workspaces create dev                           # admin only
@@ -149,13 +152,17 @@ reference) is the source of truth; the reference lists the RFC rules evalkit's
 metrics depend on and the table of evalkit's `extra` conventions, which is the
 only place they are defined.
 
-An admin registers the deployed harness once per shared workspace it serves
-(only admins may set a shared agent's `--harness-url`), and puts its API key in `credentials.agents` keyed by the same reference:
+An admin or a writer of the workspace registers the deployed harness once per
+shared workspace it serves, with its API key. `--api-key-env` reads the key from
+that env var on your machine; the server stores it encrypted:
 
 ```bash
-evalkit agents create ouragent --workspace dev --harness-url https://agent-dev.internal/evalkit/v1
-evalkit agents create ouragent --workspace prod --harness-url https://agent.internal/evalkit/v1
+evalkit agents create ouragent --workspace dev --harness-url https://agent-dev.internal/evalkit/v1 --api-key-env OURAGENT_DEV_KEY
+evalkit agents create ouragent --workspace prod --harness-url https://agent.internal/evalkit/v1 --api-key-env OURAGENT_PROD_KEY
 ```
+
+Changing the harness URL later clears the stored key unless the same `agents
+edit` sets a new one.
 
 Run settings (`--max-concurrent-runs`, `--run-timeout`, `--poll-interval`,
 `--stop-grace`, `--trajectory-wait`) are flags on `agents create` and
@@ -245,11 +252,10 @@ answer and ATIF trajectory plus its structured `output` (parsed, or null),
 returning one or more named scores (`score: null` = no reading). When the
 harness sent only `output`, `run.answer` is that output as canonical JSON;
 read `run.output` rather than re-parsing it. Errors and timeouts are recorded, never fatal. Register each
-endpoint in the workspace of the agents it scores, and put its API key in
-`credentials.evaluators`:
+endpoint in the workspace of the agents it scores, with its API key:
 
 ```bash
-evalkit evaluators create required_tool_calls --workspace dev --endpoint https://evals.internal/required --kind score
+evalkit evaluators create required_tool_calls --workspace dev --endpoint https://evals.internal/required --kind score --api-key-env EVALS_KEY
 ```
 
 A run is scored with the remote evaluators in its agent's workspace.
@@ -258,7 +264,15 @@ A run is scored with the remote evaluators in its agent's workspace.
 
 Copy this skill's [`config.example.yaml`](config.example.yaml) to `config.yaml`,
 fill it per [`references/config-and-deploy.md`](references/config-and-deploy.md),
-and restart. Then sync a suite of your cases:
+and restart. Then, as admin, register the judge's LLM and make it the default
+judge:
+
+```bash
+evalkit llm-providers create openai --base-url https://api.openai.com/v1 --api-key-env OPENAI_API_KEY
+evalkit judge-default set --provider openai --model gpt-5
+```
+
+Then sync a suite of your cases:
 
 1. If the cases use fixtures, set `fixtures:` in the developer's
    `evalkit.yaml`. `evalkit sync` uploads any fixture bytes the server
@@ -293,6 +307,11 @@ so the case changelog records who synced instead of `admin`. `--dataset` on
 lint is what makes the server check case ids and overlay targets against
 every other dataset; without it those two checks only run at sync.
 
+For the dev and prod setup in step 2b (described step by step under
+"Example setup: personal → dev → prod" on the
+[Workspaces](../evalkit-docs/workspaces.md) page), a ready-to-copy GitHub
+Actions workflow is on the [CI sync](../evalkit-docs/ci-sync.md) page.
+
 ## 8–9. Verify live
 
 On the Harness API paths (3b, 3c), `evalkit harness check <name>@dev` runs a trivial agent call (with one
@@ -300,17 +319,12 @@ input file attached by url when `accepts.file_urls`, or uploaded when only
 `accepts.files`) and exercises every declared
 capability, printing a per-capability pass/fail table — fix fails before
 moving on. Then run the first real experiment:
-`evalkit run finance@dev --agent <name>@dev --include-drafts` (start with
+`evalkit run finance@dev --agent <name>@dev` (start with
 `--case-id` for one case if agent runs are expensive). On the SDK path (3a)
 the first experiment is
-`run_experiment(dataset="finance@dev", include_drafts=True, ...)` from the
+`run_experiment(dataset="finance@dev", ...)` from the
 client's script, with `dry_run=True` first; `evalkit traces check` on the
 printed session id is the equivalent of the harness check.
-
-A freshly synced shared dataset has no approved cases yet: every case starts
-as a draft, and without `--include-drafts` (`include_drafts=True`) the run
-stops with "no approved cases in finance@dev match the selection". Drop the
-flag once reviewers have approved the cases (evalkit-usage, "Case review").
 
 ## 10. Hand off
 

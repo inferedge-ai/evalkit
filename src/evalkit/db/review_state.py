@@ -11,6 +11,7 @@ from evalkit.db import models
 class LatestEvents:
     decisive: dict[int, models.CaseEvent] = field(default_factory=dict)
     requested_to: dict[int, int] = field(default_factory=dict)
+    requested_by: dict[int, int] = field(default_factory=dict)
 
 
 async def _latest(
@@ -35,6 +36,27 @@ async def _latest(
     return {row.case_ref: row for row in rows.all()}
 
 
+async def _requesters(
+    session: AsyncSession, dataset_id: int, case_refs: list[int]
+) -> dict[int, int]:
+    rows = await session.execute(
+        select(models.CaseEvent.case_ref, models.CaseEvent.actor_id)
+        .where(
+            models.CaseEvent.dataset_id == dataset_id,
+            models.CaseEvent.case_ref.in_(case_refs),
+            models.CaseEvent.kind == CaseEventKind.REVIEW_REQUESTED.value,
+            models.CaseEvent.sync_id.is_(None),
+        )
+        .distinct(models.CaseEvent.case_ref)
+        .order_by(
+            models.CaseEvent.case_ref,
+            models.CaseEvent.created_at.desc(),
+            models.CaseEvent.id.desc(),
+        )
+    )
+    return {case_ref: actor_id for case_ref, actor_id in rows.all()}
+
+
 async def latest_events(
     session: AsyncSession, dataset_id: int, versions: dict[int, str]
 ) -> LatestEvents:
@@ -47,4 +69,5 @@ async def latest_events(
         requested_to={
             ref: event.target_id for ref, event in requests.items() if event.target_id is not None
         },
+        requested_by=await _requesters(session, dataset_id, list(versions)),
     )

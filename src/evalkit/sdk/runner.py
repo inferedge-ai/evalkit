@@ -35,18 +35,22 @@ from evalkit.core.capabilities import sdk_capabilities
 from evalkit.core.costmap import load_cost_map
 from evalkit.core.python_eval import PythonEvaluator
 from evalkit.core.runner import (
+    EVALUATION_CONCURRENCY,
     ExperimentRequest,
     LeaseLost,
     RunnerDeps,
     ScoringFailed,
     case_title,
+    check_inputs,
     dropped_cases_text,
     evaluate_experiment,
     judge_key,
     judge_key_for,
+    missing_local_keys,
     rescore_experiment,
     run_leased,
 )
+from evalkit.core.traces.check import render_check
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE, TASK_SESSION_ATTRIBUTE
 from evalkit.core.traces.poll import poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
@@ -71,6 +75,19 @@ Progress = Callable[[str], None]
 
 
 class RunResult(BaseModel):
+    """What a task can return instead of a plain answer.
+
+    Attributes:
+        answer: The agent's answer text.
+        output: The agent's structured output.
+        model: The model the agent used, recorded on the run.
+        error: An error message; the run is recorded as failed.
+        session_id: The agent's own session id, when its spans do not continue the
+            SDK's trace. The SDK reads the trajectory from that session.
+        trajectory: An ATIF document to store as the trajectory, instead of building
+            one from spans.
+    """
+
     answer: str | None = None
     output: dict[str, Any] | None = None
     model: str | None = None
@@ -80,6 +97,17 @@ class RunResult(BaseModel):
 
 
 class RunSummary(BaseModel):
+    """One run of an experiment.
+
+    Attributes:
+        case_id: The case.
+        repetition: 1 for the first repetition, 2 for the second, and so on.
+        status: `completed`, `failed`, `cancelled` or `timeout`.
+        trajectory_status: `valid`, `partial`, `invalid` or `unavailable`, or `None`
+            when no trajectory was read.
+        session_id: The session the run's spans belong to.
+    """
+
     case_id: str
     repetition: int
     status: str
@@ -88,6 +116,14 @@ class RunSummary(BaseModel):
 
 
 class ExperimentResult(BaseModel):
+    """The result of `run_experiment` or `evaluate_experiment`.
+
+    Attributes:
+        experiment_id: The experiment, or `None` after a dry run.
+        url: The experiment's page in the web UI, or `None` after a dry run.
+        runs: One entry per case and repetition.
+    """
+
     experiment_id: int | None
     url: str | None
     runs: list[RunSummary]
@@ -369,11 +405,13 @@ async def settle_and_record(
     )
 
 
-def _selection(case_ids: Sequence[str] | None, split: str | None) -> Selection:
+def _selection(case_ids: Sequence[str] | None, tags: Sequence[str] | None) -> Selection:
+    if case_ids and tags:
+        raise ValueError("pass case_ids or tags, not both")
     if case_ids:
         return Selection(case_ids=list(case_ids))
-    if split:
-        return Selection(tag=split)
+    if tags:
+        return Selection(tags=list(tags))
     return Selection(all=True)
 
 
@@ -413,12 +451,14 @@ async def _session_summary(api: AsyncApi, path: str, session_id: str) -> str:
     for esf_span in session.get("esf") or []:
         kinds[esf_span["kind"]] = kinds.get(esf_span["kind"], 0) + 1
     version = session.get("mapping_version")
-    return (
+    summary = (
         f"  session {session_id}: {session['span_count']} spans "
         f"({', '.join(f'{k} {n}' for k, n in sorted(kinds.items())) or 'none'}), "
         f"mapping {f'v{version}' if version else 'built-in'}, "
         f"unmapped {', '.join(session.get('unmapped_attributes') or []) or 'none'}"
     )
+    problems = [line for line in render_check(session)[0] if line.lstrip()[0] in "!✗"]
+    return "\n".join([summary, *problems])
 
 
 async def _report_session(
@@ -448,7 +488,7 @@ async def _dry_run(
     task: Task,
     *,
     dataset_ref: Reference,
-    agent_ref: Reference,
+    definition: AgentDefinition,
     me: str,
     selection: Selection,
     count: int,
@@ -458,12 +498,11 @@ async def _dry_run(
     progress: Progress,
     poll_interval: float,
 ) -> ExperimentResult:
+    agent_ref = definition.reference
     store = HttpStore(api)
-    cases = (
-        await store.cases_for(
-            slug(dataset_ref), selection, agent=slug(agent_ref), approved_only=False
-        )
-    )[:count]
+    cases = await store.cases_for(slug(dataset_ref), selection, agent=slug(agent_ref))
+    check_inputs(slug(agent_ref), sdk_capabilities(definition), cases)
+    cases = cases[:count]
     blob = HttpBlobStore(api, None)
     deps = RunnerDeps(
         cfg=local,
@@ -534,19 +573,24 @@ async def arun_experiment(
     repetitions: int = 1,
     concurrency: int | None = None,
     case_ids: Sequence[str] | None = None,
-    split: str | None = None,
-    include_drafts: bool = False,
+    tags: Sequence[str] | None = None,
     model: str | None = None,
     resume: int | None = None,
     dry_run: bool | int = False,
     trajectory_wait_seconds: int | None = None,
     judge: JudgeSettings | None = None,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
     api_transport: httpx.AsyncBaseTransport | None = None,
     custom_eval_transport: httpx.AsyncBaseTransport | None = None,
     progress: Progress = print,
     poll_interval: float = 5.0,
     tracer_provider: Any = None,
 ) -> ExperimentResult:
+    """The async form of `run_experiment`, for code already in an event loop (a notebook).
+
+    Same arguments and result as `run_experiment`. The arguments after
+    `evaluation_concurrency` exist for tests.
+    """
     local = _local_config().resolve_env(scoring=not dry_run)
     spec = inspect_task(task)
     if model is not None and ignores_model(spec):
@@ -594,9 +638,9 @@ async def arun_experiment(
                 spec,
                 task,
                 dataset_ref=dataset_ref,
-                agent_ref=agent_ref,
+                definition=definition,
                 me=me,
-                selection=_selection(case_ids, split),
+                selection=_selection(case_ids, tags),
                 count=int(dry_run),
                 model=model,
                 wait=wait,
@@ -613,9 +657,8 @@ async def arun_experiment(
             )
             selected = await store.cases_for(
                 slug(dataset_ref),
-                _selection(case_ids, split),
+                _selection(case_ids, tags),
                 agent=slug(agent_ref),
-                approved_only=False,
             )
             judge_key_for(credentials, resolved_judge, selected)
             revision = git_revision(on_disk) if on_disk is not None and on_disk.is_dir() else None
@@ -623,10 +666,9 @@ async def arun_experiment(
                 ExperimentRequest(
                     dataset=slug(dataset_ref),
                     agent=slug(agent_ref),
-                    selection=_selection(case_ids, split),
+                    selection=_selection(case_ids, tags),
                     repetitions=repetitions,
                     model=model,
-                    include_drafts=include_drafts,
                     capabilities=sdk_capabilities(definition),
                     cases=revision,
                     evalkit_version=version.current(),
@@ -653,8 +695,11 @@ async def arun_experiment(
             progress=progress,
             sessions=HttpSessionReader(api),
             python_evaluators=python_evaluators,
+            evaluation_concurrency=evaluation_concurrency,
         )
         cases = {case.case_id: case for case in await store.pinned_cases(exp.id)}
+        for line in await missing_local_keys(deps, definition, cases.values()):
+            progress(line)
         judge_key(deps, exp.config.judge, cases.values())
         slots = asyncio.Semaphore(max(concurrency or definition.settings.max_concurrent_runs, 1))
         summaries: list[RunSummary] = []
@@ -724,10 +769,16 @@ async def aevaluate_experiment(
     experiment_id: int,
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
     api_transport: httpx.AsyncBaseTransport | None = None,
     custom_eval_transport: httpx.AsyncBaseTransport | None = None,
     progress: Progress = print,
 ) -> ExperimentResult:
+    """The async form of `evaluate_experiment`, for code already in an event loop.
+
+    Same arguments and result as `evaluate_experiment`. The arguments after
+    `evaluation_concurrency` exist for tests.
+    """
     local = _local_config().resolve_env(scoring=True)
     active = connection.active()
     api = AsyncApi(active.url, active.token, transport=api_transport)
@@ -756,6 +807,7 @@ async def aevaluate_experiment(
             progress=progress,
             sessions=HttpSessionReader(api),
             python_evaluators={e.name: e for e in evaluators},
+            evaluation_concurrency=evaluation_concurrency,
         )
         await store.transition(experiment_id, ExperimentStatus.EVALUATING, holder)
         try:
@@ -804,14 +856,59 @@ def run_experiment(
     repetitions: int = 1,
     concurrency: int | None = None,
     case_ids: Sequence[str] | None = None,
-    split: str | None = None,
-    include_drafts: bool = False,
+    tags: Sequence[str] | None = None,
     model: str | None = None,
     resume: int | None = None,
     dry_run: bool | int = False,
     trajectory_wait_seconds: int | None = None,
     judge: JudgeSettings | None = None,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
 ) -> ExperimentResult:
+    """Run an experiment: call `task` once per case and repetition, store the runs on
+    the server and score them.
+
+    Scoring uses the judge, the remote evaluators of the agent's workspace and the
+    Python `evaluators` you pass. Reads `evalkit.yaml` (cases, fixtures, credentials)
+    from the current directory or a parent, and the login from `evalkit login`.
+
+    Args:
+        dataset: The dataset to run. A bare name means your personal workspace; if it
+            is also a directory under `cases` in `evalkit.yaml`, it is synced first.
+            `name@workspace` runs a shared dataset, every review state included.
+        agent: The code-driven agent on the server that the runs belong to, created once
+            with `evalkit agents create`. A bare name means your personal workspace.
+        task: Your function, called once per case and repetition, sync or async. Its
+            parameters bind by name from `input` (the case input), `files`
+            (`list[Fixture]`), `model` and `metadata` (`session_id`, `experiment_id`,
+            `case_id`, `repetition`, `tags`). A task with one parameter of another name
+            receives the input. Return a `str` (the answer), a `dict` (the structured
+            output) or a `RunResult`. A task that raises records a failed run.
+        workspace: The workspace of `dataset` when it is a bare name.
+        evaluators: Python evaluators made with `evaluator`. A case selects one by name
+            under `evaluators.custom`, like an HTTP evaluator.
+        repetitions: How many times each case runs.
+        concurrency: How many tasks run at once. Defaults to the agent's
+            `max_concurrent_runs`.
+        case_ids: Run only these cases.
+        tags: Run only the cases carrying any of these tags.
+        model: Passed to the task's `model` parameter and recorded on the experiment.
+        resume: An experiment id to resume: runs only the cases it has not finished.
+        dry_run: `True` runs one case without creating an experiment and prints the
+            answer and what the server made of the session; an int runs that many.
+        trajectory_wait_seconds: How long to wait for a run's spans to settle into a
+            trajectory. Defaults to the agent's setting.
+        judge: The judge for LLM-graded evaluators. Defaults to the server's default
+            judge. Its API key comes from `credentials.judges` in `evalkit.yaml`, keyed
+            by `base_url`.
+        evaluation_concurrency: How many runs are scored at once.
+
+    Returns:
+        The experiment id, its URL and one summary per run.
+
+    Raises:
+        RuntimeError: When called from a running event loop; await `arun_experiment`
+            there instead.
+    """
     if _loop_is_running():
         raise RuntimeError(
             "run_experiment cannot be called from a running event loop; "
@@ -827,13 +924,13 @@ def run_experiment(
             repetitions=repetitions,
             concurrency=concurrency,
             case_ids=case_ids,
-            split=split,
-            include_drafts=include_drafts,
+            tags=tags,
             model=model,
             resume=resume,
             dry_run=dry_run,
             trajectory_wait_seconds=trajectory_wait_seconds,
             judge=judge,
+            evaluation_concurrency=evaluation_concurrency,
         )
     )
 
@@ -843,7 +940,28 @@ def evaluate_experiment_sync(
     experiment_id: int,
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
 ) -> ExperimentResult:
+    """Re-score an experiment that used Python evaluators.
+
+    `evalkit evaluate` refuses such experiments, because the evaluators live in your
+    script; call this from the script instead. Exported as `evaluate_experiment`.
+
+    Args:
+        experiment_id: The experiment to re-score.
+        evaluators: The Python evaluators the experiment ran with. Each must have been
+            part of the experiment.
+        refetch_trajectories: Read the trajectories of runs whose trajectory was
+            `partial` or `unavailable` again before scoring.
+        evaluation_concurrency: How many runs are scored at once.
+
+    Returns:
+        The experiment id, its URL and one summary per run.
+
+    Raises:
+        RuntimeError: When called from a running event loop; await
+            `aevaluate_experiment` there instead.
+    """
     if _loop_is_running():
         raise RuntimeError(
             "evaluate_experiment cannot be called from a running event loop; "
@@ -854,5 +972,6 @@ def evaluate_experiment_sync(
             experiment_id=experiment_id,
             evaluators=evaluators,
             refetch_trajectories=refetch_trajectories,
+            evaluation_concurrency=evaluation_concurrency,
         )
     )

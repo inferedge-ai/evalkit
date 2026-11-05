@@ -9,9 +9,8 @@ import {
   reevaluateStrandsCases,
   resumeHint,
 } from "../lib/experimentStatus";
-import { splitLabel } from "../lib/format";
+import { selectionLabel } from "../lib/format";
 import { agentCommitUrl } from "../lib/meta";
-import { countRequested, scopeLabel } from "../lib/review";
 import { hasColumn, rowFailing } from "../lib/scorecard";
 import { BY_TYPE, gaugeGroup, scoreGroups } from "../lib/scoreSummary";
 import type { AgentInfo, CaseView, ExperimentInfo, Report } from "../lib/types";
@@ -23,7 +22,8 @@ import { agentRevision, agentTag } from "./experimentRow";
 import { ProgressBar } from "./ProgressBar";
 import { ScoreMatrix } from "./ScoreMatrix";
 import { BucketCards, CostSpeedLine } from "./ScoreSummary";
-import { Select } from "../lib/Select";
+import { MultiSelect, Select } from "../lib/Select";
+import { hasAnyTag, sortedTags, tagCounts } from "../lib/tags";
 import { useFollowWorkspace } from "../shell/workspace";
 
 function ScorecardSkeleton() {
@@ -79,11 +79,11 @@ export function ExperimentPage() {
   const [status, setStatus] = useState<ExperimentInfo | null>(null);
   useFollowWorkspace(status?.workspace);
   const [pinned, setPinned] = useState<CaseView[] | null>(null);
-  const [datasetCases, setDatasetCases] = useState<CaseView[] | null>(null);
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failingOnly, setFailingOnly] = useState(false);
   const [evaluator, setEvaluator] = useState("");
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const validId = isExperimentId(experimentId);
@@ -127,15 +127,6 @@ export function ExperimentPage() {
       .catch(() => setDriver(null));
   }, [agentRef]);
 
-  const dataset = status?.dataset;
-  useEffect(() => {
-    if (!dataset) return;
-    setDatasetCases(null);
-    api<CaseView[]>(`/datasets/${encodeURIComponent(dataset)}/cases`)
-      .then(setDatasetCases)
-      .catch(() => {});
-  }, [dataset]);
-
   // An active experiment refreshes itself until it settles.
   useEffect(() => {
     if (!status || !isActive(status.status)) return;
@@ -177,16 +168,10 @@ export function ExperimentPage() {
       />
     );
   const config = status?.config;
-  const scope =
-    status && config && datasetCases
-      ? scopeLabel(
-          config,
-          status.progress.total,
-          countRequested(datasetCases, config.selection),
-        )
-      : null;
   const tag = status ? agentTag(status) : null;
-  const split = config ? splitLabel({ selection: config.selection }) : null;
+  const selection = config
+    ? selectionLabel({ selection: config.selection })
+    : null;
   const rev = status ? agentRevision(status) : {};
   const cases = config?.revision ?? null;
   const drives = !!status && status.can_change && status.server_may_drive;
@@ -202,7 +187,11 @@ export function ExperimentPage() {
     report,
   );
   const stateOf = new Map(listed.map((r) => [r.case_id, r.state]));
+  const tagsOf = new Map((pinned ?? []).map((c) => [c.case_id, c.split_tags]));
+  const tags = tagCounts(pinned ?? []);
   const rows = listed.filter((r) => {
+    if (tagFilter.length && !hasAnyTag(tagsOf.get(r.case_id) ?? [], tagFilter))
+      return false;
     if ((failingOnly || evaluator) && !r.row) return false;
     if (failingOnly && r.row && !rowFailing(r.row)) return false;
     if (evaluator && r.row && !hasColumn(r.row, evaluator)) return false;
@@ -246,17 +235,9 @@ export function ExperimentPage() {
           </span>
         )}
         <WorkspaceChip workspace={status?.workspace} />
-        {split && (
-          <span
-            className="chip muted"
-            title="dataset split this experiment ran on"
-          >
-            split: {split}
-          </span>
-        )}
-        {scope && (
-          <span className="chip muted" title="which cases this experiment ran">
-            {scope}
+        {selection && (
+          <span className="chip muted" title="the cases this experiment ran on">
+            cases: {selection}
           </span>
         )}
         <RevisionChip
@@ -271,6 +252,27 @@ export function ExperimentPage() {
           >
             cases {cases.sha.slice(0, 8)}
             {cases.dirty ? "*" : ""}
+          </span>
+        )}
+        {config?.judge?.model && (
+          <span
+            id="judge"
+            className="chip muted font-mono"
+            title={[
+              `judge ${config.judge.model}`,
+              config.judge.base_url,
+              config.judge.reasoning_effort &&
+                `effort ${config.judge.reasoning_effort}`,
+              config.judge.max_tokens != null &&
+                `max tokens ${config.judge.max_tokens}`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          >
+            judge {config.judge.model}
+            {config.judge.reasoning_effort
+              ? ` · ${config.judge.reasoning_effort}`
+              : ""}
           </span>
         )}
         {config?.snapshot.evalkit_version && (
@@ -389,6 +391,20 @@ export function ExperimentPage() {
                     })),
                   ]}
                 />
+                {tags.length > 0 && (
+                  <MultiSelect
+                    ariaLabel="tags"
+                    placeholder="All tags"
+                    title="show only cases carrying any of these tags"
+                    values={tagFilter}
+                    onChange={(picked) => setTagFilter(sortedTags(picked))}
+                    options={tags.map((t) => ({
+                      value: t.name,
+                      label: t.name,
+                      hint: t.count,
+                    }))}
+                  />
+                )}
                 <label className="check">
                   <input
                     type="checkbox"
@@ -450,7 +466,9 @@ export function ExperimentPage() {
             }}
           />
           <div className="num mt-2 text-micro text-ink-3">
-            {listed.length} cases
+            {rows.length === listed.length
+              ? `${listed.length} cases`
+              : `${rows.length}/${listed.length} cases`}
             {report.baseline_id ? ` · vs ${report.baseline_id}` : ""}
           </div>
         </>

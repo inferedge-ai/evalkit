@@ -5,10 +5,10 @@ import pytest
 from sqlalchemy import func, select
 
 from evalkit.core.access import WorkspaceRef
-from evalkit.core.importer import import_dataset
+from evalkit.core.importer import import_dataset, load_files
 from evalkit.core.review import CaseEventKind, CaseReview, CaseState, CaseVersion
 from evalkit.db import models
-from evalkit.db.cases import current_cases, find_dataset_row, splits
+from evalkit.db.cases import current_cases, find_dataset_row, tag_counts
 from evalkit.db.fixture_blobs import record_blob
 from evalkit.db.review import ReviewLog
 from evalkit.db.store import PgStore
@@ -110,7 +110,7 @@ async def split_counts(ctx, dataset: str = "finance", workspace: str = "canonica
     async with sf() as s:
         row = await find_dataset_row(s, workspace, dataset)
         assert row is not None
-        return dict(await splits(s, row))
+        return dict(await tag_counts(s, row))
 
 
 async def last_sync_detail(ctx, dataset: str = "finance", workspace: str = "canonical") -> dict:
@@ -497,7 +497,7 @@ async def test_unchanged_resync_records_nothing(tmp_path, ctx):
     assert report.patched == 0 and await synced_count(ctx) == before
 
 
-async def test_edit_of_approved_case_reports_now_draft(tmp_path, ctx):
+async def test_edit_of_approved_case_reports_now_unreviewed(tmp_path, ctx):
     sf, _, _ = ctx
     review = ReviewLog(sf)
     files = sorted(write_suite(tmp_path).glob("*.yaml"))
@@ -512,11 +512,11 @@ async def test_edit_of_approved_case_reports_now_draft(tmp_path, ctx):
 
     files = sorted(write_suite(tmp_path, rubric2="Computes the CAGR to FY2023.").glob("*.yaml"))
     report = await do_import(ctx, files)
-    assert report.review.now_draft == ["case-1"] and report.review.carried == []
+    assert report.review.now_unreviewed == ["case-1"] and report.review.carried == []
     loaded = await review.load(
         "finance@canonical", [CaseVersion("case-1", await current_hash_of(ctx, "case-1"))]
     )
-    assert loaded["case-1"].state() is CaseState.DRAFT
+    assert loaded["case-1"].state() is CaseState.UNREVIEWED
 
 
 async def test_edit_under_review_carries_the_request_over(tmp_path, ctx):
@@ -621,3 +621,14 @@ async def test_same_case_in_another_workspace_is_not_a_collision(tmp_path, ctx):
     assert not mine.aborted and mine.created == 2
     other = await do_import(ctx, files, dataset="other", workspace=world.akshat_ws, actor="akshat")
     assert not other.aborted and other.created == 2
+
+
+def test_schema_finding_names_the_file_and_case(tmp_path):
+    folder = tmp_path / "acme"
+    folder.mkdir()
+    (folder / "cases.yaml").write_text(
+        "- id: q1\n  input: {question: q}\n  evaluators: {output: {max_response_time: 90}}\n"
+    )
+    _, _, findings = load_files([folder / "cases.yaml"], tmp_path)
+    assert [(f.code, f.case_id) for f in findings] == [("E-SCHEMA", "q1")]
+    assert findings[0].message.startswith("acme/cases.yaml: evaluators.output.max_response_time")

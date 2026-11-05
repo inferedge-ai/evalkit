@@ -10,6 +10,7 @@ import typer
 
 from evalkit.cli.client import ApiClient, ApiError
 from evalkit.client.api import encode
+from evalkit.core.traces.check import render_check
 
 traces_app = typer.Typer(
     no_args_is_help=True, help="Check, map and import OpenTelemetry sessions for an agent."
@@ -17,101 +18,9 @@ traces_app = typer.Typer(
 mapping_app = typer.Typer(no_args_is_help=True, help="Manage an agent's span mapping.")
 traces_app.add_typer(mapping_app, name="mapping")
 
-MARK = {"pass": "✓", "warn": "!", "fail": "✗"}
 DUMPS = ("spans.json", "esf.json", "trajectory.json")
 FOLLOW_SECONDS = 2
 ACTIVE_IMPORT = ("running", "stopping")
-
-
-def _line(status: str, label: str, detail: str) -> str:
-    return f"  {MARK[status]} {label:<14} {detail}"
-
-
-def _trajectories(trajectory: dict) -> list[dict]:
-    out = [trajectory] if trajectory else []
-    for sub in trajectory.get("subagent_trajectories") or []:
-        out.extend(_trajectories(sub))
-    return out
-
-
-def render_check(session: dict) -> tuple[list[str], bool]:
-    esf = session.get("esf") or []
-    traces = {s["trace_id"] for s in esf}
-    plural = "s" if len(traces) != 1 else ""
-    settled = "settled" if session["settled"] else "not settled yet"
-    lines = [
-        _line(
-            "pass" if session["settled"] else "warn",
-            "session",
-            f"{session['span_count']} spans in {len(traces)} trace{plural}, {settled}",
-        )
-    ]
-    root = next((s for s in esf if s["parent_id"] is None), None)
-    if root is None:
-        lines.append(_line("fail", "root", "no root span (parent_span_id null) in this session"))
-    else:
-        ended = "ended" if root["ended_at"] else "not ended"
-        lines.append(_line("pass", "root", f'"{root["name"]}" ({root["kind"]}), {ended}'))
-    version = session.get("mapping_version")
-    lines.append(
-        _line("pass", "mapping", f"v{version}")
-        if version
-        else _line("warn", "mapping", "no active mapping; the agent's spans are unmapped")
-    )
-    llms = [s for s in esf if s["kind"] == "llm"]
-    if llms:
-        models = sorted({s["model"] for s in llms if s.get("model")})
-        bare = sum(1 for s in llms if not s.get("input_messages") and not s.get("output_messages"))
-        keys = ("prompt_tokens", "completion_tokens", "cached_tokens")
-        totals = {k: sum(s.get(k) or 0 for s in llms) for k in keys}
-        detail = (
-            f"{len(llms)} spans, model {', '.join(models) or 'unknown'}, tokens "
-            f"in={totals['prompt_tokens']} out={totals['completion_tokens']} "
-            f"cached={totals['cached_tokens']}"
-        )
-        if bare:
-            detail += f", {bare} without messages (is message content capture on?)"
-        no_tokens = not totals["prompt_tokens"] and not totals["completion_tokens"]
-        if no_tokens:
-            detail += ", no token counts (check the tokens rule)"
-        lines.append(_line("warn" if bare or no_tokens else "pass", "llm", detail))
-    else:
-        lines.append(_line("warn", "llm", "no llm spans; check the kind rule"))
-    tools = [s for s in esf if s["kind"] == "tool"]
-    trajectory = session.get("trajectory") or {}
-    calls = [c for step in trajectory.get("steps") or [] for c in step.get("tool_calls") or []]
-    every = _trajectories(trajectory)
-    call_ids = {
-        c["tool_call_id"]
-        for t in every
-        for s in t.get("steps") or []
-        for c in s.get("tool_calls") or []
-    }
-    matched = len({s.get("tool_call_id") for s in tools if s.get("tool_call_id")} & call_ids)
-    unplaced = [n for t in every for n in (t.get("extra") or {}).get("unplaced_tool_spans") or []]
-    detail = f"{len(tools)} spans, {matched} matched to calls by id"
-    if unplaced:
-        detail += f", {len(unplaced)} in no step ({', '.join(unplaced[:2])})"
-    lines.append(_line("pass" if tools and not unplaced else "warn", "tools", detail))
-    unmapped = session.get("unmapped_attributes") or []
-    if unmapped:
-        more = f" (+{len(unmapped) - 2})" if len(unmapped) > 2 else ""
-        lines.append(_line("warn", "unmapped", ", ".join(unmapped[:2]) + more))
-    else:
-        lines.append(_line("pass", "unmapped", "every attribute was read"))
-    if trajectory:
-        subs = len(trajectory.get("subagent_trajectories") or [])
-        lines.append(
-            _line(
-                "pass",
-                "trajectory",
-                f"{trajectory.get('schema_version')}, {len(trajectory.get('steps') or [])} "
-                f"steps, {len(calls)} tool calls, {subs} subagents",
-            )
-        )
-    else:
-        lines.append(_line("fail", "trajectory", "no trajectory"))
-    return lines, root is not None
 
 
 def utc(value: str) -> datetime:
@@ -145,7 +54,8 @@ def register(
             "--dump",
             help="Write the raw spans, ESF or trajectory to this path; the file name picks "
             "which (ends in spans.json, esf.json or trajectory.json, e.g. /tmp/run7-spans.json). "
-            "esf.json omits the input messages of LLM calls after each agent's first; the raw "
+            "esf.json omits the input messages of LLM calls after the first under each root span "
+            "and in each subagent; the raw "
             "values are in spans.json.",
         ),
         mapping: str = typer.Option("active", "--mapping", help="active or draft."),
@@ -299,27 +209,38 @@ def register(
     def mapping_push(
         agent: str,
         file: Path = typer.Argument(..., exists=True, dir_okay=False, help="Mapping JSON file."),
-        activate: bool = typer.Option(
-            False,
-            "--activate",
-            help="Also make it the active mapping, which every later run uses.",
-        ),
     ):
-        """Upload a mapping document as the agent's draft.
+        """Upload a mapping document as the agent's draft. Activate it with mapping activate.
 
         Example: evalkit traces mapping push research-agent eval/span-mapping.json
         """
         document = json.loads(file.read_text())
         body = (
             client_factory()
-            .put(
-                f"/api/agents/{encode(agent_slug(agent))}/mappings/draft",
-                params={"activate": str(activate).lower()},
-                json=document,
-            )
+            .put(f"/api/agents/{encode(agent_slug(agent))}/mappings/draft", json=document)
             .json()
         )
-        typer.echo(f"{body['status']} v{body['version']} for {agent}")
+        if body["unchanged"]:
+            typer.echo(f"draft v{body['version']} for {agent} is unchanged")
+            return
+        typer.echo(f"draft v{body['version']} for {agent}")
+
+    @mapping_app.command("activate")
+    def mapping_activate(
+        agent: str,
+        version: int = typer.Argument(..., help="Version to activate, as push printed it."),
+    ):
+        """Make a mapping version the active one, which every later run uses.
+
+        Example: evalkit traces mapping activate research-agent 3
+        """
+        body = (
+            client_factory()
+            .post(f"/api/agents/{encode(agent_slug(agent))}/mappings/{version}/activate")
+            .json()
+        )
+        replaced = f", replacing v{body['replaced_version']}" if body["replaced_version"] else ""
+        typer.echo(f"active v{body['version']} for {agent}{replaced}")
 
     @mapping_app.command("list")
     def mapping_list(agent: str):

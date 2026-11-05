@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { canWrite } from "../lib/access";
 import { api, qs } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import type { Dataset } from "../lib/types";
+import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 
 function datasetMeta(ds: Dataset): string {
@@ -38,7 +40,9 @@ function DatasetRow({ ds }: { ds: Dataset }) {
 }
 
 export function DatasetsPage() {
+  const me = useMe();
   const { workspace } = useWorkspace();
+  const writable = canWrite(me, workspace);
   const [datasets, setDatasets] = useState<Dataset[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -93,7 +97,13 @@ export function DatasetsPage() {
       )}
       {!loading && (
         <>
-          {datasets && datasets.length === 0 && (
+          {datasets && datasets.length === 0 && !writable && (
+            <div className="card pane-status">
+              No datasets in @{workspace.name}. This workspace is read-only for
+              you.
+            </div>
+          )}
+          {datasets && datasets.length === 0 && writable && (
             <div className="card pane-status">
               No datasets in @{workspace.name} — run{" "}
               <span className="font-mono">

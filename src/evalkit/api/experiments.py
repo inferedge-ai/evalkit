@@ -2,11 +2,12 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Coroutine
+from dataclasses import replace
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response, StreamingResponse
@@ -14,12 +15,13 @@ from starlette.responses import Response, StreamingResponse
 from evalkit.api.access import ActorDep, ensure_active, require, workspace_ref
 from evalkit.api.deps import (
     AgentStoreDep,
-    ConfigDep,
     HolderDep,
     PgStoreDep,
     RunnerDepsDep,
     SessionDep,
 )
+from evalkit.api.llm_providers import NO_DEFAULT_JUDGE, require_registered_judge
+from evalkit.api.server_keys import server_keys, with_keys
 from evalkit.contracts.atif import validate_trajectory
 from evalkit.contracts.enums import ExperimentStatus, SyncSource
 from evalkit.core.access import (
@@ -31,7 +33,6 @@ from evalkit.core.access import (
 from evalkit.core.agents import AgentDefinition, explicit, server_may_drive
 from evalkit.core.blob import trajectory_key
 from evalkit.core.costmap import load_cost_map
-from evalkit.core.review import NoApprovedCases
 from evalkit.core.runner import (
     ACTIVE,
     REFETCHABLE,
@@ -51,10 +52,12 @@ from evalkit.core.trajectory import backfill_step_costs
 from evalkit.core.workspace import Reference, parse_slug
 from evalkit.db import experiments as db_experiments
 from evalkit.db import scorecard as db_scorecard
+from evalkit.db.agents import agent_definition, agent_id_for
 from evalkit.db.cases import dataset_by_ref
 from evalkit.db.models import AgentRun as AgentRunRow
 from evalkit.db.models import ExperimentRun as ExperimentRunRow
 from evalkit.db.models import User
+from evalkit.db.runs import publish_evaluations as db_publish_evaluations
 from evalkit.db.runs import record_run as db_record_run
 from evalkit.store.base import (
     AgentRunRecord,
@@ -73,6 +76,10 @@ INTERRUPTED_ERROR = "interrupted: evalkit server shut down"
 
 TaskRegistry = dict[str, tuple[int, str, asyncio.Task]]
 LIST_LIMIT = 200
+
+
+class ScoringOptions(BaseModel):
+    evaluation_concurrency: int | None = Field(default=None, ge=1)
 
 
 class ExperimentPatch(BaseModel):
@@ -189,8 +196,20 @@ async def _server_driven(deps: RunnerDeps, exp: Experiment, command: str) -> Age
     return agent
 
 
-async def _runner_written(deps: RunnerDeps, exp: Experiment) -> AgentDefinition:
-    agent = await _agent(deps, exp)
+def _scoring(
+    request: Request, deps: RunnerDeps, asked: int | None, saved: int | None = None
+) -> RunnerDeps:
+    limit = request.app.state.cfg.runner.evaluation_concurrency
+    if asked is not None and asked > limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"evaluation_concurrency {asked} is above this server's limit of {limit}",
+        )
+    return replace(deps, evaluation_concurrency=asked or min(saved or limit, limit))
+
+
+async def _runner_written(session: AsyncSession, exp: Experiment) -> AgentDefinition:
+    agent = await agent_definition(session, explicit(parse_slug(exp.agent)))
     if server_may_drive(agent):
         raise HTTPException(
             status_code=409,
@@ -218,7 +237,6 @@ async def create_experiment(
     agents: AgentStoreDep,
     session: SessionDep,
     actor: ActorDep,
-    cfg: ConfigDep,
     pod: HolderDep,
 ) -> dict:
     agent = await agents.get(explicit(slug_or_400(body.agent)))
@@ -245,21 +263,29 @@ async def create_experiment(
         raise HTTPException(
             status_code=400, detail="capabilities are fetched by the server for shared agents"
         )
+    if not server_driven and body.evaluation_concurrency is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="evaluation_concurrency is for server runs; your CLI or SDK scores this "
+            "experiment, so pass it there",
+        )
     if not server_driven and (body.capabilities is None or body.holder is None):
         raise HTTPException(
             status_code=400,
             detail="capabilities and holder are required for agents the server does not drive",
         )
-    judge = body.judge or cfg.judge_default
+    providers = request.app.state.llm_providers
+    judge = body.judge or await providers.default_judge()
+    if judge is None:
+        raise HTTPException(status_code=400, detail=f"{NO_DEFAULT_JUDGE}, or pass a judge")
     api_key: str | None = None
+    warnings: list[str] = []
+    run_deps = deps
     if server_driven:
-        api_key = deps.credentials.key_for("agent", agent.ref)
-        if api_key is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"no credentials.agents entry for {agent.ref} in the server config",
-            )
-        deps.credentials.require_judge_key(judge.base_url)
+        await require_registered_judge(providers, judge.base_url)
+        keys, warnings = await server_keys(request, agent, judge.base_url)
+        api_key = keys.key_for("agent", agent.ref)
+        run_deps = _scoring(request, with_keys(deps, keys), body.evaluation_concurrency)
     holder = task_holder(pod) if server_driven else str(body.holder)
     try:
         caps = body.capabilities or await harness_capabilities(
@@ -278,13 +304,13 @@ async def create_experiment(
             if body.cases is not None
             else await _last_git_revision(session, body.dataset),
         )
-    except (NoApprovedCases, InvalidCaseInputs, NothingRunnable) as exc:
+    except (InvalidCaseInputs, NothingRunnable) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"could not start experiment: {exc}") from exc
     if server_driven:
-        _track(request, exp.id, holder, f"run:{exp.id}", run_experiment(deps, exp.id, holder))
-    return {**exp.model_dump(mode="json"), "dropped_cases": dropped}
+        _track(request, exp.id, holder, f"run:{exp.id}", run_experiment(run_deps, exp.id, holder))
+    return {**exp.model_dump(mode="json"), "dropped_cases": dropped, "warnings": warnings}
 
 
 async def with_progress(session: AsyncSession, experiments: list[Experiment]) -> list[dict]:
@@ -308,6 +334,8 @@ async def list_experiments(
     session: SessionDep,
     workspace: str | None = None,
     status: ExperimentStatus | None = None,
+    agent: str | None = None,
+    dataset: str | None = None,
     limit: int = Query(50, ge=1),
     offset: int = Query(0, ge=0),
     brief: bool = False,
@@ -317,6 +345,8 @@ async def list_experiments(
         session,
         workspace_id=workspace_id,
         status=status,
+        agent_id=await agent_id_for(session, agent) if agent else None,
+        dataset_id=(await dataset_by_ref(session, dataset)).id if dataset else None,
         limit=min(limit, LIST_LIMIT),
         offset=offset,
     )
@@ -374,7 +404,7 @@ async def record_run(
     exp_id: int, body: RunPost, deps: RunnerDepsDep, session: SessionDep, actor: ActorDep
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
-    await _runner_written(deps, exp)
+    await _runner_written(session, exp)
     expected = trajectory_key(exp.agent_id, body.run.harness_run_id)
     if body.run.trajectory_key is not None and body.run.trajectory_key != expected:
         raise HTTPException(status_code=400, detail=f"trajectory_key must be {expected}")
@@ -414,15 +444,17 @@ async def publish_evaluations(
     run_id: int,
     body: EvaluationsPost,
     deps: RunnerDepsDep,
-    store: PgStoreDep,
     session: SessionDep,
     actor: ActorDep,
 ) -> dict:
     exp_id = await db_experiments.experiment_of_run(session, run_id)
     if exp_id is None:
         raise HTTPException(status_code=404, detail=f"unknown experiment run: {run_id}")
-    await _runner_written(deps, await _changeable(session, actor, exp_id))
-    await store.publish_evaluations(run_id, body.rows, force=body.force, holder=body.holder)
+    await _runner_written(session, await _changeable(session, actor, exp_id))
+    await db_publish_evaluations(
+        session, run_id, body.rows, force=body.force, holder=body.holder, experiment_id=exp_id
+    )
+    await session.commit()
     return {"ok": True}
 
 
@@ -435,7 +467,7 @@ async def patch_experiment(
     session: SessionDep,
     actor: ActorDep,
 ) -> dict:
-    agent = await _runner_written(deps, await _changeable(session, actor, exp_id))
+    agent = await _runner_written(session, await _changeable(session, actor, exp_id))
     if body.status in ACTIVE and agent.archived:
         raise HTTPException(status_code=409, detail=f"agent {agent.ref} is archived")
     if body.model is not None:
@@ -468,13 +500,29 @@ async def evaluate(
     session: SessionDep,
     actor: ActorDep,
     pod: HolderDep,
+    body: ScoringOptions | None = None,
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
-    await _server_driven(deps, exp, "evaluate")
+    agent = await _server_driven(deps, exp, "evaluate")
+    asked = body.evaluation_concurrency if body is not None else None
+    await require_registered_judge(request.app.state.llm_providers, exp.config.judge.base_url)
+    keys, warnings = await server_keys(request, agent, exp.config.judge.base_url)
     holder = task_holder(pod)
     exp = await store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
-    _track(request, exp_id, holder, f"evaluate:{exp_id}", rescore_experiment(deps, exp_id, holder))
-    return exp.model_dump(mode="json")
+    _track(
+        request,
+        exp_id,
+        holder,
+        f"evaluate:{exp_id}",
+        rescore_experiment(
+            _scoring(
+                request, with_keys(deps, keys), asked, exp.config.snapshot.evaluation_concurrency
+            ),
+            exp_id,
+            holder,
+        ),
+    )
+    return {**exp.model_dump(mode="json"), "warnings": warnings}
 
 
 @router.post("/{exp_id}/resume")
@@ -486,18 +534,29 @@ async def resume(
     session: SessionDep,
     actor: ActorDep,
     pod: HolderDep,
+    body: ScoringOptions | None = None,
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
     agent = await _server_driven(deps, exp, "resume")
-    if deps.credentials.key_for("agent", agent.ref) is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"no credentials.agents entry for {agent.ref} in the server config",
-        )
+    asked = body.evaluation_concurrency if body is not None else None
+    await require_registered_judge(request.app.state.llm_providers, exp.config.judge.base_url)
+    keys, warnings = await server_keys(request, agent, exp.config.judge.base_url)
     holder = task_holder(pod)
     exp = await store.transition(exp_id, ExperimentStatus.RUNNING, holder)
-    _track(request, exp_id, holder, f"run:{exp_id}", run_experiment(deps, exp_id, holder))
-    return exp.model_dump(mode="json")
+    _track(
+        request,
+        exp_id,
+        holder,
+        f"run:{exp_id}",
+        run_experiment(
+            _scoring(
+                request, with_keys(deps, keys), asked, exp.config.snapshot.evaluation_concurrency
+            ),
+            exp_id,
+            holder,
+        ),
+    )
+    return {**exp.model_dump(mode="json"), "warnings": warnings}
 
 
 @router.get("/{exp_id}/runs/{run_id}/trajectory")
@@ -553,7 +612,7 @@ async def put_blob(
     actor: ActorDep,
 ) -> dict:
     exp = await _changeable(session, actor, exp_id)
-    await _runner_written(deps, exp)
+    await _runner_written(session, exp)
     _check_blob_key(exp, key)
     harness_run_id = _harness_run_id(exp, key)
     if harness_run_id is None:
@@ -577,6 +636,7 @@ async def put_blob(
             detail=f"session id {harness_run_id} was already used in experiment {exp_id}; "
             "each run needs its own session id",
         )
+    await session.close()
     await deps.blob_store.put_stream(key, request.stream())
     return {"ok": True}
 

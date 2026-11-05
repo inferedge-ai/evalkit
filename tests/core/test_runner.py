@@ -19,6 +19,7 @@ from evalkit.contracts.enums import (
 )
 from evalkit.contracts.harness import Capabilities
 from evalkit.contracts.settings import JudgeSettings, RemoteEvaluatorSettings
+from evalkit.core import runner as runner_module
 from evalkit.core.evaluators import presentation, rubrics, trajectory_rubrics
 from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
 from evalkit.core.evaluators.rubrics import ANSWER_RUBRIC_EMITS
@@ -26,7 +27,6 @@ from evalkit.core.harness import HarnessClient
 from evalkit.core.judge import JudgeUsage
 from evalkit.core.python_eval import PythonEvaluator
 from evalkit.core.remote_evaluators import RemoteEvaluator
-from evalkit.core.review import NoApprovedCases
 from evalkit.core.runner import (
     ExperimentRequest,
     InvalidCaseInputs,
@@ -425,34 +425,13 @@ async def test_fixture_case_gated_without_accepts_files(tmp_path, stub_judges, s
     assert {c.case_id for c in await env.store.pinned_cases(exp.id)} == {"case-1", "case-2"}
 
 
-async def test_run_pins_selection_to_approved_cases(tmp_path, stub_judges, session_factory):
+async def test_shared_run_includes_every_review_state(tmp_path, stub_judges, session_factory):
     env = await seed_env(session_factory, tmp_path, approved=False)
     await approve(env, case_ids=["case-1"])
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
-    assert {run.case_id for run in await env.details(exp.id)} == {"case-1"}
-    assert [c.case_id for c in await env.store.pinned_cases(exp.id)] == ["case-1"]
-    assert exp.config.include_drafts is False
-    assert exp.config.review_scope == "approved"
-    assert exp.config.selection == Selection(all=True)
-
-
-async def test_run_with_include_drafts_runs_everything(tmp_path, stub_judges, session_factory):
-    env = await seed_env(session_factory, tmp_path, approved=False)
-    exp = await start(
-        env,
-        ExperimentRequest(dataset="finance@canonical", agent="fake@canonical", include_drafts=True),
-    )
     assert {run.case_id for run in await env.details(exp.id)} == {"case-1", "case-2"}
-    assert exp.config.include_drafts is True
-    assert exp.config.review_scope == "all"
+    assert [c.case_id for c in await env.store.pinned_cases(exp.id)] == ["case-1", "case-2"]
     assert exp.config.selection == Selection(all=True)
-
-
-async def test_run_with_no_approved_cases_fails_fast(tmp_path, stub_judges, session_factory):
-    env = await seed_env(session_factory, tmp_path, approved=False)
-    with pytest.raises(NoApprovedCases):
-        await prepare(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
-    assert await count(session_factory, ExperimentRow) == 0
 
 
 async def test_structured_output_stored_and_sent_to_evaluators(
@@ -510,9 +489,7 @@ async def test_default_schema_refuses_cases_without_a_question(
     with pytest.raises(InvalidCaseInputs) as exc:
         await prepare(
             env,
-            ExperimentRequest(
-                dataset="typed@canonical", agent="fake@canonical", include_drafts=True
-            ),
+            ExperimentRequest(dataset="typed@canonical", agent="fake@canonical"),
         )
     assert exc.value.bad == {"t-1": "<root>: 'question' is a required property"}
 
@@ -589,7 +566,6 @@ async def test_workspace_dataset_skips_review_pinning(tmp_path, stub_judges, ses
     )
     exp = await start(env, ExperimentRequest(dataset="finance@akshat", agent="fake@canonical"))
     assert {run.case_id for run in await env.details(exp.id)} == {"case-1", "case-2"}
-    assert exp.config.review_scope is None
 
 
 async def test_drive_uses_agent_name_part_of_slug(tmp_path, stub_judges, session_factory):
@@ -1011,7 +987,8 @@ async def test_missing_judge_key_fails_before_any_harness_call(
     fake = FakeHarness()
     env = await seed_env(session_factory, tmp_path, fake)
     env.deps.credentials = CredentialRegistry(
-        TEST_CREDENTIALS_CONFIG.model_copy(update={"judges": {}}), {"FAKE_AGENT_KEY": "client-key"}
+        TEST_CREDENTIALS_CONFIG.model_copy(update={"llm_providers": {}}),
+        {"FAKE_AGENT_KEY": "client-key"},
     )
     exp = await prepare(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     with pytest.raises(MissingCredential, match=JUDGE_URL):
@@ -1042,3 +1019,27 @@ async def test_a_failed_workspace_listing_keeps_the_experiment(
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     assert (await env.experiment(exp.id)).status is COMPLETED
     assert not any(key.startswith("workspaces/") for key in env.blob.objects)
+
+
+async def test_scoring_runs_at_most_evaluation_concurrency_at_once(
+    tmp_path, stub_judges, session_factory, monkeypatch
+):
+    env = await seed_env(session_factory, tmp_path)
+    real = runner_module._evaluate_run
+    active, peak = 0, 0
+
+    async def tracked(*args, **kwargs):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0)
+        await real(*args, **kwargs)
+        active -= 1
+
+    monkeypatch.setattr(runner_module, "_evaluate_run", tracked)
+    env.deps.evaluation_concurrency = 1
+    exp = await start(
+        env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical", repetitions=2)
+    )
+    assert exp.status is COMPLETED, exp.status_error
+    assert peak == 1

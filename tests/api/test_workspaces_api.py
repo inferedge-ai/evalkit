@@ -45,7 +45,9 @@ async def test_admin_manages_shared_workspace_and_members(api):
     assert resp.status_code == 400
     renamed = await client.patch("/api/workspaces/dev", json={"name": "staging"})
     assert renamed.status_code == 200 and renamed.json()["name"] == "staging"
-    assert any("@dev to @staging" in line for line in renamed.json()["update"])
+    assert any(
+        "evalkit.yaml credentials keys ending in @dev" in line for line in renamed.json()["update"]
+    )
     personal = await client.patch("/api/workspaces/bob", json={"name": "robert"})
     assert personal.status_code == 400 and "owner's name" in personal.json()["detail"]
     bad = await client.patch("/api/workspaces/staging", json={"name": "Bad Name"})

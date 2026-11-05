@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 import obstore
-from obstore.exceptions import NotFoundError
 from obstore.store import ObjectStore, from_url
 
 from evalkit.store.base import BlobStream
@@ -45,7 +44,7 @@ class Obstore:
         try:
             await obstore.head_async(self._store, key)
             return True
-        except (NotFoundError, FileNotFoundError):
+        except FileNotFoundError:
             return False
 
     async def list_objects(self, prefix: str) -> list[tuple[str, int]]:

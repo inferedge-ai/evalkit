@@ -37,7 +37,7 @@ def local_config(tmp_path) -> LocalConfig:
         credentials=CredentialsConfig(
             agents={"fake": "env:LOCAL_AGENT_KEY"},
             evaluators={"required_tool_calls": "env:LOCAL_EVAL_KEY"},
-            judges={"http://judge.test": "env:LOCAL_JUDGE_KEY"},
+            llm_providers={"http://judge.test": "env:LOCAL_JUDGE_KEY"},
         ),
     )
 
@@ -55,7 +55,6 @@ async def test_local_run_writes_everything_to_the_server(ctx, tmp_path):
         selection=Selection(all=True),
         repetitions=1,
         model=None,
-        include_drafts=False,
         resume=None,
         revision=GitRevision(sha="abc", branch="feat", dirty=True),
         progress=lines.append,
@@ -102,7 +101,6 @@ async def test_resume_runs_only_pending_cases(ctx, tmp_path):
         selection=Selection(all=True),
         repetitions=1,
         model=None,
-        include_drafts=False,
         revision=GitRevision(),
         progress=lambda line: None,
         transport=httpx.ASGITransport(app=fake.app),

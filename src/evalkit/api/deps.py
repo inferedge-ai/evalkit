@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from evalkit.config import Config
 from evalkit.core.runner import RunnerDeps
 from evalkit.db.agents import AgentStore
+from evalkit.db.keys import KeyLoader
 from evalkit.db.mappings import MappingStore
 from evalkit.db.review import ReviewLog
 from evalkit.db.sessions import DbSessionReader
@@ -21,6 +22,10 @@ def get_config(request: Request) -> Config:
 
 def get_runner_deps(request: Request) -> RunnerDeps:
     return request.app.state.runner_deps
+
+
+def get_keys(request: Request) -> KeyLoader:
+    return request.app.state.keys
 
 
 def get_review_log(request: Request) -> ReviewLog:
@@ -71,3 +76,4 @@ AgentTokensDep = Annotated[AgentTokens, Depends(get_tokens)]
 SpanStoreDep = Annotated[SpanStore, Depends(get_spans)]
 MappingStoreDep = Annotated[MappingStore, Depends(get_mappings)]
 SessionReaderDep = Annotated[DbSessionReader, Depends(get_sessions)]
+KeysDep = Annotated[KeyLoader, Depends(get_keys)]

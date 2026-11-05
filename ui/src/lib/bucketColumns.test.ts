@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { scoreValue } from "./bucketColumns";
+import { scoredBucketColumns } from "./bucketColumns";
 
-describe("scoreValue", () => {
-  it("returns null for missing, non-numeric, or non-finite values", () => {
-    expect(scoreValue(undefined, "x")).toBeNull();
-    expect(scoreValue(null, "x")).toBeNull();
-    expect(scoreValue({ x: null }, "x")).toBeNull();
-    expect(scoreValue({ x: NaN }, "x")).toBeNull();
-    expect(scoreValue({ x: 0 }, "x")).toBe(0);
+describe("scoredBucketColumns", () => {
+  it("keeps only buckets some row scored, custom included", () => {
+    const columns = scoredBucketColumns([
+      { scores: { presentation: 0.5, custom: null } },
+      { scores: { custom: 0.8, trajectory: null } },
+    ]);
+    expect(columns.map((c) => c.bucket)).toEqual(["presentation", "custom"]);
+  });
+
+  it("returns no columns when nothing is scored", () => {
+    expect(scoredBucketColumns([])).toEqual([]);
   });
 });

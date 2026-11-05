@@ -7,18 +7,23 @@ import {
   editAgentBody,
   emptyAgentForm,
   SETTING_FIELDS,
+  urlClearsKey,
 } from "../lib/agentForm";
+import { ApiKeyField } from "../lib/ApiKeyField";
+import { ENDPOINT_NOTE, PERSONAL_KEY_NOTE } from "../lib/endpoint";
 import type { AgentFormValues } from "../lib/agentForm";
 import { Select } from "../lib/Select";
 import type { AgentInfo } from "../lib/types";
 
 export function AgentForm({
   workspace,
+  shared,
   agent,
   onSaved,
   onClose,
 }: {
   workspace: string;
+  shared: boolean;
   agent?: AgentInfo;
   onSaved: (agent: AgentInfo) => void;
   onClose: () => void;
@@ -105,6 +110,25 @@ export function AgentForm({
               onChange={(e) => set("harness_url", e.target.value)}
             />
           </div>
+          <p className="row-meta whitespace-normal">{ENDPOINT_NOTE}</p>
+          {shared ? (
+            <div className="form-row">
+              <span className="form-label">API key</span>
+              <ApiKeyField
+                hasKey={agent?.has_api_key ?? false}
+                value={values.api_key}
+                onChange={(apiKey) => set("api_key", apiKey)}
+              />
+            </div>
+          ) : (
+            <p className="row-meta whitespace-normal">{PERSONAL_KEY_NOTE}</p>
+          )}
+          {agent && urlClearsKey(values, agent) && (
+            <p className="row-meta whitespace-normal text-err-text">
+              Saving a new harness URL removes the stored API key. Enter the key
+              for the new URL above.
+            </p>
+          )}
           <div className="form-row">
             <span className="form-label">Trajectories</span>
             <Select
@@ -163,11 +187,6 @@ export function AgentForm({
               />
             </div>
           ))}
-          <p className="row-meta mt-2">
-            The agent's API key is not stored here: add it to the{" "}
-            <span className="font-mono">credentials.agents</span> map of the
-            config that drives it.
-          </p>
           {errors.map((message) => (
             <div key={message} className="text-meta text-err-text">
               {message}

@@ -7,7 +7,12 @@ from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.convert import to_atif
 from evalkit.core.traces.mapping import mapping_for, to_esf
 from evalkit.core.traces.raw import RawSpan
-from evalkit.core.traces.sessions import agent_spans, build_session_trajectory
+from evalkit.core.traces.sessions import (
+    agent_spans,
+    build_session_trajectory,
+    later_llm_spans,
+    probe_attributes,
+)
 from evalkit.core.traces.settle import root_present, settled
 from tests.fake_agents import REFERENCE
 
@@ -237,3 +242,33 @@ def test_build_keeps_repeated_context_once():
     tracemalloc.stop()
     assert total > 30_000_000
     assert peak < total / 4
+
+
+TASK_MAPPING = MappingDocument.model_validate(
+    {
+        "schema_version": "1",
+        "kind": {"attribute": "kind"},
+        "input_messages": {"attribute": "in", "message_format": "openai"},
+        "tool": {"call_id": {"attribute": "call"}},
+    }
+)
+
+
+def test_probes_read_the_call_id_so_a_task_agents_first_llm_keeps_its_input():
+    spans = [
+        raw("root", attributes={"kind": "agent", "in": "[]"}),
+        raw("l1", parent="root", attributes={"kind": "llm", "in": "[]"}),
+        raw("task", parent="root", attributes={"kind": "agent", "call": "c1"}),
+        raw("l_task", parent="task", attributes={"kind": "llm", "in": "[]"}),
+    ]
+    probes = [
+        s.model_copy(
+            update={
+                "attributes": {
+                    k: v for k, v in s.attributes.items() if k in probe_attributes(TASK_MAPPING)
+                }
+            }
+        )
+        for s in spans
+    ]
+    assert later_llm_spans(probes, TASK_MAPPING).positions == []

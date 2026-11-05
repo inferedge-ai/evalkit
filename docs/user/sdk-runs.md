@@ -101,8 +101,8 @@ The agent's exporter needs its own token. Mint one with `evalkit tokens create -
 ## Datasets and workspaces
 
 - `dataset="finance"` runs your own workspace's copy; if `finance` is a directory under `cases` it is synced first.
-- `dataset="finance@dev"` or `dataset="finance", workspace="dev"` runs the shared cases (Approved ones only, unless `include_drafts`).
-- `case_ids=[...]`, `split="..."`, `repetitions`, `model`, `resume=<experiment id>` and `include_drafts` mean what the same options mean on `evalkit run`.
+- `dataset="finance@dev"` or `dataset="finance", workspace="dev"` runs the shared cases, every review state included.
+- `case_ids=[...]`, `tags=[...]`, `repetitions`, `model` and `resume=<experiment id>` mean what the same options mean on `evalkit run`.
 - `dry_run=True` runs one case (`dry_run=N` runs N) without creating an experiment and prints the answer and what the server made of the session. If the server cannot read a session, that case prints a `trajectory read failed` line and the dry run goes on. Use it while wiring up tracing; the session shows on the Runs page with its case question and case id.
 
 ## Notebooks
@@ -135,13 +135,17 @@ run_experiment(dataset="finance", agent="myagent-sdk", task=task,
                judge=Judge(base_url="https://litellm.example.com", model="gpt-5"))
 ```
 
+An admin sets the default judge with `evalkit judge-default set`. Either way, the SDK reads the judge's key from `credentials.llm_providers` in `evalkit.yaml`, keyed by the judge's base URL.
+
 ## Capabilities
 
 A code-driven agent has no `GET /capabilities`, so evalkit writes its capabilities onto each experiment itself: `trajectory`, `tool_calls`, `token_usage` and `run_listing` are true; `thinking`, `artifacts` and `workspace` are false. Evaluators gated on a capability skip when it is false. evalkit does not read capabilities from the spans. Set `provides` on the agent (`evalkit agents create --provides`, or `evalkit agents edit`) to declare what it really does, for example `thinking: true` when its spans carry the model's reasoning. Declare only what works: a false `true` produces failing scores blamed on the agent.
 
+The agent's input schema is the default (a required string `question`) unless you set one with `evalkit agents create --input-schema` or `evalkit agents edit --input-schema`. Every case input must pass it, in a dry run too; see [Input schema](case-schema.md#input-schema).
+
 ## Python evaluators
 
-`@evaluator(name=..., kind="evaluator" | "gauge", requires_trajectory=False)` turns a function into an evaluator. It receives the same `EvalCase` and `EvalRun` the HTTP Custom Evaluator API sends: the case id, input, expected block and this evaluator's config from the case YAML; the answer, structured output and the ATIF trajectory as a dict. Return a float, a `ScoreItem`, or a list of them. A case selects it by name under `evaluators.custom`, exactly like an HTTP evaluator.
+`@evaluator(name=..., kind="evaluator" | "gauge", requires_trajectory=False)` turns a function into an evaluator. It receives the same `EvalCase` and `EvalRun` the HTTP Custom Evaluator API sends: the case id, input, expected block and this evaluator's config from the case YAML; the answer, structured output and the ATIF trajectory as a dict. Return a float, a `ScoreItem` (`from evalkit.sdk import ScoreItem`), or a list of them. [Case schema](case-schema.md#python-evaluators) lists the fields of `EvalCase` and `EvalRun`. A case selects it by name under `evaluators.custom`, exactly like an HTTP evaluator.
 
 ## Bring your own benchmark
 
@@ -151,7 +155,7 @@ A published benchmark is a suite plus a Python evaluator:
 2. `evalkit sync <dir>` puts it in a dataset like any suite.
 3. Write the grader as an `@evaluator` with that name. It reads the grading data from `case.config`, and calls its own judge models if it needs any. Pass it to `run_experiment`.
 
-`evalkit lint` and `evalkit sync` warn with `W-CUSTOM-UNKNOWN` for the grader name, because the server can't see a Python evaluator. That warning is expected. In a shared workspace the synced cases stay Draft until reviewed, so pass `include_drafts=True` to run them unreviewed.
+`evalkit lint` and `evalkit sync` warn with `W-CUSTOM-UNKNOWN` for the grader name, because the server can't see a Python evaluator. That warning is expected.
 
 ## Re-scoring
 

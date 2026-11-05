@@ -1,43 +1,46 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, apiJson } from "../lib/api";
+import { api, apiJson, NotFoundError } from "../lib/api";
 import { questionText } from "../lib/format";
 import { stateClass, stateLabel } from "../lib/review";
 import {
-  approvedCount,
   casesInScope,
   cliCommand,
   selectionFor,
   sourceFiles,
 } from "../lib/runLauncher";
 import type { LaunchRequest, Scope, ScopeChoice } from "../lib/runLauncher";
-import { Select } from "../lib/Select";
+import { MultiSelect, Select } from "../lib/Select";
+import { sortedTags } from "../lib/tags";
 import { judgeChoice, judgeOverride } from "../lib/judge";
 import type { JudgeChoice } from "../lib/judge";
 import type {
   AgentInfo,
   Dataset,
   JudgeSettings,
-  SplitInfo,
+  LlmProviderInfo,
+  TagInfo,
   CaseView,
 } from "../lib/types";
 import { CopyButton } from "../lib/ui";
 
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "all", label: "All cases" },
-  { id: "split", label: "Split" },
+  { id: "tags", label: "Tags" },
   { id: "file", label: "Case file" },
   { id: "cases", label: "Pick cases" },
 ];
 
 export function RunLauncher({
   dataset,
-  splits,
+  tags,
   initialCaseIds,
+  serverRuns,
   onClose,
 }: {
   dataset: string;
-  splits: SplitInfo[];
+  serverRuns: boolean;
+  tags: TagInfo[];
   initialCaseIds?: string[];
   onClose: () => void;
 }) {
@@ -48,14 +51,15 @@ export function RunLauncher({
   const [isSuite, setIsSuite] = useState(false);
   const [choice, setChoice] = useState<ScopeChoice>({
     scope: initialCaseIds?.length ? "cases" : "all",
-    tag: splits[0]?.name ?? "",
+    tags: [],
     file: "",
     caseIds: initialCaseIds ?? [],
   });
   const [runs, setRuns] = useState(1);
   const [model, setModel] = useState("");
-  const [includeDrafts, setIncludeDrafts] = useState(false);
+  const [scoring, setScoring] = useState("");
   const [judgeDefault, setJudgeDefault] = useState<JudgeSettings | null>(null);
+  const [providers, setProviders] = useState<LlmProviderInfo[]>([]);
   const [judge, setJudge] = useState<JudgeChoice>({
     model: "",
     base_url: "",
@@ -68,24 +72,35 @@ export function RunLauncher({
   useEffect(() => {
     api<AgentInfo[]>("/agents")
       .then((all) => {
-        const list = all.filter((a) => a.driver === "server");
+        const list = serverRuns
+          ? all.filter((a) => a.driver === "server")
+          : [
+              ...all.filter((a) => a.driver === "cli"),
+              ...all.filter((a) => a.driver === "server"),
+            ];
         setAgents(list);
         setAgent((a) => a || list[0]?.ref || "");
       })
+      .catch((e) => setError(String(e)));
+    api<LlmProviderInfo[]>("/llm-providers")
+      .then(setProviders)
       .catch((e) => setError(String(e)));
     api<JudgeSettings>("/judge-default")
       .then((settings) => {
         setJudgeDefault(settings);
         setJudge(judgeChoice(settings));
       })
-      .catch((e) => setError(String(e)));
+      .catch((e) => {
+        setJudgeDefault(null);
+        if (!(e instanceof NotFoundError)) setError(String(e));
+      });
     api<CaseView[]>(`/datasets/${encodeURIComponent(dataset)}/cases`)
       .then(setExamples)
       .catch((e) => setError(String(e)));
     api<Dataset>(`/datasets/${encodeURIComponent(dataset)}`)
       .then((d) => setIsSuite(d.kind === "suite" && d.workspace_is_shared))
       .catch(() => setIsSuite(false));
-  }, [dataset]);
+  }, [dataset, serverRuns]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -100,25 +115,21 @@ export function RunLauncher({
     if (!choice.file && files.length)
       setChoice((c) => ({ ...c, file: files[0].name }));
   }, [files, choice.file]);
-  useEffect(() => {
-    if (!choice.tag && splits.length)
-      setChoice((c) => ({ ...c, tag: splits[0].name }));
-  }, [splits, choice.tag]);
 
   const inScope = casesInScope(examples ?? [], choice);
   const selection = selectionFor(examples ?? [], choice);
-  const approved = approvedCount(inScope);
-  const runnable = isSuite && !includeDrafts ? approved : inScope.length;
+  const judgeReady =
+    judgeDefault !== null || judgeOverride(null, judge) !== null;
   const request: LaunchRequest | null =
-    selection && agent
+    selection && (agent || !serverRuns) && judgeReady
       ? {
           dataset,
-          agent,
+          agent: agent || "<agent>",
           repetitions: runs,
           selection,
           model: model.trim() || null,
-          include_drafts: isSuite && includeDrafts,
           judge: judgeOverride(judgeDefault, judge),
+          evaluation_concurrency: Number(scoring) || null,
         }
       : null;
 
@@ -182,7 +193,7 @@ export function RunLauncher({
               ariaLabel="agent"
               value={agent}
               onChange={setAgent}
-              placeholder="No shared agents"
+              placeholder={serverRuns ? "No shared agents" : "No agents"}
               options={agents.map((a) => ({ value: a.ref, label: a.ref }))}
             />
           </div>
@@ -195,7 +206,7 @@ export function RunLauncher({
                     key={s.id}
                     aria-pressed={choice.scope === s.id}
                     disabled={
-                      (s.id === "split" && !splits.length) ||
+                      (s.id === "tags" && !tags.length) ||
                       (s.id === "file" && !files.length)
                     }
                     onClick={() => setScope(s.id)}
@@ -204,18 +215,48 @@ export function RunLauncher({
                   </button>
                 ))}
               </div>
-              {choice.scope === "split" && (
-                <Select
-                  ariaLabel="split"
-                  className="self-start"
-                  value={choice.tag}
-                  onChange={(tag) => setChoice((c) => ({ ...c, tag }))}
-                  options={splits.map((s) => ({
-                    value: s.name,
-                    label: s.name,
-                    hint: s.count,
-                  }))}
-                />
+              {choice.scope === "tags" && (
+                <>
+                  <MultiSelect
+                    ariaLabel="tags"
+                    className="self-start"
+                    placeholder="Pick tags"
+                    values={choice.tags}
+                    onChange={(picked) =>
+                      setChoice((c) => ({ ...c, tags: sortedTags(picked) }))
+                    }
+                    options={tags.map((t) => ({
+                      value: t.name,
+                      label: t.name,
+                      hint: t.count,
+                    }))}
+                  />
+                  {choice.tags.length > 0 && (
+                    <div
+                      className="flex flex-wrap gap-1.5"
+                      aria-label="selected tags"
+                    >
+                      {choice.tags.map((tag) => (
+                        <span key={tag} className="chip muted font-mono">
+                          {tag}
+                          <button
+                            type="button"
+                            className="ml-1 text-ink-3 hover:text-ink"
+                            aria-label={`remove ${tag}`}
+                            onClick={() =>
+                              setChoice((c) => ({
+                                ...c,
+                                tags: c.tags.filter((t) => t !== tag),
+                              }))
+                            }
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
               {choice.scope === "file" && (
                 <Select
@@ -299,25 +340,10 @@ export function RunLauncher({
               <span className="row-meta">
                 {examples === null
                   ? "Loading cases…"
-                  : isSuite
-                    ? `${inScope.length} case${inScope.length === 1 ? "" : "s"} · ${approved} approved`
-                    : `${inScope.length} case${inScope.length === 1 ? "" : "s"}`}
+                  : `${inScope.length} case${inScope.length === 1 ? "" : "s"}`}
               </span>
             </div>
           </div>
-          {isSuite && (
-            <div className="form-row">
-              <span className="form-label">Drafts</span>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={includeDrafts}
-                  onChange={(e) => setIncludeDrafts(e.target.checked)}
-                />
-                Include cases that are not approved
-              </label>
-            </div>
-          )}
           <div className="form-row">
             <span className="form-label">Repetitions</span>
             <input
@@ -341,14 +367,52 @@ export function RunLauncher({
               title="Used only if the harness accepts a model override"
             />
           </div>
-          {(["model", "base_url", "reasoning_effort"] as const).map((key) => (
+          <div className="form-row">
+            <span className="form-label">Evaluation concurrency</span>
+            <input
+              className="input w-20"
+              type="number"
+              min={1}
+              placeholder="default"
+              value={scoring}
+              onChange={(e) =>
+                setScoring(
+                  e.target.value === ""
+                    ? ""
+                    : String(Math.max(1, Math.floor(Number(e.target.value)))),
+                )
+              }
+              title="How many runs are scored at once. Server runs default to the server's limit and may not go above it"
+            />
+          </div>
+          <div className="form-row">
+            <span className="form-label">Judge provider</span>
+            <Select
+              ariaLabel="judge provider"
+              value={judge.base_url}
+              onChange={(base_url) => setJudge((j) => ({ ...j, base_url }))}
+              options={[
+                ...(judgeDefault
+                  ? [{ value: "", label: "server default" }]
+                  : []),
+                ...providers.map((p) => ({
+                  value: p.base_url,
+                  label: `${p.name} (${p.base_url})`,
+                })),
+              ]}
+              title="LLM providers an admin registered; server runs only judge with these"
+            />
+          </div>
+          {!judgeDefault && (
+            <p className="row-meta whitespace-normal">
+              This server has no default judge yet. Pick a provider and a judge
+              model.
+            </p>
+          )}
+          {(["model", "reasoning_effort"] as const).map((key) => (
             <div key={key} className="form-row">
               <span className="form-label">
-                {key === "model"
-                  ? "Judge model"
-                  : key === "base_url"
-                    ? "Judge URL"
-                    : "Judge effort"}
+                {key === "model" ? "Judge model" : "Judge effort"}
               </span>
               <input
                 className="input w-72"
@@ -357,11 +421,7 @@ export function RunLauncher({
                 onChange={(e) =>
                   setJudge((j) => ({ ...j, [key]: e.target.value }))
                 }
-                title={
-                  key === "base_url"
-                    ? "Defaults to the server's judge. Another URL needs a matching credentials.judges entry in the server config, or the run fails at the judge."
-                    : "Defaults to the server's judge; the experiment records the judge it used"
-                }
+                title="Defaults to the server's judge; the experiment records the judge it used"
               />
             </div>
           ))}
@@ -377,25 +437,50 @@ export function RunLauncher({
         </div>
         <div className="dialog-foot">
           {error && <span className="text-meta text-err-text">{error}</span>}
-          {!error && isSuite && !includeDrafts && examples && !approved && (
-            <span className="text-meta text-warn">
-              No approved cases in this selection — include drafts to run them.
+          {!serverRuns && !error && (
+            <span className="text-meta text-ink-3">
+              Datasets in a personal workspace run from your terminal.
             </span>
           )}
           <button className="btn btn-quiet ml-auto" onClick={onClose}>
             Cancel
           </button>
-          <button
-            className="btn btn-primary"
-            disabled={busy || !request || runnable === 0}
-            onClick={launch}
-          >
-            {busy
-              ? "Starting…"
-              : `Start ${runnable * runs} run${runnable * runs === 1 ? "" : "s"}`}
-          </button>
+          {serverRuns ? (
+            <button
+              className="btn btn-primary"
+              disabled={busy || !request || inScope.length === 0}
+              onClick={launch}
+            >
+              {busy
+                ? "Starting…"
+                : `Start ${inScope.length * runs} run${inScope.length * runs === 1 ? "" : "s"}`}
+            </button>
+          ) : (
+            <CopyCommandButton
+              text={request && inScope.length ? cliCommand(request) : null}
+            />
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+function CopyCommandButton({ text }: { text: string | null }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="btn btn-primary"
+      disabled={!text}
+      onClick={() => {
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+    >
+      {copied ? "Copied" : "Copy CLI command"}
+    </button>
   );
 }
