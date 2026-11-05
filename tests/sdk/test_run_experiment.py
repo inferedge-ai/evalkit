@@ -73,7 +73,7 @@ def server(tmp_path_factory, stub_judges_module, module_db_url):
         )
         await seed_agent(factory, "pushed", "admin", harness_url=None, settings=AgentSettings())
         await seed_agent(factory, "harnessy", "admin", harness_url="http://x")
-        await RemoteEvaluatorStore(factory, 1).create(
+        await RemoteEvaluatorStore(factory, "default").create(
             await workspace_ref(factory, "admin"),
             "http_eval",
             EvaluatorKind.SCORE,
@@ -134,7 +134,7 @@ class Server:
 
     async def _with_store(self, work):
         factory = make_session_factory(self.db_url)
-        result = await work(PgStore(factory, 1), factory)
+        result = await work(PgStore(factory, "default"), factory)
         await factory.kw["bind"].dispose()
         return result
 
@@ -146,14 +146,14 @@ class Server:
 
     async def count(self) -> int:
         async def work(_, factory):
-            async with tenant_session(factory, 1) as session:
+            async with tenant_session(factory, "default") as session:
                 return await session.scalar(sa.select(sa.func.count(models.Experiment.id)))
 
         return await self._with_store(work)
 
     async def execute(self, statement) -> None:
         async def work(_, factory):
-            async with tenant_session(factory, 1) as session:
+            async with tenant_session(factory, "default") as session:
                 await session.execute(statement)
                 await session.commit()
 
@@ -198,7 +198,7 @@ async def test_sdk_run_with_traces_records_runs_after_settle(env):
         record = run.agent_run
         assert record.status == "completed" and record.trajectory_status == "valid"
         assert record.answer == "42"
-        doc = json.loads(blob.objects[f"{tenant_prefix(1)}{record.trajectory_key}"])
+        doc = json.loads(blob.objects[f"{tenant_prefix('default')}{record.trajectory_key}"])
         assert doc["extra"]["trajectory_source"] == "otel"
         assert doc["steps"][-1]["message"] == "42"
         assert record.metrics["input_tokens"] == 3
@@ -293,7 +293,7 @@ async def test_returned_session_absorbs_the_sdk_root_and_links_the_case(env):
     run = result.runs[0]
     assert run.session_id.startswith("app-") and run.trajectory_status == "valid"
     _, [stored] = await srv.experiment(result.experiment_id)
-    doc = json.loads(blob.objects[f"{tenant_prefix(1)}{stored.agent_run.trajectory_key}"])
+    doc = json.loads(blob.objects[f"{tenant_prefix('default')}{stored.agent_run.trajectory_key}"])
     assert doc["steps"][-1]["message"] == "42"
     token = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}

@@ -54,7 +54,7 @@ async def test_minting_needs_write_on_the_agents_workspace(api, session_factory)
     unknown = await api.post("/api/tokens", json={"agent": "ghost"})
     assert unknown.status_code == 404
     assert "create it with evalkit agents create" in unknown.json()["detail"]
-    await WorkspaceStore(session_factory, 1).add_member(
+    await WorkspaceStore(session_factory, "default").add_member(
         "canonical", "alice", WorkspaceRole.WRITER, granted_by=1
     )
     assert (await alice.post("/api/tokens", json={"agent": "fake@canonical"})).status_code == 200

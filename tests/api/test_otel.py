@@ -332,7 +332,7 @@ async def shared_agent_token(api, session_factory) -> httpx2.AsyncClient:
         mapping=reference_mapping(),
     )
     alice = await login_as(api, "alice", "password")
-    await WorkspaceStore(session_factory, 1).add_member(
+    await WorkspaceStore(session_factory, "default").add_member(
         "canonical", "alice", WorkspaceRole.WRITER, granted_by=1
     )
     minted = await alice.post("/api/tokens", json={"agent": "team@canonical"})
@@ -381,7 +381,7 @@ async def test_login_token_cannot_export_to_an_archived_agent(api):
 async def test_an_idp_token_can_export_to_its_own_agent(tmp_path, stub_judges, session_factory):
     env = await seed_env(session_factory, tmp_path)
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(session_factory, 1).create(
+    await UserStore(session_factory, "default").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp) as client:
@@ -399,7 +399,7 @@ async def test_the_collector_refuses_an_idp_token_without_the_required_scope(
 ):
     env = await seed_env(session_factory, tmp_path)
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(session_factory, 1).create(
+    await UserStore(session_factory, "default").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp, required_scopes=["evalkit:read"]) as client:

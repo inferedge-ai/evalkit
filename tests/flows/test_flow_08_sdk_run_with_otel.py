@@ -22,7 +22,7 @@ def cite(case, run):
 
 async def sdk_spans(srv, exp_id: int) -> list[dict]:
     async def work(_, factory):
-        async with tenant_session(factory, 1) as session:
+        async with tenant_session(factory, "default") as session:
             rows = await session.scalars(
                 sa.select(models.Span.attributes)
                 .join(models.Agent, models.Agent.id == models.Span.agent_id)

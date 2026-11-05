@@ -139,7 +139,7 @@ def test_init_server_creates_and_migrates_the_database(tmp_path, pg_server_url):
         assert conn.execute(text("select version_num from alembic_version")).scalar()
         providers = conn.execute(text("select name, base_url from llm_providers")).all()
         judge = conn.execute(
-            text("select default_judge from tenant_settings where tenant_id = 1")
+            text("select default_judge from tenant_settings where tenant_id = 'default'")
         ).scalar()
     engine.dispose()
     _admin(pg_server_url, f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')

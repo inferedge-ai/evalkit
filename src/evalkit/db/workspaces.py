@@ -47,7 +47,7 @@ def to_ref(
     )
 
 
-async def workspace_row(session: AsyncSession, tenant_id: int, name: str) -> Workspace:
+async def workspace_row(session: AsyncSession, tenant_id: str, name: str) -> Workspace:
     row = await session.scalar(
         select(Workspace).where(Workspace.tenant_id == tenant_id, Workspace.name == name)
     )
@@ -98,7 +98,7 @@ def _check_link(source: WorkspaceRef, target: WorkspaceRef) -> None:
 
 
 class WorkspaceStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._sf = session_factory
         self._tenant_id = tenant_id
 

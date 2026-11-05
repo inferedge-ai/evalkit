@@ -43,11 +43,11 @@ async def seed_identity(
     writers: Iterable[str] = (),
 ) -> None:
     admins = set(admins)
-    store = UserStore(session_factory, 1)
+    store = UserStore(session_factory, "default")
     ids = {}
     for name, password in users.items():
         ids[name] = (await store.create(name, password=password, is_admin=name in admins)).id
-    workspaces = WorkspaceStore(session_factory, 1)
+    workspaces = WorkspaceStore(session_factory, "default")
     granter = next(ids[name] for name in users if name in admins)
     for name in shared:
         await workspaces.create_shared(name, granter)
@@ -55,7 +55,7 @@ async def seed_identity(
             await workspaces.add_member(name, user, WorkspaceRole.REVIEWER, granter)
         for user in writers:
             await workspaces.add_member(name, user, WorkspaceRole.WRITER, granter)
-    providers = LlmProviderStore(session_factory, 1)
+    providers = LlmProviderStore(session_factory, "default")
     await providers.create("judge", JUDGE_URL, TEST_BOX.seal(TEST_ENV["JUDGE_KEY"]))
     await providers.set_default_judge(JudgeSettings(base_url=JUDGE_URL, model="judge-model"))
 
@@ -69,9 +69,10 @@ async def seed_agent(
     trajectory_source: TrajectorySource = TrajectorySource.ATIF,
     settings: AgentSettings = FAKE_SETTINGS,
     mapping: dict | None = None,
+    tenant_id: str = "default",
 ) -> AgentDefinition:
-    ws = await WorkspaceStore(session_factory, 1).get_by_name(workspace)
-    return await AgentStore(session_factory, 1).create(
+    ws = await WorkspaceStore(session_factory, tenant_id).get_by_name(workspace)
+    return await AgentStore(session_factory, tenant_id).create(
         ws,
         name,
         harness_url=harness_url,
@@ -85,8 +86,8 @@ async def seed_agent(
 async def seed_evaluators(
     session_factory: async_sessionmaker[AsyncSession], workspace: str = "canonical"
 ) -> None:
-    ws = await WorkspaceStore(session_factory, 1).get_by_name(workspace)
-    store = RemoteEvaluatorStore(session_factory, 1)
+    ws = await WorkspaceStore(session_factory, "default").get_by_name(workspace)
+    store = RemoteEvaluatorStore(session_factory, "default")
     for name, settings in FAKE_EVALUATORS.items():
         await store.create(
             ws,
@@ -100,7 +101,7 @@ async def seed_evaluators(
 async def workspace_ref(
     session_factory: async_sessionmaker[AsyncSession], name: str
 ) -> WorkspaceRef:
-    return await WorkspaceStore(session_factory, 1).get_by_name(name)
+    return await WorkspaceStore(session_factory, "default").get_by_name(name)
 
 
 FORM = "application/x-www-form-urlencoded"

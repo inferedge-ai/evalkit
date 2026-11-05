@@ -15,7 +15,7 @@ async def api(tmp_path, stub_judges, session_factory):
 
 async def test_create_dataset(api):
     client, env = api
-    store = WorkspaceStore(env.session_factory, 1)
+    store = WorkspaceStore(env.session_factory, "default")
     await store.create_shared("prod", env.user_ids["admin"])
     alice = await login_as(client, "alice", "password")
     body = {"name": "finance", "workspace": "prod"}

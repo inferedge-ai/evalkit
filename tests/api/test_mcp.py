@@ -585,7 +585,7 @@ async def test_expected_tool_errors_log_as_warnings_and_bugs_as_errors(api, monk
 async def test_idp_tokens_reach_mcp_as_their_evalkit_user(tmp_path, stub_judges, session_factory):
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(session_factory, 1).create(
+    await UserStore(session_factory, "default").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp) as http:
@@ -597,7 +597,7 @@ async def test_idp_tokens_reach_mcp_as_their_evalkit_user(tmp_path, stub_judges,
         assert await mcp_status(http, idp.access_token("sub-ann", audience="https://other")) == 401
         assert await mcp_status(http, idp.access_token("sub-nobody")) == 401
         assert await mcp_status(http, bearer(http)) == 200
-        await UserStore(session_factory, 1).archive("ann")
+        await UserStore(session_factory, "default").archive("ann")
         assert await mcp_status(http, idp.access_token("sub-ann")) == 401
 
 
@@ -625,7 +625,7 @@ async def test_mcp_access_token_expires_with_the_verified_exp(
 ):
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(session_factory, 1).create(
+    await UserStore(session_factory, "default").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp) as http:
@@ -645,7 +645,7 @@ async def test_mcp_needs_the_required_scopes_of_an_idp_token(
 ):
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(session_factory, 1).create(
+    await UserStore(session_factory, "default").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp, required_scopes=["evalkit:read"]) as http:
@@ -664,7 +664,7 @@ async def test_mcp_without_required_scopes_accepts_idp_tokens_without_scopes(
 ):
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(session_factory, 1).create(
+    await UserStore(session_factory, "default").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp) as http:

@@ -35,7 +35,7 @@ from evalkit.db.workspaces import WorkspaceStore, load_ref, workspace_row
 
 @dataclass(frozen=True)
 class TenantStores:
-    tenant_id: int
+    tenant_id: str
     session_factory: async_sessionmaker[AsyncSession]
     users: UserStore
     workspaces: WorkspaceStore
@@ -58,7 +58,7 @@ class TenantStores:
         return tenant_session(self.session_factory, self.tenant_id)
 
 
-def build_tenant_stores(state: State, tenant_id: int) -> TenantStores:
+def build_tenant_stores(state: State, tenant_id: str) -> TenantStores:
     sf = state.session_factory
     agents = AgentStore(sf, tenant_id)
     evaluators = RemoteEvaluatorStore(sf, tenant_id)
@@ -134,7 +134,7 @@ def tenant_stores(actor: ActorDep, request: Request) -> TenantStores:
 StoresDep = Annotated[TenantStores, Depends(tenant_stores)]
 
 
-async def load_workspace_ref(session: AsyncSession, tenant_id: int, name: str) -> WorkspaceRef:
+async def load_workspace_ref(session: AsyncSession, tenant_id: str, name: str) -> WorkspaceRef:
     return await load_ref(session, await workspace_row(session, tenant_id, name))
 
 

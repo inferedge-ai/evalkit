@@ -56,7 +56,7 @@ class TraceSourceStore:
     def __init__(
         self,
         session_factory: async_sessionmaker[AsyncSession],
-        tenant_id: int,
+        tenant_id: str,
         box: SecretBox | None,
     ):
         self._sessions = session_factory
