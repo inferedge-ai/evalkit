@@ -60,7 +60,7 @@ SUPPORT_BOT_BLOCK_EVALUATORS = {"custom": {"required_tool_calls": {"tools": ["re
 @pytest.fixture
 async def ctx(session_factory):
     world = await seed_world(session_factory)
-    return session_factory, PgStore(session_factory, 1), world
+    return session_factory, PgStore(session_factory, "default"), world
 
 
 def write_suite(tmp_path: Path, rubric2: str = "Computes the CAGR for FY2021.") -> Path:
@@ -99,7 +99,7 @@ async def do_import(
 async def views(ctx, dataset: str = "finance", workspace: str = "canonical", agent=None):
     sf, _, _ = ctx
     async with sf() as s:
-        row = await find_dataset_row(s, 1, workspace, dataset)
+        row = await find_dataset_row(s, "default", workspace, dataset)
         if row is None:
             return {}
         return {v.case_id: v for v in await current_cases(s, row, agent=agent)}
@@ -108,7 +108,7 @@ async def views(ctx, dataset: str = "finance", workspace: str = "canonical", age
 async def split_counts(ctx, dataset: str = "finance", workspace: str = "canonical") -> dict:
     sf, _, _ = ctx
     async with sf() as s:
-        row = await find_dataset_row(s, 1, workspace, dataset)
+        row = await find_dataset_row(s, "default", workspace, dataset)
         assert row is not None
         return dict(await tag_counts(s, row))
 
@@ -116,7 +116,7 @@ async def split_counts(ctx, dataset: str = "finance", workspace: str = "canonica
 async def last_sync_detail(ctx, dataset: str = "finance", workspace: str = "canonical") -> dict:
     sf, _, _ = ctx
     async with sf() as s:
-        row = await find_dataset_row(s, 1, workspace, dataset)
+        row = await find_dataset_row(s, "default", workspace, dataset)
         assert row is not None and row.last_sync is not None
         return row.last_sync.detail
 
@@ -124,7 +124,7 @@ async def last_sync_detail(ctx, dataset: str = "finance", workspace: str = "cano
 async def put_blob(ctx, sha: str) -> None:
     sf, _, world = ctx
     async with sf() as s:
-        await record_blob(s, 1, sha, 1, world.admin_id)
+        await record_blob(s, "default", sha, 1, world.admin_id)
         await s.commit()
 
 
@@ -337,7 +337,7 @@ async def test_sync_of_unknown_dataset_with_no_cases_creates_nothing(ctx):
     report = await do_import(ctx, [])
     assert not report.aborted and report.deleted == 0
     async with sf() as s:
-        assert await find_dataset_row(s, 1, "canonical", "finance") is None
+        assert await find_dataset_row(s, "default", "canonical", "finance") is None
 
 
 async def test_same_case_id_in_two_datasets_of_a_workspace_is_allowed(tmp_path, ctx):
@@ -482,7 +482,7 @@ async def test_sync_records_synced_events_with_actor(tmp_path, ctx):
     sf, _, _ = ctx
     suite = write_suite(tmp_path)
     await do_import(ctx, sorted(suite.glob("*.yaml")), actor="akshat")
-    review = ReviewLog(sf, 1)
+    review = ReviewLog(sf, "default")
     for case_id in ("case-1", "case-2"):
         [event] = await review.history("finance@canonical", case_id)
         assert event.kind is CaseEventKind.SYNCED and event.actor == "akshat"
@@ -499,7 +499,7 @@ async def test_unchanged_resync_records_nothing(tmp_path, ctx):
 
 async def test_edit_of_approved_case_reports_now_unreviewed(tmp_path, ctx):
     sf, _, _ = ctx
-    review = ReviewLog(sf, 1)
+    review = ReviewLog(sf, "default")
     files = sorted(write_suite(tmp_path).glob("*.yaml"))
     await do_import(ctx, files)
     await review.append(
@@ -521,7 +521,7 @@ async def test_edit_of_approved_case_reports_now_unreviewed(tmp_path, ctx):
 
 async def test_edit_under_review_carries_the_request_over(tmp_path, ctx):
     sf, _, _ = ctx
-    review = ReviewLog(sf, 1)
+    review = ReviewLog(sf, "default")
     files = sorted(write_suite(tmp_path).glob("*.yaml"))
     await do_import(ctx, files)
     r = CaseReview.unreviewed("finance@canonical", "case-1", await current_hash_of(ctx, "case-1"))

@@ -14,7 +14,7 @@ async def store(session_factory):
     await seed_identity(
         session_factory, {"admin": "password", "akshat": "password"}, shared=("dev",)
     )
-    return RemoteEvaluatorStore(session_factory, 1)
+    return RemoteEvaluatorStore(session_factory, "default")
 
 
 @pytest.mark.parametrize("name", ["", "a@b"])

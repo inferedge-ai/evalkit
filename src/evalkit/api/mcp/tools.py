@@ -305,7 +305,7 @@ Digested = tuple[RunDigest, list[Turn]]
 def _stores(state: State) -> TenantStores:
     token = get_access_token()
     assert token is not None
-    return build_tenant_stores(state, int(token.claims["tenant_id"]))
+    return build_tenant_stores(state, str(token.claims["tenant_id"]))
 
 
 class Runs:

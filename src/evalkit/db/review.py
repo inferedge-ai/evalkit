@@ -23,7 +23,7 @@ from evalkit.db.session import tenant_session
 AfterDecision = Callable[[AsyncSession, int], Awaitable[None]]
 
 
-async def _case_refs(session: AsyncSession, tenant_id: int, case_ids: list[str]) -> dict[str, int]:
+async def _case_refs(session: AsyncSession, tenant_id: str, case_ids: list[str]) -> dict[str, int]:
     rows = await session.execute(
         select(models.Case.case_id, models.Case.id).where(
             models.Case.tenant_id == tenant_id, models.Case.case_id.in_(case_ids)
@@ -32,7 +32,7 @@ async def _case_refs(session: AsyncSession, tenant_id: int, case_ids: list[str])
     return {case_id: ref for case_id, ref in rows.all()}
 
 
-async def _user_ids(session: AsyncSession, tenant_id: int, names: set[str]) -> dict[str, int]:
+async def _user_ids(session: AsyncSession, tenant_id: str, names: set[str]) -> dict[str, int]:
     rows = await session.execute(
         select(models.User.username, models.User.id).where(
             models.User.tenant_id == tenant_id, models.User.username.in_(names)
@@ -49,7 +49,7 @@ async def _usernames(session: AsyncSession, ids: set[int]) -> dict[int, str]:
 
 
 class ReviewLog:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._session_factory = session_factory
         self._tenant_id = tenant_id
 

@@ -29,7 +29,9 @@ def test_flow_04_sync_uploads_missing_bytes_once_and_ci_reuses_them(cli):
         cli.suite("fx4", {"a.yaml": fixture_case("fx4-1", "bs4.csv")}, registry("bs4.csv", digest))
         cli.ok("sync", "fx4")
         assert akshat.head(f"/api/fixtures/sha256/{digest}").status_code == 200
-        assert cli.live.blob.objects[f"{tenant_prefix(1)}{fixture_blob_key(digest)}"] == data
+        assert (
+            cli.live.blob.objects[f"{tenant_prefix('default')}{fixture_blob_key(digest)}"] == data
+        )
         [case] = akshat.get("/api/datasets/fx4@akshat/cases").json()
         assert case["files"] == [{"key": "bs4.csv", "sha256": digest, "context": "Balance sheet."}]
         assert "workspace" not in case["files"][0]

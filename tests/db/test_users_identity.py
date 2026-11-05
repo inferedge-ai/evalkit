@@ -31,7 +31,7 @@ def test_derive_username(preferred, email, expected):
 
 
 async def test_create_takes_a_password_or_a_subject(session_factory):
-    store = UserStore(session_factory, 1)
+    store = UserStore(session_factory, "default")
     with pytest.raises(ValueError, match="password or subject"):
         await store.create("x")
     with pytest.raises(ValueError, match="password or subject"):
@@ -43,17 +43,17 @@ async def test_create_takes_a_password_or_a_subject(session_factory):
 
 
 async def test_register_creates_once_and_refreshes_email(session_factory):
-    store = UserStore(session_factory, 1)
+    store = UserStore(session_factory, "default")
     user, created = await store.register(ISSUER, "sub-1", "ann@example.com", "ann")
     assert created and user.username == "ann" and user.kind == "human"
     again, created = await store.register(ISSUER, "sub-1", "ann@new.example.com", "ann")
     assert not created and again.id == user.id and again.email == "ann@new.example.com"
-    workspaces = [w.name for w in await WorkspaceStore(session_factory, 1).list()]
+    workspaces = [w.name for w in await WorkspaceStore(session_factory, "default").list()]
     assert "ann" in workspaces
 
 
 async def test_register_refuses_a_taken_name_and_an_archived_user(session_factory):
-    store = UserStore(session_factory, 1)
+    store = UserStore(session_factory, "default")
     await store.create("ann", password="hunter2-pw")
     with pytest.raises(IdentityConflict, match="taken by a user or workspace"):
         await store.register(ISSUER, "sub-2", "ann@example.com", "ann")
@@ -64,7 +64,7 @@ async def test_register_refuses_a_taken_name_and_an_archived_user(session_factor
 
 
 async def test_bind_sets_the_identity_once(session_factory):
-    store = UserStore(session_factory, 1)
+    store = UserStore(session_factory, "default")
     await store.create("ann", password="hunter2-pw")
     await store.bind("ann", ISSUER, "sub-ann")
     bound = next(u for u in await store.list() if u.username == "ann")
@@ -75,7 +75,7 @@ async def test_bind_sets_the_identity_once(session_factory):
 
 
 async def test_promote_refuses_a_machine_user(session_factory):
-    store = UserStore(session_factory, 1)
+    store = UserStore(session_factory, "default")
     await store.create("ci-bot", issuer=ISSUER, subject="client-1")
     with pytest.raises(MachineUser):
         await store.set_admin("ci-bot", True)

@@ -114,7 +114,7 @@ async def test_route_caps_are_larger_than_the_general_cap():
 
 
 async def test_fixture_upload_streams_and_leaves_no_staging_behind(api):
-    blob = build_tenant_stores(api.app.state, 1).blob
+    blob = build_tenant_stores(api.app.state, "default").blob
     data = b"streamed fixture bytes"
     sha = hashlib.sha256(data).hexdigest()
     ok = await api.put(f"/api/fixtures/sha256/{sha}", content=chunks(data))

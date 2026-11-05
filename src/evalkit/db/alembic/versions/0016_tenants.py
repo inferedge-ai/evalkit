@@ -40,7 +40,7 @@ NEW_UNIQUES = {
 def upgrade() -> None:
     op.create_table(
         "tenant_settings",
-        sa.Column("tenant_id", sa.Integer(), autoincrement=False, nullable=False),
+        sa.Column("tenant_id", sa.String(length=64), nullable=False),
         sa.Column("default_judge", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column(
             "created_at",
@@ -58,13 +58,13 @@ def upgrade() -> None:
     )
     op.execute(
         "INSERT INTO tenant_settings (tenant_id, default_judge) "
-        "SELECT 1, default_judge FROM server_settings WHERE id = 1"
+        "SELECT 'default', default_judge FROM server_settings WHERE id = 1"
     )
     op.drop_table("server_settings")
 
     for table in ROOT_TABLES:
-        op.add_column(table, sa.Column("tenant_id", sa.Integer(), nullable=True))
-        op.execute(f"UPDATE {table} SET tenant_id = 1")
+        op.add_column(table, sa.Column("tenant_id", sa.String(length=64), nullable=True))
+        op.execute(f"UPDATE {table} SET tenant_id = 'default'")
         op.alter_column(table, "tenant_id", nullable=False)
 
     for table, names in OLD_UNIQUES.items():
@@ -75,8 +75,8 @@ def upgrade() -> None:
         for name, columns in uniques:
             op.create_unique_constraint(name, table, columns)
 
-    op.add_column("case_version_files", sa.Column("tenant_id", sa.Integer(), nullable=True))
-    op.execute("UPDATE case_version_files SET tenant_id = 1")
+    op.add_column("case_version_files", sa.Column("tenant_id", sa.String(length=64), nullable=True))
+    op.execute("UPDATE case_version_files SET tenant_id = 'default'")
     op.alter_column("case_version_files", "tenant_id", nullable=False)
     op.drop_constraint("case_version_files_sha256_fkey", "case_version_files", type_="foreignkey")
     op.drop_constraint("fixture_blobs_pkey", "fixture_blobs", type_="primary")
@@ -107,9 +107,10 @@ def downgrade() -> None:
     others = bind.execute(
         sa.text(
             " UNION ".join(
-                f"SELECT tenant_id FROM {table} WHERE tenant_id <> 1" for table in ROOT_TABLES
+                f"SELECT tenant_id FROM {table} WHERE tenant_id <> 'default'"
+                for table in ROOT_TABLES
             )
-            + " UNION SELECT tenant_id FROM tenant_settings WHERE tenant_id <> 1"
+            + " UNION SELECT tenant_id FROM tenant_settings WHERE tenant_id <> 'default'"
         )
     ).all()
     if others:
@@ -173,6 +174,6 @@ def downgrade() -> None:
     )
     op.execute(
         "INSERT INTO server_settings (id, default_judge) "
-        "SELECT 1, (SELECT default_judge FROM tenant_settings WHERE tenant_id = 1)"
+        "SELECT 1, (SELECT default_judge FROM tenant_settings WHERE tenant_id = 'default')"
     )
     op.drop_table("tenant_settings")

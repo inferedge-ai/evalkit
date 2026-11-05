@@ -19,7 +19,7 @@ from evalkit.db.workspaces import UnknownWorkspace
 from evalkit.store.base import Conflict
 
 
-async def agent_id_for(session: AsyncSession, tenant_id: int, ref: str) -> int:
+async def agent_id_for(session: AsyncSession, tenant_id: str, ref: str) -> int:
     parsed = parse_slug(ref)
     agent_id = await session.scalar(
         select(models.Agent.id)
@@ -77,7 +77,7 @@ def _ref(ref: str) -> Reference:
 
 
 async def _agent_row(
-    session: AsyncSession, tenant_id: int, ref: str
+    session: AsyncSession, tenant_id: str, ref: str
 ) -> tuple[models.Agent, models.Workspace]:
     name, workspace = _ref(ref)
     found = (
@@ -96,12 +96,12 @@ async def _agent_row(
     return found[0], found[1]
 
 
-async def agent_definition(session: AsyncSession, tenant_id: int, ref: str) -> AgentDefinition:
+async def agent_definition(session: AsyncSession, tenant_id: str, ref: str) -> AgentDefinition:
     return _definition(*await _agent_row(session, tenant_id, ref))
 
 
 class AgentStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._sessions = session_factory
         self._tenant_id = tenant_id
 

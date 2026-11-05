@@ -116,7 +116,7 @@ async def any_admin_exists(session_factory: async_sessionmaker[AsyncSession]) ->
     return found is not None
 
 
-async def name_taken(session: AsyncSession, tenant_id: int, name: str) -> bool:
+async def name_taken(session: AsyncSession, tenant_id: str, name: str) -> bool:
     count = await session.scalar(
         select(func.count()).select_from(
             union_all(
@@ -130,7 +130,7 @@ async def name_taken(session: AsyncSession, tenant_id: int, name: str) -> bool:
     return bool(count)
 
 
-async def user_id(session: AsyncSession, tenant_id: int, username: str) -> int:
+async def user_id(session: AsyncSession, tenant_id: str, username: str) -> int:
     found = await session.scalar(
         select(User.id).where(User.tenant_id == tenant_id, User.username == username)
     )
@@ -140,7 +140,7 @@ async def user_id(session: AsyncSession, tenant_id: int, username: str) -> int:
 
 
 class UserStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._sf = session_factory
         self._tenant_id = tenant_id
 

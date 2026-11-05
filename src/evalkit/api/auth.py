@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.api.oidc import IdpUnavailable, require_scopes, verify_access_token, verify_id_token
 from evalkit.contracts.enums import TokenKind
+from evalkit.core.tenant import DEFAULT_TENANT_ID, check_tenant_id
 from evalkit.db.auth import find_token
 from evalkit.db.models import AuthToken, User, Workspace, WorkspaceMember
 from evalkit.db.session import tenant_session
@@ -107,7 +108,7 @@ async def sso_identity(
     claims = await verify_access_token(state.oidc, token, audience)
     if enforce_scopes:
         require_scopes(state.oidc, claims)
-    tenant_id = state.resolve_tenant(request, claims)
+    tenant_id = check_tenant_id(state.resolve_tenant(request, claims))
     async with tenant_session(state.session_factory, tenant_id) as session:
         user = await session.scalar(
             select(User).where(
@@ -179,7 +180,7 @@ CurrentUser = Annotated[User, Depends(current_user)]
 class Principal:
     user: User | None
     agent_id: int | None
-    tenant_id: int
+    tenant_id: str
 
 
 async def collector_principal(request: Request) -> Principal:
@@ -251,7 +252,7 @@ async def providers(request: Request) -> dict:
 
 @router.post("/login")
 async def login(body: LoginRequest, request: Request) -> dict:
-    tenant_id = request.app.state.resolve_tenant(request, None)
+    tenant_id = check_tenant_id(request.app.state.resolve_tenant(request, None))
     if len(body.password.encode()) > PASSWORD_MAX_BYTES:
         raise HTTPException(
             status_code=400, detail=f"password is longer than {PASSWORD_MAX_BYTES} bytes"
@@ -339,7 +340,9 @@ async def bootstrap_admin(
             "no admin user exists and EVALKIT_ADMIN_PASSWORD is not set; "
             "set it and start the server again to create the admin user"
         )
-    await UserStore(session_factory, 1).create("admin", password=password, is_admin=True)
+    await UserStore(session_factory, DEFAULT_TENANT_ID).create(
+        "admin", password=password, is_admin=True
+    )
 
 
 class RegisterRequest(BaseModel):
@@ -364,7 +367,7 @@ async def register_identity(body: RegisterRequest, request: Request) -> dict:
             status_code=400,
             detail="the ID token has no email claim; ask the IdP admin to grant the email scope",
         )
-    tenant_id = state.resolve_tenant(request, access)
+    tenant_id = check_tenant_id(state.resolve_tenant(request, access))
     store = UserStore(state.session_factory, tenant_id)
     try:
         user, created = await store.register(

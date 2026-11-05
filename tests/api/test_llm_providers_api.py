@@ -58,7 +58,7 @@ async def test_server_runs_need_a_registered_judge_and_a_default(api, session_fa
         "not a registered LLM provider; registered: " + JUDGE_URL in (unregistered.json()["detail"])
     )
     async with session_factory() as session:
-        tenant = await session.get(TenantSettings, 1)
+        tenant = await session.get(TenantSettings, "default")
         assert tenant is not None
         tenant.default_judge = None
         await session.commit()

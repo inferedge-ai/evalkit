@@ -36,7 +36,7 @@ class KeyLoader:
     def __init__(
         self,
         session_factory: async_sessionmaker[AsyncSession],
-        tenant_id: int,
+        tenant_id: str,
         box: SecretBox | None,
     ):
         self._agents = AgentStore(session_factory, tenant_id)

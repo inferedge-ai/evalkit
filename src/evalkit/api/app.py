@@ -52,7 +52,6 @@ from evalkit.config import Config
 from evalkit.core.agents import UnknownAgent
 from evalkit.core.blob import BlobStore
 from evalkit.core.endpoints import BlockedEndpoint
-from evalkit.core.relocate import old_prefix_objects_remain
 from evalkit.core.remote_evaluators import UnknownEvaluator
 from evalkit.core.runner import (
     LEASE_SECONDS,
@@ -61,6 +60,7 @@ from evalkit.core.runner import (
     LeaseLost,
     RunnerDeps,
 )
+from evalkit.core.tenant import DEFAULT_TENANT_ID, BadTenantId
 from evalkit.core.tenant import resolve_tenant as default_resolve_tenant
 from evalkit.core.traces.sessions import SessionTooLarge
 from evalkit.core.workspace import BareReference
@@ -197,7 +197,7 @@ def create_app(
     ui_dist: Path | None = None,
     holder: str | None = None,
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
-    resolve_tenant: Callable[[Request, dict | None], int] = default_resolve_tenant,
+    resolve_tenant: Callable[[Request, dict | None], str] = default_resolve_tenant,
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (
@@ -216,10 +216,10 @@ def create_app(
         if runner_deps is not None
         else RunnerDeps(
             cfg=cfg,
-            store=PgStore(session_factory, 1),
+            store=PgStore(session_factory, DEFAULT_TENANT_ID),
             blob_store=resolved_blob_store,
-            agents=AgentStore(session_factory, 1),
-            evaluators=RemoteEvaluatorStore(session_factory, 1),
+            agents=AgentStore(session_factory, DEFAULT_TENANT_ID),
+            evaluators=RemoteEvaluatorStore(session_factory, DEFAULT_TENANT_ID),
             credentials=NoKeysLoaded(),
         )
     )
@@ -234,12 +234,6 @@ def create_app(
             await migrate_under_lock(cfg.db.url)
         if check_schema:
             await verify_schema(cfg.db.url)
-        # TODO: remove in 0.6.0, two minor versions after 0.4.0 moved blobs under tenants/
-        if await old_prefix_objects_remain(resolved_blob_store):
-            raise RuntimeError(
-                "blob objects remain under the pre-tenant layout; run "
-                "`evalkit blobs relocate --config <config>` once, then start the server again"
-            )
         if cfg.encryption_key is None and await count_sealed(app.state.session_factory):
             raise RuntimeError(
                 "stored API keys exist but encryption_key is not configured; "
@@ -292,6 +286,10 @@ def create_app(
     running_version = version.current()
 
     app.add_exception_handler(SessionTooLarge, traces.session_too_large)
+
+    @app.exception_handler(BadTenantId)
+    async def bad_tenant_id(request: Request, exc: BadTenantId) -> JSONResponse:
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
 
     @app.exception_handler(UnknownDataset)
     async def unknown_dataset(request: Request, exc: UnknownDataset) -> JSONResponse:

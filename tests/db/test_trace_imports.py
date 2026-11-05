@@ -27,14 +27,16 @@ UNTIL = datetime(2026, 10, 8, tzinfo=UTC)
 @pytest.fixture
 async def db(session_factory):
     await seed_identity(session_factory, {"admin": "password", "akshat": "password"}, shared=())
-    agent = await AgentStore(session_factory, 1).create(
+    agent = await AgentStore(session_factory, "default").create(
         await workspace_ref(session_factory, "akshat"), "research-agent"
     )
-    source = await TraceSourceStore(session_factory, 1, None).create(
+    source = await TraceSourceStore(session_factory, "default", None).create(
         "phx", TraceProvider.PHOENIX, "https://phoenix.example.com", None
     )
-    user = next(u for u in await UserStore(session_factory, 1).list() if u.username == "akshat")
-    store = TraceImportStore(session_factory, 1)
+    user = next(
+        u for u in await UserStore(session_factory, "default").list() if u.username == "akshat"
+    )
+    store = TraceImportStore(session_factory, "default")
 
     async def start(holder: str = "pod:a") -> int:
         view = await store.create(
@@ -189,21 +191,21 @@ async def test_renew_extends_the_lease_without_moving_progress(db):
 
 async def _second_tenant(raw_session_factory) -> None:
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(TenantSettings(tenant_id=2))
+        s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
 
 
 async def test_create_refuses_an_agent_from_another_tenant(db, raw_session_factory):
     _, agent_id, _, _ = db
     await _second_tenant(raw_session_factory)
-    root = await UserStore(raw_session_factory, 2).create(
+    root = await UserStore(raw_session_factory, "tenant-2").create(
         "root", password="password", is_admin=True
     )
-    source = await TraceSourceStore(raw_session_factory, 2, None).create(
+    source = await TraceSourceStore(raw_session_factory, "tenant-2", None).create(
         "phx", TraceProvider.PHOENIX, "https://phoenix.other", None
     )
     with pytest.raises(UnknownAgent):
-        await TraceImportStore(raw_session_factory, 2).create(
+        await TraceImportStore(raw_session_factory, "tenant-2").create(
             agent_id, source.id, "proj", SINCE, UNTIL, root.id, "pod:x"
         )
 
@@ -211,9 +213,11 @@ async def test_create_refuses_an_agent_from_another_tenant(db, raw_session_facto
 async def test_create_refuses_a_trace_source_from_another_tenant(db, raw_session_factory):
     store, agent_id, _, _ = db
     await _second_tenant(raw_session_factory)
-    foreign = await TraceSourceStore(raw_session_factory, 2, None).create(
+    foreign = await TraceSourceStore(raw_session_factory, "tenant-2", None).create(
         "phx2", TraceProvider.PHOENIX, "https://phoenix.other", None
     )
-    user = next(u for u in await UserStore(raw_session_factory, 1).list() if u.username == "akshat")
+    user = next(
+        u for u in await UserStore(raw_session_factory, "default").list() if u.username == "akshat"
+    )
     with pytest.raises(UnknownTraceSource):
         await store.create(agent_id, foreign.id, "proj", SINCE, UNTIL, user.id, "pod:x")
