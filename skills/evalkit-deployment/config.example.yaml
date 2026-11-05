@@ -27,8 +27,6 @@ auth:
   #   authorize_params: {} # extra authorize-request parameters, e.g. {resource: https://evalkit.example.com} or {audience: ...}
   #   algorithms: [RS256] # default
   #   required_scopes: [] # scopes every IdP access token must carry; list them in scopes too
-  #   tenant_claim: tenant_id # one tenant per organisation, named by this access token claim; needs admin_claim
-  #   tenant_auto_create: false # create the tenant at an organisation's first sign-in
   #   admin_claim: {name: roles, value: evalkit-admin} # admin flag set from this claim at each sign-in
 
 otel: # optional block; the OTLP collector at /api/otel/v1/traces

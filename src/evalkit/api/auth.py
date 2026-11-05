@@ -14,13 +14,13 @@ from evalkit.contracts.enums import TokenKind
 from evalkit.db.auth import find_token
 from evalkit.db.models import AuthToken, User, Workspace, WorkspaceMember
 from evalkit.db.session import tenant_session
-from evalkit.db.tenants import create_tenant, find_identity, find_machine
 from evalkit.db.tokens import token_hash
 from evalkit.db.users import (
     PASSWORD_MAX_BYTES,
     UserArchived,
     UserStore,
     any_admin_exists,
+    find_machine,
     hash_password,
     verify_password,
 )
@@ -109,8 +109,12 @@ async def sso_identity(
     if enforce_scopes:
         require_scopes(state.oidc, claims)
     user: User | None
-    if state.oidc.cfg.tenant_claim is None:
-        tenant_id = state.resolve_tenant(request, claims)
+    tenant_id = await state.resolve_tenant(request, claims)
+    if tenant_id is None:
+        user = await find_machine(state.session_factory, claims["iss"], claims["sub"])
+        if user is None:
+            raise HTTPException(status_code=403, detail="no tenant for this access token")
+    else:
         async with tenant_session(state.session_factory, tenant_id) as session:
             user = await session.scalar(
                 select(User).where(
@@ -119,20 +123,6 @@ async def sso_identity(
                     User.subject == claims["sub"],
                 )
             )
-    elif state.oidc.cfg.tenant_claim not in claims:
-        user = await find_machine(state.session_factory, claims["iss"], claims["sub"])
-        if user is None:
-            raise HTTPException(
-                status_code=403,
-                detail=f"access token has no {state.oidc.cfg.tenant_claim} claim",
-            )
-    else:
-        _, user = await find_identity(
-            state.session_factory,
-            tenant_claim_value(state.oidc, claims),
-            claims["iss"],
-            claims["sub"],
-        )
     if user is None:
         raise HTTPException(
             status_code=401, detail=f"not registered: subject {claims['sub']} has no user"
@@ -140,14 +130,6 @@ async def sso_identity(
     if user.archived_at is not None:
         raise HTTPException(status_code=401, detail="user is archived")
     return user, claims
-
-
-def tenant_claim_value(oidc, claims: dict) -> str:
-    claim = oidc.cfg.tenant_claim
-    value = claims.get(claim)
-    if not isinstance(value, str) or not value:
-        raise HTTPException(status_code=403, detail=f"access token has no {claim} claim")
-    return value
 
 
 def admin_from_claims(oidc, claims: dict) -> bool | None:
@@ -161,22 +143,10 @@ def admin_from_claims(oidc, claims: dict) -> bool | None:
 
 
 async def register_tenant(state, request: Request, claims: dict) -> int:
-    oidc = state.oidc
-    if oidc.cfg.tenant_claim is None:
-        return state.resolve_tenant(request, claims)
-    external_id = tenant_claim_value(oidc, claims)
-    tenant_id, _ = await find_identity(
-        state.session_factory, external_id, claims["iss"], claims["sub"]
-    )
-    if tenant_id is not None:
-        return tenant_id
-    if not oidc.cfg.tenant_auto_create:
-        raise HTTPException(
-            status_code=403,
-            detail=f"no tenant for {oidc.cfg.tenant_claim} {external_id}; "
-            "ask the operator to create one with evalkit tenants create",
-        )
-    return await create_tenant(state.session_factory, external_id, external_id, exist_ok=True)
+    tenant_id = await state.resolve_tenant(request, claims)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="no tenant for this access token")
+    return tenant_id
 
 
 async def sso_login(
@@ -305,7 +275,9 @@ async def providers(request: Request) -> dict:
 
 @router.post("/login")
 async def login(body: LoginRequest, request: Request) -> dict:
-    tenant_id = request.app.state.resolve_tenant(request, None)
+    tenant_id = await request.app.state.resolve_tenant(request, None)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="no tenant for this request")
     if len(body.password.encode()) > PASSWORD_MAX_BYTES:
         raise HTTPException(
             status_code=400, detail=f"password is longer than {PASSWORD_MAX_BYTES} bytes"

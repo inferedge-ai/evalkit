@@ -70,13 +70,10 @@ EXPECTED_OPENERS = {
     ("evalkit.db.trace_imports", "reap_imports"),
     ("evalkit.db.trace_imports", "tenant_of_import"),
     ("evalkit.db.users", "any_admin_exists"),
+    ("evalkit.db.users", "find_machine"),
     ("evalkit.db.rekey", "count_sealed"),
     ("evalkit.db.rekey", "rekey_all"),
     ("evalkit.db.session", "scope_to_tenant"),
-    ("evalkit.db.tenants", "find_identity"),
-    ("evalkit.db.tenants", "create_tenant"),
-    ("evalkit.db.tenants", "find_machine"),
-    ("evalkit.db.tenants", "set_external_id"),
 }
 
 

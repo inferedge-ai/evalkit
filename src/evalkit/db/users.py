@@ -116,6 +116,20 @@ async def any_admin_exists(session_factory: async_sessionmaker[AsyncSession]) ->
     return found is not None
 
 
+async def find_machine(
+    session_factory: async_sessionmaker[AsyncSession], issuer: str, subject: str
+) -> User | None:
+    async with tenant_session(session_factory, ALL_TENANTS) as session:
+        rows = (
+            await session.scalars(
+                select(User).where(User.issuer == issuer, User.subject == subject).limit(2)
+            )
+        ).all()
+    if len(rows) != 1 or rows[0].kind != "machine":
+        return None
+    return rows[0]
+
+
 async def name_taken(session: AsyncSession, tenant_id: int, name: str) -> bool:
     count = await session.scalar(
         select(func.count()).select_from(

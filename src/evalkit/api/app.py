@@ -5,7 +5,7 @@ import os
 import signal
 import socket
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -79,7 +79,6 @@ from evalkit.db.llm_providers import (
 from evalkit.db.rekey import count_sealed
 from evalkit.db.session import make_session_factory, migrate_under_lock, verify_schema
 from evalkit.db.store import PgStore
-from evalkit.db.tenants import TenantExists
 from evalkit.db.trace_imports import UnknownTraceImport, reap_imports
 from evalkit.db.trace_sources import (
     EncryptionKeyMissing,
@@ -137,6 +136,9 @@ SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
 }
+
+
+TenantResolver = Callable[[Request, dict | None], Awaitable[int | None]]
 
 
 def pod_holder() -> str:
@@ -198,7 +200,9 @@ def create_app(
     ui_dist: Path | None = None,
     holder: str | None = None,
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
-    resolve_tenant: Callable[[Request, dict | None], int] = default_resolve_tenant,
+    resolve_tenant: Callable[
+        [Request, dict | None], Awaitable[int | None]
+    ] = default_resolve_tenant,
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (
@@ -271,14 +275,6 @@ def create_app(
     app = FastAPI(title="evalkit", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.add_exception_handler(StarletteHTTPException, otel.log_rejection)
     app.state.cfg = cfg
-    if (
-        cfg.auth.oidc is not None
-        and cfg.auth.oidc.tenant_claim is not None
-        and resolve_tenant is not default_resolve_tenant
-    ):
-        raise ValueError(
-            "auth.oidc.tenant_claim and a custom resolve_tenant both map tenants; use one"
-        )
     app.state.resolve_tenant = resolve_tenant
     app.state.runner_deps = resolved_deps
     app.state.holder = holder or pod_holder()
@@ -319,7 +315,6 @@ def create_app(
 
     @app.exception_handler(NameTaken)
     @app.exception_handler(IdentityConflict)
-    @app.exception_handler(TenantExists)
     @app.exception_handler(LastAdmin)
     @app.exception_handler(AgentExists)
     @app.exception_handler(EvaluatorExists)

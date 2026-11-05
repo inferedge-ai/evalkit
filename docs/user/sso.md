@@ -90,8 +90,6 @@ In the server's `config.yaml`:
         required_scopes: []         # scopes an access token must carry
         authorize_params: {}
         algorithms: [RS256]
-        tenant_claim: null          # claim naming the person's organisation; unset: one tenant
-        tenant_auto_create: false   # create a tenant for an organisation seen the first time
         admin_claim: null           # {name: roles, value: evalkit-admin}: who is an admin
 
 `password_login: admin` keeps password login for admins only, so the
@@ -135,48 +133,19 @@ the UI, the CLI and MCP hosts only request the scopes listed there.
 - Password login tokens and agent tokens are not checked. An empty list (the
   default) turns the check off.
 
-### One tenant per organisation
+### Several organisations
 
-By default everyone who signs in lands in one tenant. When the IdP puts the
-person's organisation in the access token, evalkit can give each
-organisation its own tenant, with its own users, workspaces, datasets and
-runs:
+Everyone who signs in lands in one tenant. A deployment that serves several
+organisations from one server runs evalkit inside a wrapper that owns its
+tenants: it passes `create_app(resolve_tenant=...)`, which reads the
+organisation from the access token and returns the tenant to use. evalkit
+stores that tenant on every row and keeps no list of tenants itself.
 
-    auth:
-      oidc:
-        tenant_claim: tenant_id     # grahak tenant_id, Auth0 org_id, Entra tid
-        tenant_auto_create: false
-
-- `tenant_claim` names the access token claim that holds the organisation
-  id. On every sign-in evalkit finds the tenant whose external id equals that
-  claim and signs the person into it. A token without the claim answers 403
-  `access token has no <claim> claim`.
-- An organisation evalkit has no tenant for is refused at registration with
-  403 `no tenant for <claim> <id>`. Create its tenant first, on the server:
-
-      evalkit tenants create acme --external-id ORG-7f3a --config config.yaml
-
-- `tenant_auto_create: true` creates the tenant (named after the id) at the
-  organisation's first registration instead. Anyone the IdP issues an
-  evalkit token to, with an organisation id evalkit has not seen, then
-  creates a tenant. Use it when the IdP decides which organisations may use
-  evalkit, for example by granting a required scope only to them.
-- The same IdP subject in two organisations is two evalkit users, one per
-  tenant.
-- `tenant_claim` needs `admin_claim` (below): tenants other than the default
-  get their admins from the IdP. The server refuses to start without it.
-- A machine user (CI, client credentials) belongs to the tenant whose admin
-  bound it with `evalkit users add --subject`. Client credentials tokens often
-  carry no organisation claim, so when the claim is missing evalkit looks the
-  token's subject up across tenants and accepts it only if it matches exactly
-  one machine user. A person's token without the claim still answers 403. A
-  machine client bound in two tenants must carry the claim.
-- Turning `tenant_claim` on for a server that already has users: they live in
-  the default tenant, which has no external id yet. Give it the
-  organisation's id first, or they can no longer sign in:
-
-      evalkit tenants set-external-id default ORG-7f3a --config config.yaml
-- Password login always signs into the default tenant.
+A machine user (CI, client credentials) belongs to the tenant its admin bound
+it in with `evalkit users add --subject`. Client credentials tokens often
+carry no organisation, so when the wrapper returns no tenant evalkit accepts
+the token only if its subject matches exactly one machine user. A person's
+token without a tenant answers 403 `no tenant for this access token`.
 
 ### Admins from the IdP
 
@@ -239,8 +208,7 @@ identity provider session stays.
 | 401 `SSO is not configured on this server` | A JWT reached a server without `auth.oidc` | Configure `auth.oidc` or use password login |
 | 401 `user is archived` | Archived in evalkit | `evalkit users restore <username>` |
 | 403 `password login is for admins on this server` | `password_login: admin` | Sign in with SSO, or set `password_login: all` |
-| 403 `access token has no <claim> claim` | `auth.oidc.tenant_claim` is set and the access token does not carry it | Have the IdP put the organisation id in that claim |
-| 403 `no tenant for <claim> <id>` | No tenant has that external id and `tenant_auto_create` is off | `evalkit tenants create <name> --external-id <id>` on the server |
+| 403 `no tenant for this access token` | A wrapper's `resolve_tenant` found no tenant for the token, and it is not a machine user bound in exactly one tenant | Map the organisation in the wrapper, or bind the machine client in one tenant |
 | 403 `access token lacks required scope <scope>` (on `/api` and register; `/mcp` says `insufficient_scope`) | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
 | 503 `identity provider unreachable` | Discovery or the JWKS could not be fetched | Check the issuer URL and network egress from the server; it retries every 30 s |
 | No "Continue with ..." button on the login page | `/api/auth/providers` has no `oidc` | `auth.oidc` is absent or the server was not restarted |

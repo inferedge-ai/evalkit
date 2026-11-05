@@ -76,8 +76,6 @@ class OidcConfig(ConfigModel):
     required_scopes: list[str] = []
     authorize_params: dict[str, str] = {}
     algorithms: list[str] = ["RS256"]
-    tenant_claim: str | None = None
-    tenant_auto_create: bool = False
     admin_claim: AdminClaimConfig | None = None
 
     @field_validator("scopes")
@@ -94,17 +92,6 @@ class OidcConfig(ConfigModel):
             raise ValueError(
                 f"auth.oidc.required_scopes lists {', '.join(missing)}, "
                 "which auth.oidc.scopes does not request; add it to auth.oidc.scopes"
-            )
-        return self
-
-    @model_validator(mode="after")
-    def _tenant_settings_fit_together(self) -> OidcConfig:
-        if self.tenant_auto_create and self.tenant_claim is None:
-            raise ValueError("auth.oidc.tenant_auto_create needs auth.oidc.tenant_claim")
-        if self.tenant_claim is not None and self.admin_claim is None:
-            raise ValueError(
-                "auth.oidc.tenant_claim needs auth.oidc.admin_claim: "
-                "tenants other than the default get their admins from the IdP"
             )
         return self
 

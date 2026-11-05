@@ -3,5 +3,5 @@ from typing import Any
 DEFAULT_TENANT_ID = 1
 
 
-def resolve_tenant(request: Any, claims: dict | None) -> int:
+async def resolve_tenant(request: Any, claims: dict | None) -> int | None:
     return DEFAULT_TENANT_ID

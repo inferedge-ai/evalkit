@@ -2,18 +2,15 @@
 
 ## Unreleased
 
-- One tenant per organisation through SSO. `auth.oidc.tenant_claim` names the
-  access token claim holding the organisation id; people sign into the tenant
-  whose `external_id` matches. An unknown organisation is refused (403) unless
-  `auth.oidc.tenant_auto_create` is on, which creates the tenant at its first
-  registration. New server commands `evalkit tenants create <name>
-  --external-id <id>` and `evalkit tenants set-external-id <name> <id>`.
-  `auth.oidc.admin_claim` (`name`, `value`) sets a person's admin flag from
-  the access token at every sign-in, and is required with `tenant_claim`. A
-  machine token without the organisation claim finds its tenant through its
-  bound machine user. A custom `create_app(resolve_tenant=...)` and
-  `tenant_claim` together refuse to start. All off by default: one tenant,
-  admins promoted by hand, as before.
+- `auth.oidc.admin_claim` (`name`, `value`): when set, every SSO sign-in
+  sets the person's admin flag from the access token (equal to the value, or
+  a list containing it), so the IdP grants and revokes evalkit admin. Unset,
+  sign-in never changes the flag, as before.
+- `create_app(resolve_tenant=...)` is now async and may return `None`. With
+  `None`, a client-credentials token is accepted when its issuer and subject
+  match exactly one machine user; any other token gets 403 `no tenant for
+  this access token`, and password login 403 `no tenant for this request`.
+  Without a wrapper every request is tenant 1, as before.
 - `auth.oidc.required_scopes` (default empty) makes the server refuse IdP
   access tokens that lack a scope, read from the `scope` and `scp` claims:
   `POST /api/auth/oidc/register` (no user is created) and every `/api` request

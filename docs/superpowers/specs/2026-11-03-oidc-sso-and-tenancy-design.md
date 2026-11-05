@@ -73,7 +73,8 @@ assume them.
    secret anywhere in evalkit's own flows.
 4. A person's `users` row is created on their first registration call. Admin
    is granted in evalkit by default; an operator may instead let the IdP name
-   admins with `auth.oidc.admin_claim` (see "Organisations as tenants").
+   admins with `auth.oidc.admin_claim` (see "Several organisations: the
+   wrapper and the admin claim").
 5. Password login stays, governed by one setting, `auth.password_login`:
    `admin` (the default when an IdP is configured) or `all`. With no IdP
    configured password login works for everyone, unchanged.
@@ -425,11 +426,11 @@ store, and the access rules keep a tenant equality check as a second line.
 | Entry point | Tenant source |
 | --- | --- |
 | Any `/api` route, evalkit token | The token hash is globally unique: an `ALL_TENANTS` lookup of `auth_tokens` joined to `users` yields the user and its `tenant_id`; everything after runs in a session scoped to it |
-| Any `/api` route, IdP access token | Without `auth.oidc.tenant_claim`: `resolve_tenant(request, claims)` first, then the user row by `(tenant, issuer, sub)`; the same subject may exist in two tenants, so the tenant must be known before the lookup. With it: one `ALL_TENANTS` query joins `tenants` on `external_id = claims[tenant_claim]` to `users` on `(issuer, sub)` (see "Organisations as tenants") |
+| Any `/api` route, IdP access token | `resolve_tenant(request, claims)` first, then the user row by `(tenant, issuer, sub)`; the same subject may exist in two tenants, so the tenant must be known before the lookup. When it returns `None`, the machine-user fallback below |
 | `/mcp` tools | Same as `/api`: the verifier yields the user, the user carries the tenant |
 | Collector, agent token | The token hash is globally unique: an `ALL_TENANTS` lookup of `auth_tokens` joined to `agents` and `workspaces` yields the agent and its `tenant_id` |
 | Collector, user credential | As for `/api` |
-| Registration (`POST /api/auth/oidc/register`) | `resolve_tenant(request, claims)`, or with `tenant_claim` the tenant whose `external_id` is the claim, created there when `tenant_auto_create` is on; there is no user yet |
+| Registration (`POST /api/auth/oidc/register`) | `resolve_tenant(request, claims)`; there is no user yet; `None` answers 403 |
 | Password login | `resolve_tenant(request, claims=None)` |
 | `bootstrap_admin`, `init-server` | Tenant 1, passed explicitly; the "does any admin exist" check runs `ALL_TENANTS` |
 | Server runner (`prepare_experiment`, lease renewals) | The experiment id is globally unique: an `ALL_TENANTS` lookup of the experiment joined to `datasets` and `workspaces` yields its `tenant_id`; the runner then builds its scoped `PgStore` |
@@ -440,98 +441,74 @@ store, and the access rules keep a tenant equality check as a second line.
 ships:
 
 ```
-def resolve_tenant(request, claims) -> int:
+async def resolve_tenant(request, claims) -> int | None:
     return 1
 ```
 
 and `create_app(cfg, resolve_tenant=resolve_tenant)` takes it as a parameter,
 so a wrapper passes its own without patching. It runs on every request that
 carries an IdP access token, before the user lookup, and at password login
-and registration. It is a constant in the public repo and must stay cheap in
-a wrapper: a header read or a claim read, never a query.
+(`claims=None`) and registration. It is async because a wrapper's mapping
+from organisation to tenant lives in the wrapper's store; it runs on every
+request, so a wrapper keeps it cheap (an in-memory map or a cache).
+`None` means "no tenant for this request": password login answers 403, as
+does registration.
 
-### Organisations as tenants
+### Several organisations: the wrapper and the admin claim
 
-A hosted instance serves many organisations from one IdP, which puts the
-organisation in the access token (grahak `tenant_id`, Auth0 `org_id`, Entra
-`tid`). Three optional `auth.oidc` settings map it, all off by default:
+evalkit keeps no tenants table (see "Tables"). A deployment that serves
+several organisations runs evalkit inside a wrapper that owns its tenants,
+their names and their mapping to the IdP's organisations, and passes
+`resolve_tenant`. The wrapper reads whichever claim its IdP uses for the
+organisation (grahak `tenant_id`, Auth0 `org_id`, Entra `tid`), may create
+the tenant at registration, and returns its key. Renaming an organisation's
+id, merging organisations or changing IdP changes the wrapper's mapping and
+never evalkit's rows or blob keys.
 
-| Setting | Meaning |
-| --- | --- |
-| `tenant_claim` | The access token claim holding the organisation id. Unset: `resolve_tenant` as above |
-| `tenant_auto_create` | Create a tenant for an organisation id seen the first time, at registration. Needs `tenant_claim` |
-| `admin_claim` (`name`, `value`) | Set `users.is_admin` from the access token at every registration. Required when `tenant_claim` is set: tenants other than the default have no password admin, so the IdP names their admins |
-
-The claim is a lookup value against `tenants.external_id`, never a tenant
-primary key, and it is trusted exactly as far as `sub` and `email` are: it
-comes from the configured issuer's signed token, checked as in "The request
-verifier". The rule "never trust a tenant id minted by the IdP" is about
-evalkit's own key and still holds.
+Machine users. Client credentials tokens often carry no organisation, so the
+wrapper may return `None` for them. The machine user's tenant is the one its
+admin bound it in (`users add --subject`), so evalkit falls back to the
+binding:
 
 ```
-def tenant_claim_value(oidc, claims):
-    value = claims.get(oidc.tenant_claim)
-    if value is not a non-empty string: raise 403 "access token has no <claim> claim"
-    return value
-
-# request verifier, after verify_access_token and the required-scope check
-if oidc.tenant_claim is None:
-    tenant = resolve_tenant(request, claims); user = user by (tenant, iss, sub)
-elif oidc.tenant_claim not in claims:
-    # client credentials tokens often carry no organisation claim
+tenant = await resolve_tenant(request, claims)
+if tenant is None:
     rows = SELECT users WHERE issuer = iss AND subject = sub LIMIT 2   # ALL_TENANTS
     user = rows[0] if len(rows) == 1 and rows[0].kind == "machine" else None
-    if user is None: raise 403 "access token has no <claim> claim"
+    if user is None: raise 403 "no tenant for this access token"
 else:
-    # one ALL_TENANTS query, no extra round trip
-    user = SELECT users JOIN tenants ON users.tenant_id = tenants.id
-           WHERE tenants.external_id = tenant_claim_value(oidc, claims)
-             AND users.issuer = iss AND users.subject = sub
+    user = user by (tenant, iss, sub)
 if user is None: 401 not registered
-
-# registration, after the id_token checks
-if oidc.tenant_claim is None: tenant = resolve_tenant(request, access)
-else:
-    org = tenant_claim_value(oidc, access)
-    tenant = tenant with external_id = org
-    if tenant is None:
-        if not oidc.tenant_auto_create: 403 "no tenant for <claim> <org>"
-        tenant = create_tenant(name=org, external_id=org)   # under the "tenants" advisory lock;
-                                                            # a concurrent first sign-in reuses it
-claim = access.get(admin.name)
-is_admin = None                    if oidc.admin_claim is None
-           admin.value in claim    if claim is a list
-           claim == admin.value    otherwise
-register(tenant, iss, sub, email, preferred_username, is_admin)
-# register sets users.is_admin = is_admin on create and on every later call when not None
 ```
 
-- `tenant_claim` replaces `resolve_tenant`: `create_app` refuses to start
-  when both `tenant_claim` is set and a custom `resolve_tenant` is passed.
-- A machine user's tenant is the one its admin bound it in (`users add
-  --subject`); the binding decides, so a client credentials token without the
-  organisation claim is accepted when its `(issuer, sub)` matches exactly one
-  machine user. A person's token without the claim is always refused.
-- `evalkit tenants set-external-id <name> <id>` gives an existing tenant
-  (including `default`) an external id, so a live server can turn
-  `tenant_claim` on without stranding its users.
-- `evalkit tenants create <name> [--external-id <id>]` is a server command
-  (direct database access, like `blobs relocate`), not an API route: creating
-  tenants is the operator's power, not a tenant admin's.
-- `admin_claim` is applied at registration, which runs once per sign-in, so a
-  person the IdP stops naming as admin is demoted at their next sign-in; a
-  token they hold keeps its user's current flag until then. It bypasses the
-  last-admin check, so the IdP can demote a tenant's last admin: the IdP is
-  the authority once this is on.
+A person's token without a tenant is always refused, and a machine client
+bound in two tenants needs the wrapper to name one. `find_machine`
+(`db/users.py`) joins the pinned set of `ALL_TENANTS` openers.
+
+`auth.oidc.admin_claim` (`name`, `value`), optional, lets the IdP name
+admins. Every registration, which runs once per sign-in, sets
+`users.is_admin` from the access token:
+
+```
+claim = access.get(admin.name)
+is_admin = None                    if admin_claim is None   # registration leaves the flag alone
+           admin.value in claim    if claim is a list
+           claim == admin.value    otherwise
+```
+
+- A person the IdP stops naming as admin is demoted at their next sign-in;
+  a token they hold keeps the user's current flag until then.
+- It bypasses the last-admin check, so the IdP can demote a tenant's last
+  admin: the IdP is the authority once this is on.
+- It is independent of tenancy: a single-tenant server can use it, and in a
+  wrapper it is how tenants other than 1, which have no password admin, get
+  their admins.
 - An admin's powers are all tenant-scoped: users and their identities,
   workspaces and members, LLM providers and the default judge, trace sources
   and agent tokens all go through the request's `TenantStores`, and the
   agent token list and revoke filter on the user's tenant. Nothing an admin
-  reaches through `/api` is installation-wide; migrations, `db rekey`,
-  `blobs relocate` and `tenants create` are server commands.
-- Password login always resolves the default tenant.
-- `find_identity`, `find_machine`, `create_tenant` and `set_external_id`
-  (`db/tenants.py`) join the pinned set of `ALL_TENANTS` openers.
+  reaches through `/api` is installation-wide; migrations, `db rekey` and
+  `blobs relocate` are server commands.
 
 ### The two objects that carry it
 

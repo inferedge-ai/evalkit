@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 import httpx2
 import pytest
 
-from evalkit.api.app import content_security_policy, create_app
+from evalkit.api.app import TenantResolver, content_security_policy, create_app
 from evalkit.api.oidc import Discovery, OidcState
 from evalkit.client.connection import MachineLogin
 from evalkit.client.oidc import ClientCredentials
 from evalkit.config import OidcConfig
+from evalkit.core.tenant import resolve_tenant as default_resolve_tenant
 from evalkit.db.users import UserStore
 from tests.identity import FakeIdp
 from tests.native import HOLDER, USERS, Env, seed_env, serve
@@ -22,6 +23,7 @@ async def sso_app(
     password_login: str = "admin",
     required_scopes: list[str] | None = None,
     transport: httpx2.AsyncBaseTransport | None = None,
+    resolve_tenant: TenantResolver = default_resolve_tenant,
     **oidc_options,
 ) -> AsyncIterator[httpx2.AsyncClient]:
     env.deps.cfg.auth.oidc = OidcConfig(
@@ -42,6 +44,7 @@ async def sso_app(
         check_schema=False,
         holder=HOLDER,
         oidc_transport=transport or idp.transport(),
+        resolve_tenant=resolve_tenant,
     )
     async with app.router.lifespan_context(app):
         async with httpx2.AsyncClient(

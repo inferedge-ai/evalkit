@@ -1,6 +1,6 @@
 from evalkit.core.tenant import resolve_tenant
 
 
-def test_public_evalkit_has_one_tenant():
-    assert resolve_tenant(None, None) == 1
-    assert resolve_tenant(object(), {"sub": "anyone"}) == 1
+async def test_the_public_repo_resolves_every_request_to_tenant_1():
+    assert await resolve_tenant(None, None) == 1
+    assert await resolve_tenant(object(), {"sub": "anyone"}) == 1
