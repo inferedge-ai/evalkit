@@ -49,7 +49,7 @@ evalkit agents create myagent --trajectory-source otel --mapping openinference.j
 evalkit agents create myagent --harness-url http://localhost:8080/evalkit/v1
 ```
 
-`openinference.json` (or `gen_ai.json`) comes from the `connect-traces` skill.
+`openinference.json` (or `gen_ai.json`) comes from the `connect-traces` skill: `evalkit skills install` copies it to `.claude/skills/connect-traces/references/` (or `.agents/skills/…`). See [Install](install.md#the-skills).
 
 Each directory under `cases` is a dataset. Add `eval/cases/smoke/cases.yaml`:
 
@@ -130,6 +130,8 @@ A run or sync uploads any fixture whose sha256 the server doesn't hold yet, and 
 ## 7. Iterate and promote
 
 ```bash
+evalkit experiments list --dataset smoke       # experiment ids, newest first
+evalkit summary <new-id> --baseline <old-id>    # compare two experiments: fixed, broken, gauge deltas
 evalkit evaluate <experiment-id>        # re-score the same runs after an evaluator change; no agent calls
 evalkit runs pull --experiment <experiment-id>   # download every run (trajectory, case, scores) to diagnose failures
 ```

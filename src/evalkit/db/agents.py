@@ -53,13 +53,18 @@ def _definition(row: models.Agent, ws: models.Workspace) -> AgentDefinition:
     )
 
 
-def _check_provides(
+def _check_settings(
     harness_url: str | None, source: TrajectorySource, settings: AgentSettings | None
 ) -> None:
     if harness_url and source is TrajectorySource.ATIF and settings and settings.provides:
         raise InvalidAgent(
             "settings.provides is only allowed next to a harness_url when trajectories come "
             "from traces; a harness declares its own capabilities"
+        )
+    if harness_url and settings and settings.input_schema is not None:
+        raise InvalidAgent(
+            "settings.input_schema is only for code-driven agents; a harness declares its "
+            "own input_schema in GET /capabilities"
         )
 
 
@@ -150,7 +155,7 @@ class AgentStore:
             raise InvalidAgent("otel agents need a mapping")
         if mapping is not None and trajectory_source is not TrajectorySource.OTEL:
             raise InvalidAgent("only otel agents take a mapping")
-        _check_provides(harness_url, trajectory_source, settings)
+        _check_settings(harness_url, trajectory_source, settings)
         if mapping is not None:
             MappingDocument.model_validate(mapping)
         async with self._sessions() as session:
@@ -210,7 +215,7 @@ class AgentStore:
                 await self._switch_source(session, row, ref, source, mapping, edited_by)
             elif mapping is not None:
                 await activate_document(session, row.id, mapping, edited_by)
-            _check_provides(
+            _check_settings(
                 row.harness_url,
                 TrajectorySource(row.trajectory_source),
                 AgentSettings.model_validate(row.config or {}),

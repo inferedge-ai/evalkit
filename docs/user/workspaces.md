@@ -52,6 +52,8 @@ your agent:
 An admin runs these once:
 
 ```bash
+evalkit users add alice                                 # prompts for a password; once per user
+evalkit users add bob
 evalkit workspaces create dev
 evalkit workspaces create prod
 evalkit workspaces promote-to dev prod                  # approvals in @dev land in @prod
@@ -80,6 +82,12 @@ Then:
 4. **Review.** Alice asks for a review:
    `evalkit review request finance@dev --case-id net-debt --reviewer bob`.
    Bob approves it: `evalkit review approve finance@dev net-debt`.
+   He can approve several at once (`evalkit review approve finance@dev
+   net-debt fx-rate`) or every case waiting on him
+   (`evalkit review approve finance@dev --all-waiting`). To ask a question
+   first: `evalkit review comment finance@dev net-debt --comment "which
+   fiscal year?"`; resolve it later by its id: `evalkit review resolve 12`.
+   `evalkit review queue finance@dev` lists what is waiting in one dataset.
 5. **Promotion.** The approval adds that version of the case to
    `finance@prod`, approved.
 6. **Run.** `finance@dev` holds every merged case, for regression runs
@@ -89,6 +97,11 @@ Then:
 Changing a case starts the loop again. The new version is Unreviewed in
 `@dev`, and `@prod` keeps the old approved version until the new one is
 approved.
+
+A change to a case that is waiting for review, or was sent back with
+changes requested, goes back to the same reviewer on sync: you don't need
+to run `review request` again. If you do, cases already waiting on that
+reviewer are left as they are.
 
 ## Several branches
 

@@ -55,7 +55,7 @@ from evalkit.core.blob import (
     trajectory_key,
     workspace_key,
 )
-from evalkit.core.capabilities import traced_capabilities
+from evalkit.core.capabilities import SDK_CONTRACT_VERSION, traced_capabilities
 from evalkit.core.costmap import load_cost_map
 from evalkit.core.custom_eval import EvalError, score_with_custom_evaluator
 from evalkit.core.evaluators.base import (
@@ -212,11 +212,17 @@ class NothingRunnable(ValueError):
 
 
 class InvalidCaseInputs(Exception):
-    def __init__(self, agent: str, bad: dict[str, str]):
+    def __init__(self, agent: str, bad: dict[str, str], *, default_schema: bool = False):
         self.agent = agent
         self.bad = bad
         lines = "\n".join(f"  {case_id}: {error}" for case_id, error in sorted(bad.items()))
-        super().__init__(f"{len(bad)} case input(s) fail agent {agent}'s input_schema:\n{lines}")
+        message = f"{len(bad)} case input(s) fail agent {agent}'s input_schema:\n{lines}"
+        if default_schema:
+            message += (
+                f"\n{agent} has the default input schema (a required string question); "
+                f"set its own with evalkit agents edit {agent} --input-schema <file>"
+            )
+        super().__init__(message)
 
 
 class LeaseLost(ValueError):
@@ -475,14 +481,15 @@ def runnable(cases: list[CaseView], caps: Capabilities) -> tuple[list[CaseView],
     return [case for case in cases if not case.files], gated
 
 
-def _check_inputs(agent: str, caps: Capabilities, cases: list[CaseView]) -> None:
+def check_inputs(agent: str, caps: Capabilities, cases: list[CaseView]) -> None:
     bad = {}
     for case in cases:
         errors = input_errors(caps.effective_input_schema, case.input)
         if errors:
             bad[case.case_id] = errors[0]
     if bad:
-        raise InvalidCaseInputs(agent, bad)
+        code_driven = caps.contract_version == SDK_CONTRACT_VERSION
+        raise InvalidCaseInputs(agent, bad, default_schema=code_driven and not caps.input_schema)
 
 
 async def harness_capabilities(
@@ -519,7 +526,7 @@ async def prepare_experiment(
     cases, dropped = runnable(cases, caps)
     if not cases:
         raise NothingRunnable(dataset.ref, dropped)
-    _check_inputs(req.agent, caps, cases)
+    check_inputs(req.agent, caps, cases)
     config = ExperimentConfig(
         model=model,
         judge=judge,
