@@ -94,7 +94,7 @@ async def test_trace_sources_are_admin_rows_and_hide_keys(api):
 
 async def test_trajectory_response_is_the_session_model_as_json(api):
     api.app.state.cfg.otel.settle_seconds = 3600
-    stores = build_tenant_stores(api.app.state, 1)
+    stores = build_tenant_stores(api.app.state, "default")
     reader = stores.sessions
     for esf in (False, True):
         expected = await reader.read("sdk@admin", "sess-1", include_esf=esf)

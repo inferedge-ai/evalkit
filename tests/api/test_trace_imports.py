@@ -12,14 +12,16 @@ from tests.identity import seed_identity, workspace_ref
 
 async def test_shutdown_cancels_running_imports_and_marks_them_failed(session_factory):
     await seed_identity(session_factory, {"admin": "password", "akshat": "password"}, shared=())
-    agent = await AgentStore(session_factory, 1).create(
+    agent = await AgentStore(session_factory, "default").create(
         await workspace_ref(session_factory, "akshat"), "research-agent"
     )
-    source = await TraceSourceStore(session_factory, 1, None).create(
+    source = await TraceSourceStore(session_factory, "default", None).create(
         "phx", TraceProvider.PHOENIX, "https://phoenix.example.com", None
     )
-    user = next(u for u in await UserStore(session_factory, 1).list() if u.username == "akshat")
-    store = TraceImportStore(session_factory, 1)
+    user = next(
+        u for u in await UserStore(session_factory, "default").list() if u.username == "akshat"
+    )
+    store = TraceImportStore(session_factory, "default")
     view = await store.create(
         agent.id,
         source.id,

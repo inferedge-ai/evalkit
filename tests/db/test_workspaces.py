@@ -16,11 +16,11 @@ from evalkit.db.workspaces import (
 
 @pytest.fixture
 async def stores(session_factory):
-    users = UserStore(session_factory, 1)
+    users = UserStore(session_factory, "default")
     admin = await users.create("admin", "password", is_admin=True)
     await users.create("bob", "password")
     await users.create("carol", "password")
-    return WorkspaceStore(session_factory, 1), admin.id
+    return WorkspaceStore(session_factory, "default"), admin.id
 
 
 async def test_create_shared_and_duplicate(stores):
@@ -107,24 +107,30 @@ async def test_promotes_to_rules(linked):
 
 async def test_member_grant_refuses_a_user_from_another_tenant(raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(TenantSettings(tenant_id=2))
+        s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
-    admin = await UserStore(raw_session_factory, 1).create("admin", "password", is_admin=True)
-    await WorkspaceStore(raw_session_factory, 1).create_shared("dev", admin.id)
-    await UserStore(raw_session_factory, 2).create("eve", "password")
+    admin = await UserStore(raw_session_factory, "default").create(
+        "admin", "password", is_admin=True
+    )
+    await WorkspaceStore(raw_session_factory, "default").create_shared("dev", admin.id)
+    await UserStore(raw_session_factory, "tenant-2").create("eve", "password")
     with pytest.raises(UnknownUser):
-        await WorkspaceStore(raw_session_factory, 1).add_member(
+        await WorkspaceStore(raw_session_factory, "default").add_member(
             "dev", "eve", WorkspaceRole.WRITER, admin.id
         )
 
 
 async def test_promotion_link_refuses_workspaces_in_different_tenants(raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(TenantSettings(tenant_id=2))
+        s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
-    admin = await UserStore(raw_session_factory, 1).create("admin", "password", is_admin=True)
-    root = await UserStore(raw_session_factory, 2).create("root", "password", is_admin=True)
-    dev = await WorkspaceStore(raw_session_factory, 1).create_shared("dev", admin.id)
-    prod = await WorkspaceStore(raw_session_factory, 2).create_shared("prod", root.id)
+    admin = await UserStore(raw_session_factory, "default").create(
+        "admin", "password", is_admin=True
+    )
+    root = await UserStore(raw_session_factory, "tenant-2").create(
+        "root", "password", is_admin=True
+    )
+    dev = await WorkspaceStore(raw_session_factory, "default").create_shared("dev", admin.id)
+    prod = await WorkspaceStore(raw_session_factory, "tenant-2").create_shared("prod", root.id)
     with pytest.raises(PromotionLinkError, match="different tenants"):
         _check_link(dev, prod)

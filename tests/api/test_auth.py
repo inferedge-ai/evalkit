@@ -145,7 +145,7 @@ async def test_logout_revokes(client):
 
 async def test_archived_user_cannot_log_in_or_use_a_token(client, session_factory):
     token = await login(client)
-    await UserStore(session_factory, 1).archive("alice")
+    await UserStore(session_factory, "default").archive("alice")
     resp = await client.post(
         "/api/auth/login", json={"username": "alice", "password": "wonderland"}
     )
@@ -157,7 +157,7 @@ async def test_archived_user_cannot_log_in_or_use_a_token(client, session_factor
 
 
 async def test_archived_placeholder_user_gets_401_not_500(client, session_factory):
-    await UserStore(session_factory, 1).archive("alice")
+    await UserStore(session_factory, "default").archive("alice")
     placeholder = hash_password(secrets.token_urlsafe(32))
     async with session_factory() as s:
         await s.execute(
@@ -167,8 +167,8 @@ async def test_archived_placeholder_user_gets_401_not_500(client, session_factor
     resp = await client.post("/api/auth/login", json={"username": "alice", "password": "x"})
     assert resp.status_code == 401
     assert resp.json()["detail"] == "invalid username or password"
-    await UserStore(session_factory, 1).restore("alice")
-    await UserStore(session_factory, 1).set_password("alice", "fresh-password")
+    await UserStore(session_factory, "default").restore("alice")
+    await UserStore(session_factory, "default").set_password("alice", "fresh-password")
     assert await login(client, "alice", "fresh-password")
 
 
@@ -234,9 +234,9 @@ async def test_bootstrap_admin_refuses_a_bad_password(session_factory, password)
 
 async def test_login_with_the_same_username_in_two_tenants(client, raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(TenantSettings(tenant_id=2))
+        s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
-    await UserStore(raw_session_factory, 2).create("alice", "other-pw")
+    await UserStore(raw_session_factory, "tenant-2").create("alice", "other-pw")
     assert await login(client, "alice", "wonderland")
     resp = await client.post("/api/auth/login", json={"username": "alice", "password": "other-pw"})
     assert resp.status_code == 401

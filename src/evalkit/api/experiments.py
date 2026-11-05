@@ -224,7 +224,7 @@ def _scoring(
 
 
 async def _runner_written(
-    session: AsyncSession, tenant_id: int, exp: Experiment
+    session: AsyncSession, tenant_id: str, exp: Experiment
 ) -> AgentDefinition:
     agent = await agent_definition(session, tenant_id, explicit(parse_slug(exp.agent)))
     if server_may_drive(agent):
@@ -236,7 +236,7 @@ async def _runner_written(
 
 
 async def _last_git_revision(
-    session: AsyncSession, tenant_id: int, dataset: str
+    session: AsyncSession, tenant_id: str, dataset: str
 ) -> GitRevision | None:
     row = await dataset_by_ref(session, tenant_id, dataset)
     sync = row.last_sync

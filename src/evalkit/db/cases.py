@@ -53,7 +53,7 @@ async def _last_syncs(session: AsyncSession, dataset_ids: list[int]) -> dict[int
     return {row.dataset_id: _sync_view(row, actor) for row, actor in rows}
 
 
-def _dataset_query(tenant_id: int):
+def _dataset_query(tenant_id: str):
     return (
         select(models.Dataset, models.Workspace)
         .join(models.Workspace, models.Workspace.id == models.Dataset.workspace_id)
@@ -78,7 +78,7 @@ async def _rows(session: AsyncSession, query) -> list[DatasetRow]:
 
 
 async def get_dataset(
-    session: AsyncSession, tenant_id: int, workspace: str, name: str
+    session: AsyncSession, tenant_id: str, workspace: str, name: str
 ) -> DatasetRow:
     rows = await _rows(
         session,
@@ -91,13 +91,13 @@ async def get_dataset(
     return rows[0]
 
 
-async def dataset_by_ref(session: AsyncSession, tenant_id: int, ref: str) -> DatasetRow:
+async def dataset_by_ref(session: AsyncSession, tenant_id: str, ref: str) -> DatasetRow:
     parsed = parse_slug(ref)
     return await get_dataset(session, tenant_id, parsed.workspace, parsed.name)
 
 
 async def find_dataset_row(
-    session: AsyncSession, tenant_id: int, workspace: str, name: str
+    session: AsyncSession, tenant_id: str, workspace: str, name: str
 ) -> DatasetRow | None:
     rows = await _rows(
         session,
@@ -109,7 +109,7 @@ async def find_dataset_row(
 
 
 async def list_datasets(
-    session: AsyncSession, tenant_id: int, workspace: str | None = None
+    session: AsyncSession, tenant_id: str, workspace: str | None = None
 ) -> list[DatasetRow]:
     query = _dataset_query(tenant_id).where(models.Dataset.archived_at.is_(None))
     if workspace is not None:
@@ -122,7 +122,7 @@ async def list_datasets(
     )
 
 
-async def case_ref_for(session: AsyncSession, tenant_id: int, case_id: str) -> int:
+async def case_ref_for(session: AsyncSession, tenant_id: str, case_id: str) -> int:
     await session.execute(
         insert(models.Case)
         .values(tenant_id=tenant_id, case_id=case_id)
@@ -138,7 +138,7 @@ async def case_ref_for(session: AsyncSession, tenant_id: int, case_id: str) -> i
 
 
 async def case_refs_for(
-    session: AsyncSession, tenant_id: int, case_ids: list[str]
+    session: AsyncSession, tenant_id: str, case_ids: list[str]
 ) -> dict[str, int]:
     if not case_ids:
         return {}
@@ -157,7 +157,7 @@ async def case_refs_for(
 
 
 async def store_versions(
-    session: AsyncSession, tenant_id: int, versions: list[tuple[int, IncomingCase]]
+    session: AsyncSession, tenant_id: str, versions: list[tuple[int, IncomingCase]]
 ) -> None:
     if not versions:
         return
@@ -200,7 +200,7 @@ async def store_versions(
 
 
 async def store_version(
-    session: AsyncSession, tenant_id: int, case_ref: int, case: IncomingCase
+    session: AsyncSession, tenant_id: str, case_ref: int, case: IncomingCase
 ) -> None:
     await store_versions(session, tenant_id, [(case_ref, case)])
 
@@ -283,7 +283,7 @@ async def _usernames(session: AsyncSession, ids: set[int]) -> dict[int, str]:
 
 
 async def _replace_overlays(
-    session: AsyncSession, tenant_id: int, dataset_id: int, overlays: list[IncomingOverlay]
+    session: AsyncSession, tenant_id: str, dataset_id: int, overlays: list[IncomingOverlay]
 ) -> int:
     await session.execute(
         delete(models.Overlay).where(models.Overlay.source_dataset_id == dataset_id)

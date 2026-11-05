@@ -26,8 +26,8 @@ cases:
 @pytest.fixture
 async def env(tmp_path, session_factory):
     env = await seed_env(session_factory, tmp_path, FakeHarness(), approved=False)
-    await UserStore(session_factory, 1).create("sme", "password")
-    workspaces = WorkspaceStore(session_factory, 1)
+    await UserStore(session_factory, "default").create("sme", "password")
+    workspaces = WorkspaceStore(session_factory, "default")
     admin_id = env.user_ids["admin"]
     for name in ("dev", "prod"):
         await workspaces.create_shared(name, admin_id)

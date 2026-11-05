@@ -10,6 +10,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import TokenKind
+from evalkit.core.tenant import DEFAULT_TENANT_ID, check_tenant_id
 from evalkit.db.auth import find_token
 from evalkit.db.models import AuthToken, User, Workspace, WorkspaceMember
 from evalkit.db.session import tenant_session
@@ -126,7 +127,7 @@ CurrentUser = Annotated[User, Depends(current_user)]
 class Principal:
     user: User | None
     agent_id: int | None
-    tenant_id: int
+    tenant_id: str
 
 
 async def collector_principal(request: Request) -> Principal:
@@ -169,7 +170,7 @@ class LoginRequest(BaseModel):
 
 @router.post("/login")
 async def login(body: LoginRequest, request: Request) -> dict:
-    tenant_id = request.app.state.resolve_tenant(request, None)
+    tenant_id = check_tenant_id(request.app.state.resolve_tenant(request, None))
     if len(body.password.encode()) > PASSWORD_MAX_BYTES:
         raise HTTPException(
             status_code=400, detail=f"password is longer than {PASSWORD_MAX_BYTES} bytes"
@@ -247,4 +248,4 @@ async def bootstrap_admin(
             "no admin user exists and EVALKIT_ADMIN_PASSWORD is not set; "
             "set it and start the server again to create the admin user"
         )
-    await UserStore(session_factory, 1).create("admin", password, is_admin=True)
+    await UserStore(session_factory, DEFAULT_TENANT_ID).create("admin", password, is_admin=True)

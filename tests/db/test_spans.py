@@ -15,10 +15,10 @@ NOW = datetime(2026, 10, 9, tzinfo=UTC)
 async def db(tmp_path, session_factory):
     factory = session_factory
     await seed_identity(factory, {"admin": "password", "akshat": "password"}, shared=())
-    record = await AgentStore(factory, 1).create(
+    record = await AgentStore(factory, "default").create(
         await workspace_ref(factory, "akshat"), "research-agent"
     )
-    return SpanStore(factory, 1), record.id
+    return SpanStore(factory, "default"), record.id
 
 
 def span(span_id, *, trace="t1", parent=None, session=None, at=0, name="s", attrs=None) -> RawSpan:

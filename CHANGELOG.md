@@ -11,17 +11,15 @@
   try-it stack's sample agent (`try/agent.py`) and the SDK-runs doc sample
   import `httpx2`.
 - The database gains a `tenant_id` on `users`, `workspaces`, `cases`,
-  `llm_providers`, `trace_sources` and `fixture_blobs`, set to 1 for existing
-  rows. Usernames, workspace names, case ids, provider names and trace source
-  names are now unique per tenant. evalkit keeps no tenants table: a wrapper
-  that hosts several tenants owns them and passes its key. The default judge
-  moved from `server_settings` to a new `tenant_settings` table keyed by
-  tenant id. Migration `0016`; no behaviour change for a single installation.
-- Blob objects now live under `tenants/<id>/`. After `evalkit db upgrade`,
-  run `evalkit blobs relocate --config <config>` once to move existing
-  trajectories, artifacts, run workspaces and fixtures; the server refuses to
-  start while any object remains under the old layout. The upgrade has
-  downtime between the migration and the relocation.
+  `llm_providers`, `trace_sources` and `fixture_blobs`: text, the
+  organisation's id, `default` for existing rows and for a server without a
+  multi-org wrapper. Usernames, workspace names, case ids, provider names and
+  trace source names are now unique per tenant. evalkit keeps no tenants
+  table. The default judge moved from `server_settings` to a new
+  `tenant_settings` table keyed by tenant id. Migration `0016`; no behaviour
+  change for a single installation, and its blob layout is unchanged (only
+  tenants other than `default` store objects under `tenants/<id>/`). Stop the
+  old server before `evalkit db upgrade`: 0016 drops `server_settings`.
 - `GET /api/workspaces/...` payloads include `tenant_id`.
 - The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
   the latest release's pages directly, version switcher included, instead of

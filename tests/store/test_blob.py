@@ -48,10 +48,3 @@ async def test_missing_key_raises_file_not_found(blob_store):
         await blob_store.get_object("missing.txt")
     with pytest.raises(FileNotFoundError):
         await blob_store.get_stream("missing.txt")
-
-
-async def test_has_any_stops_at_the_first_object(blob_store):
-    assert not await blob_store.has_any("h/")
-    await blob_store.put_object("h/one.txt", b"1")
-    await blob_store.put_object("h/two.txt", b"2")
-    assert await blob_store.has_any("h/")

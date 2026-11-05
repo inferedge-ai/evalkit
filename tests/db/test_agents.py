@@ -18,7 +18,7 @@ async def store(session_factory):
     await seed_identity(
         session_factory, {"admin": "password", "akshat": "password"}, shared=("dev",)
     )
-    return AgentStore(session_factory, 1)
+    return AgentStore(session_factory, "default")
 
 
 async def test_create_get_and_list_with_shared_first(store, session_factory):
@@ -59,7 +59,7 @@ async def test_otel_agent_needs_a_mapping_and_gets_v1_active(store, session_fact
         trajectory_source=TrajectorySource.OTEL,
         mapping=reference_mapping(),
     )
-    active = await MappingStore(session_factory, 1).active(agent.id)
+    active = await MappingStore(session_factory, "default").active(agent.id)
     assert active is not None and active.version == 1
 
 
@@ -87,17 +87,19 @@ async def test_edit_checks_provides_on_the_final_row(store, session_factory):
 
 async def test_agent_lookups_stay_inside_the_tenant(raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(TenantSettings(tenant_id=2))
+        s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
-    for tenant_id in (1, 2):
+    for tenant_id in ("default", "tenant-2"):
         admin = await UserStore(raw_session_factory, tenant_id).create(
             "admin", "password", is_admin=True
         )
         dev = await WorkspaceStore(raw_session_factory, tenant_id).create_shared("dev", admin.id)
         await AgentStore(raw_session_factory, tenant_id).create(dev, "bot", harness_url="https://h")
-    ours = await AgentStore(raw_session_factory, 1).get("bot@dev")
-    theirs = await AgentStore(raw_session_factory, 2).get("bot@dev")
+    ours = await AgentStore(raw_session_factory, "default").get("bot@dev")
+    theirs = await AgentStore(raw_session_factory, "tenant-2").get("bot@dev")
     assert ours.id != theirs.id
-    assert [a.id for a in await AgentStore(raw_session_factory, 1).list_agents()] == [ours.id]
+    assert [a.id for a in await AgentStore(raw_session_factory, "default").list_agents()] == [
+        ours.id
+    ]
     with pytest.raises(UnknownAgent):
-        await AgentStore(raw_session_factory, 1).get_by_id(theirs.id)
+        await AgentStore(raw_session_factory, "default").get_by_id(theirs.id)

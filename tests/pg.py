@@ -65,7 +65,7 @@ def module_db_url(pg_server_url: str, pg_template: str) -> Iterator[str]:
 
 
 class TenantFactory:
-    def __init__(self, factory: async_sessionmaker[AsyncSession], tenant_id: int):
+    def __init__(self, factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self.factory = factory
         self.tenant_id = tenant_id
         self.kw = factory.kw
@@ -83,4 +83,4 @@ async def raw_session_factory(db_url: str) -> AsyncIterator[async_sessionmaker[A
 
 @pytest.fixture
 async def session_factory(raw_session_factory) -> TenantFactory:
-    return TenantFactory(raw_session_factory, 1)
+    return TenantFactory(raw_session_factory, "default")

@@ -28,7 +28,7 @@ class AgentTokenRecord(BaseModel):
 
 
 class AgentTokens:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._sessions = session_factory
         self._tenant_id = tenant_id
 

@@ -7,7 +7,7 @@ from evalkit.db.session import ALL_TENANTS, tenant_session
 
 async def find_token(
     session_factory: async_sessionmaker[AsyncSession], token_hash: str
-) -> tuple[AuthToken, int] | None:
+) -> tuple[AuthToken, str] | None:
     async with tenant_session(session_factory, ALL_TENANTS) as session:
         found = (
             await session.execute(
@@ -20,4 +20,4 @@ async def find_token(
         ).one_or_none()
     if found is None:
         return None
-    return found[0], int(found[1])
+    return found[0], str(found[1])

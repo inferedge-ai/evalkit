@@ -36,6 +36,11 @@ def _seed_at_0015(url: str) -> None:
             "INSERT INTO trace_sources (id, name, provider, config) "
             "VALUES (1, 's', 'phoenix', '{}')",
             f"INSERT INTO fixture_blobs (sha256, size) VALUES ('{'a' * 64}', 10)",
+            "INSERT INTO case_versions (case_ref, content_hash, input, evaluators, tags) "
+            "VALUES (1, 'h1', '{}', '{}', '{}')",
+            "INSERT INTO case_version_files "
+            "(case_ref, content_hash, key, sha256, context, position) "
+            f"VALUES (1, 'h1', 'bs.csv', '{'a' * 64}', '', 0)",
             f"INSERT INTO server_settings (id, default_judge) VALUES (1, '{judge}')",
         ],
     )
@@ -47,7 +52,8 @@ def test_0016_backfills_tenant_1_and_folds_server_settings(fresh_db_url):
     run_migrations(fresh_db_url, "0016")
     assert head_revision() == "0016"
     [(judge,)] = _rows(
-        fresh_db_url, "SELECT default_judge->>'model' FROM tenant_settings WHERE tenant_id = 1"
+        fresh_db_url,
+        "SELECT default_judge->>'model' FROM tenant_settings WHERE tenant_id = 'default'",
     )
     assert judge == "m"
     for table in (
@@ -57,8 +63,9 @@ def test_0016_backfills_tenant_1_and_folds_server_settings(fresh_db_url):
         "llm_providers",
         "trace_sources",
         "fixture_blobs",
+        "case_version_files",
     ):
-        assert _rows(fresh_db_url, f"SELECT DISTINCT tenant_id FROM {table}") == [(1,)]
+        assert _rows(fresh_db_url, f"SELECT DISTINCT tenant_id FROM {table}") == [("default",)]
     engine = create_engine(fresh_db_url)
     inspector = inspect(engine)
     assert "server_settings" not in inspector.get_table_names()
@@ -77,7 +84,7 @@ def test_0016_backfills_tenant_1_and_folds_server_settings(fresh_db_url):
 
 def test_0016_refuses_to_downgrade_with_a_second_tenant(fresh_db_url):
     run_migrations(fresh_db_url, "0016")
-    _exec(fresh_db_url, ["INSERT INTO tenant_settings (tenant_id) VALUES (2)"])
+    _exec(fresh_db_url, ["INSERT INTO tenant_settings (tenant_id) VALUES ('tenant-2')"])
     with pytest.raises(RuntimeError, match="tenant"):
         downgrade_migrations(fresh_db_url, "0015")
 
@@ -96,7 +103,7 @@ def test_0016_refuses_to_downgrade_with_a_passwordless_user(fresh_db_url):
     run_migrations(fresh_db_url, "0016")
     _exec(
         fresh_db_url,
-        ["INSERT INTO users (tenant_id, username, password_hash) VALUES (1, 'sso', NULL)"],
+        ["INSERT INTO users (tenant_id, username, password_hash) VALUES ('default', 'sso', NULL)"],
     )
     with pytest.raises(RuntimeError, match="password"):
         downgrade_migrations(fresh_db_url, "0015")
@@ -106,7 +113,7 @@ def test_0016_refuses_to_downgrade_with_a_user_in_a_second_tenant(fresh_db_url):
     run_migrations(fresh_db_url, "0016")
     _exec(
         fresh_db_url,
-        ["INSERT INTO users (tenant_id, username, password_hash) VALUES (2, 'eve', 'x')"],
+        ["INSERT INTO users (tenant_id, username, password_hash) VALUES ('tenant-2', 'eve', 'x')"],
     )
     with pytest.raises(RuntimeError, match="tenant"):
         downgrade_migrations(fresh_db_url, "0015")

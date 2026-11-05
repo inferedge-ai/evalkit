@@ -45,7 +45,7 @@ def register_tenant_guard() -> None:
 
 @asynccontextmanager
 async def tenant_session(
-    session_factory: async_sessionmaker[AsyncSession], tenant_id: int | object
+    session_factory: async_sessionmaker[AsyncSession], tenant_id: str | object
 ) -> AsyncIterator[AsyncSession]:
     async with session_factory() as session:
         session.info["tenant_id"] = tenant_id

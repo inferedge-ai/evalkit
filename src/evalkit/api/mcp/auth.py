@@ -67,7 +67,7 @@ class ProviderScopeVerifier(TokenVerifier):
         scopes = [s for s in found.scopes if s != SCOPE_READ]
         if self._scope in found.scopes:
             scopes.append(SCOPE_READ)
-        claims = {"tenant_id": DEFAULT_TENANT_ID, **found.claims}
+        claims = {**found.claims, "tenant_id": DEFAULT_TENANT_ID}
         return found.model_copy(update={"scopes": scopes, "claims": claims})
 
 

@@ -545,12 +545,12 @@ async def test_fixture_upload_is_content_addressed(api):
     resp = await alice.put(f"/api/fixtures/sha256/{digest}", content=FILE_BYTES)
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"sha256": digest, "size": len(FILE_BYTES)}
-    assert env.blob.objects[f"{tenant_prefix(1)}fixtures/sha256/{digest}"] == FILE_BYTES
+    assert env.blob.objects[f"{tenant_prefix('default')}fixtures/sha256/{digest}"] == FILE_BYTES
     again = await client.put(f"/api/fixtures/sha256/{digest}", content=FILE_BYTES)
     assert again.status_code == 200
     assert await _blob_rows(env) == 1
     async with env.session_factory() as s:
-        row = await s.get(FixtureBlob, (1, digest))
+        row = await s.get(FixtureBlob, ("default", digest))
     assert row is not None and row.uploaded_by == env.user_ids["alice"]
     assert row.size == len(FILE_BYTES)
 

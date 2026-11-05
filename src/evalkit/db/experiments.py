@@ -27,11 +27,11 @@ DatasetWorkspace = aliased(models.Workspace)
 AgentWorkspace = aliased(models.Workspace)
 
 
-def _tenant_of(session: AsyncSession) -> int:
+def _tenant_of(session: AsyncSession) -> str:
     return session.info["tenant_id"]
 
 
-def _query(tenant_id: int) -> Select:
+def _query(tenant_id: str) -> Select:
     return (
         select(
             models.Experiment,
@@ -119,7 +119,7 @@ async def list_experiments(
 
 
 async def _agent(
-    session: AsyncSession, tenant_id: int, ref: str
+    session: AsyncSession, tenant_id: str, ref: str
 ) -> tuple[models.Agent, WorkspaceRef]:
     parsed = parse_slug(ref)
     workspace = await workspace_row(session, tenant_id, parsed.workspace)
@@ -134,7 +134,7 @@ async def _agent(
 
 
 async def _personal(
-    session: AsyncSession, tenant_id: int, username: str
+    session: AsyncSession, tenant_id: str, username: str
 ) -> tuple[int, WorkspaceRef]:
     user = await session.scalar(
         select(models.User).where(
@@ -374,7 +374,7 @@ async def reap(session_factory: async_sessionmaker[AsyncSession]) -> list[int]:
 
 async def tenant_of_experiment(
     session_factory: async_sessionmaker[AsyncSession], experiment_id: int
-) -> int:
+) -> str:
     async with tenant_session(session_factory, ALL_TENANTS) as s:
         tenant_id = await s.scalar(
             select(models.Workspace.tenant_id)

@@ -35,7 +35,7 @@ async def create(client, agent="fake@admin", **extra):
 
 async def overlay(env, agents: list[str]) -> None:
     await env.store.sync(
-        workspace=await WorkspaceStore(env.session_factory, 1).get_by_name("canonical"),
+        workspace=await WorkspaceStore(env.session_factory, "default").get_by_name("canonical"),
         dataset="fake-cases",
         kind=DatasetKind.SUITE,
         incoming=[],
