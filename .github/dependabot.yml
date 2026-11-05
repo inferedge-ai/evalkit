@@ -4,19 +4,19 @@ updates:
     directory: /
     target-branch: develop
     schedule:
-      interval: weekly
+      interval: monthly
   - package-ecosystem: uv
     directory: /
     target-branch: develop
     schedule:
-      interval: weekly
+      interval: monthly
   - package-ecosystem: npm
     directory: /ui
     target-branch: develop
     schedule:
-      interval: weekly
+      interval: monthly
   - package-ecosystem: docker
     directory: /deploy
     target-branch: develop
     schedule:
-      interval: weekly
+      interval: monthly

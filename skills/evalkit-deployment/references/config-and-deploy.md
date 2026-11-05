@@ -263,8 +263,8 @@ Pull the new image → back up the database → with `migrate_on_start`, start
 the new server (it migrates first); without it, stop or hold the new server →
 `evalkit db upgrade` (same compose-run pattern as setup) → start the server → developers update the CLI with the install command
 or `evalkit update` (every CLI call nudges them until they do), which also moves a project's `evalkit-py` pin and
-refreshes the skills in client repos that vendor them. Deploy only builds that are on PyPI: every `develop`
-(`X.Y.Z.devN`) and `main` (`X.Y.Z`) build of the publish workflow is.
+refreshes the skills in client repos that vendor them. Deploy only builds that are on PyPI: only `main`
+(`X.Y.Z`) builds of the publish workflow are; `develop` (`X.Y.Z.devN`) builds are not.
 
 ## CLI for the deployer
 

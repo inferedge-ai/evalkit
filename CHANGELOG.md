@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Only releases (`X.Y.Z` from `main`) are published to PyPI. `develop`
+  builds (`X.Y.Z.devN`) are no longer on PyPI; get them from the workflow
+  artifact or the GHCR image.
 - `evalkit summary <id> --baseline <id>` now prints a `Δmean` for each
   gauge (tokens, cost, duration, tool calls). Cases that ran in the
   baseline but not in the newer experiment (a `--tag` or `--case-id` run)
