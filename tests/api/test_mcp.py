@@ -11,6 +11,8 @@ from fastapi import HTTPException
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from fastmcp.exceptions import ToolError
+from fastmcp.server.http import set_http_request
+from starlette.requests import Request
 
 from evalkit.api import runs as runs_api
 from evalkit.api.mcp import descriptions as mcp_descriptions
@@ -631,7 +633,8 @@ async def test_mcp_access_token_expires_with_the_verified_exp(
     async with sso_app(env, idp) as http:
         token = idp.access_token("sub-ann", expires_in=600)
         exp = jwt.decode(token, options={"verify_signature": False})["exp"]
-        verified = await EvalkitTokenVerifier(http.app.state, RESOURCE).verify_token(token)
+        with set_http_request(Request({"type": "http", "headers": []})):
+            verified = await EvalkitTokenVerifier(http.app.state, RESOURCE).verify_token(token)
         assert verified is not None and verified.expires_at == exp
 
 
