@@ -709,5 +709,25 @@ async def test_mcp_refuses_a_malformed_tenant_id_as_an_invalid_token(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp) as http:
-        http.app.state.resolve_tenant = lambda request, claims: "../evil"  # type: ignore[attr-defined]
+
+        async def evil(request, claims):
+            return "../evil"
+
+        http.app.state.resolve_tenant = evil  # type: ignore[attr-defined]
+        assert await mcp_status(http, idp.access_token("sub-ann")) == 401
+
+
+async def test_mcp_refuses_a_token_the_wrapper_has_no_tenant_for(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(env.session_factory, "default").create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+
+    async def nobody_but_password_login(request, claims):
+        return "default" if claims is None else None
+
+    async with sso_app(env, idp, resolve_tenant=nobody_but_password_login) as http:
         assert await mcp_status(http, idp.access_token("sub-ann")) == 401

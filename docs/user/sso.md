@@ -145,7 +145,8 @@ list of tenants itself.
 
 The wrapper resolves every token the same way, CI's client credentials tokens
 included, so the IdP must put the organisation in those too. When the wrapper
-returns no tenant, the request answers 403 `no tenant for this request`.
+returns no tenant, the request answers 403 `no tenant for this request`;
+`/mcp` can only accept or refuse a token, so there it answers 401.
 
 ### Admins from the IdP
 

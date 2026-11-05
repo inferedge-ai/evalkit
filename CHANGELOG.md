@@ -8,7 +8,9 @@
   sign-in never changes the flag, as before.
 - `create_app(resolve_tenant=...)` is now async, returns the tenant id as
   text, and may return `None`: the request then answers 403 `no tenant for
-  this request`, on every path. Without a wrapper every request is in
+  this request` on `/api`, the collector, registration and password login,
+  and `/mcp` refuses the token (401), as it does a tenant id that isn't 1-64
+  letters, digits, `-` or `_`. Without a wrapper every request is in
   `default`, as before.
 - `auth.oidc.required_scopes` (default empty) makes the server refuse IdP
   access tokens that lack a scope, read from the `scope` and `scp` claims:
