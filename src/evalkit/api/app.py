@@ -5,7 +5,7 @@ import os
 import signal
 import socket
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -138,6 +138,9 @@ SECURITY_HEADERS = {
 }
 
 
+TenantResolver = Callable[[Request, dict | None], Awaitable[str | None]]
+
+
 def pod_holder() -> str:
     return f"pod:{os.environ.get('HOSTNAME') or socket.gethostname()}"
 
@@ -197,7 +200,7 @@ def create_app(
     ui_dist: Path | None = None,
     holder: str | None = None,
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
-    resolve_tenant: Callable[[Request, dict | None], str] = default_resolve_tenant,
+    resolve_tenant: TenantResolver = default_resolve_tenant,
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (

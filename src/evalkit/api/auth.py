@@ -101,14 +101,14 @@ def api_audience(state) -> list[str]:
 
 
 async def sso_identity(
-    state, token: str, audience: list[str], request: Request | None, *, enforce_scopes: bool
+    state, token: str, audience: list[str], request: Request, *, enforce_scopes: bool
 ) -> tuple[User, dict]:
     if state.oidc is None:
         raise HTTPException(status_code=401, detail="SSO is not configured on this server")
     claims = await verify_access_token(state.oidc, token, audience)
     if enforce_scopes:
         require_scopes(state.oidc, claims)
-    tenant_id = check_tenant_id(state.resolve_tenant(request, claims))
+    tenant_id = await require_tenant(state, request, claims)
     async with tenant_session(state.session_factory, tenant_id) as session:
         user = await session.scalar(
             select(User).where(
@@ -126,17 +126,33 @@ async def sso_identity(
     return user, claims
 
 
+def read_admin_claim(oidc, claims: dict) -> bool | None:
+    rule = oidc.cfg.admin_claim
+    if rule is None:
+        return None
+    value = claims.get(rule.name)
+    if isinstance(value, list):
+        return rule.value in value
+    return value == rule.value
+
+
+async def require_tenant(state, request: Request, claims: dict | None) -> str:
+    tenant_id = await state.resolve_tenant(request, claims)
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="no tenant for this request")
+    return check_tenant_id(tenant_id)
+
+
 async def sso_login(
-    state, token: str, audience: list[str], request: Request | None
+    state, token: str, audience: list[str], request: Request
 ) -> tuple[User, datetime]:
     user, claims = await sso_identity(state, token, audience, request, enforce_scopes=True)
     return user, datetime.fromtimestamp(claims["exp"], UTC)
 
 
-async def sso_user(state, token: str, audience: list[str], request: Request | None) -> User:
+async def sso_user(state, token: str, audience: list[str], request: Request) -> User:
     user, expires_at = await sso_login(state, token, audience, request)
-    if request is not None:
-        request.state.token_expires_at = expires_at
+    request.state.token_expires_at = expires_at
     return user
 
 
@@ -252,7 +268,7 @@ async def providers(request: Request) -> dict:
 
 @router.post("/login")
 async def login(body: LoginRequest, request: Request) -> dict:
-    tenant_id = check_tenant_id(request.app.state.resolve_tenant(request, None))
+    tenant_id = await require_tenant(request.app.state, request, None)
     if len(body.password.encode()) > PASSWORD_MAX_BYTES:
         raise HTTPException(
             status_code=400, detail=f"password is longer than {PASSWORD_MAX_BYTES} bytes"
@@ -367,11 +383,15 @@ async def register_identity(body: RegisterRequest, request: Request) -> dict:
             status_code=400,
             detail="the ID token has no email claim; ask the IdP admin to grant the email scope",
         )
-    tenant_id = check_tenant_id(state.resolve_tenant(request, access))
+    tenant_id = await require_tenant(state, request, access)
     store = UserStore(state.session_factory, tenant_id)
     try:
         user, created = await store.register(
-            idtok["iss"], idtok["sub"], idtok["email"], idtok.get("preferred_username")
+            idtok["iss"],
+            idtok["sub"],
+            idtok["email"],
+            idtok.get("preferred_username"),
+            read_admin_claim(oidc, access),
         )
     except UserArchived as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc

@@ -11,6 +11,8 @@ from fastapi import HTTPException
 from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 from fastmcp.exceptions import ToolError
+from fastmcp.server.http import set_http_request
+from starlette.requests import Request
 
 from evalkit.api import runs as runs_api
 from evalkit.api.mcp import descriptions as mcp_descriptions
@@ -631,7 +633,8 @@ async def test_mcp_access_token_expires_with_the_verified_exp(
     async with sso_app(env, idp) as http:
         token = idp.access_token("sub-ann", expires_in=600)
         exp = jwt.decode(token, options={"verify_signature": False})["exp"]
-        verified = await EvalkitTokenVerifier(http.app.state, RESOURCE).verify_token(token)
+        with set_http_request(Request({"type": "http", "headers": []})):
+            verified = await EvalkitTokenVerifier(http.app.state, RESOURCE).verify_token(token)
         assert verified is not None and verified.expires_at == exp
 
 
@@ -671,6 +674,32 @@ async def test_mcp_without_required_scopes_accepts_idp_tokens_without_scopes(
         assert await mcp_status(http, idp.access_token("sub-ann")) == 200
 
 
+async def test_mcp_hands_resolve_tenant_the_real_request(tmp_path, stub_judges, session_factory):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(env.session_factory, "ORG-acme").create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    seen: list[str | None] = []
+
+    async def by_header(request, claims):
+        seen.append(request.headers.get("x-tenant"))
+        return request.headers.get("x-tenant", "default")
+
+    async with sso_app(env, idp, resolve_tenant=by_header) as http:
+        resp = await http.post(
+            "/mcp",
+            json=INITIALIZE,
+            headers={
+                "Authorization": f"Bearer {idp.access_token('sub-ann')}",
+                "Accept": MCP_ACCEPT,
+                "X-Tenant": "ORG-acme",
+            },
+        )
+    assert resp.status_code == 200
+    assert "ORG-acme" in seen
+
+
 async def test_mcp_refuses_a_malformed_tenant_id_as_an_invalid_token(
     tmp_path, stub_judges, session_factory
 ):
@@ -680,5 +709,25 @@ async def test_mcp_refuses_a_malformed_tenant_id_as_an_invalid_token(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp) as http:
-        http.app.state.resolve_tenant = lambda request, claims: "../evil"  # type: ignore[attr-defined]
+
+        async def evil(request, claims):
+            return "../evil"
+
+        http.app.state.resolve_tenant = evil  # type: ignore[attr-defined]
+        assert await mcp_status(http, idp.access_token("sub-ann")) == 401
+
+
+async def test_mcp_refuses_a_token_the_wrapper_has_no_tenant_for(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(env.session_factory, "default").create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+
+    async def nobody_but_password_login(request, claims):
+        return "default" if claims is None else None
+
+    async with sso_app(env, idp, resolve_tenant=nobody_but_password_login) as http:
         assert await mcp_status(http, idp.access_token("sub-ann")) == 401

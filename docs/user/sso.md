@@ -90,6 +90,7 @@ In the server's `config.yaml`:
         required_scopes: []         # scopes an access token must carry
         authorize_params: {}
         algorithms: [RS256]
+        admin_claim: null           # {name: roles, value: evalkit-admin}: who is an admin
 
 `password_login: admin` keeps password login for admins only, so the
 bootstrap `admin` account stays a break-glass login while everyone else uses
@@ -131,6 +132,40 @@ the UI, the CLI and MCP hosts only request the scopes listed there.
   there.
 - Password login tokens and agent tokens are not checked. An empty list (the
   default) turns the check off.
+
+### Several organisations
+
+Everyone who signs in lands in one tenant. A deployment that serves several
+organisations from one server runs evalkit inside a wrapper that owns its
+tenants: it passes `create_app(resolve_tenant=...)`, which reads the
+organisation from the access token and returns its id, which evalkit stores
+on every row as text (1-64 letters, digits, `-` or `_`; anything else answers
+403). A server without a wrapper puts everything in `default`. evalkit keeps no
+list of tenants itself.
+
+The wrapper resolves every token the same way, CI's client credentials tokens
+included, so the IdP must put the organisation in those too. When the wrapper
+returns no tenant, the request answers 403 `no tenant for this request`;
+`/mcp` can only accept or refuse a token, so there it answers 401.
+
+### Admins from the IdP
+
+    auth:
+      oidc:
+        admin_claim:
+          name: roles               # the access token claim
+          value: evalkit-admin      # the value that makes an admin
+
+With `admin_claim` set, every registration (each sign-in) sets the person's
+admin flag from the access token: admin when the claim equals the value, or
+is a list that contains it; not an admin otherwise. A person the IdP stops
+naming as an admin loses admin at their next sign-in, even when they are the
+tenant's last admin: the IdP owns admins once this is on, so `evalkit users
+demote`'s last-admin check does not apply. Unset (the default),
+registration never changes the flag, and admins are promoted with
+`evalkit users promote`. An admin's powers stay inside their tenant: users,
+workspaces and members, LLM providers and the default judge, trace sources
+and agent tokens of that tenant only.
 
 `mcp.oauth` is gone: `/mcp` verifies tokens with the same settings as `/api`,
 and an IdP token is an evalkit user there too.
@@ -174,6 +209,7 @@ identity provider session stays.
 | 401 `SSO is not configured on this server` | A JWT reached a server without `auth.oidc` | Configure `auth.oidc` or use password login |
 | 401 `user is archived` | Archived in evalkit | `evalkit users restore <username>` |
 | 403 `password login is for admins on this server` | `password_login: admin` | Sign in with SSO, or set `password_login: all` |
+| 403 `no tenant for this request` | A wrapper's `resolve_tenant` found no tenant for the token | Have the IdP put the organisation in the token, CI's client credentials tokens included |
 | 403 `access token lacks required scope <scope>` (on `/api` and register; `/mcp` says `insufficient_scope`) | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
 | 503 `identity provider unreachable` | Discovery or the JWKS could not be fetched | Check the issuer URL and network egress from the server; it retries every 30 s |
 | No "Continue with ..." button on the login page | `/api/auth/providers` has no `oidc` | `auth.oidc` is absent or the server was not restarted |

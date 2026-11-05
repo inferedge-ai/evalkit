@@ -62,6 +62,11 @@ class CostMapConfig(ConfigModel):
     source: str = "bundled"
 
 
+class AdminClaimConfig(ConfigModel):
+    name: str
+    value: str
+
+
 class OidcConfig(ConfigModel):
     issuer: str
     client_id: str
@@ -71,6 +76,7 @@ class OidcConfig(ConfigModel):
     required_scopes: list[str] = []
     authorize_params: dict[str, str] = {}
     algorithms: list[str] = ["RS256"]
+    admin_claim: AdminClaimConfig | None = None
 
     @field_validator("scopes")
     @classmethod

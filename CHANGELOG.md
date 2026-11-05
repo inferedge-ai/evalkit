@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- `auth.oidc.admin_claim` (`name`, `value`): when set, every SSO sign-in
+  sets the person's admin flag from the access token (equal to the value, or
+  a list containing it), so the IdP grants and revokes evalkit admin. Unset,
+  sign-in never changes the flag, as before.
+- `create_app(resolve_tenant=...)` is now async, returns the tenant id as
+  text, and may return `None`: the request then answers 403 `no tenant for
+  this request` on `/api`, the collector, registration and password login,
+  and `/mcp` refuses the token (401), as it does a tenant id that isn't 1-64
+  letters, digits, `-` or `_`. Without a wrapper every request is in
+  `default`, as before.
 - `auth.oidc.required_scopes` (default empty) makes the server refuse IdP
   access tokens that lack a scope, read from the `scope` and `scp` claims:
   `POST /api/auth/oidc/register` (no user is created) and every `/api` request

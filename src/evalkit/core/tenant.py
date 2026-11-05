@@ -15,5 +15,5 @@ def check_tenant_id(tenant_id: str) -> str:
     return tenant_id
 
 
-def resolve_tenant(request: Any, claims: dict | None) -> str:
+async def resolve_tenant(request: Any, claims: dict | None) -> str | None:
     return DEFAULT_TENANT_ID

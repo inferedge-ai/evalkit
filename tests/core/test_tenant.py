@@ -3,9 +3,9 @@ import pytest
 from evalkit.core.tenant import DEFAULT_TENANT_ID, BadTenantId, check_tenant_id, resolve_tenant
 
 
-def test_public_evalkit_has_one_tenant():
-    assert resolve_tenant(None, None) == DEFAULT_TENANT_ID == "default"
-    assert resolve_tenant(object(), {"sub": "anyone"}) == "default"
+async def test_public_evalkit_has_one_tenant():
+    assert await resolve_tenant(None, None) == DEFAULT_TENANT_ID == "default"
+    assert await resolve_tenant(object(), {"sub": "anyone"}) == "default"
 
 
 @pytest.mark.parametrize("tenant_id", ["default", "ORG-7f3a", "a_b-9", "x" * 64])
