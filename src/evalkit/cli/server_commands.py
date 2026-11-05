@@ -21,6 +21,7 @@ from evalkit.api.app import create_app
 from evalkit.cli.client import ApiError
 from evalkit.config import Config
 from evalkit.contracts.settings import JudgeSettings
+from evalkit.core.tenant import DEFAULT_TENANT_ID
 from evalkit.db.crypto import SecretBox
 from evalkit.db.llm_providers import LlmProviderStore
 from evalkit.db.rekey import rekey_all
@@ -97,7 +98,7 @@ def new_encryption_key() -> str:
 
 async def _has_llm_setup(url: str) -> bool:
     factory = make_session_factory(url)
-    store = LlmProviderStore(factory)
+    store = LlmProviderStore(factory, DEFAULT_TENANT_ID)
     providers = await store.list_providers(include_archived=True)
     judge = await store.default_judge()
     await factory.kw["bind"].dispose()
@@ -112,7 +113,7 @@ async def _register_default_judge(
     url: str, encryption_key: str, base_url: str, api_key: str, model: str
 ) -> None:
     factory = make_session_factory(url)
-    store = LlmProviderStore(factory)
+    store = LlmProviderStore(factory, DEFAULT_TENANT_ID)
     sealed = SecretBox(encryption_key).seal(api_key)
     existing = await store.active_by_base_url(base_url)
     if existing is None:

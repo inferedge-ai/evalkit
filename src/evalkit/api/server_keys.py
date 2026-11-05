@@ -1,34 +1,30 @@
 import logging
 from dataclasses import replace
 
-from fastapi import Request
-
+from evalkit.api.access import TenantStores
 from evalkit.config import Config
 from evalkit.core.agents import AgentDefinition
 from evalkit.core.endpoints import check_endpoint
 from evalkit.core.runner import RunnerDeps
-from evalkit.db.keys import KeyLoader, StoredKeys
+from evalkit.db.keys import StoredKeys
 
 LOGGER = logging.getLogger(__name__)
 
 
 async def server_keys(
-    request: Request, agent: AgentDefinition, judge_base_url: str | None
+    stores: TenantStores, cfg: Config, agent: AgentDefinition, judge_base_url: str | None
 ) -> tuple[StoredKeys, list[str]]:
-    cfg: Config = request.app.state.cfg
-    deps: RunnerDeps = request.app.state.runner_deps
-    loader: KeyLoader = request.app.state.keys
     for url in (agent.harness_url, judge_base_url):
         if url is not None:
             await check_endpoint(url, allow_private=cfg.allow_private_endpoints)
-    keys = await loader.load(agent, judge_base_url)
+    keys = await stores.keys.load(agent, judge_base_url)
     warnings = []
     if agent.harness_url is not None and keys.key_for("agent", agent.ref) is None:
         warnings.append(
             f"agent {agent.ref} has no API key; calling its harness without x-api-key. "
             f"Set one with evalkit agents edit {agent.ref} --api-key-env NAME"
         )
-    for evaluator in (await deps.evaluators.in_workspace(agent.workspace)).values():
+    for evaluator in (await stores.evaluators.in_workspace(agent.workspace)).values():
         if keys.key_for("evaluator", evaluator.ref) is None:
             warnings.append(
                 f"evaluator {evaluator.ref} has no API key; calling it without x-api-key"

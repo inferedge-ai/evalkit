@@ -10,6 +10,7 @@ class WorkspaceRef:
     name: str
     owner_user_id: int | None
     archived: bool
+    tenant_id: str
     promotes_to: int | None = None
     promoted_from: int | None = None
 
@@ -27,6 +28,7 @@ class Actor:
     id: int
     username: str
     is_admin: bool
+    tenant_id: str
     roles: Mapping[int, frozenset[WorkspaceRole]]
 
     def has(self, ws: WorkspaceRef, role: WorkspaceRole) -> bool:

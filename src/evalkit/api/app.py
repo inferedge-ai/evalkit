@@ -5,6 +5,7 @@ import os
 import signal
 import socket
 import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -56,6 +57,8 @@ from evalkit.core.runner import (
     LeaseLost,
     RunnerDeps,
 )
+from evalkit.core.tenant import DEFAULT_TENANT_ID, BadTenantId
+from evalkit.core.tenant import resolve_tenant as default_resolve_tenant
 from evalkit.core.traces.sessions import SessionTooLarge
 from evalkit.core.workspace import BareReference
 from evalkit.credentials import MissingCredential
@@ -64,26 +67,19 @@ from evalkit.db.cases import DatasetExists
 from evalkit.db.crypto import SecretBox
 from evalkit.db.evaluators import EvaluatorExists, InvalidEvaluator, RemoteEvaluatorStore
 from evalkit.db.experiments import reap
-from evalkit.db.keys import KeyLoader, NoKeysLoaded
+from evalkit.db.keys import NoKeysLoaded
 from evalkit.db.llm_providers import (
     LlmProviderExists,
-    LlmProviderStore,
     ProviderInUse,
     UnknownLlmProvider,
 )
-from evalkit.db.mappings import MappingStore
 from evalkit.db.rekey import count_sealed
-from evalkit.db.review import ReviewLog
 from evalkit.db.session import make_session_factory, migrate_under_lock, verify_schema
-from evalkit.db.sessions import DbSessionReader
-from evalkit.db.spans import SpanStore
 from evalkit.db.store import PgStore
-from evalkit.db.tokens import AgentTokens
-from evalkit.db.trace_imports import TraceImportStore, UnknownTraceImport, reap_imports
+from evalkit.db.trace_imports import UnknownTraceImport, reap_imports
 from evalkit.db.trace_sources import (
     EncryptionKeyMissing,
     TraceSourceExists,
-    TraceSourceStore,
     UnknownTraceSource,
 )
 from evalkit.db.users import InvalidName, InvalidPassword, LastAdmin, NameTaken, UnknownUser
@@ -164,12 +160,12 @@ def create_app(
     *,
     blob_store: BlobStore | None = None,
     runner_deps: RunnerDeps | None = None,
-    agents: AgentStore | None = None,
     session_factory=None,
     check_schema: bool = True,
     ui_dist: Path | None = None,
     holder: str | None = None,
     mcp_jwt_verifier: TokenVerifier | None = None,
+    resolve_tenant: Callable[[Request, dict | None], str] = default_resolve_tenant,
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (
@@ -182,32 +178,19 @@ def create_app(
             pool_timeout=cfg.db.pool_timeout_seconds,
         )
     )
-    resolved_store = PgStore(session_factory)
-    resolved_agents = agents if agents is not None else AgentStore(session_factory)
-    resolved_spans = SpanStore(session_factory)
-    resolved_mappings = MappingStore(session_factory)
-    resolved_sessions = DbSessionReader(
-        resolved_agents, resolved_spans, resolved_mappings, cfg.otel
-    )
+    box = SecretBox(cfg.encryption_key) if cfg.encryption_key else None
     resolved_deps = (
         runner_deps
         if runner_deps is not None
         else RunnerDeps(
             cfg=cfg,
-            store=resolved_store,
+            store=PgStore(session_factory, DEFAULT_TENANT_ID),
             blob_store=resolved_blob_store,
-            agents=resolved_agents,
-            evaluators=RemoteEvaluatorStore(session_factory),
+            agents=AgentStore(session_factory, DEFAULT_TENANT_ID),
+            evaluators=RemoteEvaluatorStore(session_factory, DEFAULT_TENANT_ID),
             credentials=NoKeysLoaded(),
-            sessions=resolved_sessions,
         )
     )
-    if resolved_deps.sessions is None:
-        resolved_deps.sessions = resolved_sessions
-    box = SecretBox(cfg.encryption_key) if cfg.encryption_key else None
-    key_loader = KeyLoader(session_factory, box)
-    if resolved_deps.agent_keys is None:
-        resolved_deps.agent_keys = key_loader
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -231,8 +214,8 @@ def create_app(
             yield
         reaper.cancel()
         await asyncio.gather(reaper, return_exceptions=True)
-        await experiments.interrupt_tasks(resolved_store, app.state.tasks)
-        await trace_imports.interrupt_imports(app.state.trace_imports, app.state.import_tasks)
+        await experiments.interrupt_tasks(app.state.session_factory, app.state.tasks)
+        await trace_imports.interrupt_imports(app.state.session_factory, app.state.import_tasks)
         await resolved_deps.store.aclose()
         engine = app.state.session_factory.kw.get("bind")
         if engine is not None:
@@ -241,26 +224,22 @@ def create_app(
     app = FastAPI(title="evalkit", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.add_exception_handler(StarletteHTTPException, otel.log_rejection)
     app.state.cfg = cfg
+    app.state.resolve_tenant = resolve_tenant
     app.state.runner_deps = resolved_deps
-    app.state.review_log = ReviewLog(session_factory)
-    app.state.store = resolved_store
     app.state.holder = holder or pod_holder()
-    app.state.agents = resolved_agents
-    app.state.tokens = AgentTokens(session_factory)
-    app.state.spans = resolved_spans
-    app.state.mappings = resolved_mappings
-    app.state.sessions = resolved_sessions
     app.state.session_factory = session_factory
-    app.state.trace_sources = TraceSourceStore(session_factory, box)
-    app.state.keys = key_loader
-    app.state.llm_providers = LlmProviderStore(session_factory)
+    app.state.box = box
+    app.state.blob_store = resolved_blob_store
     app.state.tasks = {}
-    app.state.trace_imports = TraceImportStore(session_factory)
     app.state.import_tasks = {}
 
     running_version = version.current()
 
     app.add_exception_handler(SessionTooLarge, traces.session_too_large)
+
+    @app.exception_handler(BadTenantId)
+    async def bad_tenant_id(request: Request, exc: BadTenantId) -> JSONResponse:
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
 
     @app.exception_handler(UnknownDataset)
     async def unknown_dataset(request: Request, exc: UnknownDataset) -> JSONResponse:

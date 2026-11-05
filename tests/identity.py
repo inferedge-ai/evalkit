@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource, WorkspaceRole
 from evalkit.contracts.settings import AgentSettings, JudgeSettings
+from evalkit.core.access import WorkspaceRef
 from evalkit.core.agents import AgentDefinition
 from evalkit.db.agents import AgentStore
 from evalkit.db.evaluators import RemoteEvaluatorStore
@@ -30,11 +31,11 @@ async def seed_identity(
     writers: Iterable[str] = (),
 ) -> None:
     admins = set(admins)
-    store = UserStore(session_factory)
+    store = UserStore(session_factory, "default")
     ids = {}
     for name, password in users.items():
         ids[name] = (await store.create(name, password, is_admin=name in admins)).id
-    workspaces = WorkspaceStore(session_factory)
+    workspaces = WorkspaceStore(session_factory, "default")
     granter = next(ids[name] for name in users if name in admins)
     for name in shared:
         await workspaces.create_shared(name, granter)
@@ -42,7 +43,7 @@ async def seed_identity(
             await workspaces.add_member(name, user, WorkspaceRole.REVIEWER, granter)
         for user in writers:
             await workspaces.add_member(name, user, WorkspaceRole.WRITER, granter)
-    providers = LlmProviderStore(session_factory)
+    providers = LlmProviderStore(session_factory, "default")
     await providers.create("judge", JUDGE_URL, TEST_BOX.seal(TEST_ENV["JUDGE_KEY"]))
     await providers.set_default_judge(JudgeSettings(base_url=JUDGE_URL, model="judge-model"))
 
@@ -56,9 +57,11 @@ async def seed_agent(
     trajectory_source: TrajectorySource = TrajectorySource.ATIF,
     settings: AgentSettings = FAKE_SETTINGS,
     mapping: dict | None = None,
+    tenant_id: str = "default",
 ) -> AgentDefinition:
-    return await AgentStore(session_factory).create(
-        workspace,
+    ws = await WorkspaceStore(session_factory, tenant_id).get_by_name(workspace)
+    return await AgentStore(session_factory, tenant_id).create(
+        ws,
         name,
         harness_url=harness_url,
         trajectory_source=trajectory_source,
@@ -71,12 +74,19 @@ async def seed_agent(
 async def seed_evaluators(
     session_factory: async_sessionmaker[AsyncSession], workspace: str = "canonical"
 ) -> None:
-    store = RemoteEvaluatorStore(session_factory)
+    ws = await WorkspaceStore(session_factory, "default").get_by_name(workspace)
+    store = RemoteEvaluatorStore(session_factory, "default")
     for name, settings in FAKE_EVALUATORS.items():
         await store.create(
-            workspace,
+            ws,
             name,
             EvaluatorKind.SCORE,
             settings,
             TEST_BOX.seal(TEST_ENV["CUSTOM_EVAL_KEY"]),
         )
+
+
+async def workspace_ref(
+    session_factory: async_sessionmaker[AsyncSession], name: str
+) -> WorkspaceRef:
+    return await WorkspaceStore(session_factory, "default").get_by_name(name)

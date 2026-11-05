@@ -20,6 +20,7 @@ from evalkit.contracts.enums import (
 from evalkit.contracts.harness import Capabilities
 from evalkit.contracts.settings import JudgeSettings, RemoteEvaluatorSettings
 from evalkit.core import runner as runner_module
+from evalkit.core.blob import tenant_prefix
 from evalkit.core.evaluators import presentation, rubrics, trajectory_rubrics
 from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
 from evalkit.core.evaluators.rubrics import ANSWER_RUBRIC_EMITS
@@ -111,7 +112,7 @@ async def test_end_to_end(tmp_path, stub_judges, session_factory):
     assert len(runs) == 4
     for run in runs:
         key = run.agent_run.trajectory_key
-        assert key and await env.blob.object_exists(key)
+        assert key and await env.blob.object_exists(f"{tenant_prefix('default')}{key}")
         by_name = scores_of(run)
         assert "answer_rubric_score" in by_name
         assert "gauge_duration_seconds" in by_name
@@ -216,7 +217,9 @@ async def test_a_harness_that_reuses_a_run_id_fails_only_that_run(
     kept = {
         r.agent_run.harness_run_id: r.agent_run.trajectory_key for r in await env.details(first.id)
     }
-    trajectories = {key: env.blob.objects[key] for key in kept.values()}
+    trajectories = {
+        key: env.blob.objects[f"{tenant_prefix('default')}{key}"] for key in kept.values()
+    }
 
     fake._counter = 0
     second = await prepare(
@@ -229,7 +232,9 @@ async def test_a_harness_that_reuses_a_run_id_fails_only_that_run(
     assert runs and all(run.status == "failed" for run in runs)
     assert all(run.error.startswith("run or session id sess-") for run in runs)
     assert all("#reused-" in run.harness_run_id and run.trajectory_key is None for run in runs)
-    assert {key: env.blob.objects[key] for key in kept.values()} == trajectories
+    assert {
+        key: env.blob.objects[f"{tenant_prefix('default')}{key}"] for key in kept.values()
+    } == trajectories
 
 
 async def test_lost_lease_stops_the_drive(tmp_path, stub_judges, session_factory, monkeypatch):
@@ -397,7 +402,7 @@ async def test_fixture_case_sends_urls_when_harness_accepts_them(
     assert fake.received_file_urls[run_id] == [
         {
             "name": "bs.csv",
-            "url": f"memory://blob/fixtures/sha256/{digest}",
+            "url": f"memory://blob/{tenant_prefix('default')}fixtures/sha256/{digest}",
             "context": "Balance sheet.",
         }
     ]
@@ -537,7 +542,7 @@ async def test_artifacts_persisted_eagerly(tmp_path, stub_judges, session_factor
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     for run in await env.details(exp.id):
         key = f"artifacts/{exp.agent_id}/{run.agent_run.harness_run_id}/outputs/report.md"
-        assert env.blob.objects[key] == b"# report"
+        assert env.blob.objects[f"{tenant_prefix('default')}{key}"] == b"# report"
 
 
 async def test_prepare_records_workspace_cases_and_version(tmp_path, stub_judges, session_factory):
@@ -640,7 +645,7 @@ async def seed_overlaid(env) -> None:
         full=True,
     )
     await approve(env)
-    ws = await WorkspaceStore(env.session_factory).get_by_name("canonical")
+    ws = await WorkspaceStore(env.session_factory, "default").get_by_name("canonical")
     await env.store.sync(
         workspace=ws,
         dataset="fake-cases",
@@ -731,7 +736,9 @@ async def test_refetch_trajectories_rescored_from_blob(tmp_path, stub_judges, se
     await evaluate_experiment(env.deps, exp.id, refetch_trajectories=True)
     after = next(r for r in await env.details(exp.id) if r.agent_run_id == first.agent_run_id)
     assert scores_of(after)["gauge_input_tokens"].value
-    stored = json.loads(env.blob.objects[f"trajectories/{exp.agent_id}/{session_id}.json"])
+    stored = json.loads(
+        env.blob.objects[f"{tenant_prefix('default')}trajectories/{exp.agent_id}/{session_id}.json"]
+    )
     assert stored["extra"]["trajectory_status"] == "valid"
 
 
@@ -760,7 +767,7 @@ async def test_harness_agent_with_traces_polls_the_session(tmp_path, stub_judges
     for run in await env.details(exp.id):
         assert run.agent_run.trajectory_status == "valid"
         assert run.agent_run.trajectory_key
-        assert env.blob.objects[run.agent_run.trajectory_key]
+        assert env.blob.objects[f"{tenant_prefix('default')}{run.agent_run.trajectory_key}"]
         assert scores_of(run)["gauge_input_tokens"].value
 
 
@@ -1003,7 +1010,9 @@ async def test_workspace_tree_snapshot_lists_every_file(tmp_path, stub_judges, s
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     for run in await env.details(exp.id):
         tree = json.loads(
-            env.blob.objects[f"workspaces/{exp.agent_id}/{run.agent_run.harness_run_id}.json"]
+            env.blob.objects[
+                f"{tenant_prefix('default')}workspaces/{exp.agent_id}/{run.agent_run.harness_run_id}.json"
+            ]
         )
         assert sorted(entry["path"] for entry in tree["files"]) == sorted(files)
 
@@ -1018,7 +1027,9 @@ async def test_a_failed_workspace_listing_keeps_the_experiment(
     env = await seed_env(session_factory, tmp_path, FakeHarness())
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     assert (await env.experiment(exp.id)).status is COMPLETED
-    assert not any(key.startswith("workspaces/") for key in env.blob.objects)
+    assert not any(
+        key.startswith(f"{tenant_prefix('default')}workspaces/") for key in env.blob.objects
+    )
 
 
 async def test_scoring_runs_at_most_evaluation_concurrency_at_once(

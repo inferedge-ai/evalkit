@@ -10,13 +10,8 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response
 
-from evalkit.api.deps import (
-    AgentStoreDep,
-    RunnerDepsDep,
-    SessionDep,
-    SessionReaderDep,
-    SpanStoreDep,
-)
+from evalkit.api.access import StoresDep
+from evalkit.api.deps import SessionDep
 from evalkit.api.download import content_disposition
 from evalkit.api.runs import BrowserRun, agent_or_404, harness_client, resolve_runs
 from evalkit.contracts.atif import TrajectoryValidationError, validate_trajectory
@@ -158,22 +153,21 @@ async def _select(
 async def pull_runs(
     agent: str,
     body: PullRequest,
-    deps: RunnerDepsDep,
-    agents: AgentStoreDep,
-    spans: SpanStoreDep,
-    sessions: SessionReaderDep,
+    stores: StoresDep,
     session: SessionDep,
 ) -> Response:
-    record = await agent_or_404(agents, agent)
-    selected, total, note = await _select(record, body, deps, spans, session)
+    record = await agent_or_404(stores.agents, agent)
+    selected, total, note = await _select(record, body, stores.deps, stores.spans, session)
     await session.commit()
-    harness = await harness_client(deps, record) if server_may_drive(record) and selected else None
+    harness = (
+        await harness_client(stores.deps, record) if server_may_drive(record) and selected else None
+    )
     ctx = PullContext(
         agent=record,
-        deps=deps,
-        sessions=sessions,
+        deps=stores.deps,
+        sessions=stores.sessions,
         harness=harness,
-        cost_map=load_cost_map(deps.cfg.cost_map),
+        cost_map=load_cost_map(stores.deps.cfg.cost_map),
     )
     bundles = []
     try:

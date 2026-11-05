@@ -1,6 +1,6 @@
 import pytest
 
-from evalkit.db.models import ServerSettings
+from evalkit.db.models import TenantSettings
 from tests.api.native_api import api_env, login_as
 from tests.fake_agents import JUDGE_URL
 from tests.fake_harness import FakeHarness
@@ -58,9 +58,9 @@ async def test_server_runs_need_a_registered_judge_and_a_default(api, session_fa
         "not a registered LLM provider; registered: " + JUDGE_URL in (unregistered.json()["detail"])
     )
     async with session_factory() as session:
-        settings = await session.get(ServerSettings, 1)
-        assert settings is not None
-        settings.default_judge = None
+        tenant = await session.get(TenantSettings, "default")
+        assert tenant is not None
+        tenant.default_judge = None
         await session.commit()
     assert (await api.get("/api/judge-default")).status_code == 404
     no_default = await api.post("/api/experiments", json=RUN)

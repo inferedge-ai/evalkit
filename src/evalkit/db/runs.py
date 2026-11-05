@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
-from sqlalchemy import Select, delete, func, select
+from sqlalchemy import ColumnElement, Select, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +11,7 @@ from evalkit.core.runner import ACTIVE
 from evalkit.core.scorecard import EXCLUDED_FROM_BUCKETS, bucket_for
 from evalkit.db import models
 from evalkit.db.cases import case_views
+from evalkit.db.experiments import _tenant_of, get_experiment
 from evalkit.store.base import (
     AgentRunRecord,
     CaseRep,
@@ -28,15 +29,24 @@ RunSource = Literal["app", "eval", "all"]
 
 
 async def _experiment(session: AsyncSession, exp_id: int) -> models.Experiment:
+    await get_experiment(session, exp_id)
     exp = await session.get(models.Experiment, exp_id)
-    if exp is None:
-        raise UnknownExperiment(exp_id)
+    assert exp is not None
     return exp
+
+
+def _match_agent(session: AsyncSession, agent_id: int) -> ColumnElement[bool]:
+    return models.AgentRun.agent_id.in_(
+        select(models.Agent.id)
+        .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+        .where(models.Agent.id == agent_id, models.Workspace.tenant_id == _tenant_of(session))
+    )
 
 
 async def _leased_experiment(
     session: AsyncSession, exp_id: int, holder: str | None
 ) -> models.Experiment:
+    await get_experiment(session, exp_id)
     exp = await session.scalar(
         select(models.Experiment).where(models.Experiment.id == exp_id).with_for_update(read=True)
     )
@@ -396,7 +406,7 @@ async def list_agent_runs(
     until: datetime | None = None,
     source: RunSource = "all",
 ) -> tuple[list[AgentRunItem], int]:
-    stmt = _items_query().where(models.AgentRun.agent_id == agent_id)
+    stmt = _items_query().where(_match_agent(session, agent_id))
     if since is not None:
         stmt = stmt.where(models.AgentRun.started_at >= since)
     if until is not None:
@@ -406,7 +416,9 @@ async def list_agent_runs(
     elif source == "app":
         stmt = stmt.where(models.ExperimentRun.id.is_(None))
     if created_by is not None:
-        stmt = stmt.where(models.User.username == created_by)
+        stmt = stmt.where(
+            models.User.tenant_id == _tenant_of(session), models.User.username == created_by
+        )
     if query:
         stmt = stmt.where(
             models.AgentRun.title.ilike(f"%{query}%")
@@ -437,7 +449,7 @@ async def runs_by_harness_ids(
         return {}
     rows = await session.execute(
         _items_query().where(
-            models.AgentRun.agent_id == agent_id,
+            _match_agent(session, agent_id),
             models.AgentRun.harness_run_id.in_(harness_run_ids),
         )
     )
@@ -451,7 +463,7 @@ async def trajectory_keys(
         return {}
     rows = await session.execute(
         select(models.AgentRun.harness_run_id, models.AgentRun.trajectory_key).where(
-            models.AgentRun.agent_id == agent_id,
+            _match_agent(session, agent_id),
             models.AgentRun.harness_run_id.in_(harness_run_ids),
             models.AgentRun.trajectory_key.is_not(None),
         )
@@ -464,7 +476,7 @@ async def agent_run(
 ) -> AgentRunRecord | None:
     row = await session.scalar(
         select(models.AgentRun).where(
-            models.AgentRun.agent_id == agent_id,
+            _match_agent(session, agent_id),
             models.AgentRun.harness_run_id == harness_run_id,
         )
     )
@@ -485,7 +497,7 @@ async def eval_context(
                 & (models.ExperimentCase.case_ref == models.ExperimentRun.case_ref),
             )
             .where(
-                models.AgentRun.agent_id == agent_id,
+                _match_agent(session, agent_id),
                 models.AgentRun.harness_run_id == harness_run_id,
             )
         )

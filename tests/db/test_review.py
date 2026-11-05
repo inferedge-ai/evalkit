@@ -25,7 +25,7 @@ async def world(session_factory) -> World:
 
 @pytest.fixture
 def log(session_factory, world) -> ReviewLog:
-    return ReviewLog(session_factory)
+    return ReviewLog(session_factory, "default")
 
 
 async def test_load_returns_draft_without_decisive_events(log):

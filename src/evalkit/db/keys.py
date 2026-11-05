@@ -33,10 +33,15 @@ class NoKeysLoaded:
 
 
 class KeyLoader:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], box: SecretBox | None):
-        self._agents = AgentStore(session_factory)
-        self._evaluators = RemoteEvaluatorStore(session_factory)
-        self._providers = LlmProviderStore(session_factory)
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        tenant_id: str,
+        box: SecretBox | None,
+    ):
+        self._agents = AgentStore(session_factory, tenant_id)
+        self._evaluators = RemoteEvaluatorStore(session_factory, tenant_id)
+        self._providers = LlmProviderStore(session_factory, tenant_id)
         self._box = box
 
     def _open(self, sealed: bytes) -> str:

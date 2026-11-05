@@ -8,13 +8,13 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ValidationError
 from pydantic_core import to_json
 
-from evalkit.api.access import ActorDep, ensure_active, require, workspace_ref
-from evalkit.api.deps import (
-    AgentStoreDep,
-    MappingStoreDep,
-    SessionDep,
-    SessionReaderDep,
-    SpanStoreDep,
+from evalkit.api.access import (
+    ActorDep,
+    StoresDep,
+    TenantStores,
+    ensure_active,
+    require,
+    workspace_ref,
 )
 from evalkit.api.experiments import slug_or_400
 from evalkit.contracts.esf import MappingDocument
@@ -41,8 +41,8 @@ async def agent_or_404(agents: AgentStore, agent: str) -> tuple[Reference, Agent
     return ref, await agents.get(explicit(ref))
 
 
-async def require_write(session: SessionDep, actor: ActorDep, agent: AgentDefinition) -> None:
-    ws = await workspace_ref(session, agent.workspace)
+async def require_write(stores: TenantStores, actor: ActorDep, agent: AgentDefinition) -> None:
+    ws = await workspace_ref(stores, agent.workspace)
     require(can_write(actor, ws), f"you cannot change {agent.ref}'s mappings or traces")
     ensure_active(ws)
 
@@ -59,19 +59,18 @@ def require_otel(agent: AgentDefinition) -> None:
 async def session_trajectory(
     agent: str,
     session_id: str,
-    sessions: SessionReaderDep,
-    mappings: MappingStoreDep,
+    stores: StoresDep,
     mapping: Literal["active", "draft"] = "active",
     esf: bool = False,
 ) -> Response:
     if mapping == "draft":
-        record = await sessions.agent(agent)
-        if await mappings.draft(record.id) is None:
+        record = await stores.sessions.agent(agent)
+        if await stores.mappings.draft(record.id) is None:
             raise HTTPException(
                 status_code=404,
                 detail=f"no draft mapping for {agent}; push one with evalkit traces mapping push",
             )
-    result = await sessions.read(agent, session_id, mapping=mapping, include_esf=esf)
+    result = await stores.sessions.read(agent, session_id, mapping=mapping, include_esf=esf)
     if result is None:
         raise UnknownAgent(agent)
     if result.esf is None:
@@ -97,41 +96,37 @@ async def _json_array(spans: AsyncIterator[RawSpan]) -> AsyncIterator[bytes]:
 
 
 @router.get("/agents/{agent}/sessions/{session_id}/spans")
-async def session_spans(
-    agent: str, session_id: str, sessions: SessionReaderDep
-) -> StreamingResponse:
-    record = await sessions.agent(agent)
+async def session_spans(agent: str, session_id: str, stores: StoresDep) -> StreamingResponse:
+    record = await stores.sessions.agent(agent)
     if record is None:
         raise UnknownAgent(agent)
     return StreamingResponse(
-        _json_array(sessions.raw(record, session_id)), media_type="application/json"
+        _json_array(stores.sessions.raw(record, session_id)), media_type="application/json"
     )
 
 
 @router.get("/agents/{agent}/mappings")
-async def list_mappings(agent: str, agents: AgentStoreDep, mappings: MappingStoreDep) -> list[dict]:
-    _, record = await agent_or_404(agents, agent)
-    return [m.model_dump(mode="json") for m in await mappings.list(record.id)]
+async def list_mappings(agent: str, stores: StoresDep) -> list[dict]:
+    _, record = await agent_or_404(stores.agents, agent)
+    return [m.model_dump(mode="json") for m in await stores.mappings.list(record.id)]
 
 
 @router.put("/agents/{agent}/mappings/draft")
 async def put_draft(
     agent: str,
     body: dict,
-    agents: AgentStoreDep,
-    mappings: MappingStoreDep,
-    session: SessionDep,
+    stores: StoresDep,
     actor: ActorDep,
 ) -> dict:
-    _, record = await agent_or_404(agents, agent)
-    await require_write(session, actor, record)
+    _, record = await agent_or_404(stores.agents, agent)
+    await require_write(stores, actor, record)
     try:
         document = MappingDocument.model_validate(body)
     except ValidationError as exc:
         first = exc.errors()[0]
         location = ".".join(str(p) for p in first["loc"])
         raise HTTPException(status_code=400, detail=f"{location}: {first['msg']}") from exc
-    draft, unchanged = await mappings.put_draft(
+    draft, unchanged = await stores.mappings.put_draft(
         record.id, document.model_dump(by_alias=True, exclude_none=True), actor.username
     )
     return {**draft.model_dump(mode="json"), "unchanged": unchanged}
@@ -141,15 +136,13 @@ async def put_draft(
 async def activate_mapping(
     agent: str,
     version: int,
-    agents: AgentStoreDep,
-    mappings: MappingStoreDep,
-    session: SessionDep,
+    stores: StoresDep,
     actor: ActorDep,
 ) -> dict:
-    _, record = await agent_or_404(agents, agent)
-    await require_write(session, actor, record)
+    _, record = await agent_or_404(stores.agents, agent)
+    await require_write(stores, actor, record)
     try:
-        active, replaced = await mappings.activate(record.id, version)
+        active, replaced = await stores.mappings.activate(record.id, version)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {**active.model_dump(mode="json"), "replaced_version": replaced}
@@ -166,16 +159,13 @@ async def import_session(
     agent: str,
     body: ImportRequest,
     request: Request,
-    agents: AgentStoreDep,
-    spans: SpanStoreDep,
-    mappings: MappingStoreDep,
-    session: SessionDep,
+    stores: StoresDep,
     actor: ActorDep,
 ) -> dict:
-    _, record = await agent_or_404(agents, agent)
-    await require_write(session, actor, record)
+    _, record = await agent_or_404(stores.agents, agent)
+    await require_write(stores, actor, record)
     require_otel(record)
-    source = await request.app.state.trace_sources.resolve(body.source)
+    source = await stores.sources.resolve(body.source)
     client = client_for(
         source.provider,
         source.url,
@@ -186,9 +176,9 @@ async def import_session(
         fetched = await client.session_spans(body.project, body.session_id)
     except httpx2.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"{body.source}: {exc}") from exc
-    active = await mappings.active(record.id)
+    active = await stores.mappings.active(record.id)
     document = MappingDocument.model_validate(active.document) if active else None
     for span in fetched:
         span.session_id_hint = session_id_of(span.attributes, document) or body.session_id
-    imported = await spans.upsert(record.id, fetched, external_trace_source_id=source.id)
+    imported = await stores.spans.upsert(record.id, fetched, external_trace_source_id=source.id)
     return {"imported": imported}

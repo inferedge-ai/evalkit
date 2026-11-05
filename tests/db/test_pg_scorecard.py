@@ -269,7 +269,7 @@ async def test_list_scores_uses_the_scorecard_bucket_rules(session_factory, expe
 async def test_case_history_newest_first(session_factory, experiments):
     current, baseline = experiments
     async with session_factory() as s:
-        dataset_id = (await get_dataset(s, "dev", "finance")).id
+        dataset_id = (await get_dataset(s, "default", "dev", "finance")).id
         history = await case_history(s, dataset_id, ["q-1"], limit=10)
         everything = await case_history(s, dataset_id, None, limit=10)
     [newest, oldest] = history["q-1"]

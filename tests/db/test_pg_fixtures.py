@@ -16,8 +16,8 @@ SHA_B = "b" * 64
 async def world(session_factory) -> World:
     world = await seed_world(session_factory)
     async with session_factory() as s:
-        await record_blob(s, SHA_A, 10, world.akshat_id)
-        await record_blob(s, SHA_B, 20, None)
+        await record_blob(s, "default", SHA_A, 10, world.akshat_id)
+        await record_blob(s, "default", SHA_B, 20, None)
         await s.commit()
     return world
 
@@ -28,17 +28,17 @@ def file(key: str, sha256: str) -> CaseFile:
 
 async def test_record_blob_twice_keeps_one_row_and_first_uploader(session_factory, world):
     async with session_factory() as s:
-        await record_blob(s, SHA_A, 10, world.admin_id)
+        await record_blob(s, "default", SHA_A, 10, world.admin_id)
         await s.commit()
-        row = await s.get(FixtureBlob, SHA_A)
+        row = await s.get(FixtureBlob, ("default", SHA_A))
     assert await count(session_factory, FixtureBlob) == 2
     assert row is not None and row.uploaded_by == world.akshat_id
 
 
 async def test_known_blobs(session_factory, world):
     async with session_factory() as s:
-        assert await known_blobs(s, [SHA_A, "c" * 64]) == {SHA_A}
-        assert await known_blobs(s, []) == set()
+        assert await known_blobs(s, "default", [SHA_A, "c" * 64]) == {SHA_A}
+        assert await known_blobs(s, "default", []) == set()
 
 
 def test_blob_key_is_content_addressed():
@@ -50,7 +50,7 @@ async def test_files_keep_yaml_order(session_factory, world):
     async with session_factory() as s:
         await sync(s, world.dev, world.admin_id, [case])
         await s.commit()
-        [view] = await current_cases(s, await get_dataset(s, "dev", "finance"))
+        [view] = await current_cases(s, await get_dataset(s, "default", "dev", "finance"))
         found = await files_for(s, [(view.case_ref, view.content_hash)])
     assert [f.key for f in view.files] == ["z.pdf", "a.pdf"]
     assert found[(view.case_ref, view.content_hash)] == view.files

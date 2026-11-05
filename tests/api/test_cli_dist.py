@@ -13,7 +13,7 @@ RUNNING = "0.3.0.dev57"
 
 
 def make_app(tmp_path):
-    store = PgStore(object())
+    store = PgStore(object(), "default")
     cfg = make_cfg(tmp_path)
     deps = RunnerDeps(
         cfg=cfg,

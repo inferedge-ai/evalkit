@@ -2,7 +2,7 @@ import pytest
 
 from evalkit.db.agents import AgentStore
 from evalkit.db.mappings import MappingStore
-from tests.identity import seed_identity
+from tests.identity import seed_identity, workspace_ref
 
 DOC = {"schema_version": "1", "kind": {"attribute": "k"}}
 
@@ -11,8 +11,8 @@ DOC = {"schema_version": "1", "kind": {"attribute": "k"}}
 async def db(tmp_path, session_factory):
     factory = session_factory
     await seed_identity(factory, {"admin": "password"}, shared=("w",))
-    record = await AgentStore(factory).create("w", "a")
-    return MappingStore(factory), record.id
+    record = await AgentStore(factory, "default").create(await workspace_ref(factory, "w"), "a")
+    return MappingStore(factory, "default"), record.id
 
 
 async def test_draft_replace_activate_lifecycle(db):

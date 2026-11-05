@@ -4,6 +4,7 @@ from typer.testing import CliRunner
 
 from evalkit.cli.main import app as cli_app
 from evalkit.db import models
+from evalkit.db.session import tenant_session
 from evalkit.sdk import RunResult, aevaluate_experiment, arun_experiment, evaluator
 from tests.cli.test_cli import stub_judges_module
 from tests.fake_harness import DEFAULT_TRAJECTORY
@@ -21,7 +22,7 @@ def cite(case, run):
 
 async def sdk_spans(srv, exp_id: int) -> list[dict]:
     async def work(_, factory):
-        async with factory() as session:
+        async with tenant_session(factory, "default") as session:
             rows = await session.scalars(
                 sa.select(models.Span.attributes)
                 .join(models.Agent, models.Agent.id == models.Span.agent_id)

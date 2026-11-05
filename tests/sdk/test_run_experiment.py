@@ -21,11 +21,12 @@ from evalkit.client.api import ApiRequestError
 from evalkit.config import OtelConfig
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource
 from evalkit.contracts.settings import AgentSettings, RemoteEvaluatorSettings
+from evalkit.core.blob import tenant_prefix
 from evalkit.core.runner import InvalidCaseInputs, ScoringFailed
 from evalkit.credentials import MissingCredential
 from evalkit.db import models
 from evalkit.db.evaluators import RemoteEvaluatorStore
-from evalkit.db.session import make_session_factory
+from evalkit.db.session import make_session_factory, tenant_session
 from evalkit.db.store import PgStore
 from evalkit.sdk import (
     RunResult,
@@ -41,7 +42,7 @@ from evalkit.store.base import Experiment, RunDetail
 from tests.cli.test_cli import _serve
 from tests.fake_agents import reference_mapping
 from tests.fake_harness import DEFAULT_TRAJECTORY, FakeHarness
-from tests.identity import seed_agent
+from tests.identity import seed_agent, workspace_ref
 from tests.native import HOLDER, seed_env
 
 LLM_ATTRS = {
@@ -90,8 +91,8 @@ def server(tmp_path_factory, stub_judges_module, module_db_url):
             harness_url=None,
             settings=AgentSettings(input_schema=NOT_Q2_SCHEMA),
         )
-        await RemoteEvaluatorStore(factory).create(
-            "admin",
+        await RemoteEvaluatorStore(factory, "default").create(
+            await workspace_ref(factory, "admin"),
             "http_eval",
             EvaluatorKind.SCORE,
             RemoteEvaluatorSettings(endpoint="http://custom.test/rtc"),
@@ -151,7 +152,7 @@ class Server:
 
     async def _with_store(self, work):
         factory = make_session_factory(self.db_url)
-        result = await work(PgStore(factory), factory)
+        result = await work(PgStore(factory, "default"), factory)
         await factory.kw["bind"].dispose()
         return result
 
@@ -163,14 +164,14 @@ class Server:
 
     async def count(self) -> int:
         async def work(_, factory):
-            async with factory() as session:
+            async with tenant_session(factory, "default") as session:
                 return await session.scalar(sa.select(sa.func.count(models.Experiment.id)))
 
         return await self._with_store(work)
 
     async def execute(self, statement) -> None:
         async def work(_, factory):
-            async with factory() as session:
+            async with tenant_session(factory, "default") as session:
                 await session.execute(statement)
                 await session.commit()
 
@@ -215,7 +216,7 @@ async def test_sdk_run_with_traces_records_runs_after_settle(env):
         record = run.agent_run
         assert record.status == "completed" and record.trajectory_status == "valid"
         assert record.answer == "42"
-        doc = json.loads(blob.objects[record.trajectory_key])
+        doc = json.loads(blob.objects[f"{tenant_prefix('default')}{record.trajectory_key}"])
         assert doc["extra"]["trajectory_source"] == "otel"
         assert doc["steps"][-1]["message"] == "42"
         assert record.metrics["input_tokens"] == 3
@@ -310,7 +311,7 @@ async def test_returned_session_absorbs_the_sdk_root_and_links_the_case(env):
     run = result.runs[0]
     assert run.session_id.startswith("app-") and run.trajectory_status == "valid"
     _, [stored] = await srv.experiment(result.experiment_id)
-    doc = json.loads(blob.objects[stored.agent_run.trajectory_key])
+    doc = json.loads(blob.objects[f"{tenant_prefix('default')}{stored.agent_run.trajectory_key}"])
     assert doc["steps"][-1]["message"] == "42"
     token = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}

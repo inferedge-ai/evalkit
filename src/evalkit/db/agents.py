@@ -8,21 +8,27 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from evalkit.contracts.enums import ExperimentStatus, TokenKind, TrajectorySource
 from evalkit.contracts.esf import MappingDocument
 from evalkit.contracts.settings import AgentSettings
+from evalkit.core.access import WorkspaceRef
 from evalkit.core.agents import AgentDefinition, UnknownAgent
 from evalkit.core.workspace import Reference, parse_slug
 from evalkit.db import models
 from evalkit.db.locks import lock_name
 from evalkit.db.mappings import activate_document, active_mapping
-from evalkit.db.workspaces import workspace_row
+from evalkit.db.session import tenant_session
+from evalkit.db.workspaces import UnknownWorkspace
 from evalkit.store.base import Conflict
 
 
-async def agent_id_for(session: AsyncSession, ref: str) -> int:
+async def agent_id_for(session: AsyncSession, tenant_id: str, ref: str) -> int:
     parsed = parse_slug(ref)
     agent_id = await session.scalar(
         select(models.Agent.id)
         .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
-        .where(models.Workspace.name == parsed.workspace, models.Agent.name == parsed.name)
+        .where(
+            models.Workspace.tenant_id == tenant_id,
+            models.Workspace.name == parsed.workspace,
+            models.Agent.name == parsed.name,
+        )
     )
     if agent_id is None:
         raise UnknownAgent(ref)
@@ -75,13 +81,19 @@ def _ref(ref: str) -> Reference:
     return Reference(name, workspace)
 
 
-async def _agent_row(session: AsyncSession, ref: str) -> tuple[models.Agent, models.Workspace]:
+async def _agent_row(
+    session: AsyncSession, tenant_id: str, ref: str
+) -> tuple[models.Agent, models.Workspace]:
     name, workspace = _ref(ref)
     found = (
         await session.execute(
             select(models.Agent, models.Workspace)
             .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
-            .where(models.Agent.name == name, models.Workspace.name == workspace)
+            .where(
+                models.Workspace.tenant_id == tenant_id,
+                models.Agent.name == name,
+                models.Workspace.name == workspace,
+            )
         )
     ).one_or_none()
     if found is None:
@@ -89,47 +101,57 @@ async def _agent_row(session: AsyncSession, ref: str) -> tuple[models.Agent, mod
     return found[0], found[1]
 
 
-async def agent_definition(session: AsyncSession, ref: str) -> AgentDefinition:
-    return _definition(*await _agent_row(session, ref))
+async def agent_definition(session: AsyncSession, tenant_id: str, ref: str) -> AgentDefinition:
+    return _definition(*await _agent_row(session, tenant_id, ref))
 
 
 class AgentStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._sessions = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._sessions, self._tenant_id)
 
     async def _row(self, session: AsyncSession, ref: str) -> tuple[models.Agent, models.Workspace]:
-        return await _agent_row(session, ref)
+        return await _agent_row(session, self._tenant_id, ref)
 
-    async def _agent_id(self, session: AsyncSession, name: str, workspace: str) -> int | None:
+    async def _agent_id(self, session: AsyncSession, name: str, workspace_id: int) -> int | None:
         return await session.scalar(
-            select(models.Agent.id)
-            .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
-            .where(models.Agent.name == name, models.Workspace.name == workspace)
+            select(models.Agent.id).where(
+                models.Agent.workspace_id == workspace_id, models.Agent.name == name
+            )
         )
 
     async def get(self, ref: str) -> AgentDefinition:
-        async with self._sessions() as session:
-            return await agent_definition(session, ref)
+        async with self._session() as session:
+            return await agent_definition(session, self._tenant_id, ref)
 
     async def find(self, ref: str) -> AgentDefinition | None:
         name, workspace = _ref(ref)
-        async with self._sessions() as session:
+        async with self._session() as session:
             found = (
                 await session.execute(
                     select(models.Agent, models.Workspace)
                     .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
-                    .where(models.Agent.name == name, models.Workspace.name == workspace)
+                    .where(
+                        models.Workspace.tenant_id == self._tenant_id,
+                        models.Agent.name == name,
+                        models.Workspace.name == workspace,
+                    )
                 )
             ).one_or_none()
         return _definition(found[0], found[1]) if found is not None else None
 
     async def get_by_id(self, agent_id: int) -> AgentDefinition:
-        async with self._sessions() as session:
+        async with self._session() as session:
             found = (
                 await session.execute(
                     select(models.Agent, models.Workspace)
                     .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
-                    .where(models.Agent.id == agent_id)
+                    .where(
+                        models.Workspace.tenant_id == self._tenant_id, models.Agent.id == agent_id
+                    )
                 )
             ).one_or_none()
         if found is None:
@@ -138,7 +160,7 @@ class AgentStore:
 
     async def create(
         self,
-        workspace: str,
+        workspace: WorkspaceRef,
         name: str,
         *,
         harness_url: str | None = None,
@@ -151,6 +173,8 @@ class AgentStore:
     ) -> AgentDefinition:
         if "@" in name or not name:
             raise InvalidAgent(f"invalid agent name: {name!r}")
+        if workspace.tenant_id != self._tenant_id:
+            raise UnknownWorkspace(workspace.name)
         if trajectory_source is TrajectorySource.OTEL and mapping is None:
             raise InvalidAgent("otel agents need a mapping")
         if mapping is not None and trajectory_source is not TrajectorySource.OTEL:
@@ -158,11 +182,11 @@ class AgentStore:
         _check_settings(harness_url, trajectory_source, settings)
         if mapping is not None:
             MappingDocument.model_validate(mapping)
-        async with self._sessions() as session:
-            ws = await workspace_row(session, workspace)
+        async with self._session() as session:
+            ws = await session.get_one(models.Workspace, workspace.id)
             await lock_name(session, f"agent:{ws.id}", name)
-            if await self._agent_id(session, name, workspace) is not None:
-                raise AgentExists(f"{name}@{workspace}")
+            if await self._agent_id(session, name, ws.id) is not None:
+                raise AgentExists(f"{name}@{ws.name}")
             row = models.Agent(
                 workspace_id=ws.id,
                 name=name,
@@ -195,7 +219,7 @@ class AgentStore:
     ) -> AgentDefinition:
         if mapping is not None:
             MappingDocument.model_validate(mapping)
-        async with self._sessions() as session:
+        async with self._session() as session:
             row, ws = await self._row(session, ref)
             if (harness_url is not None or "harness_url" in clear) and (
                 harness_url != row.harness_url
@@ -258,12 +282,12 @@ class AgentStore:
         row.trajectory_source = source.value
 
     async def sealed_key(self, ref: str) -> bytes | None:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row, _ = await self._row(session, ref)
             return row.api_key_encrypted
 
     async def archive(self, ref: str) -> AgentDefinition:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row, ws = await self._row(session, ref)
             row.archived_at = datetime.now(UTC)
             await session.execute(
@@ -276,7 +300,7 @@ class AgentStore:
             return _definition(row, ws)
 
     async def restore(self, ref: str) -> AgentDefinition:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row, ws = await self._row(session, ref)
             row.archived_at = None
             await session.commit()
@@ -288,6 +312,7 @@ class AgentStore:
         query = (
             select(models.Agent, models.Workspace)
             .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+            .where(models.Workspace.tenant_id == self._tenant_id)
             .order_by(
                 models.Workspace.owner_user_id.is_not(None),
                 models.Workspace.name,
@@ -298,5 +323,5 @@ class AgentStore:
             query = query.where(models.Workspace.name == workspace)
         if not include_archived:
             query = query.where(models.Agent.archived_at.is_(None))
-        async with self._sessions() as session:
+        async with self._session() as session:
             return [_definition(a, w) for a, w in (await session.execute(query)).all()]

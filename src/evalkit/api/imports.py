@@ -4,11 +4,11 @@ from pathlib import Path
 from typing import Annotated
 
 import httpx2
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
-from evalkit.api.access import ensure_active, load_actor, require, workspace_ref
+from evalkit.api.access import StoresDep, ensure_active, load_actor, require, workspace_ref
 from evalkit.api.auth import current_user
-from evalkit.api.deps import PgStoreDep, RunnerDepsDep, SessionDep
+from evalkit.api.deps import SessionDep
 from evalkit.api.runs import harness_client
 from evalkit.contracts.cases import REGISTRY_FILENAME
 from evalkit.core.access import can_write
@@ -19,9 +19,7 @@ from evalkit.core.lint import fixture_findings
 from evalkit.core.lint import lint as lint_cases
 from evalkit.core.runner import RunnerDeps
 from evalkit.core.workspace import parse_slug
-from evalkit.db.evaluators import RemoteEvaluatorStore
 from evalkit.db.models import User
-from evalkit.db.workspaces import WorkspaceStore
 
 router = APIRouter(prefix="/api", tags=["imports"])
 
@@ -76,10 +74,7 @@ async def _agent_input_schema(deps: RunnerDeps, agent: str) -> dict:
 @router.post("/lint")
 async def lint_endpoint(
     files: list[UploadFile],
-    deps: RunnerDepsDep,
-    store: PgStoreDep,
-    session: SessionDep,
-    request: Request,
+    stores: StoresDep,
     dataset: str | None = None,
     agent: str | None = None,
     input_schema: Annotated[str | None, Form()] = None,
@@ -102,13 +97,13 @@ async def lint_endpoint(
         other_cases: dict[str, str] | None = None
         if dataset is not None:
             ref = parse_slug(dataset)
-            other_cases = await store.workspace_cases(
-                await workspace_ref(session, ref.workspace), exclude_dataset=ref.name
+            other_cases = await stores.store.workspace_cases(
+                await workspace_ref(stores, ref.workspace), exclude_dataset=ref.name
             )
-        schema = await _agent_input_schema(deps, agent) if agent is not None else None
+        schema = await _agent_input_schema(stores.deps, agent) if agent is not None else None
         if input_schema is not None:
             schema = _input_schema(input_schema)
-        known = await RemoteEvaluatorStore(request.app.state.session_factory).names()
+        known = await stores.evaluators.names()
         findings.extend(
             lint_cases(
                 [case for case, _ in sourced_cases],
@@ -127,9 +122,8 @@ async def lint_endpoint(
 
 @router.post("/sync")
 async def sync(
-    request: Request,
+    stores: StoresDep,
     session: SessionDep,
-    store: PgStoreDep,
     dataset: str,
     user: Annotated[User, Depends(current_user)],
     files: list[UploadFile] = File(default_factory=list),
@@ -141,14 +135,12 @@ async def sync(
     actor: str | None = None,
 ) -> dict:
     target = workspace or user.username
-    target_ws = await workspace_ref(session, target)
+    target_ws = await workspace_ref(stores, target)
     require(can_write(await load_actor(session, user), target_ws), f"you cannot sync to @{target}")
     ensure_active(target_ws)
     if target_ws.is_target:
         assert target_ws.promoted_from is not None
-        source_ws = await WorkspaceStore(request.app.state.session_factory).get_by_id(
-            target_ws.promoted_from
-        )
+        source_ws = await stores.workspaces.get_by_id(target_ws.promoted_from)
         raise HTTPException(
             status_code=409,
             detail=f"{target} is the promotion target of {source_ws.name}; "
@@ -165,14 +157,12 @@ async def sync(
         root = Path(tmp)
         paths = await _save_uploads(files, root)
         report = await import_dataset(
-            store,
+            stores.store,
             workspace=target_ws,
             dataset=dataset,
             files=paths,
             full=prune,
-            known_custom_evaluators=await RemoteEvaluatorStore(
-                request.app.state.session_factory
-            ).names(),
+            known_custom_evaluators=await stores.evaluators.names(),
             actor_id=user.id,
             detail=detail,
             root=root,

@@ -10,6 +10,7 @@ from evalkit.core.runner import ACTIVE, ALLOWED, LEASE_SECONDS
 from evalkit.core.workspace import parse_slug
 from evalkit.db import models
 from evalkit.db.cases import case_views, dataset_by_ref
+from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.workspaces import to_ref, workspace_row
 from evalkit.store.base import (
     CaseView,
@@ -26,7 +27,11 @@ DatasetWorkspace = aliased(models.Workspace)
 AgentWorkspace = aliased(models.Workspace)
 
 
-def _query() -> Select:
+def _tenant_of(session: AsyncSession) -> str:
+    return session.info["tenant_id"]
+
+
+def _query(tenant_id: str) -> Select:
     return (
         select(
             models.Experiment,
@@ -43,6 +48,7 @@ def _query() -> Select:
         .join(models.Agent, models.Agent.id == models.Experiment.agent_id)
         .join(AgentWorkspace, AgentWorkspace.id == models.Agent.workspace_id)
         .join(models.User, models.User.id == models.Experiment.created_by)
+        .where(HomeWorkspace.tenant_id == tenant_id)
     )
 
 
@@ -68,7 +74,9 @@ def _to_experiment(row) -> Experiment:
 
 
 async def get_experiment(session: AsyncSession, exp_id: int) -> Experiment:
-    row = (await session.execute(_query().where(models.Experiment.id == exp_id))).one_or_none()
+    row = (
+        await session.execute(_query(_tenant_of(session)).where(models.Experiment.id == exp_id))
+    ).one_or_none()
     if row is None:
         raise UnknownExperiment(exp_id)
     return _to_experiment(row)
@@ -85,7 +93,7 @@ async def list_experiments(
     limit: int = 50,
     offset: int = 0,
 ) -> list[Experiment]:
-    query = _query()
+    query = _query(_tenant_of(session))
     if ran_case_ids is not None:
         query = query.where(
             select(models.ExperimentRun.id)
@@ -110,9 +118,11 @@ async def list_experiments(
     return [_to_experiment(row) for row in rows.all()]
 
 
-async def _agent(session: AsyncSession, ref: str) -> tuple[models.Agent, WorkspaceRef]:
+async def _agent(
+    session: AsyncSession, tenant_id: str, ref: str
+) -> tuple[models.Agent, WorkspaceRef]:
     parsed = parse_slug(ref)
-    workspace = await workspace_row(session, parsed.workspace)
+    workspace = await workspace_row(session, tenant_id, parsed.workspace)
     agent = await session.scalar(
         select(models.Agent).where(
             models.Agent.workspace_id == workspace.id, models.Agent.name == parsed.name
@@ -123,8 +133,14 @@ async def _agent(session: AsyncSession, ref: str) -> tuple[models.Agent, Workspa
     return agent, to_ref(workspace)
 
 
-async def _personal(session: AsyncSession, username: str) -> tuple[int, WorkspaceRef]:
-    user = await session.scalar(select(models.User).where(models.User.username == username))
+async def _personal(
+    session: AsyncSession, tenant_id: str, username: str
+) -> tuple[int, WorkspaceRef]:
+    user = await session.scalar(
+        select(models.User).where(
+            models.User.tenant_id == tenant_id, models.User.username == username
+        )
+    )
     if user is None:
         raise KeyError(f"unknown user: {username}")
     workspace = await session.scalar(
@@ -135,16 +151,17 @@ async def _personal(session: AsyncSession, username: str) -> tuple[int, Workspac
 
 
 async def create_experiment(session: AsyncSession, req: NewExperiment) -> Experiment:
-    dataset = await dataset_by_ref(session, req.dataset)
+    tenant_id = _tenant_of(session)
+    dataset = await dataset_by_ref(session, tenant_id, req.dataset)
     dataset_row = await session.scalar(
         select(models.Dataset)
         .where(models.Dataset.id == dataset.id)
         .with_for_update(key_share=True)
     )
     assert dataset_row is not None
-    dataset_ws = to_ref(await workspace_row(session, dataset.workspace))
-    agent, agent_ws = await _agent(session, req.agent)
-    runner_id, runner_ws = await _personal(session, req.runner)
+    dataset_ws = to_ref(await workspace_row(session, tenant_id, dataset.workspace))
+    agent, agent_ws = await _agent(session, tenant_id, req.agent)
+    runner_id, runner_ws = await _personal(session, tenant_id, req.runner)
     home = experiment_workspace(runner_ws, dataset_ws, agent_ws)
     number = await session.scalar(
         select(func.coalesce(func.max(models.Experiment.number), 0) + 1).where(
@@ -314,16 +331,16 @@ async def stale_active(session: AsyncSession, now: datetime) -> list[int]:
 
 
 async def set_model(session: AsyncSession, exp_id: int, model: str) -> None:
+    await get_experiment(session, exp_id)
     row = await session.get(models.Experiment, exp_id)
-    if row is None:
-        raise UnknownExperiment(exp_id)
+    assert row is not None
     row.config = {**row.config, "model": model}
 
 
 async def pinned_cases(session: AsyncSession, exp_id: int) -> list[CaseView]:
+    await get_experiment(session, exp_id)
     exp = await session.get(models.Experiment, exp_id)
-    if exp is None:
-        raise UnknownExperiment(exp_id)
+    assert exp is not None
     pinned = (
         await session.scalars(
             select(models.ExperimentCase).where(models.ExperimentCase.experiment_id == exp_id)
@@ -345,7 +362,7 @@ async def pinned_cases(session: AsyncSession, exp_id: int) -> list[CaseView]:
 
 
 async def reap(session_factory: async_sessionmaker[AsyncSession]) -> list[int]:
-    async with session_factory() as s:
+    async with tenant_session(session_factory, ALL_TENANTS) as s:
         reaped = [
             exp_id
             for exp_id in await stale_active(s, datetime.now(UTC))
@@ -355,9 +372,29 @@ async def reap(session_factory: async_sessionmaker[AsyncSession]) -> list[int]:
     return reaped
 
 
+async def tenant_of_experiment(
+    session_factory: async_sessionmaker[AsyncSession], experiment_id: int
+) -> str:
+    async with tenant_session(session_factory, ALL_TENANTS) as s:
+        tenant_id = await s.scalar(
+            select(models.Workspace.tenant_id)
+            .join(models.Dataset, models.Dataset.workspace_id == models.Workspace.id)
+            .join(models.Experiment, models.Experiment.dataset_id == models.Dataset.id)
+            .where(models.Experiment.id == experiment_id)
+        )
+    if tenant_id is None:
+        raise UnknownExperiment(experiment_id)
+    return tenant_id
+
+
 async def experiment_of_run(session: AsyncSession, experiment_run_id: int) -> int | None:
     return await session.scalar(
-        select(models.ExperimentRun.experiment_id).where(
-            models.ExperimentRun.id == experiment_run_id
+        select(models.ExperimentRun.experiment_id)
+        .join(models.Experiment, models.Experiment.id == models.ExperimentRun.experiment_id)
+        .join(models.Dataset, models.Dataset.id == models.Experiment.dataset_id)
+        .join(models.Workspace, models.Workspace.id == models.Dataset.workspace_id)
+        .where(
+            models.ExperimentRun.id == experiment_run_id,
+            models.Workspace.tenant_id == _tenant_of(session),
         )
     )

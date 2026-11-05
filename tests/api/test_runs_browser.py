@@ -11,7 +11,7 @@ from fastapi import HTTPException
 
 from evalkit.api import runs
 from evalkit.core import pull as pull_core
-from evalkit.core.blob import artifact_key
+from evalkit.core.blob import artifact_key, tenant_prefix
 from evalkit.core.harness import HarnessClient
 from tests.api.native_api import CAPS, api_env
 from tests.api.test_otel import PROTO, otlp_payload
@@ -371,7 +371,7 @@ async def test_stored_files_come_before_the_harness(tmp_path, stub_judges, sessi
     async with api_env(tmp_path, session_factory, FakeHarness()) as (client, env):
         agent = (await client.get("/api/agents/fake@canonical")).json()
         key = artifact_key(agent["id"], "gone", "outputs/kept.md")
-        await env.deps.blob_store.put_object(key, b"kept")
+        await env.blob.put_object(f"{tenant_prefix('default')}{key}", b"kept")
         base = "/api/agents/fake@canonical/runs/gone/files"
         listed = (await client.get(base)).json()["files"]
         assert [entry["path"] for entry in listed] == ["outputs/kept.md"]

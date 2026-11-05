@@ -11,11 +11,13 @@ from fastapi import HTTPException
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 from fastmcp.server.auth import require_scopes
+from fastmcp.server.dependencies import get_access_token
 from mcp.types import ToolAnnotations
 from starlette.datastructures import State
 
 from evalkit.api import experiments as experiments_api
 from evalkit.api import runs as runs_api
+from evalkit.api.access import TenantStores, build_tenant_stores
 from evalkit.api.agents import agent_view
 from evalkit.api.mcp import descriptions as d
 from evalkit.api.mcp.auth import SCOPE_READ
@@ -303,21 +305,28 @@ def clipped_step(step: Step, max_chars: int) -> dict:
 Digested = tuple[RunDigest, list[Turn]]
 
 
+def _stores(state: State) -> TenantStores:
+    token = get_access_token()
+    assert token is not None
+    return build_tenant_stores(state, str(token.claims["tenant_id"]))
+
+
 class Runs:
     def __init__(self, state: State) -> None:
         self.state = state
         self.gate = asyncio.Semaphore(FETCH_CONCURRENCY_TOTAL)
 
     async def agent(self, ref: str) -> AgentDefinition:
-        return await runs_api.agent_or_404(self.state.agents, check_agent_id(ref))
+        return await runs_api.agent_or_404(_stores(self.state).agents, check_agent_id(ref))
 
     async def cost_map(self) -> dict:
         return await asyncio.to_thread(load_cost_map, self.state.cfg.cost_map)
 
     async def trajectory(self, record: AgentDefinition, run_id: str) -> tuple[Trajectory, set]:
-        async with self.state.session_factory() as session:
+        stores = _stores(self.state)
+        async with stores.session() as session:
             trajectory = await runs_api.fetch_trajectory(
-                record, run_id, self.state.runner_deps, self.state.sessions, session
+                record, run_id, stores.deps, stores.sessions, session
             )
         reported = priced_steps(trajectory)
         backfill_step_costs(trajectory, await self.cost_map())
@@ -329,10 +338,11 @@ class Runs:
         # One stored-run lookup and one cost map per call, and no DB connection
         # held across harness calls; whatever is not read within the budget
         # comes back as a per-run failure rather than outliving the request.
-        async with self.state.session_factory() as session:
+        stores = _stores(self.state)
+        async with stores.session() as session:
             keys = await trajectory_keys(session, record.id, run_ids)
         cost_map = await self.cost_map()
-        deps = self.state.runner_deps
+        deps = stores.deps
         client = (
             await runs_api.harness_client(deps, record)
             if runs_api.server_may_drive(record)
@@ -344,7 +354,7 @@ class Runs:
         async def one(run_id: str) -> Digested:
             async with call_gate, self.gate:
                 trajectory = await runs_api.read_trajectory(
-                    record, run_id, deps, self.state.sessions, keys.get(run_id), client
+                    record, run_id, deps, stores.sessions, keys.get(run_id), client
                 )
             reported = priced_steps(trajectory)
             backfill_step_costs(trajectory, cost_map)
@@ -366,12 +376,13 @@ class Runs:
     async def page(
         self, record: AgentDefinition, *, limit: int, offset: int, budget: float, **filters: Any
     ) -> runs_api.RunPage:
+        stores = _stores(self.state)
         try:
-            async with asyncio.timeout_at(budget), self.state.session_factory() as session:
+            async with asyncio.timeout_at(budget), stores.session() as session:
                 return await runs_api.resolve_runs(
                     record,
-                    self.state.runner_deps,
-                    self.state.spans,
+                    stores.deps,
+                    stores.spans,
                     session,
                     limit=limit,
                     offset=offset,
@@ -459,7 +470,7 @@ def register(mcp: FastMCP, state: State) -> None:
     async def find_agents(
         workspace: str | None = None, include_archived: bool = False
     ) -> FindAgentsResponse:
-        found = await state.agents.list_agents(
+        found = await _stores(state).agents.list_agents(
             workspace=workspace, include_archived=include_archived
         )
         rows = []
@@ -710,9 +721,7 @@ def register(mcp: FastMCP, state: State) -> None:
     @expected_errors
     async def get_run_files(agent: str, run_id: str) -> GetRunFilesResponse:
         check_run_ids([run_id])
-        listing = await runs_api.list_files(
-            check_agent_id(agent), run_id, state.runner_deps, state.agents
-        )
+        listing = await runs_api.list_files(check_agent_id(agent), run_id, _stores(state))
         rows = [FileRow(**f) for f in listing["files"]]
         return GetRunFilesResponse(data=rows, meta=PlainMeta(count=len(rows)))
 
@@ -726,9 +735,7 @@ def register(mcp: FastMCP, state: State) -> None:
         if offset < 0:
             raise fail("invalid_offset", f"offset must be 0 or greater; got {offset}")
         check_run_ids([run_id])
-        response = await runs_api.get_file(
-            check_agent_id(agent), run_id, path, state.runner_deps, state.agents
-        )
+        response = await runs_api.get_file(check_agent_id(agent), run_id, path, _stores(state))
         body = b"".join(
             [c.encode() if isinstance(c, str) else bytes(c) async for c in response.body_iterator]
         )
@@ -760,8 +767,10 @@ def register(mcp: FastMCP, state: State) -> None:
         check_page(limit, offset, EXPERIMENTS_MAX)
         if status is not None:
             check_choice("invalid_status", status, tuple(ExperimentStatus))
-        async with state.session_factory() as session:
+        stores = _stores(state)
+        async with stores.session() as session:
             found = await experiments_api.list_experiments(
+                stores,
                 session,
                 workspace=workspace,
                 status=ExperimentStatus(status) if status else None,
@@ -781,7 +790,8 @@ def register(mcp: FastMCP, state: State) -> None:
         check_ids(experiment_ids, GET_EXPERIMENTS_MAX)
         wanted = check_include(include or [], EXPERIMENT_INCLUDES)
         rows = []
-        async with state.session_factory() as session:
+        stores = _stores(state)
+        async with stores.session() as session:
             for experiment_id in experiment_ids:
                 try:
                     exp = await db_experiments.get_experiment(session, experiment_id)
@@ -793,7 +803,7 @@ def register(mcp: FastMCP, state: State) -> None:
                 }
                 if "scorecard" in wanted:
                     extra["scorecard"] = await experiments_api.scorecard(
-                        experiment_id, state.store, None
+                        experiment_id, stores, None
                     )
                 rows.append(ExperimentRow(**exp.model_dump(exclude={"config"}), **extra))
         unmatched = sum(1 for r in rows if r.note)
@@ -806,9 +816,10 @@ def register(mcp: FastMCP, state: State) -> None:
         experiment_id: int, failed_only: bool = False, limit: int = 50, offset: int = 0
     ) -> GetExperimentRunsResponse:
         check_page(limit, offset, FIND_RUNS_MAX)
-        exp = await state.store.get_experiment(experiment_id)
+        stores = _stores(state)
+        exp = await stores.store.get_experiment(experiment_id)
         rows = []
-        for run in await state.store.run_details(experiment_id):
+        for run in await stores.store.run_details(experiment_id):
             evaluations = [
                 Evaluation(
                     name=e.name,

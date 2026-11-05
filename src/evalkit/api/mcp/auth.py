@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.api.auth import bearer_login, token_expiry
 from evalkit.config import Config
+from evalkit.core.tenant import DEFAULT_TENANT_ID
 
 SCOPE_READ = "evalkit:read"
 MCP_PATH = "/mcp"
@@ -33,19 +34,21 @@ class EvalkitTokenVerifier(TokenVerifier):
         self._session_factory = session_factory
 
     async def verify_token(self, token: str) -> AccessToken | None:
-        async with self._session_factory() as session:
-            try:
-                row, user = await bearer_login(session, token)
-            except HTTPException:
-                return None
-            await session.commit()
+        try:
+            row, user = await bearer_login(self._session_factory, token)
+        except HTTPException:
+            return None
         expires = token_expiry(row)
         return AccessToken(
             token=token,
             client_id=f"evalkit:{user.username}",
             scopes=[SCOPE_READ],
             expires_at=int(expires.timestamp()) if expires is not None else None,
-            claims={"sub": user.username, "evalkit_user": user.username},
+            claims={
+                "sub": user.username,
+                "evalkit_user": user.username,
+                "tenant_id": user.tenant_id,
+            },
         )
 
 
@@ -64,7 +67,8 @@ class ProviderScopeVerifier(TokenVerifier):
         scopes = [s for s in found.scopes if s != SCOPE_READ]
         if self._scope in found.scopes:
             scopes.append(SCOPE_READ)
-        return found.model_copy(update={"scopes": scopes})
+        claims = {**found.claims, "tenant_id": DEFAULT_TENANT_ID}
+        return found.model_copy(update={"scopes": scopes, "claims": claims})
 
 
 def build_auth(

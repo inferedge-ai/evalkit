@@ -74,7 +74,6 @@ async def api(tmp_path, session_factory):
         env.deps.cfg,  # type: ignore[arg-type]
         blob_store=env.blob,
         runner_deps=env.deps,
-        agents=env.deps.agents,  # type: ignore[arg-type]
         session_factory=session_factory,
         check_schema=False,
         ui_dist=dist,

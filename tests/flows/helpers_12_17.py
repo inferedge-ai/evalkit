@@ -41,7 +41,7 @@ async def seed_flows(
     session_factory: async_sessionmaker[AsyncSession], tmp_path, fake: FakeHarness
 ) -> Env:
     env = await seed_env(session_factory, tmp_path, fake)
-    await WorkspaceStore(session_factory).create_shared(DEV, env.user_ids["admin"])
+    await WorkspaceStore(session_factory, "default").create_shared(DEV, env.user_ids["admin"])
     await seed_agent(session_factory, "ouragent", DEV)
     await seed_evaluators(session_factory, DEV)
     await sync_cases(env, [suite_case("case-1", "q1"), suite_case("case-2", "q2")], workspace=DEV)

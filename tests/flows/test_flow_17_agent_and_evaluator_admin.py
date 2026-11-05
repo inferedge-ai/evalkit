@@ -6,7 +6,6 @@ import pytest
 from cryptography.fernet import Fernet
 
 from evalkit.db.crypto import SecretBox
-from evalkit.db.trace_sources import TraceSourceStore
 from tests.fake_agents import reference_mapping
 from tests.flows.helpers_12_17 import DEV, live_stack
 
@@ -201,9 +200,7 @@ def test_flow_17_remote_evaluators_and_the_experiment_snapshot(live):
 
 
 def test_flow_17_trace_sources_are_admin_only_and_hide_keys(live, monkeypatch):
-    live.app.state.trace_sources = TraceSourceStore(
-        live.app.state.session_factory, SecretBox(Fernet.generate_key().decode())
-    )
+    live.app.state.box = SecretBox(Fernet.generate_key().decode())
     monkeypatch.setenv("PHX_KEY", "very-secret")
     created = live.run(
         "trace-sources", "create", "phx", "--url", "https://phx", "--api-key-env", "PHX_KEY"

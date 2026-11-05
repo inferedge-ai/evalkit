@@ -266,6 +266,10 @@ or `evalkit update` (every CLI call nudges them until they do), which also moves
 refreshes the skills in client repos that vendor them. Deploy only builds that are on PyPI: only `main`
 (`X.Y.Z`) builds of the publish workflow are; `develop` (`X.Y.Z.devN`) builds are not.
 
+When upgrading to the release that added tenants (migration `0016`), stop the
+old server before `evalkit db upgrade`: the migration drops `server_settings`,
+so an old server still running starts failing on writes.
+
 ## CLI for the deployer
 
 The server image already contains the CLI — `docker compose run --rm server

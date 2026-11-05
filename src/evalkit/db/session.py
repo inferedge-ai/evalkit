@@ -1,21 +1,61 @@
 import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Final
 
 from alembic import command
 from alembic.config import Config as AlembicConfig
 from alembic.script import ScriptDirectory
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.orm import ORMExecuteState, Session, with_loader_criteria
 from sqlalchemy.pool import NullPool
+
+from evalkit.db.models import ROOT_MODELS
+
+ALL_TENANTS: Final = object()
+
+
+def scope_to_tenant(state: ORMExecuteState) -> None:
+    info = state.session.info
+    if "tenant_id" not in info:
+        raise RuntimeError("session has no tenant")
+    tenant_id = info["tenant_id"]
+    if tenant_id is ALL_TENANTS:
+        return
+    if not (state.is_select or state.is_update or state.is_delete):
+        return
+    for model in ROOT_MODELS:
+        state.statement = state.statement.options(
+            with_loader_criteria(
+                model, lambda cls: cls.tenant_id == tenant_id, include_aliases=True
+            )
+        )
+
+
+def register_tenant_guard() -> None:
+    if not event.contains(Session, "do_orm_execute", scope_to_tenant):
+        event.listen(Session, "do_orm_execute", scope_to_tenant)
+
+
+@asynccontextmanager
+async def tenant_session(
+    session_factory: async_sessionmaker[AsyncSession], tenant_id: str | object
+) -> AsyncIterator[AsyncSession]:
+    async with session_factory() as session:
+        session.info["tenant_id"] = tenant_id
+        yield session
 
 
 def make_session_factory(
     db_url: str, *, pool_size: int = 20, max_overflow: int = 10, pool_timeout: float = 5
 ) -> async_sessionmaker[AsyncSession]:
+    register_tenant_guard()
     engine = create_async_engine(
         db_url, pool_size=pool_size, max_overflow=max_overflow, pool_timeout=pool_timeout
     )

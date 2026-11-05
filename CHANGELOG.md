@@ -10,6 +10,17 @@
   library retried it, and the second send of a spent stream failed). The
   try-it stack's sample agent (`try/agent.py`) and the SDK-runs doc sample
   import `httpx2`.
+- The database gains a `tenant_id` on `users`, `workspaces`, `cases`,
+  `llm_providers`, `trace_sources` and `fixture_blobs`: text, the
+  organisation's id, `default` for existing rows and for a server without a
+  multi-org wrapper. Usernames, workspace names, case ids, provider names and
+  trace source names are now unique per tenant. evalkit keeps no tenants
+  table. The default judge moved from `server_settings` to a new
+  `tenant_settings` table keyed by tenant id. Migration `0016`; no behaviour
+  change for a single installation, and its blob layout is unchanged (only
+  tenants other than `default` store objects under `tenants/<id>/`). Stop the
+  old server before `evalkit db upgrade`: 0016 drops `server_settings`.
+- `GET /api/workspaces/...` payloads include `tenant_id`.
 - Only releases (`X.Y.Z` from `main`) are published to PyPI. `develop`
   builds (`X.Y.Z.devN`) are no longer on PyPI; get them from the workflow
   artifact or the GHCR image.

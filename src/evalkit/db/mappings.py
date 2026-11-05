@@ -8,7 +8,9 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import MappingStatus
+from evalkit.core.agents import UnknownAgent
 from evalkit.db import models
+from evalkit.db.session import tenant_session
 
 
 class MappingRecord(BaseModel):
@@ -84,16 +86,30 @@ async def activate_document(
 
 
 class MappingStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._sessions = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._sessions, self._tenant_id)
+
+    def _tenant_agent_ids(self) -> Select:
+        return (
+            select(models.Agent.id)
+            .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+            .where(models.Workspace.tenant_id == self._tenant_id)
+        )
 
     async def list(self, agent_id: int) -> list[MappingRecord]:
-        async with self._sessions() as session:
+        async with self._session() as session:
             rows = (
                 await session.execute(
                     _with_author(
                         select(models.SpanMapping)
-                        .where(models.SpanMapping.agent_id == agent_id)
+                        .where(
+                            models.SpanMapping.agent_id == agent_id,
+                            models.SpanMapping.agent_id.in_(self._tenant_agent_ids()),
+                        )
                         .order_by(models.SpanMapping.version)
                     )
                 )
@@ -101,12 +117,13 @@ class MappingStore:
         return [_to_record(row, author) for row, author in rows]
 
     async def _with_status(self, agent_id: int, status: str) -> MappingRecord | None:
-        async with self._sessions() as session:
+        async with self._session() as session:
             found = (
                 await session.execute(
                     _with_author(
                         select(models.SpanMapping).where(
                             models.SpanMapping.agent_id == agent_id,
+                            models.SpanMapping.agent_id.in_(self._tenant_agent_ids()),
                             models.SpanMapping.status == status,
                         )
                     )
@@ -123,11 +140,17 @@ class MappingStore:
     async def put_draft(
         self, agent_id: int, document: dict[str, Any], created_by: str
     ) -> tuple[MappingRecord, bool]:
-        async with self._sessions() as session:
+        async with self._session() as session:
+            if (
+                await session.scalar(self._tenant_agent_ids().where(models.Agent.id == agent_id))
+                is None
+            ):
+                raise UnknownAgent(str(agent_id))
             current = (
                 await session.execute(
                     select(models.SpanMapping).where(
                         models.SpanMapping.agent_id == agent_id,
+                        models.SpanMapping.agent_id.in_(self._tenant_agent_ids()),
                         models.SpanMapping.status == "draft",
                     )
                 )
@@ -146,7 +169,10 @@ class MappingStore:
                 status="draft",
                 mapping=document,
                 created_by_id=await session.scalar(
-                    select(models.User.id).where(models.User.username == created_by)
+                    select(models.User.id).where(
+                        models.User.tenant_id == self._tenant_id,
+                        models.User.username == created_by,
+                    )
                 ),
             )
             session.add(row)
@@ -155,11 +181,12 @@ class MappingStore:
             return _to_record(row, created_by), False
 
     async def activate(self, agent_id: int, version: int) -> tuple[MappingRecord, int | None]:
-        async with self._sessions() as session:
+        async with self._session() as session:
             row = (
                 await session.execute(
                     select(models.SpanMapping).where(
                         models.SpanMapping.agent_id == agent_id,
+                        models.SpanMapping.agent_id.in_(self._tenant_agent_ids()),
                         models.SpanMapping.version == version,
                     )
                 )

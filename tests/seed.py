@@ -29,8 +29,8 @@ async def seed_world(session_factory: async_sessionmaker[AsyncSession]) -> World
         {"admin": "password", "akshat": "password"},
         shared=("canonical", "dev", "prod"),
     )
-    ids = {user.username: user.id for user in await UserStore(session_factory).list()}
-    workspaces = WorkspaceStore(session_factory)
+    ids = {user.username: user.id for user in await UserStore(session_factory, "default").list()}
+    workspaces = WorkspaceStore(session_factory, "default")
     return World(
         admin_id=ids["admin"],
         akshat_id=ids["akshat"],

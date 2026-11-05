@@ -84,7 +84,7 @@ async def plan_promotion(
     target_ws = await load_ref(
         session, await session.get_one(models.Workspace, source_ws.promotes_to)
     )
-    target = await find_dataset_row(session, target_ws.name, dataset.name)
+    target = await find_dataset_row(session, target_ws.tenant_id, target_ws.name, dataset.name)
     if target is None or target.kind != "suite":
         raise MissingTargetDataset(f"{dataset.name}@{target_ws.name}")
     overlays = (await overlays_extending(session, source_ws.id, [case.case_ref])).get(
@@ -92,7 +92,7 @@ async def plan_promotion(
     )
     overlay_targets: dict[str, int] = {}
     for name in sorted({o.source_dataset for o in overlays}):
-        found = await find_dataset_row(session, target_ws.name, name)
+        found = await find_dataset_row(session, target_ws.tenant_id, target_ws.name, name)
         if found is None:
             raise MissingTargetDataset(f"{name}@{target_ws.name}")
         overlay_targets[name] = found.id
@@ -228,7 +228,7 @@ async def twin_status(
     if other_id is None or dataset.kind != "suite" or not cases:
         return {case.case_id: None for case in cases}
     other_ws = await _workspace(session, other_id)
-    other = await find_dataset_row(session, other_ws.name, dataset.name)
+    other = await find_dataset_row(session, other_ws.tenant_id, other_ws.name, dataset.name)
     refs = [case.case_ref for case in cases]
     theirs: dict[int, tuple[str, datetime | None]] = {}
     if other is not None:

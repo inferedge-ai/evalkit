@@ -4,8 +4,8 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import AwareDatetime, BaseModel, model_validator
 
-from evalkit.api.access import ActorDep
-from evalkit.api.deps import AgentStoreDep, HolderDep, MappingStoreDep, SessionDep
+from evalkit.api.access import ActorDep, StoresDep, TenantStores
+from evalkit.api.deps import HolderDep
 from evalkit.api.experiments import task_holder
 from evalkit.api.traces import agent_or_404, require_otel, require_write
 from evalkit.contracts.enums import TraceImportStatus
@@ -15,7 +15,7 @@ from evalkit.core.runner import error_text
 from evalkit.core.traces.importer import IMPORT_STOPPED_ERROR, guarded_import
 from evalkit.core.traces.sources import client_for
 from evalkit.db.mappings import MappingStore
-from evalkit.db.trace_imports import TraceImportStore, TraceImportView
+from evalkit.db.trace_imports import TraceImportStore, TraceImportView, tenant_of_import
 from evalkit.db.trace_sources import ResolvedTraceSource
 
 router = APIRouter(prefix="/api/agents", tags=["traces"])
@@ -41,10 +41,6 @@ class RangeImportRequest(BaseModel):
         return self
 
 
-def _imports(request: Request) -> TraceImportStore:
-    return request.app.state.trace_imports
-
-
 async def _session_mapping(mappings: MappingStore, agent: AgentDefinition) -> MappingDocument:
     active = await mappings.active(agent.id)
     document = MappingDocument.model_validate(active.document) if active else None
@@ -63,6 +59,7 @@ def _log_failure(task: asyncio.Task) -> None:
 
 def _launch(
     request: Request,
+    stores: TenantStores,
     import_id: int,
     holder: str,
     source: ResolvedTraceSource,
@@ -74,9 +71,8 @@ def _launch(
         source.api_key.get_secret_value() if source.api_key else None,
         request.app.state.cfg.otel.import_page_traces,
     )
-    store = _imports(request)
     task = asyncio.create_task(
-        guarded_import(import_id, holder, client, store, request.app.state.spans, mapping),
+        guarded_import(import_id, holder, client, stores.imports, stores.spans, mapping),
         name=f"import:{import_id}",
     )
     registry: ImportTasks = request.app.state.import_tasks
@@ -85,13 +81,16 @@ def _launch(
     task.add_done_callback(_log_failure)
 
 
-async def interrupt_imports(store: TraceImportStore, registry: ImportTasks) -> None:
+async def interrupt_imports(session_factory, registry: ImportTasks) -> None:
     tracked = list(registry.items())
     for _, (_, task) in tracked:
         task.cancel()
     await asyncio.gather(*(task for _, (_, task) in tracked), return_exceptions=True)
     for import_id, (holder, task) in tracked:
         if task.cancelled():
+            store = TraceImportStore(
+                session_factory, await tenant_of_import(session_factory, import_id)
+            )
             await store.finish(import_id, holder, TraceImportStatus.FAILED, IMPORT_STOPPED_ERROR)
 
 
@@ -100,53 +99,45 @@ async def start_import(
     agent: str,
     body: RangeImportRequest,
     request: Request,
-    agents: AgentStoreDep,
-    mappings: MappingStoreDep,
-    session: SessionDep,
+    stores: StoresDep,
     actor: ActorDep,
     pod: HolderDep,
 ) -> TraceImportView:
-    _, record = await agent_or_404(agents, agent)
-    await require_write(session, actor, record)
+    _, record = await agent_or_404(stores.agents, agent)
+    await require_write(stores, actor, record)
     require_otel(record)
-    mapping = await _session_mapping(mappings, record)
-    source = await request.app.state.trace_sources.resolve(body.source)
+    mapping = await _session_mapping(stores.mappings, record)
+    source = await stores.sources.resolve(body.source)
     holder = task_holder(pod)
-    view = await _imports(request).create(
+    view = await stores.imports.create(
         record.id, source.id, body.project, body.since, body.until, actor.id, holder
     )
-    _launch(request, view.id, holder, source, mapping)
+    _launch(request, stores, view.id, holder, source, mapping)
     return view
 
 
 @router.get("/{agent}/imports")
-async def list_imports(
-    agent: str, request: Request, agents: AgentStoreDep
-) -> list[TraceImportView]:
-    _, record = await agent_or_404(agents, agent)
-    return await _imports(request).recent(record.id)
+async def list_imports(agent: str, stores: StoresDep) -> list[TraceImportView]:
+    _, record = await agent_or_404(stores.agents, agent)
+    return await stores.imports.recent(record.id)
 
 
 @router.get("/{agent}/imports/{import_id}")
-async def get_import(
-    agent: str, import_id: int, request: Request, agents: AgentStoreDep
-) -> TraceImportView:
-    _, record = await agent_or_404(agents, agent)
-    return await _imports(request).get(record.id, import_id)
+async def get_import(agent: str, import_id: int, stores: StoresDep) -> TraceImportView:
+    _, record = await agent_or_404(stores.agents, agent)
+    return await stores.imports.get(record.id, import_id)
 
 
 @router.post("/{agent}/imports/{import_id}/stop")
 async def stop_import(
     agent: str,
     import_id: int,
-    request: Request,
-    agents: AgentStoreDep,
-    session: SessionDep,
+    stores: StoresDep,
     actor: ActorDep,
 ) -> TraceImportView:
-    _, record = await agent_or_404(agents, agent)
-    await require_write(session, actor, record)
-    return await _imports(request).stop(record.id, import_id)
+    _, record = await agent_or_404(stores.agents, agent)
+    await require_write(stores, actor, record)
+    return await stores.imports.stop(record.id, import_id)
 
 
 @router.post("/{agent}/imports/{import_id}/continue")
@@ -154,20 +145,17 @@ async def continue_import(
     agent: str,
     import_id: int,
     request: Request,
-    agents: AgentStoreDep,
-    mappings: MappingStoreDep,
-    session: SessionDep,
+    stores: StoresDep,
     actor: ActorDep,
     pod: HolderDep,
 ) -> TraceImportView:
-    _, record = await agent_or_404(agents, agent)
-    await require_write(session, actor, record)
+    _, record = await agent_or_404(stores.agents, agent)
+    await require_write(stores, actor, record)
     require_otel(record)
-    mapping = await _session_mapping(mappings, record)
-    store = _imports(request)
-    current = await store.get(record.id, import_id)
-    source = await request.app.state.trace_sources.resolve(current.source)
+    mapping = await _session_mapping(stores.mappings, record)
+    current = await stores.imports.get(record.id, import_id)
+    source = await stores.sources.resolve(current.source)
     holder = task_holder(pod)
-    view = await store.restart(record.id, import_id, holder)
-    _launch(request, view.id, holder, source, mapping)
+    view = await stores.imports.restart(record.id, import_id, holder)
+    _launch(request, stores, view.id, holder, source, mapping)
     return view

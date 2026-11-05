@@ -9,6 +9,7 @@ from sqlalchemy.orm import aliased
 from evalkit.contracts.enums import WorkspaceRole
 from evalkit.core.access import WorkspaceRef
 from evalkit.db.models import User, Workspace, WorkspaceMember, WorkspacePromotion
+from evalkit.db.session import tenant_session
 from evalkit.db.users import NameTaken, check_name, lock_names, name_taken, user_id
 
 
@@ -40,13 +41,16 @@ def to_ref(
         row.name,
         row.owner_user_id,
         row.archived_at is not None,
+        row.tenant_id,
         promotes_to=promotes_to,
         promoted_from=promoted_from,
     )
 
 
-async def workspace_row(session: AsyncSession, name: str) -> Workspace:
-    row = await session.scalar(select(Workspace).where(Workspace.name == name))
+async def workspace_row(session: AsyncSession, tenant_id: str, name: str) -> Workspace:
+    row = await session.scalar(
+        select(Workspace).where(Workspace.tenant_id == tenant_id, Workspace.name == name)
+    )
     if row is None:
         raise UnknownWorkspace(name)
     return row
@@ -72,6 +76,8 @@ async def load_ref(session: AsyncSession, row: Workspace) -> WorkspaceRef:
 
 
 def _check_link(source: WorkspaceRef, target: WorkspaceRef) -> None:
+    if source.tenant_id != target.tenant_id:
+        raise PromotionLinkError(f"{source.name} and {target.name} are in different tenants")
     if source.id == target.id:
         raise PromotionLinkError(f"{source.name} cannot promote to itself")
     for ws in (source, target):
@@ -92,41 +98,49 @@ def _check_link(source: WorkspaceRef, target: WorkspaceRef) -> None:
 
 
 class WorkspaceStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._sf = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._sf, self._tenant_id)
 
     async def get_by_name(self, name: str) -> WorkspaceRef:
-        async with self._sf() as s:
-            return await load_ref(s, await workspace_row(s, name))
+        async with self._session() as s:
+            return await load_ref(s, await workspace_row(s, self._tenant_id, name))
 
     async def get_by_id(self, workspace_id: int) -> WorkspaceRef:
-        async with self._sf() as s:
+        async with self._session() as s:
             row = await s.get(Workspace, workspace_id)
             if row is None:
                 raise UnknownWorkspace(str(workspace_id))
             return await load_ref(s, row)
 
     async def set_promotes_to(self, source: str, target: str | None) -> WorkspaceRef:
-        async with self._sf() as s:
+        async with self._session() as s:
             await lock_names(s)
-            row = await workspace_row(s, source)
+            row = await workspace_row(s, self._tenant_id, source)
             await s.execute(
                 delete(WorkspacePromotion).where(WorkspacePromotion.source_id == row.id)
             )
             if target is not None:
                 source_ref = to_ref(row, promoted_from=(await _links(s, row.id))[1])
-                target_ref = await load_ref(s, await workspace_row(s, target))
+                target_ref = await load_ref(s, await workspace_row(s, self._tenant_id, target))
                 _check_link(source_ref, target_ref)
                 s.add(WorkspacePromotion(source_id=row.id, target_id=target_ref.id))
             await s.commit()
             return await load_ref(s, row)
 
     async def personal_of(self, username: str) -> WorkspaceRef:
-        async with self._sf() as s:
+        async with self._session() as s:
             row = await s.scalar(
                 select(Workspace)
                 .join(User, User.id == Workspace.owner_user_id)
-                .where(User.username == username, Workspace.name == username)
+                .where(
+                    Workspace.tenant_id == self._tenant_id,
+                    User.username == username,
+                    Workspace.name == username,
+                )
             )
             if row is None:
                 raise UnknownWorkspace(username)
@@ -134,31 +148,31 @@ class WorkspaceStore:
 
     async def create_shared(self, name: str, actor_id: int | None) -> WorkspaceRef:
         check_name(name)
-        async with self._sf() as s:
+        async with self._session() as s:
             await lock_names(s)
-            if await name_taken(s, name):
+            if await name_taken(s, self._tenant_id, name):
                 raise NameTaken(name)
-            row = Workspace(name=name)
+            row = Workspace(tenant_id=self._tenant_id, name=name)
             s.add(row)
             await s.commit()
             return to_ref(row)
 
     async def rename(self, name: str, new_name: str) -> WorkspaceRef:
         check_name(new_name)
-        async with self._sf() as s:
+        async with self._session() as s:
             await lock_names(s)
-            row = await workspace_row(s, name)
+            row = await workspace_row(s, self._tenant_id, name)
             if row.owner_user_id is not None:
                 raise SharedOnly("personal workspaces keep their owner's name")
-            if await name_taken(s, new_name):
+            if await name_taken(s, self._tenant_id, new_name):
                 raise NameTaken(new_name)
             row.name = new_name
             await s.commit()
             return to_ref(row)
 
     async def set_archived(self, name: str, archived_at: datetime | None) -> WorkspaceRef:
-        async with self._sf() as s:
-            row = await workspace_row(s, name)
+        async with self._session() as s:
+            row = await workspace_row(s, self._tenant_id, name)
             row.archived_at = archived_at
             await s.commit()
             return to_ref(row)
@@ -166,11 +180,11 @@ class WorkspaceStore:
     async def add_member(
         self, ws: str, username: str, role: WorkspaceRole, granted_by: int
     ) -> None:
-        async with self._sf() as s:
-            row = await workspace_row(s, ws)
+        async with self._session() as s:
+            row = await workspace_row(s, self._tenant_id, ws)
             if row.owner_user_id is not None:
                 raise SharedOnly("roles apply to shared workspaces only")
-            uid = await user_id(s, username)
+            uid = await user_id(s, self._tenant_id, username)
             await s.execute(
                 insert(WorkspaceMember)
                 .values(workspace_id=row.id, user_id=uid, role=role.value, granted_by=granted_by)
@@ -179,9 +193,9 @@ class WorkspaceStore:
             await s.commit()
 
     async def remove_member(self, ws: str, username: str, role: WorkspaceRole) -> bool:
-        async with self._sf() as s:
-            row = await workspace_row(s, ws)
-            uid = await user_id(s, username)
+        async with self._session() as s:
+            row = await workspace_row(s, self._tenant_id, ws)
+            uid = await user_id(s, self._tenant_id, username)
             result = await s.execute(
                 delete(WorkspaceMember).where(
                     WorkspaceMember.workspace_id == row.id,
@@ -194,8 +208,8 @@ class WorkspaceStore:
 
     async def members(self, ws: str, role: WorkspaceRole | None = None) -> list[MemberRow]:
         member, granter = aliased(User), aliased(User)
-        async with self._sf() as s:
-            row = await workspace_row(s, ws)
+        async with self._session() as s:
+            row = await workspace_row(s, self._tenant_id, ws)
             query = (
                 select(
                     member.username,
@@ -216,10 +230,12 @@ class WorkspaceStore:
             ]
 
     async def list(self, include_archived: bool = False) -> list[WorkspaceRef]:
-        query = select(Workspace).order_by(Workspace.name)
+        query = (
+            select(Workspace).where(Workspace.tenant_id == self._tenant_id).order_by(Workspace.name)
+        )
         if not include_archived:
             query = query.where(Workspace.archived_at.is_(None))
-        async with self._sf() as s:
+        async with self._session() as s:
             rows = (await s.scalars(query)).all()
             links = (
                 await s.execute(select(WorkspacePromotion.source_id, WorkspacePromotion.target_id))

@@ -2,8 +2,9 @@ import pytest
 from sqlalchemy import select
 
 from evalkit.core.review import CaseEventKind
-from evalkit.db.cases import current_cases, get_dataset, tag_counts
-from evalkit.db.models import Case, CaseEvent, CaseVersion, DatasetSync
+from evalkit.db.cases import case_ref_for, current_cases, get_dataset, tag_counts
+from evalkit.db.models import Case, CaseEvent, CaseVersion, DatasetSync, TenantSettings
+from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.store.base import UnknownDataset
 from tests.seed import World, count, incoming, overlay, seed_world, sync
 
@@ -20,8 +21,8 @@ async def test_same_case_two_datasets_different_versions(session_factory, world)
         await sync(s, world.dev, world.admin_id, [v1])
         await sync(s, world.akshat_ws, world.akshat_id, [v2])
         await s.commit()
-        dev = await current_cases(s, await get_dataset(s, "dev", "finance"))
-        mine = await current_cases(s, await get_dataset(s, "akshat", "finance"))
+        dev = await current_cases(s, await get_dataset(s, "default", "dev", "finance"))
+        mine = await current_cases(s, await get_dataset(s, "default", "akshat", "finance"))
     assert dev[0].content_hash == v1.content_hash
     assert mine[0].content_hash == v2.content_hash
     assert await count(session_factory, Case) == 1
@@ -36,11 +37,11 @@ async def test_path_tags_and_source_belong_to_each_dataset(session_factory, worl
     async with session_factory() as s:
         await sync(s, world.dev, world.admin_id, [in_dev])
         await sync(s, world.akshat_ws, world.akshat_id, [mine])
-        dev_ds = await get_dataset(s, "dev", "finance")
+        dev_ds = await get_dataset(s, "default", "dev", "finance")
         [before] = await current_cases(s, dev_ds)
         again = await sync(s, world.dev, world.admin_id, [moved])
         [after] = await current_cases(s, dev_ds)
-        [personal] = await current_cases(s, await get_dataset(s, "akshat", "finance"))
+        [personal] = await current_cases(s, await get_dataset(s, "default", "akshat", "finance"))
         await s.commit()
     assert before.split_tags == ["ebitda", "statements"]
     assert before.source == "statements/a.yaml"
@@ -77,7 +78,7 @@ async def test_full_sync_soft_removes_and_resync_restores(session_factory, world
     async with session_factory() as s:
         await sync(s, world.dev, world.admin_id, [a, b])
         removed = await sync(s, world.dev, world.admin_id, [a])
-        dataset = await get_dataset(s, "dev", "finance")
+        dataset = await get_dataset(s, "default", "dev", "finance")
         after_remove = [v.case_id for v in await current_cases(s, dataset)]
         restored = await sync(s, world.dev, world.admin_id, [a, b])
         after_restore = [v.case_id for v in await current_cases(s, dataset)]
@@ -92,7 +93,7 @@ async def test_partial_sync_never_removes(session_factory, world):
     async with session_factory() as s:
         await sync(s, world.dev, world.admin_id, [incoming("q-a"), incoming("q-b")])
         result = await sync(s, world.dev, world.admin_id, [incoming("q-a")], full=False)
-        cases = await current_cases(s, await get_dataset(s, "dev", "finance"))
+        cases = await current_cases(s, await get_dataset(s, "default", "dev", "finance"))
         await s.commit()
     assert result.removed == []
     assert [v.case_id for v in cases] == ["q-a", "q-b"]
@@ -113,10 +114,14 @@ async def test_overlay_applies_in_every_dataset_of_workspace_holding_target(sess
             overlays=(overlay("q-1", ["support-bot"]),),
         )
         views = {
-            (ws, name): await current_cases(s, await get_dataset(s, ws, name), agent="support-bot")
+            (ws, name): await current_cases(
+                s, await get_dataset(s, "default", ws, name), agent="support-bot"
+            )
             for ws, name in [("dev", "finance"), ("dev", "finance-lite"), ("prod", "finance")]
         }
-        other_agent = await current_cases(s, await get_dataset(s, "dev", "finance"), agent="fin")
+        other_agent = await current_cases(
+            s, await get_dataset(s, "default", "dev", "finance"), agent="fin"
+        )
         await s.commit()
     assert result.overlays == 1
     tone = {"tone": {"strict": True}}
@@ -157,7 +162,7 @@ async def test_split_counts_include_overlay_tags(session_factory, world):
             dataset="client-cases",
             overlays=(overlay("q-1", ["support-bot"], tags=("client-only",)),),
         )
-        counts = await tag_counts(s, await get_dataset(s, "dev", "finance"))
+        counts = await tag_counts(s, await get_dataset(s, "default", "dev", "finance"))
         await s.commit()
     assert counts == [("client-only", 1), ("core", 2), ("hard", 1)]
 
@@ -171,7 +176,7 @@ async def test_dataset_syncs_row_records_git_detail_and_counts(session_factory, 
         )
         await s.commit()
         row = await s.get(DatasetSync, result.sync_id)
-        dataset = await get_dataset(s, "dev", "finance")
+        dataset = await get_dataset(s, "default", "dev", "finance")
     assert row is not None
     assert row.detail == {
         **detail,
@@ -196,8 +201,8 @@ async def test_review_state_only_on_shared_suites(session_factory, world):
         await sync(s, world.dev, world.admin_id, [incoming("q-1")])
         await sync(s, world.akshat_ws, world.akshat_id, [incoming("q-1")])
         await s.commit()
-        shared = await current_cases(s, await get_dataset(s, "dev", "finance"))
-        personal = await current_cases(s, await get_dataset(s, "akshat", "finance"))
+        shared = await current_cases(s, await get_dataset(s, "default", "dev", "finance"))
+        personal = await current_cases(s, await get_dataset(s, "default", "akshat", "finance"))
     assert shared[0].review_state == "unreviewed"
     assert personal[0].review_state is None
 
@@ -205,11 +210,11 @@ async def test_review_state_only_on_shared_suites(session_factory, world):
 async def test_unknown_dataset(session_factory, world):
     async with session_factory() as s:
         with pytest.raises(UnknownDataset):
-            await get_dataset(s, "dev", "nope")
+            await get_dataset(s, "default", "dev", "nope")
 
 
 async def _decide(s, world, kind: CaseEventKind, target_id: int | None = None) -> None:
-    dataset = await get_dataset(s, "dev", "finance")
+    dataset = await get_dataset(s, "default", "dev", "finance")
     [view] = await current_cases(s, dataset)
     s.add(
         CaseEvent(
@@ -228,9 +233,9 @@ async def test_new_content_resets_approved_to_draft(session_factory, world):
     async with session_factory() as s:
         await sync(s, world.dev, world.admin_id, [incoming("q-1")])
         await _decide(s, world, CaseEventKind.APPROVED)
-        approved = await current_cases(s, await get_dataset(s, "dev", "finance"))
+        approved = await current_cases(s, await get_dataset(s, "default", "dev", "finance"))
         result = await sync(s, world.dev, world.admin_id, [incoming("q-1", question="new")])
-        after = await current_cases(s, await get_dataset(s, "dev", "finance"))
+        after = await current_cases(s, await get_dataset(s, "default", "dev", "finance"))
         await s.commit()
     assert approved[0].review_state == "approved"
     assert result.now_unreviewed == ["q-1"]
@@ -243,7 +248,7 @@ async def test_requested_review_carries_to_new_content(session_factory, world):
         await sync(s, world.dev, world.admin_id, [incoming("q-1")])
         await _decide(s, world, CaseEventKind.REVIEW_REQUESTED, target_id=world.akshat_id)
         result = await sync(s, world.dev, world.admin_id, [incoming("q-1", question="new")])
-        after = await current_cases(s, await get_dataset(s, "dev", "finance"))
+        after = await current_cases(s, await get_dataset(s, "default", "dev", "finance"))
         await s.commit()
     assert [(c.case_id, c.reviewer) for c in result.carried] == [("q-1", "akshat")]
     assert result.now_unreviewed == []
@@ -255,8 +260,21 @@ async def test_review_state_is_per_dataset(session_factory, world):
         await sync(s, world.dev, world.admin_id, [incoming("q-1")])
         await sync(s, world.prod, world.admin_id, [incoming("q-1")])
         await _decide(s, world, CaseEventKind.APPROVED)
-        dev = await current_cases(s, await get_dataset(s, "dev", "finance"))
-        prod = await current_cases(s, await get_dataset(s, "prod", "finance"))
+        dev = await current_cases(s, await get_dataset(s, "default", "dev", "finance"))
+        prod = await current_cases(s, await get_dataset(s, "default", "prod", "finance"))
         await s.commit()
     assert dev[0].review_state == "approved"
     assert prod[0].review_state == "unreviewed"
+
+
+async def test_case_ids_are_per_tenant(raw_session_factory):
+    async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
+        s.add(TenantSettings(tenant_id="tenant-2"))
+        await s.commit()
+    async with tenant_session(raw_session_factory, "default") as s:
+        ours = await case_ref_for(s, "default", "q-1")
+        await s.commit()
+    async with tenant_session(raw_session_factory, "tenant-2") as s:
+        theirs = await case_ref_for(s, "tenant-2", "q-1")
+        await s.commit()
+    assert ours != theirs

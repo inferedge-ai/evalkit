@@ -58,7 +58,7 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
     async def setup():
         factory = make_session_factory(db_url)
         await seed_identity(factory, USERS, shared=("dev",), reviewers=["ravi"], writers=["alice"])
-        await WorkspaceStore(factory).create_shared("prod", None)
+        await WorkspaceStore(factory, "default").create_shared("prod", None)
         await seed_agent(factory, "ouragent", "dev")
         await seed_agent(factory, "ouragent", "prod")
         await seed_evaluators(factory, "dev")
@@ -69,10 +69,10 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
     cfg = make_cfg(tmp)
     deps = RunnerDeps(
         cfg=cfg,
-        store=PgStore(factory),
+        store=PgStore(factory, "default"),
         blob_store=blob,
-        agents=AgentStore(factory),
-        evaluators=RemoteEvaluatorStore(factory),
+        agents=AgentStore(factory, "default"),
+        evaluators=RemoteEvaluatorStore(factory, "default"),
         credentials=NoKeysLoaded(),
         harness_transport=httpx2.ASGITransport(app=harness.app),
         custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),

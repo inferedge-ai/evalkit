@@ -23,7 +23,7 @@ from evalkit.contracts.cases import Case
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import explicit
-from evalkit.core.blob import fixture_blob_key
+from evalkit.core.blob import TenantBlobStore, fixture_blob_key, tenant_prefix
 from evalkit.core.importer import incoming_case
 from evalkit.core.review import CaseReview
 from evalkit.core.runner import (
@@ -155,7 +155,7 @@ async def sync_cases(
     kind: DatasetKind = DatasetKind.SUITE,
     actor: str = "admin",
 ) -> None:
-    ws = await WorkspaceStore(env.session_factory).get_by_name(workspace)
+    ws = await WorkspaceStore(env.session_factory, "default").get_by_name(workspace)
     await env.store.sync(
         workspace=ws,
         dataset=dataset,
@@ -193,9 +193,9 @@ async def approve(
 
 async def put_fixture(env: Env, data: bytes = FILE_BYTES, key: str = "bs.csv") -> CaseFile:
     digest = hashlib.sha256(data).hexdigest()
-    await env.blob.put_object(fixture_blob_key(digest), data)
+    await env.blob.put_object(f"{tenant_prefix('default')}{fixture_blob_key(digest)}", data)
     async with env.session_factory() as s:
-        await record_blob(s, digest, len(data), env.user_ids["admin"])
+        await record_blob(s, "default", digest, len(data), env.user_ids["admin"])
         await s.commit()
     return CaseFile(key=key, sha256=digest, context="Balance sheet.")
 
@@ -213,20 +213,22 @@ async def seed_env(
     await seed_agent(session_factory)
     await seed_agent(session_factory, "fake", "akshat")
     await seed_evaluators(session_factory)
-    user_ids = {u.username: u.id for u in await UserStore(session_factory).list()}
-    store = PgStore(session_factory)
+    user_ids = {u.username: u.id for u in await UserStore(session_factory, "default").list()}
+    store = PgStore(session_factory, "default")
     blob_store = blob or DictBlobStore()
     deps = RunnerDeps(
         cfg=make_cfg(tmp_path),
         store=store,
-        blob_store=blob_store,
-        agents=AgentStore(session_factory),
-        evaluators=RemoteEvaluatorStore(session_factory),
+        blob_store=TenantBlobStore(blob_store, "default"),
+        agents=AgentStore(session_factory, "default"),
+        evaluators=RemoteEvaluatorStore(session_factory, "default"),
         credentials=fake_credentials(),
         harness_transport=httpx2.ASGITransport(app=(fake or FakeHarness()).app),
         custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),
     )
-    env = Env(session_factory, store, blob_store, deps, user_ids, ReviewLog(session_factory))
+    env = Env(
+        session_factory, store, blob_store, deps, user_ids, ReviewLog(session_factory, "default")
+    )
     evaluators_2 = dict(CASE_EVALUATORS)
     if broken_on_case_2:
         evaluators_2 = {
@@ -279,7 +281,6 @@ async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[htt
         env.deps.cfg,  # type: ignore[arg-type]
         blob_store=env.blob,
         runner_deps=env.deps,
-        agents=env.deps.agents,  # type: ignore[arg-type]
         session_factory=env.session_factory,
         check_schema=False,
         holder=HOLDER,
