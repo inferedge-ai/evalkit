@@ -17,14 +17,14 @@
     "@monaco-editor/react": "^4.7.0",
     "@tailwindcss/vite": "^4.3.0",
     "@tanstack/react-table": "^9.3.1",
-    "katex": "^0.19.0",
+    "katex": "^0.19.1",
     "monaco-editor": "^0.57.0",
     "oidc-client-ts": "^3.5.0",
     "prism-react-renderer": "^2.4.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.9.0",
+    "react-router-dom": "^7.18.5",
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
@@ -35,11 +35,11 @@
     "@types/node": "^24.12.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-react": "^6.2.1",
     "prettier": "^3.9.10",
     "typescript": "~6.0.2",
     "vite": "^8.0.12",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "dompurify": "^3.4.17"
