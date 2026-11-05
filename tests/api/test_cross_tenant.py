@@ -5,7 +5,7 @@ import httpx2
 from evalkit.api.auth import issue_token
 from evalkit.contracts.enums import WorkspaceRole
 from evalkit.core.runner import ExperimentRequest
-from evalkit.db.models import Tenant
+from evalkit.db.models import TenantSettings
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
@@ -15,7 +15,7 @@ from tests.native import start
 
 async def _second_tenant(client, raw_session_factory) -> httpx2.AsyncClient:
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         await s.commit()
     root = await UserStore(raw_session_factory, 2).create("root", "password", is_admin=True)
     await WorkspaceStore(raw_session_factory, 2).create_shared("canonical", root.id)

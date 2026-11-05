@@ -3,16 +3,15 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import select, text, update
-from sqlalchemy.exc import IntegrityError
 
 import evalkit
-from evalkit.db.models import Tenant, User, Workspace
+from evalkit.db.models import TenantSettings, User, Workspace
 from evalkit.db.session import ALL_TENANTS, tenant_session
 
 
 async def _add_tenant_2(raw_session_factory) -> None:
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         s.add(User(tenant_id=2, username="eve", password_hash="x"))
         s.add(User(tenant_id=1, username="akshat", password_hash="x"))
         await s.commit()
@@ -93,15 +92,3 @@ def _openers() -> set[tuple[str, str]]:
 
 def test_only_the_named_functions_open_all_tenants_sessions():
     assert _openers() == EXPECTED_OPENERS
-
-
-async def test_tenants_cannot_share_an_external_id_but_may_share_null(raw_session_factory):
-    async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="two"))
-        s.add(Tenant(id=3, name="three"))
-        s.add(Tenant(id=4, name="four", external_id="org-1"))
-        await s.commit()
-    async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=5, name="five", external_id="org-1"))
-        with pytest.raises(IntegrityError):
-            await s.commit()

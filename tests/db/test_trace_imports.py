@@ -7,7 +7,7 @@ from evalkit.contracts.enums import TraceImportStatus, TraceProvider
 from evalkit.core.agents import UnknownAgent
 from evalkit.db import models
 from evalkit.db.agents import AgentStore
-from evalkit.db.models import Tenant
+from evalkit.db.models import TenantSettings
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.trace_imports import (
     ImportNotActive,
@@ -189,7 +189,7 @@ async def test_renew_extends_the_lease_without_moving_progress(db):
 
 async def _second_tenant(raw_session_factory) -> None:
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         await s.commit()
 
 

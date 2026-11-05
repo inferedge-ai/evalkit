@@ -16,7 +16,7 @@ from evalkit.db.experiments import (
     transition,
     transition_stale,
 )
-from evalkit.db.models import Case, ExperimentCase, Tenant
+from evalkit.db.models import Case, ExperimentCase, TenantSettings
 from evalkit.db.models import Experiment as ExperimentRow
 from evalkit.db.runs import record_run
 from evalkit.db.session import ALL_TENANTS, downgrade_migrations, run_migrations, tenant_session
@@ -334,7 +334,7 @@ async def test_experiment_by_id_is_not_found_from_another_tenant(
         exp = await create_experiment(s, await new(s))
         await s.commit()
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         await s.commit()
     with pytest.raises(UnknownExperiment):
         await PgStore(raw_session_factory, 2).get_experiment(exp.id)

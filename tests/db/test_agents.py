@@ -5,7 +5,7 @@ from evalkit.contracts.settings import AgentSettings
 from evalkit.core.agents import UnknownAgent
 from evalkit.db.agents import AgentExists, AgentStore, InvalidAgent
 from evalkit.db.mappings import MappingStore
-from evalkit.db.models import Tenant
+from evalkit.db.models import TenantSettings
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
@@ -87,7 +87,7 @@ async def test_edit_checks_provides_on_the_final_row(store, session_factory):
 
 async def test_agent_lookups_stay_inside_the_tenant(raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         await s.commit()
     for tenant_id in (1, 2):
         admin = await UserStore(raw_session_factory, tenant_id).create(

@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from evalkit.contracts.enums import TokenKind
 from evalkit.db.agents import AgentStore
-from evalkit.db.models import AuthToken, Tenant, User
+from evalkit.db.models import AuthToken, TenantSettings, User
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.users import (
     InvalidName,
@@ -153,7 +153,7 @@ async def test_cannot_demote_or_archive_last_admin(session_factory):
 
 async def test_user_store_is_bound_to_its_tenant(raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         await s.commit()
     await UserStore(raw_session_factory, 1).create("akshat", "password")
     await UserStore(raw_session_factory, 2).create("akshat", "password")

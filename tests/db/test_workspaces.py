@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from evalkit.contracts.enums import WorkspaceRole
-from evalkit.db.models import Tenant
+from evalkit.db.models import TenantSettings
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.users import NameTaken, UnknownUser, UserStore
 from evalkit.db.workspaces import (
@@ -107,7 +107,7 @@ async def test_promotes_to_rules(linked):
 
 async def test_member_grant_refuses_a_user_from_another_tenant(raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         await s.commit()
     admin = await UserStore(raw_session_factory, 1).create("admin", "password", is_admin=True)
     await WorkspaceStore(raw_session_factory, 1).create_shared("dev", admin.id)
@@ -120,7 +120,7 @@ async def test_member_grant_refuses_a_user_from_another_tenant(raw_session_facto
 
 async def test_promotion_link_refuses_workspaces_in_different_tenants(raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         await s.commit()
     admin = await UserStore(raw_session_factory, 1).create("admin", "password", is_admin=True)
     root = await UserStore(raw_session_factory, 2).create("root", "password", is_admin=True)

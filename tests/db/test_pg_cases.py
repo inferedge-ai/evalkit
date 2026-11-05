@@ -3,7 +3,7 @@ from sqlalchemy import select
 
 from evalkit.core.review import CaseEventKind
 from evalkit.db.cases import case_ref_for, current_cases, get_dataset, tag_counts
-from evalkit.db.models import Case, CaseEvent, CaseVersion, DatasetSync, Tenant
+from evalkit.db.models import Case, CaseEvent, CaseVersion, DatasetSync, TenantSettings
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.store.base import UnknownDataset
 from tests.seed import World, count, incoming, overlay, seed_world, sync
@@ -267,7 +267,7 @@ async def test_review_state_is_per_dataset(session_factory, world):
 
 async def test_case_ids_are_per_tenant(raw_session_factory):
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(Tenant(id=2, name="other"))
+        s.add(TenantSettings(tenant_id=2))
         await s.commit()
     async with tenant_session(raw_session_factory, 1) as s:
         ours = await case_ref_for(s, 1, "q-1")
