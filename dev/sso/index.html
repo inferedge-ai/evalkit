@@ -623,6 +623,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#several-organisations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several organisations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#admins-from-the-idp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admins from the IdP
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1145,6 +1167,28 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#several-organisations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several organisations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#admins-from-the-idp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admins from the IdP
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1371,6 +1415,7 @@ account user): an evalkit admin binds it with <code>evalkit users add ci-bot
     required_scopes: []         # scopes an access token must carry
     authorize_params: {}
     algorithms: [RS256]
+    admin_claim: null           # {name: roles, value: evalkit-admin}: who is an admin
 </code></pre></div>
 <p><code>password_login: admin</code> keeps password login for admins only, so the
 bootstrap <code>admin</code> account stays a break-glass login while everyone else uses
@@ -1410,6 +1455,35 @@ the UI, the CLI and MCP hosts only request the scopes listed there.</p>
 <li>Password login tokens and agent tokens are not checked. An empty list (the
   default) turns the check off.</li>
 </ul>
+<h3 id="several-organisations">Several organisations<a class="headerlink" href="#several-organisations" title="Permanent link">&para;</a></h3>
+<p>Everyone who signs in lands in one tenant. A deployment that serves several
+organisations from one server runs evalkit inside a wrapper that owns its
+tenants: it passes <code>create_app(resolve_tenant=...)</code>, which reads the
+organisation from the access token and returns its id, which evalkit stores
+on every row as text (1-64 letters, digits, <code>-</code> or <code>_</code>; anything else answers
+403). A server without a wrapper puts everything in <code>default</code>. evalkit keeps no
+list of tenants itself.</p>
+<p>The wrapper resolves every token the same way, CI's client credentials tokens
+included, so the IdP must put the organisation in those too. When the wrapper
+returns no tenant, the request answers 403 <code>no tenant for this request</code>;
+<code>/mcp</code> can only accept or refuse a token, so there it answers 401.</p>
+<h3 id="admins-from-the-idp">Admins from the IdP<a class="headerlink" href="#admins-from-the-idp" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>auth:
+  oidc:
+    admin_claim:
+      name: roles               # the access token claim
+      value: evalkit-admin      # the value that makes an admin
+</code></pre></div>
+<p>With <code>admin_claim</code> set, every registration (each sign-in) sets the person's
+admin flag from the access token: admin when the claim equals the value, or
+is a list that contains it; not an admin otherwise. A person the IdP stops
+naming as an admin loses admin at their next sign-in, even when they are the
+tenant's last admin: the IdP owns admins once this is on, so <code>evalkit users
+demote</code>'s last-admin check does not apply. Unset (the default),
+registration never changes the flag, and admins are promoted with
+<code>evalkit users promote</code>. An admin's powers stay inside their tenant: users,
+workspaces and members, LLM providers and the default judge, trace sources
+and agent tokens of that tenant only.</p>
 <p><code>mcp.oauth</code> is gone: <code>/mcp</code> verifies tokens with the same settings as <code>/api</code>,
 and an IdP token is an evalkit user there too.</p>
 <h2 id="signing-in-to-the-web-ui">Signing in to the web UI<a class="headerlink" href="#signing-in-to-the-web-ui" title="Permanent link">&para;</a></h2>
@@ -1490,6 +1564,11 @@ identity provider session stays.</p>
 <td>403 <code>password login is for admins on this server</code></td>
 <td><code>password_login: admin</code></td>
 <td>Sign in with SSO, or set <code>password_login: all</code></td>
+</tr>
+<tr>
+<td>403 <code>no tenant for this request</code></td>
+<td>A wrapper's <code>resolve_tenant</code> found no tenant for the token</td>
+<td>Have the IdP put the organisation in the token, CI's client credentials tokens included</td>
 </tr>
 <tr>
 <td>403 <code>access token lacks required scope &lt;scope&gt;</code> (on <code>/api</code> and register; <code>/mcp</code> says <code>insufficient_scope</code>)</td>
