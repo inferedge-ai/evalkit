@@ -23,8 +23,10 @@ Goals:
 - CI pipelines authenticate as a machine identity at the IdP, not with an
   admin password.
 - With no IdP configured, everything works exactly as today.
-- The public schema carries a tenant concept with one default tenant, so a
-  wrapper can host several tenants without a migration of its own.
+- The public schema carries a tenant id on its root tables with one default
+  tenant, 1, so a wrapper can host several tenants without a migration of its
+  own. evalkit has no tenants table: the wrapper owns its tenants and their
+  mapping to the IdP's organisations, and evalkit stores the wrapper's key.
 
 Not goals:
 
@@ -94,12 +96,6 @@ them. Every other table reaches its tenant through a foreign key chain to
 
 ```mermaid
 erDiagram
-    tenants ||--o{ users : "has"
-    tenants ||--o{ workspaces : "has"
-    tenants ||--o{ cases : "has"
-    tenants ||--o{ llm_providers : "has"
-    tenants ||--o{ trace_sources : "has"
-    tenants ||--o{ fixture_blobs : "has"
     fixture_blobs ||--o{ case_version_files : "backs"
     users ||--o{ auth_tokens : "owns"
     users ||--o{ workspace_members : "is granted"
@@ -109,17 +105,15 @@ erDiagram
     workspaces ||--o{ agents : "holds"
     agents ||--o{ auth_tokens : "agent token"
 
-    tenants {
-        int id PK
-        string name
+    tenant_settings {
+        int tenant_id PK "no foreign key"
         jsonb default_judge "nullable; was server_settings.default_judge"
-        text external_id "nullable, unique; unused for now"
         timestamptz created_at
         timestamptz updated_at
     }
     users {
         int id PK
-        int tenant_id FK "not null, no default"
+        int tenant_id "not null, no default, no foreign key"
         string username "unique per tenant"
         string password_hash "nullable; null never verifies"
         string issuer "nullable"
@@ -188,20 +182,26 @@ erDiagram
 
 ### Tables
 
-**`tenants`**, new. One row per organisation. The public repo creates row 1,
-named `default`, in the migration and never creates another. It carries
-`default_judge`, the JSONB document that lived in `server_settings`, so the
-default judge is per tenant without a one-to-one join. It also has a
-nullable, unique `external_id`, unused for now, for mapping an identity
-provider's organisation id to a tenant later.
+No `tenants` table. A tenant id is an integer the deployment hands evalkit:
+1 for a server without a wrapper, the wrapper's own key otherwise (see
+"Where the tenant comes from"). The wrapper owns the list of tenants, their
+names and their mapping to the IdP's organisations; keeping that out of
+evalkit means renaming an organisation's id, merging organisations or
+changing IdP changes the wrapper's mapping and never evalkit's rows or blob
+keys.
+
+**`tenant_settings`**, new. Per-tenant settings, keyed by `tenant_id`, with
+no foreign key. Today it holds `default_judge`, the JSONB document that lived
+in `server_settings`. A tenant without a row has no default judge; the
+judge-default store creates the row on first write.
 
 **`server_settings`**, dropped. It was a single row holding `default_judge`.
-The migration copies that value onto tenant 1 before dropping the table. The
-judge-default store reads and writes the tenant row instead.
+The migration copies that value into `tenant_settings` for tenant 1 before
+dropping the table.
 
 **`tenant_id`** on `users`, `workspaces`, `cases`, `llm_providers`,
-`trace_sources` and `fixture_blobs`: not null, foreign key to `tenants.id`,
-and no database default. Every insert in code passes the tenant explicitly;
+`trace_sources` and `fixture_blobs`: not null, no foreign key (there is no
+tenants table to point at), and no database default. Every insert in code passes the tenant explicitly;
 a forgotten one fails at the database rather than silently landing in
 tenant 1. These six are the root tables: the ones whose names or identities
 were unique across the installation. Every other table reaches its tenant
@@ -367,13 +367,13 @@ copy, the backfill before `set not null`, and the partial unique index. The
 result, in order:
 
 ```
-create table tenants (id, name, default_judge, created_at, updated_at)
-insert tenants (id=1, name='default',
-                default_judge = (select default_judge from server_settings where id = 1))
+create table tenant_settings (tenant_id, default_judge, created_at, updated_at)
+insert tenant_settings (tenant_id=1,
+                        default_judge = (select default_judge from server_settings where id = 1))
 drop table server_settings
 
 for table in [users, workspaces, cases, llm_providers, trace_sources, fixture_blobs]:
-    add column tenant_id int null references tenants(id)
+    add column tenant_id int null
     update table set tenant_id = 1
     alter column tenant_id set not null        # no server default
     drop the old installation-wide unique constraint(s)
@@ -642,8 +642,9 @@ Every other case lookup is already scoped through a dataset and needs nothing.
 
 ### What stays installation-wide
 
-- The `tenants` table itself. The public repo never lists or creates tenants
-  from a route; the migration makes row 1 and that is all.
+- The list of tenants. evalkit has none: tenant 1 exists because rows carry
+  `tenant_id = 1`, and any other tenant exists because the wrapper's
+  `resolve_tenant` returns its key.
 - Migrations, the schema check at startup, the cost map, and the reaper
   loop's two bulk updates over expired leases, `reap` for experiments and
   `reap_imports` for trace imports, which run at startup and on every tick
@@ -1654,8 +1655,9 @@ Under `## Unreleased`, one entry per change, as the changelog rule in
   `auth.oidc`; `tracing.register` and friends require `EVALKIT_OTEL_TOKEN`;
   `/api/auth/login` answers 403 for non-admins when `password_login` is
   `admin`.
-- Schema: migration `0016` adds tenants and per-tenant unique keys; no
-  behaviour change for a single installation.
+- Schema: migration `0016` adds `tenant_id` to the root tables,
+  `tenant_settings`, and per-tenant unique keys; no behaviour change for a
+  single installation.
 - Blob storage: every object now lives under `tenants/<id>/`. After
   upgrading, run `evalkit blobs relocate --config config.yaml` once; the
   server refuses to start until it has been run.

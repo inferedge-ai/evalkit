@@ -1,4 +1,4 @@
-"""tenants
+"""tenant ids and tenant settings
 
 Revision ID: 0016
 Revises: 0015
@@ -39,11 +39,9 @@ NEW_UNIQUES = {
 
 def upgrade() -> None:
     op.create_table(
-        "tenants",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("name", sa.String(length=150), nullable=False),
+        "tenant_settings",
+        sa.Column("tenant_id", sa.Integer(), autoincrement=False, nullable=False),
         sa.Column("default_judge", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("external_id", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
@@ -56,22 +54,18 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("name", name="uq_tenants_name"),
-        sa.UniqueConstraint("external_id", name="uq_tenants_external_id"),
+        sa.PrimaryKeyConstraint("tenant_id"),
     )
     op.execute(
-        "INSERT INTO tenants (id, name, default_judge) "
-        "SELECT 1, 'default', (SELECT default_judge FROM server_settings WHERE id = 1)"
+        "INSERT INTO tenant_settings (tenant_id, default_judge) "
+        "SELECT 1, default_judge FROM server_settings WHERE id = 1"
     )
-    op.execute("SELECT setval('tenants_id_seq', 1)")
     op.drop_table("server_settings")
 
     for table in ROOT_TABLES:
         op.add_column(table, sa.Column("tenant_id", sa.Integer(), nullable=True))
         op.execute(f"UPDATE {table} SET tenant_id = 1")
         op.alter_column(table, "tenant_id", nullable=False)
-        op.create_foreign_key(f"fk_{table}_tenant", table, "tenants", ["tenant_id"], ["id"])
 
     for table, names in OLD_UNIQUES.items():
         for name in names:
@@ -110,10 +104,17 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
-    tenants = bind.execute(sa.text("SELECT count(*) FROM tenants WHERE id <> 1")).scalar_one()
-    if tenants:
+    others = bind.execute(
+        sa.text(
+            " UNION ".join(
+                f"SELECT tenant_id FROM {table} WHERE tenant_id <> 1" for table in ROOT_TABLES
+            )
+            + " UNION SELECT tenant_id FROM tenant_settings WHERE tenant_id <> 1"
+        )
+    ).all()
+    if others:
         raise RuntimeError(
-            f"{tenants} tenant(s) other than the default exist; 0016 cannot be downgraded"
+            f"{len(others)} tenant(s) other than the default have data; 0016 cannot be downgraded"
         )
     passwordless = bind.execute(
         sa.text("SELECT count(*) FROM users WHERE password_hash IS NULL")
@@ -149,7 +150,6 @@ def downgrade() -> None:
     op.create_unique_constraint("uq_trace_sources_name", "trace_sources", ["name"])
 
     for table in ROOT_TABLES:
-        op.drop_constraint(f"fk_{table}_tenant", table, type_="foreignkey")
         op.drop_column(table, "tenant_id")
 
     op.create_table(
@@ -173,6 +173,6 @@ def downgrade() -> None:
     )
     op.execute(
         "INSERT INTO server_settings (id, default_judge) "
-        "SELECT 1, default_judge FROM tenants WHERE id = 1"
+        "SELECT 1, (SELECT default_judge FROM tenant_settings WHERE tenant_id = 1)"
     )
-    op.drop_table("tenants")
+    op.drop_table("tenant_settings")
