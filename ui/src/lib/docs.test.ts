@@ -11,6 +11,7 @@ describe("docs", () => {
       "login",
       "sso",
       "config",
+      "server-config",
       "workspaces",
       "ci-sync",
       "case-schema",
