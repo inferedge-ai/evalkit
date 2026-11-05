@@ -291,6 +291,11 @@ Rules of the road:
   `artifacts` and `workspace` false) and never reads them from spans. Pass
   `--provides thinking=true` to `evalkit agents create` (or `edit`) when its
   spans carry the model's reasoning.
+- A code-driven agent's case inputs must pass its input schema, by default
+  an object with a required string `question`. For other inputs (multi-turn
+  `turns`, structured fields), write a JSON Schema file and run
+  `evalkit agents edit <agent> --input-schema schema.json`.
+  `run_experiment(dry_run=...)` checks it too.
 - Python evaluators (`@evaluator`) see the same payload as the HTTP Custom
   Evaluator API and are selected by name under a case's `evaluators.custom`.
   Re-score with `evaluate_experiment(...)` from the same script;

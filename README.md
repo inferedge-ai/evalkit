@@ -42,8 +42,9 @@ flowchart LR
    and proposes fixes that name the prompt, tool description, skill or data
    source to change.
 5. **Prove it.** Apply the fixes, re-run, and compare the two experiments
-   case by case: what got fixed, what broke. The cases stay as regression
-   guards for every change after.
+   case by case with `evalkit summary <new-id> --baseline <old-id>`: what
+   got fixed, what broke. The cases stay as regression guards for every
+   change after.
 
 Steps 1, 4 and 5 run as agent skills (`evalkit skills install`) in Claude
 Code or another coding agent. Alongside them are skills for writing cases

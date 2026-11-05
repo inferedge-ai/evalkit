@@ -41,6 +41,7 @@ from evalkit.core.runner import (
     RunnerDeps,
     ScoringFailed,
     case_title,
+    check_inputs,
     dropped_cases_text,
     evaluate_experiment,
     judge_key,
@@ -487,7 +488,7 @@ async def _dry_run(
     task: Task,
     *,
     dataset_ref: Reference,
-    agent_ref: Reference,
+    definition: AgentDefinition,
     me: str,
     selection: Selection,
     count: int,
@@ -497,8 +498,11 @@ async def _dry_run(
     progress: Progress,
     poll_interval: float,
 ) -> ExperimentResult:
+    agent_ref = definition.reference
     store = HttpStore(api)
-    cases = (await store.cases_for(slug(dataset_ref), selection, agent=slug(agent_ref)))[:count]
+    cases = await store.cases_for(slug(dataset_ref), selection, agent=slug(agent_ref))
+    check_inputs(slug(agent_ref), sdk_capabilities(definition), cases)
+    cases = cases[:count]
     blob = HttpBlobStore(api, None)
     deps = RunnerDeps(
         cfg=local,
@@ -634,7 +638,7 @@ async def arun_experiment(
                 spec,
                 task,
                 dataset_ref=dataset_ref,
-                agent_ref=agent_ref,
+                definition=definition,
                 me=me,
                 selection=_selection(case_ids, tags),
                 count=int(dry_run),
