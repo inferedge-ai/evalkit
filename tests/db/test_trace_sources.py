@@ -1,7 +1,9 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
 from cryptography.fernet import Fernet
+from sqlalchemy import select
 
 from evalkit.api.app import create_app
 from evalkit.contracts.enums import TraceProvider
@@ -102,3 +104,16 @@ async def test_trace_import_refuses_a_source_from_another_tenant(raw_session_fac
         await TraceImportStore(raw_session_factory, 1).create(
             agent.id, other.id, "proj", now - timedelta(days=1), now, admin.id, "pod:test"
         )
+
+
+async def test_concurrent_first_writes_create_one_tenant_settings_row(raw_session_factory):
+    store = LlmProviderStore(raw_session_factory, 7)
+    await store.create("p", "https://llm.example", None)
+    judges = [JudgeSettings(base_url="https://llm.example", model=f"m{i}") for i in range(5)]
+    await asyncio.gather(
+        *(LlmProviderStore(raw_session_factory, 7).set_default_judge(j) for j in judges)
+    )
+    async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
+        rows = (await s.scalars(select(TenantSettings).where(TenantSettings.tenant_id == 7))).all()
+    assert len(rows) == 1
+    assert await LlmProviderStore(raw_session_factory, 8).default_judge() is None
