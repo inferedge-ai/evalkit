@@ -5,6 +5,7 @@ from fastmcp.server.auth import AccessToken, AuthProvider, RemoteAuthProvider, T
 
 from evalkit.api.auth import bearer_login, is_jwt, sso_identity, token_expiry
 from evalkit.api.oidc import IdpUnavailable, token_scopes
+from evalkit.core.tenant import BadTenantId
 
 MCP_PATH = "/mcp"
 
@@ -31,7 +32,7 @@ class EvalkitTokenVerifier(TokenVerifier):
                 scopes = list(self.required_scopes)
         except IdpUnavailable:
             raise
-        except HTTPException:
+        except (HTTPException, BadTenantId):
             return None
         return AccessToken(
             token=token,
