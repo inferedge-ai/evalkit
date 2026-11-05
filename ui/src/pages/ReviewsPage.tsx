@@ -19,12 +19,16 @@ const VIEWS: { id: View; label: string }[] = [
 
 const NO_ITEMS: QueueItem[] = [];
 
-function queueColumns(changes: boolean): Column<QueueItem>[] {
+function queueColumns(
+  changes: boolean,
+  everyWorkspace: boolean,
+): Column<QueueItem>[] {
   return [
     {
       id: "dataset",
       header: "dataset",
-      accessorFn: (i) => splitRef(i.dataset).name,
+      accessorFn: (i) =>
+        everyWorkspace ? i.dataset : splitRef(i.dataset).name,
     },
     {
       id: "case",
@@ -79,6 +83,8 @@ export function ReviewsPage() {
   const [view, setView] = useState<View>("mine");
   const [items, setItems] = useState<QueueItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const everyWorkspace = workspace.type === "personal";
+  const queueWorkspace = everyWorkspace ? undefined : workspace.name;
 
   useEffect(() => {
     let stale = false;
@@ -88,7 +94,7 @@ export function ReviewsPage() {
       `/review/queue${qs({
         reviewer: view === "mine" ? me.username : undefined,
         state: view === "changes" ? "changes_requested" : undefined,
-        workspace: workspace.name,
+        workspace: queueWorkspace,
       })}`,
     )
       .then((r) => !stale && setItems(r.items))
@@ -96,10 +102,13 @@ export function ReviewsPage() {
     return () => {
       stale = true;
     };
-  }, [view, me.username, workspace.name]);
+  }, [view, me.username, queueWorkspace]);
 
   const changes = view === "changes";
-  const columns = useMemo(() => queueColumns(changes), [changes]);
+  const columns = useMemo(
+    () => queueColumns(changes, everyWorkspace),
+    [changes, everyWorkspace],
+  );
   const table = useDataTable({
     id: "review-queue",
     data: items ?? NO_ITEMS,
@@ -123,6 +132,9 @@ export function ReviewsPage() {
             </label>
           ))}
         </div>
+        {everyWorkspace && (
+          <span className="row-meta">across every workspace</span>
+        )}
         <span className="row-meta num ml-auto">
           {error
             ? ""
@@ -137,11 +149,9 @@ export function ReviewsPage() {
           table={table}
           loading={!items}
           empty={
-            workspace.type === "personal"
-              ? "Personal datasets have no review state."
-              : changes
-                ? "No cases are waiting on their author."
-                : "Nothing waiting for review."
+            changes
+              ? "No cases are waiting on their author."
+              : "Nothing waiting for review."
           }
         />
       )}

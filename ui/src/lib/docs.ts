@@ -3,6 +3,7 @@ import install from "../../../docs/user/install.md?raw";
 import login from "../../../docs/user/login.md?raw";
 import sso from "../../../docs/user/sso.md?raw";
 import config from "../../../docs/user/config.md?raw";
+import serverConfig from "../../../docs/user/server-config.md?raw";
 import workspaces from "../../../docs/user/workspaces.md?raw";
 import ciSync from "../../../docs/user/ci-sync.md?raw";
 import sdkRuns from "../../../docs/user/sdk-runs.md?raw";
@@ -32,6 +33,12 @@ export const DOC_TABS = [
   { id: "login", label: "Login", group: "Get started", body: login },
   { id: "sso", label: "Single sign-on", group: "Get started", body: sso },
   { id: "config", label: "Config", group: "Get started", body: config },
+  {
+    id: "server-config",
+    label: "Server config",
+    group: "Get started",
+    body: serverConfig,
+  },
   {
     id: "workspaces",
     label: "Workspaces",
