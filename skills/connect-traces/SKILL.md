@@ -101,7 +101,7 @@ lacks it. That is what a wrong mapping looks like in the check.
    stamps the run's `session.id` and `evalkit.*` attributes),
    `tracing.exporter(agent=...)` the OTLP HTTP exporter inside it, and
    `tracing.headers(agent=...)` its headers. All three read the server URL
-   and token like `register` does, `EVALKIT_OTEL_TOKEN` first.
+   like `register` does and require `EVALKIT_OTEL_TOKEN`.
    `register` only sees spans that pass through the provider's span
    processors. Code that hands spans straight to one processor or exporter
    (a bridge that converts another tool's spans, for example) bypasses it;

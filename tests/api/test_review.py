@@ -30,7 +30,7 @@ async def env(tmp_path, session_factory):
     env = await seed_env(session_factory, tmp_path, FakeHarness(), approved=False)
     users = UserStore(session_factory, "default")
     for name in ("sme", "other"):
-        await users.create(name, "password")
+        await users.create(name, password="password")
     workspaces = WorkspaceStore(session_factory, "default")
     await workspaces.add_member(
         "canonical", "sme", WorkspaceRole.REVIEWER, granted_by=env.user_ids["admin"]

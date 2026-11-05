@@ -12,11 +12,14 @@ from sqlalchemy import select
 
 from evalkit.contracts.enums import TrajectorySource, WorkspaceRole
 from evalkit.db.models import AuthToken
+from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from tests.api.native_api import CAPS, api_env, login_as
+from tests.api.test_auth_sso import sso_app
 from tests.fake_agents import reference_mapping
 from tests.fake_harness import FakeHarness
-from tests.identity import seed_agent
+from tests.identity import FakeIdp, seed_agent
+from tests.native import seed_env
 
 PROTO = {"content-type": "application/x-protobuf"}
 
@@ -373,3 +376,41 @@ async def test_login_token_cannot_export_to_an_archived_agent(api):
     assert (await api.post("/api/agents/deployed@admin/archive")).status_code == 200
     headers = {**PROTO, "X-Evalkit-Agent": "deployed"}
     assert await export(api, otlp_payload(session_id="p-1"), headers) == 409
+
+
+async def test_an_idp_token_can_export_to_its_own_agent(tmp_path, stub_judges, session_factory):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(session_factory, "default").create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp) as client:
+        headers = {
+            **PROTO,
+            "Authorization": f"Bearer {idp.access_token('sub-ann')}",
+            "X-Evalkit-Agent": "fake@ann",
+        }
+        resp = await client.post("/api/otel/v1/traces", content=otlp_payload(), headers=headers)
+    assert resp.status_code != 401
+
+
+async def test_the_collector_refuses_an_idp_token_without_the_required_scope(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(session_factory, "default").create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp, required_scopes=["evalkit:read"]) as client:
+        headers = {
+            **PROTO,
+            "Authorization": f"Bearer {idp.access_token('sub-ann')}",
+            "X-Evalkit-Agent": "fake@ann",
+        }
+        resp = await client.post("/api/otel/v1/traces", content=otlp_payload(), headers=headers)
+        assert resp.status_code == 403
+        minted = await client.post("/api/tokens", json={"agent": "fake@canonical"})
+        agent = bearer(client, minted.json()["token"])
+        assert await export(agent, otlp_payload(session_id="s-1"), PROTO) == 200
+        await agent.aclose()

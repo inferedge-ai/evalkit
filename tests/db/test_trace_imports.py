@@ -199,7 +199,7 @@ async def test_create_refuses_an_agent_from_another_tenant(db, raw_session_facto
     _, agent_id, _, _ = db
     await _second_tenant(raw_session_factory)
     root = await UserStore(raw_session_factory, "tenant-2").create(
-        "root", "password", is_admin=True
+        "root", password="password", is_admin=True
     )
     source = await TraceSourceStore(raw_session_factory, "tenant-2", None).create(
         "phx", TraceProvider.PHOENIX, "https://phoenix.other", None

@@ -27,6 +27,7 @@ async def app(session_factory):
     application.state.cfg = FakeCfg()
     application.state.session_factory = session_factory
     application.state.resolve_tenant = resolve_tenant
+    application.state.oidc = None
     await seed_identity(session_factory, {"admin": "hunter2-pw", "alice": "wonderland"}, shared=())
     return application
 
@@ -115,6 +116,8 @@ async def test_me_and_last_used(app, client):
     expires = datetime.fromisoformat(body.pop("token_expires_at"))
     assert body == {
         "username": "alice",
+        "email": None,
+        "kind": "human",
         "is_admin": False,
         "personal_workspace": "alice",
         "roles": {},
@@ -236,7 +239,7 @@ async def test_login_with_the_same_username_in_two_tenants(client, raw_session_f
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
         s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
-    await UserStore(raw_session_factory, "tenant-2").create("alice", "other-pw")
+    await UserStore(raw_session_factory, "tenant-2").create("alice", password="other-pw")
     assert await login(client, "alice", "wonderland")
     resp = await client.post("/api/auth/login", json={"username": "alice", "password": "other-pw"})
     assert resp.status_code == 401

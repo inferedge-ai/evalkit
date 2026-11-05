@@ -91,7 +91,7 @@ async def test_agent_lookups_stay_inside_the_tenant(raw_session_factory):
         await s.commit()
     for tenant_id in ("default", "tenant-2"):
         admin = await UserStore(raw_session_factory, tenant_id).create(
-            "admin", "password", is_admin=True
+            "admin", password="password", is_admin=True
         )
         dev = await WorkspaceStore(raw_session_factory, tenant_id).create_shared("dev", admin.id)
         await AgentStore(raw_session_factory, tenant_id).create(dev, "bot", harness_url="https://h")

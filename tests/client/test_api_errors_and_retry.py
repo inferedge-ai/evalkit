@@ -3,6 +3,7 @@ import pytest
 
 from evalkit.client.api import ApiRequestError, AsyncApi, SyncApi
 from evalkit.client.blob import HttpBlobStore
+from evalkit.client.oidc import static_auth
 from evalkit.client.store import HttpStore
 from evalkit.contracts.enums import EvaluationSource, EvaluatorKind
 from evalkit.store.base import EvaluationRow
@@ -35,7 +36,7 @@ async def test_get_retries_gateway_errors_and_connection_errors():
         httpx2.ConnectError("refused"),
         httpx2.Response(504),
     ]
-    api = AsyncApi("http://t", None, transport=httpx2.MockTransport(flaky(failures, seen)))
+    api = AsyncApi("http://t", transport=httpx2.MockTransport(flaky(failures, seen)))
     resp = await api.get("/api/health")
     assert resp.json() == {"ok": True}
     assert len(seen) == 5
@@ -44,7 +45,7 @@ async def test_get_retries_gateway_errors_and_connection_errors():
 async def test_get_gives_up_after_the_last_attempt_with_a_short_message():
     seen: list[str] = []
     failures = [proxy_502() for _ in range(6)]
-    api = AsyncApi("http://t", None, transport=httpx2.MockTransport(flaky(failures, seen)))
+    api = AsyncApi("http://t", transport=httpx2.MockTransport(flaky(failures, seen)))
     with pytest.raises(ApiRequestError) as raised:
         await api.get("/api/health")
     assert len(seen) == 5
@@ -55,7 +56,7 @@ async def test_get_gives_up_after_the_last_attempt_with_a_short_message():
 async def test_connection_error_reraised_after_the_last_attempt():
     seen: list[str] = []
     failures: list[httpx2.Response | Exception] = [httpx2.ConnectError("refused") for _ in range(6)]
-    api = AsyncApi("http://t", None, transport=httpx2.MockTransport(flaky(failures, seen)))
+    api = AsyncApi("http://t", transport=httpx2.MockTransport(flaky(failures, seen)))
     with pytest.raises(httpx2.ConnectError):
         await api.get("/api/health")
     assert len(seen) == 5
@@ -63,13 +64,11 @@ async def test_connection_error_reraised_after_the_last_attempt():
 
 async def test_creating_posts_and_server_errors_are_not_retried():
     seen: list[str] = []
-    api = AsyncApi("http://t", None, transport=httpx2.MockTransport(flaky([proxy_502()], seen)))
+    api = AsyncApi("http://t", transport=httpx2.MockTransport(flaky([proxy_502()], seen)))
     with pytest.raises(ApiRequestError):
         await api.post("/api/experiments/e/runs", json={})
     seen.clear()
-    api = AsyncApi(
-        "http://t", None, transport=httpx2.MockTransport(flaky([httpx2.Response(500)], seen))
-    )
+    api = AsyncApi("http://t", transport=httpx2.MockTransport(flaky([httpx2.Response(500)], seen)))
     with pytest.raises(ApiRequestError):
         await api.get("/api/health")
     assert seen == ["GET /api/health"]
@@ -83,7 +82,7 @@ async def test_idempotent_writes_retry():
         httpx2.ReadError("reset"),
         httpx2.Response(504),
     ]
-    api = AsyncApi("http://t", None, transport=httpx2.MockTransport(flaky(failures, seen)))
+    api = AsyncApi("http://t", transport=httpx2.MockTransport(flaky(failures, seen)))
     store = HttpStore(api)
     row = EvaluationRow(
         producer="s", name="s", kind=EvaluatorKind.SCORE, source=EvaluationSource.BUILTIN
@@ -102,7 +101,7 @@ async def test_json_detail_is_kept():
     def handler(request: httpx2.Request) -> httpx2.Response:
         return httpx2.Response(404, json={"detail": "unknown run"})
 
-    api = AsyncApi("http://t", None, transport=httpx2.MockTransport(handler))
+    api = AsyncApi("http://t", transport=httpx2.MockTransport(handler))
     with pytest.raises(ApiRequestError) as raised:
         await api.get("/api/experiments/e")
     assert str(raised.value) == "GET /api/experiments/e → 404: unknown run"
@@ -112,7 +111,7 @@ async def test_empty_json_error_body_gets_the_short_message():
     def handler(request: httpx2.Request) -> httpx2.Response:
         return httpx2.Response(500, content=b"", headers={"content-type": "application/json"})
 
-    api = AsyncApi("http://t", None, transport=httpx2.MockTransport(handler))
+    api = AsyncApi("http://t", transport=httpx2.MockTransport(handler))
     with pytest.raises(ApiRequestError) as raised:
         await api.get("/api/x")
     assert str(raised.value) == "GET /api/x → 500: Internal Server Error"
@@ -136,3 +135,15 @@ def test_sync_api_retries_get_and_head_but_not_delete():
         api.delete("/api/users/a")
     assert seen == ["DELETE /api/users/a"]
     assert "<html" not in str(raised.value)
+
+
+def test_sync_api_sends_the_bearer_from_its_auth():
+    seen: list[str | None] = []
+
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        seen.append(request.headers.get("Authorization"))
+        return httpx2.Response(200, json={"ok": True})
+
+    api = SyncApi("http://t", auth=static_auth("tok"), transport=httpx2.MockTransport(handler))
+    api.get("/api/health")
+    assert seen == ["Bearer tok"]

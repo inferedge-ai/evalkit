@@ -686,6 +686,7 @@ name = "evalkit-py"
 version = "0.3.0"
 source = { editable = "." }
 dependencies = [
+    { name = "authlib" },
     { name = "httpx2" },
     { name = "jsonschema" },
     { name = "opentelemetry-api" },
@@ -710,6 +711,7 @@ server = [
     { name = "obstore" },
     { name = "opentelemetry-proto" },
     { name = "psycopg", extra = ["binary"] },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "python-multipart" },
     { name = "sentry-sdk", extra = ["fastapi"] },
     { name = "sqlalchemy" },
@@ -736,6 +738,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", marker = "extra == 'server'", specifier = ">=1.19.1" },
+    { name = "authlib", specifier = ">=1.9.1" },
     { name = "bcrypt", marker = "extra == 'server'", specifier = ">=5.0.0" },
     { name = "cryptography", marker = "extra == 'server'", specifier = ">=50.0.2" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.141.1" },
@@ -750,6 +753,7 @@ requires-dist = [
     { name = "opentelemetry-sdk", marker = "extra == 'otel'", specifier = ">=1.44.0" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'server'", specifier = ">=3.3.6" },
     { name = "pydantic", specifier = ">=2" },
+    { name = "pyjwt", extras = ["crypto"], marker = "extra == 'server'", specifier = ">=2.15.1" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "python-multipart", marker = "extra == 'server'", specifier = ">=0.0.32" },
     { name = "pyyaml", specifier = ">=6.0.3" },

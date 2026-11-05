@@ -9,8 +9,8 @@ from collections.abc import Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx2
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastmcp.server.auth import TokenVerifier
 from sqlalchemy.exc import TimeoutError as PoolTimeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import FileResponse, JSONResponse
@@ -44,7 +44,9 @@ from evalkit.api import (
 from evalkit.api.auth import bootstrap_admin, current_user
 from evalkit.api.auth import router as auth_router
 from evalkit.api.limits import BodyLimitMiddleware
+from evalkit.api.mcp.auth import MCP_PATH
 from evalkit.api.mcp.server import mcp_running, mount_mcp
+from evalkit.api.oidc import OidcState
 from evalkit.config import Config
 from evalkit.core.agents import UnknownAgent
 from evalkit.core.blob import BlobStore
@@ -82,7 +84,15 @@ from evalkit.db.trace_sources import (
     TraceSourceExists,
     UnknownTraceSource,
 )
-from evalkit.db.users import InvalidName, InvalidPassword, LastAdmin, NameTaken, UnknownUser
+from evalkit.db.users import (
+    IdentityConflict,
+    InvalidName,
+    InvalidPassword,
+    LastAdmin,
+    MachineUser,
+    NameTaken,
+    UnknownUser,
+)
 from evalkit.db.workspaces import PromotionLinkError, SharedOnly, UnknownWorkspace
 from evalkit.paths import ui_root
 from evalkit.store.base import Conflict, UnknownDataset, UnknownExperiment
@@ -155,6 +165,14 @@ def stop_if_reaper_died(task: asyncio.Task) -> None:
     os.kill(os.getpid(), signal.SIGTERM)
 
 
+def log_retry_failure(task: asyncio.Task) -> None:
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        LOGGER.warning("OIDC discovery retry stopped", exc_info=exc)
+
+
 def create_app(
     cfg: Config,
     *,
@@ -164,7 +182,7 @@ def create_app(
     check_schema: bool = True,
     ui_dist: Path | None = None,
     holder: str | None = None,
-    mcp_jwt_verifier: TokenVerifier | None = None,
+    oidc_transport: httpx2.AsyncBaseTransport | None = None,
     resolve_tenant: Callable[[Request, dict | None], str] = default_resolve_tenant,
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
@@ -208,12 +226,20 @@ def create_app(
                 "set encryption_key: env:EVALKIT_ENCRYPTION_KEY in the server config"
             )
         await bootstrap_admin(app.state.session_factory, os.environ.get("EVALKIT_ADMIN_PASSWORD"))
+        if app.state.oidc is not None and not await app.state.oidc.load():
+            app.state.oidc_retry = asyncio.create_task(app.state.oidc.retry_forever())
+            app.state.oidc_retry.add_done_callback(log_retry_failure)
         reaper = asyncio.create_task(reap_forever(app.state.session_factory))
         reaper.add_done_callback(stop_if_reaper_died)
         async with mcp_running(mcp_app):
             yield
         reaper.cancel()
         await asyncio.gather(reaper, return_exceptions=True)
+        if app.state.oidc_retry is not None:
+            app.state.oidc_retry.cancel()
+            await asyncio.gather(app.state.oidc_retry, return_exceptions=True)
+        if app.state.oidc is not None:
+            await app.state.oidc.http.aclose()
         await experiments.interrupt_tasks(app.state.session_factory, app.state.tasks)
         await trace_imports.interrupt_imports(app.state.session_factory, app.state.import_tasks)
         await resolved_deps.store.aclose()
@@ -232,6 +258,16 @@ def create_app(
     app.state.blob_store = resolved_blob_store
     app.state.tasks = {}
     app.state.import_tasks = {}
+    app.state.oidc = (
+        OidcState(
+            cfg.auth.oidc,
+            httpx2.AsyncClient(transport=oidc_transport, timeout=10.0),
+            f"{cfg.server.base_url.rstrip('/')}{MCP_PATH}",
+        )
+        if cfg.auth.oidc is not None
+        else None
+    )
+    app.state.oidc_retry = None
 
     running_version = version.current()
 
@@ -257,6 +293,7 @@ def create_app(
         return JSONResponse(status_code=404, content={"detail": exc.args[0]})
 
     @app.exception_handler(NameTaken)
+    @app.exception_handler(IdentityConflict)
     @app.exception_handler(LastAdmin)
     @app.exception_handler(AgentExists)
     @app.exception_handler(EvaluatorExists)
@@ -275,6 +312,7 @@ def create_app(
     @app.exception_handler(SharedOnly)
     @app.exception_handler(InvalidName)
     @app.exception_handler(InvalidPassword)
+    @app.exception_handler(MachineUser)
     @app.exception_handler(InvalidEvaluator)
     @app.exception_handler(InvalidAgent)
     @app.exception_handler(MissingCredential)
@@ -330,7 +368,7 @@ def create_app(
     app.include_router(traces.router, dependencies=wall)
     app.include_router(trace_imports.router, dependencies=wall)
     app.include_router(otel.router)
-    mcp_app = mount_mcp(app, mcp_jwt_verifier)
+    mcp_app = mount_mcp(app)
 
     if ui_dist is None:
         ui_dist = ui_root()

@@ -8,16 +8,18 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
-from fastmcp.server.auth import TokenVerifier
 from fastmcp.server.dependencies import get_access_token
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from starlette.applications import Starlette
+from starlette.middleware import Middleware as AsgiMiddleware
+from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from evalkit import version
 from evalkit.api.mcp import tools
 from evalkit.api.mcp.auth import MCP_PATH, build_auth
 from evalkit.api.mcp.descriptions import INSTRUCTIONS
+from evalkit.api.oidc import IdpUnavailable
 
 LOGGER = logging.getLogger(__name__)
 LOGGED_ARGS_CHARS = 2000
@@ -47,12 +49,12 @@ class ToolErrors(Middleware):
             )
 
 
-def build_mcp(app: FastAPI, jwt_verifier: TokenVerifier | None = None) -> FastMCP:
+def build_mcp(app: FastAPI) -> FastMCP:
     mcp = FastMCP(
         "evalkit",
         version=version.current(),
         instructions=INSTRUCTIONS,
-        auth=build_auth(app.state.cfg, app.state.session_factory, jwt_verifier),
+        auth=build_auth(app.state),
         middleware=[ToolErrors()],
         mask_error_details=True,
     )
@@ -60,16 +62,30 @@ def build_mcp(app: FastAPI, jwt_verifier: TokenVerifier | None = None) -> FastMC
     return mcp
 
 
+class AnswerIdpOutage:
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        try:
+            await self.app(scope, receive, send)
+        except IdpUnavailable as exc:
+            await JSONResponse({"detail": exc.detail}, status_code=exc.status_code)(
+                scope, receive, send
+            )
+
+
 # Only the MCP endpoint and its RFC 9728 metadata are routed to the MCP app,
 # so /api keeps its own auth and the SPA fallback never sees /mcp.
-def mount_mcp(app: FastAPI, jwt_verifier: TokenVerifier | None = None):
-    mcp_app = build_mcp(app, jwt_verifier).http_app(
+def mount_mcp(app: FastAPI):
+    mcp_app = build_mcp(app).http_app(
         path=MCP_PATH,
         transport="streamable-http",
         stateless_http=True,
         json_response=True,
         host_origin_protection=False,
     )
+    mcp_app.user_middleware.insert(0, AsgiMiddleware(AnswerIdpOutage))
     for route in mcp_app.routes:
         if isinstance(route, Route):
             app.router.routes.append(Route(route.path, mcp_app, include_in_schema=False))

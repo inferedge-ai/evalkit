@@ -92,7 +92,7 @@ async def test_trace_import_refuses_a_source_from_another_tenant(raw_session_fac
         s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
     admin = await UserStore(raw_session_factory, "default").create(
-        "admin", "password", is_admin=True
+        "admin", password="password", is_admin=True
     )
     dev = await WorkspaceStore(raw_session_factory, "default").create_shared("dev", admin.id)
     agent = await AgentStore(raw_session_factory, "default").create(

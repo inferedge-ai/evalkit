@@ -10,6 +10,7 @@ from evalkit.cli.client import ApiClient
 from evalkit.cli.main import app as cli_app
 from evalkit.client import connection
 from evalkit.client.api import AsyncApi
+from evalkit.client.oidc import static_auth
 from evalkit.core.traces.check import render_check
 from evalkit.sdk.runner import _session_summary
 
@@ -121,7 +122,7 @@ def proxy_down(monkeypatch):
     monkeypatch.setattr(
         main_module,
         "ApiClient",
-        lambda url, token: ApiClient(url, token, transport=httpx2.MockTransport(handler)),
+        lambda url, auth: ApiClient(url, auth, transport=httpx2.MockTransport(handler)),
     )
 
 
@@ -161,7 +162,7 @@ async def test_dry_run_session_summary_shows_the_size_limit_on_413(httpx2_mock):
     httpx2_mock.get("http://srv/s").mock(
         return_value=MockResponse(413, json={"detail": "holds 900.0 MiB, over the limit"})
     )
-    api = AsyncApi("http://srv", "tok")
+    api = AsyncApi("http://srv", static_auth("tok"))
     assert (
         await _session_summary(api, "/s", "big") == "  session big: holds 900.0 MiB, over the limit"
     )

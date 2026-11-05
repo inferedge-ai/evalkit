@@ -4,8 +4,11 @@ import pytest
 from pydantic import ValidationError
 
 from evalkit.config import (
+    AuthConfig,
+    Config,
     LocalConfig,
     MissingEnvError,
+    OidcConfig,
     RunnerConfig,
     load_config,
 )
@@ -241,3 +244,65 @@ def test_a_base_url_with_a_bad_port_is_a_config_error(tmp_path, monkeypatch):
     text = BASIC.replace("https://evalkit.internal", "http://localhost:80a0")
     with pytest.raises(ValueError, match="base_url"):
         load_config(write(tmp_path, text))
+
+
+OIDC_BASE = {
+    "server": {"base_url": "http://evalkit.test"},
+    "db": {"url": "postgresql+psycopg://x/y"},
+    "blob": {"url": "file:///tmp/blob"},
+}
+OIDC = {
+    "issuer": "https://idp.test",
+    "client_id": "evalkit-ui",
+    "audience": "https://evalkit.test",
+    "name": "Okta",
+}
+
+
+def test_oidc_config_defaults():
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": OIDC}})
+    assert cfg.auth.oidc == OidcConfig(**OIDC)
+    assert cfg.auth.oidc.scopes == ["openid", "profile", "email", "offline_access"]
+    assert cfg.auth.oidc.authorize_params == {}
+    assert cfg.auth.oidc.algorithms == ["RS256"]
+    assert cfg.auth.password_login == "admin"
+
+
+def test_oidc_scopes_must_include_openid():
+    with pytest.raises(ValidationError, match="must include openid"):
+        Config.model_validate({**OIDC_BASE, "auth": {"oidc": {**OIDC, "scopes": ["email"]}}})
+
+
+def test_oidc_required_scopes_must_be_requested():
+    scopes = ["openid", "evalkit:read"]
+    with pytest.raises(ValidationError, match="required_scopes lists evalkit:read, which"):
+        Config.model_validate(
+            {**OIDC_BASE, "auth": {"oidc": {**OIDC, "required_scopes": ["evalkit:read"]}}}
+        )
+    cfg = Config.model_validate(
+        {
+            **OIDC_BASE,
+            "auth": {"oidc": {**OIDC, "scopes": scopes, "required_scopes": ["evalkit:read"]}},
+        }
+    )
+    assert cfg.auth.oidc.required_scopes == ["evalkit:read"]
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": {**OIDC, "required_scopes": []}}})
+    assert cfg.auth.oidc.required_scopes == []
+
+
+def test_password_login_is_admin_or_all():
+    with pytest.raises(ValidationError):
+        Config.model_validate({**OIDC_BASE, "auth": {"password_login": "nobody"}})
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": OIDC, "password_login": "all"}})
+    assert cfg.auth.resolve_password_login() == "all"
+
+
+def test_password_login_is_all_without_an_idp():
+    assert AuthConfig().resolve_password_login() == "all"
+    assert AuthConfig(password_login="admin").resolve_password_login() == "all"
+    assert AuthConfig(oidc=OidcConfig(**OIDC)).resolve_password_login() == "admin"
+
+
+def test_mcp_oauth_moved_to_auth_oidc():
+    with pytest.raises(ValidationError, match="mcp.oauth moved to auth.oidc"):
+        Config.model_validate({**OIDC_BASE, "mcp": {"oauth": {"issuer": "x", "jwks_uri": "y"}}})

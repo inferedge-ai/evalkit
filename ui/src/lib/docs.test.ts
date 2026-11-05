@@ -9,6 +9,7 @@ describe("docs", () => {
       "try-locally",
       "install",
       "login",
+      "sso",
       "config",
       "server-config",
       "workspaces",

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from datetime import UTC, datetime
 
@@ -34,6 +36,40 @@ def check_name(name: str) -> None:
 
 async def lock_names(session: AsyncSession) -> None:
     await lock_name(session, "users-and-workspaces")
+
+
+class IdentityConflict(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
+
+    @classmethod
+    def name_taken(cls, username: str, subject: str) -> IdentityConflict:
+        return cls(
+            f"username {username} is taken by a user or workspace; "
+            f"ask an admin to bind subject {subject} to an account"
+        )
+
+    @classmethod
+    def already_bound(cls, subject: str, username: str) -> IdentityConflict:
+        return cls(f"subject {subject} is already bound to {username}")
+
+
+class MachineUser(Exception):
+    def __init__(self, username: str):
+        super().__init__(f"{username} is a machine user and cannot be an admin")
+
+
+class UserArchived(Exception):
+    def __init__(self, username: str):
+        super().__init__("user is archived")
+        self.username = username
+
+
+def derive_username(preferred_username: str | None, email: str) -> str:
+    source = preferred_username or email
+    username = source.split("@")[0].lower()
+    check_name(username)
+    return username
 
 
 class LastAdmin(Exception):
@@ -111,9 +147,21 @@ class UserStore:
     def _session(self):
         return tenant_session(self._sf, self._tenant_id)
 
-    async def create(self, username: str, password: str, *, is_admin: bool = False) -> User:
+    async def create(
+        self,
+        username: str,
+        *,
+        password: str | None = None,
+        issuer: str | None = None,
+        subject: str | None = None,
+        email: str | None = None,
+        is_admin: bool = False,
+    ) -> User:
         check_name(username)
-        check_new_password(password)
+        if (password is None) == (subject is None):
+            raise ValueError("give exactly one of password or subject")
+        if password is not None:
+            check_new_password(password)
         async with self._session() as s:
             await lock_names(s)
             if await name_taken(s, self._tenant_id, username):
@@ -121,7 +169,10 @@ class UserStore:
             user = User(
                 tenant_id=self._tenant_id,
                 username=username,
-                password_hash=hash_password(password),
+                password_hash=hash_password(password) if password is not None else None,
+                issuer=issuer,
+                subject=subject,
+                email=email,
                 is_admin=is_admin,
             )
             s.add(user)
@@ -129,6 +180,61 @@ class UserStore:
             s.add(Workspace(tenant_id=self._tenant_id, name=username, owner_user_id=user.id))
             await s.commit()
             return user
+
+    async def register(
+        self, issuer: str, subject: str, email: str, preferred_username: str | None
+    ) -> tuple[User, bool]:
+        async with self._session() as s:
+            await lock_names(s)
+            user = await s.scalar(
+                select(User).where(
+                    User.tenant_id == self._tenant_id,
+                    User.issuer == issuer,
+                    User.subject == subject,
+                )
+            )
+            if user is not None:
+                if user.archived_at is not None:
+                    raise UserArchived(user.username)
+                if user.email != email:
+                    user.email = email
+                    await s.commit()
+                return user, False
+            username = derive_username(preferred_username, email)
+            if await name_taken(s, self._tenant_id, username):
+                raise IdentityConflict.name_taken(username, subject)
+            user = User(
+                tenant_id=self._tenant_id,
+                username=username,
+                password_hash=None,
+                issuer=issuer,
+                subject=subject,
+                email=email,
+                is_admin=False,
+            )
+            s.add(user)
+            await s.flush()
+            s.add(Workspace(tenant_id=self._tenant_id, name=username, owner_user_id=user.id))
+            await s.commit()
+            return user, True
+
+    async def bind(self, username: str, issuer: str, subject: str) -> None:
+        async with self._session() as s:
+            await lock_names(s)
+            user = await self._get(s, username)
+            other = await s.scalar(
+                select(User.username).where(
+                    User.tenant_id == self._tenant_id,
+                    User.issuer == issuer,
+                    User.subject == subject,
+                    User.id != user.id,
+                )
+            )
+            if other is not None:
+                raise IdentityConflict.already_bound(subject, other)
+            user.issuer = issuer
+            user.subject = subject
+            await s.commit()
 
     async def _get(self, s: AsyncSession, username: str) -> User:
         user = await s.scalar(
@@ -203,6 +309,8 @@ class UserStore:
             user = await self._get(s, username)
             if not value:
                 await self._ensure_other_admin(s, user)
+            if value and user.kind == "machine":
+                raise MachineUser(username)
             user.is_admin = value
             await s.commit()
 

@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import time
+import webbrowser
 from datetime import UTC, datetime
 from importlib.util import find_spec
 from pathlib import Path
@@ -33,7 +34,7 @@ from evalkit.cli.skill_targets import record as record_skill_target
 from evalkit.cli.tokens_commands import register as register_tokens
 from evalkit.cli.traces_commands import register as register_traces
 from evalkit.cli.update import run_update
-from evalkit.client import connection
+from evalkit.client import connection, oidc
 from evalkit.client.agents import definition_of
 from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
@@ -114,7 +115,11 @@ def _active_connection() -> connection.Connection:
 
 def _client() -> ApiClient:
     active = _active_connection()
-    return ApiClient(active.url, active.token)
+    try:
+        auth = oidc.build_auth(active)
+    except (LookupError, httpx2.HTTPError) as exc:
+        raise ApiError(str(exc)) from exc
+    return ApiClient(active.url, auth)
 
 
 def _connection() -> connection.Connection:
@@ -232,24 +237,68 @@ def _print_findings(findings: list[dict]) -> None:
 @app.command()
 def login(
     url: str = typer.Option(None, "--url", help="Server base URL, e.g. https://evalkit.internal"),
-    username: str = typer.Option(None, "--username"),
+    username: str = typer.Option(
+        None,
+        "--username",
+        help="Password login; with SSO configured, admins only unless password_login is all.",
+    ),
     password: str = typer.Option(None, "--password"),
+    no_browser: bool = typer.Option(
+        False,
+        "--no-browser",
+        help="Headless machine: show a code to enter on another device "
+        "(device authorization grant).",
+    ),
 ):
     """Log in to a server and store the login in ~/.evalkit/config.toml, replacing any
     earlier one.
 
+    With single sign-on configured on the server, the command opens your browser at
+    the identity provider and stores the IdP's tokens; they refresh themselves. Pass
+    --username for a password login instead.
     Example: evalkit login --url https://evalkit.example.com
     """
     url = url or typer.prompt("Server URL")
-    username = username or typer.prompt("Username")
-    password = password or typer.prompt("Password", hide_input=True)
-    body = (
-        ApiClient(url)
-        .post("/api/auth/login", json={"username": username, "password": password})
-        .json()
-    )
-    path = connection.save(connection.Connection(url, body["token"], body["username"]))
-    typer.echo(f"logged in as {username} on {url}; saved to {path}")
+    providers_oidc = None if username is not None else oidc.fetch_providers(url)["oidc"]
+    if providers_oidc is None:
+        username = username or typer.prompt("Username")
+        password = password or typer.prompt("Password", hide_input=True)
+        body = (
+            ApiClient(url)
+            .post("/api/auth/login", json={"username": username, "password": password})
+            .json()
+        )
+        path = connection.save(connection.Connection(url, body["token"], body["username"]))
+        typer.echo(f"logged in as {username} on {url}; saved to {path}")
+        return
+    try:
+        if no_browser:
+            tokens = oidc.run_device_flow(providers_oidc, typer.echo)
+        else:
+            typer.echo("opening your browser to sign in; if it does not open, use the URL below")
+            tokens = oidc.run_loopback_flow(providers_oidc, open_browser)
+        if "refresh_token" not in tokens:
+            raise ApiError(
+                "the identity provider issued no refresh token; ask its admin to allow "
+                "offline_access (refresh tokens) for this client"
+            )
+        me = oidc.register_identity(url, tokens)
+    except (
+        oidc.LoginTimedOut,
+        oidc.NoDeviceGrant,
+        oidc.LoginRefused,
+        LookupError,
+        httpx2.HTTPError,
+    ) as exc:
+        raise ApiError(str(exc)) from exc
+    stored = oidc.login_from_tokens(url, providers_oidc, tokens)._replace(username=me["username"])
+    path = connection.save(stored)
+    typer.echo(f"logged in as {me['username']} on {url}; saved to {path}")
+
+
+def open_browser(url: str) -> None:
+    typer.echo(url)
+    webbrowser.open(url)
 
 
 @app.command()
@@ -263,6 +312,13 @@ def whoami():
     me = _client().get("/api/auth/me").json()
     source = " (from EVALKIT_SERVER_URL)" if active.from_env else ""
     typer.echo(f"{me['username']} on {active.url}{source}")
+    if active.machine is not None:
+        kind = "client credentials"
+    elif active.oidc is not None:
+        kind = "sso (refresh token stored; the access token renews itself)"
+    else:
+        kind = "password"
+    typer.echo(f"login: {kind}")
     expires_at = me.get("token_expires_at")
     if expires_at is None:
         typer.echo("token does not expire")
@@ -375,7 +431,14 @@ def lint(
             local = _with_secrets(_local_config(), scoring=False)
             try:
                 schema = asyncio.run(local_input_schema(conn, local, ref))
-            except (httpx2.HTTPError, ValueError, ApiRequestError) as exc:
+            except (
+                httpx2.HTTPError,
+                ValueError,
+                ApiRequestError,
+                oidc.LoginExpired,
+                oidc.ClientCredentialsRefused,
+                LookupError,
+            ) as exc:
                 raise ApiError(f"harness {definition.ref}: {exc}") from exc
             form["input_schema"] = json.dumps(schema)
     files = _yaml_files(path)
@@ -777,7 +840,15 @@ def run(
             raise typer.Exit(code=130) from None
         except ScoringFailed as exc:
             raise ApiError(f"{exc}\nfinish it with: evalkit evaluate {exc.exp_id}") from exc
-        except (VersionMismatch, ApiRequestError, ValueError, KeyError) as exc:
+        except (
+            VersionMismatch,
+            ApiRequestError,
+            oidc.LoginExpired,
+            oidc.ClientCredentialsRefused,
+            ValueError,
+            KeyError,
+            LookupError,
+        ) as exc:
             raise ApiError(str(exc)) from exc
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
 
@@ -858,7 +929,15 @@ def evaluate(
         )
     except ScoringFailed as exc:
         raise ApiError(f"{exc}\nfinish it with: evalkit evaluate {experiment_id}") from exc
-    except (VersionMismatch, ApiRequestError, ValueError, KeyError) as exc:
+    except (
+        VersionMismatch,
+        ApiRequestError,
+        oidc.LoginExpired,
+        oidc.ClientCredentialsRefused,
+        ValueError,
+        KeyError,
+        LookupError,
+    ) as exc:
         raise ApiError(str(exc)) from exc
     typer.echo(f"evaluated {experiment_id}")
 
@@ -992,7 +1071,14 @@ def harness_check(
         local = _with_secrets(_local_config(), scoring=False)
         try:
             checks = asyncio.run(check_local(conn, local, ref))
-        except (ValueError, KeyError, ApiRequestError) as exc:
+        except (
+            ValueError,
+            KeyError,
+            ApiRequestError,
+            oidc.LoginExpired,
+            oidc.ClientCredentialsRefused,
+            LookupError,
+        ) as exc:
             raise ApiError(str(exc)) from exc
     failed = False
     for capability, entry in checks.items():
@@ -1004,10 +1090,42 @@ def harness_check(
 
 
 @users_app.command("add")
-def users_add(username: str, password: str = typer.Option(..., prompt=True, hide_input=True)):
-    """Create a user (admin only). Example: evalkit users add alice"""
-    _client().post("/api/users", json={"username": username, "password": password})
+def users_add(
+    username: str,
+    password: str = typer.Option(
+        None, "--password", hide_input=True, help="Prompted for when --subject is not given."
+    ),
+    subject: str = typer.Option(
+        None,
+        "--subject",
+        help="Bind the new user to this identity provider subject: a machine user, no password.",
+    ),
+):
+    """Create a user (admin only).
+
+    With --subject the user is a machine user bound to that subject at the identity
+    provider: no password, no browser login. Without it, a password user; with SSO
+    configured and password_login admin, that user can only sign in once made admin.
+
+    Examples: evalkit users add alice · evalkit users add ci-bot --subject 0oa...
+    """
+    if subject is not None:
+        _client().post("/api/users", json={"username": username, "subject": subject})
+    else:
+        password = password or typer.prompt("Password", hide_input=True)
+        _client().post("/api/users", json={"username": username, "password": password})
     typer.echo(f"created {username}")
+
+
+@users_app.command("bind")
+def users_bind(username: str, subject: str = typer.Option(..., "--subject")):
+    """Bind an existing user to an identity provider subject (admin only).
+
+    Resolves a 409 at sign-in, links a password account that predates SSO, or binds
+    a machine client to an existing user. Example: evalkit users bind alice --subject 0oa...
+    """
+    _client().post(f"/api/users/{username}/identity", json={"subject": subject})
+    typer.echo(f"bound {username} to subject {subject}")
 
 
 @users_app.command("archive")
@@ -1065,9 +1183,19 @@ def users_list():
     """List users (admin only). Example: evalkit users list"""
     for user in _client().get("/api/users").json():
         flags = " ".join(
-            flag for flag, on in (("ADMIN", user["is_admin"]), ("ARCHIVED", user["archived"])) if on
+            flag
+            for flag, on in (
+                ("ADMIN", user["is_admin"]),
+                ("ARCHIVED", user["archived"]),
+                ("SUBJECT", user["has_subject"]),
+            )
+            if on
         )
-        typer.echo(f"{user['username']:<24} {flags:<16} created {user['created_at']}")
+        email = user["email"] or ""
+        typer.echo(
+            f"{user['username']:<24} {user['kind']:<8} {email:<32} {flags:<22} "
+            f"created {user['created_at']}"
+        )
 
 
 DOCS_DIR = "evalkit-docs"

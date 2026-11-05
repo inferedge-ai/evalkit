@@ -17,9 +17,9 @@ from evalkit.db.workspaces import (
 @pytest.fixture
 async def stores(session_factory):
     users = UserStore(session_factory, "default")
-    admin = await users.create("admin", "password", is_admin=True)
-    await users.create("bob", "password")
-    await users.create("carol", "password")
+    admin = await users.create("admin", password="password", is_admin=True)
+    await users.create("bob", password="password")
+    await users.create("carol", password="password")
     return WorkspaceStore(session_factory, "default"), admin.id
 
 
@@ -110,10 +110,10 @@ async def test_member_grant_refuses_a_user_from_another_tenant(raw_session_facto
         s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
     admin = await UserStore(raw_session_factory, "default").create(
-        "admin", "password", is_admin=True
+        "admin", password="password", is_admin=True
     )
     await WorkspaceStore(raw_session_factory, "default").create_shared("dev", admin.id)
-    await UserStore(raw_session_factory, "tenant-2").create("eve", "password")
+    await UserStore(raw_session_factory, "tenant-2").create("eve", password="password")
     with pytest.raises(UnknownUser):
         await WorkspaceStore(raw_session_factory, "default").add_member(
             "dev", "eve", WorkspaceRole.WRITER, admin.id
@@ -125,10 +125,10 @@ async def test_promotion_link_refuses_workspaces_in_different_tenants(raw_sessio
         s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
     admin = await UserStore(raw_session_factory, "default").create(
-        "admin", "password", is_admin=True
+        "admin", password="password", is_admin=True
     )
     root = await UserStore(raw_session_factory, "tenant-2").create(
-        "root", "password", is_admin=True
+        "root", password="password", is_admin=True
     )
     dev = await WorkspaceStore(raw_session_factory, "default").create_shared("dev", admin.id)
     prod = await WorkspaceStore(raw_session_factory, "tenant-2").create_shared("prod", root.id)

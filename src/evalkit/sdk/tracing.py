@@ -13,6 +13,7 @@ from opentelemetry import trace
 from opentelemetry.context import Context
 
 from evalkit.client import connection
+from evalkit.credentials import MissingCredential
 
 OTEL_TOKEN_ENV = "EVALKIT_OTEL_TOKEN"
 SERVER_URL_ENV = "EVALKIT_SERVER_URL"
@@ -20,6 +21,10 @@ AGENT_HEADER = "X-Evalkit-Agent"
 STAMPED = ("session.id", "evalkit.experiment_id", "evalkit.case_id", "evalkit.repetition")
 EVAL_MARKER = "evalkit.case_id"
 MAX_EVAL_TRACES = 10_000
+OTEL_TOKEN_HINT = (
+    "set EVALKIT_OTEL_TOKEN to an agent token (evalkit tokens create --agent <agent>) "
+    "before exporting traces; a login token is not accepted here"
+)
 INSTALL_HINT = "evalkit tracing needs the otel extra: uv add 'evalkit-py[otel]'"
 
 CURRENT_RUN: ContextVar[dict[str, Any] | None] = ContextVar("evalkit_current_run", default=None)
@@ -97,21 +102,17 @@ def collector_url(server_url: str) -> str:
     return f"{server_url.rstrip('/')}/api/otel/v1/traces"
 
 
-def resolve_destination() -> tuple[str, str | None]:
+def resolve_destination() -> tuple[str, str]:
     token = os.environ.get(OTEL_TOKEN_ENV)
-    url = os.environ.get(SERVER_URL_ENV)
-    if url and token:
-        return url, token
-    active = connection.active()
-    return url or active.url, token or active.token
+    if not token:
+        raise MissingCredential(OTEL_TOKEN_HINT)
+    url = os.environ.get(SERVER_URL_ENV) or connection.active().url
+    return url, token
 
 
 def headers(agent: str) -> dict[str, str]:
     _, token = resolve_destination()
-    out = {AGENT_HEADER: agent}
-    if token:
-        out["Authorization"] = f"Bearer {token}"
-    return out
+    return {AGENT_HEADER: agent, "Authorization": f"Bearer {token}"}
 
 
 def exporter(agent: str) -> OTLPSpanExporter:
@@ -149,8 +150,10 @@ def register(agent: str, only: SpanFilter | None = None) -> None:
 
     Adds an exporter to the global tracer provider, or creates one when none is set.
     Call it after your own tracing setup, so it joins your provider. Spans go to the
-    server you logged in to (or `EVALKIT_SERVER_URL`), with your token or
-    `EVALKIT_OTEL_TOKEN` (an agent token). Needs the `otel` extra.
+    server you logged in to (or `EVALKIT_SERVER_URL`) with the agent token in
+    `EVALKIT_OTEL_TOKEN` (`evalkit tokens create --agent <agent>`); a person's login
+    is not accepted, because it expires under a long-running process. Needs the
+    `otel` extra.
 
     Args:
         agent: The agent the spans belong to, e.g. `myagent` or `myagent@dev`.

@@ -85,13 +85,13 @@ class AsyncApi:
     def __init__(
         self,
         server_url: str,
-        token: str | None,
+        auth: httpx2.Auth | None = None,
         *,
         transport: httpx2.AsyncBaseTransport | None = None,
     ):
         self._client = httpx2.AsyncClient(
             base_url=server_url.rstrip("/"),
-            headers={"Authorization": f"Bearer {token}"} if token else {},
+            auth=auth,
             timeout=timeout_seconds(),
             transport=RetryTransport(
                 transport=transport
@@ -145,13 +145,13 @@ class SyncApi:
     def __init__(
         self,
         server_url: str,
-        token: str | None = None,
+        auth: httpx2.Auth | None = None,
         *,
         transport: httpx2.BaseTransport | None = None,
     ):
         self._client = httpx2.Client(
             base_url=server_url.rstrip("/"),
-            headers={"Authorization": f"Bearer {token}"} if token else {},
+            auth=auth,
             timeout=timeout_seconds(),
             transport=RetryTransport(
                 transport=transport or httpx2.HTTPTransport(), retry=retry_policy(READ_METHODS)

@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 import pytest
 
 from evalkit.client.api import AsyncApi, VersionMismatch
+from evalkit.client.oidc import static_auth
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.contracts.enums import EvaluationSource, EvaluatorKind, ExperimentStatus, RunStatus
 from evalkit.core.runner import ExperimentRequest
@@ -18,7 +19,7 @@ async def ctx(tmp_path, stub_judges, session_factory):
     await seed_agent(session_factory, "fake", "admin")
     async with serve(env, tmp_path) as client:
         token = client.headers["Authorization"].removeprefix("Bearer ")
-        api = AsyncApi("http://test", token, transport=client._transport)
+        api = AsyncApi("http://test", static_auth(token), transport=client._transport)
         yield api, env
         await api.aclose()
 

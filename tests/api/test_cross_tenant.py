@@ -21,7 +21,7 @@ async def _second_tenant(client, raw_session_factory) -> httpx2.AsyncClient:
         s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
     root = await UserStore(raw_session_factory, "tenant-2").create(
-        "root", "password", is_admin=True
+        "root", password="password", is_admin=True
     )
     await WorkspaceStore(raw_session_factory, "tenant-2").create_shared("canonical", root.id)
     other = httpx2.AsyncClient(transport=client._transport, base_url="http://test")

@@ -10,6 +10,7 @@ import time
 import zipfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx2
 import pytest
@@ -19,11 +20,13 @@ from typer.testing import CliRunner
 
 from evalkit.api import experiments as experiments_api
 from evalkit.api.app import create_app
+from evalkit.cli import local_run, runs_commands
 from evalkit.cli import main as main_module
-from evalkit.cli import runs_commands
 from evalkit.cli.client import ApiError
 from evalkit.cli.main import app as cli_app
 from evalkit.client import connection
+from evalkit.client import oidc as client_oidc
+from evalkit.client.oidc import ClientCredentialsRefused, EvalkitAuth, LoginExpired
 from evalkit.contracts.enums import DatasetKind, SyncSource, TrajectorySource
 from evalkit.core.harness import HarnessClient
 from evalkit.core.importer import incoming_case
@@ -37,7 +40,7 @@ from evalkit.db.workspaces import WorkspaceStore
 from evalkit.store.base import CaseFile, Experiment, RunDetail
 from tests.fake_agents import fake_agent, reference_mapping
 from tests.fake_harness import FakeHarness
-from tests.identity import seed_agent
+from tests.identity import FakeIdp, seed_agent
 from tests.native import CASE_EVALUATORS, HOLDER, seed_env, suite_case
 
 runner = CliRunner()
@@ -106,7 +109,7 @@ def server(tmp_path_factory, stub_judges_module, fake_harness, harness_url, modu
     async def setup_db():
         factory = make_session_factory(module_db_url)
         env = await seed_env(factory, tmp_path, fake_harness)
-        await UserStore(factory, "default").create("ravi", "password")
+        await UserStore(factory, "default").create("ravi", password="password")
         await seed_agent(factory, "fake", "admin", harness_url=harness_url)
         await seed_agent(factory, "fake", "ravi", harness_url=harness_url)
         await seed_agent(
@@ -1033,6 +1036,42 @@ def test_local_harness_check(env, tmp_path, monkeypatch, harness_url):
     assert "capabilities" in result.output and "✓" in result.output
 
 
+def test_local_harness_check_reports_an_expired_login_as_one_line(
+    env, tmp_path, monkeypatch, harness_url
+):
+    class ExpiredSource:
+        def bearer(self) -> str:
+            raise LoginExpired("http://x")
+
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        local_run, "oidc", SimpleNamespace(build_auth=lambda conn: EvalkitAuth(ExpiredSource()))
+    )
+    result = runner.invoke(cli_app, ["harness", "check", "fake"])
+    assert result.exit_code == 1
+    assert "run `evalkit login --url http://x`" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_local_harness_check_reports_refused_client_credentials_as_one_line(
+    env, tmp_path, monkeypatch, harness_url
+):
+    class RefusedSource:
+        def bearer(self) -> str:
+            raise ClientCredentialsRefused("invalid_client", "bad secret")
+
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        local_run, "oidc", SimpleNamespace(build_auth=lambda conn: EvalkitAuth(RefusedSource()))
+    )
+    result = runner.invoke(cli_app, ["harness", "check", "fake"])
+    assert result.exit_code == 1
+    assert "client credentials refused by the identity provider: invalid_client" in result.output
+    assert "Traceback" not in result.output
+
+
 def test_run_rejects_another_users_agent_before_syncing(env, tmp_path, monkeypatch, harness_url):
     write_local_config(tmp_path, harness_url)
     monkeypatch.chdir(tmp_path)
@@ -1556,6 +1595,164 @@ def test_offline_lint_reports_schema_errors_as_findings(tmp_path):
     result = runner.invoke(cli_app, ["lint", "--offline", str(tmp_path)])
     assert result.exit_code != 0
     assert "E-SCHEMA [q1] acme/cases.yaml: evaluators.output.max_response_time" in result.output
+
+
+def test_users_add_with_a_subject_skips_the_password(env):
+    result = runner.invoke(cli_app, ["users", "add", "ci-bot", "--subject", "client-1"])
+    assert result.exit_code == 1 and "SSO is not configured" in result.output
+
+
+def test_users_list_shows_kind_and_email(env):
+    result = runner.invoke(cli_app, ["users", "list"])
+    assert result.exit_code == 0
+    assert "human" in result.output
+
+
+def idp_providers(idp: FakeIdp, scopes: list[str]) -> dict:
+    return {
+        "password": "admin",
+        "oidc": {
+            **idp.discovery(),
+            "name": "Fake",
+            "client_id": idp.client_id,
+            "audience": idp.audience,
+            "scopes": scopes,
+            "authorize_params": {},
+        },
+    }
+
+
+REGISTERED = {
+    "username": "ann",
+    "is_admin": False,
+    "email": "ann@example.com",
+    "kind": "human",
+    "created": True,
+}
+
+
+def test_login_falls_back_to_the_password_path_without_an_idp(server, tmp_path, monkeypatch):
+    base_url, _ = server
+    config_path = tmp_path / "login.toml"
+    monkeypatch.setattr(connection, "CONFIG_PATH", config_path)
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", base_url], input="admin\nhunter2-pw\n")
+    assert result.exit_code == 0, result.output
+    assert "token = " in config_path.read_text()
+
+
+def test_login_runs_the_loopback_flow_and_registers(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    idp.next_login = ("sub-ann", "ann@example.com", "ann")
+    providers = idp_providers(idp, ["openid", "email", "profile", "offline_access"])
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+    monkeypatch.setattr(
+        client_oidc, "register_identity", lambda url, tokens, transport=None: REGISTERED
+    )
+    monkeypatch.setattr(
+        client_oidc,
+        "run_loopback_flow",
+        lambda oidc_cfg, open_browser, **kw: idp._issue(idp._login()),
+    )
+    config_path = tmp_path / "login.toml"
+    monkeypatch.setattr(connection, "CONFIG_PATH", config_path)
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert result.exit_code == 0, result.output
+    assert "logged in as ann on https://evalkit.test" in result.output
+    saved = connection.load(config_path)
+    assert saved is not None
+    assert saved.username == "ann" and saved.oidc is not None and saved.token is None
+
+
+def test_login_reports_a_refused_code_exchange_as_one_line(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    providers = idp_providers(idp, ["openid", "email", "profile", "offline_access"])
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+
+    def refused(oidc_cfg, open_browser, **kw):
+        raise client_oidc.LoginRefused("invalid_grant: code expired")
+
+    monkeypatch.setattr(client_oidc, "run_loopback_flow", refused)
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert result.exit_code == 1
+    assert "invalid_grant" in result.output and "Traceback" not in result.output
+
+
+def test_login_no_browser_uses_the_device_flow(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    idp.next_login = ("sub-ann", "ann@example.com", "ann")
+    providers = idp_providers(idp, ["openid"])
+    called: list[str] = []
+
+    def device(oidc_cfg, echo, **kw):
+        called.append("device")
+        return idp._issue(idp._login())
+
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+    monkeypatch.setattr(
+        client_oidc, "register_identity", lambda url, tokens, transport=None: REGISTERED
+    )
+    monkeypatch.setattr(client_oidc, "run_device_flow", device)
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test", "--no-browser"])
+    assert result.exit_code == 0, result.output
+    assert called == ["device"]
+
+
+def test_login_reports_a_refused_login_as_one_line(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    providers = idp_providers(idp, ["openid"])
+
+    def refuse(oidc_cfg, open_browser, **kw):
+        raise client_oidc.LoginRefused("access_denied: no")
+
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+    monkeypatch.setattr(client_oidc, "run_loopback_flow", refuse)
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert result.exit_code == 1
+    assert "access_denied: no" in result.output
+    assert not (tmp_path / "login.toml").exists()
+
+
+def test_login_refuses_tokens_without_a_refresh_token(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    idp.next_login = ("sub-ann", "ann@example.com", "ann")
+    providers = idp_providers(idp, ["openid"])
+    tokens = {k: v for k, v in idp._issue(idp._login()).items() if k != "refresh_token"}
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+    monkeypatch.setattr(
+        client_oidc, "register_identity", lambda url, tokens, transport=None: REGISTERED
+    )
+    monkeypatch.setattr(
+        client_oidc, "run_loopback_flow", lambda oidc_cfg, open_browser, **kw: tokens
+    )
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert result.exit_code == 1
+    assert "issued no refresh token" in result.output and "offline_access" in result.output
+    assert not (tmp_path / "login.toml").exists()
+
+
+def test_whoami_names_the_login_kind(env):
+    result = runner.invoke(cli_app, ["whoami"])
+    assert result.exit_code == 0 and "login: password" in result.output
+
+
+def test_half_of_the_client_credentials_is_a_one_line_error(monkeypatch):
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("EVALKIT_OIDC_CLIENT_ID", "ci")
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_SECRET", raising=False)
+    result = runner.invoke(cli_app, ["datasets", "list"])
+    assert result.exit_code == 1
+    assert "EVALKIT_OIDC_CLIENT_SECRET" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_experiments_list_filters_by_dataset(env):

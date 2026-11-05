@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from evalkit.api.oidc import IdpUnavailable, require_scopes, verify_access_token, verify_id_token
 from evalkit.contracts.enums import TokenKind
 from evalkit.core.tenant import DEFAULT_TENANT_ID, check_tenant_id
 from evalkit.db.auth import find_token
@@ -17,6 +18,7 @@ from evalkit.db.session import tenant_session
 from evalkit.db.tokens import token_hash
 from evalkit.db.users import (
     PASSWORD_MAX_BYTES,
+    UserArchived,
     UserStore,
     any_admin_exists,
     hash_password,
@@ -90,6 +92,54 @@ async def bearer_login(
     return row, user
 
 
+def is_jwt(token: str) -> bool:
+    return token.count(".") == 2
+
+
+def api_audience(state) -> list[str]:
+    return [state.oidc.cfg.audience] if state.oidc is not None else []
+
+
+async def sso_identity(
+    state, token: str, audience: list[str], request: Request | None, *, enforce_scopes: bool
+) -> tuple[User, dict]:
+    if state.oidc is None:
+        raise HTTPException(status_code=401, detail="SSO is not configured on this server")
+    claims = await verify_access_token(state.oidc, token, audience)
+    if enforce_scopes:
+        require_scopes(state.oidc, claims)
+    tenant_id = check_tenant_id(state.resolve_tenant(request, claims))
+    async with tenant_session(state.session_factory, tenant_id) as session:
+        user = await session.scalar(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.issuer == claims["iss"],
+                User.subject == claims["sub"],
+            )
+        )
+    if user is None:
+        raise HTTPException(
+            status_code=401, detail=f"not registered: subject {claims['sub']} has no user"
+        )
+    if user.archived_at is not None:
+        raise HTTPException(status_code=401, detail="user is archived")
+    return user, claims
+
+
+async def sso_login(
+    state, token: str, audience: list[str], request: Request | None
+) -> tuple[User, datetime]:
+    user, claims = await sso_identity(state, token, audience, request, enforce_scopes=True)
+    return user, datetime.fromtimestamp(claims["exp"], UTC)
+
+
+async def sso_user(state, token: str, audience: list[str], request: Request | None) -> User:
+    user, expires_at = await sso_login(state, token, audience, request)
+    if request is not None:
+        request.state.token_expires_at = expires_at
+    return user
+
+
 def token_expiry(row: AuthToken) -> datetime | None:
     if row.expires_at is None:
         return None
@@ -115,7 +165,10 @@ async def current_user(request: Request) -> User:
             user = await _active_user(session, row.user_id)
             await session.commit()
         return user
-    row, user = await bearer_login(session_factory, _bearer(request))
+    token = _bearer(request)
+    if is_jwt(token):
+        return await sso_user(request.app.state, token, api_audience(request.app.state), request)
+    row, user = await bearer_login(session_factory, token)
     request.state.token_expires_at = token_expiry(row)
     return user
 
@@ -131,8 +184,13 @@ class Principal:
 
 
 async def collector_principal(request: Request) -> Principal:
+    token = _bearer(request)
+    if is_jwt(token):
+        state = request.app.state
+        user = await sso_user(state, token, api_audience(state), request)
+        return Principal(user=user, agent_id=None, tenant_id=user.tenant_id)
     session_factory = request.app.state.session_factory
-    found = await find_token(session_factory, token_hash(_bearer(request)))
+    found = await find_token(session_factory, token_hash(token))
     if found is None:
         raise HTTPException(status_code=401, detail="invalid token")
     row, tenant_id = found
@@ -168,6 +226,30 @@ class LoginRequest(BaseModel):
     password: str
 
 
+@router.get("/providers")
+async def providers(request: Request) -> dict:
+    cfg = request.app.state.cfg
+    oidc = request.app.state.oidc
+    body: dict = {"password": cfg.auth.resolve_password_login(), "oidc": None}
+    if oidc is None:
+        return body
+    if oidc.discovery is None:
+        raise IdpUnavailable()
+    body["oidc"] = {
+        "name": oidc.cfg.name,
+        "issuer": oidc.cfg.issuer,
+        "client_id": oidc.cfg.client_id,
+        "audience": oidc.cfg.audience,
+        "scopes": oidc.cfg.scopes,
+        "required_scopes": oidc.cfg.required_scopes,
+        "authorize_params": oidc.cfg.authorize_params,
+        "authorization_endpoint": oidc.discovery.authorization_endpoint,
+        "token_endpoint": oidc.discovery.token_endpoint,
+        "device_authorization_endpoint": oidc.discovery.device_authorization_endpoint,
+    }
+    return body
+
+
 @router.post("/login")
 async def login(body: LoginRequest, request: Request) -> dict:
     tenant_id = check_tenant_id(request.app.state.resolve_tenant(request, None))
@@ -188,7 +270,15 @@ async def login(body: LoginRequest, request: Request) -> dict:
             raise HTTPException(status_code=401, detail="invalid username or password")
         if user.archived_at is not None:
             raise HTTPException(status_code=401, detail="user is archived")
-        ttl = timedelta(hours=request.app.state.cfg.auth.token_ttl_hours)
+        cfg = request.app.state.cfg
+        if cfg.auth.resolve_password_login() == "admin" and not user.is_admin:
+            assert cfg.auth.oidc is not None
+            name = cfg.auth.oidc.name
+            raise HTTPException(
+                status_code=403,
+                detail=f"password login is for admins on this server; sign in with {name}",
+            )
+        ttl = timedelta(hours=cfg.auth.token_ttl_hours)
         token = await issue_token(session, user, ttl)
     return {"token": token, "username": user.username, "is_admin": user.is_admin}
 
@@ -231,6 +321,8 @@ async def me(request: Request, user: CurrentUser) -> dict:
         roles.setdefault(name, []).append(role)
     return {
         "username": user.username,
+        "email": user.email,
+        "kind": user.kind,
         "is_admin": user.is_admin,
         "personal_workspace": personal,
         "roles": roles,
@@ -248,4 +340,45 @@ async def bootstrap_admin(
             "no admin user exists and EVALKIT_ADMIN_PASSWORD is not set; "
             "set it and start the server again to create the admin user"
         )
-    await UserStore(session_factory, DEFAULT_TENANT_ID).create("admin", password, is_admin=True)
+    await UserStore(session_factory, DEFAULT_TENANT_ID).create(
+        "admin", password=password, is_admin=True
+    )
+
+
+class RegisterRequest(BaseModel):
+    id_token: str
+
+
+@router.post("/oidc/register")
+async def register_identity(body: RegisterRequest, request: Request) -> dict:
+    state = request.app.state
+    oidc = state.oidc
+    if oidc is None:
+        raise HTTPException(status_code=401, detail="SSO is not configured on this server")
+    access = await verify_access_token(oidc, _bearer(request), api_audience(state))
+    require_scopes(oidc, access)
+    idtok = await verify_id_token(oidc, body.id_token)
+    if idtok["sub"] != access["sub"]:
+        raise HTTPException(
+            status_code=400, detail="id_token and access token name different subjects"
+        )
+    if "email" not in idtok:
+        raise HTTPException(
+            status_code=400,
+            detail="the ID token has no email claim; ask the IdP admin to grant the email scope",
+        )
+    tenant_id = check_tenant_id(state.resolve_tenant(request, access))
+    store = UserStore(state.session_factory, tenant_id)
+    try:
+        user, created = await store.register(
+            idtok["iss"], idtok["sub"], idtok["email"], idtok.get("preferred_username")
+        )
+    except UserArchived as exc:
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+    return {
+        "username": user.username,
+        "is_admin": user.is_admin,
+        "email": user.email,
+        "kind": user.kind,
+        "created": created,
+    }

@@ -53,26 +53,34 @@ and how case review works.
    --url https://evalkit.internal`. The login is stored in
    `~/.evalkit/config.toml`. The CLI talks to one server at a time; logging
    in again replaces the stored login. Dev and prod are shared workspaces on
-   that server (`@dev`, `@prod`), not separate logins. The token expires after
-   the TTL the deployer configured (default 30 days) — when commands start
-   failing with 401, log in again. `evalkit whoami` shows when the token
-   expires; run it before a long run.
-3. Scripts and CI have two options. Set `EVALKIT_SERVER_URL` and
-   `EVALKIT_TOKEN` in the environment to bypass the file. Or, better, keep a
-   password in the secret store and run a non-interactive `evalkit login`
-   at the start of every job (see `evalkit login --help`). A stored token
-   will expire and break the job; a stored password will not.
+   that server (`@dev`, `@prod`), not separate logins. With single sign-on
+   configured on the server, the command opens your browser at your identity
+   provider and stores its tokens, which refresh themselves; on a machine
+   without a browser, `evalkit login --url <url> --no-browser` prints a URL
+   and a code to enter on any device. Without single sign-on (or with
+   `--username`) it asks for a password and stores an evalkit token that
+   expires after the TTL the deployer configured (default 30 days). When a
+   command says `your login has expired`, log in again. `evalkit whoami`
+   shows the login kind and when the token expires.
+3. Scripts and CI authenticate as a machine user. With single sign-on, set
+   `EVALKIT_SERVER_URL`, `EVALKIT_OIDC_CLIENT_ID` and
+   `EVALKIT_OIDC_CLIENT_SECRET` (a machine client at the identity provider,
+   bound once by an admin with `evalkit users add <name> --subject <sub>`);
+   no login step is needed. Without single sign-on, use a dedicated non-admin
+   password user and run a non-interactive `evalkit login` at the start of
+   every job (see `evalkit login --help`). Never the admin account. See
+   [CI sync](../evalkit-docs/ci-sync.md) and
+   [Single sign-on](../evalkit-docs/sso.md).
    `EVALKIT_TIMEOUT` (seconds, default 120) sets how long the CLI and SDK
    wait for each server call; it does not change the server's limits on
    its own calls to a harness. Every server
    call needs a login, lint included; only `evalkit lint --offline` runs
    without one, and it skips the checks that need server state. The server
    lint covers everything `--offline` does, fixture keys included, so CI
-   needs only the server lint. Log in as
-   `admin` (the deployer's `EVALKIT_ADMIN_PASSWORD`) in both the lint job
-   and the sync job. The sync job targets a shared workspace
-   (`--workspace dev`) and passes `--actor <merge author>` so the changelog
-   names the real author (`--actor` is admin only). Install
+   needs only the server lint. The lint job and the sync job both use the
+   machine user. The sync job targets a shared workspace
+   (`--workspace dev`); a machine user is recorded as the changelog actor
+   (`--actor` is admin only). Install
    the CLI at the start of the job so CI always runs the server's build:
 
    ```bash
@@ -200,12 +208,11 @@ Docs → Install page has the exact command for your server; it is
 `evalkit-py` with the `otel` extra), create a code-driven agent (no `--harness-url`),
 and run the experiment from your own code. A local run uses
 your own login for the API calls (the one from `evalkit login`, or
-`EVALKIT_SERVER_URL` and `EVALKIT_TOKEN`), and for the exported traces when
-the agent runs inside the same Python process. Any exporter outside that
-process (a worker, a queue consumer, a service in another language) needs
-an agent token from `evalkit tokens create --agent <name>`: it never expires,
-while the login token runs out under a long-running worker and the export
-fails silently.
+`EVALKIT_SERVER_URL` and the machine client variables). The exported traces
+need an agent token from `evalkit tokens create --agent <name>` in
+`EVALKIT_OTEL_TOKEN`, required by `tracing.register`: it never expires,
+while a login token runs out under a long-running process and the export
+would fail silently.
 
 ```python
 # eval/run.py — uv run python eval/run.py

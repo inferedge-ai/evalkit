@@ -1,48 +1,43 @@
+from datetime import UTC, datetime
+
 from fastapi import HTTPException
-from fastmcp.server.auth import (
-    AccessToken,
-    AuthProvider,
-    MultiAuth,
-    RemoteAuthProvider,
-    TokenVerifier,
-)
-from fastmcp.server.auth.providers.jwt import JWTVerifier
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from fastmcp.server.auth import AccessToken, AuthProvider, RemoteAuthProvider, TokenVerifier
 
-from evalkit.api.auth import bearer_login, token_expiry
-from evalkit.config import Config
-from evalkit.core.tenant import DEFAULT_TENANT_ID
+from evalkit.api.auth import bearer_login, is_jwt, sso_identity, token_expiry
+from evalkit.api.oidc import IdpUnavailable, token_scopes
+from evalkit.core.tenant import BadTenantId
 
-SCOPE_READ = "evalkit:read"
 MCP_PATH = "/mcp"
 
 
-def resource_url(cfg: Config) -> str:
-    return f"{cfg.server.base_url.rstrip('/')}{MCP_PATH}"
-
-
-# An evalkit login token reaches MCP with the read scope; agent tokens stay
-# collector-only here as on /api.
 class EvalkitTokenVerifier(TokenVerifier):
-    def __init__(
-        self,
-        session_factory: async_sessionmaker[AsyncSession],
-        base_url: str,
-        required_scopes: list[str] | None = None,
-    ):
+    def __init__(self, state, base_url: str, required_scopes: list[str] | None = None):
         super().__init__(base_url=base_url, required_scopes=required_scopes)
-        self._session_factory = session_factory
+        self._state = state
 
     async def verify_token(self, token: str) -> AccessToken | None:
+        expires: datetime | None
         try:
-            row, user = await bearer_login(self._session_factory, token)
-        except HTTPException:
+            if is_jwt(token):
+                oidc = self._state.oidc
+                audience = [oidc.cfg.audience, oidc.mcp_resource_url] if oidc is not None else []
+                user, claims = await sso_identity(
+                    self._state, token, audience, None, enforce_scopes=False
+                )
+                expires = datetime.fromtimestamp(claims["exp"], UTC)
+                scopes = sorted(token_scopes(claims))
+            else:
+                row, user = await bearer_login(self._state.session_factory, token)
+                expires = token_expiry(row)
+                scopes = list(self.required_scopes)
+        except IdpUnavailable:
+            raise
+        except (HTTPException, BadTenantId):
             return None
-        expires = token_expiry(row)
         return AccessToken(
             token=token,
             client_id=f"evalkit:{user.username}",
-            scopes=[SCOPE_READ],
+            scopes=scopes,
             expires_at=int(expires.timestamp()) if expires is not None else None,
             claims={
                 "sub": user.username,
@@ -52,53 +47,20 @@ class EvalkitTokenVerifier(TokenVerifier):
         )
 
 
-# The identity provider names the scope (`mcp.oauth.scope`); a token carrying it
-# gets evalkit's own read scope, which the tools check.
-class ProviderScopeVerifier(TokenVerifier):
-    def __init__(self, inner: TokenVerifier, scope: str, base_url: str):
-        super().__init__(base_url=base_url)
-        self._inner = inner
-        self._scope = scope
-
-    async def verify_token(self, token: str) -> AccessToken | None:
-        found = await self._inner.verify_token(token)
-        if found is None:
-            return None
-        scopes = [s for s in found.scopes if s != SCOPE_READ]
-        if self._scope in found.scopes:
-            scopes.append(SCOPE_READ)
-        claims = {**found.claims, "tenant_id": DEFAULT_TENANT_ID}
-        return found.model_copy(update={"scopes": scopes, "claims": claims})
-
-
-def build_auth(
-    cfg: Config,
-    session_factory: async_sessionmaker[AsyncSession],
-    jwt_verifier: TokenVerifier | None = None,
-) -> AuthProvider:
-    oauth = cfg.mcp.oauth
-    if oauth is None:
-        return EvalkitTokenVerifier(
-            session_factory, cfg.server.base_url, required_scopes=[SCOPE_READ]
-        )
-    verifier = jwt_verifier or JWTVerifier(
-        jwks_uri=oauth.jwks_uri,
-        issuer=oauth.issuer,
-        audience=oauth.audience or resource_url(cfg),
-        algorithm=oauth.algorithm,
+def build_auth(state) -> AuthProvider:
+    base_url = state.cfg.server.base_url
+    oidc_cfg = state.cfg.auth.oidc
+    verifier = EvalkitTokenVerifier(
+        state, base_url, required_scopes=oidc_cfg.required_scopes if oidc_cfg else []
     )
-    remote = RemoteAuthProvider(
-        token_verifier=ProviderScopeVerifier(verifier, oauth.scope, cfg.server.base_url),
+    if state.oidc is None:
+        return verifier
+    return RemoteAuthProvider(
+        token_verifier=verifier,
         # As configured: AnyHttpUrl would turn https://host into https://host/, which clients
         # cannot match to the provider's issuer (RFC 8414).
-        authorization_servers=[oauth.issuer],  # type: ignore[list-item]
-        base_url=cfg.server.base_url,
-        scopes_supported=[oauth.scope],
+        authorization_servers=[state.oidc.cfg.issuer],  # type: ignore[list-item]
+        base_url=base_url,
+        scopes_supported=state.oidc.cfg.scopes,
         resource_name="evalkit",
-    )
-    return MultiAuth(
-        server=remote,
-        verifiers={"evalkit": EvalkitTokenVerifier(session_factory, cfg.server.base_url)},
-        server_source_id="oauth",
-        required_scopes=[SCOPE_READ],
     )

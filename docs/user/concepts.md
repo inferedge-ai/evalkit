@@ -13,6 +13,9 @@ The words you need before your first scorecard. Everything else is explained on 
 | Task                       | The function `run_experiment` calls once per case. It calls your agent and returns the answer.                                       |
 | Experiment                 | One run of a dataset against an agent.                                                                                               |
 | Run                        | One case answered once.                                                                                                              |
+| Single sign-on             | Signing in through your organisation's identity provider. The first sign-in creates your evalkit user. See [Single sign-on](sso.md). |
+| Subject                    | The stable id your identity provider assigns you; evalkit keys your user on it, not on your email. |
+| Machine user               | A user bound to a machine client at the identity provider, for CI. No password, no browser. `evalkit users add <name> --subject <sub>`. |
 | Trace, span, session       | What your agent records as it works: one span per model call or tool call. One run is one session.                                  |
 | Mapping                    | Which span attribute holds the model, the messages, the tokens and each tool call.                                                   |
 | Trajectory                 | The step-by-step record of a run that evalkit builds from the spans.                                                                 |

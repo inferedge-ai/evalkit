@@ -16,13 +16,16 @@ cost_map:
   source: bundled # or a path/URL override
 
 auth:
-  token_ttl_hours: 720
-
-# mcp: # optional; /mcp takes evalkit login tokens without it
-#   oauth: # also accept an OAuth identity provider's JWTs carrying `scope`
-#     issuer: https://id.example.com
-#     jwks_uri: https://id.example.com/.well-known/jwks.json
-#     scope: evalkit:read # the provider's name for read access (default)
+  token_ttl_hours: 720 # password login tokens
+  # password_login: admin # with oidc set: admin (default) or all; ignored without oidc
+  # oidc: # single sign-on through an OIDC identity provider; see evalkit-docs/sso.md
+  #   issuer: https://id.example.com # discovery at <issuer>/.well-known/openid-configuration
+  #   client_id: 0oa1b2c3d4e5f6g7h8 # the one public client the UI and CLI share; no secret
+  #   audience: https://evalkit.example.com # what the IdP puts in access tokens' aud for evalkit
+  #   name: Okta # the login button's label
+  #   scopes: [openid, profile, email, offline_access] # default
+  #   authorize_params: {} # extra authorize-request parameters, e.g. {resource: https://evalkit.example.com} or {audience: ...}
+  #   algorithms: [RS256] # default
 
 otel: # optional block; the OTLP collector at /api/otel/v1/traces
   settle_seconds: 10 # a session is settled when its newest span arrived longer ago than this

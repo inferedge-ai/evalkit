@@ -74,6 +74,12 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Python evaluator | A custom evaluator written as a Python function and passed to `run_experiment`. The in-process twin of the Custom Evaluator API. |
 | Try-it stack | The Compose kit in `skills/evalkit-deployment/try/`: server and Postgres judging with the developer's LLM (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`) on host port `EVALKIT_PORT` (default 8020), plus a sample agent run through an SDK run with OTel traces. For trying evalkit on one machine; never a deployment. |
 | Sample agent | The try-it stack's `agent.py`: a small agent that calls the developer's LLM with one tool and emits GenAI-convention spans. Example client code, not part of the package. |
+| SSO | Single sign-on: a person signs in through the IdP; the UI and CLI are public OAuth clients and the server verifies the IdP's JWT access token on every request. |
+| IdP | The identity provider: the OAuth authorization server and OpenID provider an organisation runs. Configured once per server in `auth.oidc`. |
+| Access token | The IdP-issued JWT a client presents as bearer. Its `aud` names evalkit. Verified against the IdP's JWKS; no `auth_tokens` row. |
+| Subject | The pair `(issuer, sub)` identifying one identity at one IdP; keys the `users` row with the tenant. |
+| Machine user | A `users` row bound to a machine client's subject: no password, no email, `kind` is `machine`. CI authenticates as one with the client credentials grant. |
+| Tenant | One organisation's slice of the database; the public repo has exactly one, id 1. |
 
 ## Layout
 
@@ -116,12 +122,12 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - `serve` and `db upgrade` load the `.env` beside `config.yaml`; the environment wins.
 - A source checkout reports the plain semver; `GET /api/cli` returns `{"version", "package"}`.
 - The try-it stack (`skills/evalkit-deployment/try/`, walkthrough in `docs/user/try-locally.md`) builds the image from this checkout: `docker compose up -d --wait --build`.
-- `tests/e2e/services.py` serves a fake harness, custom evaluator and judge on ports 18080, 19000 and 19090 for e2e runs against a built image.
+- `uv run python -m tests.e2e.services` serves a fake harness, custom evaluator and judge on ports 18080, 19000 and 19090, and a fake identity provider on port 19100 (issuer `http://127.0.0.1:19100`, client id `evalkit-ui`, machine client `ci` / `e2e-secret`; see `tests/e2e/README.md`), for e2e runs against a built image.
 
 ### UI changes in a PR
 
 - Run the server and UI locally (see "Local server"; a throwaway Postgres,
-  dummy keys and the fake services in `tests/e2e/services.py` are enough).
+  dummy keys and the fake services in `python -m tests.e2e.services` are enough).
 - Click through every page and flow the PR changes and take screenshots.
 - Add them to the PR description under "Screenshots" with
   `gh pr edit <n> --body-file body.md --attach ./shot.png ...`: write

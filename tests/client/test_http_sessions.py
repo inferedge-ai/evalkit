@@ -2,6 +2,7 @@ import pytest
 from respx import MockResponse
 
 from evalkit.client.api import AsyncApi
+from evalkit.client.oidc import static_auth
 from evalkit.client.sessions import HttpSessionReader
 from evalkit.core.traces.sessions import SessionTooLarge
 
@@ -18,7 +19,7 @@ async def test_http_session_reader_round_trip(httpx2_mock):
             },
         )
     )
-    api = AsyncApi("http://srv", "tok")
+    api = AsyncApi("http://srv", static_auth("tok"))
     result = await HttpSessionReader(api).trajectory("sdk@me", "s-1")
     assert result.settled and result.span_count == 2 and result.trajectory["steps"] == []
     await api.aclose()
@@ -29,7 +30,7 @@ async def test_http_session_reader_raises_session_too_large_on_413(httpx2_mock):
     httpx2_mock.get("http://srv/api/agents/sdk%40me/sessions/s-1/trajectory").mock(
         return_value=MockResponse(413, json={"detail": detail})
     )
-    api = AsyncApi("http://srv", "tok")
+    api = AsyncApi("http://srv", static_auth("tok"))
     with pytest.raises(SessionTooLarge, match="900.0 MiB"):
         await HttpSessionReader(api).trajectory("sdk@me", "s-1")
     await api.aclose()

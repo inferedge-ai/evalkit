@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- `auth.oidc.required_scopes` (default empty) makes the server refuse IdP
+  access tokens that lack a scope, read from the `scope` and `scp` claims:
+  `POST /api/auth/oidc/register` (no user is created) and every `/api` request
+  answer 403 `access token lacks required scope <scope>`, and `/mcp` answers
+  403 `insufficient_scope`. Password
+  login and agent tokens are not checked. Every required scope must also be in
+  `auth.oidc.scopes`, or the config fails to load. `GET /api/auth/providers`
+  lists them as `required_scopes`, and the CLI sends them as `scope` on the
+  client credentials request. `/mcp` no longer stamps `evalkit:read`
+  on every token it accepts, and its tools no longer carry a per-tool scope.
 - evalkit now uses `httpx2` instead of `httpx` and `httpx-retries`. The
   CLI, the SDK and the server make their HTTP calls through `httpx2`, with a
   small retry transport of evalkit's own (`evalkit.client.retry`). Code that
@@ -21,6 +31,45 @@
   tenants other than `default` store objects under `tenants/<id>/`). Stop the
   old server before `evalkit db upgrade`: 0016 drops `server_settings`.
 - `GET /api/workspaces/...` payloads include `tenant_id`.
+- Single sign-on through any OIDC identity provider that issues JWT access
+  tokens: set `auth.oidc` (`issuer`, `client_id`, `audience`, `name`) in the
+  server config. `evalkit login` then opens the browser at the identity
+  provider and stores its tokens, which refresh themselves;
+  `--no-browser` uses the device authorization grant. The CLI makes its
+  OAuth requests with Authlib (its httpx2 `OAuth2Client`). The first sign-in
+  creates the user; `GET /api/auth/providers` reports what the server
+  offers and `POST /api/auth/oidc/register` creates the user from the ID
+  token. See `docs/user/sso.md`.
+- `auth.password_login` (`admin` by default when `auth.oidc` is set, or
+  `all`) governs `POST /api/auth/login`; non-admins get 403 under `admin`.
+  Stored password tokens keep working until they expire.
+- CI authenticates as a machine client with `EVALKIT_OIDC_CLIENT_ID` and
+  `EVALKIT_OIDC_CLIENT_SECRET` (client credentials grant). An admin binds
+  the client's subject with `evalkit users add <name> --subject <sub>`;
+  `evalkit users add` also takes `--password` for a password user.
+  `evalkit users bind <name> --subject <sub>` links an existing user
+  (`POST /api/users/{username}/identity`). `users list` shows `kind` and
+  `email`; `users promote` refuses a machine user. If only one of the two
+  variables is set, the CLI now stops with an error naming the missing one
+  instead of falling back to `EVALKIT_TOKEN`.
+- `/mcp` verifies tokens with the same settings as `/api`; a token for the
+  configured audience or for `<base_url>/mcp` is its evalkit user, and
+  archiving the user cuts off MCP. `mcp.oauth` is removed: a config that
+  still has it fails to load and names `auth.oidc`. `create_app` no longer
+  takes `mcp_jwt_verifier`. While the identity provider is unreachable,
+  `/mcp` answers 503 (as `/api` does) instead of 401, so MCP clients keep
+  their tokens and retry. The token's expiry now comes from its `exp` claim.
+- During `evalkit login`, a browser callback with the wrong `state` is
+  answered with 400 and ignored; the login keeps waiting for the real
+  callback until it times out. A body from the identity provider that is
+  not valid discovery or JWKS JSON counts as the provider being unreachable.
+- `tracing.register`, `tracing.exporter` and `tracing.processor` require
+  `EVALKIT_OTEL_TOKEN` (an agent token); the fallback to a login token is
+  removed.
+- `SyncApi` and `AsyncApi` take an `httpx2.Auth` instead of a token string;
+  `evalkit.client.oidc.static_auth(token)` wraps a token.
+- Dependencies: `authlib` (with `joserfc` and `cryptography`) is now a base
+  dependency; `pyjwt[crypto]` is in the `server` extra.
 - Only releases (`X.Y.Z` from `main`) are published to PyPI. `develop`
   builds (`X.Y.Z.devN`) are no longer on PyPI; get them from the workflow
   artifact or the GHCR image.
