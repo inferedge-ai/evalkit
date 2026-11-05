@@ -78,11 +78,12 @@ async def test_local_run_writes_everything_to_the_server(ctx, tmp_path):
     for run in runs:
         record = run.agent_run
         assert (
-            record.trajectory_key and env.blob.objects[f"{tenant_prefix(1)}{record.trajectory_key}"]
+            record.trajectory_key
+            and env.blob.objects[f"{tenant_prefix('default')}{record.trajectory_key}"]
         )
         assert (
             env.blob.objects[
-                f"{tenant_prefix(1)}artifacts/{exp.agent_id}/{record.harness_run_id}/outputs/report.md"
+                f"{tenant_prefix('default')}artifacts/{exp.agent_id}/{record.harness_run_id}/outputs/report.md"
             ]
             == b"# report"
         )

@@ -71,7 +71,7 @@ class AuditMixin:
 class TenantSettings(AuditMixin, Base):
     __tablename__ = "tenant_settings"
 
-    tenant_id: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)
+    tenant_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     default_judge: Mapped[dict | None] = mapped_column(JSONB, default=None)
 
 
@@ -90,7 +90,7 @@ class User(AuditMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tenant_id: Mapped[int] = mapped_column()
+    tenant_id: Mapped[str] = mapped_column(String(64))
     username: Mapped[str] = mapped_column(String(150))
     password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
     issuer: Mapped[str | None] = mapped_column(Text, default=None)
@@ -121,7 +121,7 @@ class Workspace(AuditMixin, Base):
     __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_workspaces_tenant_name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tenant_id: Mapped[int] = mapped_column()
+    tenant_id: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(150))
     owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
@@ -221,7 +221,7 @@ class LlmProvider(AuditMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tenant_id: Mapped[int] = mapped_column()
+    tenant_id: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(150))
     base_url: Mapped[str] = mapped_column(String(500))
     api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
@@ -236,7 +236,7 @@ class TraceSource(AuditMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tenant_id: Mapped[int] = mapped_column()
+    tenant_id: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(150))
     provider: Mapped[str] = mapped_column(String(16))
     config: Mapped[dict] = mapped_column(JSONB)
@@ -344,7 +344,7 @@ class Case(AuditMixin, Base):
     __table_args__ = (UniqueConstraint("tenant_id", "case_id", name="uq_cases_tenant_case_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    tenant_id: Mapped[int] = mapped_column()
+    tenant_id: Mapped[str] = mapped_column(String(64))
     case_id: Mapped[str] = mapped_column(String(255))
 
 
@@ -363,7 +363,7 @@ class CaseVersion(AuditMixin, Base):
 class FixtureBlob(AuditMixin, Base):
     __tablename__ = "fixture_blobs"
 
-    tenant_id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
     size: Mapped[int] = mapped_column(BigInteger)
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
@@ -385,7 +385,7 @@ class CaseVersionFile(AuditMixin, Base):
     case_ref: Mapped[int] = mapped_column(primary_key=True)
     content_hash: Mapped[str] = mapped_column(String(16), primary_key=True)
     key: Mapped[str] = mapped_column(String(255), primary_key=True)
-    tenant_id: Mapped[int] = mapped_column(Integer)
+    tenant_id: Mapped[str] = mapped_column(String(64))
     sha256: Mapped[str] = mapped_column(String(64))
     context: Mapped[str] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer)

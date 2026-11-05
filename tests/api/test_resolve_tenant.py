@@ -4,20 +4,17 @@ from sqlalchemy import select
 from evalkit.config import AdminClaimConfig
 from evalkit.db.models import User
 from evalkit.db.session import ALL_TENANTS, tenant_session
-from evalkit.db.users import UserStore
 from tests.api.test_auth_sso import bearer, register, sso_app
 from tests.identity import FakeIdp
 from tests.native import USERS, Env, seed_env
 
 ADMIN = AdminClaimConfig(name="roles", value="evalkit-admin")
-ORGS = {"ORG-acme": 2, "ORG-globex": 3}
 
 
-async def by_org(request, claims: dict | None) -> int | None:
+async def by_org(request, claims: dict | None) -> str | None:
     if claims is None:
-        return 1
-    org = claims.get("tenant_id")
-    return ORGS.get(org) if org is not None else None
+        return "default"
+    return claims.get("tenant_id")
 
 
 @pytest.fixture
@@ -30,7 +27,7 @@ async def env(tmp_path, stub_judges, session_factory) -> Env:
     return await seed_env(session_factory, tmp_path)
 
 
-async def tenant_of(env: Env, username: str) -> int:
+async def tenant_of(env: Env, username: str) -> str:
     async with tenant_session(env.session_factory, ALL_TENANTS) as s:
         return await s.scalar(select(User.tenant_id).where(User.username == username))
 
@@ -53,46 +50,55 @@ async def test_register_and_requests_use_the_wrappers_tenant(env, idp):
         )
     assert resp.status_code == 200, resp.text
     assert me.status_code == 200 and me.json()["username"] == "ann"
-    assert await tenant_of(env, "ann") == 2
+    assert await tenant_of(env, "ann") == "ORG-acme"
     assert other.status_code == 401 and "not registered" in other.json()["detail"]
 
 
-async def test_register_is_refused_when_the_wrapper_has_no_tenant(env, idp):
+async def test_register_is_refused_without_a_tenant_or_with_a_bad_one(env, idp):
     async with sso_app(env, idp, resolve_tenant=by_org) as client:
-        unknown = await register(
-            client, idp, "sub-ann", "ann@example.com", extra={"tenant_id": "ORG-nope"}
-        )
         bare = await register(client, idp, "sub-bo", "bo@example.com")
-    assert unknown.status_code == 403 and bare.status_code == 403
-    assert unknown.json()["detail"] == "no tenant for this access token"
-
-
-async def test_a_machine_token_without_a_tenant_finds_its_bound_user(env, idp):
-    await UserStore(env.session_factory, 2).create("ci-bot", issuer=idp.issuer, subject="ci-client")
-    await UserStore(env.session_factory, 2).create(
-        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
-    )
-    async with sso_app(env, idp, resolve_tenant=by_org) as client:
-        machine = await client.get("/api/auth/me", headers=bearer(idp.access_token("ci-client")))
-        person = await client.get("/api/auth/me", headers=bearer(idp.access_token("sub-ann")))
-    assert machine.status_code == 200 and machine.json()["username"] == "ci-bot"
-    assert person.status_code == 403
-    assert person.json()["detail"] == "no tenant for this access token"
-
-
-async def test_a_machine_bound_in_two_tenants_needs_a_tenant(env, idp):
-    for tenant_id in (2, 3):
-        await UserStore(env.session_factory, tenant_id).create(
-            "ci-bot", issuer=idp.issuer, subject="ci-client"
+        bad = await register(
+            client, idp, "sub-ann", "ann@example.com", extra={"tenant_id": "../evil"}
         )
-    async with sso_app(env, idp, resolve_tenant=by_org) as client:
-        bare = await client.get("/api/auth/me", headers=bearer(idp.access_token("ci-client")))
+    assert bare.status_code == 403 and bare.json()["detail"] == "no tenant for this request"
+    assert bad.status_code == 403 and "is not 1-64" in bad.json()["detail"]
+
+
+async def admin_headers(client, idp, sub: str, org: str) -> dict[str, str]:
+    claims = {"tenant_id": org, "roles": ["evalkit-admin"]}
+    resp = await register(client, idp, sub, f"{sub}@example.com", sub, extra=claims)
+    assert resp.status_code == 200, resp.text
+    return bearer(idp.access_token(sub, extra=claims))
+
+
+async def test_a_ci_token_without_a_tenant_cannot_use_another_tenants_binding(env, idp):
+    async with sso_app(env, idp, resolve_tenant=by_org, admin_claim=ADMIN) as client:
+        globex = await admin_headers(client, idp, "gail", "ORG-globex")
+        await client.post(
+            "/api/users", headers=globex, json={"username": "ci", "subject": "acme-ci-client"}
+        )
+        spaces = await client.get(
+            "/api/workspaces", headers=bearer(idp.access_token("acme-ci-client"))
+        )
+    assert spaces.status_code == 403
+
+
+async def test_a_ci_token_names_its_tenant_and_another_binding_does_not_lock_it_out(env, idp):
+    async with sso_app(env, idp, resolve_tenant=by_org, admin_claim=ADMIN) as client:
+        acme = await admin_headers(client, idp, "ann", "ORG-acme")
+        globex = await admin_headers(client, idp, "gail", "ORG-globex")
+        for headers in (acme, globex):
+            await client.post(
+                "/api/users", headers=headers, json={"username": "ci", "subject": "acme-ci-client"}
+            )
+        bare = await client.get("/api/auth/me", headers=bearer(idp.access_token("acme-ci-client")))
         named = await client.get(
             "/api/auth/me",
-            headers=bearer(idp.access_token("ci-client", extra={"tenant_id": "ORG-globex"})),
+            headers=bearer(idp.access_token("acme-ci-client", extra={"tenant_id": "ORG-acme"})),
         )
     assert bare.status_code == 403
-    assert named.status_code == 200 and named.json()["username"] == "ci-bot"
+    assert named.status_code == 200 and named.json()["username"] == "ci"
+    assert await tenant_of(env, "ann") == "ORG-acme"
 
 
 async def test_password_login_is_refused_when_the_wrapper_has_no_tenant(env, idp):
@@ -147,4 +153,4 @@ async def test_an_admin_from_the_claim_manages_only_their_tenant(env, idp):
     assert users.status_code == 200
     assert [u["username"] for u in users.json()] == ["ann"]
     assert demote.status_code == 404
-    assert created.status_code == 200 and created.json()["tenant_id"] == 2
+    assert created.status_code == 200 and created.json()["tenant_id"] == "ORG-acme"

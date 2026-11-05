@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from typing import Protocol
 
 from evalkit.core.paths import require_safe_path, require_safe_run_id
+from evalkit.core.tenant import DEFAULT_TENANT_ID
 from evalkit.store.base import BlobStream
 
 
@@ -26,8 +27,6 @@ class BlobStore(Protocol):
 
     async def object_url(self, key: str) -> str: ...
 
-    async def has_any(self, prefix: str) -> bool: ...
-
 
 def trajectory_key(agent_id: int, harness_run_id: str) -> str:
     return f"trajectories/{agent_id}/{harness_run_id}.json"
@@ -48,15 +47,12 @@ def fixture_blob_key(sha256: str) -> str:
     return f"fixtures/sha256/{sha256}"
 
 
-TENANT_PREFIX = "tenants/"
-
-
-def tenant_prefix(tenant_id: int) -> str:
-    return f"{TENANT_PREFIX}{tenant_id}/"
+def tenant_prefix(tenant_id: str) -> str:
+    return "" if tenant_id == DEFAULT_TENANT_ID else f"tenants/{tenant_id}/"
 
 
 class TenantBlobStore:
-    def __init__(self, inner: BlobStore, tenant_id: int):
+    def __init__(self, inner: BlobStore, tenant_id: str):
         self._inner = inner
         self._prefix = tenant_prefix(tenant_id)
 
@@ -90,6 +86,3 @@ class TenantBlobStore:
 
     async def object_url(self, key: str) -> str:
         return await self._inner.object_url(self._key(key))
-
-    async def has_any(self, prefix: str) -> bool:
-        return await self._inner.has_any(self._key(prefix))

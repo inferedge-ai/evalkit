@@ -264,16 +264,9 @@ or `evalkit update` (every CLI call nudges them until they do), which also moves
 refreshes the skills in client repos that vendor them. Deploy only builds that are on PyPI: every `develop`
 (`X.Y.Z.devN`) and `main` (`X.Y.Z`) build of the publish workflow is.
 
-When upgrading to the release that added tenants (migration `0016`), run the
-blob relocation once after the migration and before starting the new server:
-
-```bash
-docker compose run --rm --no-deps server evalkit blobs relocate --config /etc/evalkit/config.yaml
-```
-
-It moves every object under `tenants/1/` and is safe to re-run. The new
-server refuses to start until it has run, with a message naming the command.
-Expect downtime between the migration and the relocation.
+When upgrading to the release that added tenants (migration `0016`), stop the
+old server before `evalkit db upgrade`: the migration drops `server_settings`,
+so an old server still running starts failing on writes.
 
 ## CLI for the deployer
 

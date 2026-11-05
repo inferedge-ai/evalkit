@@ -138,14 +138,14 @@ the UI, the CLI and MCP hosts only request the scopes listed there.
 Everyone who signs in lands in one tenant. A deployment that serves several
 organisations from one server runs evalkit inside a wrapper that owns its
 tenants: it passes `create_app(resolve_tenant=...)`, which reads the
-organisation from the access token and returns the tenant to use. evalkit
-stores that tenant on every row and keeps no list of tenants itself.
+organisation from the access token and returns its id, which evalkit stores
+on every row as text (1-64 letters, digits, `-` or `_`; anything else answers
+403). A server without a wrapper puts everything in `default`. evalkit keeps no
+list of tenants itself.
 
-A machine user (CI, client credentials) belongs to the tenant its admin bound
-it in with `evalkit users add --subject`. Client credentials tokens often
-carry no organisation, so when the wrapper returns no tenant evalkit accepts
-the token only if its subject matches exactly one machine user. A person's
-token without a tenant answers 403 `no tenant for this access token`.
+The wrapper resolves every token the same way, CI's client credentials tokens
+included, so the IdP must put the organisation in those too. When the wrapper
+returns no tenant, the request answers 403 `no tenant for this request`.
 
 ### Admins from the IdP
 
@@ -208,7 +208,7 @@ identity provider session stays.
 | 401 `SSO is not configured on this server` | A JWT reached a server without `auth.oidc` | Configure `auth.oidc` or use password login |
 | 401 `user is archived` | Archived in evalkit | `evalkit users restore <username>` |
 | 403 `password login is for admins on this server` | `password_login: admin` | Sign in with SSO, or set `password_login: all` |
-| 403 `no tenant for this access token` | A wrapper's `resolve_tenant` found no tenant for the token, and it is not a machine user bound in exactly one tenant | Map the organisation in the wrapper, or bind the machine client in one tenant |
+| 403 `no tenant for this request` | A wrapper's `resolve_tenant` found no tenant for the token | Have the IdP put the organisation in the token, CI's client credentials tokens included |
 | 403 `access token lacks required scope <scope>` (on `/api` and register; `/mcp` says `insufficient_scope`) | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
 | 503 `identity provider unreachable` | Discovery or the JWKS could not be fetched | Check the issuer URL and network egress from the server; it retries every 30 s |
 | No "Continue with ..." button on the login page | `/api/auth/providers` has no `oidc` | `auth.oidc` is absent or the server was not restarted |

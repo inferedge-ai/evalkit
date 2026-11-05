@@ -6,11 +6,10 @@
   sets the person's admin flag from the access token (equal to the value, or
   a list containing it), so the IdP grants and revokes evalkit admin. Unset,
   sign-in never changes the flag, as before.
-- `create_app(resolve_tenant=...)` is now async and may return `None`. With
-  `None`, a client-credentials token is accepted when its issuer and subject
-  match exactly one machine user; any other token gets 403 `no tenant for
-  this access token`, and password login 403 `no tenant for this request`.
-  Without a wrapper every request is tenant 1, as before.
+- `create_app(resolve_tenant=...)` is now async, returns the tenant id as
+  text, and may return `None`: the request then answers 403 `no tenant for
+  this request`, on every path. Without a wrapper every request is in
+  `default`, as before.
 - `auth.oidc.required_scopes` (default empty) makes the server refuse IdP
   access tokens that lack a scope, read from the `scope` and `scp` claims:
   `POST /api/auth/oidc/register` (no user is created) and every `/api` request
@@ -43,17 +42,15 @@
   the origins of the IdP's issuer and its token endpoint, so the web UI can
   sign in. Without `auth.oidc` the header is unchanged.
 - The database gains a `tenant_id` on `users`, `workspaces`, `cases`,
-  `llm_providers`, `trace_sources` and `fixture_blobs`, set to 1 for existing
-  rows. Usernames, workspace names, case ids, provider names and trace source
-  names are now unique per tenant. evalkit keeps no tenants table: a wrapper
-  that hosts several tenants owns them and passes its key. The default judge
-  moved from `server_settings` to a new `tenant_settings` table keyed by
-  tenant id. Migration `0016`; no behaviour change for a single installation.
-- Blob objects now live under `tenants/<id>/`. After `evalkit db upgrade`,
-  run `evalkit blobs relocate --config <config>` once to move existing
-  trajectories, artifacts, run workspaces and fixtures; the server refuses to
-  start while any object remains under the old layout. The upgrade has
-  downtime between the migration and the relocation.
+  `llm_providers`, `trace_sources` and `fixture_blobs`: text, the
+  organisation's id, `default` for existing rows and for a server without a
+  multi-org wrapper. Usernames, workspace names, case ids, provider names and
+  trace source names are now unique per tenant. evalkit keeps no tenants
+  table. The default judge moved from `server_settings` to a new
+  `tenant_settings` table keyed by tenant id. Migration `0016`; no behaviour
+  change for a single installation, and its blob layout is unchanged (only
+  tenants other than `default` store objects under `tenants/<id>/`). Stop the
+  old server before `evalkit db upgrade`: 0016 drops `server_settings`.
 - `GET /api/workspaces/...` payloads include `tenant_id`.
 - Single sign-on through any OIDC identity provider that issues JWT access
   tokens: set `auth.oidc` (`issuer`, `client_id`, `audience`, `name`) in the

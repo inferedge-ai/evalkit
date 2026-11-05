@@ -63,7 +63,7 @@ async def world(session_factory) -> World:
 
 
 async def new(s, dataset="finance@dev", agent="ouragent@dev", cases=("q-1",), holder="pod-a"):
-    row = await dataset_by_ref(s, 1, dataset)
+    row = await dataset_by_ref(s, "default", dataset)
     current = dict(await current_versions(s, row.id))
     refs = dict((await s.execute(select(Case.case_id, Case.id))).all())
     return NewExperiment(
@@ -334,7 +334,7 @@ async def test_experiment_by_id_is_not_found_from_another_tenant(
         exp = await create_experiment(s, await new(s))
         await s.commit()
     async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
-        s.add(TenantSettings(tenant_id=2))
+        s.add(TenantSettings(tenant_id="tenant-2"))
         await s.commit()
     with pytest.raises(UnknownExperiment):
-        await PgStore(raw_session_factory, 2).get_experiment(exp.id)
+        await PgStore(raw_session_factory, "tenant-2").get_experiment(exp.id)

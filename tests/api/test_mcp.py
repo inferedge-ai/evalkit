@@ -587,7 +587,7 @@ async def test_expected_tool_errors_log_as_warnings_and_bugs_as_errors(api, monk
 async def test_idp_tokens_reach_mcp_as_their_evalkit_user(tmp_path, stub_judges, session_factory):
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(session_factory, 1).create(
+    await UserStore(session_factory, "default").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp) as http:
@@ -599,7 +599,7 @@ async def test_idp_tokens_reach_mcp_as_their_evalkit_user(tmp_path, stub_judges,
         assert await mcp_status(http, idp.access_token("sub-ann", audience="https://other")) == 401
         assert await mcp_status(http, idp.access_token("sub-nobody")) == 401
         assert await mcp_status(http, bearer(http)) == 200
-        await UserStore(session_factory, 1).archive("ann")
+        await UserStore(session_factory, "default").archive("ann")
         assert await mcp_status(http, idp.access_token("sub-ann")) == 401
 
 
@@ -627,7 +627,7 @@ async def test_mcp_access_token_expires_with_the_verified_exp(
 ):
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(session_factory, 1).create(
+    await UserStore(session_factory, "default").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp) as http:
@@ -648,7 +648,7 @@ async def test_mcp_needs_the_required_scopes_of_an_idp_token(
 ):
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(session_factory, 1).create(
+    await UserStore(session_factory, "default").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp, required_scopes=["evalkit:read"]) as http:
@@ -667,7 +667,7 @@ async def test_mcp_without_required_scopes_accepts_idp_tokens_without_scopes(
 ):
     env = await seed_env(session_factory, tmp_path, fake_with_runs())
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(session_factory, 1).create(
+    await UserStore(session_factory, "default").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     async with sso_app(env, idp) as http:
@@ -677,14 +677,14 @@ async def test_mcp_without_required_scopes_accepts_idp_tokens_without_scopes(
 async def test_mcp_hands_resolve_tenant_the_real_request(tmp_path, stub_judges, session_factory):
     env = await seed_env(session_factory, tmp_path)
     idp = FakeIdp(audience="http://evalkit.test")
-    await UserStore(env.session_factory, 2).create(
+    await UserStore(env.session_factory, "ORG-acme").create(
         "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
     )
     seen: list[str | None] = []
 
     async def by_header(request, claims):
         seen.append(request.headers.get("x-tenant"))
-        return int(request.headers.get("x-tenant", "1"))
+        return request.headers.get("x-tenant", "default")
 
     async with sso_app(env, idp, resolve_tenant=by_header) as http:
         resp = await http.post(
@@ -693,8 +693,8 @@ async def test_mcp_hands_resolve_tenant_the_real_request(tmp_path, stub_judges, 
             headers={
                 "Authorization": f"Bearer {idp.access_token('sub-ann')}",
                 "Accept": MCP_ACCEPT,
-                "X-Tenant": "2",
+                "X-Tenant": "ORG-acme",
             },
         )
     assert resp.status_code == 200
-    assert "2" in seen
+    assert "ORG-acme" in seen

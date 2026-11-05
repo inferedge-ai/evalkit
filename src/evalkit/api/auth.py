@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.api.oidc import IdpUnavailable, require_scopes, verify_access_token, verify_id_token
 from evalkit.contracts.enums import TokenKind
+from evalkit.core.tenant import DEFAULT_TENANT_ID, check_tenant_id
 from evalkit.db.auth import find_token
 from evalkit.db.models import AuthToken, User, Workspace, WorkspaceMember
 from evalkit.db.session import tenant_session
@@ -20,7 +21,6 @@ from evalkit.db.users import (
     UserArchived,
     UserStore,
     any_admin_exists,
-    find_machine,
     hash_password,
     verify_password,
 )
@@ -108,21 +108,15 @@ async def sso_identity(
     claims = await verify_access_token(state.oidc, token, audience)
     if enforce_scopes:
         require_scopes(state.oidc, claims)
-    user: User | None
-    tenant_id = await state.resolve_tenant(request, claims)
-    if tenant_id is None:
-        user = await find_machine(state.session_factory, claims["iss"], claims["sub"])
-        if user is None:
-            raise HTTPException(status_code=403, detail="no tenant for this access token")
-    else:
-        async with tenant_session(state.session_factory, tenant_id) as session:
-            user = await session.scalar(
-                select(User).where(
-                    User.tenant_id == tenant_id,
-                    User.issuer == claims["iss"],
-                    User.subject == claims["sub"],
-                )
+    tenant_id = await require_tenant(state, request, claims)
+    async with tenant_session(state.session_factory, tenant_id) as session:
+        user = await session.scalar(
+            select(User).where(
+                User.tenant_id == tenant_id,
+                User.issuer == claims["iss"],
+                User.subject == claims["sub"],
             )
+        )
     if user is None:
         raise HTTPException(
             status_code=401, detail=f"not registered: subject {claims['sub']} has no user"
@@ -132,7 +126,7 @@ async def sso_identity(
     return user, claims
 
 
-def admin_from_claims(oidc, claims: dict) -> bool | None:
+def read_admin_claim(oidc, claims: dict) -> bool | None:
     rule = oidc.cfg.admin_claim
     if rule is None:
         return None
@@ -142,11 +136,11 @@ def admin_from_claims(oidc, claims: dict) -> bool | None:
     return value == rule.value
 
 
-async def register_tenant(state, request: Request, claims: dict) -> int:
+async def require_tenant(state, request: Request, claims: dict | None) -> str:
     tenant_id = await state.resolve_tenant(request, claims)
     if tenant_id is None:
-        raise HTTPException(status_code=403, detail="no tenant for this access token")
-    return tenant_id
+        raise HTTPException(status_code=403, detail="no tenant for this request")
+    return check_tenant_id(tenant_id)
 
 
 async def sso_login(
@@ -202,7 +196,7 @@ CurrentUser = Annotated[User, Depends(current_user)]
 class Principal:
     user: User | None
     agent_id: int | None
-    tenant_id: int
+    tenant_id: str
 
 
 async def collector_principal(request: Request) -> Principal:
@@ -274,9 +268,7 @@ async def providers(request: Request) -> dict:
 
 @router.post("/login")
 async def login(body: LoginRequest, request: Request) -> dict:
-    tenant_id = await request.app.state.resolve_tenant(request, None)
-    if tenant_id is None:
-        raise HTTPException(status_code=403, detail="no tenant for this request")
+    tenant_id = await require_tenant(request.app.state, request, None)
     if len(body.password.encode()) > PASSWORD_MAX_BYTES:
         raise HTTPException(
             status_code=400, detail=f"password is longer than {PASSWORD_MAX_BYTES} bytes"
@@ -364,7 +356,9 @@ async def bootstrap_admin(
             "no admin user exists and EVALKIT_ADMIN_PASSWORD is not set; "
             "set it and start the server again to create the admin user"
         )
-    await UserStore(session_factory, 1).create("admin", password=password, is_admin=True)
+    await UserStore(session_factory, DEFAULT_TENANT_ID).create(
+        "admin", password=password, is_admin=True
+    )
 
 
 class RegisterRequest(BaseModel):
@@ -389,7 +383,7 @@ async def register_identity(body: RegisterRequest, request: Request) -> dict:
             status_code=400,
             detail="the ID token has no email claim; ask the IdP admin to grant the email scope",
         )
-    tenant_id = await register_tenant(state, request, access)
+    tenant_id = await require_tenant(state, request, access)
     store = UserStore(state.session_factory, tenant_id)
     try:
         user, created = await store.register(
@@ -397,7 +391,7 @@ async def register_identity(body: RegisterRequest, request: Request) -> dict:
             idtok["sub"],
             idtok["email"],
             idtok.get("preferred_username"),
-            admin_from_claims(oidc, access),
+            read_admin_claim(oidc, access),
         )
     except UserArchived as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc

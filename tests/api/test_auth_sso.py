@@ -142,7 +142,7 @@ def bearer(token: str) -> dict[str, str]:
 async def bind_user(
     env: Env, idp: FakeIdp, username: str, sub: str, email: str | None = None
 ) -> None:
-    await UserStore(env.session_factory, 1).create(
+    await UserStore(env.session_factory, "default").create(
         username, issuer=idp.issuer, subject=sub, email=email
     )
 
@@ -167,7 +167,7 @@ async def test_an_unknown_subject_is_401_not_registered(env, idp):
 
 async def test_an_archived_subject_is_401(env, idp):
     await bind_user(env, idp, "ann", "sub-ann", "ann@example.com")
-    await UserStore(env.session_factory, 1).archive("ann")
+    await UserStore(env.session_factory, "default").archive("ann")
     async with sso_app(env, idp) as client:
         resp = await client.get("/api/auth/me", headers=bearer(idp.access_token("sub-ann")))
     assert resp.status_code == 401 and "archived" in resp.json()["detail"]
@@ -281,7 +281,7 @@ async def test_register_refuses_a_taken_username(env, idp):
 async def test_register_refuses_an_archived_user(env, idp):
     async with sso_app(env, idp) as client:
         assert (await register(client, idp, "sub-cy", "cy@example.com", "cy")).status_code == 200
-        await UserStore(env.session_factory, 1).archive("cy")
+        await UserStore(env.session_factory, "default").archive("cy")
         resp = await register(client, idp, "sub-cy", "cy@example.com", "cy")
     assert resp.status_code == 401 and "archived" in resp.json()["detail"]
 
@@ -412,7 +412,9 @@ async def test_register_is_refused_without_a_required_scope_and_creates_no_user(
         resp = await register(client, idp, "sub-ann", "ann@example.com", "ann")
         assert resp.status_code == 403
         assert resp.json()["detail"] == f"access token lacks required scope {SCOPE}"
-        assert "ann" not in [u.username for u in await UserStore(env.session_factory, 1).list()]
+        assert "ann" not in [
+            u.username for u in await UserStore(env.session_factory, "default").list()
+        ]
         resp = await register(
             client, idp, "sub-ann", "ann@example.com", "ann", extra={"scope": SCOPE}
         )

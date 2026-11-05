@@ -93,7 +93,7 @@ async def _refuse_second(session: AsyncSession, agent_id: int) -> None:
 
 
 class TraceImportStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: int):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._sessions = session_factory
         self._tenant_id = tenant_id
 
@@ -342,7 +342,7 @@ async def reap_imports(session_factory: async_sessionmaker[AsyncSession]) -> lis
 
 async def tenant_of_import(
     session_factory: async_sessionmaker[AsyncSession], import_id: int
-) -> int:
+) -> str:
     async with tenant_session(session_factory, ALL_TENANTS) as session:
         tenant_id = await session.scalar(
             select(models.Workspace.tenant_id)

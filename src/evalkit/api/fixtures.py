@@ -43,7 +43,7 @@ async def list_fixtures(
     return page.model_dump(mode="json")
 
 
-async def _known(session: SessionDep, tenant_id: int, sha256: str) -> None:
+async def _known(session: SessionDep, tenant_id: str, sha256: str) -> None:
     if not await known_blobs(session, tenant_id, [_sha(sha256)]):
         raise HTTPException(status_code=404, detail=f"no fixture with sha256 {sha256}")
 

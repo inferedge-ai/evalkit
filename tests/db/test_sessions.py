@@ -115,14 +115,14 @@ def realistic_session(turns: int = 6, chunk: int = 300) -> list[RawSpan]:
 async def stores(tmp_path, session_factory):
     factory = session_factory
     await seed_identity(factory, {"admin": "password", "akshat": "password"}, shared=())
-    agents = AgentStore(factory, 1)
+    agents = AgentStore(factory, "default")
     record = await agents.create(
         await workspace_ref(factory, "akshat"),
         "support-bot",
         trajectory_source=TrajectorySource.OTEL,
         mapping=reference_mapping(),
     )
-    spans, mappings = SpanStore(factory, 1), MappingStore(factory, 1)
+    spans, mappings = SpanStore(factory, "default"), MappingStore(factory, "default")
     reader = DbSessionReader(agents, spans, mappings, OtelConfig())
     return reader, spans, mappings, record.id
 

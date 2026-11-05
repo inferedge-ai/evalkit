@@ -87,9 +87,6 @@ class HttpBlobStore:
         body = (await self._api.get(self._experiment_path(), params={"prefix": prefix})).json()
         return [(str(key), int(size)) for key, size in body["objects"]]
 
-    async def has_any(self, prefix: str) -> bool:
-        return bool(await self.list_objects(prefix))
-
     async def delete_object(self, key: str) -> None:
         raise NotImplementedError
 

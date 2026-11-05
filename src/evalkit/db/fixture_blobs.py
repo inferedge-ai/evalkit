@@ -6,7 +6,7 @@ from evalkit.db import models
 from evalkit.store.base import FixtureUse, FixtureUsePage
 
 
-async def known_blobs(session: AsyncSession, tenant_id: int, shas: list[str]) -> set[str]:
+async def known_blobs(session: AsyncSession, tenant_id: str, shas: list[str]) -> set[str]:
     if not shas:
         return set()
     rows = await session.scalars(
@@ -17,7 +17,7 @@ async def known_blobs(session: AsyncSession, tenant_id: int, shas: list[str]) ->
     return set(rows.all())
 
 
-async def blob_size(session: AsyncSession, tenant_id: int, sha256: str) -> int | None:
+async def blob_size(session: AsyncSession, tenant_id: str, sha256: str) -> int | None:
     return await session.scalar(
         select(models.FixtureBlob.size).where(
             models.FixtureBlob.tenant_id == tenant_id, models.FixtureBlob.sha256 == sha256
@@ -26,7 +26,7 @@ async def blob_size(session: AsyncSession, tenant_id: int, sha256: str) -> int |
 
 
 async def record_blob(
-    session: AsyncSession, tenant_id: int, sha256: str, size: int, uploaded_by: int | None
+    session: AsyncSession, tenant_id: str, sha256: str, size: int, uploaded_by: int | None
 ) -> None:
     await session.execute(
         insert(models.FixtureBlob)
