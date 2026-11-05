@@ -22,9 +22,9 @@ all welcome.
 - Branch from `develop` and open your pull request against `develop`.
   `main` only receives releases.
 - Keep each pull request to one change.
-- If your change affects what users can do or see (a command, flag,
-  endpoint, field, UI control), add an entry under `## Unreleased` in
-  `CHANGELOG.md`.
+- If your change affects behaviour, an interface, a dependency, the schema,
+  packaging or the build, add an entry under `## Unreleased` in
+  `CHANGELOG.md` saying what changed and, when it is not obvious, why.
 - Don't bump the version in `pyproject.toml`; releases do that.
 - If your change touches the UI, run it locally, click through what changed,
   and add screenshots to the pull request description.
