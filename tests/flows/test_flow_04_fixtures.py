@@ -1,6 +1,6 @@
 import hashlib
 
-import httpx
+import httpx2
 
 from evalkit.core.blob import fixture_blob_key
 from tests.flows.helpers_01_06 import RUBRICS, api, cli, live, stub_judges_module, sync_counts
@@ -78,12 +78,12 @@ def test_flow_04_any_user_uploads_and_downloads_by_sha256(live):
 
         ticket = akshat.post("/api/auth/download-ticket").json()["ticket"]
     url = f"{live.url}/api/fixtures/sha256/{digest}"
-    first = httpx.get(url, params={"ticket": ticket})
+    first = httpx2.get(url, params={"ticket": ticket})
     assert first.status_code == 200 and first.content == data
-    assert httpx.get(url, params={"ticket": ticket}).status_code == 401
+    assert httpx2.get(url, params={"ticket": ticket}).status_code == 401
     with api(live, "akshat") as akshat:
         ticket = akshat.post("/api/auth/download-ticket").json()["ticket"]
-    assert httpx.put(url, params={"ticket": ticket}, content=data).status_code == 401
+    assert httpx2.put(url, params={"ticket": ticket}, content=data).status_code == 401
 
 
 def test_flow_04_fixtures_page_caps_page_size(live):

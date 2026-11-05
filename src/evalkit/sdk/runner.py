@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx2
 from opentelemetry import trace
 from opentelemetry.context import Context
 from pydantic import BaseModel
@@ -580,8 +580,8 @@ async def arun_experiment(
     trajectory_wait_seconds: int | None = None,
     judge: JudgeSettings | None = None,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
-    api_transport: httpx.AsyncBaseTransport | None = None,
-    custom_eval_transport: httpx.AsyncBaseTransport | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
+    custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
     progress: Progress = print,
     poll_interval: float = 5.0,
     tracer_provider: Any = None,
@@ -749,7 +749,7 @@ async def arun_experiment(
             exc.add_note(note)
             progress(f"{exc}; {note}")
             raise
-        except (ScoringFailed, ApiRequestError, httpx.TransportError) as exc:
+        except (ScoringFailed, ApiRequestError, httpx2.TransportError) as exc:
             _note_how_to_finish(exc, exp.id, sorted(python_evaluators), progress)
             raise
         report = (await api.get(f"/api/experiments/{exp.id}/scorecard")).json()
@@ -770,8 +770,8 @@ async def aevaluate_experiment(
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
-    api_transport: httpx.AsyncBaseTransport | None = None,
-    custom_eval_transport: httpx.AsyncBaseTransport | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
+    custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
     progress: Progress = print,
 ) -> ExperimentResult:
     """The async form of `evaluate_experiment`, for code already in an event loop.
@@ -814,7 +814,7 @@ async def aevaluate_experiment(
             await rescore_experiment(
                 deps, experiment_id, holder, refetch_trajectories=refetch_trajectories
             )
-        except (ScoringFailed, ApiRequestError, httpx.TransportError) as exc:
+        except (ScoringFailed, ApiRequestError, httpx2.TransportError) as exc:
             _note_how_to_finish(exc, experiment_id, sorted(declared), progress)
             raise
         runs = [

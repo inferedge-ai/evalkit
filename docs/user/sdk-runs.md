@@ -76,7 +76,7 @@ The SDK stamps `session.id` and the `evalkit.*` attributes only on spans made in
   def task(input: dict) -> str:
       headers: dict[str, str] = {}
       propagate.inject(headers)            # adds traceparent
-      return httpx.post(AGENT_URL, json=input, headers=headers).json()["answer"]
+      return httpx2.post(AGENT_URL, json=input, headers=headers).json()["answer"]
   ```
 
 - **Return the agent's session.** The agent puts its own session id on its root span as `session.id`, and the task returns it. Use this when the trace context cannot reach the agent, for example through a queue. The SDK moves its `evalkit.run` span into that session, so no empty session is left behind, and the trajectory is built from the agent's trace.

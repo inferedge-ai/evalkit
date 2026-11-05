@@ -1,6 +1,6 @@
 import time
 
-import httpx
+import httpx2
 import pytest
 
 from tests.api.test_otel import PROTO, otlp_payload
@@ -37,18 +37,18 @@ def test_flow_16_users_get_personal_workspaces_and_admin_flags(live):
 def test_flow_16_agent_tokens_outlive_the_user_who_minted_them(live, tmp_path):
     live.run("users", "add", "carol", input="password\n")
     live.run("workspaces", "members", "add", DEV, "carol", "--role", "writer")
-    carol = httpx.Client(
+    carol = httpx2.Client(
         base_url=live.url,
         headers={
             "Authorization": "Bearer "
-            + httpx.post(
+            + httpx2.post(
                 f"{live.url}/api/auth/login", json={"username": "carol", "password": "password"}
             ).json()["token"]
         },
     )
     minted = carol.post("/api/tokens", json={"agent": f"ouragent@{DEV}"})
     assert minted.status_code == 200, minted.text
-    bound = httpx.Client(
+    bound = httpx2.Client(
         base_url=live.url, headers={"Authorization": f"Bearer {minted.json()['token']}", **PROTO}
     )
     assert bound.post("/api/otel/v1/traces", content=otlp_payload("s-1")).status_code == 200

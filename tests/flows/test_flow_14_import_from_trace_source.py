@@ -1,9 +1,9 @@
 import asyncio
 
-import httpx
+import httpx2
 import pytest
-import respx
 from cryptography.fernet import Fernet
+from respx import MockResponse, Route, Router
 from sqlalchemy import func, select
 
 from evalkit.cli.traces_commands import render_check
@@ -22,13 +22,13 @@ AGENT = f"deployed@{DEV}"
 NO_SESSION = 7
 
 
-def serve_spans() -> respx.Route:
-    def spans(request: httpx.Request) -> httpx.Response:
+def serve_spans(router: Router) -> Route:
+    def spans(request: httpx2.Request) -> MockResponse:
         ids = [int(tid, 16) for tid in request.url.params.get_list("trace_id")]
         data = [phoenix_span(n, None if n == NO_SESSION else f"sess-{n}") for n in ids]
-        return httpx.Response(200, json={"data": data})
+        return MockResponse(200, json={"data": data})
 
-    return respx.get(SPANS).mock(side_effect=spans)
+    return router.get(SPANS).mock(side_effect=spans)
 
 
 @pytest.fixture
@@ -62,12 +62,11 @@ async def span_rows(api) -> list[tuple[str, int | None]]:
         return [tuple(r) for r in rows.all()]
 
 
-@respx.mock
-async def test_flow_14_import_tags_spans_is_idempotent_and_checks(api):
-    route = respx.get(TRACES).mock(
-        return_value=httpx.Response(200, json={"data": [phoenix_trace(9)]})
+async def test_flow_14_import_tags_spans_is_idempotent_and_checks(httpx2_mock, api):
+    route = httpx2_mock.get(TRACES).mock(
+        return_value=MockResponse(200, json={"data": [phoenix_trace(9)]})
     )
-    serve_spans()
+    serve_spans(httpx2_mock)
     first = await api.post(f"/api/agents/{AGENT}/sessions/import", json=body())
     assert first.status_code == 200 and first.json() == {"imported": 1}
     assert route.calls[0].request.headers["authorization"] == "Bearer pk"
@@ -95,22 +94,20 @@ async def test_flow_14_import_tags_spans_is_idempotent_and_checks(api):
         assert await s.scalar(select(func.count()).select_from(Span)) == 1
 
 
-@respx.mock
-async def test_flow_14_session_id_comes_from_the_mapping_else_the_command_line(api):
-    respx.get(TRACES).mock(
+async def test_flow_14_session_id_comes_from_the_mapping_else_the_command_line(httpx2_mock, api):
+    httpx2_mock.get(TRACES).mock(
         side_effect=[
-            httpx.Response(200, json={"data": [phoenix_trace(9)]}),
-            httpx.Response(200, json={"data": [phoenix_trace(NO_SESSION)]}),
+            MockResponse(200, json={"data": [phoenix_trace(9)]}),
+            MockResponse(200, json={"data": [phoenix_trace(NO_SESSION)]}),
         ]
     )
-    serve_spans()
+    serve_spans(httpx2_mock)
     await api.post(f"/api/agents/{AGENT}/sessions/import", json=body("given-1"))
     await api.post(f"/api/agents/{AGENT}/sessions/import", json=body("given-2"))
     assert sorted(r[0] for r in await span_rows(api)) == ["given-2", "sess-9"]
 
 
-@respx.mock
-async def test_flow_14_errors(api):
+async def test_flow_14_errors(httpx2_mock, api):
     unknown_source = await api.post(f"/api/agents/{AGENT}/sessions/import", json=body(source="x"))
     assert unknown_source.status_code == 404
     assert "unknown trace source" in unknown_source.json()["detail"]
@@ -120,10 +117,10 @@ async def test_flow_14_errors(api):
     assert (
         await alice.post(f"/api/agents/{AGENT}/sessions/import", json=body())
     ).status_code == 403
-    respx.get(TRACES).mock(return_value=httpx.Response(500))
+    httpx2_mock.get(TRACES).mock(return_value=MockResponse(500))
     down = await api.post(f"/api/agents/{AGENT}/sessions/import", json=body())
     assert down.status_code == 502 and down.json()["detail"].startswith("phx: ")
-    respx.get(TRACES).mock(return_value=httpx.Response(200, json={"data": []}))
+    httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": []}))
     empty = await api.post(f"/api/agents/{AGENT}/sessions/import", json=body("none"))
     assert empty.json() == {"imported": 0}
     session = (
@@ -170,13 +167,12 @@ async def settled(api, import_id: int) -> dict:
     raise AssertionError(f"import {import_id} still {view['status']}")
 
 
-@respx.mock
-async def test_flow_14_range_import_runs_to_done(api):
-    serve_spans()
-    route = respx.get(TRACES).mock(
+async def test_flow_14_range_import_runs_to_done(httpx2_mock, api):
+    serve_spans(httpx2_mock)
+    route = httpx2_mock.get(TRACES).mock(
         side_effect=[
-            httpx.Response(200, json=trace_page([1, 2], cursor="c2")),
-            httpx.Response(200, json=trace_page([3])),
+            MockResponse(200, json=trace_page([1, 2], cursor="c2")),
+            MockResponse(200, json=trace_page([3])),
         ]
     )
     started = await api.post(f"/api/agents/{AGENT}/imports", json=RANGE)
@@ -200,21 +196,20 @@ async def test_flow_14_range_import_runs_to_done(api):
     assert [i["id"] for i in listed] == [view["id"]]
 
 
-@respx.mock
-async def test_flow_14_stop_then_continue_from_resume_from(api):
-    serve_spans()
+async def test_flow_14_stop_then_continue_from_resume_from(httpx2_mock, api):
+    serve_spans(httpx2_mock)
     reached, release = asyncio.Event(), asyncio.Event()
 
     async def held(request):
         reached.set()
         await release.wait()
-        return httpx.Response(200, json=trace_page([2], cursor="c3"))
+        return MockResponse(200, json=trace_page([2], cursor="c3"))
 
-    route = respx.get(TRACES).mock(
+    route = httpx2_mock.get(TRACES).mock(
         side_effect=[
-            httpx.Response(200, json=trace_page([1], cursor="c2")),
+            MockResponse(200, json=trace_page([1], cursor="c2")),
             held,
-            httpx.Response(200, json=trace_page([2, 5])),
+            MockResponse(200, json=trace_page([2, 5])),
         ]
     )
     import_id = (await api.post(f"/api/agents/{AGENT}/imports", json=RANGE)).json()["id"]
@@ -234,21 +229,19 @@ async def test_flow_14_stop_then_continue_from_resume_from(api):
     assert route.calls[2].request.url.params["start_time"] == "2026-10-01T02:00:00+00:00"
 
 
-@respx.mock
-async def test_flow_14_failed_import_records_the_error(api):
-    serve_spans()
-    respx.get(TRACES).mock(return_value=httpx.Response(500))
+async def test_flow_14_failed_import_records_the_error(httpx2_mock, api):
+    serve_spans(httpx2_mock)
+    httpx2_mock.get(TRACES).mock(return_value=MockResponse(500))
     import_id = (await api.post(f"/api/agents/{AGENT}/imports", json=RANGE)).json()["id"]
     view = await settled(api, import_id)
     assert view["status"] == "failed" and view["error"].startswith("HTTPStatusError")
-    respx.get(TRACES).mock(return_value=httpx.Response(200, json=trace_page([4])))
+    httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json=trace_page([4])))
     assert (await api.post(f"/api/agents/{AGENT}/imports/{import_id}/continue")).status_code == 200
     assert (await settled(api, import_id))["status"] == "done"
 
 
-@respx.mock
-async def test_flow_14_range_import_rules(api):
-    serve_spans()
+async def test_flow_14_range_import_rules(httpx2_mock, api):
+    serve_spans(httpx2_mock)
     url = f"/api/agents/{AGENT}/imports"
     backwards = {**RANGE, "since": RANGE["until"], "until": RANGE["since"]}
     assert (await api.post(url, json=backwards)).status_code == 422
@@ -262,9 +255,9 @@ async def test_flow_14_range_import_rules(api):
 
     async def held(request):
         await release.wait()
-        return httpx.Response(200, json=trace_page([1]))
+        return MockResponse(200, json=trace_page([1]))
 
-    respx.get(TRACES).mock(side_effect=held)
+    httpx2_mock.get(TRACES).mock(side_effect=held)
     first = (await api.post(url, json=RANGE)).json()["id"]
     second = await api.post(url, json=RANGE)
     assert second.status_code == 409 and f"import {first} is already running" in second.text

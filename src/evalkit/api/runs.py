@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from posixpath import basename
 from typing import IO, Annotated, Literal, cast
 
-import httpx
+import httpx2
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, computed_field
 from pydantic_core import from_json
@@ -204,7 +204,7 @@ async def resolve_runs(
         harness, harness_total = listed.runs, listed.total
         if listed.capped:
             note = SCAN_NOTE
-    except httpx.HTTPError:
+    except httpx2.HTTPError:
         note = HARNESS_UNREACHABLE
     finally:
         await client.aclose()
@@ -278,7 +278,7 @@ async def read_trajectory(
     if client is not None:
         try:
             return await client.trajectory(run_id)
-        except httpx.HTTPStatusError as exc:
+        except httpx2.HTTPStatusError as exc:
             raise HTTPException(
                 status_code=exc.response.status_code, detail="harness error"
             ) from exc
@@ -335,7 +335,7 @@ def _path_or_400(path: str) -> str:
     return path.lstrip("/")
 
 
-def _harness_status(exc: httpx.HTTPStatusError) -> HTTPException:
+def _harness_status(exc: httpx2.HTTPStatusError) -> HTTPException:
     if exc.response.status_code == 404:
         return HTTPException(status_code=404, detail=NOT_ON_HARNESS)
     return HTTPException(status_code=exc.response.status_code, detail="harness error")
@@ -367,7 +367,7 @@ async def _listing(
     client = await harness_client(deps, record)
     try:
         files = await client.list_files(run_id)
-    except httpx.HTTPStatusError as exc:
+    except httpx2.HTTPStatusError as exc:
         raise _harness_status(exc) from exc
     finally:
         await client.aclose()
@@ -427,7 +427,7 @@ async def _zip_stream(
             for arcname, path in entries:
                 try:
                     chunks = await fetch(path)
-                except httpx.HTTPStatusError as exc:
+                except httpx2.HTTPStatusError as exc:
                     LOGGER.warning(
                         "zip aborted: harness returned %s for %s", exc.response.status_code, path
                     )
@@ -543,7 +543,7 @@ async def get_file(
             cleanup.push_async_callback(client.aclose)
             try:
                 file = await client.stream_file(run_id, path)
-            except httpx.HTTPStatusError as exc:
+            except httpx2.HTTPStatusError as exc:
                 raise _harness_status(exc) from exc
             cleanup.pop_all()
         length = {"Content-Length": str(file.size)} if file.size is not None else {}

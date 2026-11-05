@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import json
 
-import httpx
+import httpx2
 import pytest
 from sqlalchemy import func, select
 
@@ -33,7 +33,7 @@ async def api(tmp_path, stub_judges, session_factory):
         yield client, env, fake_harness
 
 
-async def run_shared(client: httpx.AsyncClient, **extra) -> dict:
+async def run_shared(client: httpx2.AsyncClient, **extra) -> dict:
     resp = await client.post("/api/experiments", json={"dataset": FINANCE, "agent": AGENT, **extra})
     assert resp.status_code == 200, resp.text
     return await wait_for(client, resp.json()["id"])
@@ -41,7 +41,7 @@ async def run_shared(client: httpx.AsyncClient, **extra) -> dict:
 
 async def test_auth_wall(api):
     client, *_ = api
-    bare = httpx.AsyncClient(transport=client._transport, base_url="http://test")
+    bare = httpx2.AsyncClient(transport=client._transport, base_url="http://test")
     resp = await bare.get("/api/datasets")
     assert resp.status_code == 401
     assert (await bare.get("/api/health")).status_code == 200
@@ -51,7 +51,7 @@ async def test_auth_wall(api):
 async def test_security_headers(api):
     client, *_ = api
     for base in ("http://test", "https://test"):
-        bare = httpx.AsyncClient(transport=client._transport, base_url=base)
+        bare = httpx2.AsyncClient(transport=client._transport, base_url=base)
         for path in ("/api/health", "/api/datasets"):
             headers = (await bare.get(path)).headers
             assert headers["Content-Security-Policy"].startswith("default-src 'self'")

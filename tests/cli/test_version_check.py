@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 from typer.testing import CliRunner
 
@@ -10,11 +10,11 @@ runner = CliRunner()
 
 
 def client_with_server_version(remote: str | None) -> ApiClient:
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         headers = {"X-Evalkit-Version": remote} if remote else {}
-        return httpx.Response(200, json={"ok": True}, headers=headers)
+        return httpx2.Response(200, json={"ok": True}, headers=headers)
 
-    return ApiClient("http://t", transport=httpx.MockTransport(handler))
+    return ApiClient("http://t", transport=httpx2.MockTransport(handler))
 
 
 @pytest.fixture
@@ -45,11 +45,11 @@ def test_incompatible_raises(local):
 def test_a_refused_write_never_reaches_the_server(local):
     seen: list[str] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         seen.append(f"{request.method} {request.url.path}")
-        return httpx.Response(200, json={}, headers={"X-Evalkit-Version": "0.2.0"})
+        return httpx2.Response(200, json={}, headers={"X-Evalkit-Version": "0.2.0"})
 
-    client = ApiClient("http://t", transport=httpx.MockTransport(handler))
+    client = ApiClient("http://t", transport=httpx2.MockTransport(handler))
     with pytest.raises(ApiError):
         client.post("/api/tokens", json={"agent": "x"})
     assert seen == ["GET /api/health"]
@@ -58,11 +58,11 @@ def test_a_refused_write_never_reaches_the_server(local):
 def test_the_version_is_checked_once_before_writes(local):
     seen: list[str] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         seen.append(f"{request.method} {request.url.path}")
-        return httpx.Response(200, json={}, headers={"X-Evalkit-Version": "0.1.0+gaaa0000"})
+        return httpx2.Response(200, json={}, headers={"X-Evalkit-Version": "0.1.0+gaaa0000"})
 
-    client = ApiClient("http://t", transport=httpx.MockTransport(handler))
+    client = ApiClient("http://t", transport=httpx2.MockTransport(handler))
     client.post("/api/a")
     client.post("/api/b")
     assert seen == ["GET /api/health", "POST /api/a", "POST /api/b"]

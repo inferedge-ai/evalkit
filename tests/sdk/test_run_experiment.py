@@ -5,7 +5,7 @@ import sys
 from datetime import timedelta
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 import sqlalchemy as sa
 from opentelemetry import propagate, trace
@@ -119,7 +119,7 @@ def server(tmp_path_factory, stub_judges_module, module_db_url):
 @pytest.fixture
 def env(server, tmp_path, monkeypatch, module_db_url):
     base_url, app, blob = server
-    login = httpx.post(
+    login = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
     )
     token = login.json()["token"]
@@ -226,7 +226,7 @@ async def test_sdk_run_with_traces_records_runs_after_settle(env):
 
 
 def remote_agent(base_url: str) -> TracerProvider:
-    token = httpx.post(
+    token = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
     ).json()["token"]
     provider = TracerProvider()
@@ -237,10 +237,10 @@ def remote_agent(base_url: str) -> TracerProvider:
 
 
 def runs_page(base_url: str, query: str) -> list[dict]:
-    token = httpx.post(
+    token = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
     ).json()["token"]
-    resp = httpx.get(
+    resp = httpx2.get(
         f"{base_url}/api/agents/sdk@admin/runs",
         params={"query": query},
         headers={"Authorization": f"Bearer {token}"},
@@ -312,14 +312,14 @@ async def test_returned_session_absorbs_the_sdk_root_and_links_the_case(env):
     _, [stored] = await srv.experiment(result.experiment_id)
     doc = json.loads(blob.objects[stored.agent_run.trajectory_key])
     assert doc["steps"][-1]["message"] == "42"
-    token = httpx.post(
+    token = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
     ).json()["token"]
     auth = {"Authorization": f"Bearer {token}"}
     session_url = f"{base_url}/api/agents/sdk@admin/sessions/{run.session_id}"
-    raw = httpx.get(f"{session_url}/spans", headers=auth).json()
+    raw = httpx2.get(f"{session_url}/spans", headers=auth).json()
     assert sorted(s["name"] for s in raw) == ["chat_turn", "evalkit.run", "llm"]
-    used = httpx.get(f"{session_url}/trajectory", headers=auth).json()
+    used = httpx2.get(f"{session_url}/trajectory", headers=auth).json()
     assert used["span_count"] == 2 and used["root_present"]
     assert runs_page(base_url, run.session_id.removeprefix("app-")) == []
     [listed] = runs_page(base_url, run.session_id)
@@ -353,10 +353,10 @@ async def test_agent_in_its_own_trace_under_the_sdk_session_id(env):
     )
     run = result.runs[0]
     assert run.trajectory_status == "valid"
-    token = httpx.post(
+    token = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
     ).json()["token"]
-    used = httpx.get(
+    used = httpx2.get(
         f"{base_url}/api/agents/sdk@admin/sessions/{run.session_id}/trajectory",
         headers={"Authorization": f"Bearer {token}"},
     ).json()
@@ -834,7 +834,7 @@ async def test_a_finished_run_prints_its_scorecard(env):
 
 async def test_sdk_runs_skip_keyless_evaluators_their_cases_do_not_use(env):
     srv, blob, provider = env
-    created = httpx.post(
+    created = httpx2.post(
         f"{srv.base_url}/api/evaluators",
         headers={"Authorization": f"Bearer {os.environ['EVALKIT_TOKEN']}"},
         json={

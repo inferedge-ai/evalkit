@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-import httpx
+import httpx2
 
 from evalkit import version
 from evalkit.client import connection
@@ -10,11 +10,11 @@ __all__ = ["cli", "live", "stub_judges_module"]
 
 
 def test_flow_01_cli_info_is_public_and_responses_carry_the_version(live):
-    info = httpx.get(f"{live.url}/api/cli")
+    info = httpx2.get(f"{live.url}/api/cli")
     assert info.status_code == 200
     assert info.json() == {"version": version.current(), "package": "evalkit-py"}
     assert info.headers["X-Evalkit-Version"] == version.current()
-    assert httpx.get(f"{live.url}/api/nope").headers["X-Evalkit-Version"] == version.current()
+    assert httpx2.get(f"{live.url}/api/nope").headers["X-Evalkit-Version"] == version.current()
 
 
 def test_flow_01_login_saves_one_server_and_a_new_login_replaces_it(cli, monkeypatch):
@@ -86,10 +86,12 @@ def test_flow_01_version_mismatch_warns_or_stops(cli, monkeypatch):
 
 
 def test_flow_01_auth_errors_and_admin_flag(live):
-    wrong = httpx.post(f"{live.url}/api/auth/login", json={"username": "alice", "password": "nope"})
+    wrong = httpx2.post(
+        f"{live.url}/api/auth/login", json={"username": "alice", "password": "nope"}
+    )
     assert wrong.status_code == 401
     assert wrong.json()["detail"] == "invalid username or password"
-    invalid = httpx.get(f"{live.url}/api/auth/me", headers={"Authorization": "Bearer junk"})
+    invalid = httpx2.get(f"{live.url}/api/auth/me", headers={"Authorization": "Bearer junk"})
     assert invalid.status_code == 401 and invalid.json()["detail"] == "invalid token"
     with api(live, "admin") as admin, api(live, "ravi") as ravi, api(live, "alice") as alice:
         assert admin.get("/api/auth/me").json()["is_admin"] is True

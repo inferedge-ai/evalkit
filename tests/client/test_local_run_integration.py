@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from evalkit.cli.local_run import run_local
@@ -58,8 +58,8 @@ async def test_local_run_writes_everything_to_the_server(ctx, tmp_path):
         resume=None,
         revision=GitRevision(sha="abc", branch="feat", dirty=True),
         progress=lines.append,
-        transport=httpx.ASGITransport(app=fake.app),
-        custom_eval_transport=httpx.ASGITransport(app=custom_eval_app()),
+        transport=httpx2.ASGITransport(app=fake.app),
+        custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),
         api_transport=client._transport,
     )
     exp = await env.experiment(exp_id)
@@ -103,8 +103,8 @@ async def test_resume_runs_only_pending_cases(ctx, tmp_path):
         model=None,
         revision=GitRevision(),
         progress=lambda line: None,
-        transport=httpx.ASGITransport(app=fake.app),
-        custom_eval_transport=httpx.ASGITransport(app=custom_eval_app()),
+        transport=httpx2.ASGITransport(app=fake.app),
+        custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),
         api_transport=client._transport,
     )
     exp_id = await run_local(conn, local_config(tmp_path), resume=None, **kwargs)

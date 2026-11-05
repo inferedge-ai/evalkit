@@ -6,7 +6,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-import httpx
+import httpx2
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -36,8 +36,8 @@ def load_agent_module():
     return module
 
 
-def fake_llm(requests: list[dict]) -> httpx.MockTransport:
-    def handle(request: httpx.Request) -> httpx.Response:
+def fake_llm(requests: list[dict]) -> httpx2.MockTransport:
+    def handle(request: httpx2.Request) -> httpx2.Response:
         body = json.loads(request.content)
         requests.append(body)
         if len(requests) == 1:
@@ -57,7 +57,7 @@ def fake_llm(requests: list[dict]) -> httpx.MockTransport:
             }
         else:
             message = {"role": "assistant", "content": "Revenue was 48.2 million in FY2025."}
-        return httpx.Response(
+        return httpx2.Response(
             200,
             json={
                 "choices": [{"message": message}],
@@ -65,7 +65,7 @@ def fake_llm(requests: list[dict]) -> httpx.MockTransport:
             },
         )
 
-    return httpx.MockTransport(handle)
+    return httpx2.MockTransport(handle)
 
 
 def raw(span: ReadableSpan) -> RawSpan:
@@ -91,7 +91,7 @@ def test_sample_agent_spans_convert_to_a_trajectory_with_its_tool_call(monkeypat
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     monkeypatch.setattr(module, "tracer", provider.get_tracer("test"))
     requests: list[dict] = []
-    client = httpx.Client(base_url=LLM_ENV["LLM_BASE_URL"], transport=fake_llm(requests))
+    client = httpx2.Client(base_url=LLM_ENV["LLM_BASE_URL"], transport=fake_llm(requests))
 
     answer = module.Analyst(client).ask("What was Acme Widgets' revenue in FY2025?")
 

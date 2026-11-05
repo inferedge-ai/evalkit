@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 from pydantic import BaseModel, ValidationError
 
 from evalkit.contracts.settings import JudgeSettings
@@ -32,7 +32,7 @@ async def call_judge[T: BaseModel](
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
-    async with httpx.AsyncClient(
+    async with httpx2.AsyncClient(
         base_url=cfg.base_url,
         headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
         timeout=300,

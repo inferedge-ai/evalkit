@@ -2,7 +2,7 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Literal
 
-import httpx
+import httpx2
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ValidationError
@@ -184,7 +184,7 @@ async def import_session(
     )
     try:
         fetched = await client.session_spans(body.project, body.session_id)
-    except httpx.HTTPError as exc:
+    except httpx2.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"{body.source}: {exc}") from exc
     active = await mappings.active(record.id)
     document = MappingDocument.model_validate(active.document) if active else None

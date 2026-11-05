@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from evalkit.contracts.enums import WorkspaceRole
@@ -39,7 +39,7 @@ async def env(tmp_path, session_factory):
     async with serve(env, tmp_path) as admin:
         clients = {"admin": admin}
         for name in ("alice", "sme"):
-            client = httpx.AsyncClient(transport=admin._transport, base_url="http://test")
+            client = httpx2.AsyncClient(transport=admin._transport, base_url="http://test")
             resp = await client.post(
                 "/api/auth/login", json={"username": name, "password": USERS.get(name, "password")}
             )

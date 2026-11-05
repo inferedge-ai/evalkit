@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import httpx
+import httpx2
 
 from evalkit import version
 from evalkit.client.agents import HttpAgents
@@ -46,8 +46,8 @@ def _deps(
     api: AsyncApi,
     exp_id: int,
     progress: Callable[[str], None],
-    harness_transport: httpx.AsyncBaseTransport | None,
-    custom_eval_transport: httpx.AsyncBaseTransport | None,
+    harness_transport: httpx2.AsyncBaseTransport | None,
+    custom_eval_transport: httpx2.AsyncBaseTransport | None,
     evaluation_concurrency: int,
 ) -> RunnerDeps:
     return RunnerDeps(
@@ -79,9 +79,9 @@ async def run_local(
     progress: Callable[[str], None],
     judge: JudgeSettings | None = None,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
-    transport: httpx.AsyncBaseTransport | None = None,
-    custom_eval_transport: httpx.AsyncBaseTransport | None = None,
-    api_transport: httpx.AsyncBaseTransport | None = None,
+    transport: httpx2.AsyncBaseTransport | None = None,
+    custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> int:
     api = AsyncApi(conn.url, conn.token, transport=api_transport)
     holder = holder_for(conn)
@@ -138,8 +138,8 @@ async def evaluate_local(
     exp_id: int,
     *,
     progress: Callable[[str], None],
-    custom_eval_transport: httpx.AsyncBaseTransport | None = None,
-    api_transport: httpx.AsyncBaseTransport | None = None,
+    custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
     refetch_trajectories: bool = False,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
 ) -> None:
@@ -181,8 +181,8 @@ async def local_input_schema(
     local: LocalConfig,
     agent: Reference,
     *,
-    transport: httpx.AsyncBaseTransport | None = None,
-    api_transport: httpx.AsyncBaseTransport | None = None,
+    transport: httpx2.AsyncBaseTransport | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> dict:
     api = AsyncApi(conn.url, conn.token, transport=api_transport)
     try:
@@ -199,8 +199,8 @@ async def check_local(
     local: LocalConfig,
     agent: Reference,
     *,
-    transport: httpx.AsyncBaseTransport | None = None,
-    api_transport: httpx.AsyncBaseTransport | None = None,
+    transport: httpx2.AsyncBaseTransport | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> dict[str, dict]:
     api = AsyncApi(conn.url, conn.token, transport=api_transport)
     try:

@@ -1,16 +1,14 @@
-import httpx
 import pytest
-import respx
+from respx import MockResponse
 
 from evalkit.client.api import AsyncApi
 from evalkit.client.sessions import HttpSessionReader
 from evalkit.core.traces.sessions import SessionTooLarge
 
 
-@respx.mock
-async def test_http_session_reader_round_trip():
-    respx.get("http://srv/api/agents/sdk%40me/sessions/s-1/trajectory").mock(
-        return_value=httpx.Response(
+async def test_http_session_reader_round_trip(httpx2_mock):
+    httpx2_mock.get("http://srv/api/agents/sdk%40me/sessions/s-1/trajectory").mock(
+        return_value=MockResponse(
             200,
             json={
                 "settled": True,
@@ -26,11 +24,10 @@ async def test_http_session_reader_round_trip():
     await api.aclose()
 
 
-@respx.mock
-async def test_http_session_reader_raises_session_too_large_on_413():
+async def test_http_session_reader_raises_session_too_large_on_413(httpx2_mock):
     detail = "session s-1 of agent sdk@me holds 900.0 MiB of span attributes"
-    respx.get("http://srv/api/agents/sdk%40me/sessions/s-1/trajectory").mock(
-        return_value=httpx.Response(413, json={"detail": detail})
+    httpx2_mock.get("http://srv/api/agents/sdk%40me/sessions/s-1/trajectory").mock(
+        return_value=MockResponse(413, json={"detail": detail})
     )
     api = AsyncApi("http://srv", "tok")
     with pytest.raises(SessionTooLarge, match="900.0 MiB"):

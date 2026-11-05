@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import IO, Any, Literal, Protocol
 
-import httpx
+import httpx2
 from pydantic import BaseModel, Field, ValidationError
 
 from evalkit.config import RunnerConfig
@@ -149,8 +149,8 @@ class RunnerDeps:
     agents: AgentLookup
     evaluators: EvaluatorLookup
     credentials: KeySource
-    harness_transport: httpx.AsyncBaseTransport | None = None
-    custom_eval_transport: httpx.AsyncBaseTransport | None = None
+    harness_transport: httpx2.AsyncBaseTransport | None = None
+    custom_eval_transport: httpx2.AsyncBaseTransport | None = None
     progress: Callable[[str], None] = _no_progress
     sessions: SessionReader | None = None
     python_evaluators: dict[str, PythonEvaluator] = field(default_factory=dict)
@@ -272,7 +272,7 @@ async def _persist_artifacts(
             continue
         try:
             data = await client.get_file(harness_run_id, path)
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             LOGGER.warning("artifact %s for run %s unavailable: %s", path, harness_run_id, exc)
             continue
         await deps.blob_store.put_object(artifact_key(client.agent.id, harness_run_id, path), data)
@@ -283,7 +283,7 @@ async def _persist_workspace_tree(
 ) -> None:
     try:
         tree = await client.list_files(harness_run_id)
-    except httpx.HTTPError as exc:
+    except httpx2.HTTPError as exc:
         LOGGER.warning("workspace tree for run %s unavailable: %s", harness_run_id, exc)
         return
     await deps.blob_store.put_object(
@@ -367,7 +367,7 @@ async def _drive_one(
         except TrajectoryValidationError as exc:
             driven.trajectory_status = TrajectoryStatus.INVALID
             LOGGER.warning("trajectory for run %s failed ATIF validation: %s", harness_run_id, exc)
-        except httpx.HTTPError as exc:
+        except httpx2.HTTPError as exc:
             driven.trajectory_status = TrajectoryStatus.UNAVAILABLE
             LOGGER.warning("trajectory fetch for run %s failed: %s", harness_run_id, exc)
     return driven
@@ -493,7 +493,7 @@ def check_inputs(agent: str, caps: Capabilities, cases: list[CaseView]) -> None:
 
 
 async def harness_capabilities(
-    agent: AgentDefinition, api_key: str | None, transport: httpx.AsyncBaseTransport | None
+    agent: AgentDefinition, api_key: str | None, transport: httpx2.AsyncBaseTransport | None
 ) -> Capabilities:
     client = HarnessClient(agent, api_key, transport=transport)
     try:

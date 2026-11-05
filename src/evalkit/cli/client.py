@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import typer
 
 from evalkit import version
@@ -17,14 +17,14 @@ class ApiClient(SyncApi):
         server_url: str,
         token: str | None = None,
         *,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx2.BaseTransport | None = None,
         check_version: bool = True,
     ):
         super().__init__(server_url, token, transport=transport)
         self._server_url = server_url.rstrip("/")
         self._version_checked = not check_version
 
-    def _check_version(self, resp: httpx.Response) -> None:
+    def _check_version(self, resp: httpx2.Response) -> None:
         if self._version_checked:
             return
         self._version_checked = True
@@ -50,18 +50,18 @@ class ApiClient(SyncApi):
 
     def request(
         self, method: str, path: str, *, retry: bool | None = None, **kwargs
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         if not self._version_checked and method not in ("GET", "HEAD"):
             self._check_version(self._client.get("/api/health"))
         return super().request(method, path, retry=retry, **kwargs)
 
-    def _handle(self, resp: httpx.Response) -> httpx.Response:
+    def _handle(self, resp: httpx2.Response) -> httpx2.Response:
         self._check_version(resp)
         if resp.status_code >= 400:
             raise ApiError(str(ApiRequestError.from_response(resp)))
         return resp
 
-    def head(self, path: str, **kwargs) -> httpx.Response:
+    def head(self, path: str, **kwargs) -> httpx2.Response:
         resp = super().head(path, **kwargs)
         self._check_version(resp)
         return resp

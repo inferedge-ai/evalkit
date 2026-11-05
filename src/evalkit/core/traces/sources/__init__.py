@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 
 from evalkit.contracts.enums import TraceProvider
 from evalkit.core.traces.sources.base import TracePage, TraceSourceClient
@@ -12,7 +12,7 @@ def client_for(
     url: str,
     api_key: str | None,
     page_traces: int,
-    transport: httpx.AsyncBaseTransport | None = None,
+    transport: httpx2.AsyncBaseTransport | None = None,
 ) -> TraceSourceClient:
     match provider:
         case TraceProvider.PHOENIX:

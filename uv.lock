@@ -686,8 +686,7 @@ name = "evalkit-py"
 version = "0.3.0"
 source = { editable = "." }
 dependencies = [
-    { name = "httpx" },
-    { name = "httpx-retries" },
+    { name = "httpx2" },
     { name = "jsonschema" },
     { name = "opentelemetry-api" },
     { name = "pydantic" },
@@ -723,8 +722,8 @@ dev = [
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pytest-httpx2" },
     { name = "pytest-xdist" },
-    { name = "respx" },
     { name = "ruff" },
     { name = "testcontainers" },
 ]
@@ -742,8 +741,7 @@ requires-dist = [
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.141.1" },
     { name = "fastmcp", marker = "extra == 'server'", specifier = ">=4.0.0,<5.0.0" },
     { name = "greenlet", marker = "extra == 'server'", specifier = ">=3.5.5" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "httpx-retries", specifier = ">=0.6.0" },
+    { name = "httpx2", specifier = ">=2.16.0" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "obstore", marker = "extra == 'server'", specifier = ">=0.11.1" },
     { name = "opentelemetry-api", specifier = ">=1.44.0" },
@@ -768,8 +766,8 @@ dev = [
     { name = "pre-commit", specifier = ">=4.7.0" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", specifier = ">=1.4.0" },
+    { name = "pytest-httpx2", specifier = ">=1.0.0" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
-    { name = "respx", specifier = ">=0.23.1" },
     { name = "ruff", specifier = ">=0.16.5" },
     { name = "testcontainers", extras = ["postgres"], specifier = ">=4.15.0" },
 ]
@@ -1040,18 +1038,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/b1/df/48c586a5fe32a0f01324ee087459e112ebb7224f646c0b5023f5e79e9956/httpx-0.28.1.tar.gz", hash = "sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc", size = 141406, upload-time = "2024-12-06T15:37:23.222Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/2a/39/e50c7c3a983047577ee07d2a9e53faf5a69493943ec3f6a384bdc792deb2/httpx-0.28.1-py3-none-any.whl", hash = "sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad", size = 73517, upload-time = "2024-12-06T15:37:21.509Z" },
-]
-
-[[package]]
-name = "httpx-retries"
-version = "0.6.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "httpx" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e9/d3/b7a8bb09543af40009717a08a2ceba90b6d4c6f0cdf171404217d8f4c37d/httpx_retries-0.6.0.tar.gz", hash = "sha256:3e0b404969a564829d368417964fd21e6b400a10d17c92d29b8bc247ce8186e3", size = 21122, upload-time = "2026-07-06T00:52:30.093Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/56/c6/7f3d6ab3549267a1959161b38df4c0fb435eceaf2d531d8addfac01abaca/httpx_retries-0.6.0-py3-none-any.whl", hash = "sha256:d1e52a8f68a5df42de75ab89049d5020b2d0ab2f5f8bceacda008d12aa1257a3", size = 11776, upload-time = "2026-07-06T00:52:31.033Z" },
 ]
 
 [[package]]
@@ -2189,6 +2175,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/43/7c/d36d04db312ecf4298932ef77e6e4a9e8ad017906e24e34f0b0c361a2473/pytest_asyncio-1.4.0.tar.gz", hash = "sha256:c6c0d2259945122819f171a32ecea2c349ead889ee28176caaf492143424be42", size = 58514, upload-time = "2026-05-26T09:56:04.083Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/03/e2/08a497ef684b88559c9cc5f4ad53a37e7b99e727094a86d6ea32536d5d3c/pytest_asyncio-1.4.0-py3-none-any.whl", hash = "sha256:933ca923a23075a87fb7070c0ec272a6848489824d887c85c812670932835aa1", size = 16930, upload-time = "2026-05-26T09:56:02.576Z" },
+]
+
+[[package]]
+name = "pytest-httpx2"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "respx" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/43/d1/70e7edb50679ddd34ba5e13ac1d6e1223bc4e24d0a5fc30587f8fbe884c4/pytest_httpx2-1.0.0.tar.gz", hash = "sha256:d897a14c1341d3f3014e9432c16fed366598aba06a2ba9c08460a51799cb7128", size = 2882, upload-time = "2026-05-20T08:26:41.442Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/54/e1/5e38e8de42fba9667846a43113469c7481d01db4b6511e42645385bace8f/pytest_httpx2-1.0.0-py3-none-any.whl", hash = "sha256:467dc7f6946854ffc20e1678703266b093037d8f3fb9f1fb523a2c432c64cff0", size = 4504, upload-time = "2026-05-20T08:26:40.219Z" },
 ]
 
 [[package]]

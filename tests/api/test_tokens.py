@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 from sqlalchemy import select
 
@@ -18,8 +18,8 @@ async def api(tmp_path, stub_judges, session_factory):
         yield client
 
 
-def bearer(client: httpx.AsyncClient, token: str) -> httpx.AsyncClient:
-    return httpx.AsyncClient(
+def bearer(client: httpx2.AsyncClient, token: str) -> httpx2.AsyncClient:
+    return httpx2.AsyncClient(
         transport=client._transport,
         base_url="http://test",
         headers={"Authorization": f"Bearer {token}"},

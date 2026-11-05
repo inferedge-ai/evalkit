@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- evalkit now uses `httpx2` instead of `httpx` and `httpx-retries`. The
+  CLI, the SDK and the server make their HTTP calls through `httpx2`, with a
+  small retry transport of evalkit's own (`evalkit.client.retry`). Code that
+  embeds `evalkit.sdk` now installs `httpx2`, not `httpx`. A request whose
+  body is a one-shot stream is now sent once and never retried (the old
+  library retried it, and the second send of a spent stream failed). The
+  try-it stack's sample agent (`try/agent.py`) and the SDK-runs doc sample
+  import `httpx2`.
 - Only releases (`X.Y.Z` from `main`) are published to PyPI. `develop`
   builds (`X.Y.Z.devN`) are no longer on PyPI; get them from the workflow
   artifact or the GHCR image.

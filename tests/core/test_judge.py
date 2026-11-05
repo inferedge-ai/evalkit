@@ -1,9 +1,8 @@
 import json
 
-import httpx
 import pytest
-import respx
 from pydantic import BaseModel, ValidationError
+from respx import MockResponse
 
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.judge import call_judge
@@ -36,10 +35,9 @@ def completion(content: str) -> dict:
     }
 
 
-@respx.mock
-async def test_request_shape_and_parse():
-    route = respx.post("https://judge.test/v1/chat/completions").mock(
-        return_value=httpx.Response(200, json=completion('{"score": 0.8, "reason": "ok"}'))
+async def test_request_shape_and_parse(httpx2_mock):
+    route = httpx2_mock.post("https://judge.test/v1/chat/completions").mock(
+        return_value=MockResponse(200, json=completion('{"score": 0.8, "reason": "ok"}'))
     )
     verdict, usage = await call_judge(
         CFG,
@@ -64,12 +62,11 @@ async def test_request_shape_and_parse():
     assert request.headers["x-litellm-tags"] == "eval-judge,evaluator:answer_rubrics"
 
 
-@respx.mock
-async def test_one_repair_retry():
-    route = respx.post("https://judge.test/v1/chat/completions")
+async def test_one_repair_retry(httpx2_mock):
+    route = httpx2_mock.post("https://judge.test/v1/chat/completions")
     route.side_effect = [
-        httpx.Response(200, json=completion("not json at all")),
-        httpx.Response(200, json=completion('{"score": 1.0, "reason": "fixed"}')),
+        MockResponse(200, json=completion("not json at all")),
+        MockResponse(200, json=completion('{"score": 1.0, "reason": "fixed"}')),
     ]
     verdict, usage = await call_judge(
         CFG,
@@ -85,12 +82,11 @@ async def test_one_repair_retry():
     assert usage.input_tokens == 200
 
 
-@respx.mock
-async def test_second_failure_raises():
-    route = respx.post("https://judge.test/v1/chat/completions")
+async def test_second_failure_raises(httpx2_mock):
+    route = httpx2_mock.post("https://judge.test/v1/chat/completions")
     route.side_effect = [
-        httpx.Response(200, json=completion("bad")),
-        httpx.Response(200, json=completion("still bad")),
+        MockResponse(200, json=completion("bad")),
+        MockResponse(200, json=completion("still bad")),
     ]
     with pytest.raises(ValidationError):
         await call_judge(
@@ -105,10 +101,9 @@ async def test_second_failure_raises():
     assert route.call_count == 2
 
 
-@respx.mock
-async def test_model_override():
-    route = respx.post("https://judge.test/v1/chat/completions").mock(
-        return_value=httpx.Response(200, json=completion('{"score": 0.5, "reason": "ok"}'))
+async def test_model_override(httpx2_mock):
+    route = httpx2_mock.post("https://judge.test/v1/chat/completions").mock(
+        return_value=MockResponse(200, json=completion('{"score": 0.5, "reason": "ok"}'))
     )
     await call_judge(
         CFG,

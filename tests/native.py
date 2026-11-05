@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
-import httpx
+import httpx2
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.responses import JSONResponse
@@ -223,8 +223,8 @@ async def seed_env(
         agents=AgentStore(session_factory),
         evaluators=RemoteEvaluatorStore(session_factory),
         credentials=fake_credentials(),
-        harness_transport=httpx.ASGITransport(app=(fake or FakeHarness()).app),
-        custom_eval_transport=httpx.ASGITransport(app=custom_eval_app()),
+        harness_transport=httpx2.ASGITransport(app=(fake or FakeHarness()).app),
+        custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),
     )
     env = Env(session_factory, store, blob_store, deps, user_ids, ReviewLog(session_factory))
     evaluators_2 = dict(CASE_EVALUATORS)
@@ -274,7 +274,7 @@ async def start(env: Env, req: ExperimentRequest, *, holder: str = HOLDER) -> Ex
 
 
 @asynccontextmanager
-async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[httpx.AsyncClient]:
+async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[httpx2.AsyncClient]:
     app = create_app(
         env.deps.cfg,  # type: ignore[arg-type]
         blob_store=env.blob,
@@ -285,8 +285,8 @@ async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[htt
         holder=HOLDER,
     )
     async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        transport = httpx2.ASGITransport(app=app)
+        async with httpx2.AsyncClient(transport=transport, base_url="http://test") as client:
             client.app = app  # type: ignore[attr-defined]
             resp = await client.post(
                 "/api/auth/login", json={"username": user, "password": USERS[user]}
@@ -295,8 +295,8 @@ async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[htt
             yield client
 
 
-async def login_as(client: httpx.AsyncClient, username: str) -> httpx.AsyncClient:
-    other = httpx.AsyncClient(transport=client._transport, base_url="http://test")
+async def login_as(client: httpx2.AsyncClient, username: str) -> httpx2.AsyncClient:
+    other = httpx2.AsyncClient(transport=client._transport, base_url="http://test")
     resp = await other.post(
         "/api/auth/login", json={"username": username, "password": USERS[username]}
     )
@@ -305,7 +305,7 @@ async def login_as(client: httpx.AsyncClient, username: str) -> httpx.AsyncClien
 
 
 async def wait_for(
-    client: httpx.AsyncClient, exp_id: int, statuses=("completed", "failed")
+    client: httpx2.AsyncClient, exp_id: int, statuses=("completed", "failed")
 ) -> dict:
     for _ in range(400):
         body = (await client.get(f"/api/experiments/{exp_id}")).json()

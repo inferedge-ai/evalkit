@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta, tzinfo
 from typing import Any, get_args
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import httpx
+import httpx2
 from fastapi import HTTPException
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
@@ -393,7 +393,7 @@ def outcome(task: asyncio.Task[Digested]) -> Digested | HTTPException:
         return task.result()
     if isinstance(exc, HTTPException):
         return exc
-    if isinstance(exc, httpx.HTTPError | TimeoutError):
+    if isinstance(exc, httpx2.HTTPError | TimeoutError):
         return HTTPException(status_code=502, detail=f"harness unreachable ({type(exc).__name__})")
     if isinstance(exc, ValueError):
         return HTTPException(status_code=502, detail="malformed trajectory")
