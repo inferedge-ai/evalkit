@@ -83,22 +83,29 @@ async def test_a_ci_token_without_a_tenant_cannot_use_another_tenants_binding(en
     assert spaces.status_code == 403
 
 
-async def test_a_ci_token_names_its_tenant_and_another_binding_does_not_lock_it_out(env, idp):
+async def test_a_ci_client_bound_in_two_tenants_is_two_users(env, idp):
     async with sso_app(env, idp, resolve_tenant=by_org, admin_claim=ADMIN) as client:
         acme = await admin_headers(client, idp, "ann", "ORG-acme")
         globex = await admin_headers(client, idp, "gail", "ORG-globex")
         for headers in (acme, globex):
-            await client.post(
+            bound = await client.post(
                 "/api/users", headers=headers, json={"username": "ci", "subject": "acme-ci-client"}
             )
+            assert bound.status_code == 200, bound.text
         bare = await client.get("/api/auth/me", headers=bearer(idp.access_token("acme-ci-client")))
-        named = await client.get(
-            "/api/auth/me",
+        as_acme = await client.get(
+            "/api/workspaces",
             headers=bearer(idp.access_token("acme-ci-client", extra={"tenant_id": "ORG-acme"})),
         )
+        as_globex = await client.get(
+            "/api/workspaces",
+            headers=bearer(idp.access_token("acme-ci-client", extra={"tenant_id": "ORG-globex"})),
+        )
     assert bare.status_code == 403
-    assert named.status_code == 200 and named.json()["username"] == "ci"
-    assert await tenant_of(env, "ann") == "ORG-acme"
+    assert as_acme.status_code == 200 and as_globex.status_code == 200
+    acme_tenants = {w["tenant_id"] for w in as_acme.json()}
+    globex_tenants = {w["tenant_id"] for w in as_globex.json()}
+    assert acme_tenants == {"ORG-acme"} and globex_tenants == {"ORG-globex"}
 
 
 async def test_password_login_is_refused_when_the_wrapper_has_no_tenant(env, idp):
