@@ -273,3 +273,18 @@ async def test_flow_14_range_import_rules(httpx2_mock, api):
     ):
         wrong_kind = await api.post(path, json=payload)
         assert wrong_kind.status_code == 400 and "only OTel agents" in wrong_kind.json()["detail"]
+
+
+async def test_flow_14_private_source_urls_are_refused_unless_allowed(api):
+    metadata = {"name": "meta", "provider": "phoenix", "url": "http://169.254.169.254/"}
+    local = {"url": "http://127.0.0.1:6006"}
+    api.app.state.cfg.allow_private_endpoints = False
+    created = await api.post("/api/trace-sources", json=metadata)
+    assert created.status_code == 400 and "allow_private_endpoints" in created.json()["detail"]
+    moved = await api.patch("/api/trace-sources/phx", json=local)
+    assert moved.status_code == 400 and "allow_private_endpoints" in moved.json()["detail"]
+    sources = (await api.get("/api/trace-sources")).json()
+    assert [(s["name"], s["url"]) for s in sources] == [("phx", PHOENIX)]
+    api.app.state.cfg.allow_private_endpoints = True
+    assert (await api.post("/api/trace-sources", json=metadata)).status_code == 200
+    assert (await api.patch("/api/trace-sources/phx", json=local)).json()["url"] == local["url"]

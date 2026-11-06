@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Trace source URLs are now checked like LLM provider URLs. Without
+  `allow_private_endpoints: true`, `POST /api/trace-sources` and
+  `PATCH /api/trace-sources/<name>` (`evalkit trace-sources create` and
+  `edit --url`) answer 400 when the URL resolves to a loopback, private,
+  link-local or reserved address, or does not resolve. Sources saved before
+  keep their URL; editing only the key is not checked.
 - `auth.oidc.admin_claim` (`name`, `value`): when set, every SSO sign-in
   sets the person's admin flag from the access token (equal to the value, or
   a list containing it), so the IdP grants and revokes evalkit admin. Unset,
