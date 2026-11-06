@@ -283,8 +283,9 @@ async def test_flow_14_private_source_urls_are_refused_unless_allowed(api):
     assert created.status_code == 400 and "allow_private_endpoints" in created.json()["detail"]
     moved = await api.patch("/api/trace-sources/phx", json=local)
     assert moved.status_code == 400 and "allow_private_endpoints" in moved.json()["detail"]
-    malformed = await api.post("/api/trace-sources", json={**metadata, "url": "http://[::1"})
-    assert malformed.status_code == 400 and "http://[::1" in malformed.json()["detail"]
+    for bad_url in ("http://[::1", "http://a..b.com/"):
+        malformed = await api.post("/api/trace-sources", json={**metadata, "url": bad_url})
+        assert malformed.status_code == 400 and bad_url in malformed.json()["detail"]
     sources = (await api.get("/api/trace-sources")).json()
     assert [(s["name"], s["url"]) for s in sources] == [("phx", PHOENIX)]
     api.app.state.cfg.allow_private_endpoints = True

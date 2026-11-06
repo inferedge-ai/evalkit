@@ -12,9 +12,11 @@
   `evalkit traces imports <agent> <id> --continue`) answers the same 400 and
   fetches nothing, so a source saved before this release stops importing until
   an admin points it at a public address.
-- With `allow_private_endpoints` off, a URL that cannot be parsed (for
-  example `http://[::1`) in an agent, evaluator, LLM provider or trace source
-  now answers 400 `<url> is not a valid URL: …` instead of a server error.
+- With `allow_private_endpoints` off, a malformed URL in an agent, evaluator,
+  LLM provider or trace source now answers 400 instead of a server error:
+  `<url> is not a valid URL: …` when it cannot be parsed (`http://[::1`), and
+  `<url>: cannot resolve <host>` when its host name has an empty or overlong
+  label (`http://a..b.com/`).
 - `auth.oidc.admin_claim` (`name`, `value`): when set, every SSO sign-in
   sets the person's admin flag from the access token (equal to the value, or
   a list containing it), so the IdP grants and revokes evalkit admin. Unset,

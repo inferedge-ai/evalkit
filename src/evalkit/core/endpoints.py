@@ -24,7 +24,7 @@ async def check_endpoint(url: str, *, allow_private: bool) -> None:
         raise BlockedEndpoint(f"{url} has no host")
     try:
         infos = await asyncio.get_running_loop().getaddrinfo(host, None)
-    except socket.gaierror as exc:
+    except (socket.gaierror, UnicodeError) as exc:
         raise BlockedEndpoint(f"{url}: cannot resolve {host}") from exc
     bad = sorted({str(info[4][0]) for info in infos if blocked(ipaddress.ip_address(info[4][0]))})
     if bad:
