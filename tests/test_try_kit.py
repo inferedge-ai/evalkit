@@ -136,7 +136,7 @@ def test_kit_local_config_needs_no_judge_key(monkeypatch):
     cfg = LocalConfig.find(KIT)
     assert cfg is not None
     assert cfg.cases == KIT / "cases"
-    assert not cfg.credentials.llm_providers
+    assert not cfg.credentials.agents and not cfg.credentials.evaluators
 
 
 def test_kit_env_example_names_every_variable_compose_needs():

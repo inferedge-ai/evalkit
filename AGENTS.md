@@ -45,7 +45,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | LLM provider | An OpenAI-compatible endpoint evalkit may call: a name (`openai`), a base URL and a stored key. Today only judges use providers. Admins manage them (`evalkit llm-providers`). |
 | Default judge | The judge (provider name, model, effort, limits) an experiment uses when it does not set its own. Set by an admin in the database (`evalkit judge-default set`). |
 | Stored key | An API key saved in the database, encrypted with the server's `encryption_key`, never returned (reads show `has_api_key`). Shared agents, shared remote evaluators, LLM providers and trace sources have one. |
-| Credential registry | The CLI and SDK lookup from a reference (or the base URL of a judge the run brings) to an API key, built from the `credentials:` map in `evalkit.yaml` (`agents`, `evaluators`, `llm_providers`). Used by local and SDK runs only; the server uses stored keys. |
+| Credential registry | The CLI and SDK lookup from an agent or evaluator reference to an API key, built from the `credentials:` map in `evalkit.yaml` (`agents`, `evaluators`). Used by local and SDK runs only; the server uses stored keys. A judge the run brings carries its own key (`--judge-api-key-env`, `Judge(api_key=...)`), never stored. |
 | Bucket | A scorecard grouping of evaluator scores: content, trajectory, presentation, efficiency, custom. |
 | Tag | A label on a case: from its YAML `tags`, its folder in the suite, or an overlay. `evalkit run --tag` (repeatable) runs the cases carrying any of the given tags. |
 | Overlay | A client extension of a case in another suite: extra evaluator config attached by case id, scored only for the agents it names. |

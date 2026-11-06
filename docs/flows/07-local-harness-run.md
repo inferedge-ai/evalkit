@@ -10,7 +10,7 @@ A developer runs their own agent, served by a harness on their machine, against 
 - **Custom evaluator**: optional, a remote evaluator in the agent's workspace (`evalkit evaluators create`).
 - **Judge**: the LLM used by built-in evaluators. The experiment uses the server's default judge unless the run sets one with `--judge-*` flags (`evalkit judge-default show` prints the default).
   - A judge served by an LLM provider configured on the server (the default, or `--judge-provider`) is called by the server: the CLI asks the server to score each judge-using evaluator.
-  - A judge you bring with your own key (`--judge-base-url`) is called by the CLI, with the key from `evalkit.yaml`.
+  - A judge you bring (`--judge-base-url` with `--judge-api-key-env NAME`) is called by the CLI, with the key from that env var.
 - **evalkit server**: stores the dataset, experiment, runs, scores and trajectories.
 
 ## Sequence
@@ -65,8 +65,8 @@ sequenceDiagram
       CLI->>S: POST experiment-runs/#lt;id#gt;/server-evaluations/#lt;name#gt; per judge-using built-in
       S->>J: judge with the provider's stored key
       S-->>CLI: score rows + judge token usage (nothing written)
-    else own judge key (--judge-base-url)
-      CLI->>J: judge-using built-ins with the key from evalkit.yaml
+    else own judge (--judge-base-url, --judge-api-key-env)
+      CLI->>J: judge-using built-ins with the key from --judge-api-key-env
     end
     CLI->>CLI: tool_trajectory_match, required_tools_called, max_response_time, gauges
     CLI->>E: remote evaluators named in the case
@@ -139,7 +139,7 @@ sequenceDiagram
 - Unknown agent: `unknown agent: <ref> — create it with evalkit agents create`.
 - Nothing left to run (no case matches, or every case needs fixtures the harness can't take): `nothing to run in <dataset>: …`.
 - Case inputs that fail the agent's `input_schema`: `<n> case input(s) fail agent <agent>'s input_schema:` listing every bad case; nothing runs.
-- `--judge-base-url` with no `credentials.llm_providers` entry for that URL: `no credentials.llm_providers entry for <url>`, before the run. The default judge needs no entry.
+- `--judge-base-url` without `--judge-api-key-env`: `--judge-base-url needs --judge-api-key-env NAME, the key's env var`, before the run. `--judge-api-key-env` naming an unset variable: `env var NAME is not set …`. Re-scoring with `evalkit evaluate <id>` such an experiment without the flag: `your judge at <url> needs its API key: pass --judge-api-key-env NAME …`.
 - `--judge-provider` with `--judge-base-url`: `pass --judge-provider or --judge-base-url, not both`.
 - A server-evaluator call that fails or times out (900 s, `EVALKIT_SERVER_EVALUATOR_TIMEOUT`): that evaluator gets an `error` score for the run, scoring goes on, and `evalkit evaluate <id>` retries it. The call is never retried on its own.
 - A `credentials` entry whose env var is unset: `credentials.<kind>s['<ref>'] needs env var <NAME>`, before the run.

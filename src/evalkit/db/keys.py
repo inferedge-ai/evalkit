@@ -25,9 +25,6 @@ class StoredKeys:
         key, stored_url = stored
         return key if url is None or url == stored_url else None
 
-    def require_judge_key(self, base_url: str) -> str | None:
-        raise UnknownLlmProvider(base_url)
-
     def provider_judge(self, name: str) -> tuple[str, str | None]:
         if name not in self._providers:
             raise UnknownLlmProvider(name)
@@ -36,9 +33,6 @@ class StoredKeys:
 
 class NoKeysLoaded:
     def key_for(self, kind: Kind, ref: str, url: str | None = None) -> str | None:
-        raise RuntimeError("server keys are loaded per experiment with KeyLoader.load")
-
-    def require_judge_key(self, base_url: str) -> str | None:
         raise RuntimeError("server keys are loaded per experiment with KeyLoader.load")
 
     def provider_judge(self, name: str) -> tuple[str, str | None]:

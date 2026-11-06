@@ -10,7 +10,7 @@ A developer runs a code-driven agent (no Harness API) from their own Python scri
 - **evalkit server**: holds the agent, its mapping, the dataset and the experiment. Its collector (`/api/otel/v1/traces`) receives spans; the server serves each session as an ATIF trajectory, built with the agent's mapping.
 - **Judge / custom evaluator**: the judge from `judge=Judge(...)`, or the server's default judge (set by an admin). Remote evaluators come from the agent's workspace.
   - A judge served by an LLM provider configured on the server (the default, or `Judge(provider=...)`) is called by the server with its stored key. For each run, the script asks the server to score each judge-using built-in (`POST /api/experiment-runs/<id>/server-evaluations/<name>`) and gets back score rows and judge token usage.
-  - A judge you bring with your own key (`Judge(base_url=...)`) is called by the script, with the key from `credentials.llm_providers`.
+  - A judge you bring (`Judge(base_url=..., api_key=...)`) is called by the script. The key is never stored; `evaluate_experiment` takes it again as `judge_api_key`.
 
 ## Sequence
 

@@ -167,8 +167,6 @@ credentials:                 # env:NAME references only, never the key itself
     myagent: env:MYAGENT_API_KEY             # bare name = your workspace
   evaluators:
     citation_check: env:CITATION_API_KEY
-  llm_providers:                             # only to bring your own judge key
-    https://litellm.example.com: env:LITELLM_API_KEY   # keyed by judge base URL
 ```
 
 - `credentials.agents` here is only for your personal Harness API agents.
@@ -180,10 +178,9 @@ credentials:                 # env:NAME references only, never the key itself
   `evalkit.yaml`. A variable set in the environment wins over `.env`.
 - An agent or evaluator with no `credentials` entry gets no auth header, and
   the run prints one line saying so.
-- A judge you bring (`--judge-base-url`) with no entry for its base URL fails
-  the run before it starts: `no credentials.llm_providers entry for <url>`.
-- `credentials.judges` was renamed to `credentials.llm_providers`; the old
-  name fails to load.
+- `credentials` holds agent and evaluator keys only; a file with
+  `credentials.llm_providers` (or `credentials.judges`) fails to load. Your own
+  judge's key goes with the run (below).
 - `cases` and `fixtures` are only needed to sync your own datasets by name.
 
 ### The judge
@@ -198,10 +195,12 @@ provider configured on the server or a base URL, never both:
   evalkit server with its stored key, also in local and SDK runs. No judge
   key is needed on your machine. `evalkit run --judge-provider NAME`
   (`evalkit llm-providers list`) picks another one.
-- **Bring your own key:** `evalkit run --judge-base-url URL --judge-model M`
-  or `Judge(base_url=..., model=...)` in the SDK. Those evaluators run on your
-  machine with the key from `credentials.llm_providers`. Server runs refuse
-  `--judge-base-url`.
+- **Your own judge:** `evalkit run --judge-base-url URL --judge-model M
+  --judge-api-key-env NAME` (the env var or `.env` entry holding the key), or
+  `Judge(base_url=..., model=..., api_key=...)` in the SDK. Those evaluators
+  run on your machine. The key is never stored: `evalkit evaluate <id>` needs
+  `--judge-api-key-env NAME` again (`evaluate_experiment(...,
+  judge_api_key=...)` in the SDK). Server runs refuse `--judge-base-url`.
 
 `--judge-model` and `--judge-effort` change the rest for one experiment.
 `evalkit evaluate` reuses the experiment's judge. `tool_trajectory_match`,

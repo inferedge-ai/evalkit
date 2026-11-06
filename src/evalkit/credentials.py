@@ -7,7 +7,7 @@ from typing import Literal, Protocol
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-Kind = Literal["agent", "evaluator", "llm_provider"]
+Kind = Literal["agent", "evaluator"]
 
 
 class MissingCredential(ValueError):
@@ -22,18 +22,18 @@ class CredentialsConfig(BaseModel):
 
     agents: dict[str, str] = {}
     evaluators: dict[str, str] = {}
-    llm_providers: dict[str, str] = {}
 
-    # TODO: remove in 0.5.0, two minor versions after 0.3.0 renamed credentials.judges
-    # to credentials.llm_providers.
     @model_validator(mode="before")
     @classmethod
-    def _judges_renamed(cls, data: object) -> object:
-        if isinstance(data, dict) and "judges" in data:
-            raise ValueError("credentials.judges is now credentials.llm_providers")
+    def _judge_keys_removed(cls, data: object) -> object:
+        if isinstance(data, dict) and ({"judges", "llm_providers"} & data.keys()):
+            raise ValueError(
+                "credentials.llm_providers was removed: pass your own judge's key with "
+                "evalkit run --judge-api-key-env NAME or Judge(base_url=..., api_key=...)"
+            )
         return data
 
-    @field_validator("agents", "evaluators", "llm_providers")
+    @field_validator("agents", "evaluators")
     @classmethod
     def _env_refs_only(cls, value: dict[str, str]) -> dict[str, str]:
         bad = [k for k, v in value.items() if not ENV_REF.match(v)]
@@ -41,19 +41,9 @@ class CredentialsConfig(BaseModel):
             raise ValueError(f"credentials must be env:NAME references (no defaults): {bad}")
         return value
 
-    @field_validator("llm_providers")
-    @classmethod
-    def _provider_keys_are_urls_or_env_refs(cls, value: dict[str, str]) -> dict[str, str]:
-        bad = [k for k in value if k.startswith("env:") and not ENV_REF.match(k)]
-        if bad:
-            raise ValueError(f"a credentials.llm_providers key is a base URL or env:NAME: {bad}")
-        return value
-
 
 class KeySource(Protocol):
     def key_for(self, kind: Kind, ref: str, url: str | None = None) -> str | None: ...
-
-    def require_judge_key(self, base_url: str) -> str | None: ...
 
     def provider_judge(self, name: str) -> tuple[str, str | None]: ...
 
@@ -67,32 +57,14 @@ class CredentialRegistry:
         self._home = home
 
     def _table(self, kind: Kind) -> dict[str, str]:
-        if kind == "llm_provider":
-            return {
-                url: v
-                for k, v in self._cfg.llm_providers.items()
-                if (url := self._judge_url(k)) is not None
-            }
         return {"agent": self._cfg.agents, "evaluator": self._cfg.evaluators}[kind]
-
-    def _judge_url(self, key: str) -> str | None:
-        if not key.startswith("env:"):
-            return key
-        return self._env.get(key.removeprefix("env:"))
-
-    def _unset_judge_keys(self) -> list[str]:
-        return [
-            k
-            for k in self._cfg.llm_providers
-            if k.startswith("env:") and self._judge_url(k) is None
-        ]
 
     def _entry(self, kind: Kind, ref: str) -> str | None:
         table = self._table(kind)
         if ref in table:
             return table[ref]
         name, _, workspace = ref.partition("@")
-        if kind != "llm_provider" and self._home is not None and workspace == self._home:
+        if self._home is not None and workspace == self._home:
             return table.get(name)
         return None
 
@@ -104,14 +76,6 @@ class CredentialRegistry:
         if name not in self._env:
             raise MissingCredential(f"credentials.{kind}s[{ref!r}] needs env var {name}")
         return self._env[name]
-
-    def require_judge_key(self, base_url: str) -> str:
-        key = self.key_for("llm_provider", base_url)
-        if key is None:
-            unset = self._unset_judge_keys()
-            hint = f" (unset: {', '.join(k.removeprefix('env:') for k in unset)})" if unset else ""
-            raise MissingCredential(f"no credentials.llm_providers entry for {base_url}{hint}")
-        return key
 
     def provider_judge(self, name: str) -> tuple[str, str | None]:
         raise ProviderJudgeIsServerSide(name)

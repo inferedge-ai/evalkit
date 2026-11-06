@@ -51,6 +51,7 @@ def _deps(
     harness_transport: httpx2.AsyncBaseTransport | None,
     custom_eval_transport: httpx2.AsyncBaseTransport | None,
     evaluation_concurrency: int,
+    judge_api_key: str | None,
 ) -> RunnerDeps:
     return RunnerDeps(
         cfg=local,
@@ -65,6 +66,7 @@ def _deps(
         sessions=HttpSessionReader(api),
         evaluation_concurrency=evaluation_concurrency,
         server_evaluators=HttpServerEvaluators(api),
+        judge_api_key=judge_api_key,
     )
 
 
@@ -124,6 +126,7 @@ async def run_local(
             transport,
             custom_eval_transport,
             evaluation_concurrency,
+            judge.api_key if judge else None,
         )
         for line in await missing_local_keys(
             deps, await deps.agents.get(explicit(agent)), await store.pinned_cases(exp.id)
@@ -145,6 +148,7 @@ async def evaluate_local(
     api_transport: httpx2.AsyncBaseTransport | None = None,
     refetch_trajectories: bool = False,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
+    judge_api_key: str | None = None,
 ) -> None:
     api = AsyncApi(conn.url, oidc.build_auth(conn), transport=api_transport)
     holder = holder_for(conn)
@@ -159,6 +163,7 @@ async def evaluate_local(
             None,
             custom_eval_transport,
             evaluation_concurrency,
+            judge_api_key,
         )
         await deps.store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
         await rescore_experiment(deps, exp_id, holder, refetch_trajectories=refetch_trajectories)

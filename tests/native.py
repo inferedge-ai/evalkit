@@ -42,7 +42,7 @@ from evalkit.db.store import PgStore
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from evalkit.store.base import CaseFile, Experiment, RunDetail, Selection
-from tests.fake_agents import JUDGE_URL, TEST_ENCRYPTION_KEY, fake_credentials
+from tests.fake_agents import JUDGE_URL, TEST_ENCRYPTION_KEY, TEST_ENV, fake_credentials
 from tests.fake_blob import DictBlobStore
 from tests.fake_harness import FakeHarness
 from tests.identity import seed_agent, seed_evaluators, seed_identity
@@ -225,6 +225,7 @@ async def seed_env(
         credentials=fake_credentials(),
         harness_transport=httpx2.ASGITransport(app=(fake or FakeHarness()).app),
         custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),
+        judge_api_key=TEST_ENV["JUDGE_KEY"],
     )
     env = Env(
         session_factory, store, blob_store, deps, user_ids, ReviewLog(session_factory, "default")

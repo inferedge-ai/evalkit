@@ -22,8 +22,7 @@ from evalkit.config import OtelConfig
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource
 from evalkit.contracts.settings import AgentSettings, JudgeSettings, RemoteEvaluatorSettings
 from evalkit.core.blob import tenant_prefix
-from evalkit.core.runner import InvalidCaseInputs, ScoringFailed
-from evalkit.credentials import MissingCredential
+from evalkit.core.runner import InvalidCaseInputs, MissingJudgeKey, ScoringFailed
 from evalkit.db import models
 from evalkit.db.evaluators import RemoteEvaluatorStore
 from evalkit.db.session import make_session_factory, tenant_session
@@ -132,7 +131,6 @@ def env(server, tmp_path, monkeypatch, module_db_url):
     (tmp_path / "evalkit.yaml").write_text(
         f"cases: eval/cases\nfixtures: eval/fixtures\ncost_map:\n  source: {cost_map}\n"
         "credentials:\n  evaluators:\n    http_eval: env:SDK_EVAL_KEY\n"
-        "  llm_providers:\n    http://judge.test: env:SDK_JUDGE_KEY\n"
     )
     (tmp_path / ".env").write_text("SDK_EVAL_KEY=k\nSDK_JUDGE_KEY=jk\n")
     monkeypatch.chdir(tmp_path)
@@ -563,13 +561,15 @@ async def test_only_a_base_url_judge_needs_a_local_key_and_names_it_before_any_t
     dry = await arun_experiment(**common, dry_run=True)
     assert dry.experiment_id is None and len(dry.runs) == 1
     called.clear()
-    with pytest.raises(MissingCredential, match="SDK_JUDGE_KEY"):
-        await arun_experiment(
-            **common, judge=JudgeSettings(base_url="http://judge.test", model="judge-model")
-        )
+    own = {"base_url": "http://judge.test", "model": "judge-model"}
+    with pytest.raises(MissingJudgeKey, match="http://judge.test"):
+        await arun_experiment(**common, judge=JudgeSettings(**own))
     assert called == []
     result = await arun_experiment(**common)
     assert result.experiment_id is not None and called
+    called.clear()
+    keyed = await arun_experiment(**common, judge=JudgeSettings(**own, api_key="jk"))
+    assert keyed.experiment_id is not None and called
 
 
 async def test_dry_run_applies_case_ids_and_tags(env):

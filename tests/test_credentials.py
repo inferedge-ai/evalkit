@@ -31,10 +31,10 @@ def test_missing_env_var_fails_fast():
         reg.key_for("agent", "a@dev")
 
 
-def test_judge_key_required():
-    reg = CredentialRegistry(CredentialsConfig(), {})
-    with pytest.raises(MissingCredential, match="https://api.example/v1"):
-        reg.require_judge_key("https://api.example/v1")
+def test_judge_keys_are_no_longer_read_from_evalkit_yaml():
+    for key in ("llm_providers", "judges"):
+        with pytest.raises(ValueError, match="--judge-api-key-env"):
+            CredentialsConfig.model_validate({key: {"https://x/v1": "env:K"}})
 
 
 def test_env_beats_dotenv(tmp_path, monkeypatch):
@@ -48,30 +48,3 @@ def test_env_beats_dotenv(tmp_path, monkeypatch):
 def test_values_must_be_env_refs():
     with pytest.raises(ValueError):
         CredentialsConfig(agents={"a@dev": "plaintext"})
-
-
-def test_judge_key_may_name_its_base_url_by_env():
-    cfg = CredentialsConfig(llm_providers={"env:LLM_BASE_URL": "env:LLM_API_KEY"})
-    reg = CredentialRegistry(cfg, {"LLM_BASE_URL": "https://llm.example/v1", "LLM_API_KEY": "k"})
-    assert reg.require_judge_key("https://llm.example/v1") == "k"
-    with pytest.raises(
-        MissingCredential, match=r"no credentials.llm_providers entry .*unset: LLM_BASE_URL"
-    ):
-        CredentialRegistry(cfg, {"LLM_API_KEY": "k"}).require_judge_key("https://x/v1")
-    assert CredentialRegistry(cfg, {}).key_for("agent", "a@dev") is None
-
-
-def test_judge_key_env_refs_must_be_plain_names():
-    with pytest.raises(ValueError, match="base URL or env:NAME"):
-        CredentialsConfig(llm_providers={"env:LLM_BASE_URL:https://x": "env:K"})
-
-
-def test_an_unset_env_judge_key_does_not_hide_a_plain_url_entry():
-    cfg = CredentialsConfig(
-        llm_providers={
-            "https://api.openai.com/v1": "env:OPENAI_KEY",
-            "env:LLM_BASE_URL": "env:LLM_API_KEY",
-        }
-    )
-    reg = CredentialRegistry(cfg, {"OPENAI_KEY": "o"})
-    assert reg.require_judge_key("https://api.openai.com/v1") == "o"

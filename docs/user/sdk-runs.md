@@ -136,12 +136,15 @@ run_experiment(dataset="finance", agent="myagent-sdk", task=task,
                judge=Judge(provider="openai", model="gpt-5"))       # another provider on the server
 ```
 
-To bring your own judge key, pass `Judge(base_url=...)`. Those evaluators then run on your machine, and the SDK reads the key from `credentials.llm_providers` in `evalkit.yaml`, keyed by the base URL:
+To bring your own judge, pass its base URL and key. Those evaluators then run on your machine. evalkit never stores, sends or prints the key:
 
 ```python
 run_experiment(dataset="finance", agent="myagent-sdk", task=task,
-               judge=Judge(base_url="https://litellm.example.com", model="gpt-5"))
+               judge=Judge(base_url="https://litellm.example.com", model="gpt-5",
+                           api_key=os.environ["LITELLM_API_KEY"]))
 ```
+
+Re-scoring such an experiment needs the key again: `evaluate_experiment(experiment_id=..., judge_api_key=...)`.
 
 A judge sets `provider` or `base_url`, never both. `tool_trajectory_match`, `required_tools_called` and `max_response_time` always run on your machine. The run page shows `server` or `local` beside each score.
 

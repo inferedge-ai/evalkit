@@ -54,8 +54,9 @@ their keys in `evalkit.yaml`.
   experiment uses when it does not set its own. Set by an admin; it names the
   provider by its name.
 - **Credentials map:** a `credentials:` section in `evalkit.yaml`, used by local
-  runs and SDK runs. It maps a reference (or, for `llm_providers`, a base URL)
-  to `env:NAME`, and the CLI's credential registry looks keys up in it.
+  runs and SDK runs. It maps an agent or evaluator reference to `env:NAME`, and
+  the CLI's credential registry looks keys up in it. A judge's key is never
+  here: a run that brings its own judge passes the key with the run.
   - In `evalkit.yaml` a bare name means your personal workspace.
   - `evalkit.yaml` also loads a `.env` file next to it. Real env vars win over
     `.env`.
@@ -64,7 +65,6 @@ their keys in `evalkit.yaml`.
 credentials:
   agents: {myagent: env:MYAGENT_KEY}
   evaluators: {citation_check: env:CITATION_KEY}
-  llm_providers: {https://api.openai.com/v1: env:OPENAI_API_KEY}  # only to bring your own judge key
 ```
 
 ## Sequence
@@ -190,10 +190,10 @@ sequenceDiagram
   - **No `credentials` entry (local run):** the CLI prints one line per agent or
     evaluator, e.g. `no credentials.agents entry for <ref> in evalkit.yaml;
     calling the harness without x-api-key`, and sends no key header.
-  - **No `credentials.llm_providers` entry for a judge a local run brings
-    (`--judge-base-url`):** the run stops before it starts:
-    `no credentials.llm_providers entry for <base_url>`. A judge served by an LLM provider configured on the server
-    needs no entry: the server judges with its stored key.
+  - **A local run that brings its own judge (`--judge-base-url`) without
+    `--judge-api-key-env`:** refused before it starts. A judge served by an
+    LLM provider configured on the server needs no key on the machine: the
+    server judges with its stored key.
 - **Nothing creates an agent implicitly:** not experiment creation,
   `tokens create --agent`, or an OTel export.
 

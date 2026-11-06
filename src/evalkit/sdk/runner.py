@@ -590,7 +590,7 @@ async def arun_experiment(
     """The async form of `run_experiment`, for code already in an event loop (a notebook).
 
     Same arguments and result as `run_experiment`. The arguments after
-    `evaluation_concurrency` exist for tests.
+    `judge_api_key` exist for tests.
     """
     local = _local_config().resolve_env(scoring=not dry_run)
     spec = inspect_task(task)
@@ -658,7 +658,7 @@ async def arun_experiment(
                 _selection(case_ids, tags),
                 agent=slug(agent_ref),
             )
-            judge_key_for(credentials, judge, selected)
+            judge_key_for(judge, judge.api_key if judge else None, selected)
             revision = git_revision(on_disk) if on_disk is not None and on_disk.is_dir() else None
             exp, dropped = await store.start_experiment(
                 ExperimentRequest(
@@ -695,6 +695,7 @@ async def arun_experiment(
             python_evaluators=python_evaluators,
             evaluation_concurrency=evaluation_concurrency,
             server_evaluators=HttpServerEvaluators(api),
+            judge_api_key=judge.api_key if judge else None,
         )
         cases = {case.case_id: case for case in await store.pinned_cases(exp.id)}
         for line in await missing_local_keys(deps, definition, cases.values()):
@@ -769,6 +770,7 @@ async def aevaluate_experiment(
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
+    judge_api_key: str | None = None,
     api_transport: httpx2.AsyncBaseTransport | None = None,
     custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
     progress: Progress = print,
@@ -808,6 +810,7 @@ async def aevaluate_experiment(
             python_evaluators={e.name: e for e in evaluators},
             evaluation_concurrency=evaluation_concurrency,
             server_evaluators=HttpServerEvaluators(api),
+            judge_api_key=judge_api_key,
         )
         await store.transition(experiment_id, ExperimentStatus.EVALUATING, holder)
         try:
@@ -898,10 +901,10 @@ def run_experiment(
         trajectory_wait_seconds: How long to wait for a run's spans to settle into a
             trajectory. Defaults to the agent's setting.
         judge: The judge for LLM-graded built-in evaluators. Defaults to the server's
-            default judge. A `provider` judge scores them on the evalkit server with its
-            stored key. A `base_url` judge brings your own key: they run on this machine
-            and the key comes from `credentials.llm_providers` in `evalkit.yaml`, keyed
-            by `base_url`.
+            default judge. `Judge(provider=...)` names an LLM provider configured on
+            the server: they run on the server with its stored key.
+            `Judge(base_url=..., api_key=...)` brings your own judge: they run on this
+            machine. The key is never stored.
         evaluation_concurrency: How many runs are scored at once.
 
     Returns:
@@ -943,6 +946,7 @@ def evaluate_experiment_sync(
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
+    judge_api_key: str | None = None,
 ) -> ExperimentResult:
     """Re-score an experiment that used Python evaluators.
 
@@ -956,6 +960,8 @@ def evaluate_experiment_sync(
         refetch_trajectories: Read the trajectories of runs whose trajectory was
             `partial` or `unavailable` again before scoring.
         evaluation_concurrency: How many runs are scored at once.
+        judge_api_key: The key of the experiment's own judge, when it ran with
+            `Judge(base_url=...)`. Keys are never stored, so re-scoring asks again.
 
     Returns:
         The experiment id, its URL and one summary per run.
@@ -975,5 +981,6 @@ def evaluate_experiment_sync(
             evaluators=evaluators,
             refetch_trajectories=refetch_trajectories,
             evaluation_concurrency=evaluation_concurrency,
+            judge_api_key=judge_api_key,
         )
     )

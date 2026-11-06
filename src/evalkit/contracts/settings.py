@@ -8,15 +8,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 class JudgeSettings(BaseModel):
     """The LLM judge an experiment uses; exported from `evalkit.sdk` as `Judge`.
 
-    Set exactly one of `provider` or `base_url`. A `provider` judge is an LLM provider
-    registered on the evalkit server: judge-using built-in evaluators then run on the
-    server with its stored key. A `base_url` judge brings your own key: those
-    evaluators run on your machine, with the key from `credentials.llm_providers` in
-    `evalkit.yaml`, keyed by `base_url`.
+    Set exactly one of `provider` or `base_url`. With `provider`, the judge is served
+    by an LLM provider configured on the evalkit server: judge-using built-in
+    evaluators run on the server with its stored key. With `base_url`, you bring your
+    own judge: those evaluators run on your machine, with `api_key`.
 
     Attributes:
-        provider: The name of an LLM provider registered on the server.
+        provider: The name of an LLM provider configured on the server.
         base_url: An OpenAI-compatible endpoint that supports structured output.
+        api_key: The key for `base_url`. Never stored, sent or shown.
         model: The model name at that endpoint.
         reasoning_effort: Passed to the model as `reasoning_effort`.
         max_tokens: The most tokens one judge reply may use.
@@ -26,6 +26,7 @@ class JudgeSettings(BaseModel):
 
     provider: str | None = None
     base_url: str | None = None
+    api_key: str | None = Field(default=None, exclude=True, repr=False)
     model: str
     reasoning_effort: str = "high"
     max_tokens: int = Field(32768, ge=1)
@@ -34,6 +35,10 @@ class JudgeSettings(BaseModel):
     def _check_one_endpoint(self) -> "JudgeSettings":
         if (self.provider is None) == (self.base_url is None):
             raise ValueError("a judge sets exactly one of provider or base_url")
+        if self.provider is not None and self.api_key is not None:
+            raise ValueError(
+                "a provider judge uses the server's stored key; api_key goes with base_url"
+            )
         return self
 
     @model_validator(mode="before")

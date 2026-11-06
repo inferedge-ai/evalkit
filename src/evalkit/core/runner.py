@@ -167,6 +167,7 @@ class RunnerDeps:
     evaluation_concurrency: int = EVALUATION_CONCURRENCY
     server_evaluators: ServerEvaluators | None = None
     scored_on: ScoredOn = ScoredOn.LOCAL
+    judge_api_key: str | None = None
 
 
 class ExperimentFactory(Protocol):
@@ -209,6 +210,14 @@ async def _fixture_refs(deps: RunnerDeps, case: CaseView, *, with_urls: bool) ->
 class AgentArchived(ValueError):
     def __init__(self, ref: str):
         super().__init__(f"agent {ref} is archived")
+
+
+class MissingJudgeKey(ValueError):
+    def __init__(self, base_url: str):
+        super().__init__(
+            f"your judge at {base_url} needs its API key: pass --judge-api-key-env NAME "
+            "(CLI) or Judge(base_url=..., api_key=...) (SDK)"
+        )
 
 
 class NoJudge(ValueError):
@@ -715,17 +724,19 @@ async def rescore_experiment(
 
 
 def judge_key_for(
-    credentials: KeySource, judge: JudgeSettings | None, cases: Iterable[CaseView]
+    judge: JudgeSettings | None, api_key: str | None, cases: Iterable[CaseView]
 ) -> str | None:
     if judge is None or judge.base_url is None or not needs_judge(cases):
         return None
-    return credentials.require_judge_key(judge.base_url)
+    if api_key is None:
+        raise MissingJudgeKey(judge.base_url)
+    return api_key
 
 
 def judge_key(
     deps: RunnerDeps, judge: JudgeSettings | None, cases: Iterable[CaseView]
 ) -> str | None:
-    return judge_key_for(deps.credentials, judge, cases)
+    return judge_key_for(judge, deps.judge_api_key, cases)
 
 
 def resolve_judge(

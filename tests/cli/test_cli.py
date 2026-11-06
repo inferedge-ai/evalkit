@@ -880,7 +880,6 @@ def write_local_config(tmp_path, harness_url: str) -> Path:
         "cases: eval/cases\nfixtures: eval/fixtures\n"
         f"cost_map:\n  source: {cost_map}\n"
         "credentials:\n  agents:\n    fake: env:CLI_AGENT_KEY\n"
-        "  llm_providers:\n    http://judge.test: env:CLI_JUDGE_KEY\n"
     )
     (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
     return tmp_path
@@ -1001,11 +1000,13 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     assert result.exit_code == 0, result.output
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
     assert result.exit_code == 0, result.output
-    result = runner.invoke(
-        cli_app, ["run", "finance", "--agent", "fake", "--judge-base-url", "http://judge.test"]
-    )
+    own_judge = ["--judge-base-url", "http://judge.test", "--judge-api-key-env", "CLI_JUDGE_KEY"]
+    result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake", *own_judge])
     assert result.exit_code == 1, result.output
-    assert "CLI_JUDGE_KEY" in result.output
+    assert "CLI_JUDGE_KEY is not set" in result.output
+    dotenv.write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
+    result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake", *own_judge])
+    assert result.exit_code == 0, result.output
 
 
 def test_canonical_sync_reuses_bytes_already_uploaded(env, tmp_path, monkeypatch, harness_url):
@@ -1377,8 +1378,32 @@ def test_run_judge_flags_start_from_the_server_default(env, tmp_path, monkeypatc
     _local_run("finance", "--agent", "fake", "--judge-model", "x", "--judge-effort", "low")
     judge = latest_experiment("finance@admin").config.judge
     assert (judge.model, judge.reasoning_effort, judge.provider) == ("x", "low", "judge")
-    _local_run("finance", "--agent", "fake", "--judge-base-url", "http://judge.test")
-    judge = latest_experiment("finance@admin").config.judge
+    no_key = runner.invoke(
+        cli_app, ["run", "finance", "--agent", "fake", "--judge-base-url", "http://judge.test"]
+    )
+    assert no_key.exit_code == 1 and "--judge-api-key-env" in no_key.output
+    stray = runner.invoke(
+        cli_app, ["run", "finance", "--agent", "fake", "--judge-api-key-env", "CLI_JUDGE_KEY"]
+    )
+    assert stray.exit_code == 1 and "goes with --judge-base-url" in stray.output
+    _local_run(
+        "finance",
+        "--agent",
+        "fake",
+        "--judge-base-url",
+        "http://judge.test",
+        "--judge-api-key-env",
+        "CLI_JUDGE_KEY",
+    )
+    byok = latest_experiment("finance@admin")
+    judge = byok.config.judge
+    assert judge is not None and judge.api_key is None
+    rescore = runner.invoke(cli_app, ["evaluate", str(byok.id)])
+    assert rescore.exit_code == 1 and "--judge-api-key-env" in rescore.output
+    rescore = runner.invoke(
+        cli_app, ["evaluate", str(byok.id), "--judge-api-key-env", "CLI_JUDGE_KEY"]
+    )
+    assert rescore.exit_code == 0, rescore.output
     assert (judge.base_url, judge.provider, judge.model) == (
         "http://judge.test",
         None,
@@ -1409,6 +1434,8 @@ def test_a_full_base_url_judge_runs_without_a_default_judge(
             "http://judge.test",
             "--judge-model",
             "m",
+            "--judge-api-key-env",
+            "CLI_JUDGE_KEY",
         )
         judge = latest_experiment("finance@admin").config.judge
         assert (judge.base_url, judge.model) == ("http://judge.test", "m")
