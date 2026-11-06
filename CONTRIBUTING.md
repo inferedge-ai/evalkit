@@ -57,3 +57,5 @@ layering rules and code style. Please follow them.
 ## Code of conduct
 
 Everyone taking part follows our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+Contributions are made under the repository's [Apache-2.0 License](LICENSE). There is no Contributor License Agreement.
