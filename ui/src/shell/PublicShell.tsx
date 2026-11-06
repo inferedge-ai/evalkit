@@ -1,15 +1,16 @@
 import type { ReactNode } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { loginPath } from "./capabilities";
 import { BrandLink, navClass } from "./Shell";
 import { useTheme } from "./theme";
 
 export function PublicShell({ children }: { children?: ReactNode }) {
-  const { pathname } = useLocation();
+  const location = useLocation();
   const { theme, toggle } = useTheme();
   return (
     <div className="flex h-dvh flex-col">
       <header className="flex items-center gap-4 border-b border-line bg-surface px-4 py-2">
-        <BrandLink />
+        <BrandLink to="/docs" />
         <nav className="ml-2 flex items-center gap-0.5">
           <NavLink to="/docs" className={navClass}>
             Docs
@@ -23,8 +24,8 @@ export function PublicShell({ children }: { children?: ReactNode }) {
           >
             {theme === "dark" ? "☀ Light" : "☾ Dark"}
           </button>
-          {!pathname.startsWith("/login") && (
-            <NavLink to="/login" className="btn btn-primary">
+          {!location.pathname.startsWith("/login") && (
+            <NavLink to={loginPath(location)} className="btn btn-primary">
               Sign in
             </NavLink>
           )}

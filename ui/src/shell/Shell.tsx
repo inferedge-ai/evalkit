@@ -25,9 +25,9 @@ export function InferEdgeLockup() {
   );
 }
 
-export function BrandLink() {
+export function BrandLink({ to = "/" }: { to?: string }) {
   return (
-    <NavLink to="/" className="flex items-baseline gap-2">
+    <NavLink to={to} className="flex items-baseline gap-2">
       <InferEdgeLockup />
       <span className="font-mono text-head font-semibold tracking-tight text-brand">
         Evalkit

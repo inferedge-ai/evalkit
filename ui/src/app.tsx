@@ -10,10 +10,8 @@ import { UsersAdminPage } from "./pages/UsersAdmin";
 import { TraceSourcesPage } from "./pages/TraceSourcesPage";
 import { LlmProvidersPage } from "./pages/LlmProvidersPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
-import { AuthGate } from "./shell/capabilities";
-import { Shell } from "./shell/Shell";
-import { DocsShell, DocsWorkspace } from "./shell/DocsLayout";
-import { WorkspaceGate } from "./shell/workspace";
+import { AuthGate, RequireMe } from "./shell/capabilities";
+import { ShellOrBare, WorkspaceOrPublic } from "./shell/layout";
 import { CasePage } from "./evals/CasePage";
 import { NotFound } from "./shell/NotFound";
 import { ComparePage } from "./evals/ComparePage";
@@ -30,9 +28,9 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/callback" element={<LoginCallbackPage />} />
-      <Route element={<AuthGate optional />}>
-        <Route element={<DocsWorkspace />}>
-          <Route element={<DocsShell />}>
+      <Route element={<AuthGate />}>
+        <Route element={<WorkspaceOrPublic />}>
+          <Route element={<ShellOrBare />}>
             <Route
               path="/docs"
               element={<Navigate to="/docs/quickstart" replace />}
@@ -42,55 +40,62 @@ export function App() {
               path="/cli"
               element={<Navigate to="/docs/install" replace />}
             />
-          </Route>
-        </Route>
-      </Route>
-      <Route element={<AuthGate />}>
-        <Route element={<WorkspaceGate />}>
-          <Route element={<Shell />}>
-            <Route path="/" element={<Home />} />
-            <Route path="/datasets" element={<DatasetsPage />} />
-            <Route
-              path="/datasets/:ref"
-              element={<Navigate to="experiments" replace />}
-            />
-            <Route path="/datasets/:ref/:tab" element={<DatasetPage />} />
-            <Route path="/datasets/:ref/cases/:caseId" element={<CasePage />} />
-            <Route path="/experiments" element={<ExperimentsPage />} />
-            <Route path="/experiments/compare" element={<ComparePage />} />
-            <Route
-              path="/experiments/:experimentId"
-              element={<ExperimentPage />}
-            />
-            <Route
-              path="/experiments/:experimentId/:exampleId"
-              element={<RunPage />}
-            />
-            <Route path="/reviews" element={<ReviewsPage />} />
-            <Route path="/runs" element={<RunsBrowser />} />
-            <Route path="/runs/:agent/:runId" element={<AgentRunPage />} />
-            <Route path="/agents" element={<AgentsPage />} />
-            <Route
-              path="/agents/:agent"
-              element={<Navigate to="overview" replace />}
-            />
-            <Route path="/agents/:agent/:tab" element={<AgentPage />} />
-            <Route
-              path="/harness"
-              element={<Navigate to="/agents" replace />}
-            />
-            <Route path="/users" element={<UsersAdminPage />} />
-            <Route
-              path="/workspace"
-              element={<Navigate to="evaluators" replace />}
-            />
-            <Route path="/workspace/:tab" element={<WorkspacePage />} />
-            <Route path="/admin/trace-sources" element={<TraceSourcesPage />} />
-            <Route path="/admin/llm-providers" element={<LlmProvidersPage />} />
-            <Route
-              path="*"
-              element={<NotFound what="page" up={{ label: "Home", to: "/" }} />}
-            />
+            <Route element={<RequireMe />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/datasets" element={<DatasetsPage />} />
+              <Route
+                path="/datasets/:ref"
+                element={<Navigate to="experiments" replace />}
+              />
+              <Route path="/datasets/:ref/:tab" element={<DatasetPage />} />
+              <Route
+                path="/datasets/:ref/cases/:caseId"
+                element={<CasePage />}
+              />
+              <Route path="/experiments" element={<ExperimentsPage />} />
+              <Route path="/experiments/compare" element={<ComparePage />} />
+              <Route
+                path="/experiments/:experimentId"
+                element={<ExperimentPage />}
+              />
+              <Route
+                path="/experiments/:experimentId/:exampleId"
+                element={<RunPage />}
+              />
+              <Route path="/reviews" element={<ReviewsPage />} />
+              <Route path="/runs" element={<RunsBrowser />} />
+              <Route path="/runs/:agent/:runId" element={<AgentRunPage />} />
+              <Route path="/agents" element={<AgentsPage />} />
+              <Route
+                path="/agents/:agent"
+                element={<Navigate to="overview" replace />}
+              />
+              <Route path="/agents/:agent/:tab" element={<AgentPage />} />
+              <Route
+                path="/harness"
+                element={<Navigate to="/agents" replace />}
+              />
+              <Route path="/users" element={<UsersAdminPage />} />
+              <Route
+                path="/workspace"
+                element={<Navigate to="evaluators" replace />}
+              />
+              <Route path="/workspace/:tab" element={<WorkspacePage />} />
+              <Route
+                path="/admin/trace-sources"
+                element={<TraceSourcesPage />}
+              />
+              <Route
+                path="/admin/llm-providers"
+                element={<LlmProvidersPage />}
+              />
+              <Route
+                path="*"
+                element={
+                  <NotFound what="page" up={{ label: "Home", to: "/" }} />
+                }
+              />
+            </Route>
           </Route>
         </Route>
       </Route>

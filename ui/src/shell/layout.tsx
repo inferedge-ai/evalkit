@@ -4,10 +4,10 @@ import { PublicShell } from "./PublicShell";
 import { Shell } from "./Shell";
 import { WorkspaceGate } from "./workspace";
 
-export function DocsWorkspace() {
+export function WorkspaceOrPublic() {
   return useOptionalMe() ? <WorkspaceGate /> : <PublicShell />;
 }
 
-export function DocsShell() {
+export function ShellOrBare() {
   return useOptionalMe() ? <Shell /> : <Outlet />;
 }
