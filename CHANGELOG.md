@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+- Local and SDK runs now score the judge-using built-in evaluators
+  (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) on the evalkit
+  server by default, with the server's LLM provider and its stored key. You no
+  longer need a judge key in `evalkit.yaml` for these runs.
+  - A judge now names exactly one of `provider` (a registered LLM provider, by
+    name) or `base_url`. `Judge(provider="openai", model="gpt-5")` or
+    `evalkit run --judge-provider openai` picks another provider, still scored
+    on the server.
+  - To bring your own judge key, pass `Judge(base_url=..., model=...)` or
+    `evalkit run --judge-base-url URL`; those evaluators then run on your
+    machine with the key from `credentials.llm_providers`, as before.
+    `--judge-provider` with `--judge-base-url` is refused.
+  - `tool_trajectory_match`, `required_tools_called` and `max_response_time`
+    always run on your machine.
+  - Each evaluation records `scored_on` (`local` or `server`); the run page
+    shows it beside each score.
+  - New endpoints: `POST /api/experiment-runs/<id>/server-evaluations/<name>`
+    (for the CLI and SDK; only users who may change the experiment) and
+    `GET /api/builtin-evaluators`. A proxy in front of the server must let
+    the server-evaluations call run for minutes; the CLI and SDK wait up to
+    900 s (`EVALKIT_SERVER_EVALUATOR_TIMEOUT`).
+  - The default judge is stored by provider name: `GET`/`PUT`/`PATCH
+    /api/judge-default` use `provider`, and a `base_url` is refused. Server
+    runs refuse a `base_url` judge. Changing the default judge's provider URL
+    is now allowed; archiving it is still refused.
+  - Starting an experiment with no judge and no default judge is refused only
+    when a selected case uses a judge-using evaluator.
+  - A remote evaluator can no longer take a built-in's name.
+  - The workspace Evaluators page lists the built-in evaluators.
+  - Migration `0017` adds `evaluations.scored_on` (`server` for server runs,
+    `local` otherwise) and rewrites the default judge, and server runs'
+    recorded judges, from base URL to provider name. It fails if the default
+    judge's base URL matches no provider: register one or clear the default
+    judge first.
+
 - The web UI's docs pages (`/docs/...`, `/cli`) no longer need a sign-in.
   Signed-out visitors see them under a public navbar (logo, Docs, theme
   toggle, Sign in); signed-in users still see them inside the full app. The

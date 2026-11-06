@@ -19,7 +19,7 @@ The words you need before your first scorecard. Everything else is explained on 
 | Trace, span, session       | What your agent records as it works: one span per model call or tool call. One run is one session.                                  |
 | Mapping                    | Which span attribute holds the model, the messages, the tokens and each tool call.                                                   |
 | Trajectory                 | The step-by-step record of a run that evalkit builds from the spans.                                                                 |
-| Judge                      | The LLM that grades an answer against the case's rubrics.                                                                            |
+| Judge                      | The LLM that grades an answer against the case's rubrics. By default the server's LLM provider, called on the server; you can bring your own key instead. |
 | Evaluator                  | One scoring check, for example the rubric check or "did the agent call this tool".                                                   |
 | Scorecard                  | The table of scores for an experiment, per case and per bucket (content, trajectory, presentation, efficiency, custom). [Case schema](case-schema.md#evaluators) maps each bucket to its YAML key, e.g. presentation → `evaluators.output.presentation_judge`. |
 | Unreviewed                 | A case in a shared dataset with no review decision at its current content. It runs like any other case; review decides promotion.  |

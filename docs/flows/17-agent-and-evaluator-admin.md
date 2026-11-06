@@ -48,9 +48,11 @@ their keys in `evalkit.yaml`.
   providers and trace sources have one. It is write-only: reads show
   `has_api_key`.
 - **LLM provider:** an OpenAI-compatible endpoint evalkit may call: a name, a
-  base URL and a stored key. Today only judges use providers.
-- **Default judge:** the judge (provider, model, effort, limits) an experiment
-  uses when it does not set its own. Set by an admin.
+  base URL and a stored key. Today only judges use providers. The server calls
+  it for server runs, and for local and SDK runs whose judge is a provider.
+- **Default judge:** the judge (provider name, model, effort, limits) an
+  experiment uses when it does not set its own. Set by an admin, stored by
+  provider name.
 - **Credentials map:** a `credentials:` section in `evalkit.yaml`, used by local
   runs and SDK runs. It maps a reference (or, for `llm_providers`, a base URL)
   to `env:NAME`, and the CLI's credential registry looks keys up in it.
@@ -62,7 +64,7 @@ their keys in `evalkit.yaml`.
 credentials:
   agents: {myagent: env:MYAGENT_KEY}
   evaluators: {citation_check: env:CITATION_KEY}
-  llm_providers: {https://api.openai.com/v1: env:OPENAI_API_KEY}
+  llm_providers: {https://api.openai.com/v1: env:OPENAI_API_KEY}  # only to bring your own judge key
 ```
 
 ## Sequence
@@ -151,7 +153,11 @@ sequenceDiagram
   - **`judge-default show`** and **`judge-default set --provider <name> --model M
     [--effort E] [--max-tokens N] [--concurrency N]`**. `GET /api/judge-default`
     returns 404 until one is set.
-  - A server run may only use a judge whose base URL is an active LLM provider.
+  - A judge names an active LLM provider by name; server runs refuse a judge
+    with a base URL.
+  - Changing a provider's base URL is allowed even when it is the default
+    judge's provider; the default judge follows it by name. Archiving the
+    default judge's provider is refused.
 - **URLs:** writers and admins set every URL the server calls. Changing a URL
   clears the stored key unless the same request sets a new one. Every URL field
   and flag shows: "Check this URL before saving. The server at this address
@@ -184,8 +190,10 @@ sequenceDiagram
   - **No `credentials` entry (local run):** the CLI prints one line per agent or
     evaluator, e.g. `no credentials.agents entry for <ref> in evalkit.yaml;
     calling the harness without x-api-key`, and sends no key header.
-  - **No `credentials.llm_providers` entry for a local run's judge:** the run
-    stops before it starts: `no credentials.llm_providers entry for <base_url>`.
+  - **No `credentials.llm_providers` entry for a judge a local run brings
+    (`--judge-base-url`):** the run stops before it starts:
+    `no credentials.llm_providers entry for <base_url>`. A provider judge
+    needs no entry: the server judges with its stored key.
 - **Nothing creates an agent implicitly:** not experiment creation,
   `tokens create --agent`, or an OTel export.
 
@@ -199,9 +207,14 @@ sequenceDiagram
 - **An endpoint on a private or unresolvable address:** 400 `<url> resolves to
   a private address; the operator can allow it with allow_private_endpoints:
   true`.
-- **A server run's judge is not a registered LLM provider:** 400 `<url> is not a
-  registered LLM provider; registered: …`. No judge and no default: 400
-  `no default judge; …`.
+- **A judge names an unknown provider:** 400 `<name> is not a registered LLM
+  provider; registered: …`. A server run's judge with a base URL: 400 `the
+  server judges with a registered LLM provider, not a base_url …`. No judge
+  and no default while a selected case uses a judge-using evaluator: 400
+  `no judge: … has no default judge; …`.
+- **A remote evaluator named like a built-in (`answer_rubrics`, …):** 400
+  `<name> is a built-in evaluator, available in every workspace; pick another
+  name`.
 - **Agent or evaluator name already exists in that workspace:** 409.
 - **Unknown agent in `run`, `harness check`, `tokens create`, an OTel export or
   the SDK:** 404 `unknown agent: <ref> — create it with evalkit agents create`.

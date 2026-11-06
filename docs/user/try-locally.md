@@ -99,7 +99,7 @@ every start.
 | `run.py` | The SDK run: `tracing.register` sends the spans to evalkit, and `run_experiment` calls the agent once per case and scores the answers. |
 | `mapping.json` | The span mapping: which span attribute holds the model, the messages, the tokens and each tool call. It starts as the connect-traces skill's `gen_ai.json`. |
 | `cases/acme/` | Five cases in two folders (tags), with answer rubrics and a tool check. |
-| `evalkit.yaml`, `.env` | Where the cases are, and the judge's key. |
+| `evalkit.yaml`, `.env` | Where the cases are. The judge runs on the server, so no judge key. |
 | `config.yaml` | The server's config. |
 | `docker-compose.yml`, `.env.example` | With Docker only: the stack, and the template for its `.env`. `init-server` leaves them out. |
 
@@ -203,12 +203,11 @@ Do the same in your own repository:
    connect-traces skill writes or checks the span mapping
    ([Mappings](mappings.md)).
 2. **Setup.** Put an `evalkit.yaml` at the root of your repository, with
-   `cases:` pointing at your cases directory and the judge's key under
-   `credentials.llm_providers`. That map is keyed by the judge's base URL, which must
-   match the judge the run uses: the server's default judge
-   (`{{origin}}/api/judge-default` shows its `base_url`), or the one you pass to
-   `run_experiment(judge=...)`. This kit keys it with `env:LLM_BASE_URL` so the
-   URL comes from `.env`. Keep the keys in a `.env` beside `evalkit.yaml`.
+   `cases:` pointing at your cases directory. The judge needs no key there: the
+   evaluators that use it run on the evalkit server with its default judge. To
+   bring your own judge key instead, add it under `credentials.llm_providers`,
+   keyed by the judge's base URL, and pass `run_experiment(judge=Judge(base_url=...))`.
+   Keep any keys in a `.env` beside `evalkit.yaml`.
 3. **Script.** Copy `run.py`. Pin evalkit in its header to your evalkit
    server's version (`evalkit-py[otel]==<version>`), call
    `tracing.register(agent="myagent")`, and write a `task` that calls your

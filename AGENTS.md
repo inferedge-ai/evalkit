@@ -22,7 +22,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Member | A `writer` or `reviewer` grant on a shared workspace. |
 | Shared agent | An agent in a shared workspace. The server drives it. |
 | Reference | How a dataset, agent or evaluator is named: `name@workspace`. The API and UI always use the full form; the CLI also takes a bare `name`, meaning your personal workspace. |
-| Local run | An experiment whose agent is in a personal workspace: the user's CLI drives the harness, runs evaluators and the judge, and writes results to the server. |
+| Local run | An experiment whose agent is in a personal workspace: the user's CLI drives the harness, runs evaluators, and writes results to the server. Judge-using built-ins run on the server unless the run brings its own judge key. |
 | Server run | An experiment whose agent is shared: the server's own runner drives it. |
 | Developer config | `evalkit.yaml` in the client's repo: the `credentials:` map (keys for personal agents and evaluators and the judge's LLM provider), the `cases` / `fixtures` directories. Keys come from env or a `.env` beside it. |
 | Experiment | One run of one dataset against one agent (× N repetitions). |
@@ -37,12 +37,15 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Evaluator | A scoring function. Compares expected vs actual, returns score + explanation. |
 | Remote evaluator | A client-hosted evaluator reached through the Custom Evaluator API, stored in a workspace (`evalkit evaluators create`). |
 | Evaluation | One evaluator's output on one run: a `score` or a `gauge` reading. |
+| Server evaluator | A built-in evaluator the evalkit server runs for a local or SDK run, over `POST /api/experiment-runs/{id}/server-evaluations/{name}`: one call per run per evaluator; the server scores from what it stored and returns rows, the runner publishes them. |
+| Local-only evaluator | A built-in that always runs on the developer's machine (`builtin_evaluator(..., local_only=True)`): `tool_trajectory_match`, `required_tools_called`, `max_response_time`. |
+| Scored on | Where an evaluation was computed: `local` (the CLI or SDK process) or `server`. A column on every evaluation, separate from its `source`. |
 | Gauge | A measurement, not a score: tokens, cost, time, tool-call counts. |
-| Judge | An LLM used by an evaluator to grade an answer. Chosen per experiment; the default judge applies when the run doesn't set one. A server run's judge must use a registered LLM provider. |
+| Judge | An LLM used by an evaluator to grade an answer. Chosen per experiment; the default judge applies when the run doesn't set one. Names exactly one of a registered LLM `provider` (judge-using built-ins run on the server with its stored key) or a `base_url` (bring your own key: they run locally). A server run's judge must be a provider. |
 | LLM provider | An OpenAI-compatible endpoint evalkit may call: a name (`openai`), a base URL and a stored key. Today only judges use providers. Admins manage them (`evalkit llm-providers`). |
-| Default judge | The judge (provider, model, effort, limits) an experiment uses when it does not set its own. Set by an admin in the database (`evalkit judge-default set`). |
+| Default judge | The judge (provider name, model, effort, limits) an experiment uses when it does not set its own. Set by an admin in the database (`evalkit judge-default set`). |
 | Stored key | An API key saved in the database, encrypted with the server's `encryption_key`, never returned (reads show `has_api_key`). Shared agents, shared remote evaluators, LLM providers and trace sources have one. |
-| Credential registry | The CLI and SDK lookup from a reference (or a judge base URL) to an API key, built from the `credentials:` map in `evalkit.yaml` (`agents`, `evaluators`, `llm_providers`). Used by local and SDK runs only; the server uses stored keys. |
+| Credential registry | The CLI and SDK lookup from a reference (or the base URL of a judge the run brings) to an API key, built from the `credentials:` map in `evalkit.yaml` (`agents`, `evaluators`, `llm_providers`). Used by local and SDK runs only; the server uses stored keys. |
 | Bucket | A scorecard grouping of evaluator scores: content, trajectory, presentation, efficiency, custom. |
 | Tag | A label on a case: from its YAML `tags`, its folder in the suite, or an overlay. `evalkit run --tag` (repeatable) runs the cases carrying any of the given tags. |
 | Overlay | A client extension of a case in another suite: extra evaluator config attached by case id, scored only for the agents it names. |

@@ -11,7 +11,7 @@ and then connect their own agent the same way. Walkthrough:
 - **Terminal**: `docker compose`, the evalkit CLI and the kit's `run.py`.
 - **Browser**: the evalkit web UI.
 - **evalkit**: the server the stack runs on `localhost:${EVALKIT_PORT}` (default 8020).
-- **LLM**: the developer's endpoint. The sample agent and the judge both call it.
+- **LLM**: the developer's endpoint. The sample agent calls it from the terminal; the evalkit server calls it as the judge (the LLM provider `try`), so the kit's `evalkit.yaml` holds no judge key.
 
 ## Sequence
 
@@ -38,7 +38,9 @@ sequenceDiagram
   D->>T: uv run run.py
   T->>L: sample agent answers each case
   T->>E: spans, runs
-  T->>L: judge each answer against its rubrics
+  T->>E: score each run's judge-using evaluators on the server
+  E->>L: judge each answer against its rubrics
+  E-->>T: score rows
   T->>E: scores
   T-->>D: scorecard and experiment URL
   D->>B: open the experiment

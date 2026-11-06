@@ -223,7 +223,7 @@ the CLI or the UI:
 |---|---|---|
 | Agent | `evalkit agents create <name> --workspace dev --harness-url … --api-key-env VAR` | admin or writer; the key is stored encrypted and never shown (`agents show` prints `api key  set\|not set`); omit `--harness-url` for a code-driven agent; `--trajectory-source otel` needs `--mapping`; run settings such as `--max-concurrent-runs` (min'd with the harness's own limit), `--run-timeout`, `--stop-grace` are flags; `evalkit agents edit` changes them |
 | Remote evaluator | `evalkit evaluators create <name> --workspace dev --endpoint … --kind score --api-key-env VAR` | admin or writer; `--kind gauge` for measurements; runs use the evaluators in the agent's workspace |
-| LLM provider | `evalkit llm-providers create <name> --base-url … --api-key-env VAR` | admin only; server runs may only use a judge whose base URL is an active provider |
+| LLM provider | `evalkit llm-providers create <name> --base-url … --api-key-env VAR` | admin only; server runs judge only with an active provider, named by name; local and SDK runs also judge on the server with it unless they bring their own key |
 | Default judge | `evalkit judge-default set --provider <name> --model M [--effort E] [--max-tokens N]` | admin only; `evalkit judge-default show` prints it. Use a reproducibility-tested model |
 | Trace source | `evalkit trace-sources create <name> --url … --api-key-env VAR` | admin only to create; any user can import from it (see below) |
 | Shared workspace | `evalkit workspaces create <name>` | admin only |
@@ -238,7 +238,12 @@ express a limit (concurrency), evalkit takes the minimum.
 - The server calls these URLs:
   - a shared agent's `harness_url` (set by an admin or a writer)
   - shared remote evaluator endpoints (set by an admin or a writer)
-  - LLM provider base URLs, used by judges (set by an admin)
+  - LLM provider base URLs, used by judges (set by an admin). The server also
+    judges for local and SDK runs: each judge-using evaluator is one
+    `POST /api/experiment-runs/{id}/server-evaluations/{name}` that waits for
+    the judge, which can take minutes. A proxy in front of the server must let
+    requests on `/api/experiment-runs/*/server-evaluations/*` run that long
+    (the CLI and SDK wait up to 900 s, `EVALKIT_SERVER_EVALUATOR_TIMEOUT`).
   - trace source URLs (set by an admin)
 - Without `allow_private_endpoints: true`, the server refuses agent, evaluator,
   LLM provider and trace source URLs that resolve to internal addresses:
