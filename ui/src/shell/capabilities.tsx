@@ -26,9 +26,9 @@ export function RequireMe() {
   return <Outlet />;
 }
 
-// Route-level auth gate: everything behind it renders only once the /auth/me
-// probe succeeds. The login page lives OUTSIDE the gate, so an unauthenticated
-// probe can never loop.
+// Route-level auth gate: probes /auth/me once and renders its routes with or
+// without a user; pages that need one sit under RequireMe. The login page lives
+// OUTSIDE the gate, so an unauthenticated probe can never loop.
 export function AuthGate() {
   const [me, setMe] = useState<Me | null>(null);
   const [status, setStatus] = useState<

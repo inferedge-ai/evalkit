@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Me } from "../lib/types";
 import { MeContext, RequireMe } from "./capabilities";
 import { ShellOrBare, WorkspaceOrPublic } from "./layout";
@@ -46,6 +46,8 @@ describe("signed-out layout", () => {
 });
 
 describe("signed-in layout", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it("waits for the workspace gate instead of the public navbar", () => {
     vi.stubGlobal("localStorage", { getItem: () => null });
     const html = render(me, "/docs/install");
