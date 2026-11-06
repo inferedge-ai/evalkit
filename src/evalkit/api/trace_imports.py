@@ -7,7 +7,7 @@ from pydantic import AwareDatetime, BaseModel, model_validator
 from evalkit.api.access import ActorDep, StoresDep, TenantStores
 from evalkit.api.deps import HolderDep
 from evalkit.api.experiments import task_holder
-from evalkit.api.traces import agent_or_404, require_otel, require_write
+from evalkit.api.traces import agent_or_404, require_otel, require_write, resolve_import_source
 from evalkit.contracts.enums import TraceImportStatus
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.agents import AgentDefinition
@@ -107,7 +107,7 @@ async def start_import(
     await require_write(stores, actor, record)
     require_otel(record)
     mapping = await _session_mapping(stores.mappings, record)
-    source = await stores.sources.resolve(body.source)
+    source = await resolve_import_source(stores, request.app.state.cfg, body.source)
     holder = task_holder(pod)
     view = await stores.imports.create(
         record.id, source.id, body.project, body.since, body.until, actor.id, holder
@@ -154,7 +154,7 @@ async def continue_import(
     require_otel(record)
     mapping = await _session_mapping(stores.mappings, record)
     current = await stores.imports.get(record.id, import_id)
-    source = await stores.sources.resolve(current.source)
+    source = await resolve_import_source(stores, request.app.state.cfg, current.source)
     holder = task_holder(pod)
     view = await stores.imports.restart(record.id, import_id, holder)
     _launch(request, stores, view.id, holder, source, mapping)
