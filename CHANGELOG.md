@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
 - `auth.oidc.admin_claim` (`name`, `value`): when set, every SSO sign-in
   sets the person's admin flag from the access token (equal to the value, or
