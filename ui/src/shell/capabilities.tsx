@@ -4,19 +4,32 @@ import { api, ApiError } from "../lib/api";
 import { loadMeta } from "../lib/meta";
 import type { Me } from "../lib/types";
 
-const Ctx = createContext<Me | null>(null);
+export const MeContext = createContext<Me | null>(null);
 
 export function useMe(): Me {
-  const me = useContext(Ctx);
+  const me = useContext(MeContext);
   if (!me) throw new Error("useMe outside AuthGate");
   return me;
 }
 
-// Route-level auth gate: everything behind it renders only once the /auth/me
-// probe succeeds. The login page lives OUTSIDE the gate, so an unauthenticated
-// probe can never loop.
-export function AuthGate() {
+export function useOptionalMe(): Me | null {
+  return useContext(MeContext);
+}
+
+export function loginPath(location: { pathname: string; search: string }) {
+  return `/login?next=${encodeURIComponent(location.pathname + location.search)}`;
+}
+
+export function RequireMe() {
   const location = useLocation();
+  if (!useOptionalMe()) return <Navigate to={loginPath(location)} replace />;
+  return <Outlet />;
+}
+
+// Route-level auth gate: probes /auth/me once and renders its routes with or
+// without a user; pages that need one sit under RequireMe. The login page lives
+// OUTSIDE the gate, so an unauthenticated probe can never loop.
+export function AuthGate() {
   const [me, setMe] = useState<Me | null>(null);
   const [status, setStatus] = useState<
     "loading" | "ok" | "unauthorized" | "error"
@@ -48,15 +61,11 @@ export function AuthGate() {
 
   if (status === "loading")
     return <div className="pane-status">Checking session…</div>;
-  if (status === "unauthorized") {
-    const next = encodeURIComponent(location.pathname + location.search);
-    return <Navigate to={`/login?next=${next}`} replace />;
-  }
   if (status === "error")
     return <div className="pane-status error">{error}</div>;
   return (
-    <Ctx.Provider value={me}>
+    <MeContext.Provider value={me}>
       <Outlet />
-    </Ctx.Provider>
+    </MeContext.Provider>
   );
 }
