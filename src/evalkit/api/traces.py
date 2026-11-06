@@ -17,18 +17,29 @@ from evalkit.api.access import (
     workspace_ref,
 )
 from evalkit.api.experiments import slug_or_400
+from evalkit.config import Config
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.access import can_write
 from evalkit.core.agents import AgentDefinition, UnknownAgent, explicit
+from evalkit.core.endpoints import check_endpoint
 from evalkit.core.traces.mapping import session_id_of
 from evalkit.core.traces.raw import RawSpan
 from evalkit.core.traces.sessions import SessionTrajectory
 from evalkit.core.traces.sources import client_for
 from evalkit.core.workspace import Reference
 from evalkit.db.agents import AgentStore
+from evalkit.db.trace_sources import ResolvedTraceSource
 
 router = APIRouter(prefix="/api", tags=["traces"])
 LOGGER = logging.getLogger(__name__)
+
+
+async def resolve_import_source(
+    stores: TenantStores, cfg: Config, name: str
+) -> ResolvedTraceSource:
+    source = await stores.sources.resolve(name)
+    await check_endpoint(source.url, allow_private=cfg.allow_private_endpoints)
+    return source
 
 
 async def session_too_large(request: Request, exc: Exception) -> JSONResponse:
@@ -165,7 +176,7 @@ async def import_session(
     _, record = await agent_or_404(stores.agents, agent)
     await require_write(stores, actor, record)
     require_otel(record)
-    source = await stores.sources.resolve(body.source)
+    source = await resolve_import_source(stores, request.app.state.cfg, body.source)
     client = client_for(
         source.provider,
         source.url,

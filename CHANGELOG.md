@@ -6,8 +6,15 @@
   `allow_private_endpoints: true`, `POST /api/trace-sources` and
   `PATCH /api/trace-sources/<name>` (`evalkit trace-sources create` and
   `edit --url`) answer 400 when the URL resolves to a loopback, private,
-  link-local or reserved address, or does not resolve. Sources saved before
-  keep their URL; editing only the key is not checked.
+  link-local or reserved address, or does not resolve. Editing only the key
+  is not checked. Importing from a source whose stored URL is such an address
+  (`evalkit traces import`, `POST /api/agents/<ref>/imports` and
+  `evalkit traces imports <agent> <id> --continue`) answers the same 400 and
+  fetches nothing, so a source saved before this release stops importing until
+  an admin points it at a public address.
+- With `allow_private_endpoints` off, a URL that cannot be parsed (for
+  example `http://[::1`) in an agent, evaluator, LLM provider or trace source
+  now answers 400 `<url> is not a valid URL: …` instead of a server error.
 - `auth.oidc.admin_claim` (`name`, `value`): when set, every SSO sign-in
   sets the person's admin flag from the access token (equal to the value, or
   a list containing it), so the IdP grants and revokes evalkit admin. Unset,

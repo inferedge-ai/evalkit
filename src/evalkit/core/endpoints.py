@@ -16,7 +16,10 @@ def blocked(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
 async def check_endpoint(url: str, *, allow_private: bool) -> None:
     if allow_private:
         return
-    host = httpx2.URL(url).host
+    try:
+        host = httpx2.URL(url).host
+    except httpx2.InvalidURL as exc:
+        raise BlockedEndpoint(f"{url} is not a valid URL: {exc}") from exc
     if not host:
         raise BlockedEndpoint(f"{url} has no host")
     try:

@@ -283,8 +283,27 @@ async def test_flow_14_private_source_urls_are_refused_unless_allowed(api):
     assert created.status_code == 400 and "allow_private_endpoints" in created.json()["detail"]
     moved = await api.patch("/api/trace-sources/phx", json=local)
     assert moved.status_code == 400 and "allow_private_endpoints" in moved.json()["detail"]
+    malformed = await api.post("/api/trace-sources", json={**metadata, "url": "http://[::1"})
+    assert malformed.status_code == 400 and "http://[::1" in malformed.json()["detail"]
     sources = (await api.get("/api/trace-sources")).json()
     assert [(s["name"], s["url"]) for s in sources] == [("phx", PHOENIX)]
     api.app.state.cfg.allow_private_endpoints = True
     assert (await api.post("/api/trace-sources", json=metadata)).status_code == 200
     assert (await api.patch("/api/trace-sources/phx", json=local)).json()["url"] == local["url"]
+
+
+async def test_flow_14_imports_refuse_a_stored_private_url(httpx2_mock, api):
+    httpx2_mock.get(TRACES).mock(return_value=MockResponse(500))
+    import_id = (await api.post(f"/api/agents/{AGENT}/imports", json=RANGE)).json()["id"]
+    assert (await settled(api, import_id))["status"] == "failed"
+    await api.patch("/api/trace-sources/phx", json={"url": "http://127.0.0.1:6006"})
+    api.app.state.cfg.allow_private_endpoints = False
+    for path, payload in (
+        (f"/api/agents/{AGENT}/sessions/import", body()),
+        (f"/api/agents/{AGENT}/imports", RANGE),
+        (f"/api/agents/{AGENT}/imports/{import_id}/continue", None),
+    ):
+        refused = await api.post(path, json=payload)
+        assert refused.status_code == 400 and "allow_private_endpoints" in refused.json()["detail"]
+    imports = (await api.get(f"/api/agents/{AGENT}/imports")).json()
+    assert [(i["id"], i["status"]) for i in imports] == [(import_id, "failed")]
