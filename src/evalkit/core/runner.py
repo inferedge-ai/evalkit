@@ -733,6 +733,21 @@ def judge_key_for(
     return api_key
 
 
+class JudgeChanged(ValueError):
+    def __init__(self, exp_id: int):
+        super().__init__(
+            f"experiment {exp_id} was judged with another judge; re-scoring takes the same "
+            "judge (its key may change). Re-judging with a different judge is not supported yet"
+        )
+
+
+def check_rescore_judge(exp: Experiment, judge: JudgeSettings | None) -> None:
+    if judge is None:
+        return
+    if exp.config.judge is None or judge.model_dump() != exp.config.judge.model_dump():
+        raise JudgeChanged(exp.id)
+
+
 def judge_key(
     deps: RunnerDeps, judge: JudgeSettings | None, cases: Iterable[CaseView]
 ) -> str | None:

@@ -22,7 +22,12 @@ from evalkit.config import OtelConfig
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource
 from evalkit.contracts.settings import AgentSettings, JudgeSettings, RemoteEvaluatorSettings
 from evalkit.core.blob import tenant_prefix
-from evalkit.core.runner import InvalidCaseInputs, MissingJudgeKey, ScoringFailed
+from evalkit.core.runner import (
+    InvalidCaseInputs,
+    JudgeChanged,
+    MissingJudgeKey,
+    ScoringFailed,
+)
 from evalkit.db import models
 from evalkit.db.evaluators import RemoteEvaluatorStore
 from evalkit.db.session import make_session_factory, tenant_session
@@ -570,6 +575,16 @@ async def test_only_a_base_url_judge_needs_a_local_key_and_names_it_before_any_t
     called.clear()
     keyed = await arun_experiment(**common, judge=JudgeSettings(**own, api_key="jk"))
     assert keyed.experiment_id is not None and called
+    with pytest.raises(MissingJudgeKey):
+        await aevaluate_experiment(experiment_id=keyed.experiment_id)
+    with pytest.raises(JudgeChanged):
+        await aevaluate_experiment(
+            experiment_id=keyed.experiment_id,
+            judge=JudgeSettings(**{**own, "model": "other"}, api_key="jk"),
+        )
+    await aevaluate_experiment(
+        experiment_id=keyed.experiment_id, judge=JudgeSettings(**own, api_key="jk")
+    )
 
 
 async def test_dry_run_applies_case_ids_and_tags(env):

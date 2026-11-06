@@ -144,7 +144,7 @@ run_experiment(dataset="finance", agent="myagent-sdk", task=task,
                            api_key=os.environ["LITELLM_API_KEY"]))
 ```
 
-Re-scoring such an experiment needs the key again: `evaluate_experiment(experiment_id=..., judge_api_key=...)`.
+Re-scoring such an experiment needs the key again: pass the same judge, key included, to `evaluate_experiment(experiment_id=..., judge=Judge(...))`. A different judge (another endpoint or model, or other settings) is refused.
 
 A judge sets `provider` or `base_url`, never both. `tool_trajectory_match`, `required_tools_called` and `max_response_time` always run on your machine. The run page shows `server` or `local` beside each score.
 

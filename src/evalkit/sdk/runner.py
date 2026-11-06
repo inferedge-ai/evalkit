@@ -43,6 +43,7 @@ from evalkit.core.runner import (
     ScoringFailed,
     case_title,
     check_inputs,
+    check_rescore_judge,
     dropped_cases_text,
     evaluate_experiment,
     judge_key,
@@ -590,7 +591,7 @@ async def arun_experiment(
     """The async form of `run_experiment`, for code already in an event loop (a notebook).
 
     Same arguments and result as `run_experiment`. The arguments after
-    `judge_api_key` exist for tests.
+    `evaluation_concurrency` exist for tests.
     """
     local = _local_config().resolve_env(scoring=not dry_run)
     spec = inspect_task(task)
@@ -770,7 +771,7 @@ async def aevaluate_experiment(
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
-    judge_api_key: str | None = None,
+    judge: JudgeSettings | None = None,
     api_transport: httpx2.AsyncBaseTransport | None = None,
     custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
     progress: Progress = print,
@@ -778,7 +779,7 @@ async def aevaluate_experiment(
     """The async form of `evaluate_experiment`, for code already in an event loop.
 
     Same arguments and result as `evaluate_experiment`. The arguments after
-    `evaluation_concurrency` exist for tests.
+    `judge` exist for tests.
     """
     local = _local_config().resolve_env(scoring=True)
     active = connection.active()
@@ -787,6 +788,7 @@ async def aevaluate_experiment(
         await api.require_same_version()
         store = HttpStore(api)
         exp = await store.get_experiment(experiment_id)
+        check_rescore_judge(exp, judge)
         await _check_evaluator_names(evaluators, api, parse_slug(exp.agent).workspace)
         declared = set(exp.config.snapshot.code_evaluators)
         unknown = sorted({e.name for e in evaluators} - declared)
@@ -810,7 +812,7 @@ async def aevaluate_experiment(
             python_evaluators={e.name: e for e in evaluators},
             evaluation_concurrency=evaluation_concurrency,
             server_evaluators=HttpServerEvaluators(api),
-            judge_api_key=judge_api_key,
+            judge_api_key=judge.api_key if judge else None,
         )
         await store.transition(experiment_id, ExperimentStatus.EVALUATING, holder)
         try:
@@ -946,7 +948,7 @@ def evaluate_experiment_sync(
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
-    judge_api_key: str | None = None,
+    judge: JudgeSettings | None = None,
 ) -> ExperimentResult:
     """Re-score an experiment that used Python evaluators.
 
@@ -960,8 +962,10 @@ def evaluate_experiment_sync(
         refetch_trajectories: Read the trajectories of runs whose trajectory was
             `partial` or `unavailable` again before scoring.
         evaluation_concurrency: How many runs are scored at once.
-        judge_api_key: The key of the experiment's own judge, when it ran with
-            `Judge(base_url=...)`. Keys are never stored, so re-scoring asks again.
+        judge: The experiment's judge again, for an experiment that brought its own
+            (`Judge(base_url=..., api_key=...)`): keys are never stored, so re-scoring
+            asks for it again. It must be the judge the experiment recorded; a
+            different judge is refused.
 
     Returns:
         The experiment id, its URL and one summary per run.
@@ -981,6 +985,6 @@ def evaluate_experiment_sync(
             evaluators=evaluators,
             refetch_trajectories=refetch_trajectories,
             evaluation_concurrency=evaluation_concurrency,
-            judge_api_key=judge_api_key,
+            judge=judge,
         )
     )

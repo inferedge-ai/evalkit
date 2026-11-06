@@ -15,7 +15,8 @@
     var or `.env` entry holding the key); those evaluators then run on your
     machine. The key is never stored, so re-scoring needs it again:
     `evalkit evaluate <id> --judge-api-key-env NAME` or
-    `evaluate_experiment(..., judge_api_key=...)`. `--judge-provider` with
+    `evaluate_experiment(..., judge=Judge(...))` with the same judge (a
+    different judge is refused). `--judge-provider` with
     `--judge-base-url` is refused, and so is `--judge-base-url` without
     `--judge-api-key-env`.
   - `credentials.llm_providers` is gone from `evalkit.yaml`: a file that still
