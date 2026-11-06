@@ -178,24 +178,6 @@ class SessionRead:
         )
         return (await self._session.execute(roots)).scalar_one() == len(found)
 
-    async def parents_missing(self) -> bool:
-        columns = (models.Span.agent_id, models.Span.trace_id, models.Span.span_id)
-        rows = (
-            await self._session.execute(
-                select(*columns, models.Span.parent_span_id).where(self._where)
-            )
-        ).all()
-        inside = {(agent, trace, span) for agent, trace, span, _ in rows}
-        parents = {
-            (agent, trace, parent)
-            for agent, trace, _, parent in rows
-            if parent is not None and (agent, trace, parent) not in inside
-        }
-        if not parents:
-            return False
-        stored = select(func.count()).where(tuple_(*columns).in_(sorted(parents)))
-        return (await self._session.execute(stored)).scalar_one() == 0
-
     async def attribute_bytes(self, drop: AttributeDrop) -> int:
         size = func.octet_length(cast(self._attributes(drop), Text))
         statement = select(func.coalesce(func.sum(size), 0)).where(self._where)
