@@ -12,6 +12,7 @@ import { LlmProvidersPage } from "./pages/LlmProvidersPage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { AuthGate } from "./shell/capabilities";
 import { Shell } from "./shell/Shell";
+import { DocsShell, DocsWorkspace } from "./shell/DocsLayout";
 import { WorkspaceGate } from "./shell/workspace";
 import { CasePage } from "./evals/CasePage";
 import { NotFound } from "./shell/NotFound";
@@ -29,6 +30,21 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/callback" element={<LoginCallbackPage />} />
+      <Route element={<AuthGate optional />}>
+        <Route element={<DocsWorkspace />}>
+          <Route element={<DocsShell />}>
+            <Route
+              path="/docs"
+              element={<Navigate to="/docs/quickstart" replace />}
+            />
+            <Route path="/docs/:tab" element={<DocsPage />} />
+            <Route
+              path="/cli"
+              element={<Navigate to="/docs/install" replace />}
+            />
+          </Route>
+        </Route>
+      </Route>
       <Route element={<AuthGate />}>
         <Route element={<WorkspaceGate />}>
           <Route element={<Shell />}>
@@ -62,15 +78,6 @@ export function App() {
             <Route
               path="/harness"
               element={<Navigate to="/agents" replace />}
-            />
-            <Route
-              path="/docs"
-              element={<Navigate to="/docs/quickstart" replace />}
-            />
-            <Route path="/docs/:tab" element={<DocsPage />} />
-            <Route
-              path="/cli"
-              element={<Navigate to="/docs/install" replace />}
             />
             <Route path="/users" element={<UsersAdminPage />} />
             <Route

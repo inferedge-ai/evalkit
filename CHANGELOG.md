@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The web UI's docs pages (`/docs/...`, `/cli`) no longer need a sign-in.
+  Signed-out visitors see them under a public navbar (logo, Docs, theme
+  toggle, Sign in); signed-in users still see them inside the full app. The
+  login page now carries the same public navbar, with a link to the docs.
 - Trace source URLs are now checked like LLM provider URLs. Without
   `allow_private_endpoints: true`, `POST /api/trace-sources` and
   `PATCH /api/trace-sources/<name>` (`evalkit trace-sources create` and

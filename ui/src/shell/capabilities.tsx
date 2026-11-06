@@ -15,7 +15,11 @@ export function useMe(): Me {
 // Route-level auth gate: everything behind it renders only once the /auth/me
 // probe succeeds. The login page lives OUTSIDE the gate, so an unauthenticated
 // probe can never loop.
-export function AuthGate() {
+export function useOptionalMe(): Me | null {
+  return useContext(Ctx);
+}
+
+export function AuthGate({ optional = false }: { optional?: boolean }) {
   const location = useLocation();
   const [me, setMe] = useState<Me | null>(null);
   const [status, setStatus] = useState<
@@ -48,6 +52,7 @@ export function AuthGate() {
 
   if (status === "loading")
     return <div className="pane-status">Checking session…</div>;
+  if (status === "unauthorized" && optional) return <Outlet />;
   if (status === "unauthorized") {
     const next = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/login?next=${next}`} replace />;
