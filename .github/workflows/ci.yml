@@ -53,9 +53,10 @@ jobs:
       - id: filter
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        # Pure git, no API/token. needs_py_ci: anything outside the
-        # standalone ui/ tree changed. needs_ts_ci: the ui/ tree or the docs/user/
-        # pages it renders changed.
+        # Pure git, no API/token. needs_py_ci: a file the python job reads
+        # changed (code, tests, packaging, the docs site and its sources,
+        # the skills and contracts the tests check, the UI's docs page list).
+        # needs_ts_ci: the ui/ tree or the docs/user/ pages it renders changed.
         # On workflow_dispatch there is no base to diff against — run everything.
         run: |
           if [ -z "$BASE_SHA" ]; then
@@ -64,7 +65,7 @@ jobs:
             exit 0
           fi
           changed() { git diff --name-only "$BASE_SHA" HEAD; }
-          if changed | grep -qvE '^ui/'; then
+          if changed | grep -qE '^(src/|tests/|scripts/|contracts/|docs/|skills/|\.github/workflows/ci\.yml$|ui/src/lib/docs\.ts$|mkdocs\.yml$|pyproject\.toml$|uv\.lock$|hatch_build\.py$|\.python-version$|README\.md$)'; then
             echo "needs_py_ci=true" >> "$GITHUB_OUTPUT"
           else
             echo "needs_py_ci=false" >> "$GITHUB_OUTPUT"
