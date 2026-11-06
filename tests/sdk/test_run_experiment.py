@@ -577,6 +577,8 @@ async def test_only_a_base_url_judge_needs_a_local_key_and_names_it_before_any_t
     assert keyed.experiment_id is not None and called
     with pytest.raises(MissingJudgeKey):
         await aevaluate_experiment(experiment_id=keyed.experiment_id)
+    exp, _ = await srv.experiment(keyed.experiment_id)
+    assert exp.status == "completed"
     with pytest.raises(JudgeChanged):
         await aevaluate_experiment(
             experiment_id=keyed.experiment_id,

@@ -89,7 +89,7 @@ def init_database(url: str) -> bool:
     return created
 
 
-TRY_PROVIDER = "try"
+TRY_PROVIDER = "test-llm"
 
 
 def new_encryption_key() -> str:

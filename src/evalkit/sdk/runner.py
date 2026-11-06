@@ -43,6 +43,7 @@ from evalkit.core.runner import (
     ScoringFailed,
     case_title,
     check_inputs,
+    check_judge_key,
     check_rescore_judge,
     dropped_cases_text,
     evaluate_experiment,
@@ -814,6 +815,7 @@ async def aevaluate_experiment(
             server_evaluators=HttpServerEvaluators(api),
             judge_api_key=judge.api_key if judge else None,
         )
+        await check_judge_key(store, experiment_id, judge.api_key if judge else None)
         await store.transition(experiment_id, ExperimentStatus.EVALUATING, holder)
         try:
             await rescore_experiment(

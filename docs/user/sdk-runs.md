@@ -136,7 +136,7 @@ run_experiment(dataset="finance", agent="myagent-sdk", task=task,
                judge=Judge(provider="openai", model="gpt-5"))       # another provider on the server
 ```
 
-To bring your own judge, pass its base URL and key. Those evaluators then run on your machine. evalkit never stores, sends or prints the key:
+To bring your own judge, pass its base URL and key. Those evaluators then run on your machine. evalkit sends the key only to your judge's base URL; it never stores it on the evalkit server or prints it:
 
 ```python
 run_experiment(dataset="finance", agent="myagent-sdk", task=task,

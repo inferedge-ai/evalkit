@@ -23,6 +23,7 @@ from evalkit.core.runner import (
     EVALUATION_CONCURRENCY,
     ExperimentRequest,
     RunnerDeps,
+    check_judge_key,
     dropped_cases_text,
     harness_capabilities,
     missing_local_keys,
@@ -83,6 +84,7 @@ async def run_local(
     revision: GitRevision,
     progress: Callable[[str], None],
     judge: JudgeSettings | None = None,
+    judge_api_key: str | None = None,
     evaluation_concurrency: int = EVALUATION_CONCURRENCY,
     transport: httpx2.AsyncBaseTransport | None = None,
     custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
@@ -115,6 +117,7 @@ async def run_local(
             if dropped:
                 progress(dropped_cases_text(dropped))
         else:
+            await check_judge_key(store, resume, judge_api_key)
             exp = await store.transition(resume, ExperimentStatus.RUNNING, holder)
         progress(f"experiment {exp.id} (#{exp.number} of {exp.dataset})")
         deps = _deps(
@@ -126,7 +129,7 @@ async def run_local(
             transport,
             custom_eval_transport,
             evaluation_concurrency,
-            judge.api_key if judge else None,
+            judge_api_key,
         )
         for line in await missing_local_keys(
             deps, await deps.agents.get(explicit(agent)), await store.pinned_cases(exp.id)
@@ -165,6 +168,7 @@ async def evaluate_local(
             evaluation_concurrency,
             judge_api_key,
         )
+        await check_judge_key(deps.store, exp_id, judge_api_key)
         await deps.store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
         await rescore_experiment(deps, exp_id, holder, refetch_trajectories=refetch_trajectories)
     finally:

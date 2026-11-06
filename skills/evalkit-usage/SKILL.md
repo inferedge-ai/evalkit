@@ -198,8 +198,8 @@ provider configured on the server or a base URL, never both:
 - **Your own judge:** `evalkit run --judge-base-url URL --judge-model M
   --judge-api-key-env NAME` (the env var or `.env` entry holding the key), or
   `Judge(base_url=..., model=..., api_key=...)` in the SDK. Those evaluators
-  run on your machine. The key is never stored: `evalkit evaluate <id>` needs
-  `--judge-api-key-env NAME` again; in the SDK, pass the same
+  run on your machine. The key is never stored: `evalkit evaluate <id>` and
+  `evalkit run … --resume <id>` need `--judge-api-key-env NAME` again; in the SDK, pass the same
   `Judge(..., api_key=...)` to `evaluate_experiment(..., judge=...)`. A
   different judge is refused. Server runs refuse `--judge-base-url`.
 

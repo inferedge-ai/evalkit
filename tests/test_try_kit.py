@@ -122,10 +122,10 @@ def test_kit_setup_registers_the_llm_as_the_default_judge(monkeypatch):
     monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
     compose = (KIT / "docker-compose.yml").read_text()
     assert (
-        'evalkit llm-providers create try --base-url "$$LLM_BASE_URL" --api-key-env LLM_API_KEY'
-        in compose
+        'evalkit llm-providers create test-llm --base-url "$$LLM_BASE_URL" '
+        "--api-key-env LLM_API_KEY" in compose
     )
-    assert 'evalkit judge-default set --provider try --model "$$LLM_MODEL"' in compose
+    assert 'evalkit judge-default set --provider test-llm --model "$$LLM_MODEL"' in compose
     cfg = load_config(KIT / "config.yaml")
     assert cfg.allow_private_endpoints is True and cfg.encryption_key
 

@@ -16,7 +16,8 @@ class JudgeSettings(BaseModel):
     Attributes:
         provider: The name of an LLM provider configured on the server.
         base_url: An OpenAI-compatible endpoint that supports structured output.
-        api_key: The key for `base_url`. Never stored, sent or shown.
+        api_key: The key for `base_url`. Sent only to `base_url`; never stored on the
+            evalkit server or shown.
         model: The model name at that endpoint.
         reasoning_effort: Passed to the model as `reasoning_effort`.
         max_tokens: The most tokens one judge reply may use.

@@ -60,7 +60,7 @@ services:
       postgres:
         condition: service_healthy
 
-  # One-shot: registers your LLM as the LLM provider "try" and makes it the
+  # One-shot: registers your LLM as the LLM provider "test-llm" and makes it the
   # default judge. Safe to rerun; it only creates what is missing.
   setup:
     <<: *image
@@ -74,9 +74,9 @@ services:
       - -ec
       - |
         evalkit login --url http://server:8020 --username admin --password "$$EVALKIT_ADMIN_PASSWORD"
-        evalkit llm-providers show try >/dev/null 2>&1 ||
-          evalkit llm-providers create try --base-url "$$LLM_BASE_URL" --api-key-env LLM_API_KEY
-        evalkit judge-default set --provider try --model "$$LLM_MODEL"
+        evalkit llm-providers show test-llm >/dev/null 2>&1 ||
+          evalkit llm-providers create test-llm --base-url "$$LLM_BASE_URL" --api-key-env LLM_API_KEY
+        evalkit judge-default set --provider test-llm --model "$$LLM_MODEL"
     restart: "no"
     depends_on:
       server:

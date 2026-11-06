@@ -13,8 +13,9 @@
   - To bring your own judge, pass `Judge(base_url=..., model=..., api_key=...)`
     or `evalkit run --judge-base-url URL --judge-api-key-env NAME` (the env
     var or `.env` entry holding the key); those evaluators then run on your
-    machine. The key is never stored, so re-scoring needs it again:
-    `evalkit evaluate <id> --judge-api-key-env NAME` or
+    machine. The key is never stored, so re-scoring and resuming need it
+    again: `evalkit evaluate <id> --judge-api-key-env NAME`,
+    `evalkit run … --resume <id> --judge-api-key-env NAME`, or
     `evaluate_experiment(..., judge=Judge(...))` with the same judge (a
     different judge is refused). `--judge-provider` with
     `--judge-base-url` is refused, and so is `--judge-base-url` without

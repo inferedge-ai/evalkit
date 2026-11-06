@@ -1370,7 +1370,9 @@ def test_agents_commands(env, tmp_path):
     assert bad.exit_code == 1 and "key=true" in bad.output
 
 
-def test_run_judge_flags_start_from_the_server_default(env, tmp_path, monkeypatch, harness_url):
+def test_run_judge_flags_start_from_the_server_default(
+    env, tmp_path, monkeypatch, harness_url, module_db_url
+):
     default = api_get("/api/judge-default")
     assert default["model"] == "judge-model"
     write_local_config(tmp_path, harness_url)
@@ -1400,10 +1402,27 @@ def test_run_judge_flags_start_from_the_server_default(env, tmp_path, monkeypatc
     assert judge is not None and judge.api_key is None
     rescore = runner.invoke(cli_app, ["evaluate", str(byok.id)])
     assert rescore.exit_code == 1 and "--judge-api-key-env" in rescore.output
+    assert api_get(f"/api/experiments/{byok.id}")["status"] == "completed"
     rescore = runner.invoke(
         cli_app, ["evaluate", str(byok.id), "--judge-api-key-env", "CLI_JUDGE_KEY"]
     )
     assert rescore.exit_code == 0, rescore.output
+    engine = create_engine(module_db_url, isolation_level="AUTOCOMMIT")
+    with engine.connect() as conn:
+        run_id = conn.execute(
+            text("SELECT min(id) FROM experiment_runs WHERE experiment_id = :e"),
+            {"e": byok.id},
+        ).scalar()
+        conn.execute(text("DELETE FROM evaluations WHERE experiment_run_id = :r"), {"r": run_id})
+        conn.execute(text("DELETE FROM experiment_runs WHERE id = :r"), {"r": run_id})
+        conn.execute(text("UPDATE experiments SET status = 'failed' WHERE id = :e"), {"e": byok.id})
+    engine.dispose()
+    resume = ["run", "finance", "--agent", "fake", "--resume", str(byok.id)]
+    refused = runner.invoke(cli_app, resume)
+    assert refused.exit_code == 1 and "--judge-api-key-env" in refused.output
+    assert api_get(f"/api/experiments/{byok.id}")["status"] == "failed"
+    resumed = runner.invoke(cli_app, [*resume, "--judge-api-key-env", "CLI_JUDGE_KEY"])
+    assert resumed.exit_code == 0, resumed.output
     assert (judge.base_url, judge.provider, judge.model) == (
         "http://judge.test",
         None,

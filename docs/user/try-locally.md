@@ -48,7 +48,7 @@ when its flag or environment variable is set (`evalkit init-server --help`
 lists both); `--yes` never asks. It then:
 
 - creates the database when it does not exist, and migrates it
-- registers your LLM as the LLM provider `try` and makes it the default judge,
+- registers your LLM as the LLM provider `test-llm` and makes it the default judge,
   with its API key stored encrypted in the database
 - copies the try kit into `./evalkit-try`
 - writes `config.yaml` there, with blobs stored under `evalkit-try/data` and a

@@ -733,6 +733,11 @@ def judge_key_for(
     return api_key
 
 
+async def check_judge_key(store: Store, exp_id: int, api_key: str | None) -> None:
+    exp = await store.get_experiment(exp_id)
+    judge_key_for(exp.config.judge, api_key, await store.pinned_cases(exp_id))
+
+
 class JudgeChanged(ValueError):
     def __init__(self, exp_id: int):
         super().__init__(

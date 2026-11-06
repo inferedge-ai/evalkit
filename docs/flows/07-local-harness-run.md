@@ -139,7 +139,7 @@ sequenceDiagram
 - Unknown agent: `unknown agent: <ref> — create it with evalkit agents create`.
 - Nothing left to run (no case matches, or every case needs fixtures the harness can't take): `nothing to run in <dataset>: …`.
 - Case inputs that fail the agent's `input_schema`: `<n> case input(s) fail agent <agent>'s input_schema:` listing every bad case; nothing runs.
-- `--judge-base-url` without `--judge-api-key-env`: `--judge-base-url needs --judge-api-key-env NAME, the key's env var`, before the run. `--judge-api-key-env` naming an unset variable: `env var NAME is not set …`. Re-scoring with `evalkit evaluate <id>` such an experiment without the flag: `your judge at <url> needs its API key: pass --judge-api-key-env NAME …`.
+- `--judge-base-url` without `--judge-api-key-env`: `--judge-base-url needs --judge-api-key-env NAME, the key's env var`, before the run. `--judge-api-key-env` naming an unset variable: `env var NAME is not set …`. Re-scoring (`evalkit evaluate <id>`) or resuming (`--resume <id>`) such an experiment without the flag: `your judge at <url> needs its API key: pass --judge-api-key-env NAME …`, before anything runs; the experiment's status does not change.
 - `--judge-provider` with `--judge-base-url`: `pass --judge-provider or --judge-base-url, not both`.
 - A server-evaluator call that fails or times out (900 s, `EVALKIT_SERVER_EVALUATOR_TIMEOUT`): that evaluator gets an `error` score for the run, scoring goes on, and `evalkit evaluate <id>` retries it. The call is never retried on its own.
 - A `credentials` entry whose env var is unset: `credentials.<kind>s['<ref>'] needs env var <NAME>`, before the run.

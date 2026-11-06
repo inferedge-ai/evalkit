@@ -814,7 +814,7 @@ def run(
         )
     dataset_slug = slug(resolved.ref)
     judge = _judge_override(judge_model, judge_provider, judge_base_url, judge_effort)
-    judge_key = _judge_api_key(judge, judge_api_key_env, local)
+    judge_key = _judge_api_key(judge, judge_api_key_env, local, resuming=resume is not None)
     if route is Driver.SERVER:
         exp_id = _run_on_server(
             dataset_slug,
@@ -844,9 +844,8 @@ def run(
                     resume=resume,
                     revision=revision,
                     progress=progress,
-                    judge=JudgeSettings.model_validate({**judge, "api_key": judge_key})
-                    if judge
-                    else None,
+                    judge=JudgeSettings.model_validate(judge) if judge else None,
+                    judge_api_key=judge_key,
                     evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
                 )
             )
@@ -871,15 +870,15 @@ def run(
 
 
 def _judge_api_key(
-    judge: dict | None, env_name: str | None, local: LocalConfig | None
+    judge: dict | None, env_name: str | None, local: LocalConfig | None, *, resuming: bool
 ) -> str | None:
     own = judge is not None and judge.get("base_url") is not None
     if env_name is None:
         if own:
             raise ApiError("--judge-base-url needs --judge-api-key-env NAME, the key's env var")
         return None
-    if not own:
-        raise ApiError("--judge-api-key-env goes with --judge-base-url")
+    if not own and not resuming:
+        raise ApiError("--judge-api-key-env goes with --judge-base-url or --resume")
     return _env_value(env_name, local)
 
 

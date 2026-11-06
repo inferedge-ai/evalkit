@@ -143,9 +143,9 @@ def test_init_server_creates_and_migrates_the_database(tmp_path, pg_server_url):
         ).scalar()
     engine.dispose()
     _admin(pg_server_url, f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
-    assert [tuple(row) for row in providers] == [("try", "https://llm.test/v1")]
+    assert [tuple(row) for row in providers] == [("test-llm", "https://llm.test/v1")]
     assert judge == {
-        "provider": "try",
+        "provider": "test-llm",
         "model": "m",
         "reasoning_effort": "high",
         "max_tokens": 32768,
