@@ -12,6 +12,7 @@ export function toEvalScore(row: EvaluationRow): EvalScore {
     score: row.value,
     label: row.label,
     explanation: row.error ? `error: ${row.error}` : row.explanation,
+    scored_on: row.scored_on,
   };
   const text = row.explanation?.trim();
   if (!text || (!text.startsWith("{") && !text.startsWith("["))) return score;

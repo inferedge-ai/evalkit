@@ -62,7 +62,7 @@ export function RunLauncher({
   const [providers, setProviders] = useState<LlmProviderInfo[]>([]);
   const [judge, setJudge] = useState<JudgeChoice>({
     model: "",
-    base_url: "",
+    provider: "",
     reasoning_effort: "",
   });
   const [filter, setFilter] = useState("");
@@ -389,18 +389,18 @@ export function RunLauncher({
             <span className="form-label">Judge provider</span>
             <Select
               ariaLabel="judge provider"
-              value={judge.base_url}
-              onChange={(base_url) => setJudge((j) => ({ ...j, base_url }))}
+              value={judge.provider}
+              onChange={(provider) => setJudge((j) => ({ ...j, provider }))}
               options={[
                 ...(judgeDefault
                   ? [{ value: "", label: "server default" }]
                   : []),
                 ...providers.map((p) => ({
-                  value: p.base_url,
+                  value: p.name,
                   label: `${p.name} (${p.base_url})`,
                 })),
               ]}
-              title="LLM providers an admin registered; server runs only judge with these"
+              title="LLM providers an admin registered; judge-using evaluators run on the server with these"
             />
           </div>
           {!judgeDefault && (

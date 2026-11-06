@@ -83,7 +83,9 @@ export function cliCommand(req: LaunchRequest): string {
   if (req.judge)
     parts.push(
       `--judge-model ${quote(req.judge.model)}`,
-      `--judge-base-url ${quote(req.judge.base_url)}`,
+      req.judge.provider
+        ? `--judge-provider ${quote(req.judge.provider)}`
+        : `--judge-base-url ${quote(req.judge.base_url ?? "")}`,
       `--judge-effort ${quote(req.judge.reasoning_effort)}`,
     );
   if (req.evaluation_concurrency)

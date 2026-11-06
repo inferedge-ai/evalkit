@@ -37,8 +37,10 @@ export interface UserRow {
 }
 
 // ── Settings (mirrors contracts/settings.py) ─────────────────────────────
+// Exactly one of provider (scored on the server) or base_url (bring your own key).
 export interface JudgeSettings {
-  base_url: string;
+  provider?: string | null;
+  base_url?: string | null;
   model: string;
   reasoning_effort: string;
   max_tokens: number;
@@ -299,6 +301,7 @@ export interface EvaluationRow {
   name: string;
   kind: "score" | "gauge";
   source: "builtin" | "remote" | "code";
+  scored_on: "local" | "server";
   value: number | null;
   label: string | null;
   explanation: string | null;
@@ -313,6 +316,7 @@ export interface EvalScore {
   detail?: Record<string, unknown>;
   items?: Record<string, unknown>[];
   summary?: Record<string, number>;
+  scored_on?: "local" | "server";
 }
 
 // ── Agents / Harness API proxies ─────────────────────────────────────────
