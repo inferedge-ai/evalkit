@@ -23,8 +23,10 @@ Agents, remote evaluators and the judge are not configured here:
 
 - **Agents** are created once on the server with `evalkit agents create` (or on the Agents page). A personal agent runs from your machine; a shared one is driven by the server. An agent without a harness URL is code-driven: only `run_experiment` can run it. See [SDK runs](sdk-runs.md).
 - **Remote evaluators** are created with `evalkit evaluators create`. A run uses the evaluators in its agent's workspace.
-- **The judge** of an experiment is the server's default judge (an admin sets it with `evalkit judge-default set`) unless you pick one. By default the evaluators that use a judge (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) run on the evalkit server with the server's LLM provider, so you need no judge key on your machine. Pick another registered provider with `evalkit run … --judge-provider NAME --judge-model M` or `run_experiment(judge=Judge(provider=..., model=...))`.
-- **Bring your own judge key**: `evalkit run … --judge-base-url URL --judge-model M` or `run_experiment(judge=Judge(base_url=..., model=...))`. Those evaluators then run on your machine with the key from `credentials.llm_providers`. `--judge-provider` and `--judge-base-url` together are refused. Re-evaluating an experiment always reuses its judge.
+- **The judge** of an experiment is the server's default judge (an admin sets it with `evalkit judge-default set`) unless you pick one. Re-evaluating an experiment always reuses its judge. You pick it in one of two ways:
+  - **An LLM provider configured on the server:** `evalkit run … --judge-provider NAME --judge-model M`, or `run_experiment(judge=Judge(provider=..., model=...))`. The default judge is one too. The evaluators that use a judge (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) then run on the evalkit server with its stored key, so you need no judge key on your machine.
+  - **Your own key:** `evalkit run … --judge-base-url URL --judge-model M`, or `run_experiment(judge=Judge(base_url=..., model=...))`. Those evaluators then run on your machine, with the key from `credentials.llm_providers` for that URL.
+  - `--judge-provider` and `--judge-base-url` together are refused.
 
 Rules:
 

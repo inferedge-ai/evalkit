@@ -190,18 +190,18 @@ credentials:                 # env:NAME references only, never the key itself
 
 The judge is chosen per experiment. By default it is the server's
 default judge, which an admin sets with `evalkit judge-default set`
-(`evalkit judge-default show` prints it). A judge names either a registered
-LLM provider or a base URL, never both:
+(`evalkit judge-default show` prints it). A judge names either an LLM
+provider configured on the server or a base URL, never both:
 
-- **Provider (the default):** the evaluators that use a judge
+- **Served by an LLM provider on the server (the default):** the evaluators that use a judge
   (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) run on the
   evalkit server with its stored key, also in local and SDK runs. No judge
   key is needed on your machine. `evalkit run --judge-provider NAME`
   (`evalkit llm-providers list`) picks another one.
 - **Bring your own key:** `evalkit run --judge-base-url URL --judge-model M`
   or `Judge(base_url=..., model=...)` in the SDK. Those evaluators run on your
-  machine with the key from `credentials.llm_providers`. Server runs refuse a
-  base-URL judge.
+  machine with the key from `credentials.llm_providers`. Server runs refuse
+  `--judge-base-url`.
 
 `--judge-model` and `--judge-effort` change the rest for one experiment.
 `evalkit evaluate` reuses the experiment's judge. `tool_trajectory_match`,

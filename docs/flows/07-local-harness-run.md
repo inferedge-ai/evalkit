@@ -8,7 +8,9 @@ A developer runs their own agent, served by a harness on their machine, against 
 - **CLI**: the `evalkit` command on the developer's machine. It reads `evalkit.yaml` (`cases` / `fixtures` dirs and the `credentials` map; a `.env` beside it is loaded).
 - **Harness**: the developer's agent behind the Harness API. The agent lives in the developer's personal workspace (`evalkit agents create research-agent --harness-url http://localhost:8000`); its `harness_url` is often `localhost`.
 - **Custom evaluator**: optional, a remote evaluator in the agent's workspace (`evalkit evaluators create`).
-- **Judge**: the LLM used by built-in evaluators. Set per experiment with `--judge-*` flags, otherwise the default judge an admin set on the server. A provider judge (the default, or `--judge-provider`) is called by the server: the CLI asks the server to score each judge-using evaluator. A base-URL judge (`--judge-base-url`) is called from the CLI with the developer's key (`GET /api/judge-default`).
+- **Judge**: the LLM used by built-in evaluators. The experiment uses the server's default judge unless the run sets one with `--judge-*` flags (`evalkit judge-default show` prints the default).
+  - A judge served by an LLM provider configured on the server (the default, or `--judge-provider`) is called by the server: the CLI asks the server to score each judge-using evaluator.
+  - A judge you bring with your own key (`--judge-base-url`) is called by the CLI, with the key from `evalkit.yaml`.
 - **evalkit server**: stores the dataset, experiment, runs, scores and trajectories.
 
 ## Sequence
@@ -59,11 +61,11 @@ sequenceDiagram
 
   CLI->>S: fetch experiment runs + pinned cases
   loop each run with an answer
-    alt provider judge (default)
+    alt judge served by a server-side LLM provider (default)
       CLI->>S: POST experiment-runs/#lt;id#gt;/server-evaluations/#lt;name#gt; per judge-using built-in
       S->>J: judge with the provider's stored key
       S-->>CLI: score rows + judge token usage (nothing written)
-    else --judge-base-url
+    else own judge key (--judge-base-url)
       CLI->>J: judge-using built-ins with the key from evalkit.yaml
     end
     CLI->>CLI: tool_trajectory_match, required_tools_called, max_response_time, gauges
@@ -127,7 +129,7 @@ sequenceDiagram
 - `evalkit status <id>` prints the status, `<ran>/<total> ran, <evaluated>/<total> evaluated`, the lease holder while it runs, and the error line when set.
 - The UI shows no server-side Resume or Re-evaluate for local runs. It shows the `evalkit run … --resume <id>` command instead.
 - Local runs appear in the agent's Runs browser (`/runs?agent=research-agent@<me>`).
-- Each score records where it ran: `server` for judge-using built-ins with a provider judge, `local` for everything else.
+- Each score records where it ran: `server` for judge-using built-ins whose judge is served by an LLM provider configured on the server, `local` for everything else.
 
 ## Error cases
 
@@ -137,7 +139,7 @@ sequenceDiagram
 - Unknown agent: `unknown agent: <ref> — create it with evalkit agents create`.
 - Nothing left to run (no case matches, or every case needs fixtures the harness can't take): `nothing to run in <dataset>: …`.
 - Case inputs that fail the agent's `input_schema`: `<n> case input(s) fail agent <agent>'s input_schema:` listing every bad case; nothing runs.
-- A judge `base_url` (`--judge-base-url`) with no `credentials` entry: `no credentials.llm_providers entry for <url>`, before the run. The default provider judge needs no entry.
+- `--judge-base-url` with no `credentials.llm_providers` entry for that URL: `no credentials.llm_providers entry for <url>`, before the run. The default judge needs no entry.
 - `--judge-provider` with `--judge-base-url`: `pass --judge-provider or --judge-base-url, not both`.
 - A server-evaluator call that fails or times out (900 s, `EVALKIT_SERVER_EVALUATOR_TIMEOUT`): that evaluator gets an `error` score for the run, scoring goes on, and `evalkit evaluate <id>` retries it. The call is never retried on its own.
 - A `credentials` entry whose env var is unset: `credentials.<kind>s['<ref>'] needs env var <NAME>`, before the run.

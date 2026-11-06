@@ -49,10 +49,10 @@ their keys in `evalkit.yaml`.
   `has_api_key`.
 - **LLM provider:** an OpenAI-compatible endpoint evalkit may call: a name, a
   base URL and a stored key. Today only judges use providers. The server calls
-  it for server runs, and for local and SDK runs whose judge is a provider.
-- **Default judge:** the judge (provider name, model, effort, limits) an
-  experiment uses when it does not set its own. Set by an admin, stored by
-  provider name.
+  it for server runs, and for local and SDK runs whose judge is served by an LLM provider configured on the server.
+- **Default judge:** the judge (LLM provider, model, effort, limits) an
+  experiment uses when it does not set its own. Set by an admin; it names the
+  provider by its name.
 - **Credentials map:** a `credentials:` section in `evalkit.yaml`, used by local
   runs and SDK runs. It maps a reference (or, for `llm_providers`, a base URL)
   to `env:NAME`, and the CLI's credential registry looks keys up in it.
@@ -192,7 +192,7 @@ sequenceDiagram
     calling the harness without x-api-key`, and sends no key header.
   - **No `credentials.llm_providers` entry for a judge a local run brings
     (`--judge-base-url`):** the run stops before it starts:
-    `no credentials.llm_providers entry for <base_url>`. A provider judge
+    `no credentials.llm_providers entry for <base_url>`. A judge served by an LLM provider configured on the server
     needs no entry: the server judges with its stored key.
 - **Nothing creates an agent implicitly:** not experiment creation,
   `tokens create --agent`, or an OTel export.

@@ -11,7 +11,7 @@ How a user runs a dataset against a shared agent: an agent in a shared workspace
   - the experiment page (`ui/src/evals/ExperimentPage.tsx`)
 - **evalkit server**: `src/evalkit/api/experiments.py`. Its experiment runner is in `src/evalkit/core/runner.py`.
 - **Agent harness**: the client's agent behind the Harness API, at the agent's `harness_url`. Admins or writers create the agent with `evalkit agents create` (flow 17); its API key is a stored key, set with `--api-key-env` and kept encrypted in the database.
-- **Judge**: the LLM the built-in evaluators call. Chosen per experiment; the default judge an admin set (`evalkit judge-default set`) applies when the run doesn't set one. It names a registered LLM provider by name (never a base URL), whose stored key the server sends.
+- **Judge**: the LLM the built-in evaluators call. Chosen per experiment; the default judge an admin set (`evalkit judge-default set`) applies when the run doesn't set one. It is served by an LLM provider configured on the server, named by the provider's name; the server sends that provider's stored key.
 
 ## Sequence
 

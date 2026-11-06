@@ -223,7 +223,7 @@ the CLI or the UI:
 |---|---|---|
 | Agent | `evalkit agents create <name> --workspace dev --harness-url … --api-key-env VAR` | admin or writer; the key is stored encrypted and never shown (`agents show` prints `api key  set\|not set`); omit `--harness-url` for a code-driven agent; `--trajectory-source otel` needs `--mapping`; run settings such as `--max-concurrent-runs` (min'd with the harness's own limit), `--run-timeout`, `--stop-grace` are flags; `evalkit agents edit` changes them |
 | Remote evaluator | `evalkit evaluators create <name> --workspace dev --endpoint … --kind score --api-key-env VAR` | admin or writer; `--kind gauge` for measurements; runs use the evaluators in the agent's workspace |
-| LLM provider | `evalkit llm-providers create <name> --base-url … --api-key-env VAR` | admin only; server runs judge only with an active provider, named by name; local and SDK runs also judge on the server with it unless they bring their own key |
+| LLM provider | `evalkit llm-providers create <name> --base-url … --api-key-env VAR` | admin only; a judge names a provider by its name. The server calls it for server runs, and for local and SDK runs that do not bring their own judge key |
 | Default judge | `evalkit judge-default set --provider <name> --model M [--effort E] [--max-tokens N]` | admin only; `evalkit judge-default show` prints it. Use a reproducibility-tested model |
 | Trace source | `evalkit trace-sources create <name> --url … --api-key-env VAR` | admin only to create; any user can import from it (see below) |
 | Shared workspace | `evalkit workspaces create <name>` | admin only |

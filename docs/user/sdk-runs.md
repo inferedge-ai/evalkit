@@ -126,17 +126,17 @@ evalkit agents create myagent-sdk --trajectory-source otel --mapping openinferen
 
 Its `answer` rule and `exclude_spans` live in its span mapping. `evalkit.yaml` is still required; it holds the cases, fixtures and credentials.
 
-The judge is the server's default unless you pass one. An admin sets the default with `evalkit judge-default set`. With the default, or any `provider` judge, the evaluators that use a judge (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) run on the evalkit server with its stored key; your machine needs no judge key:
+The judge is the server's default unless you pass one. An admin sets the default with `evalkit judge-default set`. With the default, or any other judge served by an LLM provider configured on the server (`Judge(provider=...)`), the evaluators that use a judge (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) run on the evalkit server with its stored key; your machine needs no judge key:
 
 ```python
 from evalkit.sdk import Judge, run_experiment
 
 run_experiment(dataset="finance", agent="myagent-sdk", task=task)  # the server's default judge
 run_experiment(dataset="finance", agent="myagent-sdk", task=task,
-               judge=Judge(provider="openai", model="gpt-5"))       # another registered provider
+               judge=Judge(provider="openai", model="gpt-5"))       # another provider on the server
 ```
 
-To bring your own judge key, pass a `base_url` judge. Those evaluators then run on your machine, and the SDK reads the key from `credentials.llm_providers` in `evalkit.yaml`, keyed by the base URL:
+To bring your own judge key, pass `Judge(base_url=...)`. Those evaluators then run on your machine, and the SDK reads the key from `credentials.llm_providers` in `evalkit.yaml`, keyed by the base URL:
 
 ```python
 run_experiment(dataset="finance", agent="myagent-sdk", task=task,
