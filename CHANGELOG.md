@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- New docs page, Framework mappings (`docs/user/framework-mappings.md`): a
+  ready-to-use span mapping per agent framework (LangGraph, LangChain,
+  CrewAI, Agno, OpenAI Agents SDK, LlamaIndex, Google ADK, Pydantic AI,
+  Claude Agent SDK, Mastra), with the agent-side changes a mapping cannot
+  make. The `connect-traces` skill ships the files under `references/`
+  (`langchain.json`, `crewai.json`, `agno.json`, `llamaindex.json`,
+  `google-adk.json`, `claude-agent-sdk.json`, `mastra.json`) and tells
+  coding agents to pick the framework's file first.
 - The web UI's docs pages (`/docs/...`, `/cli`) no longer need a sign-in.
   Signed-out visitors see them under a public navbar (logo, Docs, theme
   toggle, Sign in); signed-in users still see them inside the full app. The

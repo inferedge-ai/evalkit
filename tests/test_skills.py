@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 
 from evalkit.cli import main as main_module
 from evalkit.cli.main import app
+from evalkit.contracts.esf import MappingDocument
 
 SKILLS = Path(__file__).parent.parent / "skills"
 # Agent Skills spec limits (agentskills.io/specification), enforced by Claude Code.
@@ -66,6 +67,8 @@ def test_skill_links_to_installed_docs_resolve(tmp_path):
 def test_connect_traces_ships_the_reference_mappings():
     for name in ("openinference.json", "gen_ai.json"):
         assert (SKILLS / "connect-traces" / "references" / name).is_file()
+    for path in (SKILLS / "connect-traces" / "references").glob("*.json"):
+        MappingDocument.model_validate_json(path.read_text())
     assert not (
         Path(__file__).parent.parent / "src" / "evalkit" / "core" / "traces" / "mappings"
     ).exists()

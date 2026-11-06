@@ -79,7 +79,7 @@ export OTEL_RESOURCE_ATTRIBUTES="evalkit.agent=myagent"   # alternative to the h
 
 The collector picks the agent per span: the span's `evalkit.agent` attribute first, then the resource's, then the `X-Evalkit-Agent` header. One process that serves several agents can therefore share one exporter and set `evalkit.agent` on each agent's spans. The value is an agent reference (`myagent` or `myagent@workspace`). Every agent a batch names is checked as if it came in the header: an agent token writes only its own agent, a login token only agents in workspaces you can write to (your own, or a shared one where you are a writer). If any span names an agent the token may not write, the whole batch is refused.
 
-Put the session id on the root span of each trace, in the attribute your mapping's `session_id` rule names (`session.id` in `openinference.json`, `gen_ai.conversation.id` in `gen_ai.json`). Every span in a trace belongs to the session of the trace's root, even one that carries a session attribute of its own. Only when the root has no session do child spans keep theirs.
+Put the session id on the root span of each trace, in the attribute your mapping's `session_id` rule names (`session.id` in `openinference.json`, `gen_ai.conversation.id` in `gen_ai.json`). Every span in a trace belongs to the session of the trace's root, even one that carries a session attribute of its own. Only when the root has no session do child spans keep theirs. A web framework's request span (FastAPI, Starlette) that becomes the root without a session id is the most common cause of a session with missing spans; see [Framework mappings](framework-mappings.md).
 
 ## Deployed agents
 
@@ -190,4 +190,4 @@ The trajectory drops messages with any other role, along with their tool calls. 
 evalkit traces check myagent-sdk <session id>
 ```
 
-prints the settle state, span kinds, tokens, the attributes the mapping did not read and the ATIF summary. `--dump spans.json` writes the raw spans. `--dump esf.json` leaves out the input messages of every LLM call after each agent's first, as the trajectory does not use them; `spans.json` has the raw values. A session over `otel.max_session_bytes` fails the check with its size and the limit (see Size limits and large spans above). If the kinds or messages look wrong, the agent needs a mapping: see [Mappings](mappings.md).
+prints the settle state, span kinds, tokens, the attributes the mapping did not read and the ATIF summary. `--dump spans.json` writes the raw spans. `--dump esf.json` leaves out the input messages of every LLM call after each agent's first, as the trajectory does not use them; `spans.json` has the raw values. A session over `otel.max_session_bytes` fails the check with its size and the limit (see Size limits and large spans above). If the kinds or messages look wrong, the agent needs a mapping: see [Mappings](mappings.md), and [Framework mappings](framework-mappings.md) for a ready-made one per framework.
