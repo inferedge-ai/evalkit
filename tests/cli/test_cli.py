@@ -999,6 +999,10 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 0, result.output
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
+    assert result.exit_code == 0, result.output
+    result = runner.invoke(
+        cli_app, ["run", "finance", "--agent", "fake", "--judge-base-url", "http://judge.test"]
+    )
     assert result.exit_code == 1, result.output
     assert "CLI_JUDGE_KEY" in result.output
 
@@ -1371,11 +1375,19 @@ def test_run_judge_flags_start_from_the_server_default(env, tmp_path, monkeypatc
     monkeypatch.chdir(tmp_path)
     _local_run("finance", "--agent", "fake", "--judge-model", "x", "--judge-effort", "low")
     judge = latest_experiment("finance@admin").config.judge
-    assert (judge.model, judge.reasoning_effort, judge.base_url) == (
-        "x",
-        "low",
-        default["base_url"],
+    assert (judge.model, judge.reasoning_effort, judge.provider) == ("x", "low", "judge")
+    _local_run("finance", "--agent", "fake", "--judge-base-url", "http://judge.test")
+    judge = latest_experiment("finance@admin").config.judge
+    assert (judge.base_url, judge.provider, judge.model) == (
+        "http://judge.test",
+        None,
+        "judge-model",
     )
+    both = runner.invoke(
+        cli_app,
+        ["run", "finance", "--agent", "fake", "--judge-provider", "judge", "--judge-base-url", "u"],
+    )
+    assert both.exit_code == 1 and "not both" in both.output
 
 
 def test_runs_pull_app_runs_of_a_personal_harness_agent(

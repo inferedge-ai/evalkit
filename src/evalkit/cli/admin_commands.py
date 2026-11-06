@@ -353,7 +353,7 @@ def register(
         client = client_factory()
         base_url = client.get(f"/api/llm-providers/{encode(provider)}").json()["base_url"]
         judge = {
-            "base_url": base_url,
+            "provider": provider,
             "model": model,
             "reasoning_effort": effort,
             "max_tokens": max_tokens,

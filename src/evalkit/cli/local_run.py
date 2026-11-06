@@ -11,6 +11,7 @@ from evalkit.client.api import AsyncApi
 from evalkit.client.blob import HttpBlobStore
 from evalkit.client.connection import Connection
 from evalkit.client.evaluators import HttpEvaluators
+from evalkit.client.server_evaluators import HttpServerEvaluators
 from evalkit.client.sessions import HttpSessionReader
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.config import LocalConfig
@@ -63,6 +64,7 @@ def _deps(
         progress=progress,
         sessions=HttpSessionReader(api),
         evaluation_concurrency=evaluation_concurrency,
+        server_evaluators=HttpServerEvaluators(api),
     )
 
 

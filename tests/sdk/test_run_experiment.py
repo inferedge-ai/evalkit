@@ -20,7 +20,7 @@ from evalkit.client import connection
 from evalkit.client.api import ApiRequestError
 from evalkit.config import OtelConfig
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource
-from evalkit.contracts.settings import AgentSettings, RemoteEvaluatorSettings
+from evalkit.contracts.settings import AgentSettings, JudgeSettings, RemoteEvaluatorSettings
 from evalkit.core.blob import tenant_prefix
 from evalkit.core.runner import InvalidCaseInputs, ScoringFailed
 from evalkit.credentials import MissingCredential
@@ -541,7 +541,9 @@ async def test_dry_run_and_real_run_check_inputs_against_the_agent_schema(env):
         await arun_experiment(**common, agent="picky", dry_run=1)
 
 
-async def test_dry_run_skips_judge_key_and_a_real_run_names_it_before_any_task(env, monkeypatch):
+async def test_only_a_base_url_judge_needs_a_local_key_and_names_it_before_any_task(
+    env, monkeypatch
+):
     srv, blob, provider = env
     monkeypatch.delenv("SDK_JUDGE_KEY", raising=False)
     Path(".env").write_text("SDK_EVAL_KEY=k\n")
@@ -562,8 +564,12 @@ async def test_dry_run_skips_judge_key_and_a_real_run_names_it_before_any_task(e
     assert dry.experiment_id is None and len(dry.runs) == 1
     called.clear()
     with pytest.raises(MissingCredential, match="SDK_JUDGE_KEY"):
-        await arun_experiment(**common)
+        await arun_experiment(
+            **common, judge=JudgeSettings(base_url="http://judge.test", model="judge-model")
+        )
     assert called == []
+    result = await arun_experiment(**common)
+    assert result.experiment_id is not None and called
 
 
 async def test_dry_run_applies_case_ids_and_tags(env):

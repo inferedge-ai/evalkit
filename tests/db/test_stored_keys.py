@@ -10,6 +10,7 @@ from evalkit.db.keys import StoredKeys
 from evalkit.db.llm_providers import (
     LlmProviderExists,
     LlmProviderStore,
+    NotAProviderJudge,
     ProviderInUse,
     UnknownLlmProvider,
 )
@@ -80,16 +81,20 @@ async def test_llm_providers_and_the_default_judge(session_factory):
     with pytest.raises(LlmProviderExists):
         await store.create("other", "https://api.openai.com/v1", None)
     with pytest.raises(UnknownLlmProvider):
-        await store.set_default_judge(JudgeSettings(base_url="https://nope/v1", model="m"))
-    judge = JudgeSettings(base_url="https://api.openai.com/v1", model="gpt-5")
+        await store.set_default_judge(JudgeSettings(provider="nope", model="m"))
+    with pytest.raises(NotAProviderJudge):
+        await store.set_default_judge(
+            JudgeSettings(base_url="https://api.openai.com/v1", model="m")
+        )
+    judge = JudgeSettings(provider="openai", model="gpt-5")
     await store.set_default_judge(judge)
     assert await store.default_judge() == judge
-    assert await store.sealed_key("https://api.openai.com/v1") == sealed
+    assert await store.active_endpoint("openai") == ("https://api.openai.com/v1", sealed)
     with pytest.raises(ProviderInUse):
         await store.archive("openai")
-    with pytest.raises(ProviderInUse):
-        await store.edit("openai", base_url="https://moved/v1")
-    assert not (await store.edit("openai", clear_api_key=True)).has_api_key
+    moved = await store.edit("openai", base_url="https://moved/v1")
+    assert moved.base_url == "https://moved/v1" and not moved.has_api_key
+    assert await store.default_judge() == judge
 
     await store.create("local", "http://localhost:11434/v1", None)
     await store.archive("local")
@@ -118,7 +123,11 @@ async def test_rekey_covers_every_sealed_table(session_factory):
     )
     assert (
         new.open(
-            await LlmProviderStore(session_factory, "default").sealed_key("https://o/v1") or b""
+            (
+                await LlmProviderStore(session_factory, "default").active_endpoint("openai")
+                or ("", b"")
+            )[1]
+            or b""
         )
         == "lk"
     )

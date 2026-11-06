@@ -8,9 +8,14 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 class JudgeSettings(BaseModel):
     """The LLM judge an experiment uses; exported from `evalkit.sdk` as `Judge`.
 
-    Its API key comes from `credentials.judges` in `evalkit.yaml`, keyed by `base_url`.
+    Set exactly one of `provider` or `base_url`. A `provider` judge is an LLM provider
+    registered on the evalkit server: judge-using built-in evaluators then run on the
+    server with its stored key. A `base_url` judge brings your own key: those
+    evaluators run on your machine, with the key from `credentials.llm_providers` in
+    `evalkit.yaml`, keyed by `base_url`.
 
     Attributes:
+        provider: The name of an LLM provider registered on the server.
         base_url: An OpenAI-compatible endpoint that supports structured output.
         model: The model name at that endpoint.
         reasoning_effort: Passed to the model as `reasoning_effort`.
@@ -19,10 +24,17 @@ class JudgeSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    base_url: str
+    provider: str | None = None
+    base_url: str | None = None
     model: str
     reasoning_effort: str = "high"
     max_tokens: int = Field(32768, ge=1)
+
+    @model_validator(mode="after")
+    def _check_one_endpoint(self) -> "JudgeSettings":
+        if (self.provider is None) == (self.base_url is None):
+            raise ValueError("a judge sets exactly one of provider or base_url")
+        return self
 
     @model_validator(mode="before")
     @classmethod

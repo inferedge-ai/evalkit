@@ -21,6 +21,7 @@ from evalkit.client.agents import HttpAgents
 from evalkit.client.api import ApiRequestError, AsyncApi, SyncApi, encode
 from evalkit.client.blob import HttpBlobStore
 from evalkit.client.evaluators import HttpEvaluators
+from evalkit.client.server_evaluators import HttpServerEvaluators
 from evalkit.client.sessions import HttpSessionReader
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.client.summary import summary_lines
@@ -652,15 +653,12 @@ async def arun_experiment(
         holder = local_holder(me)
         credentials = _credentials(local, me)
         if resume is None:
-            resolved_judge = judge or JudgeSettings.model_validate(
-                (await api.get("/api/judge-default")).json()
-            )
             selected = await store.cases_for(
                 slug(dataset_ref),
                 _selection(case_ids, tags),
                 agent=slug(agent_ref),
             )
-            judge_key_for(credentials, resolved_judge, selected)
+            judge_key_for(credentials, judge, selected)
             revision = git_revision(on_disk) if on_disk is not None and on_disk.is_dir() else None
             exp, dropped = await store.start_experiment(
                 ExperimentRequest(
@@ -673,7 +671,7 @@ async def arun_experiment(
                     cases=revision,
                     evalkit_version=version.current(),
                     code_evaluators=sorted(python_evaluators) or None,
-                    judge=resolved_judge,
+                    judge=judge,
                     holder=holder,
                     trajectory_wait_seconds=trajectory_wait_seconds,
                 )
@@ -696,6 +694,7 @@ async def arun_experiment(
             sessions=HttpSessionReader(api),
             python_evaluators=python_evaluators,
             evaluation_concurrency=evaluation_concurrency,
+            server_evaluators=HttpServerEvaluators(api),
         )
         cases = {case.case_id: case for case in await store.pinned_cases(exp.id)}
         for line in await missing_local_keys(deps, definition, cases.values()):
@@ -808,6 +807,7 @@ async def aevaluate_experiment(
             sessions=HttpSessionReader(api),
             python_evaluators={e.name: e for e in evaluators},
             evaluation_concurrency=evaluation_concurrency,
+            server_evaluators=HttpServerEvaluators(api),
         )
         await store.transition(experiment_id, ExperimentStatus.EVALUATING, holder)
         try:
@@ -897,8 +897,10 @@ def run_experiment(
             answer and what the server made of the session; an int runs that many.
         trajectory_wait_seconds: How long to wait for a run's spans to settle into a
             trajectory. Defaults to the agent's setting.
-        judge: The judge for LLM-graded evaluators. Defaults to the server's default
-            judge. Its API key comes from `credentials.judges` in `evalkit.yaml`, keyed
+        judge: The judge for LLM-graded built-in evaluators. Defaults to the server's
+            default judge. A `provider` judge scores them on the evalkit server with its
+            stored key. A `base_url` judge brings your own key: they run on this machine
+            and the key comes from `credentials.llm_providers` in `evalkit.yaml`, keyed
             by `base_url`.
         evaluation_concurrency: How many runs are scored at once.
 

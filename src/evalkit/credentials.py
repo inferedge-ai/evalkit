@@ -55,6 +55,8 @@ class KeySource(Protocol):
 
     def require_judge_key(self, base_url: str) -> str | None: ...
 
+    def provider_judge(self, name: str) -> tuple[str, str | None]: ...
+
 
 class CredentialRegistry:
     def __init__(
@@ -110,6 +112,17 @@ class CredentialRegistry:
             hint = f" (unset: {', '.join(k.removeprefix('env:') for k in unset)})" if unset else ""
             raise MissingCredential(f"no credentials.llm_providers entry for {base_url}{hint}")
         return key
+
+    def provider_judge(self, name: str) -> tuple[str, str | None]:
+        raise ProviderJudgeIsServerSide(name)
+
+
+class ProviderJudgeIsServerSide(LookupError):
+    def __init__(self, name: str):
+        super().__init__(
+            f"judge provider {name} is scored on the evalkit server; "
+            "pass a base_url judge to judge on this machine"
+        )
 
 
 def load_dotenv_beside(config_path: Path) -> dict[str, str]:

@@ -32,13 +32,18 @@ class EvalContext:
     answer: str
     trajectory_view: TrajectoryView | None
     wall_ms: int
-    judge_cfg: JudgeSettings
+    judge_cfg: JudgeSettings | None
     metrics: RunMetrics | None = None
     session_id: str | None = None
     cost_map: dict[str, Any] = field(default_factory=dict)
     judge_usage: JudgeUsage = field(default_factory=JudgeUsage)
     output: dict[str, Any] | None = None
     judge_api_key: str | None = None
+
+    def require_judge(self) -> JudgeSettings:
+        if self.judge_cfg is None:
+            raise ValueError("this experiment has no judge")
+        return self.judge_cfg
 
     def record_judge_usage(self, usage: JudgeUsage) -> None:
         self.judge_usage.input_tokens += usage.input_tokens
@@ -56,6 +61,7 @@ class BuiltinEval:
     kind: Literal["evaluator", "gauge"]
     emits: tuple[str, ...]
     uses_judge: bool = False
+    local_only: bool = False
 
 
 BUILTIN_EVALUATORS: dict[str, BuiltinEval] = {}
@@ -67,6 +73,7 @@ def builtin_evaluator(
     requires: set[str] | None = None,
     emits: tuple[str, ...] | None = None,
     uses_judge: bool = False,
+    local_only: bool = False,
 ):
     def decorate(fn: EvalFn) -> EvalFn:
         BUILTIN_EVALUATORS[name] = BuiltinEval(
@@ -76,6 +83,7 @@ def builtin_evaluator(
             kind="evaluator",
             emits=emits or (name,),
             uses_judge=uses_judge,
+            local_only=local_only,
         )
         return fn
 

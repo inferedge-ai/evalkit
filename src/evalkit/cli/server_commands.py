@@ -118,9 +118,11 @@ async def _register_default_judge(
     existing = await store.active_by_base_url(base_url)
     if existing is None:
         await store.create(TRY_PROVIDER, base_url, sealed)
+        name = TRY_PROVIDER
     else:
         await store.edit(existing.name, api_key_encrypted=sealed)
-    judge = JudgeSettings.model_validate({"base_url": base_url, "model": model})
+        name = existing.name
+    judge = JudgeSettings.model_validate({"provider": name, "model": model})
     await store.set_default_judge(judge)
     await factory.kw["bind"].dispose()
 

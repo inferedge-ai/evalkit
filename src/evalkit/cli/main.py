@@ -744,8 +744,16 @@ def run(
     judge_model: str | None = typer.Option(
         None, "--judge-model", help="Judge model for this experiment; default: the server's."
     ),
+    judge_provider: str | None = typer.Option(
+        None,
+        "--judge-provider",
+        help="A registered LLM provider to judge with; judge-using evaluators run on the server.",
+    ),
     judge_base_url: str | None = typer.Option(
-        None, "--judge-base-url", help="Judge endpoint; its key is credentials.judges[url]."
+        None,
+        "--judge-base-url",
+        help="Bring your own judge: judge-using evaluators run on this machine; the key is "
+        "credentials.llm_providers[url] in evalkit.yaml.",
     ),
     judge_effort: str | None = typer.Option(None, "--judge-effort", help="Judge reasoning effort."),
     evaluation_concurrency: int | None = typer.Option(
@@ -799,7 +807,7 @@ def run(
             fixtures_dir=local.fixtures if local else None,
         )
     dataset_slug = slug(resolved.ref)
-    judge = _judge_override(judge_model, judge_base_url, judge_effort)
+    judge = _judge_override(judge_model, judge_provider, judge_base_url, judge_effort)
     if route is Driver.SERVER:
         exp_id = _run_on_server(
             dataset_slug,
@@ -853,11 +861,16 @@ def run(
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
 
 
-def _judge_override(model: str | None, base_url: str | None, effort: str | None) -> dict | None:
+def _judge_override(
+    model: str | None, provider: str | None, base_url: str | None, effort: str | None
+) -> dict | None:
+    if provider is not None and base_url is not None:
+        raise ApiError("pass --judge-provider or --judge-base-url, not both")
     changes = {
         key: value
         for key, value in {
             "model": model,
+            "provider": provider,
             "base_url": base_url,
             "reasoning_effort": effort,
         }.items()
@@ -865,7 +878,10 @@ def _judge_override(model: str | None, base_url: str | None, effort: str | None)
     }
     if not changes:
         return None
-    return {**_client().get("/api/judge-default").json(), **changes}
+    current = _client().get("/api/judge-default").json()
+    if provider is not None or base_url is not None:
+        current = {k: v for k, v in current.items() if k not in ("provider", "base_url")}
+    return {**current, **changes}
 
 
 def _require_agent_key(
