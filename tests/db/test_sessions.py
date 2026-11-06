@@ -255,3 +255,18 @@ async def test_a_settled_session_counts_as_rooted_when_the_root_never_arrives(st
     monkeypatch.setattr(reader._otel, "settle_seconds", -60)
     result = await reader.trajectory("support-bot@akshat", SESSION)
     assert result.settled and result.root_present
+
+
+async def test_a_settled_session_stays_unrooted_when_its_top_spans_parent_is_stored(
+    stores, monkeypatch
+):
+    reader, spans, _, agent_id = stores
+    clock = Clock()
+    turn = _span(clock, "t1", "turn", "agent", "turn", {"session.id": SESSION})
+    turn.session_id_hint = SESSION
+    agent = _span(clock, "t1", "agent", "http", "agent", {})
+    agent.session_id_hint = None
+    await spans.upsert(agent_id, [turn, agent])
+    monkeypatch.setattr(reader._otel, "settle_seconds", -60)
+    result = await reader.trajectory("support-bot@akshat", SESSION)
+    assert result.settled and not result.root_present

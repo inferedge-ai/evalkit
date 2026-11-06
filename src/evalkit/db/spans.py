@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict, deque
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -21,6 +22,7 @@ from sqlalchemy import (
     text,
     tuple_,
     type_coerce,
+    update,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -38,38 +40,37 @@ LOCK_TRACES = text(
     "SELECT pg_advisory_xact_lock(hashtext(n)) "
     "FROM unnest(CAST(:names AS text[])) WITH ORDINALITY AS t(n, i) ORDER BY i"
 )
-SESSION_FROM_ANCESTORS = text(
-    """
-    WITH RECURSIVE trace AS (
-        SELECT id, trace_id, span_id, parent_span_id, session_id
-        FROM spans
-        WHERE agent_id = :agent_id AND trace_id = ANY(:trace_ids)
-    ),
-    chain AS (
-        SELECT t.id, t.trace_id, t.span_id, t.session_id AS resolved
-        FROM trace t
-        WHERE NOT EXISTS (
-            SELECT 1 FROM trace p
-            WHERE p.trace_id = t.trace_id AND p.span_id = t.parent_span_id
-        )
-        UNION ALL
-        SELECT t.id, t.trace_id, t.span_id, coalesce(c.resolved, t.session_id)
-        FROM trace t
-        JOIN chain c ON t.trace_id = c.trace_id AND t.parent_span_id = c.span_id
-    ),
-    roots AS (
-        SELECT trace_id, max(session_id) AS session_id
-        FROM trace
-        WHERE parent_span_id IS NULL
-        GROUP BY trace_id
+
+
+class SpanLink(NamedTuple):
+    id: int
+    trace_id: str
+    span_id: str
+    parent_span_id: str | None
+    session_id: str | None
+
+
+def resolve_sessions(links: list[SpanLink]) -> dict[int, str | None]:
+    by_key = {(link.trace_id, link.span_id): link for link in links}
+    children: dict[tuple[str, str | None], list[SpanLink]] = defaultdict(list)
+    roots: dict[str, str | None] = {}
+    for link in links:
+        if link.parent_span_id is None and link.session_id is not None:
+            roots[link.trace_id] = max(roots.get(link.trace_id) or "", link.session_id)
+        if (link.trace_id, link.parent_span_id) in by_key:
+            children[(link.trace_id, link.parent_span_id)].append(link)
+    resolved: dict[int, str | None] = {}
+    queue = deque(
+        (link, link.session_id)
+        for link in links
+        if (link.trace_id, link.parent_span_id) not in by_key
     )
-    UPDATE spans
-    SET session_id = coalesce(r.session_id, c.resolved)
-    FROM chain c LEFT JOIN roots r ON r.trace_id = c.trace_id
-    WHERE spans.id = c.id
-      AND spans.session_id IS DISTINCT FROM coalesce(r.session_id, c.resolved)
-    """
-)
+    while queue:
+        link, session_id = queue.popleft()
+        resolved[link.id] = roots.get(link.trace_id) or session_id
+        for child in children[(link.trace_id, link.span_id)]:
+            queue.append((child, session_id or child.session_id))
+    return resolved
 
 
 class SessionSummary(BaseModel):
@@ -177,6 +178,24 @@ class SessionRead:
         )
         return (await self._session.execute(roots)).scalar_one() == len(found)
 
+    async def parents_missing(self) -> bool:
+        columns = (models.Span.agent_id, models.Span.trace_id, models.Span.span_id)
+        rows = (
+            await self._session.execute(
+                select(*columns, models.Span.parent_span_id).where(self._where)
+            )
+        ).all()
+        inside = {(agent, trace, span) for agent, trace, span, _ in rows}
+        parents = {
+            (agent, trace, parent)
+            for agent, trace, _, parent in rows
+            if parent is not None and (agent, trace, parent) not in inside
+        }
+        if not parents:
+            return False
+        stored = select(func.count()).where(tuple_(*columns).in_(sorted(parents)))
+        return (await self._session.execute(stored)).scalar_one() == 0
+
     async def attribute_bytes(self, drop: AttributeDrop) -> int:
         size = func.octet_length(cast(self._attributes(drop), Text))
         statement = select(func.coalesce(func.sum(size), 0)).where(self._where)
@@ -254,10 +273,24 @@ class SpanStore:
                         set_={k: statement.excluded[k] for k in values[0] if k not in SPAN_KEY},
                     )
                 )
-            await session.execute(
-                SESSION_FROM_ANCESTORS,
-                {"agent_id": agent_id, "trace_ids": trace_ids},
+            stored = await session.execute(
+                select(
+                    models.Span.id,
+                    models.Span.trace_id,
+                    models.Span.span_id,
+                    models.Span.parent_span_id,
+                    models.Span.session_id,
+                ).where(models.Span.agent_id == agent_id, models.Span.trace_id.in_(trace_ids))
             )
+            links = [SpanLink(*row) for row in stored.all()]
+            current = {link.id: link.session_id for link in links}
+            changed = [
+                {"id": span_id, "session_id": session_id}
+                for span_id, session_id in resolve_sessions(links).items()
+                if current[span_id] != session_id
+            ]
+            if changed:
+                await session.execute(update(models.Span), changed)
             await session.commit()
         return len(spans)
 

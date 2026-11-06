@@ -5,7 +5,7 @@ import pytest
 from evalkit.core.traces.mapping import AttributeKeys
 from evalkit.core.traces.raw import RawSpan
 from evalkit.db.agents import AgentStore
-from evalkit.db.spans import AttributeDrop, SpanStore
+from evalkit.db.spans import AttributeDrop, SpanLink, SpanStore, resolve_sessions
 from tests.identity import seed_identity, workspace_ref
 
 NOW = datetime(2026, 10, 9, tzinfo=UTC)
@@ -184,3 +184,12 @@ async def test_session_read_drops_keys_on_listed_rows_only(db):
     assert streamed[1].events == [] and streamed[1].resource == {}
     async with store.read_session(agent_id, "nope") as rows:
         assert await rows.attribute_bytes(AttributeDrop([], keys)) == 0
+
+
+def test_resolve_sessions_walks_a_deep_chain_once():
+    links = [SpanLink(0, "t", "s0", "http", "S")]
+    links += [
+        SpanLink(i, "t", f"s{i}", f"s{i - 1}", "X" if i % 2 else None) for i in range(1, 10_000)
+    ]
+    resolved = resolve_sessions(links)
+    assert len(resolved) == 10_000 and set(resolved.values()) == {"S"}
