@@ -120,3 +120,16 @@ async def test_builtin_evaluators_are_listed_and_their_names_reserved(served):
         },
     )
     assert clash.status_code == 400 and "built-in" in clash.json()["detail"]
+
+
+async def test_a_private_personal_harness_url_does_not_block_server_evaluations(served):
+    client, env = served
+    exp = await _local_run(env, PROVIDER)
+    run_id = (await env.details(exp.id))[0].experiment_run_id
+    client.app.state.cfg.allow_private_endpoints = False  # type: ignore[attr-defined]
+    scored = await client.post(
+        f"/api/experiment-runs/{run_id}/server-evaluations/answer_rubrics",
+        json={"config": {"rubrics": [{"rubric": "Says hi.", "type": "factual_retrieval"}]}},
+    )
+    assert scored.status_code == 200, scored.text
+    assert all(row["error"] is None for row in scored.json()["rows"])

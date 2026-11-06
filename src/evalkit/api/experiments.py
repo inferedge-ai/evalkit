@@ -63,6 +63,7 @@ from evalkit.db import scorecard as db_scorecard
 from evalkit.db.agents import agent_definition, agent_id_for
 from evalkit.db.cases import dataset_by_ref
 from evalkit.db.experiments import tenant_of_experiment
+from evalkit.db.keys import StoredKeys
 from evalkit.db.models import AgentRun as AgentRunRow
 from evalkit.db.models import ExperimentRun as ExperimentRunRow
 from evalkit.db.models import User
@@ -497,7 +498,6 @@ async def score_on_server(
     name: str,
     body: ServerEvaluationRequest,
     stores: StoresDep,
-    cfg: ConfigDep,
     session: SessionDep,
     actor: ActorDep,
 ) -> dict:
@@ -519,7 +519,7 @@ async def score_on_server(
             detail=f"experiment {exp_id} has no provider judge; its built-ins run on your machine",
         )
     provider = await require_provider_judge(stores.providers, judge)
-    keys, _ = await server_keys(stores, cfg, agent, provider)
+    keys = StoredKeys({}, await stores.keys.provider_judges(provider))
     base_url, api_key = keys.provider_judge(provider)
     run = await stores.store.run_to_score(exp_id, run_id)
     if run is None:

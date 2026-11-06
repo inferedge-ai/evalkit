@@ -20,7 +20,10 @@ def upgrade() -> None:
     op.execute(
         """
         UPDATE evaluations e
-        SET scored_on = CASE WHEN w.owner_user_id IS NULL THEN 'server' ELSE 'local' END
+        SET scored_on = CASE
+            WHEN w.owner_user_id IS NULL AND a.harness_url IS NOT NULL THEN 'server'
+            ELSE 'local'
+        END
         FROM experiment_runs er
         JOIN experiments x ON x.id = er.experiment_id
         JOIN agents a ON a.id = x.agent_id
@@ -78,6 +81,7 @@ def upgrade() -> None:
         WHERE a.id = x.agent_id
           AND w.id = a.workspace_id
           AND w.owner_user_id IS NULL
+          AND a.harness_url IS NOT NULL
           AND x.config->'judge' ? 'base_url'
           AND p.tenant_id = w.tenant_id
           AND p.base_url = x.config->'judge'->>'base_url'

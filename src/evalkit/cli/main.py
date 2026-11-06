@@ -878,7 +878,8 @@ def _judge_override(
     }
     if not changes:
         return None
-    current = _client().get("/api/judge-default").json()
+    found = _client().get_if_found("/api/judge-default")
+    current = found.json() if found is not None else {}
     if provider is not None or base_url is not None:
         current = {k: v for k, v in current.items() if k not in ("provider", "base_url")}
     return {**current, **changes}

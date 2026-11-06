@@ -32,7 +32,8 @@
   - A remote evaluator can no longer take a built-in's name.
   - The workspace Evaluators page lists the built-in evaluators.
   - Migration `0017` adds `evaluations.scored_on` (`server` for server runs,
-    `local` otherwise) and rewrites the default judge, and server runs'
+    that is shared agents with a harness URL; `local` otherwise, including SDK
+    runs of shared code-driven agents) and rewrites the default judge, and server runs'
     recorded judges, from base URL to provider name. It fails if the default
     judge's base URL matches no provider: register one or clear the default
     judge first.

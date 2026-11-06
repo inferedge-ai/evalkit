@@ -16,6 +16,7 @@ import httpx2
 import pytest
 import sqlalchemy as sa
 import uvicorn
+from sqlalchemy import create_engine, text
 from typer.testing import CliRunner
 
 from evalkit.api import experiments as experiments_api
@@ -1388,6 +1389,36 @@ def test_run_judge_flags_start_from_the_server_default(env, tmp_path, monkeypatc
         ["run", "finance", "--agent", "fake", "--judge-provider", "judge", "--judge-base-url", "u"],
     )
     assert both.exit_code == 1 and "not both" in both.output
+
+
+def test_a_full_base_url_judge_runs_without_a_default_judge(
+    env, tmp_path, monkeypatch, harness_url, module_db_url
+):
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    engine = create_engine(module_db_url, isolation_level="AUTOCOMMIT")
+    with engine.connect() as conn:
+        saved = conn.execute(text("SELECT default_judge FROM tenant_settings")).scalar()
+        conn.execute(text("UPDATE tenant_settings SET default_judge = NULL"))
+    try:
+        _local_run(
+            "finance",
+            "--agent",
+            "fake",
+            "--judge-base-url",
+            "http://judge.test",
+            "--judge-model",
+            "m",
+        )
+        judge = latest_experiment("finance@admin").config.judge
+        assert (judge.base_url, judge.model) == ("http://judge.test", "m")
+    finally:
+        with engine.connect() as conn:
+            conn.execute(
+                text("UPDATE tenant_settings SET default_judge = CAST(:j AS jsonb)"),
+                {"j": json.dumps(saved)},
+            )
+        engine.dispose()
 
 
 def test_runs_pull_app_runs_of_a_personal_harness_agent(
