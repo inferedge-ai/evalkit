@@ -98,6 +98,7 @@ def _from_proto(span: ProtoSpan, resource: dict[str, Any], scope: str | None) ->
         ],
         resource=resource,
         scope=scope,
+        dropped_attributes_count=span.dropped_attributes_count,
     )
 
 
@@ -149,6 +150,7 @@ def _from_json(span: dict[str, Any], resource: dict[str, Any], scope: str | None
         ],
         resource=resource,
         scope=scope,
+        dropped_attributes_count=int(span.get("droppedAttributesCount") or 0),
     )
 
 

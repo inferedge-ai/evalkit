@@ -142,7 +142,7 @@ export OTEL_BSP_MAX_QUEUE_SIZE=2048        # spans waiting for export; raise it 
 export OTEL_EXPORTER_OTLP_TIMEOUT=60       # seconds per export in Python; default 10
 ```
 
-OpenTelemetry SDKs keep at most 128 attributes per span (`OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT`). OpenInference writes each message as several attributes (`llm.input_messages.0.message.role`, `….content`, …), so a long conversation passes the limit, and the SDK drops the oldest attributes: the system prompt and the first user message. The Python SDK logs "Attributes dict is full. Dropping the oldest key-value pair" when it happens. `evalkit traces check` warns on its `llm` line when message indices have gaps. Raise the limit before the SDK starts:
+OpenTelemetry SDKs keep at most 128 attributes per span (`OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT`). OpenInference writes each message as several attributes (`llm.input_messages.0.message.role`, `….content`, …), so a long conversation passes the limit and the SDK drops attributes, which loses messages or parts of them. The Python SDK logs "Attributes dict is full" when it happens. Each exported span says how many attributes it lost; evalkit stores that count, and `evalkit traces check` warns on its `llm` line when an LLM span lost any. Raise the limit before the SDK starts:
 
 ```bash
 export OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096

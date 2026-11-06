@@ -166,6 +166,29 @@ async def test_producer_with_an_error_row_is_not_done(session_factory, exp_id):
     assert run.done == set()
 
 
+async def test_producer_with_an_error_label_is_not_done(session_factory, exp_id):
+    async with session_factory() as s:
+        ref = await record_run(s, exp_id, "q-1", 1, attempt("h1", RunStatus.COMPLETED), None)
+        await publish_evaluations(
+            s,
+            ref.experiment_run_id,
+            [score("answer_rubric_score"), score("answer_rubric", label="error", value=None)],
+        )
+        [run] = await runs_to_score(s, exp_id, force=False)
+    assert run.done == set()
+
+
+async def test_a_publication_replaces_only_its_own_producers_rows(session_factory, exp_id):
+    async with session_factory() as s:
+        ref = await record_run(s, exp_id, "q-1", 1, attempt("h1", RunStatus.COMPLETED), None)
+        run_id = ref.experiment_run_id
+        await publish_evaluations(s, run_id, [score("answer_rubric_score")])
+        await publish_evaluations(s, run_id, [score("tone", producer="tone")])
+        await publish_evaluations(s, run_id, [score("answer_rubric_coverage")])
+        found = await _evaluations(s, run_id)
+    assert set(found) == {"tone", "answer_rubric_coverage"}
+
+
 async def test_multi_name_producer_stores_one_row_per_name(session_factory, exp_id):
     names = ["answer_rubric_score", "answer_rubric_coverage", "answer_rubric_precision"]
     async with session_factory() as s:

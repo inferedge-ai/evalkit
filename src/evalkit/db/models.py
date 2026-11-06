@@ -302,6 +302,9 @@ class Span(Base):
     events: Mapped[list] = mapped_column(JSONB)
     resource: Mapped[dict] = mapped_column(JSONB)
     scope: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    dropped_attributes_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False
     )

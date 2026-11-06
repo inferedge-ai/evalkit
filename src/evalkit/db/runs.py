@@ -243,11 +243,16 @@ async def runs_to_score(
                 models.Evaluation.producer,
                 models.Evaluation.name,
                 models.Evaluation.error,
+                models.Evaluation.label,
             ).where(models.Evaluation.experiment_run_id.in_([er.id for er, _, _ in rows]))
         )
         found = evaluations.all()
-        errored = {(run_id, producer) for run_id, producer, _, error in found if error is not None}
-        for run_id, producer, name, _ in found:
+        errored = {
+            (run_id, producer)
+            for run_id, producer, _, error, label in found
+            if error is not None or label == "error"
+        }
+        for run_id, producer, name, _, _ in found:
             if (run_id, producer) not in errored:
                 done.setdefault(run_id, set()).add(name)
     return [
