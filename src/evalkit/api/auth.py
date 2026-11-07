@@ -190,7 +190,7 @@ async def current_user(request: Request) -> User:
 
 
 CurrentUser = Annotated[User, Depends(current_user)]
-SIGNED_IN = [Depends(current_user)]
+SIGNED_IN = (Depends(current_user),)
 
 
 @dataclass(frozen=True)

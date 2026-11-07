@@ -14,8 +14,7 @@ import httpx2
 from fastapi import FastAPI, Request
 from sqlalchemy.exc import TimeoutError as PoolTimeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.responses import FileResponse, JSONResponse, Response
-from starlette.staticfiles import StaticFiles
+from starlette.responses import JSONResponse
 
 from evalkit import version
 from evalkit.api import (
@@ -267,6 +266,7 @@ def create_app(
             await engine.dispose()
 
     app = FastAPI(title="evalkit", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app.add_exception_handler(StarletteHTTPException, otel.log_rejection)
     app.state.cfg = cfg
     app.state.resolve_tenant = resolve_tenant
     app.state.runner_deps = resolved_deps
@@ -390,33 +390,8 @@ def create_app(
     app.include_router(otel.router)
     mcp_app = mount_mcp(app)
 
-    ui = ui_dist if ui_dist is not None else ui_root()
-    if (ui / "assets").is_dir():
-        app.mount("/assets", StaticFiles(directory=ui / "assets"), name="assets")
-    app.add_exception_handler(
-        StarletteHTTPException, page_fallback(ui) if ui.is_dir() else otel.log_rejection
-    )
+    if ui_dist is None and ui_root().is_dir():
+        ui_dist = ui_root()
+    if ui_dist is not None:
+        app.frontend("/", directory=ui_dist)
     return app
-
-
-def page_fallback(ui_dist: Path) -> Callable[[Request, Exception], Awaitable[Response]]:
-    root = ui_dist.resolve()
-
-    # A not-found handler rather than a catch-all route, so routes added to the
-    # app after create_app still answer GET. Any other non-API path gets its
-    # file or index.html, for the UI's client-side router to draw.
-    async def serve_page(request: Request, exc: Exception) -> Response:
-        assert isinstance(exc, StarletteHTTPException)
-        path = request.url.path.lstrip("/")
-        if (
-            exc.status_code != 404
-            or request.method not in ("GET", "HEAD")
-            or path.startswith(("api/", "assets/", ".well-known/"))
-        ):
-            return await otel.log_rejection(request, exc)
-        candidate = (root / path).resolve()
-        if candidate.is_relative_to(root) and candidate.is_file():
-            return FileResponse(candidate)
-        return FileResponse(root / "index.html")
-
-    return serve_page

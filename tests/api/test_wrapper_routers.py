@@ -1,6 +1,6 @@
 import httpx2
 import pytest
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from evalkit.api.app import create_app
 from evalkit.api.auth import SIGNED_IN, CurrentUser
@@ -28,6 +28,11 @@ async def get_prices() -> dict:
 @public.post("/mcp")
 async def take_mcp() -> dict:
     return {"from": "wrapper"}
+
+
+@public.get("/billing/invoices/{number}")
+async def get_invoice(number: int) -> dict:
+    raise HTTPException(status_code=404, detail=f"no invoice {number}")
 
 
 @pytest.fixture
@@ -65,8 +70,8 @@ async def test_serves_routes_added_after_create_app(client):
 
     plan = await client.get("/api/billing/plan")
     changed = await client.post("/api/billing/plan")
-    page = await client.get("/billing")
-    me = await client.get("/api/auth/me")
+    page = await client.get("/billing", headers={"Accept": "text/html"})
+    invoice = await client.get("/billing/invoices/7", headers={"Accept": "text/html"})
     unknown = await client.get("/api/billing/nope")
 
     assert signed_out.status_code == 401
@@ -76,5 +81,5 @@ async def test_serves_routes_added_after_create_app(client):
     assert plan.status_code == 200 and plan.json() == {"plan": "team", "user": "admin"}
     assert changed.json() == {"changed": True}
     assert page.status_code == 200 and "evalkit spa" in page.text
-    assert me.json()["username"] == "admin"
+    assert invoice.status_code == 404 and invoice.json() == {"detail": "no invoice 7"}
     assert unknown.status_code == 404

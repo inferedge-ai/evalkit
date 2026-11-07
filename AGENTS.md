@@ -147,15 +147,16 @@ Another package can serve evalkit with API routes and UI pages of its own.
 **API routes.** Build the app with `create_app(cfg, ui_dist=..., resolve_tenant=...)`,
 then add plain FastAPI routes with `app.include_router(...)`.
 
-- The UI is served from the not-found handler, not a catch-all route, so
-  routes added after `create_app` answer GET.
+- The UI is served by FastAPI's `app.frontend()`, which is tried only after
+  every other route, so routes added after `create_app` answer GET.
 - evalkit's routes come first and win a path clash, including ones with
   parameters such as `/api/agents/{ref}`. Keep yours under a prefix of your own
   (`/api/billing/...`).
 - A route that needs a signed-in user is added with
   `dependencies=SIGNED_IN` from `evalkit.api.auth`; without it the route is
-  public. A handler that needs the user takes `CurrentUser`; an admin-only one
-  takes `AdminUser`.
+  public. `SIGNED_IN` covers path operations (`@router.get` and the like), not
+  `router.add_route()` or mounts. A handler that needs the user takes
+  `CurrentUser`; an admin-only one takes `AdminUser`.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
