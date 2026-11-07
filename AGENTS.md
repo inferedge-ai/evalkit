@@ -140,6 +140,35 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - No browser `alert()`, `confirm()` or `prompt()` in new UI code: use inline
   fields or dialogs.
 
+## Wrapping evalkit
+
+A wrapper is another package that serves evalkit with features of its own.
+It builds the server with `create_app` and may pass:
+
+- `routers`: its FastAPI routers, included after evalkit's API routes and
+  before the route that serves the UI, so their GET endpoints answer.
+  evalkit's routes win when a path clashes. They are not behind evalkit's
+  sign-in: a route that needs a user takes `CurrentUser` from
+  `evalkit.api.auth`.
+- `resolve_tenant`: picks each request's tenant.
+- `ui_dist`: the folder of a UI build to serve instead of the bundled one.
+
+The UI takes extra pages and nav items from `ui/src/extensions/index.tsx`,
+which exports `extensions` of type `UiExtensions` (`ui/src/lib/extensions.ts`).
+In evalkit it is empty.
+
+- A wrapper replaces the `ui/src/extensions/` folder with its own, builds the
+  UI (`npm ci && npx tsc -b && npx vite build`) from the same evalkit version
+  as its server package, and passes `ui/dist` as `ui_dist`. `tsc -b` checks
+  its pages against evalkit's types.
+- `routes` render for signed-in users inside the app shell. `nav` items join
+  the top bar, `moreNav` the More menu, and `adminNav` the admin part of that
+  menu, which only admins see.
+- Keep the folder path, the `extensions` export and `UiExtensions` stable:
+  wrappers build against them.
+- A Vite alias to a module outside `ui/` does not work: imports in that module,
+  such as `react`, do not resolve.
+
 ## CI
 
 - **Open pull requests as drafts** (`gh pr create --draft`). CI skips drafts, so run the tests locally and mark the PR ready (`gh pr ready <number>`) when it should be reviewed and run CI.

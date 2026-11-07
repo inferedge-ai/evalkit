@@ -5,13 +5,13 @@ import os
 import signal
 import socket
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx2
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from sqlalchemy.exc import TimeoutError as PoolTimeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import FileResponse, JSONResponse
@@ -203,6 +203,7 @@ def create_app(
     holder: str | None = None,
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
     resolve_tenant: TenantResolver = default_resolve_tenant,
+    routers: Sequence[APIRouter] = (),
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (
@@ -390,6 +391,8 @@ def create_app(
     app.include_router(traces.router, dependencies=wall)
     app.include_router(trace_imports.router, dependencies=wall)
     app.include_router(otel.router)
+    for router in routers:
+        app.include_router(router)
     mcp_app = mount_mcp(app)
 
     if ui_dist is None:

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `create_app` takes `routers`, FastAPI routers from a package that wraps
+  evalkit, and includes them before the route that serves the web UI. Routes
+  a wrapper added after `create_app` returned were unreachable for GET:
+  `GET /api/<x>` answered 404 and any other path returned the UI. The web UI
+  takes extra pages and nav items from `ui/src/extensions/`, empty in evalkit,
+  which a wrapper replaces before building the UI. See "Wrapping evalkit" in
+  `AGENTS.md`.
 - An evaluator that raises an exception without a message (an httpx
   timeout, say) now records the exception type, e.g. `ReadTimeout`,
   instead of an empty error, in the CLI, `evaluations.json` and the
