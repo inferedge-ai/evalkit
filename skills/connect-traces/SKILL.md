@@ -24,11 +24,19 @@ Workspace tab in evalkit) come from the Harness API files endpoints, which
 spans do not carry. If the developer wants that tab, the agent needs a
 Harness API with those endpoints (see the evalkit-usage skill).
 
-Every OTel agent has its own mapping, set when the agent is created. Two
-starting points ship in `references/`: `openinference.json` for spans with
-`openinference.span.kind`, and `gen_ai.json` for spans with
-`gen_ai.operation.name`. Copy the one that
-fits and change it if the agent's attributes differ. The mapping also holds
+Every OTel agent has its own mapping, set when the agent is created.
+`references/` ships one per popular framework: `langchain.json`,
+`crewai.json`, `agno.json`, `llamaindex.json`, `google-adk.json`,
+`claude-agent-sdk.json` and `mastra.json`. Pick the agent's framework first;
+[Framework mappings](../evalkit-docs/framework-mappings.md) lists which file
+fits which framework (LangGraph, OpenAI Agents SDK and Pydantic AI use the
+generic files as they are) and the agent-side changes each one still needs.
+(`evalkit-docs/` sits beside the installed skills; in the evalkit
+repository the page is `docs/user/framework-mappings.md`.)
+Otherwise fall back to the two generic files: `openinference.json` for spans
+with `openinference.span.kind`, and `gen_ai.json` for spans with
+`gen_ai.operation.name`. Copy the one that fits and change it if the agent's
+attributes differ. The mapping also holds
 two run-level settings:
 
 - `answer`: where the run's answer comes from. `root` (the usual value), a
@@ -70,8 +78,8 @@ lacks it. That is what a wrong mapping looks like in the check.
    (its Loop 2).
    To export only eval runs, see "Choosing what a shared worker exports"
    below.
-2. **Create the agent with a mapping.** Copy the starting point from
-   step 1 into the repo and create the agent with it. Add `--harness-url`
+2. **Create the agent with a mapping.** Copy the framework's file (or the
+   generic starting point from step 1) into the repo and create the agent with it. Add `--harness-url`
    when the agent also has a Harness API; leave it out for a code-driven
    agent.
 
@@ -148,6 +156,7 @@ lacks it. That is what a wrong mapping looks like in the check.
    | `trajectory` | ATIF steps, tool calls, subagents |
    | `steps` | shown only when there are more LLM spans than LLM steps; check `exclude_spans` and the kind rule |
    | `subagents` | shown only when subagents hold every LLM call and the main agent none; usually an outer wrapper span; set `main_agent` or `exclude_spans` |
+   | `answer` | shown only when the mapping's `answer` rule names a span the session does not have; fix the name (a copied placeholder such as `<agent name>`, or a typo) |
 
    Each line of the check output starts with `✓` (fine), `!` (a warning) or
    `✗` (a failure). Read every `!` line, even when the check exits 0: each

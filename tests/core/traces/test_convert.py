@@ -133,6 +133,16 @@ def test_answer_from_named_span_and_key():
         convert(spans, MappingDocument(schema_version="1", answer="final")).steps[-1].message
         == '{"text": "named"}'
     )
+    assert (
+        "answer_span_missing"
+        not in convert(spans, MappingDocument(schema_version="1", answer="final")).extra
+    )
+
+
+def test_answer_rule_naming_no_span_is_noted():
+    spans = [span("root", "agent"), llm("l1", parent="root", at=1, text="done")]
+    mapping = MappingDocument(schema_version="1", answer="invoke_agent <agent name>.text")
+    assert convert(spans, mapping).extra["answer_span_missing"] == "invoke_agent <agent name>"
 
 
 def test_excluded_names_and_no_llm_spans():
