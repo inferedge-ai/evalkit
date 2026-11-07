@@ -3,9 +3,10 @@
 ## Unreleased
 
 - `create_app` takes `routers`, FastAPI routers from a package that wraps
-  evalkit, and includes them before the route that serves the web UI. Routes
-  a wrapper added after `create_app` returned were unreachable for GET:
-  `GET /api/<x>` answered 404 and any other path returned the UI. The web UI
+  evalkit, and includes them behind evalkit's sign-in, after its API and MCP
+  routes and before the route that serves the web UI. Routes a wrapper added
+  after `create_app` returned were unreachable for GET: `GET /api/<x>`
+  answered 404 and any other path returned the UI. The web UI
   takes extra pages and nav items from `ui/src/extensions/`, empty in evalkit,
   which a wrapper replaces before building the UI. See "Wrapping evalkit" in
   `AGENTS.md`.

@@ -19,6 +19,14 @@ async def change_plan() -> dict:
     return {"changed": True}
 
 
+clash = APIRouter()
+
+
+@clash.post("/mcp")
+async def take_mcp() -> dict:
+    return {"from": "wrapper"}
+
+
 @pytest.fixture
 async def client(tmp_path, session_factory):
     env = await seed_env(session_factory, tmp_path)
@@ -33,7 +41,7 @@ async def client(tmp_path, session_factory):
         check_schema=False,
         ui_dist=dist,
         holder=HOLDER,
-        routers=[billing],
+        routers=[billing, clash],
     )
     async with app.router.lifespan_context(app):
         transport = httpx2.ASGITransport(app=app)
@@ -41,8 +49,10 @@ async def client(tmp_path, session_factory):
             yield client
 
 
-async def test_a_wrappers_routes_answer_beside_evalkits_api_and_ui(client):
+async def test_serves_wrapper_routes(client):
     signed_out = await client.get("/api/billing/plan")
+    signed_out_change = await client.post("/api/billing/plan")
+    mcp = await client.post("/mcp", json={})
     login = await client.post(
         "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
     )
@@ -55,6 +65,8 @@ async def test_a_wrappers_routes_answer_beside_evalkits_api_and_ui(client):
     unknown = await client.get("/api/billing/nope")
 
     assert signed_out.status_code == 401
+    assert signed_out_change.status_code == 401
+    assert mcp.status_code == 401 and "WWW-Authenticate" in mcp.headers
     assert plan.status_code == 200 and plan.json() == {"plan": "team", "user": "admin"}
     assert changed.json() == {"changed": True}
     assert page.status_code == 200 and "evalkit spa" in page.text

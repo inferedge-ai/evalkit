@@ -391,9 +391,9 @@ def create_app(
     app.include_router(traces.router, dependencies=wall)
     app.include_router(trace_imports.router, dependencies=wall)
     app.include_router(otel.router)
-    for router in routers:
-        app.include_router(router)
     mcp_app = mount_mcp(app)
+    for router in routers:
+        app.include_router(router, dependencies=wall)
 
     if ui_dist is None:
         ui_dist = ui_root()

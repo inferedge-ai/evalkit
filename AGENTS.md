@@ -145,10 +145,12 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 A wrapper is another package that serves evalkit with features of its own.
 It builds the server with `create_app` and may pass:
 
-- `routers`: its FastAPI routers, included after evalkit's API routes and
-  before the route that serves the UI, so their GET endpoints answer.
-  evalkit's routes win when a path clashes. They are not behind evalkit's
-  sign-in: a route that needs a user takes `CurrentUser` from
+- `routers`: its FastAPI routers, included after evalkit's API and MCP routes
+  and before the route that serves the UI, so their GET endpoints answer.
+  evalkit's routes win when a path clashes, including ones with parameters
+  such as `/api/agents/{ref}`, so a wrapper keeps its routes under a prefix of
+  its own (`/api/billing/...`). They sit behind evalkit's sign-in, as its own
+  API routes do; a handler that needs the user takes `CurrentUser` from
   `evalkit.api.auth`.
 - `resolve_tenant`: picks each request's tenant.
 - `ui_dist`: the folder of a UI build to serve instead of the bundled one.
