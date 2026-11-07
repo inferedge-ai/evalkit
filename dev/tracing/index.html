@@ -992,6 +992,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../framework-mappings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Framework mappings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1467,7 +1495,7 @@ user can import traces from it into an OTel agent they can write, with
 <h2 id="checking-a-session">Checking a session<a class="headerlink" href="#checking-a-session" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>check<span class="w"> </span>myagent-sdk<span class="w"> </span>&lt;session<span class="w"> </span>id&gt;
 </code></pre></div>
-<p>prints the settle state, span kinds, tokens, the attributes the mapping did not read and the ATIF summary. <code>--dump spans.json</code> writes the raw spans. <code>--dump esf.json</code> leaves out the input messages of every LLM call after each agent's first, as the trajectory does not use them; <code>spans.json</code> has the raw values. A session over <code>otel.max_session_bytes</code> fails the check with its size and the limit (see Size limits and large spans above). If the kinds or messages look wrong, the agent needs a mapping: see <a href="../mappings/">Mappings</a>.</p>
+<p>prints the settle state, span kinds, tokens, the attributes the mapping did not read and the ATIF summary. <code>--dump spans.json</code> writes the raw spans. <code>--dump esf.json</code> leaves out the input messages of every LLM call after each agent's first, as the trajectory does not use them; <code>spans.json</code> has the raw values. A session over <code>otel.max_session_bytes</code> fails the check with its size and the limit (see Size limits and large spans above). If the kinds or messages look wrong, the agent needs a mapping: see <a href="../mappings/">Mappings</a>, and <a href="../framework-mappings/">Framework mappings</a> for a ready-made one per framework.</p>
 
 
 
