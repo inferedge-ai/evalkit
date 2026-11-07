@@ -1,7 +1,7 @@
 import json
 
-import httpx
-import respx
+import httpx2
+from respx import MockResponse
 
 from evalkit.contracts.custom_evaluator import EvalCase
 from evalkit.contracts.enums import EvaluatorKind
@@ -24,10 +24,9 @@ CASE = EvalCase(
 )
 
 
-@respx.mock
-async def test_happy_path_multi_score():
-    route = respx.post(ENDPOINT).mock(
-        return_value=httpx.Response(
+async def test_happy_path_multi_score(httpx2_mock):
+    route = httpx2_mock.post(ENDPOINT).mock(
+        return_value=MockResponse(
             200,
             json={
                 "scores": [
@@ -46,25 +45,22 @@ async def test_happy_path_multi_score():
     assert body.headers["x-api-key"] == "client-key"
 
 
-@respx.mock
-async def test_timeout_returns_error():
-    respx.post(ENDPOINT).mock(side_effect=httpx.ConnectTimeout("timed out"))
+async def test_timeout_returns_error(httpx2_mock):
+    httpx2_mock.post(ENDPOINT).mock(side_effect=httpx2.ConnectTimeout("timed out"))
     result = await score_with_custom_evaluator(CFG, "k", case=CASE, answer="a", trajectory={})
     assert isinstance(result, EvalError)
     assert result.evaluator == "required_tool_calls"
 
 
-@respx.mock
-async def test_500_returns_error():
-    respx.post(ENDPOINT).mock(return_value=httpx.Response(500, text="boom"))
+async def test_500_returns_error(httpx2_mock):
+    httpx2_mock.post(ENDPOINT).mock(return_value=MockResponse(500, text="boom"))
     result = await score_with_custom_evaluator(CFG, "k", case=CASE, answer="a", trajectory={})
     assert isinstance(result, EvalError)
 
 
-@respx.mock
-async def test_null_score_passes_through():
-    respx.post(ENDPOINT).mock(
-        return_value=httpx.Response(
+async def test_null_score_passes_through(httpx2_mock):
+    httpx2_mock.post(ENDPOINT).mock(
+        return_value=MockResponse(
             200, json={"scores": [{"name": "x", "score": None, "label": "skip"}]}
         )
     )
@@ -72,16 +68,14 @@ async def test_null_score_passes_through():
     assert isinstance(scores, list) and scores[0].score is None
 
 
-@respx.mock
-async def test_invalid_response_shape_returns_error():
-    respx.post(ENDPOINT).mock(return_value=httpx.Response(200, json={"nope": 1}))
+async def test_invalid_response_shape_returns_error(httpx2_mock):
+    httpx2_mock.post(ENDPOINT).mock(return_value=MockResponse(200, json={"nope": 1}))
     result = await score_with_custom_evaluator(CFG, "k", case=CASE, answer="a", trajectory={})
     assert isinstance(result, EvalError)
 
 
-@respx.mock
-async def test_no_key_sends_no_header_and_gauge_wire_kind():
-    route = respx.post(ENDPOINT).mock(return_value=httpx.Response(200, json={"scores": []}))
+async def test_no_key_sends_no_header_and_gauge_wire_kind(httpx2_mock):
+    route = httpx2_mock.post(ENDPOINT).mock(return_value=MockResponse(200, json={"scores": []}))
     gauge = CFG.model_copy(update={"kind": EvaluatorKind.GAUGE})
     await score_with_custom_evaluator(gauge, None, case=CASE, answer="a", trajectory={})
     request = route.calls[0].request

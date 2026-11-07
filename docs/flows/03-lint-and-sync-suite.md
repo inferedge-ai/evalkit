@@ -102,7 +102,7 @@ sequenceDiagram
   - `--actor` (admin only) records someone else as the author.
 - **Syncs to suite datasets in a shared workspace also:**
   - add a `synced` changelog event to every case whose content changed;
-  - keep cases that were under review in review, at the new content. Printed as "N case(s) updated and still under review: id (reviewer)".
+  - keep cases that were under review in review, at the new content. Printed as "N case(s) updated and back in review (no need to run `review request` again): id (reviewer)".
   - return approved cases that changed to Unreviewed. Printed as "N approved case(s) changed and are now unreviewed: …".
 - **`run` syncs too:** `evalkit run` syncs your own on-disk dataset before a local or server run (flows 06 and 07). The same report lines print.
 

@@ -1,12 +1,11 @@
 import json
 import time
 
-import httpx
+import httpx2
 import pytest
 from cryptography.fernet import Fernet
 
 from evalkit.db.crypto import SecretBox
-from evalkit.db.trace_sources import TraceSourceStore
 from tests.fake_agents import reference_mapping
 from tests.flows.helpers_12_17 import DEV, live_stack
 
@@ -17,7 +16,7 @@ def live(db_url, tmp_path, monkeypatch, stub_judges):
         yield stack
 
 
-def finished(client: httpx.Client, exp_id: int) -> dict:
+def finished(client: httpx2.Client, exp_id: int) -> dict:
     for _ in range(400):
         body = client.get(f"/api/experiments/{exp_id}").json()
         if body["status"] in ("completed", "failed"):
@@ -201,9 +200,7 @@ def test_flow_17_remote_evaluators_and_the_experiment_snapshot(live):
 
 
 def test_flow_17_trace_sources_are_admin_only_and_hide_keys(live, monkeypatch):
-    live.app.state.trace_sources = TraceSourceStore(
-        live.app.state.session_factory, SecretBox(Fernet.generate_key().decode())
-    )
+    live.app.state.box = SecretBox(Fernet.generate_key().decode())
     monkeypatch.setenv("PHX_KEY", "very-secret")
     created = live.run(
         "trace-sources", "create", "phx", "--url", "https://phx", "--api-key-env", "PHX_KEY"
@@ -237,12 +234,10 @@ def test_flow_17_server_keys_come_from_the_database(live):
     assert not any("nokey" in w for w in started.json()["warnings"])
     judged = admin.post(
         "/api/experiments",
-        json={**run, "judge": {"base_url": "http://nokey-judge.test", "model": "m"}},
+        json={**run, "judge": {"provider": "nokey-judge", "model": "m"}},
     )
     assert judged.status_code == 400
-    assert judged.json()["detail"].startswith(
-        "http://nokey-judge.test is not a registered LLM provider"
-    )
+    assert judged.json()["detail"].startswith("nokey-judge is not a registered LLM provider")
 
 
 def test_flow_17_key_commands_store_keys_and_providers(live):
@@ -302,5 +297,5 @@ def test_flow_17_key_commands_store_keys_and_providers(live):
     judge = live.run("judge-default", "set", "--provider", "openai", "--model", "gpt-5")
     assert judge.exit_code == 0, judge.output
     shown = live.run("judge-default", "show").output
-    assert "http://o/v1" in shown and "gpt-5" in shown
+    assert "openai" in shown and "gpt-5" in shown
     assert live.run("llm-providers", "archive", "openai").exit_code == 1

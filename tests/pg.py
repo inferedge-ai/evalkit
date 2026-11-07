@@ -8,7 +8,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from testcontainers.community.postgres import PostgresContainer
 
-from evalkit.db.session import make_session_factory, run_migrations
+from evalkit.db.session import make_session_factory, run_migrations, tenant_session
 
 
 def _with_database(url: str, name: str) -> str:
@@ -64,8 +64,23 @@ def module_db_url(pg_server_url: str, pg_template: str) -> Iterator[str]:
     yield from _database(pg_server_url, pg_template)
 
 
+class TenantFactory:
+    def __init__(self, factory: async_sessionmaker[AsyncSession], tenant_id: str):
+        self.factory = factory
+        self.tenant_id = tenant_id
+        self.kw = factory.kw
+
+    def __call__(self):
+        return tenant_session(self.factory, self.tenant_id)
+
+
 @pytest.fixture
-async def session_factory(db_url: str) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+async def raw_session_factory(db_url: str) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     factory = make_session_factory(db_url)
     yield factory
     await factory.kw["bind"].dispose()
+
+
+@pytest.fixture
+async def session_factory(raw_session_factory) -> TenantFactory:
+    return TenantFactory(raw_session_factory, "default")

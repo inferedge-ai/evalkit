@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 
-import httpx
+import httpx2
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy import delete
@@ -74,15 +74,14 @@ async def api(tmp_path, session_factory):
         env.deps.cfg,  # type: ignore[arg-type]
         blob_store=env.blob,
         runner_deps=env.deps,
-        agents=env.deps.agents,  # type: ignore[arg-type]
         session_factory=session_factory,
         check_schema=False,
         ui_dist=dist,
         holder=HOLDER,
     )
     async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        transport = httpx2.ASGITransport(app=app)
+        async with httpx2.AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.post(
                 "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
             )
@@ -90,16 +89,21 @@ async def api(tmp_path, session_factory):
             yield client, env
 
 
+BROWSER = {"Accept": "text/html,application/xhtml+xml,*/*;q=0.8"}
+
+
 async def test_spa_history_fallback(api):
     client, _ = api
     for route in ["/", "/experiments/27", "/datasets/finance@canonical/cases"]:
-        resp = await client.get(route)
+        resp = await client.get(route, headers=BROWSER)
         assert resp.status_code == 200, route
         assert "evalkit spa" in resp.text
+    assert (await client.head("/")).status_code == 200
     assert (await client.get("/favicon.svg")).text == "<svg/>"
     assert (await client.get("/assets/index.js")).status_code == 200
     assert (await client.get("/assets/missing.js")).status_code == 404
     assert (await client.get("/api/nope")).status_code == 404
+    assert (await client.get("/.well-known/oauth-protected-resource/mcp")).status_code == 404
 
 
 async def test_spa_fallback_never_serves_files_outside_dist(api, tmp_path):
@@ -108,7 +112,7 @@ async def test_spa_fallback_never_serves_files_outside_dist(api, tmp_path):
     secret.write_text("top secret")
     encoded = str(secret).replace("/", "%2F")
     for route in [f"/{encoded}", "/..%2Fsecret.txt", "/%2E%2E/secret.txt", "/%2Fetc%2Fpasswd"]:
-        resp = await client.get(route)
+        resp = await client.get(route, headers=BROWSER)
         assert resp.status_code == 200, route
         assert "evalkit spa" in resp.text, route
         assert "top secret" not in resp.text, route
@@ -158,7 +162,7 @@ async def test_resume_uses_snapshotted_model_and_caps(tmp_path, satisfied_judges
     )
     healthy = FakeHarness()
     healthy._counter = 100
-    env.deps.harness_transport = httpx.ASGITransport(app=healthy.app)
+    env.deps.harness_transport = httpx2.ASGITransport(app=healthy.app)
     await _reopen(env, exp.id)
     await run_experiment(env.deps, exp.id, HOLDER)
     payloads = list(healthy.received_payloads.values())
@@ -231,4 +235,4 @@ async def test_server_openapi_docs_reachable(api):
     resp = await client.get("/openapi.json")
     assert resp.status_code == 200
     assert resp.json()["info"]["title"] == "evalkit"
-    assert (await client.get("/docs")).status_code == 200
+    assert (await client.get("/docs", headers=BROWSER)).status_code == 200

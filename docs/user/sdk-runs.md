@@ -76,7 +76,7 @@ The SDK stamps `session.id` and the `evalkit.*` attributes only on spans made in
   def task(input: dict) -> str:
       headers: dict[str, str] = {}
       propagate.inject(headers)            # adds traceparent
-      return httpx.post(AGENT_URL, json=input, headers=headers).json()["answer"]
+      return httpx2.post(AGENT_URL, json=input, headers=headers).json()["answer"]
   ```
 
 - **Return the agent's session.** The agent puts its own session id on its root span as `session.id`, and the task returns it. Use this when the trace context cannot reach the agent, for example through a queue. The SDK moves its `evalkit.run` span into that session, so no empty session is left behind, and the trajectory is built from the agent's trace.
@@ -96,13 +96,13 @@ The SDK stamps `session.id` and the `evalkit.*` attributes only on spans made in
 
 Either way the Runs page links the session to its experiment and case.
 
-The agent's exporter needs its own token. Mint one with `evalkit tokens create --agent <name>`; it never expires. Your login token expires, and an exporter that holds it then drops every span with nothing but a line in its own log.
+The agent's exporter needs its own token in `EVALKIT_OTEL_TOKEN`. Mint one with `evalkit tokens create --agent <name>`; it never expires. A login token is not accepted: it expires, and an exporter that holds it would drop every span with nothing but a line in its own log.
 
 ## Datasets and workspaces
 
 - `dataset="finance"` runs your own workspace's copy; if `finance` is a directory under `cases` it is synced first.
 - `dataset="finance@dev"` or `dataset="finance", workspace="dev"` runs the shared cases, every review state included.
-- `case_ids=[...]`, `split="..."`, `repetitions`, `model` and `resume=<experiment id>` mean what the same options mean on `evalkit run`.
+- `case_ids=[...]`, `tags=[...]`, `repetitions`, `model` and `resume=<experiment id>` mean what the same options mean on `evalkit run`.
 - `dry_run=True` runs one case (`dry_run=N` runs N) without creating an experiment and prints the answer and what the server made of the session. If the server cannot read a session, that case prints a `trajectory read failed` line and the dry run goes on. Use it while wiring up tracing; the session shows on the Runs page with its case question and case id.
 
 ## Notebooks
@@ -126,24 +126,37 @@ evalkit agents create myagent-sdk --trajectory-source otel --mapping openinferen
 
 Its `answer` rule and `exclude_spans` live in its span mapping. `evalkit.yaml` is still required; it holds the cases, fixtures and credentials.
 
-The judge is the server's default unless you pass one:
+The judge is the server's default unless you pass one. An admin sets the default with `evalkit judge-default set`. With the default, or any other judge served by an LLM provider configured on the server (`Judge(provider=...)`), the evaluators that use a judge (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) run on the evalkit server with its stored key; your machine needs no judge key:
 
 ```python
 from evalkit.sdk import Judge, run_experiment
 
+run_experiment(dataset="finance", agent="myagent-sdk", task=task)  # the server's default judge
 run_experiment(dataset="finance", agent="myagent-sdk", task=task,
-               judge=Judge(base_url="https://litellm.example.com", model="gpt-5"))
+               judge=Judge(provider="openai", model="gpt-5"))       # another provider on the server
 ```
 
-An admin sets the default judge with `evalkit judge-default set`. Either way, the SDK reads the judge's key from `credentials.llm_providers` in `evalkit.yaml`, keyed by the judge's base URL.
+To bring your own judge, pass its base URL and key. Those evaluators then run on your machine. evalkit sends the key only to your judge's base URL; it never stores it on the evalkit server or prints it:
+
+```python
+run_experiment(dataset="finance", agent="myagent-sdk", task=task,
+               judge=Judge(base_url="https://litellm.example.com", model="gpt-5",
+                           api_key=os.environ["LITELLM_API_KEY"]))
+```
+
+Re-scoring such an experiment needs the key again: pass the same judge, key included, to `evaluate_experiment(experiment_id=..., judge=Judge(...))`. A different judge (another endpoint or model, or other settings) is refused.
+
+A judge sets `provider` or `base_url`, never both. `tool_trajectory_match`, `required_tools_called` and `max_response_time` always run on your machine. The run page shows `server` or `local` beside each score.
 
 ## Capabilities
 
 A code-driven agent has no `GET /capabilities`, so evalkit writes its capabilities onto each experiment itself: `trajectory`, `tool_calls`, `token_usage` and `run_listing` are true; `thinking`, `artifacts` and `workspace` are false. Evaluators gated on a capability skip when it is false. evalkit does not read capabilities from the spans. Set `provides` on the agent (`evalkit agents create --provides`, or `evalkit agents edit`) to declare what it really does, for example `thinking: true` when its spans carry the model's reasoning. Declare only what works: a false `true` produces failing scores blamed on the agent.
 
+The agent's input schema is the default (a required string `question`) unless you set one with `evalkit agents create --input-schema` or `evalkit agents edit --input-schema`. Every case input must pass it, in a dry run too; see [Input schema](case-schema.md#input-schema).
+
 ## Python evaluators
 
-`@evaluator(name=..., kind="evaluator" | "gauge", requires_trajectory=False)` turns a function into an evaluator. It receives the same `EvalCase` and `EvalRun` the HTTP Custom Evaluator API sends: the case id, input, expected block and this evaluator's config from the case YAML; the answer, structured output and the ATIF trajectory as a dict. Return a float, a `ScoreItem`, or a list of them. A case selects it by name under `evaluators.custom`, exactly like an HTTP evaluator.
+`@evaluator(name=..., kind="evaluator" | "gauge", requires_trajectory=False)` turns a function into an evaluator. It receives the same `EvalCase` and `EvalRun` the HTTP Custom Evaluator API sends: the case id, input, expected block and this evaluator's config from the case YAML; the answer, structured output and the ATIF trajectory as a dict. Return a float, a `ScoreItem` (`from evalkit.sdk import ScoreItem`), or a list of them. [Case schema](case-schema.md#python-evaluators) lists the fields of `EvalCase` and `EvalRun`. A case selects it by name under `evaluators.custom`, exactly like an HTTP evaluator.
 
 ## Bring your own benchmark
 

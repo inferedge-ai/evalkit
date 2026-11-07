@@ -32,7 +32,7 @@ const examples = [
 
 const choice = (over: Partial<ScopeChoice>): ScopeChoice => ({
   scope: "all",
-  tag: "",
+  tags: [],
   file: "",
   caseIds: [],
   ...over,
@@ -53,16 +53,26 @@ describe("casesInScope / selectionFor", () => {
     expect(selectionFor(examples, choice({}))).toEqual({ all: true });
   });
 
-  it("a split sends the tag", () => {
-    const c = choice({ scope: "split", tag: "ratios" });
+  it("tags send every picked tag", () => {
+    const c = choice({ scope: "tags", tags: ["ratios"] });
     expect(casesInScope(examples, c).map((e) => e.case_id)).toEqual(["b", "c"]);
-    expect(selectionFor(examples, c)).toEqual({ tag: "ratios" });
-    expect(selectionFor(examples, choice({ scope: "split" }))).toBe(null);
+    expect(selectionFor(examples, c)).toEqual({ tags: ["ratios"] });
+    expect(selectionFor(examples, choice({ scope: "tags" }))).toBe(null);
   });
 
-  it("a split counts cases tagged only by an overlay", () => {
+  it("several tags select cases carrying any of them", () => {
+    const c = choice({ scope: "tags", tags: ["tcs", "ratios"] });
+    expect(casesInScope(examples, c).map((e) => e.case_id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+    expect(selectionFor(examples, c)).toEqual({ tags: ["tcs", "ratios"] });
+  });
+
+  it("a tag counts cases tagged only by an overlay", () => {
     const overlaid = ex("d", "us.yaml", ["client-priority"]);
-    const c = choice({ scope: "split", tag: "client-priority" });
+    const c = choice({ scope: "tags", tags: ["client-priority"] });
     expect(
       casesInScope([...examples, overlaid], c).map((e) => e.case_id),
     ).toEqual(["d"]);
@@ -94,8 +104,8 @@ describe("cliCommand", () => {
           model: "other",
           reasoning_effort: "low",
           max_tokens: 1,
-          concurrency: 1,
         },
+        evaluation_concurrency: null,
       }),
     ).toBe(
       "evalkit run finance@dev --agent ouragent@dev --judge-model other --judge-base-url https://llm/v1 --judge-effort low",
@@ -111,9 +121,10 @@ describe("cliCommand", () => {
         selection: { case_ids: ["a", "b c"] },
         model: "claude-opus-5-5",
         judge: null,
+        evaluation_concurrency: 4,
       }),
     ).toBe(
-      "evalkit run finance@dev --agent research-agent@dev --runs 3 --case-id a --case-id 'b c' --model claude-opus-5-5",
+      "evalkit run finance@dev --agent research-agent@dev --runs 3 --case-id a --case-id 'b c' --model claude-opus-5-5 --evaluation-concurrency 4",
     );
   });
 
@@ -126,20 +137,24 @@ describe("cliCommand", () => {
         selection: { all: true },
         model: null,
         judge: null,
+        evaluation_concurrency: null,
       }),
     ).toBe("evalkit run finance@dev --agent research-agent@dev");
   });
 
-  it("puts a split into the path", () => {
+  it("passes each tag as --tag", () => {
     expect(
       cliCommand({
         dataset: "finance@dev",
         agent: "research-agent@dev",
         repetitions: 1,
-        selection: { tag: "starbucks" },
+        selection: { tags: ["starbucks", "q&a"] },
         model: null,
         judge: null,
+        evaluation_concurrency: null,
       }),
-    ).toBe("evalkit run finance@dev/starbucks --agent research-agent@dev");
+    ).toBe(
+      "evalkit run finance@dev --agent research-agent@dev --tag starbucks --tag 'q&a'",
+    );
   });
 });

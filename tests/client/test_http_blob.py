@@ -1,11 +1,11 @@
 import hashlib
 
-import httpx
 import pytest
-import respx
+from respx import MockResponse
 
 from evalkit.client.api import ApiRequestError, AsyncApi
 from evalkit.client.blob import HttpBlobStore
+from evalkit.client.oidc import static_auth
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.core.blob import fixture_blob_key
 from evalkit.core.runner import ExperimentRequest
@@ -21,7 +21,7 @@ async def ctx(tmp_path, stub_judges, session_factory):
     await seed_agent(session_factory, "fake", "admin")
     async with serve(env, tmp_path) as client:
         token = client.headers["Authorization"].removeprefix("Bearer ")
-        api = AsyncApi("http://test", token, transport=client._transport)
+        api = AsyncApi("http://test", static_auth(token), transport=client._transport)
         yield api, env
         await api.aclose()
 
@@ -70,13 +70,12 @@ async def test_fixture_keys_are_cached_locally_with_server_fallback(ctx, tmp_pat
         await blob_store.put_object("trajectories/x/y.json", b"{}")
 
 
-@respx.mock
-async def test_fixture_downloads_once(tmp_path):
+async def test_fixture_downloads_once(httpx2_mock, tmp_path):
     digest = hashlib.sha256(b"x,y").hexdigest()
-    route = respx.get(f"http://srv/api/fixtures/sha256/{digest}").mock(
-        return_value=httpx.Response(200, content=b"x,y")
+    route = httpx2_mock.get(f"http://srv/api/fixtures/sha256/{digest}").mock(
+        return_value=MockResponse(200, content=b"x,y")
     )
-    api = AsyncApi("http://srv", "tok")
+    api = AsyncApi("http://srv", static_auth("tok"))
     blob = HttpBlobStore(api, None, tmp_path)
     file = CaseFile(key="a.csv", sha256=digest, context="c")
     path = await blob.fixture_path(file)

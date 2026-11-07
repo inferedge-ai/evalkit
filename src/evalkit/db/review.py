@@ -18,20 +18,25 @@ from evalkit.core.workspace import Reference, slug
 from evalkit.db import models
 from evalkit.db.cases import dataset_by_ref
 from evalkit.db.review_state import latest_events
+from evalkit.db.session import tenant_session
 
 AfterDecision = Callable[[AsyncSession, int], Awaitable[None]]
 
 
-async def _case_refs(session: AsyncSession, case_ids: list[str]) -> dict[str, int]:
+async def _case_refs(session: AsyncSession, tenant_id: str, case_ids: list[str]) -> dict[str, int]:
     rows = await session.execute(
-        select(models.Case.case_id, models.Case.id).where(models.Case.case_id.in_(case_ids))
+        select(models.Case.case_id, models.Case.id).where(
+            models.Case.tenant_id == tenant_id, models.Case.case_id.in_(case_ids)
+        )
     )
     return {case_id: ref for case_id, ref in rows.all()}
 
 
-async def _user_ids(session: AsyncSession, names: set[str]) -> dict[str, int]:
+async def _user_ids(session: AsyncSession, tenant_id: str, names: set[str]) -> dict[str, int]:
     rows = await session.execute(
-        select(models.User.username, models.User.id).where(models.User.username.in_(names))
+        select(models.User.username, models.User.id).where(
+            models.User.tenant_id == tenant_id, models.User.username.in_(names)
+        )
     )
     return {name: uid for name, uid in rows.all()}
 
@@ -44,8 +49,12 @@ async def _usernames(session: AsyncSession, ids: set[int]) -> dict[int, str]:
 
 
 class ReviewLog:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._session_factory = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._session_factory, self._tenant_id)
 
     async def _events(
         self, session: AsyncSession, dataset: str, case_id: str, rows: list[models.CaseEvent]
@@ -88,9 +97,9 @@ class ReviewLog:
         reviews = {
             v.case_id: CaseReview.unreviewed(dataset, v.case_id, v.content_hash) for v in versions
         }
-        async with self._session_factory() as session:
-            dataset_id = (await dataset_by_ref(session, dataset)).id
-            refs = await _case_refs(session, [v.case_id for v in versions])
+        async with self._session() as session:
+            dataset_id = (await dataset_by_ref(session, self._tenant_id, dataset)).id
+            refs = await _case_refs(session, self._tenant_id, [v.case_id for v in versions])
             ids = {ref: case_id for case_id, ref in refs.items()}
             latest = await latest_events(
                 session,
@@ -100,16 +109,20 @@ class ReviewLog:
             for ref, row in latest.decisive.items():
                 [event] = await self._events(session, dataset, ids[ref], [row])
                 reviews[ids[ref]].last_event = event
-            names = await _usernames(session, set(latest.requested_to.values()))
+            names = await _usernames(
+                session, set(latest.requested_to.values()) | set(latest.requested_by.values())
+            )
         for ref, target in latest.requested_to.items():
             reviews[ids[ref]].requested_to = names[target]
+        for ref, actor in latest.requested_by.items():
+            reviews[ids[ref]].requested_by = names[actor]
         return reviews
 
     async def latest_hashes(self, dataset: str, case_ids: list[str]) -> dict[str, str]:
         if not case_ids:
             return {}
-        async with self._session_factory() as session:
-            dataset_id = (await dataset_by_ref(session, dataset)).id
+        async with self._session() as session:
+            dataset_id = (await dataset_by_ref(session, self._tenant_id, dataset)).id
             rows = await session.execute(
                 select(models.Case.case_id, models.DatasetCase.content_hash)
                 .join(models.Case, models.Case.id == models.DatasetCase.case_ref)
@@ -123,13 +136,15 @@ class ReviewLog:
     async def _add_events(
         self, session: AsyncSession, events: list[NewCaseEvent]
     ) -> list[models.CaseEvent]:
-        refs = await _case_refs(session, [e.case_id for e in events])
+        refs = await _case_refs(session, self._tenant_id, [e.case_id for e in events])
         users = await _user_ids(
-            session, {e.actor for e in events} | {e.target for e in events if e.target}
+            session,
+            self._tenant_id,
+            {e.actor for e in events} | {e.target for e in events if e.target},
         )
         rows: list[models.CaseEvent] = []
         for event in events:
-            dataset_id = (await dataset_by_ref(session, event.dataset)).id
+            dataset_id = (await dataset_by_ref(session, self._tenant_id, event.dataset)).id
             row = models.CaseEvent(
                 dataset_id=dataset_id,
                 case_ref=refs[event.case_id],
@@ -146,9 +161,9 @@ class ReviewLog:
     async def _comment_row(
         self, session: AsyncSession, comment: NewCaseComment
     ) -> models.CaseComment:
-        dataset_id = (await dataset_by_ref(session, comment.dataset)).id
-        refs = await _case_refs(session, [comment.case_id])
-        users = await _user_ids(session, {comment.author})
+        dataset_id = (await dataset_by_ref(session, self._tenant_id, comment.dataset)).id
+        refs = await _case_refs(session, self._tenant_id, [comment.case_id])
+        users = await _user_ids(session, self._tenant_id, {comment.author})
         return models.CaseComment(
             dataset_id=dataset_id,
             case_ref=refs[comment.case_id],
@@ -161,7 +176,7 @@ class ReviewLog:
     async def append(self, events: list[NewCaseEvent]) -> None:
         if not events:
             return
-        async with self._session_factory() as session:
+        async with self._session() as session:
             await self._add_events(session, events)
             await session.commit()
 
@@ -171,7 +186,7 @@ class ReviewLog:
         comment: NewCaseComment | None,
         after: AfterDecision | None = None,
     ) -> None:
-        async with self._session_factory() as session:
+        async with self._session() as session:
             if comment is not None:
                 session.add(await self._comment_row(session, comment))
             [row] = await self._add_events(session, [event])
@@ -180,8 +195,8 @@ class ReviewLog:
             await session.commit()
 
     async def history(self, dataset: str, case_id: str) -> list[CaseEvent]:
-        async with self._session_factory() as session:
-            dataset_id = (await dataset_by_ref(session, dataset)).id
+        async with self._session() as session:
+            dataset_id = (await dataset_by_ref(session, self._tenant_id, dataset)).id
             rows = (
                 await session.scalars(
                     select(models.CaseEvent)
@@ -195,8 +210,8 @@ class ReviewLog:
             return await self._events(session, dataset, case_id, list(rows))
 
     async def comments(self, dataset: str, case_id: str) -> list[CaseComment]:
-        async with self._session_factory() as session:
-            dataset_id = (await dataset_by_ref(session, dataset)).id
+        async with self._session() as session:
+            dataset_id = (await dataset_by_ref(session, self._tenant_id, dataset)).id
             rows = (
                 await session.scalars(
                     select(models.CaseComment)
@@ -211,7 +226,7 @@ class ReviewLog:
             return [await self._comment(session, row, dataset, case_id) for row in rows]
 
     async def add_comment(self, comment: NewCaseComment) -> CaseComment:
-        async with self._session_factory() as session:
+        async with self._session() as session:
             row = await self._comment_row(session, comment)
             session.add(row)
             await session.commit()
@@ -232,19 +247,34 @@ class ReviewLog:
         assert case_id is not None
         return await self._comment(session, row, slug(Reference(name, workspace)), case_id)
 
+    async def _comment_in_tenant(
+        self, session: AsyncSession, comment_id: int
+    ) -> models.CaseComment | None:
+        return await session.scalar(
+            select(models.CaseComment)
+            .join(models.Dataset, models.Dataset.id == models.CaseComment.dataset_id)
+            .join(models.Workspace, models.Workspace.id == models.Dataset.workspace_id)
+            .where(
+                models.CaseComment.id == comment_id,
+                models.Workspace.tenant_id == self._tenant_id,
+            )
+        )
+
     async def get_comment(self, comment_id: int) -> CaseComment | None:
-        async with self._session_factory() as session:
-            row = await session.get(models.CaseComment, comment_id)
+        async with self._session() as session:
+            row = await self._comment_in_tenant(session, comment_id)
             return None if row is None else await self._describe(session, row)
 
     async def set_resolved(self, comment_id: int, resolved: bool) -> CaseComment:
-        async with self._session_factory() as session:
+        async with self._session() as session:
+            if await self._comment_in_tenant(session, comment_id) is None:
+                raise KeyError(f"unknown comment: {comment_id}")
             await session.execute(
                 update(models.CaseComment)
                 .where(models.CaseComment.id == comment_id)
                 .values(resolved=resolved)
             )
             await session.commit()
-            row = await session.get(models.CaseComment, comment_id)
+            row = await self._comment_in_tenant(session, comment_id)
             assert row is not None
             return await self._describe(session, row)

@@ -2,11 +2,11 @@
 
 A mapping tells evalkit which span attribute holds each field of the evalkit span format (ESF): the span kind, the session id, the model, the messages, the token counts, the tool name and call id. It also says where the run's answer comes from (`answer`) and which spans to leave out (`exclude_spans`).
 
-Every agent whose trajectories come from traces has its own mapping. `evalkit agents create NAME --trajectory-source otel --mapping FILE` makes the first version active. Start from the `connect-traces` skill's `openinference.json` or `gen_ai.json`, which cover agents on the OpenInference or GenAI semantic conventions as they are. Spans that reach an agent with no active mapping are stored without a session id.
+Every agent whose trajectories come from traces has its own mapping. `evalkit agents create NAME --trajectory-source otel --mapping FILE` makes the first version active. Start from the file for your framework in [Framework mappings](framework-mappings.md), or from the `connect-traces` skill's `openinference.json` or `gen_ai.json`, which cover agents on the OpenInference or GenAI semantic conventions as they are. Spans that reach an agent with no active mapping are stored without a session id.
 
 An existing agent switches between ATIF and traces with `evalkit agents edit NAME --trajectory-source otel --mapping FILE` (or `--trajectory-source atif`), or from the agent's Edit dialog. Switching to traces without a file reuses the agent's last active mapping. The switch is refused while one of the agent's experiments is running, and experiments that already ran keep the source they ran with.
 
-A mapping applies to every span of the agent and is versioned: `evalkit traces mapping push` creates a draft, you review the draft against recent sessions on the agent's Mappings tab (Agents → the agent → Mappings), and activate it there. The `connect-traces` skill walks a coding agent through writing one.
+A mapping applies to every span of the agent and is versioned: `evalkit traces mapping push` creates a draft, you review the draft against recent sessions on the agent's Mappings tab (Agents → the agent → Mappings), and activate it there or with `evalkit traces mapping activate`. The `connect-traces` skill walks a coding agent through writing one.
 
 ## The document
 
@@ -118,7 +118,27 @@ Rule shapes:
 | `{"attribute": K, "message_format": F}` | the messages laid out under `K` per format `F`: `openinference` (flattened indexed keys), `gen_ai` (JSON list of messages with parts), `openai` (JSON list of chat messages) |
 | `null`                                  | never read                                                                                                                                                                   |
 
-Two more fields shape the trajectory: `answer` (`root`, a span name, or `<span name>.<output key>`; default `root`) and `exclude_spans` (span names left out; default none).
+More fields shape the trajectory:
+
+- `answer`: where the run's answer comes from: `root`, a span name, or `<span name>.<output key>`. Default `root`.
+- `exclude_spans`: spans left out of the trajectory. Default none.
+- `rekind_spans`: spans that get another kind than the `kind` rule gives, e.g. `{"name": "agent", "kind": "chain"}` for a graph node tagged AGENT that is only a step. The first match wins.
+- `main_agent`: the agent span whose answer and id the trajectory carries, when evalkit picks the wrong one. When it matches several spans (one per chat turn), the earliest gives the id and the latest the answer.
+- `subagent_spans`: agent spans to keep as subagent trajectories even though no tool span starts them.
+
+Each entry is a span match:
+
+| Match | Matches a span when |
+| -- | -- |
+| `"OpenAILike.*"` | its name matches the glob |
+| `{"name": G}` | its name matches the glob `G` |
+| `{"attribute": K}` | it has attribute `K` |
+| `{"attribute": K, "equals": V}` | attribute `K` holds `V`, compared as text: `1`, `1.0` and `"1"` match each other, and so do `true` and `"true"` |
+| `{"scope": G}` | its instrumentation scope name (e.g. `mcp`) matches the glob `G` |
+
+An object match may give several of `name`, `attribute` and `scope`; every one given must match.
+
+The span name alone is not always enough: two LLM spans with the same name, or spans that come from another library's instrumentation. Match on an attribute or the scope then.
 
 Every mapping is complete on its own; there is no inheritance. The schema ships as `span-mapping-v1.json` with `evalkit contracts export`.
 
@@ -129,8 +149,9 @@ evalkit traces check myagent <session id> --dump spans.json   # read the raw att
 evalkit traces mapping push myagent eval/span-mapping.json    # upload a draft
 evalkit traces check myagent <session id> --mapping draft     # preview with the draft
 evalkit traces mapping list myagent
+evalkit traces mapping activate myagent 2                     # make version 2 active
 ```
 
-Repeat until the unmapped list holds nothing that matters and the counts look right, then activate the draft on the agent's Mappings tab. `--activate` on push activates in the same step; a coding agent passes it only when the developer has approved the document.
+Repeat until the unmapped list holds nothing that matters and the counts look right, then activate the draft with `evalkit traces mapping activate myagent <version>`, using the version push printed, or on the agent's Mappings tab. Pushing a document identical to the draft keeps the draft's version. The version is required, so activate makes live exactly the draft you checked, even if someone pushes another one meanwhile; an older version works too, for example to roll back. Activate prints the version it activated and the one it replaced. A coding agent activates only when the developer has approved the document.
 
 Runs record the mapping version they were converted with; a later mapping change never alters a scored run. The Runs page converts sessions on demand with the active mapping.

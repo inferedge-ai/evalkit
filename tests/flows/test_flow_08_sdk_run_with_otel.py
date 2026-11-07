@@ -1,9 +1,10 @@
-import httpx
+import httpx2
 import sqlalchemy as sa
 from typer.testing import CliRunner
 
 from evalkit.cli.main import app as cli_app
 from evalkit.db import models
+from evalkit.db.session import tenant_session
 from evalkit.sdk import RunResult, aevaluate_experiment, arun_experiment, evaluator
 from tests.cli.test_cli import stub_judges_module
 from tests.fake_harness import DEFAULT_TRAJECTORY
@@ -21,7 +22,7 @@ def cite(case, run):
 
 async def sdk_spans(srv, exp_id: int) -> list[dict]:
     async def work(_, factory):
-        async with factory() as session:
+        async with tenant_session(factory, "default") as session:
             rows = await session.scalars(
                 sa.select(models.Span.attributes)
                 .join(models.Agent, models.Agent.id == models.Span.agent_id)
@@ -33,10 +34,10 @@ async def sdk_spans(srv, exp_id: int) -> list[dict]:
 
 
 def runs_browser(srv) -> list[dict]:
-    token = httpx.post(
+    token = httpx2.post(
         f"{srv.base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
     ).json()["token"]
-    resp = httpx.get(
+    resp = httpx2.get(
         f"{srv.base_url}/api/agents/sdk@admin/runs",
         headers={"Authorization": f"Bearer {token}"},
     )

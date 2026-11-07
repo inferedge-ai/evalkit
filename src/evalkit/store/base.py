@@ -3,13 +3,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from evalkit.contracts.enums import (
     EvaluationSource,
     EvaluatorKind,
     ExperimentStatus,
     RunStatus,
+    ScoredOn,
     TrajectorySource,
     TrajectoryStatus,
 )
@@ -87,8 +88,10 @@ class DatasetRow(BaseModel):
 
 
 class Selection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     all: bool = False
-    tag: str | None = None
+    tags: list[str] | None = None
     case_ids: list[str] | None = None
 
 
@@ -142,11 +145,12 @@ class ExperimentSnapshot(BaseModel):
     remote_evaluators: dict[str, RemoteEvaluatorSettings] = Field(default_factory=dict)
     code_evaluators: list[str] = Field(default_factory=list)
     evalkit_version: str | None = None
+    evaluation_concurrency: int | None = None
 
 
 class ExperimentConfig(BaseModel):
     model: str | None = None
-    judge: JudgeSettings
+    judge: JudgeSettings | None = None
     selection: Selection
     revision: GitRevision | None = None
     snapshot: ExperimentSnapshot
@@ -214,6 +218,7 @@ class EvaluationRow(BaseModel):
     name: str
     kind: EvaluatorKind
     source: EvaluationSource
+    scored_on: ScoredOn = ScoredOn.LOCAL
     value: float | None = None
     label: str | None = None
     explanation: str | None = None
@@ -348,7 +353,8 @@ class Store(Protocol):
 def select_cases(cases: list[CaseView], selection: Selection) -> list[CaseView]:
     if selection.all:
         return list(cases)
-    if selection.tag:
-        return [case for case in cases if selection.tag in case.split_tags]
+    if selection.tags:
+        wanted_tags = set(selection.tags)
+        return [case for case in cases if wanted_tags & set(case.split_tags)]
     wanted = set(selection.case_ids or [])
     return [case for case in cases if case.case_id in wanted]

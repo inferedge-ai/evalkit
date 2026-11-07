@@ -10,13 +10,14 @@ from evalkit.db.keys import StoredKeys
 from evalkit.db.llm_providers import (
     LlmProviderExists,
     LlmProviderStore,
+    NotAProviderJudge,
     ProviderInUse,
     UnknownLlmProvider,
 )
 from evalkit.db.rekey import count_sealed, rekey_all
 from evalkit.db.trace_sources import TraceSourceStore
 from tests.fake_agents import TEST_BOX
-from tests.identity import seed_agent, seed_identity
+from tests.identity import seed_agent, seed_identity, workspace_ref
 
 
 def box() -> SecretBox:
@@ -26,7 +27,7 @@ def box() -> SecretBox:
 async def test_agent_key_is_cleared_when_the_url_changes(session_factory):
     await seed_identity(session_factory, {"admin": "password1"})
     await seed_agent(session_factory)
-    agents = AgentStore(session_factory)
+    agents = AgentStore(session_factory, "default")
     sealed = box().seal("k")
     assert (await agents.edit("fake@canonical", api_key_encrypted=sealed)).has_api_key
     assert await agents.sealed_key("fake@canonical") == sealed
@@ -46,10 +47,16 @@ async def test_agent_key_is_cleared_when_the_url_changes(session_factory):
 
 async def test_evaluator_key_follows_its_endpoint(session_factory):
     await seed_identity(session_factory, {"admin": "password1"})
-    store = RemoteEvaluatorStore(session_factory)
+    store = RemoteEvaluatorStore(session_factory, "default")
     settings = RemoteEvaluatorSettings(endpoint="https://e/rtc")
     sealed = box().seal("k")
-    created = await store.create("canonical", "rtc", EvaluatorKind.SCORE, settings, sealed)
+    created = await store.create(
+        await workspace_ref(session_factory, "canonical"),
+        "rtc",
+        EvaluatorKind.SCORE,
+        settings,
+        sealed,
+    )
     assert created.has_api_key
     assert await store.sealed_keys("canonical") == {"rtc": ("https://e/rtc", sealed)}
     kept = await store.edit("rtc@canonical", settings.model_copy(update={"timeout_seconds": 5}))
@@ -61,7 +68,7 @@ async def test_evaluator_key_follows_its_endpoint(session_factory):
 
 
 async def test_llm_providers_and_the_default_judge(session_factory):
-    store = LlmProviderStore(session_factory)
+    store = LlmProviderStore(session_factory, "default")
     assert await store.default_judge() is None
     sealed = box().seal("k")
     created = await store.create("openai", "https://api.openai.com/v1", sealed)
@@ -74,16 +81,20 @@ async def test_llm_providers_and_the_default_judge(session_factory):
     with pytest.raises(LlmProviderExists):
         await store.create("other", "https://api.openai.com/v1", None)
     with pytest.raises(UnknownLlmProvider):
-        await store.set_default_judge(JudgeSettings(base_url="https://nope/v1", model="m"))
-    judge = JudgeSettings(base_url="https://api.openai.com/v1", model="gpt-5")
+        await store.set_default_judge(JudgeSettings(provider="nope", model="m"))
+    with pytest.raises(NotAProviderJudge):
+        await store.set_default_judge(
+            JudgeSettings(base_url="https://api.openai.com/v1", model="m")
+        )
+    judge = JudgeSettings(provider="openai", model="gpt-5")
     await store.set_default_judge(judge)
     assert await store.default_judge() == judge
-    assert await store.sealed_key("https://api.openai.com/v1") == sealed
+    assert await store.active_endpoint("openai") == ("https://api.openai.com/v1", sealed)
     with pytest.raises(ProviderInUse):
         await store.archive("openai")
-    with pytest.raises(ProviderInUse):
-        await store.edit("openai", base_url="https://moved/v1")
-    assert not (await store.edit("openai", clear_api_key=True)).has_api_key
+    moved = await store.edit("openai", base_url="https://moved/v1")
+    assert moved.base_url == "https://moved/v1" and not moved.has_api_key
+    assert await store.default_judge() == judge
 
     await store.create("local", "http://localhost:11434/v1", None)
     await store.archive("local")
@@ -95,16 +106,30 @@ async def test_rekey_covers_every_sealed_table(session_factory):
     await seed_identity(session_factory, {"admin": "password1"})
     await seed_agent(session_factory)
     old, new = TEST_BOX, box()
-    await TraceSourceStore(session_factory, old).create(
+    await TraceSourceStore(session_factory, "default", old).create(
         "phx", TraceProvider.PHOENIX, "https://p", "pk"
     )
-    await AgentStore(session_factory).edit("fake@canonical", api_key_encrypted=old.seal("ak"))
-    await LlmProviderStore(session_factory).create("openai", "https://o/v1", old.seal("lk"))
+    await AgentStore(session_factory, "default").edit(
+        "fake@canonical", api_key_encrypted=old.seal("ak")
+    )
+    await LlmProviderStore(session_factory, "default").create(
+        "openai", "https://o/v1", old.seal("lk")
+    )
     assert await count_sealed(session_factory) == 4
     assert await rekey_all(session_factory, old, new) == 4
-    assert new.open(await AgentStore(session_factory).sealed_key("fake@canonical") or b"") == "ak"
     assert (
-        new.open(await LlmProviderStore(session_factory).sealed_key("https://o/v1") or b"") == "lk"
+        new.open(await AgentStore(session_factory, "default").sealed_key("fake@canonical") or b"")
+        == "ak"
+    )
+    assert (
+        new.open(
+            (
+                await LlmProviderStore(session_factory, "default").active_endpoint("openai")
+                or ("", b"")
+            )[1]
+            or b""
+        )
+        == "lk"
     )
 
 

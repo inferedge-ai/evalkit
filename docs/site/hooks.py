@@ -10,11 +10,13 @@ ROOT = SITE.parent.parent
 GENERATED = {
     "sdk-reference.md": SITE / "sdk-reference.md",
     "stylesheets/evalkit.css": SITE / "stylesheets" / "evalkit.css",
+    "javascripts/outdated.js": SITE / "javascripts" / "outdated.js",
     "favicon.svg": ROOT / "ui" / "public" / "favicon.svg",
 }
 PLACEHOLDER = re.compile(r"\{\{(origin|version)\}\}")
 REPO_LINK = re.compile(r"\]\((?!https?:|mailto:|#)([^)]+)\)")
 REPO_BLOB = "https://github.com/inferedge-ai/evalkit/blob/"
+CONFIG_BASE = re.compile(r'(id="__config" type="application/json">\{[^<]*?"base": "[^"]*)"')
 GITHUB_ONLY = "On GitHub, `{{origin}}` in the docs stands for your server's URL.\n"
 
 
@@ -47,3 +49,13 @@ def on_page_markdown(markdown: str, page, config, files) -> str:
         return markdown
     values = {"origin": "http://localhost:8020", "version": _version()}
     return PLACEHOLDER.sub(lambda match: values[match.group(1)], markdown)
+
+
+def on_post_page(output: str, page, config) -> str:
+    alias = os.environ.get("DOCS_ROOT_ALIAS")
+    if not alias:
+        return output
+    output, count = CONFIG_BASE.subn(lambda match: f'{match[1]}/{alias}/"', output, count=1)
+    if not count:
+        raise ValueError(f"no __config base to point at {alias}/ in {page.file.src_uri}")
+    return output

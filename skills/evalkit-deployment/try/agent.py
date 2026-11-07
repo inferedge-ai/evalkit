@@ -2,7 +2,7 @@ import json
 import os
 from typing import Any
 
-import httpx
+import httpx2
 from opentelemetry import trace
 
 NAME = "analyst"
@@ -65,9 +65,9 @@ def gen_ai_message(message: dict[str, Any]) -> dict[str, Any]:
 
 
 class Analyst:
-    def __init__(self, client: httpx.Client | None = None):
+    def __init__(self, client: httpx2.Client | None = None):
         self.model = os.environ["LLM_MODEL"]
-        self.client = client or httpx.Client(
+        self.client = client or httpx2.Client(
             base_url=os.environ["LLM_BASE_URL"],
             headers={"Authorization": f"Bearer {os.environ['LLM_API_KEY']}"},
             timeout=120,

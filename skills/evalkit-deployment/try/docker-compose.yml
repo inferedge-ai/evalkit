@@ -6,6 +6,9 @@
 #   docker compose up -d --wait # add --build in an evalkit checkout
 #   docker compose down -v      # remove the stack and its data
 #
+# The server is on http://localhost:${EVALKIT_PORT}, 8020 unless .env sets
+# EVALKIT_PORT.
+#
 # The image is EVALKIT_IMAGE when set. In an evalkit checkout, leave it unset
 # and `--build` builds it from the repo.
 #
@@ -37,13 +40,15 @@ services:
 
   server:
     <<: *image
+    command: ["evalkit", "serve", "--config", "/etc/evalkit/config.yaml", "--host", "0.0.0.0", "--port", "8020"]
     ports:
-      - "127.0.0.1:8020:8020"
+      - "127.0.0.1:${EVALKIT_PORT:-8020}:8020"
     volumes:
       - ./config.yaml:/etc/evalkit/config.yaml:ro
       - blob-data:/data/evalkit
     environment:
       EVALKIT_ADMIN_PASSWORD: ${EVALKIT_ADMIN_PASSWORD:?set in .env}
+      EVALKIT_BASE_URL: http://localhost:${EVALKIT_PORT:-8020}
       EVALKIT_ENCRYPTION_KEY: Hc7MWSn0ThmIx7XEO8V2W3u6aUbBXrOcmxHTMlVf1rE=
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8020/api/health')"]
@@ -55,7 +60,7 @@ services:
       postgres:
         condition: service_healthy
 
-  # One-shot: registers your LLM as the LLM provider "try" and makes it the
+  # One-shot: registers your LLM as the LLM provider "test-llm" and makes it the
   # default judge. Safe to rerun; it only creates what is missing.
   setup:
     <<: *image
@@ -69,9 +74,9 @@ services:
       - -ec
       - |
         evalkit login --url http://server:8020 --username admin --password "$$EVALKIT_ADMIN_PASSWORD"
-        evalkit llm-providers show try >/dev/null 2>&1 ||
-          evalkit llm-providers create try --base-url "$$LLM_BASE_URL" --api-key-env LLM_API_KEY
-        evalkit judge-default set --provider try --model "$$LLM_MODEL" --concurrency 4
+        evalkit llm-providers show test-llm >/dev/null 2>&1 ||
+          evalkit llm-providers create test-llm --base-url "$$LLM_BASE_URL" --api-key-env LLM_API_KEY
+        evalkit judge-default set --provider test-llm --model "$$LLM_MODEL"
     restart: "no"
     depends_on:
       server:

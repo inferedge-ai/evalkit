@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 EsfKind = Literal["llm", "tool", "agent", "chain", "retriever", "other"]
 MessageFormat = Literal["openinference", "gen_ai", "openai"]
+AgentRole = Literal["main", "subagent"]
 MAPPING_SCHEMA_VERSION = "1"
 
 
@@ -44,7 +47,11 @@ class EsfSpan(BaseModel):
     cached_tokens: int | None = None
     cache_write_tokens: int | None = None
     cost_usd: float | None = None
+    scope: str | None = None
+    excluded: bool = False
+    agent_role: AgentRole | None = None
     unmapped: list[str] = Field(default_factory=list)
+    dropped_attributes: int = 0
 
 
 class MappingModel(BaseModel):
@@ -66,6 +73,34 @@ class AttributeRule(MappingModel):
         default=None,
         description="Collect messages laid out per this format under the attribute key.",
     )
+
+
+class SpanMatch(MappingModel):
+    name: str | None = Field(
+        default=None, description="Span name; glob patterns such as OpenAILike.* are allowed."
+    )
+    attribute: str | None = Field(default=None, description="A span attribute key to compare.")
+    equals: Any | None = Field(
+        default=None,
+        description='The value the attribute must hold, compared as text: 1, 1.0 and "1" '
+        'match, and so do true and "true". Leave out to match any span that has the attribute.',
+    )
+    scope: str | None = Field(
+        default=None,
+        description="Instrumentation scope name, e.g. mcp; glob patterns are allowed.",
+    )
+
+    @model_validator(mode="after")
+    def require_a_field(self) -> SpanMatch:
+        if self.name is None and self.attribute is None and self.scope is None:
+            raise ValueError("a span match needs name, attribute or scope")
+        if self.equals is not None and self.attribute is None:
+            raise ValueError("equals needs attribute")
+        return self
+
+
+class SpanRekind(SpanMatch):
+    kind: EsfKind = Field(description="The kind matching spans get instead of the kind rule's.")
 
 
 class TokenRules(MappingModel):
@@ -114,7 +149,23 @@ class MappingDocument(MappingModel):
         description="Where the run's answer comes from: root, a span name, or "
         "<span name>.<output key>.",
     )
-    exclude_spans: list[str] = Field(
+    exclude_spans: list[str | SpanMatch] = Field(
         default_factory=list,
-        description="Span names left out of the trajectory.",
+        description="Spans left out of the trajectory: a span name (glob patterns allowed) or "
+        "a match on name, attribute and scope; every field given must match.",
+    )
+    rekind_spans: list[SpanRekind] = Field(
+        default_factory=list,
+        description="Spans that get another kind than the kind rule gives, e.g. a graph node "
+        "tagged agent that is only a step: {name: agent, kind: chain}. The first match wins.",
+    )
+    main_agent: str | SpanMatch | None = Field(
+        default=None,
+        description="The agent span whose answer and id the trajectory carries, when the "
+        "earliest top-level agent span is not it.",
+    )
+    subagent_spans: list[str | SpanMatch] = Field(
+        default_factory=list,
+        description="Agent spans that become subagent trajectories even when no tool span "
+        "spawns them, e.g. sibling crew members to keep apart.",
     )

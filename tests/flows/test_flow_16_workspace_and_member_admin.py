@@ -1,6 +1,6 @@
 import time
 
-import httpx
+import httpx2
 import pytest
 
 from tests.api.test_otel import PROTO, otlp_payload
@@ -24,9 +24,9 @@ def test_flow_16_users_get_personal_workspaces_and_admin_flags(live):
     carol_ws = admin.get("/api/workspaces/carol").json()
     assert carol_ws["type"] == "personal" and carol_ws["owner"] == "carol"
     assert live.run("users", "promote", "carol").exit_code == 0
-    assert lines_starting(live.run("users", "list").output, "carol")[0][1] == "ADMIN"
+    assert "ADMIN" in lines_starting(live.run("users", "list").output, "carol")[0]
     assert live.run("users", "demote", "carol").exit_code == 0
-    assert lines_starting(live.run("users", "list").output, "carol")[0][1] != "ADMIN"
+    assert "ADMIN" not in lines_starting(live.run("users", "list").output, "carol")[0]
     taken = live.run("users", "add", "dev", input="password\n")
     assert taken.exit_code == 1
     last = live.run("users", "demote", "admin")
@@ -37,18 +37,18 @@ def test_flow_16_users_get_personal_workspaces_and_admin_flags(live):
 def test_flow_16_agent_tokens_outlive_the_user_who_minted_them(live, tmp_path):
     live.run("users", "add", "carol", input="password\n")
     live.run("workspaces", "members", "add", DEV, "carol", "--role", "writer")
-    carol = httpx.Client(
+    carol = httpx2.Client(
         base_url=live.url,
         headers={
             "Authorization": "Bearer "
-            + httpx.post(
+            + httpx2.post(
                 f"{live.url}/api/auth/login", json={"username": "carol", "password": "password"}
             ).json()["token"]
         },
     )
     minted = carol.post("/api/tokens", json={"agent": f"ouragent@{DEV}"})
     assert minted.status_code == 200, minted.text
-    bound = httpx.Client(
+    bound = httpx2.Client(
         base_url=live.url, headers={"Authorization": f"Bearer {minted.json()['token']}", **PROTO}
     )
     assert bound.post("/api/otel/v1/traces", content=otlp_payload("s-1")).status_code == 200
@@ -82,6 +82,17 @@ def test_flow_16_workspaces_rename_archive_and_shared_namespace(live):
     blocked = admin.post("/api/agents", json={**agent, "workspace": "staging", "name": "y"})
     assert blocked.status_code == 409
     assert admin.get("/api/workspaces/nope").status_code == 404
+
+
+def test_flow_16_workspaces_list_shows_the_promotion_link(live):
+    assert live.run("workspaces", "create", "qa").exit_code == 0
+    linked = live.run("workspaces", "promote-to", DEV, "qa")
+    assert linked.exit_code == 0, linked.output
+    listed = live.run("workspaces", "list").output
+    assert lines_starting(listed, DEV)[0][4:7] == ["promotes", "to", "qa"]
+    assert lines_starting(listed, "qa")[0][4:7] == ["promoted", "from", DEV]
+    assert live.run("workspaces", "promote-to", DEV, "--none").exit_code == 0
+    assert len(lines_starting(live.run("workspaces", "list").output, DEV)[0]) == 4
 
 
 def test_flow_16_members_and_what_grants_allow(live):

@@ -2,15 +2,22 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
-from sqlalchemy import Select, delete, func, select
+from sqlalchemy import ColumnElement, Select, delete, func, select, true
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from evalkit.contracts.enums import EvaluationSource, EvaluatorKind, ExperimentStatus, RunStatus
+from evalkit.contracts.enums import (
+    EvaluationSource,
+    EvaluatorKind,
+    ExperimentStatus,
+    RunStatus,
+    ScoredOn,
+)
 from evalkit.core.runner import ACTIVE
 from evalkit.core.scorecard import EXCLUDED_FROM_BUCKETS, bucket_for
 from evalkit.db import models
 from evalkit.db.cases import case_views
+from evalkit.db.experiments import _tenant_of, get_experiment
 from evalkit.store.base import (
     AgentRunRecord,
     CaseRep,
@@ -28,15 +35,24 @@ RunSource = Literal["app", "eval", "all"]
 
 
 async def _experiment(session: AsyncSession, exp_id: int) -> models.Experiment:
+    await get_experiment(session, exp_id)
     exp = await session.get(models.Experiment, exp_id)
-    if exp is None:
-        raise UnknownExperiment(exp_id)
+    assert exp is not None
     return exp
+
+
+def _match_agent(session: AsyncSession, agent_id: int) -> ColumnElement[bool]:
+    return models.AgentRun.agent_id.in_(
+        select(models.Agent.id)
+        .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+        .where(models.Agent.id == agent_id, models.Workspace.tenant_id == _tenant_of(session))
+    )
 
 
 async def _leased_experiment(
     session: AsyncSession, exp_id: int, holder: str | None
 ) -> models.Experiment:
+    await get_experiment(session, exp_id)
     exp = await session.scalar(
         select(models.Experiment).where(models.Experiment.id == exp_id).with_for_update(read=True)
     )
@@ -185,7 +201,9 @@ def _record(row: models.AgentRun) -> AgentRunRecord:
     return AgentRunRecord.model_validate(row, from_attributes=True)
 
 
-async def runs_to_score(session: AsyncSession, exp_id: int, *, force: bool) -> list[RunForScoring]:
+async def runs_to_score(
+    session: AsyncSession, exp_id: int, *, force: bool, only_run: int | None = None
+) -> list[RunForScoring]:
     exp = await _experiment(session, exp_id)
     rows = (
         await session.execute(
@@ -199,6 +217,7 @@ async def runs_to_score(session: AsyncSession, exp_id: int, *, force: bool) -> l
             .where(
                 models.ExperimentRun.experiment_id == exp_id,
                 models.AgentRun.error.is_(None) | models.AgentRun.output.is_not(None),
+                true() if only_run is None else models.ExperimentRun.id == only_run,
             )
             .order_by(models.ExperimentRun.id)
         )
@@ -218,14 +237,24 @@ async def runs_to_score(session: AsyncSession, exp_id: int, *, force: bool) -> l
     }
     done: dict[int, set[str]] = {}
     if not force:
-        succeeded = await session.execute(
-            select(models.Evaluation.experiment_run_id, models.Evaluation.name).where(
-                models.Evaluation.experiment_run_id.in_([er.id for er, _, _ in rows]),
-                models.Evaluation.error.is_(None),
-            )
+        evaluations = await session.execute(
+            select(
+                models.Evaluation.experiment_run_id,
+                models.Evaluation.producer,
+                models.Evaluation.name,
+                models.Evaluation.error,
+                models.Evaluation.label,
+            ).where(models.Evaluation.experiment_run_id.in_([er.id for er, _, _ in rows]))
         )
-        for run_id, name in succeeded.all():
-            done.setdefault(run_id, set()).add(name)
+        found = evaluations.all()
+        errored = {
+            (run_id, producer)
+            for run_id, producer, _, error, label in found
+            if error is not None or label == "error"
+        }
+        for run_id, producer, name, _, _ in found:
+            if (run_id, producer) not in errored:
+                done.setdefault(run_id, set()).add(name)
     return [
         RunForScoring(
             experiment_run_id=er.id,
@@ -257,9 +286,10 @@ async def publish_evaluations(
     *,
     force: bool = False,
     holder: str | None = None,
+    experiment_id: int | None = None,
 ) -> None:
     if holder is not None:
-        exp_id = await session.scalar(
+        exp_id = experiment_id or await session.scalar(
             select(models.ExperimentRun.experiment_id).where(
                 models.ExperimentRun.id == experiment_run_id
             )
@@ -267,13 +297,15 @@ async def publish_evaluations(
         if exp_id is None:
             raise InvalidRun(f"unknown experiment run: {experiment_run_id}")
         await _leased_experiment(session, exp_id, holder)
-    succeeded = {r.producer for r in rows if r.error is None}
-    if succeeded:
+    published: dict[str, set[str]] = {}
+    for row in rows:
+        published.setdefault(row.producer, set()).add(row.name)
+    for producer, names in published.items():
         await session.execute(
             delete(models.Evaluation).where(
                 models.Evaluation.experiment_run_id == experiment_run_id,
-                models.Evaluation.producer.in_(succeeded),
-                models.Evaluation.error.is_not(None),
+                models.Evaluation.producer == producer,
+                models.Evaluation.name.not_in(names),
             )
         )
     for row in rows:
@@ -298,6 +330,7 @@ def _evaluation(row: models.Evaluation) -> EvaluationRow:
         name=row.name,
         kind=EvaluatorKind(row.kind),
         source=EvaluationSource(row.source),
+        scored_on=ScoredOn(row.scored_on),
         value=row.value,
         label=row.label,
         explanation=row.explanation,
@@ -395,7 +428,7 @@ async def list_agent_runs(
     until: datetime | None = None,
     source: RunSource = "all",
 ) -> tuple[list[AgentRunItem], int]:
-    stmt = _items_query().where(models.AgentRun.agent_id == agent_id)
+    stmt = _items_query().where(_match_agent(session, agent_id))
     if since is not None:
         stmt = stmt.where(models.AgentRun.started_at >= since)
     if until is not None:
@@ -405,7 +438,9 @@ async def list_agent_runs(
     elif source == "app":
         stmt = stmt.where(models.ExperimentRun.id.is_(None))
     if created_by is not None:
-        stmt = stmt.where(models.User.username == created_by)
+        stmt = stmt.where(
+            models.User.tenant_id == _tenant_of(session), models.User.username == created_by
+        )
     if query:
         stmt = stmt.where(
             models.AgentRun.title.ilike(f"%{query}%")
@@ -436,7 +471,7 @@ async def runs_by_harness_ids(
         return {}
     rows = await session.execute(
         _items_query().where(
-            models.AgentRun.agent_id == agent_id,
+            _match_agent(session, agent_id),
             models.AgentRun.harness_run_id.in_(harness_run_ids),
         )
     )
@@ -450,7 +485,7 @@ async def trajectory_keys(
         return {}
     rows = await session.execute(
         select(models.AgentRun.harness_run_id, models.AgentRun.trajectory_key).where(
-            models.AgentRun.agent_id == agent_id,
+            _match_agent(session, agent_id),
             models.AgentRun.harness_run_id.in_(harness_run_ids),
             models.AgentRun.trajectory_key.is_not(None),
         )
@@ -463,7 +498,7 @@ async def agent_run(
 ) -> AgentRunRecord | None:
     row = await session.scalar(
         select(models.AgentRun).where(
-            models.AgentRun.agent_id == agent_id,
+            _match_agent(session, agent_id),
             models.AgentRun.harness_run_id == harness_run_id,
         )
     )
@@ -484,7 +519,7 @@ async def eval_context(
                 & (models.ExperimentCase.case_ref == models.ExperimentRun.case_ref),
             )
             .where(
-                models.AgentRun.agent_id == agent_id,
+                _match_agent(session, agent_id),
                 models.AgentRun.harness_run_id == harness_run_id,
             )
         )

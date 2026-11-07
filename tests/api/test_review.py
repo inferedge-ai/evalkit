@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from evalkit.contracts.enums import WorkspaceRole
@@ -28,10 +28,10 @@ cases:
 @pytest.fixture
 async def env(tmp_path, session_factory):
     env = await seed_env(session_factory, tmp_path, FakeHarness(), approved=False)
-    users = UserStore(session_factory)
+    users = UserStore(session_factory, "default")
     for name in ("sme", "other"):
-        await users.create(name, "password")
-    workspaces = WorkspaceStore(session_factory)
+        await users.create(name, password="password")
+    workspaces = WorkspaceStore(session_factory, "default")
     await workspaces.add_member(
         "canonical", "sme", WorkspaceRole.REVIEWER, granted_by=env.user_ids["admin"]
     )
@@ -39,7 +39,7 @@ async def env(tmp_path, session_factory):
     async with serve(env, tmp_path) as admin:
         clients = {"admin": admin}
         for name in ("alice", "sme"):
-            client = httpx.AsyncClient(transport=admin._transport, base_url="http://test")
+            client = httpx2.AsyncClient(transport=admin._transport, base_url="http://test")
             password = USERS.get(name, "password")
             resp = await client.post(
                 "/api/auth/login", json={"username": name, "password": password}
@@ -104,7 +104,7 @@ async def test_request_review_by_selection(env):
         json={"selection": {"case_ids": ["case-1"]}, "reviewer": "sme"},
     )
     assert resp.status_code == 200, resp.text
-    assert resp.json() == {"requested": ["case-1"]}
+    assert resp.json() == {"requested": ["case-1"], "already_requested": []}
     loaded = await ctx.review.load(
         "finance@canonical",
         [CaseVersion("case-1", hashes["case-1"]), CaseVersion("case-2", hashes["case-2"])],
@@ -113,6 +113,14 @@ async def test_request_review_by_selection(env):
     assert loaded["case-1"].requested_to == "sme"
     assert loaded["case-1"].last_event.actor == "alice"
     assert loaded["case-2"].state() is CaseState.UNREVIEWED
+
+    again = await clients["alice"].post(
+        f"{BASE}/review-requests",
+        json={"selection": {"case_ids": ["case-1"]}, "reviewer": "sme"},
+    )
+    assert again.json() == {"requested": [], "already_requested": ["case-1"]}
+    history = await ctx.review.history("finance@canonical", "case-1")
+    assert [e.kind for e in history].count(CaseEventKind.REVIEW_REQUESTED) == 1
 
     bad = await clients["alice"].post(
         f"{BASE}/review-requests",
@@ -189,6 +197,12 @@ async def test_comments_threads_and_resolve_permissions(env):
     missing = await clients["sme"].patch(f"{base}/9999", json={"resolved": True})
     assert missing.status_code == 404
 
+    by_id = f"/api/review/comments/{root_id}"
+    assert (await clients["admin"].patch(by_id, json={"resolved": True})).status_code == 403
+    assert (await clients["alice"].patch(by_id, json={"resolved": True})).json()["resolved"] is True
+    missing = await clients["sme"].patch("/api/review/comments/9999", json={"resolved": True})
+    assert missing.status_code == 404
+
 
 async def test_queue_filters_by_reviewer_and_current_state(env):
     clients, ctx, hashes = env
@@ -217,6 +231,12 @@ async def test_queue_filters_by_reviewer_and_current_state(env):
         await clients["sme"].get("/api/review/queue", params={"workspace": "alice"})
     ).json()["items"]
     assert elsewhere == []
+    in_dataset = (
+        await clients["sme"].get("/api/review/queue", params={"dataset": FINANCE})
+    ).json()["items"]
+    assert {i["case_id"] for i in in_dataset} == {"case-1", "case-2"}
+    missing = await clients["sme"].get("/api/review/queue", params={"dataset": "nope@canonical"})
+    assert missing.status_code == 404
 
     await clients["sme"].post(f"{BASE}/cases/case-1/review", json={"action": "approve"})
     after = (await clients["sme"].get("/api/review/queue", params={"reviewer": "sme"})).json()
@@ -225,6 +245,10 @@ async def test_queue_filters_by_reviewer_and_current_state(env):
 
 async def test_queue_can_list_changes_requested(env):
     clients, *_ = env
+    await clients["alice"].post(
+        f"{BASE}/review-requests",
+        json={"selection": {"case_ids": ["case-1"]}, "reviewer": "sme"},
+    )
     await clients["sme"].post(
         f"{BASE}/cases/case-1/review",
         json={"action": "request_changes", "comment": "anchor the date"},
@@ -236,11 +260,35 @@ async def test_queue_can_list_changes_requested(env):
     changes = (
         await clients["alice"].get("/api/review/queue", params={"state": "changes_requested"})
     ).json()
-    assert [(i["case_id"], i["requested_by"], i["requested_to"]) for i in changes["items"]] == [
-        ("case-1", "sme", None)
+    assert [(i["case_id"], i["requested_by"], i["author"]) for i in changes["items"]] == [
+        ("case-1", "sme", "alice")
     ]
     waiting = (await clients["alice"].get("/api/review/queue")).json()
     assert [i["case_id"] for i in waiting["items"]] == ["case-2"]
     assert (
         await clients["alice"].get("/api/review/queue", params={"state": "unreviewed"})
     ).status_code == 422
+
+
+async def test_queue_author_survives_a_resync_by_someone_else(env):
+    clients, *_ = env
+    await clients["alice"].post(
+        f"{BASE}/review-requests",
+        json={"selection": {"case_ids": ["case-1"]}, "reviewer": "sme"},
+    )
+    edited = CASES_YAML.replace(b"q1 edited", b"q1 edited again")
+    assert edited != CASES_YAML
+    resynced = await clients["admin"].post(
+        "/api/sync",
+        params={"dataset": "finance", "workspace": "canonical"},
+        files=upload(body=edited),
+    )
+    assert resynced.json()["review"]["carried"] == [{"case_id": "case-1", "reviewer": "sme"}]
+    await clients["sme"].post(
+        f"{BASE}/cases/case-1/review",
+        json={"action": "request_changes", "comment": "anchor the date"},
+    )
+    changes = (
+        await clients["alice"].get("/api/review/queue", params={"state": "changes_requested"})
+    ).json()
+    assert [(i["case_id"], i["author"]) for i in changes["items"]] == [("case-1", "alice")]

@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-import httpx
+import httpx2
 import pytest
 
 from evalkit.contracts.enums import TraceImportStatus
@@ -141,12 +141,12 @@ async def test_a_lost_lease_ends_without_finishing():
 
 
 async def test_guarded_import_records_the_error_and_reraises():
-    boom = httpx.HTTPStatusError(
-        "500", request=httpx.Request("GET", "u"), response=httpx.Response(500)
+    boom = httpx2.HTTPStatusError(
+        "500", request=httpx2.Request("GET", "u"), response=httpx2.Response(500)
     )
     client = FakeClient(fail=boom).page((1, hour(1), None))
     store, spans = FakeStore(), FakeSpans()
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(httpx2.HTTPStatusError):
         await guarded_import(12, "pod:a", client, store, spans, MAPPING)
     assert len(store.advanced) == 1
     assert store.finished == [(TraceImportStatus.FAILED, "HTTPStatusError: 500")]

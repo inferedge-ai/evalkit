@@ -16,20 +16,18 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 )
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue
 from opentelemetry.proto.trace.v1.trace_pb2 import Span as ProtoSpan
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
-from evalkit.api.access import load_actor, workspace_ref
+from evalkit.api.access import TenantStores, build_tenant_stores, load_actor, workspace_ref
 from evalkit.api.auth import CollectorPrincipal, Principal
-from evalkit.api.deps import AgentStoreDep, ConfigDep, MappingStoreDep, SessionDep, SpanStoreDep
+from evalkit.api.deps import ConfigDep
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.access import Actor, WorkspaceRef, can_write
 from evalkit.core.agents import AgentDefinition, UnknownAgent, explicit
 from evalkit.core.traces.mapping import session_id_of
 from evalkit.core.traces.raw import RawSpan
 from evalkit.core.workspace import Reference, parse_reference, slug
-from evalkit.db.agents import AgentStore
 from evalkit.db.models import User
 
 router = APIRouter(prefix="/api/otel/v1", tags=["otel"])
@@ -75,7 +73,7 @@ def _iso(nanos: int) -> str | None:
     return at.isoformat() if at else None
 
 
-def _from_proto(span: ProtoSpan, resource: dict[str, Any]) -> RawSpan:
+def _from_proto(span: ProtoSpan, resource: dict[str, Any], scope: str | None) -> RawSpan:
     start = _time(span.start_time_unix_nano)
     if start is None:
         raise HTTPException(status_code=400, detail=f"span {span.name!r} has no start time")
@@ -99,6 +97,8 @@ def _from_proto(span: ProtoSpan, resource: dict[str, Any]) -> RawSpan:
             for e in span.events
         ],
         resource=resource,
+        scope=scope,
+        dropped_attributes_count=span.dropped_attributes_count,
     )
 
 
@@ -124,7 +124,7 @@ def _json_attributes(items: list[dict[str, Any]] | None) -> dict[str, Any]:
     return {kv["key"]: _json_any(kv.get("value", {})) for kv in items or []}
 
 
-def _from_json(span: dict[str, Any], resource: dict[str, Any]) -> RawSpan:
+def _from_json(span: dict[str, Any], resource: dict[str, Any], scope: str | None) -> RawSpan:
     start = _time(int(span.get("startTimeUnixNano") or 0))
     if start is None:
         raise HTTPException(status_code=400, detail="span without startTimeUnixNano")
@@ -149,6 +149,8 @@ def _from_json(span: dict[str, Any], resource: dict[str, Any]) -> RawSpan:
             for e in span.get("events") or []
         ],
         resource=resource,
+        scope=scope,
+        dropped_attributes_count=int(span.get("droppedAttributesCount") or 0),
     )
 
 
@@ -159,14 +161,18 @@ def _decode(body: bytes, content_type: str) -> list[RawSpan]:
         for resource_spans in request.resource_spans:
             resource = _attributes(resource_spans.resource.attributes)
             for scope_spans in resource_spans.scope_spans:
-                spans.extend(_from_proto(span, resource) for span in scope_spans.spans)
+                scope = scope_spans.scope.name or None
+                spans.extend(_from_proto(span, resource, scope) for span in scope_spans.spans)
         return spans
     if content_type.startswith("application/json"):
         payload = json.loads(body)
         for resource_spans in payload.get("resourceSpans", []):
             resource = _json_attributes((resource_spans.get("resource") or {}).get("attributes"))
             for scope_spans in resource_spans.get("scopeSpans", []):
-                spans.extend(_from_json(span, resource) for span in scope_spans.get("spans", []))
+                scope = (scope_spans.get("scope") or {}).get("name") or None
+                spans.extend(
+                    _from_json(span, resource, scope) for span in scope_spans.get("spans", [])
+                )
         return spans
     raise HTTPException(
         status_code=415,
@@ -260,14 +266,12 @@ def _user_agent(named: str | None, user: User) -> Reference:
         raise Rejected(400, str(exc), "malformed", named) from exc
 
 
-async def _user_record(
-    ref: Reference, actor: Actor, session: AsyncSession, agents: AgentStore
-) -> AgentDefinition:
-    agent = await agents.find(explicit(ref))
+async def _user_record(ref: Reference, actor: Actor, stores: TenantStores) -> AgentDefinition:
+    agent = await stores.agents.find(explicit(ref))
     if agent is None:
         unknown = UnknownAgent(explicit(ref)).args[0]
         raise Rejected(404, unknown, "unknown agent", explicit(ref))
-    ws = await workspace_ref(session, agent.workspace)
+    ws = await workspace_ref(stores, agent.workspace)
     if not can_write(actor, ws):
         raise Rejected(403, f"you cannot export traces for {agent.ref}", "forbidden", agent.ref)
     return _live(agent, ws)
@@ -284,25 +288,23 @@ def _live(agent: AgentDefinition, ws: WorkspaceRef) -> AgentDefinition:
 async def _resolve(
     principal: Principal,
     groups: dict[str | None, list[RawSpan]],
-    session: AsyncSession,
-    agents: AgentStore,
+    stores: TenantStores,
 ) -> list[tuple[AgentDefinition, list[RawSpan]]]:
     if principal.agent_id is not None:
-        bound = await agents.get_by_id(principal.agent_id)
+        bound = await stores.agents.get_by_id(principal.agent_id)
         for named in groups:
             _token_agent(named, bound)
-        _live(bound, await workspace_ref(session, bound.workspace))
+        _live(bound, await workspace_ref(stores, bound.workspace))
         return [(bound, [span for spans in groups.values() for span in spans])]
     assert principal.user is not None
     user = principal.user
-    actor = await load_actor(session, user)
+    async with stores.session() as session:
+        actor = await load_actor(session, user)
     refs = {named: _user_agent(named, user) for named in groups}
     by_ref: dict[Reference, list[RawSpan]] = {}
     for named, spans in groups.items():
         by_ref.setdefault(refs[named], []).extend(spans)
-    return [
-        (await _user_record(ref, actor, session, agents), spans) for ref, spans in by_ref.items()
-    ]
+    return [(await _user_record(ref, actor, stores), spans) for ref, spans in by_ref.items()]
 
 
 @router.post("/traces")
@@ -310,11 +312,8 @@ async def export_traces(
     request: Request,
     principal: CollectorPrincipal,
     cfg: ConfigDep,
-    agents: AgentStoreDep,
-    session: SessionDep,
-    spans_store: SpanStoreDep,
-    mappings: MappingStoreDep,
 ) -> Response:
+    stores = build_tenant_stores(request.app.state, principal.tenant_id)
     header = request.headers.get(AGENT_HEADER)
     body = await request.body()
     if request.headers.get("content-encoding") == "gzip":
@@ -332,8 +331,8 @@ async def export_traces(
     groups: dict[str | None, list[RawSpan]] = {}
     for span in spans:
         groups.setdefault(_named_agent(span, header), []).append(span)
-    for record, agent_spans in await _resolve(principal, groups, session, agents):
-        active = await mappings.active(record.id)
+    for record, agent_spans in await _resolve(principal, groups, stores):
+        active = await stores.mappings.active(record.id)
         document = MappingDocument.model_validate(active.document) if active else None
         if document is None:
             LOGGER.warning(
@@ -342,7 +341,7 @@ async def export_traces(
             )
         for span in agent_spans:
             span.session_id_hint = session_id_of(span.attributes, document)
-        await spans_store.upsert(record.id, agent_spans)
+        await stores.spans.upsert(record.id, agent_spans)
     if content_type.startswith(PROTOBUF):
         return Response(
             content=ExportTraceServiceResponse().SerializeToString(), media_type=PROTOBUF

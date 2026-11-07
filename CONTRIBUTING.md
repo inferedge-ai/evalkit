@@ -22,12 +22,15 @@ all welcome.
 - Branch from `develop` and open your pull request against `develop`.
   `main` only receives releases.
 - Keep each pull request to one change.
-- If your change affects what users can do or see (a command, flag,
-  endpoint, field, UI control), add an entry under `## Unreleased` in
-  `CHANGELOG.md`.
+- If your change affects behaviour, an interface, a dependency, the schema,
+  packaging or the build, add an entry under `## Unreleased` in
+  `CHANGELOG.md` saying what changed and, when it is not obvious, why.
 - Don't bump the version in `pyproject.toml`; releases do that.
 - If your change touches the UI, run it locally, click through what changed,
   and add screenshots to the pull request description.
+- Design specs and implementation plans are not checked in. If you wrote
+  one, share it in the pull request: paste it into the description or link
+  to it.
 - CI must pass before a pull request can merge.
 
 ## Development setup
@@ -54,3 +57,5 @@ layering rules and code style. Please follow them.
 ## Code of conduct
 
 Everyone taking part follows our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+Contributions are made under the repository's [Apache-2.0 License](LICENSE). There is no Contributor License Agreement.

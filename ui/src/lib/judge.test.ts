@@ -3,29 +3,26 @@ import { judgeChoice, judgeOverride } from "./judge";
 import type { JudgeSettings } from "./types";
 
 const defaults: JudgeSettings = {
-  base_url: "https://llm/v1",
+  provider: "openai",
   model: "judge-model",
   reasoning_effort: "high",
   max_tokens: 32768,
-  concurrency: 16,
 };
 
 describe("judge override", () => {
   it("prefills from the server default and sends nothing when unchanged", () => {
     expect(judgeChoice(defaults)).toEqual({
       model: "judge-model",
-      base_url: "https://llm/v1",
+      provider: "openai",
       reasoning_effort: "high",
     });
     expect(judgeOverride(defaults, judgeChoice(defaults))).toBeNull();
   });
 
   it("without a server default, sends a judge once provider and model are picked", () => {
-    const empty = { model: "", base_url: "", reasoning_effort: "" };
+    const empty = { model: "", provider: "", reasoning_effort: "" };
     expect(judgeOverride(null, empty)).toBeNull();
-    expect(
-      judgeOverride(null, { ...empty, base_url: "https://llm/v1" }),
-    ).toBeNull();
+    expect(judgeOverride(null, { ...empty, provider: "openai" })).toBeNull();
     expect(judgeOverride(null, judgeChoice(defaults))).toEqual(defaults);
   });
 
@@ -38,6 +35,7 @@ describe("judge override", () => {
     expect(judgeOverride(defaults, changed)).toEqual({
       ...defaults,
       model: "other",
+      base_url: null,
     });
   });
 });

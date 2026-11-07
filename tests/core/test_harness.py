@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-import httpx
+import httpx2
 import pytest
 
 from evalkit.contracts.atif import TrajectoryValidationError
@@ -17,7 +17,7 @@ def make_client(fake: FakeHarness, **cfg_overrides) -> HarnessClient:
         **{"poll_interval_seconds": 0, "run_timeout_seconds": 1, **cfg_overrides}
     )
     agent = fake_agent(settings=settings)
-    return HarnessClient(agent, "client-key", transport=httpx.ASGITransport(app=fake.app))
+    return HarnessClient(agent, "client-key", transport=httpx2.ASGITransport(app=fake.app))
 
 
 async def test_start_poll_completed():
@@ -58,7 +58,7 @@ async def test_json_run_with_file_urls():
 async def test_start_run_error_includes_response_body():
     fake = FakeHarness(reject_multipart="Invalid input: expected object, received undefined")
     client = make_client(fake)
-    with pytest.raises(httpx.HTTPStatusError) as exc_info:
+    with pytest.raises(httpx2.HTTPStatusError) as exc_info:
         await client.start_run({"question": "hi"}, files=[("doc.csv", b"a,b")])
     message = str(exc_info.value)
     assert "400" in message
@@ -124,7 +124,7 @@ async def test_trajectory_valid():
 async def test_bearer_enforced():
     fake = FakeHarness(api_key="other-key")
     client = make_client(fake)
-    with pytest.raises(httpx.HTTPStatusError) as err:
+    with pytest.raises(httpx2.HTTPStatusError) as err:
         await client.capabilities()
     assert err.value.response.status_code == 401
 
@@ -148,7 +148,7 @@ async def test_stream_file_yields_the_body_and_raises_before_yielding():
     file = await client.stream_file(run_id, "out/big.bin")
     assert file.size == len(big)
     assert b"".join([chunk async for chunk in file.chunks]) == big
-    with pytest.raises(httpx.HTTPStatusError) as exc:
+    with pytest.raises(httpx2.HTTPStatusError) as exc:
         await client.stream_file(run_id, "missing.bin")
     assert exc.value.response.status_code == 404
     with pytest.raises(UnsafePathError):
@@ -183,17 +183,17 @@ async def test_multipart_payload_carries_file_context():
 
 
 STALE_CONNECTION_ERRORS = [
-    httpx.RemoteProtocolError("Server disconnected without sending a response."),
-    httpx.ReadError(""),
+    httpx2.RemoteProtocolError("Server disconnected without sending a response."),
+    httpx2.ReadError(""),
 ]
 
 
-class DisconnectingTransport(httpx.AsyncBaseTransport):
+class DisconnectingTransport(httpx2.AsyncBaseTransport):
     def __init__(
         self,
-        inner: httpx.AsyncBaseTransport,
+        inner: httpx2.AsyncBaseTransport,
         drops: int,
-        error: httpx.TransportError,
+        error: httpx2.TransportError,
         method: str = "GET",
     ):
         self.inner = inner
@@ -202,7 +202,7 @@ class DisconnectingTransport(httpx.AsyncBaseTransport):
         self.method = method
         self.dropped = 0
 
-    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+    async def handle_async_request(self, request: httpx2.Request) -> httpx2.Response:
         if request.method == self.method and self.dropped < self.drops:
             self.dropped += 1
             raise type(self.error)(str(self.error), request=request)
@@ -210,9 +210,9 @@ class DisconnectingTransport(httpx.AsyncBaseTransport):
 
 
 def make_disconnecting_client(
-    fake: FakeHarness, drops: int, error: httpx.TransportError, method: str = "GET"
+    fake: FakeHarness, drops: int, error: httpx2.TransportError, method: str = "GET"
 ) -> tuple[HarnessClient, DisconnectingTransport]:
-    transport = DisconnectingTransport(httpx.ASGITransport(app=fake.app), drops, error, method)
+    transport = DisconnectingTransport(httpx2.ASGITransport(app=fake.app), drops, error, method)
     agent = fake_agent(settings=AgentSettings(poll_interval_seconds=0, run_timeout_seconds=1))
     return HarnessClient(agent, "client-key", transport=transport), transport
 
@@ -268,11 +268,11 @@ async def test_idle_connections_expire_before_common_server_keepalives():
 async def test_file_urls_percent_encode_the_run_id_and_each_segment():
     seen: list[bytes] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         seen.append(request.url.raw_path)
-        return httpx.Response(200, content=b"ok")
+        return httpx2.Response(200, content=b"ok")
 
-    client = HarnessClient(fake_agent(), "client-key", transport=httpx.MockTransport(handler))
+    client = HarnessClient(fake_agent(), "client-key", transport=httpx2.MockTransport(handler))
     assert await client.get_file("r 1?x", "out dir/a#b.md") == b"ok"
     assert seen == [b"/evalkit/v1/runs/r%201%3Fx/files/out%20dir/a%23b.md"]
 
@@ -290,7 +290,7 @@ async def test_file_urls_percent_encode_the_run_id_and_each_segment():
 )
 async def test_file_requests_refuse_unsafe_paths(run_id, path):
     client = HarnessClient(
-        fake_agent(), "client-key", transport=httpx.MockTransport(lambda r: httpx.Response(200))
+        fake_agent(), "client-key", transport=httpx2.MockTransport(lambda r: httpx2.Response(200))
     )
     with pytest.raises(UnsafePathError):
         await client.get_file(run_id, path)

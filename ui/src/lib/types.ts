@@ -2,6 +2,8 @@
 export interface Me {
   username: string;
   is_admin: boolean;
+  email: string | null;
+  kind: "human" | "machine";
   personal_workspace: string | null;
   // workspace name → the roles this user holds there (writer, reviewer).
   roles: Record<string, WorkspaceRole[]>;
@@ -35,12 +37,13 @@ export interface UserRow {
 }
 
 // ── Settings (mirrors contracts/settings.py) ─────────────────────────────
+// Exactly one of provider (scored on the server) or base_url (bring your own key).
 export interface JudgeSettings {
-  base_url: string;
+  provider?: string | null;
+  base_url?: string | null;
   model: string;
   reasoning_effort: string;
   max_tokens: number;
-  concurrency: number;
 }
 
 export interface AgentSettings {
@@ -136,7 +139,7 @@ export interface TwinStatus {
   href: string;
 }
 
-export interface SplitInfo {
+export interface TagInfo {
   name: string;
   count: number;
 }
@@ -153,7 +156,11 @@ export interface GitRevision {
 export interface ExperimentConfig {
   model: string | null;
   judge: JudgeSettings;
-  selection: { all?: boolean; tag?: string | null; case_ids?: string[] | null };
+  selection: {
+    all?: boolean;
+    tags?: string[] | null;
+    case_ids?: string[] | null;
+  };
   revision: GitRevision | null;
   snapshot: {
     capabilities: Record<string, unknown>;
@@ -294,6 +301,7 @@ export interface EvaluationRow {
   name: string;
   kind: "score" | "gauge";
   source: "builtin" | "remote" | "code";
+  scored_on: "local" | "server";
   value: number | null;
   label: string | null;
   explanation: string | null;
@@ -308,6 +316,7 @@ export interface EvalScore {
   detail?: Record<string, unknown>;
   items?: Record<string, unknown>[];
   summary?: Record<string, number>;
+  scored_on?: "local" | "server";
 }
 
 // ── Agents / Harness API proxies ─────────────────────────────────────────
@@ -385,7 +394,7 @@ export interface RunListItem {
   run_id: string;
   title: string | null;
   user_id: string | null;
-  client_id?: string | null;
+  org_id?: string | null;
   created_at: string | null;
   status?: string | null;
   experiment_id?: number | null;
@@ -557,6 +566,7 @@ export interface QueueItem {
   case_id: string;
   requested_to: string | null;
   requested_by: string;
+  author: string | null;
   requested_at: string | null;
   input: string;
 }

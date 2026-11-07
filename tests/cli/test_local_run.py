@@ -2,11 +2,12 @@ import hashlib
 import subprocess
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 import typer
 
 from evalkit.cli.client import ApiClient
+from evalkit.cli.main import _run_selection
 from evalkit.client.sync import git_revision, resolve_path, sync_files, upload_fixtures
 from evalkit.core.workspace import Reference
 from evalkit.store.base import GitRevision, Selection
@@ -33,7 +34,7 @@ def test_bare_name_is_my_workspace_and_whole_dataset(cases_root):
 
 def test_subdirectory_selects_tag_and_file_selects_case_ids(cases_root):
     r = resolve_path("finance/statement-analysis", cases_root, "akshat")
-    assert r.selection == Selection(tag="statement-analysis")
+    assert r.selection == Selection(tags=["statement-analysis"])
     r = resolve_path("finance/statement-analysis/meridian.yaml", cases_root, "akshat")
     assert r.selection == Selection(case_ids=["m-1"])
 
@@ -45,7 +46,7 @@ def test_filesystem_path_resolves_through_cases_root(cases_root, monkeypatch):
     assert r.dataset_dir == cases_root / "finance" and r.subpath == "mf.yaml"
     r = resolve_path("cases/finance/statement-analysis", cases_root, "akshat")
     assert r.ref.name == "finance" and r.subpath == "statement-analysis"
-    assert r.selection == Selection(tag="statement-analysis")
+    assert r.selection == Selection(tags=["statement-analysis"])
     r = resolve_path("cases/finance", cases_root, "akshat")
     assert r.subpath is None and r.selection == Selection(all=True)
 
@@ -74,11 +75,16 @@ def test_filesystem_path_outside_cases_root_is_its_own_dataset(cases_root, tmp_p
 def test_other_workspace_has_no_sync_dir(cases_root):
     r = resolve_path("finance@canonical/statement-analysis", cases_root, "akshat")
     assert r.ref == Reference("finance", "canonical")
-    assert r.dataset_dir is None and r.selection == Selection(tag="statement-analysis")
-    r = resolve_path("other@ravi/sub", cases_root, "akshat")
-    assert r.selection == Selection(tag="sub")
+    assert r.dataset_dir is None and r.selection == Selection(tags=["statement-analysis"])
+    with pytest.raises(ValueError, match="--tag sub"):
+        resolve_path("other@ravi/sub", cases_root, "akshat")
     with pytest.raises(ValueError):
         resolve_path("other@ravi/sub/x.yaml", cases_root, "akshat")
+
+
+def test_a_subpath_not_on_disk_points_to_the_tag_flag(cases_root):
+    with pytest.raises(ValueError, match="--tag statement-only-tag"):
+        resolve_path("finance/statement-only-tag", cases_root, "akshat")
 
 
 def test_own_workspace_needs_directory_and_config(cases_root):
@@ -173,10 +179,10 @@ def test_upload_fixtures_shows_the_size_limit_the_server_hit(tmp_path, capsys):
         "fixture upload is larger than the 500 MB limit (server config limits.fixture_upload_bytes)"
     )
 
-    def handle(request: httpx.Request) -> httpx.Response:
+    def handle(request: httpx2.Request) -> httpx2.Response:
         if request.method == "PUT":
-            return httpx.Response(413, json={"detail": detail})
-        return httpx.Response(404)
+            return httpx2.Response(413, json={"detail": detail})
+        return httpx2.Response(404)
 
     fixtures = tmp_path / "fixtures"
     fixtures.mkdir()
@@ -184,7 +190,7 @@ def test_upload_fixtures_shows_the_size_limit_the_server_hit(tmp_path, capsys):
     registry = _registry(tmp_path, {"big.csv": b"big"})
     case = tmp_path / "c.yaml"
     case.write_text("- id: a\n  fixtures: [big.csv]\n  input: {question: q}\n")
-    client = ApiClient("http://test", transport=httpx.MockTransport(handle), check_version=False)
+    client = ApiClient("http://test", transport=httpx2.MockTransport(handle), check_version=False)
     with pytest.raises(typer.Exit):
         upload_fixtures(client, [("c.yaml", case), ("fixtures.yaml", registry)], fixtures)
     assert f"→ 413: {detail}" in capsys.readouterr().err
@@ -221,3 +227,14 @@ def test_upload_fixtures_rejects_missing_or_mismatched_files(tmp_path):
 def test_git_revision_without_git_installed(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path))
     assert git_revision(tmp_path) == GitRevision()
+
+
+def test_tag_flags_select_any_of_the_tags(cases_root):
+    whole = resolve_path("finance", cases_root, "akshat")
+    assert _run_selection(whole, ["ratios", "mf"], None) == Selection(tags=["ratios", "mf"])
+    assert _run_selection(whole, None, None) == Selection(all=True)
+    with pytest.raises(typer.Exit):
+        _run_selection(whole, ["ratios"], ["mf-1"])
+    folder = resolve_path("finance/statement-analysis", cases_root, "akshat")
+    with pytest.raises(typer.Exit):
+        _run_selection(folder, ["ratios"], None)

@@ -1,6 +1,6 @@
 ---
 name: evalkit-deployment
-description: Deploys evalkit for a client and integrates their agent — deploy the server image, run migrations, implement the Harness API (with ATIF trajectory conversion) and any Custom Evaluator API endpoints, write config.yaml, sync a first suite, wire lint/sync into CI, verify with a live harness check. Use when trying evalkit on one machine with the try-it stack, standing up evalkit for the first time, upgrading a deployment, or adding a new agent or custom evaluator. Not for everyday CLI use — see evalkit-usage.
+description: Deploys evalkit for a client and integrates their agent — deploy the server image, run migrations, implement the Harness API (with ATIF trajectory conversion) and any Custom Evaluator API endpoints, write config.yaml, sync a first suite, set up CI that lints eval cases on PRs and syncs them into a shared workspace on merge, verify with a live harness check. Use when trying evalkit on one machine with the try-it stack, standing up evalkit for the first time, setting up eval-case sync from a repo's CI (GitHub Actions or other), upgrading a deployment, or adding a new agent or custom evaluator. Not for everyday CLI use — see evalkit-usage.
 ---
 
 # evalkit deployment
@@ -17,7 +17,7 @@ Every developer on the client's team needs that one; only the deployer needs
 this one. You need no CLI before the server is up: the image contains one
 (`docker compose run --rm server evalkit …`). Once the server runs, install
 it on your machine from PyPI at the server's version, like everyone after you:
-`uv tool install --reinstall "evalkit-py==<version>"`, where
+`uv tool install --reinstall "evalkit-py==<version>"` (Python 3.12 or newer), where
 `curl <server url>/api/cli` prints the version (see evalkit-usage).
 
 `evalkit skills install` puts the evalkit user docs in `evalkit-docs/`
@@ -37,7 +37,7 @@ back here for a real deployment.
 ```
 Deployment:
 - [ ] 1. Deploy the server (docker compose up)
-- [ ] 2. evalkit db upgrade + admin bootstrap + evalkit login + create teammate users
+- [ ] 2. evalkit db upgrade + admin bootstrap + evalkit login + create teammate users (or turn on single sign-on with `auth.oidc`)
 - [ ] 2b. Create the shared workspaces (dev, prod) and add writers and reviewers
 - [ ] 3. Choose the integration path with the client: 3a SDK + traces (default), 3b Harness API for everything, 3c Harness API for invocation + traces for trajectories
 - [ ] 3a. (default) no harness: the client runs experiments with `run_experiment`; traces give the trajectories
@@ -63,7 +63,10 @@ and an OpenAI-compatible judge endpoint. The first start needs
 characters and at most 72 bytes. Without it, a server with no admin refuses
 to start and says so. Then `evalkit login` as admin
 and `evalkit users add <name>` for each teammate (admin only). Each new user
-gets a personal workspace named after them.
+gets a personal workspace named after them. To turn on single sign-on, set
+`auth.oidc` (the IdP registration and runbook are on
+[Single sign-on](../evalkit-docs/sso.md)); people then sign in through the
+identity provider and evalkit creates their user on the first sign-in.
 Which outbound calls the server makes, and how to restrict them, is under
 "Outbound URLs and network egress" in the same reference.
 
@@ -90,6 +93,8 @@ Recommended setup: one shared workspace per deployed environment of the
 client's agent, usually `dev` and `prod`. Cases move personal → `@dev` →
 `@prod`: a developer drafts in their own workspace, CI syncs merged cases
 into `@dev` where reviewers approve them, and `@prod` holds the released set.
+The full setup, with commands, is "Example setup: personal → dev → prod" on
+the [Workspaces](../evalkit-docs/workspaces.md) page.
 
 ```bash
 evalkit workspaces create dev                           # admin only
@@ -193,7 +198,7 @@ evalkit tokens create --agent <name>@dev   # admin or a writer of @dev; shown on
 ```
 
 Set the token as `EVALKIT_OTEL_TOKEN` (and `EVALKIT_SERVER_URL`) on the
-deployed agent; the evalkit SDK's `tracing.register` picks both up, and any
+deployed agent; the evalkit SDK's `tracing.register` requires both, and any
 other exporter takes it in `OTEL_EXPORTER_OTLP_HEADERS`.
 
 A deployed agent usually already exports to a tracing backend (SigNoz,
@@ -293,17 +298,25 @@ directory that runs `evalkit lint <dir> --dataset <their-slug>` on every PR
 their default branch (the dataset name is the directory name). Both commands
 are thin HTTP calls. Each job installs the CLI from the server first with the
 CI install command in the evalkit-usage skill, so CI always runs the server's
-build. Both jobs log in first: every server call needs a token, lint included
-(only `evalkit lint --offline` runs without one, and it skips the checks that
-need server state). Use admin for both. Each job runs `evalkit login
---url <server> --username admin --password
-"$EVALKIT_ADMIN_PASSWORD"` with the admin password from CI secrets (the same
-value the server was started with) — tokens expire after
-`auth.token_ttl_hours`, so do not store a token as a secret. Pass
-`--actor <merge author>` on sync (for example the head commit's author email)
-so the case changelog records who synced instead of `admin`. `--dataset` on
+build. Every server call needs a login, lint included (only `evalkit lint
+--offline` runs without one, and it skips the checks that need server state).
+Both jobs authenticate as a machine user, never admin. With single sign-on,
+register a machine client at the identity provider, put its id and secret in
+CI secrets `EVALKIT_OIDC_CLIENT_ID` and `EVALKIT_OIDC_CLIENT_SECRET`, bind it
+once with `evalkit users add ci-bot --subject <sub>` and grant it writer on
+the workspace. Without single sign-on, create a dedicated user with
+`evalkit users add ci-bot` and log in with its password from CI secrets at
+the start of each job: tokens expire after `auth.token_ttl_hours`, so do not
+store a token as a secret. The machine user is recorded in the case
+changelog (`--actor` is admin only). `--dataset` on
 lint is what makes the server check case ids and overlay targets against
-every other dataset; without it those two checks only run at sync.
+every other dataset; without it those two checks only run at sync. Details
+are on the [CI sync](../evalkit-docs/ci-sync.md) page.
+
+For the dev and prod setup in step 2b (described step by step under
+"Example setup: personal → dev → prod" on the
+[Workspaces](../evalkit-docs/workspaces.md) page), a ready-to-copy GitHub
+Actions workflow is on the [CI sync](../evalkit-docs/ci-sync.md) page.
 
 ## 8–9. Verify live
 
@@ -328,5 +341,6 @@ install the CLI from `<server url>/cli`. Upgrades of the deployment itself
 follow the "Upgrades" section of
 [`references/config-and-deploy.md`](references/config-and-deploy.md); after
 one, every CLI prints an update nudge until its owner runs `evalkit update`.
+A config with `mcp.oauth` fails to load; move the issuer to `auth.oidc`.
 
 For bugs, feature requests and feedback on evalkit, open an issue at https://github.com/inferedge-ai/evalkit/issues; questions go to https://github.com/inferedge-ai/evalkit/discussions.

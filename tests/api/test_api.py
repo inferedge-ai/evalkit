@@ -2,11 +2,13 @@ import asyncio
 import hashlib
 import json
 
-import httpx
+import httpx2
 import pytest
 from sqlalchemy import func, select
 
 from evalkit.contracts.enums import ExperimentStatus
+from evalkit.core import runner as runner_module
+from evalkit.core.blob import tenant_prefix
 from evalkit.db.models import FixtureBlob
 from tests.fake_harness import FakeHarness
 from tests.native import (
@@ -32,7 +34,7 @@ async def api(tmp_path, stub_judges, session_factory):
         yield client, env, fake_harness
 
 
-async def run_shared(client: httpx.AsyncClient, **extra) -> dict:
+async def run_shared(client: httpx2.AsyncClient, **extra) -> dict:
     resp = await client.post("/api/experiments", json={"dataset": FINANCE, "agent": AGENT, **extra})
     assert resp.status_code == 200, resp.text
     return await wait_for(client, resp.json()["id"])
@@ -40,7 +42,7 @@ async def run_shared(client: httpx.AsyncClient, **extra) -> dict:
 
 async def test_auth_wall(api):
     client, *_ = api
-    bare = httpx.AsyncClient(transport=client._transport, base_url="http://test")
+    bare = httpx2.AsyncClient(transport=client._transport, base_url="http://test")
     resp = await bare.get("/api/datasets")
     assert resp.status_code == 401
     assert (await bare.get("/api/health")).status_code == 200
@@ -50,7 +52,7 @@ async def test_auth_wall(api):
 async def test_security_headers(api):
     client, *_ = api
     for base in ("http://test", "https://test"):
-        bare = httpx.AsyncClient(transport=client._transport, base_url=base)
+        bare = httpx2.AsyncClient(transport=client._transport, base_url=base)
         for path in ("/api/health", "/api/datasets"):
             headers = (await bare.get(path)).headers
             assert headers["Content-Security-Policy"].startswith("default-src 'self'")
@@ -80,8 +82,8 @@ async def test_datasets_and_cases(api):
     assert {c["case_id"] for c in cases} == {"case-1", "case-2"}
     filtered = (await client.get(f"/api/datasets/{FINANCE}/cases", params={"q": "q1"})).json()
     assert [c["case_id"] for c in filtered] == ["case-1"]
-    splits = (await client.get(f"/api/datasets/{FINANCE}/splits")).json()
-    assert splits == [{"name": "finance", "count": 2}]
+    tags = (await client.get(f"/api/datasets/{FINANCE}/tags")).json()
+    assert tags == [{"name": "finance", "count": 2}]
 
 
 async def test_meta_reports_accent_color(api):
@@ -543,12 +545,12 @@ async def test_fixture_upload_is_content_addressed(api):
     resp = await alice.put(f"/api/fixtures/sha256/{digest}", content=FILE_BYTES)
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"sha256": digest, "size": len(FILE_BYTES)}
-    assert env.blob.objects[f"fixtures/sha256/{digest}"] == FILE_BYTES
+    assert env.blob.objects[f"{tenant_prefix('default')}fixtures/sha256/{digest}"] == FILE_BYTES
     again = await client.put(f"/api/fixtures/sha256/{digest}", content=FILE_BYTES)
     assert again.status_code == 200
     assert await _blob_rows(env) == 1
     async with env.session_factory() as s:
-        row = await s.get(FixtureBlob, digest)
+        row = await s.get(FixtureBlob, ("default", digest))
     assert row is not None and row.uploaded_by == env.user_ids["alice"]
     assert row.size == len(FILE_BYTES)
 
@@ -571,9 +573,39 @@ async def test_unknown_dataset_returns_404_with_its_name(api):
     resp = await client.post("/api/experiments", json={"dataset": "finance@admin", "agent": AGENT})
     assert resp.status_code == 404
     assert resp.json()["detail"] == "unknown dataset: finance@admin"
-    for path in ("cases", "splits", "experiments"):
+    for path in ("cases", "tags", "experiments"):
         resp = await client.get(f"/api/datasets/nope@canonical/{path}")
         assert (resp.status_code, resp.json()["detail"]) == (
             404,
             "unknown dataset: nope@canonical",
         )
+
+
+async def test_server_runs_score_with_the_asked_evaluation_concurrency(api, monkeypatch):
+    client, env, _ = api
+    real = runner_module.gather_bounded
+    limits: list[int] = []
+
+    async def recording(limit, coros, **kwargs):
+        limits.append(limit)
+        return await real(limit, coros, **kwargs)
+
+    monkeypatch.setattr(runner_module, "gather_bounded", recording)
+    assert (await run_shared(client))["status"] == "completed"
+    exp = await run_shared(client, evaluation_concurrency=3)
+    assert exp["status"] == "completed"
+    evaluated = await client.post(
+        f"/api/experiments/{exp['id']}/evaluate", json={"evaluation_concurrency": 2}
+    )
+    assert evaluated.status_code == 200, evaluated.text
+    await wait_for(client, exp["id"])
+    assert (await client.post(f"/api/experiments/{exp['id']}/evaluate")).status_code == 200
+    await wait_for(client, exp["id"])
+    assert limits == [16, 3, 2, 3]
+
+    too_many = await client.post(
+        "/api/experiments",
+        json={"dataset": FINANCE, "agent": AGENT, "evaluation_concurrency": 17},
+    )
+    assert too_many.status_code == 400
+    assert "above this server's limit of 16" in too_many.json()["detail"]

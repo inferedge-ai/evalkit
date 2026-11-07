@@ -31,15 +31,41 @@ complete on its own; there is no inheritance. The JSON Schema ships as
   "output": {"attribute": "...", "json": true},
   "known_attributes": ["...", "prefix.*"],
   "answer": "root",
-  "exclude_spans": ["..."]
+  "exclude_spans": ["...", {"attribute": "...", "equals": "..."}, {"scope": "..."}],
+  "rekind_spans": [{"name": "...", "kind": "chain"}],
+  "main_agent": null,
+  "subagent_spans": []
 }
 ```
 
-Two fields apply to the whole run, not to one span:
+These fields apply to the whole run, not to one span:
 
 - `answer` (default `root`): where the run's answer comes from. `root`, a
   span name, or `<span name>.<output key>`.
-- `exclude_spans` (default empty): span names left out of the trajectory.
+- `exclude_spans` (default empty): spans left out of the trajectory.
+- `rekind_spans` (default empty): spans that get another `kind` than the kind
+  rule gives. Each entry is a span match plus `kind`; the first match wins.
+- `main_agent` (default null): the agent span whose answer and id the
+  trajectory carries. When it matches several spans, the earliest gives the
+  id and the latest the answer.
+- `subagent_spans` (default empty): agent spans kept as subagent trajectories
+  even when no tool span starts them. An agent span also becomes a subagent
+  when it sits under a tool span, or when the `tool.call_id` rule reads a call
+  id on it. If an instrumentor stamps the current call id on every span below
+  a tool call, ordinary agent spans become subagents that way; look there
+  when the check shows subagents you did not expect.
+
+Each entry is a span match:
+
+| Match | Matches a span when |
+| -- | -- |
+| `"OpenAILike.*"` | its name matches the glob |
+| `{"name": G}` | its name matches the glob `G` |
+| `{"attribute": K}` | it has attribute `K` |
+| `{"attribute": K, "equals": V}` | attribute `K` holds `V`, compared as text: `1`, `1.0` and `"1"` match each other, and so do `true` and `"true"` |
+| `{"scope": G}` | its instrumentation scope name (e.g. `mcp`) matches the glob `G` |
+
+An object match may give several of `name`, `attribute` and `scope`; every one given must match.
 
 ## Rule shapes
 
@@ -86,3 +112,8 @@ tokens written to the prompt cache; it lands in the step's
   with `role`, `content` (a string or a list of `{"type": "text", "text"}`
   parts), `tool_calls` (`id`, `function.name`, `function.arguments` as a JSON
   string) and `tool_call_id`.
+
+Roles are read case-insensitively in every format. `model`, `ai` and `bot`
+count as `assistant`, `human` as `user`, `developer` as `system` and
+`function` as `tool`. The trajectory ignores messages with any other role,
+and `evalkit traces check` warns about them.

@@ -20,6 +20,14 @@ DEFAULT_ADMIN_PASSWORD = "evalkit-admin"
 KIT_REQUIREMENT = '"evalkit-py[otel]"'
 KIT_LEAVES_OUT = ("*.whl", "__pycache__", "*.pyc", ".env")
 DOCKER_ONLY = ("docker-compose.yml", ".env.example")
+LOCAL_DB_POOL = {"pool_size": 5, "max_overflow": 5}
+LOCAL_RUNNER = {"evaluation_concurrency": 4}
+CONFIG_FOOTER = """
+# db.pool_size, db.max_overflow and runner.evaluation_concurrency are set low for one
+# machine; the server defaults are 20, 10 and 16, plus db.pool_timeout_seconds: 5.
+# Keep (pool_size + max_overflow) x servers well under Postgres max_connections, and
+# evaluation_concurrency under pool_size. Every key: docs page "Server config".
+"""
 
 
 @dataclass(frozen=True)
@@ -136,9 +144,15 @@ def copy_kit(target: Path, *, docker: bool) -> None:
     run_py.write_text(run_py.read_text().replace(KIT_REQUIREMENT, f'"{pinned_requirement()}"'))
 
 
-def server_config(database_url: str, data_dir: Path) -> dict:
+def local_url(port: int) -> str:
+    return f"http://localhost:{port}"
+
+
+def server_config(database_url: str, data_dir: Path, port: int) -> dict:
     data = yaml.safe_load((kit_root() / "config.yaml").read_text())
-    data["db"] = {"url": database_url}
+    data["server"]["base_url"] = local_url(port)
+    data["db"] = {"url": database_url, **LOCAL_DB_POOL}
+    data["runner"] = {**data.get("runner", {}), **LOCAL_RUNNER}
     data["blob"] = {"url": data_dir.resolve().as_uri()}
     return data
 
@@ -147,9 +161,11 @@ def existing_encryption_key(target: Path) -> str | None:
     return dotenv_values(target / ".env").get(ENCRYPTION_KEY_ENV)
 
 
-def write_server_files(target: Path, answers: Answers, encryption_key: str | None) -> None:
-    config = server_config(answers.database_url, target / "data")
-    (target / "config.yaml").write_text(yaml.safe_dump(config, sort_keys=False))
+def write_server_files(
+    target: Path, answers: Answers, encryption_key: str | None, port: int
+) -> None:
+    config = server_config(answers.database_url, target / "data", port)
+    (target / "config.yaml").write_text(yaml.safe_dump(config, sort_keys=False) + CONFIG_FOOTER)
     env = target / ".env"
     env.write_text(
         f"LLM_BASE_URL={answers.llm_base_url}\n"

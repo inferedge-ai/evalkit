@@ -2,7 +2,7 @@ import io
 import json
 import zipfile
 
-import httpx
+import httpx2
 import pytest
 
 from evalkit.core import pull as pull_core
@@ -57,6 +57,23 @@ async def test_pull_eval_run_by_experiment_carries_case_and_evaluations(api):
     assert json.loads(files["runs/sess-9/evaluations.json"]) == []
     assert "runs/sess-9/trajectory.json" in files
     assert not any("/artifacts/" in name for name in files)
+
+
+async def test_pull_marks_a_missing_trajectory_blob_instead_of_failing(api):
+    client, _ = api
+    exp = await create(client)
+    await record(
+        client,
+        exp,
+        trajectory_key=f"trajectories/{exp['agent_id']}/sess-9.json",
+        trajectory_status="valid",
+    )
+    files = unzip(
+        await client.post("/api/agents/fake@admin/runs/pull", json={"experiment_id": exp["id"]})
+    )
+    (row,) = json.loads(files["index.json"])["runs"]
+    assert row["run_id"] == "sess-9" and row["pull_error"]
+    assert "runs/sess-9/trajectory.json" not in files
 
 
 async def test_pull_app_sessions_of_an_otel_agent(api):
@@ -155,7 +172,7 @@ async def test_pull_experiment_survives_a_down_harness(
         assert (await wait_for(client, exp["id"]))["status"] == "completed"
 
         async def down(self):
-            raise httpx.ConnectError("refused")
+            raise httpx2.ConnectError("refused")
 
         monkeypatch.setattr(HarnessClient, "capabilities", down)
         files = unzip(

@@ -1,8 +1,8 @@
 import hashlib
 
-import httpx
+import httpx2
 
-from evalkit.core.blob import fixture_blob_key
+from evalkit.core.blob import fixture_blob_key, tenant_prefix
 from tests.flows.helpers_01_06 import RUBRICS, api, cli, live, stub_judges_module, sync_counts
 
 __all__ = ["cli", "live", "stub_judges_module"]
@@ -29,7 +29,9 @@ def test_flow_04_sync_uploads_missing_bytes_once_and_ci_reuses_them(cli):
         cli.suite("fx4", {"a.yaml": fixture_case("fx4-1", "bs4.csv")}, registry("bs4.csv", digest))
         cli.ok("sync", "fx4")
         assert akshat.head(f"/api/fixtures/sha256/{digest}").status_code == 200
-        assert cli.live.blob.objects[fixture_blob_key(digest)] == data
+        assert (
+            cli.live.blob.objects[f"{tenant_prefix('default')}{fixture_blob_key(digest)}"] == data
+        )
         [case] = akshat.get("/api/datasets/fx4@akshat/cases").json()
         assert case["files"] == [{"key": "bs4.csv", "sha256": digest, "context": "Balance sheet."}]
         assert "workspace" not in case["files"][0]
@@ -78,12 +80,12 @@ def test_flow_04_any_user_uploads_and_downloads_by_sha256(live):
 
         ticket = akshat.post("/api/auth/download-ticket").json()["ticket"]
     url = f"{live.url}/api/fixtures/sha256/{digest}"
-    first = httpx.get(url, params={"ticket": ticket})
+    first = httpx2.get(url, params={"ticket": ticket})
     assert first.status_code == 200 and first.content == data
-    assert httpx.get(url, params={"ticket": ticket}).status_code == 401
+    assert httpx2.get(url, params={"ticket": ticket}).status_code == 401
     with api(live, "akshat") as akshat:
         ticket = akshat.post("/api/auth/download-ticket").json()["ticket"]
-    assert httpx.put(url, params={"ticket": ticket}, content=data).status_code == 401
+    assert httpx2.put(url, params={"ticket": ticket}, content=data).status_code == 401
 
 
 def test_flow_04_fixtures_page_caps_page_size(live):

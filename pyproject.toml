@@ -1,15 +1,15 @@
 [project]
 name = "evalkit-py"
-version = "0.3.0"
+version = "0.4.0"
 description = "Self-hosted system for improving AI agents: server, CLI, web UI, Python SDK and agent skills"
 readme = "README.md"
 authors = [
     { name = "InferEdge Tech", email = "tech@inferedge.com" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
-    "httpx>=0.28.1",
-    "httpx-retries>=0.6.0",
+    "authlib>=1.9.1",
+    "httpx2>=2.16.0",
     "jsonschema>=4.26.0",
     "opentelemetry-api>=1.44.0",
     "pydantic>=2",
@@ -32,6 +32,7 @@ server = [
     "obstore>=0.11.1",
     "opentelemetry-proto>=1.44.0",
     "psycopg[binary]>=3.3.6",
+    "pyjwt[crypto]>=2.15.1",
     "python-multipart>=0.0.32",
     "sentry-sdk[fastapi]>=2.73.0",
     "sqlalchemy>=2",
@@ -52,8 +53,8 @@ dev = [
     "pre-commit>=4.7.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "pytest-httpx2>=1.0.0",
     "pytest-xdist>=3.8.0",
-    "respx>=0.23.1",
     "ruff>=0.16.5",
     "testcontainers[postgres]>=4.15.0",
 ]
@@ -77,11 +78,14 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-markers = ["e2e: end-to-end tests needing live services (excluded by default)"]
+markers = [
+    "e2e: end-to-end tests needing live services (excluded by default)",
+    "httpx2(*, assert_all_called=False, base_url=...): configure the httpx2_mock fixture",
+]
 addopts = "-m 'not e2e'"
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.12"
 ignore_missing_imports = true
 
 # gitignored (fetched at build time); artifacts overrides hatchling's VCS-ignore

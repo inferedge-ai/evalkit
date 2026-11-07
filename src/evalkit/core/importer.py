@@ -9,12 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 
-import yaml
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field
 
 from evalkit.contracts.cases import (
     REGISTRY_FILENAME,
     Case,
+    CaseSchemaError,
     FixtureEntry,
     Overlay,
     content_hash,
@@ -80,7 +80,7 @@ class ImportReport(BaseModel):
 
 
 def load_files(
-    files: list[Path],
+    files: list[Path], root: Path | None = None
 ) -> tuple[list[tuple[Case, Path]], list[tuple[Overlay, str]], list[Finding]]:
     cases: list[tuple[Case, Path]] = []
     overlays: list[tuple[Overlay, str]] = []
@@ -88,16 +88,18 @@ def load_files(
     for path in files:
         if not is_case_yaml(path):
             continue
+        shown = path.relative_to(root) if root is not None and path.is_relative_to(root) else path
         try:
             file_cases, file_overlays = load_cases_from_yaml(path)
-        except (ValidationError, ValueError, yaml.YAMLError) as exc:
-            findings.append(
+        except CaseSchemaError as exc:
+            findings.extend(
                 Finding(
                     severity="error",
                     code="E-SCHEMA",
-                    case_id=path.name,
-                    message=str(exc),
+                    case_id=problem.case_id if problem.case_id is not None else str(shown),
+                    message=f"{shown}: " + " | ".join(problem.lines),
                 )
+                for problem in exc.problems
             )
             continue
         cases.extend((case, path) for case in file_cases)
@@ -236,7 +238,7 @@ async def import_dataset(
     detail: dict,
     root: Path | None = None,
 ) -> ImportReport:
-    sourced_cases, overlays, findings = load_files(files)
+    sourced_cases, overlays, findings = load_files(files, root)
     entries, registry_findings = load_registries([p for p in files if p.name == REGISTRY_FILENAME])
     sourced: list[tuple[Case, Path | None]] = list(sourced_cases)
     return await import_cases(

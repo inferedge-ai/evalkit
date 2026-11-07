@@ -2,27 +2,31 @@ import asyncio
 import logging
 import uuid
 from collections.abc import Coroutine
+from dataclasses import replace
 from typing import Any
 
-import httpx
+import httpx2
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response, StreamingResponse
 
-from evalkit.api.access import ActorDep, ensure_active, require, workspace_ref
-from evalkit.api.deps import (
-    AgentStoreDep,
-    HolderDep,
-    PgStoreDep,
-    RunnerDepsDep,
-    SessionDep,
+from evalkit.api.access import (
+    ActorDep,
+    StoresDep,
+    TenantStores,
+    ensure_active,
+    load_workspace_ref,
+    require,
+    workspace_ref,
 )
-from evalkit.api.llm_providers import NO_DEFAULT_JUDGE, require_registered_judge
+from evalkit.api.deps import ConfigDep, HolderDep, SessionDep
+from evalkit.api.llm_providers import require_provider_judge
 from evalkit.api.server_keys import server_keys, with_keys
 from evalkit.contracts.atif import validate_trajectory
-from evalkit.contracts.enums import ExperimentStatus, SyncSource
+from evalkit.contracts.enums import ExperimentStatus, ScoredOn, SyncSource
+from evalkit.contracts.harness import Capabilities
 from evalkit.core.access import (
     Actor,
     can_change_experiment,
@@ -32,30 +36,40 @@ from evalkit.core.access import (
 from evalkit.core.agents import AgentDefinition, explicit, server_may_drive
 from evalkit.core.blob import trajectory_key
 from evalkit.core.costmap import load_cost_map
+from evalkit.core.errors import error_text
+from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
 from evalkit.core.runner import (
     ACTIVE,
     REFETCHABLE,
     ExperimentRequest,
     InvalidCaseInputs,
+    NoJudge,
     NothingRunnable,
     RunnerDeps,
-    error_text,
+    build_context,
     harness_capabilities,
     prepare_experiment,
     rescore_experiment,
     run_experiment,
+    score_builtin,
     stored_trajectory_doc,
 )
 from evalkit.core.scorecard import assemble_report
+from evalkit.core.server_evaluators import ServerEvaluationRequest, ServerScore
 from evalkit.core.trajectory import backfill_step_costs
 from evalkit.core.workspace import Reference, parse_slug
 from evalkit.db import experiments as db_experiments
 from evalkit.db import scorecard as db_scorecard
+from evalkit.db.agents import agent_definition, agent_id_for
 from evalkit.db.cases import dataset_by_ref
+from evalkit.db.experiments import tenant_of_experiment
+from evalkit.db.keys import StoredKeys
 from evalkit.db.models import AgentRun as AgentRunRow
 from evalkit.db.models import ExperimentRun as ExperimentRunRow
 from evalkit.db.models import User
+from evalkit.db.runs import publish_evaluations as db_publish_evaluations
 from evalkit.db.runs import record_run as db_record_run
+from evalkit.db.store import PgStore
 from evalkit.store.base import (
     AgentRunRecord,
     EvaluationRow,
@@ -73,6 +87,10 @@ INTERRUPTED_ERROR = "interrupted: evalkit server shut down"
 
 TaskRegistry = dict[str, tuple[int, str, asyncio.Task]]
 LIST_LIMIT = 200
+
+
+class ScoringOptions(BaseModel):
+    evaluation_concurrency: int | None = Field(default=None, ge=1)
 
 
 class ExperimentPatch(BaseModel):
@@ -126,14 +144,14 @@ def _track(
     task.add_done_callback(lambda t: registry.pop(name, None))
 
 
-async def interrupt_tasks(store, registry: TaskRegistry) -> None:
+async def interrupt_tasks(session_factory, registry: TaskRegistry) -> None:
     tracked = list(registry.values())
     for _, _, task in tracked:
         task.cancel()
     await asyncio.gather(*(task for _, _, task in tracked), return_exceptions=True)
     results = await asyncio.gather(
         *(
-            store.transition(exp_id, ExperimentStatus.FAILED, holder, error=INTERRUPTED_ERROR)
+            _fail_interrupted(session_factory, exp_id, holder)
             for exp_id, holder, task in tracked
             if task.cancelled()
         ),
@@ -144,6 +162,11 @@ async def interrupt_tasks(store, registry: TaskRegistry) -> None:
             LOGGER.warning("could not mark an interrupted experiment failed: %s", result)
 
 
+async def _fail_interrupted(session_factory, exp_id: int, holder: str) -> None:
+    store = PgStore(session_factory, await tenant_of_experiment(session_factory, exp_id))
+    await store.transition(exp_id, ExperimentStatus.FAILED, holder, error=INTERRUPTED_ERROR)
+
+
 def slug_or_400(value: str) -> Reference:
     try:
         return parse_slug(value)
@@ -151,18 +174,24 @@ def slug_or_400(value: str) -> Reference:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-async def _creator_id(session: AsyncSession, exp: Experiment) -> int | None:
-    return await session.scalar(select(User.id).where(User.username == exp.created_by))
+async def _creator_id(stores: TenantStores, session: AsyncSession, exp: Experiment) -> int | None:
+    return await session.scalar(
+        select(User.id).where(User.tenant_id == stores.tenant_id, User.username == exp.created_by)
+    )
 
 
-async def may_change(session: AsyncSession, actor: Actor, exp: Experiment) -> bool:
-    ws = await workspace_ref(session, exp.workspace)
-    return can_change_experiment(actor, ws, await _creator_id(session, exp))
+async def may_change(
+    stores: TenantStores, session: AsyncSession, actor: Actor, exp: Experiment
+) -> bool:
+    ws = await load_workspace_ref(session, stores.tenant_id, exp.workspace)
+    return can_change_experiment(actor, ws, await _creator_id(stores, session, exp))
 
 
-async def _changeable(session: AsyncSession, actor: Actor, exp_id: int) -> Experiment:
+async def _changeable(
+    stores: TenantStores, session: AsyncSession, actor: Actor, exp_id: int
+) -> Experiment:
     exp = await db_experiments.get_experiment(session, exp_id)
-    require(await may_change(session, actor, exp), "you cannot change this experiment")
+    require(await may_change(stores, session, actor, exp), "you cannot change this experiment")
     return exp
 
 
@@ -189,8 +218,26 @@ async def _server_driven(deps: RunnerDeps, exp: Experiment, command: str) -> Age
     return agent
 
 
-async def _runner_written(deps: RunnerDeps, exp: Experiment) -> AgentDefinition:
-    agent = await _agent(deps, exp)
+def _scoring(
+    request: Request, deps: RunnerDeps, asked: int | None, saved: int | None = None
+) -> RunnerDeps:
+    limit = request.app.state.cfg.runner.evaluation_concurrency
+    if asked is not None and asked > limit:
+        raise HTTPException(
+            status_code=400,
+            detail=f"evaluation_concurrency {asked} is above this server's limit of {limit}",
+        )
+    return replace(
+        deps,
+        evaluation_concurrency=asked or min(saved or limit, limit),
+        scored_on=ScoredOn.SERVER,
+    )
+
+
+async def _runner_written(
+    session: AsyncSession, tenant_id: str, exp: Experiment
+) -> AgentDefinition:
+    agent = await agent_definition(session, tenant_id, explicit(parse_slug(exp.agent)))
     if server_may_drive(agent):
         raise HTTPException(
             status_code=409,
@@ -199,8 +246,10 @@ async def _runner_written(deps: RunnerDeps, exp: Experiment) -> AgentDefinition:
     return agent
 
 
-async def _last_git_revision(session: AsyncSession, dataset: str) -> GitRevision | None:
-    row = await dataset_by_ref(session, dataset)
+async def _last_git_revision(
+    session: AsyncSession, tenant_id: str, dataset: str
+) -> GitRevision | None:
+    row = await dataset_by_ref(session, tenant_id, dataset)
     sync = row.last_sync
     if sync is None or sync.source != SyncSource.GIT.value:
         return None
@@ -213,23 +262,22 @@ async def _last_git_revision(session: AsyncSession, dataset: str) -> GitRevision
 async def create_experiment(
     body: ExperimentRequest,
     request: Request,
-    deps: RunnerDepsDep,
-    store: PgStoreDep,
-    agents: AgentStoreDep,
+    stores: StoresDep,
+    cfg: ConfigDep,
     session: SessionDep,
     actor: ActorDep,
     pod: HolderDep,
 ) -> dict:
-    agent = await agents.get(explicit(slug_or_400(body.agent)))
+    agent = await stores.agents.get(explicit(slug_or_400(body.agent)))
     if agent.archived:
         raise HTTPException(status_code=409, detail=f"agent {agent.ref} is archived")
-    agent_ws = await workspace_ref(session, agent.workspace)
+    agent_ws = await workspace_ref(stores, agent.workspace)
     require(
         can_use_agent(actor, agent_ws),
         f"only the owner of @{agent.workspace} can run {agent.ref}",
     )
     dataset_ws = await workspace_ref(
-        session, (await dataset_by_ref(session, body.dataset)).workspace
+        stores, (await dataset_by_ref(session, stores.tenant_id, body.dataset)).workspace
     )
     ensure_active(agent_ws)
     ensure_active(dataset_ws)
@@ -244,44 +292,48 @@ async def create_experiment(
         raise HTTPException(
             status_code=400, detail="capabilities are fetched by the server for shared agents"
         )
+    if not server_driven and body.evaluation_concurrency is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="evaluation_concurrency is for server runs; your CLI or SDK scores this "
+            "experiment, so pass it there",
+        )
     if not server_driven and (body.capabilities is None or body.holder is None):
         raise HTTPException(
             status_code=400,
             detail="capabilities and holder are required for agents the server does not drive",
         )
-    providers = request.app.state.llm_providers
+    providers = stores.providers
     judge = body.judge or await providers.default_judge()
-    if judge is None:
-        raise HTTPException(status_code=400, detail=f"{NO_DEFAULT_JUDGE}, or pass a judge")
     api_key: str | None = None
     warnings: list[str] = []
-    run_deps = deps
+    run_deps = stores.deps
     if server_driven:
-        await require_registered_judge(providers, judge.base_url)
-        keys, warnings = await server_keys(request, agent, judge.base_url)
+        provider = await require_provider_judge(providers, judge) if judge is not None else None
+        keys, warnings = await server_keys(stores, cfg, agent, provider)
         api_key = keys.key_for("agent", agent.ref)
-        run_deps = with_keys(deps, keys)
+        run_deps = _scoring(request, with_keys(stores.deps, keys), body.evaluation_concurrency)
     holder = task_holder(pod) if server_driven else str(body.holder)
     try:
         caps = body.capabilities or await harness_capabilities(
-            agent, api_key, deps.harness_transport
+            agent, api_key, stores.deps.harness_transport
         )
         exp, dropped = await prepare_experiment(
-            store,
+            stores.store,
             body,
             agent=agent,
             caps=caps,
-            remote_evaluators=await deps.evaluators.in_workspace(agent.workspace),
+            remote_evaluators=await stores.evaluators.in_workspace(agent.workspace),
             judge=judge,
             runner=actor.username,
             holder=holder,
             revision=None
             if body.cases is not None
-            else await _last_git_revision(session, body.dataset),
+            else await _last_git_revision(session, stores.tenant_id, body.dataset),
         )
-    except (InvalidCaseInputs, NothingRunnable) as exc:
+    except (InvalidCaseInputs, NothingRunnable, NoJudge) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except httpx.HTTPError as exc:
+    except httpx2.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"could not start experiment: {exc}") from exc
     if server_driven:
         _track(request, exp.id, holder, f"run:{exp.id}", run_experiment(run_deps, exp.id, holder))
@@ -306,18 +358,25 @@ async def with_progress(session: AsyncSession, experiments: list[Experiment]) ->
 
 @router.get("")
 async def list_experiments(
+    stores: StoresDep,
     session: SessionDep,
     workspace: str | None = None,
     status: ExperimentStatus | None = None,
+    agent: str | None = None,
+    dataset: str | None = None,
     limit: int = Query(50, ge=1),
     offset: int = Query(0, ge=0),
     brief: bool = False,
 ) -> list[dict]:
-    workspace_id = (await workspace_ref(session, workspace)).id if workspace else None
+    workspace_id = (await workspace_ref(stores, workspace)).id if workspace else None
     found = await db_experiments.list_experiments(
         session,
         workspace_id=workspace_id,
         status=status,
+        agent_id=await agent_id_for(session, stores.tenant_id, agent) if agent else None,
+        dataset_id=(await dataset_by_ref(session, stores.tenant_id, dataset)).id
+        if dataset
+        else None,
         limit=min(limit, LIST_LIMIT),
         offset=offset,
     )
@@ -327,9 +386,9 @@ async def list_experiments(
 
 
 @router.get("/compare")
-async def compare(base: int, compare: int, store: PgStoreDep) -> dict:
-    base_rows = await store.aggregate(base)
-    compare_rows = await store.aggregate(compare)
+async def compare(base: int, compare: int, stores: StoresDep) -> dict:
+    base_rows = await stores.store.aggregate(base)
+    compare_rows = await stores.store.aggregate(compare)
     return {
         "base": assemble_report(base_rows).model_dump(),
         "compare": assemble_report(compare_rows, baseline=base_rows).model_dump(),
@@ -338,7 +397,7 @@ async def compare(base: int, compare: int, store: PgStoreDep) -> dict:
 
 @router.get("/{exp_id}")
 async def get_experiment(
-    exp_id: int, deps: RunnerDepsDep, session: SessionDep, actor: ActorDep
+    exp_id: int, stores: StoresDep, session: SessionDep, actor: ActorDep
 ) -> dict:
     exp = await db_experiments.get_experiment(session, exp_id)
     pending_runs = await db_experiments.has_pending_runs(session, exp_id)
@@ -346,25 +405,25 @@ async def get_experiment(
         **exp.model_dump(mode="json"),
         "progress": (await db_scorecard.progress(session, exp_id)).model_dump(),
         "case_states": await db_scorecard.case_states(session, exp_id),
-        "can_change": await may_change(session, actor, exp),
-        "server_may_drive": server_may_drive(await _agent(deps, exp)),
+        "can_change": await may_change(stores, session, actor, exp),
+        "server_may_drive": server_may_drive(await _agent(stores.deps, exp)),
         "pending_runs": pending_runs,
         "resumable": db_experiments.resumable(exp, pending_runs),
     }
 
 
 @router.get("/{exp_id}/cases")
-async def pinned_cases(exp_id: int, store: PgStoreDep) -> list[dict]:
-    return [case.model_dump(mode="json") for case in await store.pinned_cases(exp_id)]
+async def pinned_cases(exp_id: int, stores: StoresDep) -> list[dict]:
+    return [case.model_dump(mode="json") for case in await stores.store.pinned_cases(exp_id)]
 
 
 @router.get("/{exp_id}/runs")
-async def list_runs(exp_id: int, deps: RunnerDepsDep, store: PgStoreDep) -> list[dict]:
-    exp = await store.get_experiment(exp_id)
+async def list_runs(exp_id: int, stores: StoresDep) -> list[dict]:
+    exp = await stores.store.get_experiment(exp_id)
     rows = []
-    for run in await store.run_details(exp_id):
+    for run in await stores.store.run_details(exp_id):
         if run.agent_run.trajectory_status in REFETCHABLE:
-            _, status = await stored_trajectory_doc(deps.blob_store, exp.agent_id, run.agent_run)
+            _, status = await stored_trajectory_doc(stores.blob, exp.agent_id, run.agent_run)
             run.agent_run.trajectory_status = status
         rows.append(run.model_dump(mode="json"))
     return rows
@@ -372,10 +431,10 @@ async def list_runs(exp_id: int, deps: RunnerDepsDep, store: PgStoreDep) -> list
 
 @router.post("/{exp_id}/runs")
 async def record_run(
-    exp_id: int, body: RunPost, deps: RunnerDepsDep, session: SessionDep, actor: ActorDep
+    exp_id: int, body: RunPost, stores: StoresDep, session: SessionDep, actor: ActorDep
 ) -> dict:
-    exp = await _changeable(session, actor, exp_id)
-    await _runner_written(deps, exp)
+    exp = await _changeable(stores, session, actor, exp_id)
+    await _runner_written(session, stores.tenant_id, exp)
     expected = trajectory_key(exp.agent_id, body.run.harness_run_id)
     if body.run.trajectory_key is not None and body.run.trajectory_key != expected:
         raise HTTPException(status_code=400, detail=f"trajectory_key must be {expected}")
@@ -396,92 +455,156 @@ async def record_run(
 
 
 @router.get("/{exp_id}/pending")
-async def pending_runs(exp_id: int, store: PgStoreDep) -> list[dict]:
-    return [rep.model_dump() for rep in await store.pending_runs(exp_id)]
+async def pending_runs(exp_id: int, stores: StoresDep) -> list[dict]:
+    return [rep.model_dump() for rep in await stores.store.pending_runs(exp_id)]
 
 
 @router.get("/{exp_id}/harness-run-id")
-async def harness_run_id_used(exp_id: int, value: str, store: PgStoreDep) -> dict:
-    return {"used": await store.harness_run_id_used(exp_id, value)}
+async def harness_run_id_used(exp_id: int, value: str, stores: StoresDep) -> dict:
+    return {"used": await stores.store.harness_run_id_used(exp_id, value)}
 
 
 @router.get("/{exp_id}/runs-to-score")
-async def runs_to_score(exp_id: int, store: PgStoreDep, force: bool = False) -> list[dict]:
-    return [run.model_dump(mode="json") for run in await store.runs_to_score(exp_id, force=force)]
+async def runs_to_score(exp_id: int, stores: StoresDep, force: bool = False) -> list[dict]:
+    return [
+        run.model_dump(mode="json") for run in await stores.store.runs_to_score(exp_id, force=force)
+    ]
 
 
 @runs_router.post("/{run_id}/evaluations")
 async def publish_evaluations(
     run_id: int,
     body: EvaluationsPost,
-    deps: RunnerDepsDep,
-    store: PgStoreDep,
+    stores: StoresDep,
     session: SessionDep,
     actor: ActorDep,
 ) -> dict:
     exp_id = await db_experiments.experiment_of_run(session, run_id)
     if exp_id is None:
         raise HTTPException(status_code=404, detail=f"unknown experiment run: {run_id}")
-    await _runner_written(deps, await _changeable(session, actor, exp_id))
-    await store.publish_evaluations(run_id, body.rows, force=body.force, holder=body.holder)
+    await _runner_written(
+        session, stores.tenant_id, await _changeable(stores, session, actor, exp_id)
+    )
+    await db_publish_evaluations(
+        session, run_id, body.rows, force=body.force, holder=body.holder, experiment_id=exp_id
+    )
+    await session.commit()
     return {"ok": True}
+
+
+@runs_router.post("/{run_id}/server-evaluations/{name}")
+async def score_on_server(
+    run_id: int,
+    name: str,
+    body: ServerEvaluationRequest,
+    stores: StoresDep,
+    session: SessionDep,
+    actor: ActorDep,
+) -> dict:
+    exp_id = await db_experiments.experiment_of_run(session, run_id)
+    if exp_id is None:
+        raise HTTPException(status_code=404, detail=f"unknown experiment run: {run_id}")
+    exp = await _changeable(stores, session, actor, exp_id)
+    agent = await _runner_written(session, stores.tenant_id, exp)
+    await session.close()
+    evaluator = BUILTIN_EVALUATORS.get(name)
+    if evaluator is None:
+        raise HTTPException(status_code=404, detail=f"unknown built-in evaluator: {name}")
+    if evaluator.local_only:
+        raise HTTPException(status_code=400, detail=f"{name} runs on your machine, not the server")
+    judge = exp.config.judge
+    if judge is None or judge.provider is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"experiment {exp_id} has no provider judge; its built-ins run on your machine",
+        )
+    provider = await require_provider_judge(stores.providers, judge)
+    keys = StoredKeys({}, await stores.keys.provider_judges(provider))
+    base_url, api_key = keys.provider_judge(provider)
+    run = await stores.store.run_to_score(exp_id, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id} has nothing to score")
+    deps = replace(with_keys(stores.deps, keys), scored_on=ScoredOn.SERVER)
+    resolved = judge.model_copy(update={"provider": None, "base_url": base_url})
+    ctx, _ = await build_context(
+        deps, agent, load_cost_map(deps.cfg.cost_map), run, resolved, api_key
+    )
+    caps = Capabilities.model_validate(exp.config.snapshot.capabilities)
+    rows, _ = await score_builtin(deps, exp, ctx, caps, run_id, name, body.config)
+    return ServerScore(rows=rows, judge_usage=ctx.judge_usage).model_dump(mode="json")
 
 
 @router.patch("/{exp_id}")
 async def patch_experiment(
     exp_id: int,
     body: ExperimentPatch,
-    deps: RunnerDepsDep,
-    store: PgStoreDep,
+    stores: StoresDep,
     session: SessionDep,
     actor: ActorDep,
 ) -> dict:
-    agent = await _runner_written(deps, await _changeable(session, actor, exp_id))
+    agent = await _runner_written(
+        session, stores.tenant_id, await _changeable(stores, session, actor, exp_id)
+    )
     if body.status in ACTIVE and agent.archived:
         raise HTTPException(status_code=409, detail=f"agent {agent.ref} is archived")
     if body.model is not None:
-        await store.set_model(exp_id, body.model)
+        await stores.store.set_model(exp_id, body.model)
     if body.status is not None:
-        await store.transition(exp_id, body.status, body.holder, error=body.error)
-    return (await store.get_experiment(exp_id)).model_dump(mode="json")
+        await stores.store.transition(exp_id, body.status, body.holder, error=body.error)
+    return (await stores.store.get_experiment(exp_id)).model_dump(mode="json")
 
 
 @router.post("/{exp_id}/lease")
 async def renew_lease(
-    exp_id: int, body: LeaseRequest, store: PgStoreDep, session: SessionDep, actor: ActorDep
+    exp_id: int, body: LeaseRequest, stores: StoresDep, session: SessionDep, actor: ActorDep
 ) -> dict:
-    await _changeable(session, actor, exp_id)
-    return {"renewed": await store.renew_lease(exp_id, body.holder)}
+    await _changeable(stores, session, actor, exp_id)
+    return {"renewed": await stores.store.renew_lease(exp_id, body.holder)}
 
 
 @router.get("/{exp_id}/scorecard")
-async def scorecard(exp_id: int, store: PgStoreDep, baseline_id: int | None = None) -> dict:
-    baseline = await store.aggregate(baseline_id) if baseline_id is not None else None
-    return assemble_report(await store.aggregate(exp_id), baseline=baseline).model_dump()
+async def scorecard(exp_id: int, stores: StoresDep, baseline_id: int | None = None) -> dict:
+    baseline = await stores.store.aggregate(baseline_id) if baseline_id is not None else None
+    return assemble_report(await stores.store.aggregate(exp_id), baseline=baseline).model_dump()
 
 
 @router.post("/{exp_id}/evaluate")
 async def evaluate(
     exp_id: int,
     request: Request,
-    deps: RunnerDepsDep,
-    store: PgStoreDep,
+    stores: StoresDep,
+    cfg: ConfigDep,
     session: SessionDep,
     actor: ActorDep,
     pod: HolderDep,
+    body: ScoringOptions | None = None,
 ) -> dict:
-    exp = await _changeable(session, actor, exp_id)
-    agent = await _server_driven(deps, exp, "evaluate")
-    await require_registered_judge(request.app.state.llm_providers, exp.config.judge.base_url)
-    keys, warnings = await server_keys(request, agent, exp.config.judge.base_url)
+    exp = await _changeable(stores, session, actor, exp_id)
+    agent = await _server_driven(stores.deps, exp, "evaluate")
+    asked = body.evaluation_concurrency if body is not None else None
+    provider = (
+        await require_provider_judge(stores.providers, exp.config.judge)
+        if exp.config.judge is not None
+        else None
+    )
+    keys, warnings = await server_keys(stores, cfg, agent, provider)
     holder = task_holder(pod)
-    exp = await store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
+    exp = await stores.store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
     _track(
         request,
         exp_id,
         holder,
         f"evaluate:{exp_id}",
-        rescore_experiment(with_keys(deps, keys), exp_id, holder),
+        rescore_experiment(
+            _scoring(
+                request,
+                with_keys(stores.deps, keys),
+                asked,
+                exp.config.snapshot.evaluation_concurrency,
+            ),
+            exp_id,
+            holder,
+        ),
     )
     return {**exp.model_dump(mode="json"), "warnings": warnings}
 
@@ -490,43 +613,59 @@ async def evaluate(
 async def resume(
     exp_id: int,
     request: Request,
-    deps: RunnerDepsDep,
-    store: PgStoreDep,
+    stores: StoresDep,
+    cfg: ConfigDep,
     session: SessionDep,
     actor: ActorDep,
     pod: HolderDep,
+    body: ScoringOptions | None = None,
 ) -> dict:
-    exp = await _changeable(session, actor, exp_id)
-    agent = await _server_driven(deps, exp, "resume")
-    await require_registered_judge(request.app.state.llm_providers, exp.config.judge.base_url)
-    keys, warnings = await server_keys(request, agent, exp.config.judge.base_url)
+    exp = await _changeable(stores, session, actor, exp_id)
+    agent = await _server_driven(stores.deps, exp, "resume")
+    asked = body.evaluation_concurrency if body is not None else None
+    provider = (
+        await require_provider_judge(stores.providers, exp.config.judge)
+        if exp.config.judge is not None
+        else None
+    )
+    keys, warnings = await server_keys(stores, cfg, agent, provider)
     holder = task_holder(pod)
-    exp = await store.transition(exp_id, ExperimentStatus.RUNNING, holder)
+    exp = await stores.store.transition(exp_id, ExperimentStatus.RUNNING, holder)
     _track(
         request,
         exp_id,
         holder,
         f"run:{exp_id}",
-        run_experiment(with_keys(deps, keys), exp_id, holder),
+        run_experiment(
+            _scoring(
+                request,
+                with_keys(stores.deps, keys),
+                asked,
+                exp.config.snapshot.evaluation_concurrency,
+            ),
+            exp_id,
+            holder,
+        ),
     )
     return {**exp.model_dump(mode="json"), "warnings": warnings}
 
 
 @router.get("/{exp_id}/runs/{run_id}/trajectory")
-async def stored_trajectory(
-    exp_id: int, run_id: int, deps: RunnerDepsDep, store: PgStoreDep
-) -> dict:
-    exp = await store.get_experiment(exp_id)
-    run = next((r for r in await store.run_details(exp_id) if r.experiment_run_id == run_id), None)
+async def stored_trajectory(exp_id: int, run_id: int, stores: StoresDep) -> dict:
+    exp = await stores.store.get_experiment(exp_id)
+    run = next(
+        (r for r in await stores.store.run_details(exp_id) if r.experiment_run_id == run_id),
+        None,
+    )
     if run is None:
         raise HTTPException(status_code=404, detail="unknown run")
-    doc, _ = await stored_trajectory_doc(deps.blob_store, exp.agent_id, run.agent_run)
+    doc, _ = await stored_trajectory_doc(stores.blob, exp.agent_id, run.agent_run)
     if doc is None:
         raise HTTPException(status_code=404, detail="run has no stored trajectory")
     trajectory = validate_trajectory(doc)
     # No-op for runs stored after per-step pricing landed; prices older
     # trajectories so the cost view matches the scorecard gauge.
-    backfill_step_costs(trajectory, load_cost_map(deps.cfg.cost_map))
+    backfill_step_costs(trajectory, load_cost_map(stores.deps.cfg.cost_map))
     return trajectory.model_dump(exclude_none=True)
 
 
@@ -550,9 +689,9 @@ def _check_blob_key(exp: Experiment, key: str) -> None:
 
 
 @router.get("/{exp_id}/blob")
-async def list_blob(exp_id: int, prefix: str, deps: RunnerDepsDep, store: PgStoreDep) -> dict:
-    _check_blob_key(await store.get_experiment(exp_id), prefix)
-    return {"objects": await deps.blob_store.list_objects(prefix)}
+async def list_blob(exp_id: int, prefix: str, stores: StoresDep) -> dict:
+    _check_blob_key(await stores.store.get_experiment(exp_id), prefix)
+    return {"objects": await stores.blob.list_objects(prefix)}
 
 
 @router.put("/{exp_id}/blob/{key:path}")
@@ -560,12 +699,12 @@ async def put_blob(
     exp_id: int,
     key: str,
     request: Request,
-    deps: RunnerDepsDep,
+    stores: StoresDep,
     session: SessionDep,
     actor: ActorDep,
 ) -> dict:
-    exp = await _changeable(session, actor, exp_id)
-    await _runner_written(deps, exp)
+    exp = await _changeable(stores, session, actor, exp_id)
+    await _runner_written(session, stores.tenant_id, exp)
     _check_blob_key(exp, key)
     harness_run_id = _harness_run_id(exp, key)
     if harness_run_id is None:
@@ -589,26 +728,27 @@ async def put_blob(
             detail=f"session id {harness_run_id} was already used in experiment {exp_id}; "
             "each run needs its own session id",
         )
-    await deps.blob_store.put_stream(key, request.stream())
+    await session.close()
+    await stores.blob.put_stream(key, request.stream())
     return {"ok": True}
 
 
-async def _existing_blob_key(exp_id: int, key: str, deps: RunnerDeps, store) -> None:
-    _check_blob_key(await store.get_experiment(exp_id), key)
-    if not await deps.blob_store.object_exists(key):
+async def _existing_blob_key(exp_id: int, key: str, stores: TenantStores) -> None:
+    _check_blob_key(await stores.store.get_experiment(exp_id), key)
+    if not await stores.blob.object_exists(key):
         raise HTTPException(status_code=404, detail="no such object")
 
 
 @router.head("/{exp_id}/blob/{key:path}")
-async def head_blob(exp_id: int, key: str, deps: RunnerDepsDep, store: PgStoreDep) -> Response:
-    await _existing_blob_key(exp_id, key, deps, store)
+async def head_blob(exp_id: int, key: str, stores: StoresDep) -> Response:
+    await _existing_blob_key(exp_id, key, stores)
     return Response(status_code=200)
 
 
 @router.get("/{exp_id}/blob/{key:path}")
-async def get_blob(exp_id: int, key: str, deps: RunnerDepsDep, store: PgStoreDep) -> Response:
-    await _existing_blob_key(exp_id, key, deps, store)
-    blob = await deps.blob_store.get_stream(key)
+async def get_blob(exp_id: int, key: str, stores: StoresDep) -> Response:
+    await _existing_blob_key(exp_id, key, stores)
+    blob = await stores.blob.get_stream(key)
     return StreamingResponse(
         blob.chunks,
         media_type="application/octet-stream",

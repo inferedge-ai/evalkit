@@ -10,17 +10,18 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import httpx
+import httpx2
 from opentelemetry import trace
 from opentelemetry.context import Context
 from pydantic import BaseModel
 
 from evalkit import version
-from evalkit.client import connection
+from evalkit.client import connection, oidc
 from evalkit.client.agents import HttpAgents
 from evalkit.client.api import ApiRequestError, AsyncApi, SyncApi, encode
 from evalkit.client.blob import HttpBlobStore
 from evalkit.client.evaluators import HttpEvaluators
+from evalkit.client.server_evaluators import HttpServerEvaluators
 from evalkit.client.sessions import HttpSessionReader
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.client.summary import summary_lines
@@ -35,11 +36,15 @@ from evalkit.core.capabilities import sdk_capabilities
 from evalkit.core.costmap import load_cost_map
 from evalkit.core.python_eval import PythonEvaluator
 from evalkit.core.runner import (
+    EVALUATION_CONCURRENCY,
     ExperimentRequest,
     LeaseLost,
     RunnerDeps,
     ScoringFailed,
     case_title,
+    check_inputs,
+    check_judge_key,
+    check_rescore_judge,
     dropped_cases_text,
     evaluate_experiment,
     judge_key,
@@ -48,6 +53,7 @@ from evalkit.core.runner import (
     rescore_experiment,
     run_leased,
 )
+from evalkit.core.traces.check import render_check
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE, TASK_SESSION_ATTRIBUTE
 from evalkit.core.traces.poll import poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
@@ -402,11 +408,13 @@ async def settle_and_record(
     )
 
 
-def _selection(case_ids: Sequence[str] | None, split: str | None) -> Selection:
+def _selection(case_ids: Sequence[str] | None, tags: Sequence[str] | None) -> Selection:
+    if case_ids and tags:
+        raise ValueError("pass case_ids or tags, not both")
     if case_ids:
         return Selection(case_ids=list(case_ids))
-    if split:
-        return Selection(tag=split)
+    if tags:
+        return Selection(tags=list(tags))
     return Selection(all=True)
 
 
@@ -446,12 +454,14 @@ async def _session_summary(api: AsyncApi, path: str, session_id: str) -> str:
     for esf_span in session.get("esf") or []:
         kinds[esf_span["kind"]] = kinds.get(esf_span["kind"], 0) + 1
     version = session.get("mapping_version")
-    return (
+    summary = (
         f"  session {session_id}: {session['span_count']} spans "
         f"({', '.join(f'{k} {n}' for k, n in sorted(kinds.items())) or 'none'}), "
         f"mapping {f'v{version}' if version else 'built-in'}, "
         f"unmapped {', '.join(session.get('unmapped_attributes') or []) or 'none'}"
     )
+    problems = [line for line in render_check(session)[0] if line.lstrip()[0] in "!✗"]
+    return "\n".join([summary, *problems])
 
 
 async def _report_session(
@@ -481,7 +491,7 @@ async def _dry_run(
     task: Task,
     *,
     dataset_ref: Reference,
-    agent_ref: Reference,
+    definition: AgentDefinition,
     me: str,
     selection: Selection,
     count: int,
@@ -491,8 +501,11 @@ async def _dry_run(
     progress: Progress,
     poll_interval: float,
 ) -> ExperimentResult:
+    agent_ref = definition.reference
     store = HttpStore(api)
-    cases = (await store.cases_for(slug(dataset_ref), selection, agent=slug(agent_ref)))[:count]
+    cases = await store.cases_for(slug(dataset_ref), selection, agent=slug(agent_ref))
+    check_inputs(slug(agent_ref), sdk_capabilities(definition), cases)
+    cases = cases[:count]
     blob = HttpBlobStore(api, None)
     deps = RunnerDeps(
         cfg=local,
@@ -563,22 +576,23 @@ async def arun_experiment(
     repetitions: int = 1,
     concurrency: int | None = None,
     case_ids: Sequence[str] | None = None,
-    split: str | None = None,
+    tags: Sequence[str] | None = None,
     model: str | None = None,
     resume: int | None = None,
     dry_run: bool | int = False,
     trajectory_wait_seconds: int | None = None,
     judge: JudgeSettings | None = None,
-    api_transport: httpx.AsyncBaseTransport | None = None,
-    custom_eval_transport: httpx.AsyncBaseTransport | None = None,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
+    custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
     progress: Progress = print,
     poll_interval: float = 5.0,
     tracer_provider: Any = None,
 ) -> ExperimentResult:
     """The async form of `run_experiment`, for code already in an event loop (a notebook).
 
-    Same arguments and result as `run_experiment`. The arguments after `judge` exist
-    for tests.
+    Same arguments and result as `run_experiment`. The arguments after
+    `evaluation_concurrency` exist for tests.
     """
     local = _local_config().resolve_env(scoring=not dry_run)
     spec = inspect_task(task)
@@ -588,7 +602,7 @@ async def arun_experiment(
             "parameter, so the agent never sees it"
         )
     active = connection.active()
-    api = AsyncApi(active.url, active.token, transport=api_transport)
+    api = AsyncApi(active.url, oidc.build_auth(active), transport=api_transport)
     try:
         await api.require_same_version()
         me = await _username(api, active, progress)
@@ -612,7 +626,7 @@ async def arun_experiment(
         if own_dataset and on_disk is not None and on_disk.is_dir():
             await asyncio.to_thread(
                 sync_dataset,
-                SyncApi(active.url, active.token),
+                SyncApi(active.url, oidc.build_auth(active)),
                 on_disk,
                 name=dataset_ref.name,
                 workspace=me,
@@ -627,9 +641,9 @@ async def arun_experiment(
                 spec,
                 task,
                 dataset_ref=dataset_ref,
-                agent_ref=agent_ref,
+                definition=definition,
                 me=me,
-                selection=_selection(case_ids, split),
+                selection=_selection(case_ids, tags),
                 count=int(dry_run),
                 model=model,
                 wait=wait,
@@ -641,28 +655,25 @@ async def arun_experiment(
         holder = local_holder(me)
         credentials = _credentials(local, me)
         if resume is None:
-            resolved_judge = judge or JudgeSettings.model_validate(
-                (await api.get("/api/judge-default")).json()
-            )
             selected = await store.cases_for(
                 slug(dataset_ref),
-                _selection(case_ids, split),
+                _selection(case_ids, tags),
                 agent=slug(agent_ref),
             )
-            judge_key_for(credentials, resolved_judge, selected)
+            judge_key_for(judge, judge.api_key if judge else None, selected)
             revision = git_revision(on_disk) if on_disk is not None and on_disk.is_dir() else None
             exp, dropped = await store.start_experiment(
                 ExperimentRequest(
                     dataset=slug(dataset_ref),
                     agent=slug(agent_ref),
-                    selection=_selection(case_ids, split),
+                    selection=_selection(case_ids, tags),
                     repetitions=repetitions,
                     model=model,
                     capabilities=sdk_capabilities(definition),
                     cases=revision,
                     evalkit_version=version.current(),
                     code_evaluators=sorted(python_evaluators) or None,
-                    judge=resolved_judge,
+                    judge=judge,
                     holder=holder,
                     trajectory_wait_seconds=trajectory_wait_seconds,
                 )
@@ -684,6 +695,9 @@ async def arun_experiment(
             progress=progress,
             sessions=HttpSessionReader(api),
             python_evaluators=python_evaluators,
+            evaluation_concurrency=evaluation_concurrency,
+            server_evaluators=HttpServerEvaluators(api),
+            judge_api_key=judge.api_key if judge else None,
         )
         cases = {case.case_id: case for case in await store.pinned_cases(exp.id)}
         for line in await missing_local_keys(deps, definition, cases.values()):
@@ -737,7 +751,7 @@ async def arun_experiment(
             exc.add_note(note)
             progress(f"{exc}; {note}")
             raise
-        except (ScoringFailed, ApiRequestError, httpx.TransportError) as exc:
+        except (ScoringFailed, ApiRequestError, httpx2.TransportError) as exc:
             _note_how_to_finish(exc, exp.id, sorted(python_evaluators), progress)
             raise
         report = (await api.get(f"/api/experiments/{exp.id}/scorecard")).json()
@@ -757,22 +771,25 @@ async def aevaluate_experiment(
     experiment_id: int,
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
-    api_transport: httpx.AsyncBaseTransport | None = None,
-    custom_eval_transport: httpx.AsyncBaseTransport | None = None,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
+    judge: JudgeSettings | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
+    custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
     progress: Progress = print,
 ) -> ExperimentResult:
     """The async form of `evaluate_experiment`, for code already in an event loop.
 
     Same arguments and result as `evaluate_experiment`. The arguments after
-    `refetch_trajectories` exist for tests.
+    `judge` exist for tests.
     """
     local = _local_config().resolve_env(scoring=True)
     active = connection.active()
-    api = AsyncApi(active.url, active.token, transport=api_transport)
+    api = AsyncApi(active.url, oidc.build_auth(active), transport=api_transport)
     try:
         await api.require_same_version()
         store = HttpStore(api)
         exp = await store.get_experiment(experiment_id)
+        check_rescore_judge(exp, judge)
         await _check_evaluator_names(evaluators, api, parse_slug(exp.agent).workspace)
         declared = set(exp.config.snapshot.code_evaluators)
         unknown = sorted({e.name for e in evaluators} - declared)
@@ -794,13 +811,17 @@ async def aevaluate_experiment(
             progress=progress,
             sessions=HttpSessionReader(api),
             python_evaluators={e.name: e for e in evaluators},
+            evaluation_concurrency=evaluation_concurrency,
+            server_evaluators=HttpServerEvaluators(api),
+            judge_api_key=judge.api_key if judge else None,
         )
+        await check_judge_key(store, experiment_id, judge.api_key if judge else None)
         await store.transition(experiment_id, ExperimentStatus.EVALUATING, holder)
         try:
             await rescore_experiment(
                 deps, experiment_id, holder, refetch_trajectories=refetch_trajectories
             )
-        except (ScoringFailed, ApiRequestError, httpx.TransportError) as exc:
+        except (ScoringFailed, ApiRequestError, httpx2.TransportError) as exc:
             _note_how_to_finish(exc, experiment_id, sorted(declared), progress)
             raise
         runs = [
@@ -842,12 +863,13 @@ def run_experiment(
     repetitions: int = 1,
     concurrency: int | None = None,
     case_ids: Sequence[str] | None = None,
-    split: str | None = None,
+    tags: Sequence[str] | None = None,
     model: str | None = None,
     resume: int | None = None,
     dry_run: bool | int = False,
     trajectory_wait_seconds: int | None = None,
     judge: JudgeSettings | None = None,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
 ) -> ExperimentResult:
     """Run an experiment: call `task` once per case and repetition, store the runs on
     the server and score them.
@@ -875,16 +897,19 @@ def run_experiment(
         concurrency: How many tasks run at once. Defaults to the agent's
             `max_concurrent_runs`.
         case_ids: Run only these cases.
-        split: Run only the cases of this split (a case tag).
+        tags: Run only the cases carrying any of these tags.
         model: Passed to the task's `model` parameter and recorded on the experiment.
         resume: An experiment id to resume: runs only the cases it has not finished.
         dry_run: `True` runs one case without creating an experiment and prints the
             answer and what the server made of the session; an int runs that many.
         trajectory_wait_seconds: How long to wait for a run's spans to settle into a
             trajectory. Defaults to the agent's setting.
-        judge: The judge for LLM-graded evaluators. Defaults to the server's default
-            judge. Its API key comes from `credentials.judges` in `evalkit.yaml`, keyed
-            by `base_url`.
+        judge: The judge for LLM-graded built-in evaluators. Defaults to the server's
+            default judge. `Judge(provider=...)` names an LLM provider configured on
+            the server: they run on the server with its stored key.
+            `Judge(base_url=..., api_key=...)` brings your own judge: they run on this
+            machine. The key is never stored.
+        evaluation_concurrency: How many runs are scored at once.
 
     Returns:
         The experiment id, its URL and one summary per run.
@@ -908,12 +933,13 @@ def run_experiment(
             repetitions=repetitions,
             concurrency=concurrency,
             case_ids=case_ids,
-            split=split,
+            tags=tags,
             model=model,
             resume=resume,
             dry_run=dry_run,
             trajectory_wait_seconds=trajectory_wait_seconds,
             judge=judge,
+            evaluation_concurrency=evaluation_concurrency,
         )
     )
 
@@ -923,6 +949,8 @@ def evaluate_experiment_sync(
     experiment_id: int,
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
+    judge: JudgeSettings | None = None,
 ) -> ExperimentResult:
     """Re-score an experiment that used Python evaluators.
 
@@ -935,6 +963,11 @@ def evaluate_experiment_sync(
             part of the experiment.
         refetch_trajectories: Read the trajectories of runs whose trajectory was
             `partial` or `unavailable` again before scoring.
+        evaluation_concurrency: How many runs are scored at once.
+        judge: The experiment's judge again, for an experiment that brought its own
+            (`Judge(base_url=..., api_key=...)`): keys are never stored, so re-scoring
+            asks for it again. It must be the judge the experiment recorded; a
+            different judge is refused.
 
     Returns:
         The experiment id, its URL and one summary per run.
@@ -953,5 +986,7 @@ def evaluate_experiment_sync(
             experiment_id=experiment_id,
             evaluators=evaluators,
             refetch_trajectories=refetch_trajectories,
+            evaluation_concurrency=evaluation_concurrency,
+            judge=judge,
         )
     )

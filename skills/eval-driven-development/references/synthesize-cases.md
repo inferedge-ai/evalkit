@@ -17,7 +17,8 @@ case YAML the new cases will join), and the path to write
 
 1. Read every observation and `index.json`.
 2. Cluster the `failed` and `degraded` observations into patterns. Two
-   observations share a pattern when they have the same `task_type`, the same
+   observations share a pattern when they ask the same kind of question (`question_kind`; free text, so
+   treat close wordings as one), the same
    failure `kind`, and the evidence points at the same root cause (the same
    surface misbehaving the same way). Name each pattern in plain words.
 3. Score each pattern:
@@ -52,13 +53,13 @@ Surface: <kind> <file or "not located">
 Already covered by: none | <case id> (partly: <what is missing>)
 Fixed since the runs: no | yes, <sha> "<what changed>" (expected green)
 Proposed cases:
-  - id: <kebab-id>   type: <task_type>   ground truth: known | NEEDS DEVELOPER
+  - id: <kebab-id>   kind: <question_kind>   ground truth: known | NEEDS DEVELOPER
     input: <time-anchored input>
     asserts: <the ideal behaviour, one line>
 Level: blackbox rubrics; overlay <check> if the check names harness tools
 
 ## Healthy
-- <task_type>: no failures in <n> runs
+- <question_kind>: no failures in <n> runs
 
 ## Unclear or low confidence
 - <run_id>: <why>

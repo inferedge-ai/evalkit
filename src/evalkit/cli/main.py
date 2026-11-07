@@ -4,12 +4,14 @@ import logging
 import os
 import shutil
 import time
+import webbrowser
 from datetime import UTC, datetime
 from importlib.util import find_spec
 from pathlib import Path
 
-import httpx
+import httpx2
 import typer
+import yaml
 from dotenv import load_dotenv
 
 from evalkit import version
@@ -32,21 +34,23 @@ from evalkit.cli.skill_targets import record as record_skill_target
 from evalkit.cli.tokens_commands import register as register_tokens
 from evalkit.cli.traces_commands import register as register_traces
 from evalkit.cli.update import run_update
-from evalkit.client import connection
+from evalkit.client import connection, oidc
 from evalkit.client.agents import definition_of
 from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
-from evalkit.client.sync import git_revision, resolve_path, sync_dataset
-from evalkit.config import Config, LocalConfig, MissingEnvError, load_config
-from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml, load_cases_from_yaml
+from evalkit.client.sync import ResolvedPath, git_revision, resolve_path, sync_dataset
+from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, load_config
+from evalkit.contracts.cases import REGISTRY_FILENAME, CaseEvaluators, is_case_yaml
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import AgentDefinition, Driver, driver, explicit, server_may_drive
+from evalkit.core.capabilities import sdk_capabilities
 from evalkit.core.fixtures import load_registries
 from evalkit.core.harness import HarnessClient
+from evalkit.core.importer import load_files
 from evalkit.core.lint import fixture_findings
 from evalkit.core.lint import lint as lint_cases
 from evalkit.core.review import CaseState
-from evalkit.core.runner import ScoringFailed, dropped_cases_text
+from evalkit.core.runner import EVALUATION_CONCURRENCY, ScoringFailed, dropped_cases_text
 from evalkit.core.workspace import Reference, parse_reference, slug
 from evalkit.credentials import MissingCredential
 from evalkit.paths import contracts_root, docs_root, skills_root
@@ -74,6 +78,7 @@ skills_app = typer.Typer(no_args_is_help=True, help="Install the bundled agent s
 contracts_app = typer.Typer(no_args_is_help=True, help="Export the bundled API contracts.")
 db_app = typer.Typer(no_args_is_help=True, help="Server database schema upgrades (server only).")
 review_app = typer.Typer(no_args_is_help=True, help="Request, give and read case reviews.")
+experiments_app = typer.Typer(no_args_is_help=True, help="List experiments.")
 app.add_typer(datasets_app, name="datasets")
 app.add_typer(harness_app, name="harness")
 app.add_typer(users_app, name="users")
@@ -81,6 +86,7 @@ app.add_typer(skills_app, name="skills")
 app.add_typer(contracts_app, name="contracts")
 app.add_typer(db_app, name="db")
 app.add_typer(review_app, name="review")
+app.add_typer(experiments_app, name="experiments")
 
 
 def _print_version(value: bool) -> None:
@@ -109,7 +115,11 @@ def _active_connection() -> connection.Connection:
 
 def _client() -> ApiClient:
     active = _active_connection()
-    return ApiClient(active.url, active.token)
+    try:
+        auth = oidc.build_auth(active)
+    except (LookupError, httpx2.HTTPError) as exc:
+        raise ApiError(str(exc)) from exc
+    return ApiClient(active.url, auth)
 
 
 def _connection() -> connection.Connection:
@@ -227,24 +237,68 @@ def _print_findings(findings: list[dict]) -> None:
 @app.command()
 def login(
     url: str = typer.Option(None, "--url", help="Server base URL, e.g. https://evalkit.internal"),
-    username: str = typer.Option(None, "--username"),
+    username: str = typer.Option(
+        None,
+        "--username",
+        help="Password login; with SSO configured, admins only unless password_login is all.",
+    ),
     password: str = typer.Option(None, "--password"),
+    no_browser: bool = typer.Option(
+        False,
+        "--no-browser",
+        help="Headless machine: show a code to enter on another device "
+        "(device authorization grant).",
+    ),
 ):
     """Log in to a server and store the login in ~/.evalkit/config.toml, replacing any
     earlier one.
 
+    With single sign-on configured on the server, the command opens your browser at
+    the identity provider and stores the IdP's tokens; they refresh themselves. Pass
+    --username for a password login instead.
     Example: evalkit login --url https://evalkit.example.com
     """
     url = url or typer.prompt("Server URL")
-    username = username or typer.prompt("Username")
-    password = password or typer.prompt("Password", hide_input=True)
-    body = (
-        ApiClient(url)
-        .post("/api/auth/login", json={"username": username, "password": password})
-        .json()
-    )
-    path = connection.save(connection.Connection(url, body["token"], body["username"]))
-    typer.echo(f"logged in as {username} on {url}; saved to {path}")
+    providers_oidc = None if username is not None else oidc.fetch_providers(url)["oidc"]
+    if providers_oidc is None:
+        username = username or typer.prompt("Username")
+        password = password or typer.prompt("Password", hide_input=True)
+        body = (
+            ApiClient(url)
+            .post("/api/auth/login", json={"username": username, "password": password})
+            .json()
+        )
+        path = connection.save(connection.Connection(url, body["token"], body["username"]))
+        typer.echo(f"logged in as {username} on {url}; saved to {path}")
+        return
+    try:
+        if no_browser:
+            tokens = oidc.run_device_flow(providers_oidc, typer.echo)
+        else:
+            typer.echo("opening your browser to sign in; if it does not open, use the URL below")
+            tokens = oidc.run_loopback_flow(providers_oidc, open_browser)
+        if "refresh_token" not in tokens:
+            raise ApiError(
+                "the identity provider issued no refresh token; ask its admin to allow "
+                "offline_access (refresh tokens) for this client"
+            )
+        me = oidc.register_identity(url, tokens)
+    except (
+        oidc.LoginTimedOut,
+        oidc.NoDeviceGrant,
+        oidc.LoginRefused,
+        LookupError,
+        httpx2.HTTPError,
+    ) as exc:
+        raise ApiError(str(exc)) from exc
+    stored = oidc.login_from_tokens(url, providers_oidc, tokens)._replace(username=me["username"])
+    path = connection.save(stored)
+    typer.echo(f"logged in as {me['username']} on {url}; saved to {path}")
+
+
+def open_browser(url: str) -> None:
+    typer.echo(url)
+    webbrowser.open(url)
 
 
 @app.command()
@@ -258,6 +312,13 @@ def whoami():
     me = _client().get("/api/auth/me").json()
     source = " (from EVALKIT_SERVER_URL)" if active.from_env else ""
     typer.echo(f"{me['username']} on {active.url}{source}")
+    if active.machine is not None:
+        kind = "client credentials"
+    elif active.oidc is not None:
+        kind = "sso (refresh token stored; the access token renews itself)"
+    else:
+        kind = "password"
+    typer.echo(f"login: {kind}")
     expires_at = me.get("token_expires_at")
     if expires_at is None:
         typer.echo("token does not expire")
@@ -329,14 +390,19 @@ def lint(
     if offline and agent is not None:
         raise ApiError("--agent needs the server; drop --offline")
     if offline:
-        all_cases, all_overlays = [], []
-        for _, file_path in _yaml_files(path):
-            cases, overlays = load_cases_from_yaml(file_path)
-            all_cases.extend(cases)
-            all_overlays.extend(overlays)
+        if path.is_file() and not is_case_yaml(path):
+            raise ApiError(f"{path} is not a case file; lint a case YAML file or a directory")
+        sourced, sourced_overlays, schema_findings = load_files(
+            [file_path for _, file_path in _yaml_files(path)],
+            path if path.is_dir() else path.parent,
+        )
+        all_cases = [case for case, _ in sourced]
+        all_overlays = [overlay for overlay, _ in sourced_overlays]
         known = {name for case in all_cases for name in case.evaluators.custom}
         known.update(name for ov in all_overlays for name in ov.evaluators.custom)
-        findings = lint_cases(all_cases, all_overlays, known_custom_evaluators=known)
+        findings = schema_findings + lint_cases(
+            all_cases, all_overlays, known_custom_evaluators=known
+        )
         registry = _nearest_registry(path)
         entries, registry_findings = load_registries([registry] if registry else [])
         findings.extend(registry_findings)
@@ -359,11 +425,20 @@ def lint(
         _require_own_agent(definition, me, "lint against")
         if server_may_drive(definition):
             params["agent"] = slug(ref)
+        elif definition.harness_url is None:
+            form["input_schema"] = json.dumps(sdk_capabilities(definition).effective_input_schema)
         else:
             local = _with_secrets(_local_config(), scoring=False)
             try:
                 schema = asyncio.run(local_input_schema(conn, local, ref))
-            except (httpx.HTTPError, ValueError, ApiRequestError) as exc:
+            except (
+                httpx2.HTTPError,
+                ValueError,
+                ApiRequestError,
+                oidc.LoginExpired,
+                oidc.ClientCredentialsRefused,
+                LookupError,
+            ) as exc:
                 raise ApiError(f"harness {definition.ref}: {exc}") from exc
             form["input_schema"] = json.dumps(schema)
     files = _yaml_files(path)
@@ -418,7 +493,8 @@ def _sync_and_report(
         )
     if review.get("carried"):
         typer.echo(
-            f"{len(review['carried'])} case(s) updated and still under review: "
+            f"{len(review['carried'])} case(s) updated and back in review "
+            "(no need to run `review request` again): "
             + ", ".join(f"{c['case_id']} ({c['reviewer']})" for c in review["carried"])
         )
 
@@ -499,23 +575,29 @@ def datasets_list(
         None, "--state", help="Only cases in this review state (shared workspaces only)."
     ),
     tag: str | None = typer.Option(None, "--tag", help="Only cases carrying this tag."),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Only datasets in this workspace, e.g. dev; defaults to all."
+    ),
 ):
     """List datasets with kind and version, or one dataset's cases.
 
     With a dataset, prints each case's id, review state (shared workspaces only; `-`
     elsewhere), tags and fixture keys.
 
-    Example: evalkit datasets list · evalkit datasets list finance@dev --state approved
-    · evalkit datasets list finance --tag statement-analysis
+    Example: evalkit datasets list --workspace dev · evalkit datasets list finance@dev
+    --state approved · evalkit datasets list finance --tag statement-analysis
     """
     if dataset is None:
         if state is not None or tag is not None:
             raise ApiError("--state and --tag filter a dataset's cases; pass a dataset")
-        for ds in _client().get("/api/datasets").json():
+        params = {"workspace": workspace.removeprefix("@")} if workspace is not None else {}
+        for ds in _client().get("/api/datasets", params=params).json():
             last = ds.get("last_sync") or {}
             sha = (last.get("detail") or {}).get("sha") or "-"
             typer.echo(f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}")
         return
+    if workspace is not None:
+        raise ApiError("--workspace filters the dataset list; name the dataset as finance@dev")
     dataset_slug = slug(_parse(dataset, _connection().username or ""))
     params = {"tag": tag} if tag is not None else {}
     rows = _client().get(f"/api/datasets/{encode(dataset_slug)}/cases", params=params).json()
@@ -531,6 +613,41 @@ def datasets_list(
             f"fixtures={','.join(fixtures) or '-'}"
         )
     typer.echo(f"{len(shown)} case(s) in {dataset_slug}")
+
+
+@datasets_app.command("show")
+def datasets_show(
+    dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
+):
+    """Show a dataset's kind, last sync, case count, review states and tags.
+
+    Example: evalkit datasets show finance@dev
+    """
+    client = _client()
+    ref = encode(slug(_parse(dataset, _connection().username or "")))
+    ds = client.get(f"/api/datasets/{ref}").json()
+    cases = client.get(f"/api/datasets/{ref}/cases").json()
+    tags = client.get(f"/api/datasets/{ref}/tags").json()
+    typer.echo(f"dataset: {ds['ref']}")
+    typer.echo(f"kind: {ds['kind']}")
+    last = ds.get("last_sync")
+    if last is None:
+        typer.echo("last sync: -")
+    else:
+        detail = last["detail"]
+        typer.echo(
+            f"last sync: {last['created_at']} by {last['actor']} ({last['source']}) "
+            f"sha={(detail.get('sha') or '-')[:12]} branch={detail.get('branch') or '-'}"
+            + (" dirty" if detail.get("dirty") else "")
+        )
+    typer.echo(f"cases: {len(cases)}")
+    if any(case["review"] is not None for case in cases):
+        states: dict[str, int] = {}
+        for case in cases:
+            state = (case["review"] or {}).get("state", "-")
+            states[state] = states.get(state, 0) + 1
+        typer.echo("review: " + (", ".join(f"{k} {v}" for k, v in sorted(states.items())) or "-"))
+    typer.echo("tags: " + (", ".join(f"{t['name']} {t['count']}" for t in tags) or "-"))
 
 
 class _Progress:
@@ -557,10 +674,12 @@ def _run_on_server(
     resume: int | None,
     revision: GitRevision,
     judge: dict | None,
+    evaluation_concurrency: int | None,
 ) -> int:
     client = _client()
     if resume:
-        exp_id = int(client.post(f"/api/experiments/{resume}/resume").json()["id"])
+        scoring = {"evaluation_concurrency": evaluation_concurrency}
+        exp_id = int(client.post(f"/api/experiments/{resume}/resume", json=scoring).json()["id"])
     else:
         payload = {
             "dataset": dataset_slug,
@@ -571,6 +690,7 @@ def _run_on_server(
             "cases": revision.model_dump(exclude_none=True) or None,
             "evalkit_version": version.current(),
             "judge": judge,
+            "evaluation_concurrency": evaluation_concurrency,
         }
         created = client.post("/api/experiments", json=payload).json()
         exp_id = int(created["id"])
@@ -591,11 +711,23 @@ def _run_on_server(
     return exp_id
 
 
+def _run_selection(
+    resolved: ResolvedPath, tag: list[str] | None, case_id: list[str] | None
+) -> Selection:
+    if (tag or case_id) and resolved.subpath:
+        raise ApiError(
+            f"{resolved.subpath} already selects cases; drop it or drop --tag / --case-id"
+        )
+    if tag or case_id:
+        return Selection.model_validate(_selection(tag, case_id))
+    return resolved.selection
+
+
 @app.command()
 def run(
     dataset: str = typer.Argument(
         ...,
-        help="finance · finance@dev · finance/<split> · finance/<file>.yaml · a path",
+        help="finance · finance@dev · finance/<dir> · finance/<file>.yaml · a path",
     ),
     agent: str = typer.Option(
         ...,
@@ -603,16 +735,40 @@ def run(
         help="myagent (yours, your laptop drives it) or ouragent@dev (the server drives it).",
     ),
     runs: int = typer.Option(1, "--runs", help="Repetitions per case."),
+    tag: list[str] = typer.Option(
+        None, "--tag", help="Run only cases carrying any of these tags. Repeatable."
+    ),
     case_id: list[str] = typer.Option(None, "--case-id", help="Run only these case ids."),
     model: str = typer.Option(None, "--model", help="Model override (if the harness accepts it)."),
     resume: int = typer.Option(None, "--resume", help="Resume an experiment by id."),
     judge_model: str | None = typer.Option(
         None, "--judge-model", help="Judge model for this experiment; default: the server's."
     ),
+    judge_provider: str | None = typer.Option(
+        None,
+        "--judge-provider",
+        help="A registered LLM provider to judge with; judge-using evaluators run on the server.",
+    ),
     judge_base_url: str | None = typer.Option(
-        None, "--judge-base-url", help="Judge endpoint; its key is credentials.judges[url]."
+        None,
+        "--judge-base-url",
+        help="Bring your own judge: judge-using evaluators run on this machine. Needs "
+        "--judge-api-key-env.",
+    ),
+    judge_api_key_env: str | None = typer.Option(
+        None,
+        "--judge-api-key-env",
+        help="The env var (or .env entry beside evalkit.yaml) holding the key for "
+        "--judge-base-url. Never stored.",
     ),
     judge_effort: str | None = typer.Option(None, "--judge-effort", help="Judge reasoning effort."),
+    evaluation_concurrency: int | None = typer.Option(
+        None,
+        "--evaluation-concurrency",
+        min=1,
+        help=f"How many runs are scored at once. Default: {EVALUATION_CONCURRENCY} here, or "
+        "the server's runner.evaluation_concurrency for a shared agent, which is also its limit.",
+    ),
 ):
     """Run an experiment. Your own agent runs from this machine; results land on the server.
 
@@ -623,7 +779,7 @@ def run(
     shows the same errors before you sync.
 
     Example: evalkit run finance --agent research-agent ·
-    evalkit run finance@dev/statement-analysis --agent ouragent@dev
+    evalkit run finance@dev --tag statement-analysis --tag ratios --agent ouragent@dev
     """
     conn = _connection()
     me = conn.username or ""
@@ -646,7 +802,7 @@ def run(
         local = _with_secrets(local, scoring=True)
         _require_agent_key(local, conn, definition)
     resolved = _resolve(dataset, local.cases if local else None, me)
-    selection = Selection(case_ids=list(case_id)) if case_id else resolved.selection
+    selection = _run_selection(resolved, tag, case_id)
     revision = git_revision(resolved.dataset_dir) if resolved.dataset_dir else GitRevision()
     if resolved.dataset_dir is not None and resume is None:
         _sync_and_report(
@@ -657,7 +813,8 @@ def run(
             fixtures_dir=local.fixtures if local else None,
         )
     dataset_slug = slug(resolved.ref)
-    judge = _judge_override(judge_model, judge_base_url, judge_effort)
+    judge = _judge_override(judge_model, judge_provider, judge_base_url, judge_effort)
+    judge_key = _judge_api_key(judge, judge_api_key_env, local, resuming=resume is not None)
     if route is Driver.SERVER:
         exp_id = _run_on_server(
             dataset_slug,
@@ -668,6 +825,7 @@ def run(
             resume,
             revision,
             judge,
+            evaluation_concurrency,
         )
     else:
         if local is None:
@@ -687,6 +845,8 @@ def run(
                     revision=revision,
                     progress=progress,
                     judge=JudgeSettings.model_validate(judge) if judge else None,
+                    judge_api_key=judge_key,
+                    evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
                 )
             )
         except KeyboardInterrupt:
@@ -696,16 +856,49 @@ def run(
             raise typer.Exit(code=130) from None
         except ScoringFailed as exc:
             raise ApiError(f"{exc}\nfinish it with: evalkit evaluate {exc.exp_id}") from exc
-        except (VersionMismatch, ApiRequestError, ValueError, KeyError) as exc:
+        except (
+            VersionMismatch,
+            ApiRequestError,
+            oidc.LoginExpired,
+            oidc.ClientCredentialsRefused,
+            ValueError,
+            KeyError,
+            LookupError,
+        ) as exc:
             raise ApiError(str(exc)) from exc
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
 
 
-def _judge_override(model: str | None, base_url: str | None, effort: str | None) -> dict | None:
+def _judge_api_key(
+    judge: dict | None, env_name: str | None, local: LocalConfig | None, *, resuming: bool
+) -> str | None:
+    own = judge is not None and judge.get("base_url") is not None
+    if env_name is None:
+        if own:
+            raise ApiError("--judge-base-url needs --judge-api-key-env NAME, the key's env var")
+        return None
+    if not own and not resuming:
+        raise ApiError("--judge-api-key-env goes with --judge-base-url or --resume")
+    return _env_value(env_name, local)
+
+
+def _env_value(name: str, local: LocalConfig | None) -> str:
+    environ = local.environ() if local is not None else dict(os.environ)
+    if name not in environ:
+        raise ApiError(f"env var {name} is not set (shell or the .env beside evalkit.yaml)")
+    return environ[name]
+
+
+def _judge_override(
+    model: str | None, provider: str | None, base_url: str | None, effort: str | None
+) -> dict | None:
+    if provider is not None and base_url is not None:
+        raise ApiError("pass --judge-provider or --judge-base-url, not both")
     changes = {
         key: value
         for key, value in {
             "model": model,
+            "provider": provider,
             "base_url": base_url,
             "reasoning_effort": effort,
         }.items()
@@ -713,7 +906,11 @@ def _judge_override(model: str | None, base_url: str | None, effort: str | None)
     }
     if not changes:
         return None
-    return {**_client().get("/api/judge-default").json(), **changes}
+    found = _client().get_if_found("/api/judge-default")
+    current = found.json() if found is not None else {}
+    if provider is not None or base_url is not None:
+        current = {k: v for k, v in current.items() if k not in ("provider", "base_url")}
+    return {**current, **changes}
 
 
 def _require_agent_key(
@@ -737,6 +934,18 @@ def evaluate(
         "--refetch-trajectories",
         help="Poll the collector again for runs whose trajectory was partial or unavailable, "
         "then re-score them.",
+    ),
+    evaluation_concurrency: int | None = typer.Option(
+        None,
+        "--evaluation-concurrency",
+        min=1,
+        help=f"How many runs are scored at once (default {EVALUATION_CONCURRENCY}).",
+    ),
+    judge_api_key_env: str | None = typer.Option(
+        None,
+        "--judge-api-key-env",
+        help="For an experiment that brought its own judge (--judge-base-url): the env var "
+        "holding its key. Keys are never stored, so re-scoring asks again.",
     ),
 ):
     """Re-score an experiment's recorded runs from this machine (idempotent).
@@ -766,11 +975,21 @@ def evaluate(
                 experiment_id,
                 progress=typer.echo,
                 refetch_trajectories=refetch_trajectories,
+                evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
+                judge_api_key=_env_value(judge_api_key_env, local) if judge_api_key_env else None,
             )
         )
     except ScoringFailed as exc:
         raise ApiError(f"{exc}\nfinish it with: evalkit evaluate {experiment_id}") from exc
-    except (VersionMismatch, ApiRequestError, ValueError, KeyError) as exc:
+    except (
+        VersionMismatch,
+        ApiRequestError,
+        oidc.LoginExpired,
+        oidc.ClientCredentialsRefused,
+        ValueError,
+        KeyError,
+        LookupError,
+    ) as exc:
         raise ApiError(str(exc)) from exc
     typer.echo(f"evaluated {experiment_id}")
 
@@ -809,8 +1028,8 @@ def status(experiment_id: int):
         typer.secho(f"  error: {body['status_error']}", fg="red")
 
 
-def _render_summary(report: dict) -> None:
-    for line in summary_lines(report):
+def _render_summary(report: dict, base: dict | None = None) -> None:
+    for line in summary_lines(report, base):
         typer.echo(line)
 
 
@@ -823,10 +1042,50 @@ def summary(
 
     Example: evalkit summary <experiment-id> --baseline <older-id>
     """
-    params = {"baseline_id": baseline} if baseline else {}
-    _render_summary(
-        _client().get(f"/api/experiments/{experiment_id}/scorecard", params=params).json()
+    if baseline is None:
+        _render_summary(_client().get(f"/api/experiments/{experiment_id}/scorecard").json())
+        return
+    reports = (
+        _client()
+        .get("/api/experiments/compare", params={"base": baseline, "compare": experiment_id})
+        .json()
     )
+    _render_summary(reports["compare"], reports["base"])
+
+
+@experiments_app.command("list")
+def experiments_list(
+    agent: str | None = typer.Option(None, "--agent", help="myagent (yours) or myagent@dev."),
+    dataset: str | None = typer.Option(None, "--dataset", help="finance (yours) or finance@dev."),
+    limit: int = typer.Option(20, "--limit", help="How many, newest first."),
+):
+    """List experiments, newest first, with their bucket scores.
+
+    Example: evalkit experiments list --dataset finance@dev
+    """
+    me = _connection().username or ""
+    params: dict = {"limit": limit}
+    if agent is not None:
+        params["agent"] = slug(_parse(agent, me))
+    if dataset is not None:
+        params["dataset"] = slug(_parse(dataset, me))
+    found = _client().get("/api/experiments", params=params).json()
+    if not found:
+        typer.echo("no experiments")
+        return
+    typer.echo(
+        f"{'id':>5}  {'dataset':<28} {'agent':<24} {'status':<10} {'started':<16}  bucket scores"
+    )
+    for exp in found:
+        scores = " ".join(f"{bucket} {_fmt_score(v)}" for bucket, v in exp["scores"].items())
+        typer.echo(
+            f"{exp['id']:>5}  {exp['dataset']:<28} {exp['agent']:<24} {exp['status']:<10} "
+            f"{exp['started_at'][:16].replace('T', ' ')}  {scores or '-'}"
+        )
+
+
+def _fmt_score(value: float | None) -> str:
+    return "-" if value is None else f"{value:.2f}"
 
 
 def _require_own_agent(definition: AgentDefinition, me: str, action: str) -> None:
@@ -864,7 +1123,14 @@ def harness_check(
         local = _with_secrets(_local_config(), scoring=False)
         try:
             checks = asyncio.run(check_local(conn, local, ref))
-        except (ValueError, KeyError, ApiRequestError) as exc:
+        except (
+            ValueError,
+            KeyError,
+            ApiRequestError,
+            oidc.LoginExpired,
+            oidc.ClientCredentialsRefused,
+            LookupError,
+        ) as exc:
             raise ApiError(str(exc)) from exc
     failed = False
     for capability, entry in checks.items():
@@ -876,10 +1142,42 @@ def harness_check(
 
 
 @users_app.command("add")
-def users_add(username: str, password: str = typer.Option(..., prompt=True, hide_input=True)):
-    """Create a user (admin only). Example: evalkit users add alice"""
-    _client().post("/api/users", json={"username": username, "password": password})
+def users_add(
+    username: str,
+    password: str = typer.Option(
+        None, "--password", hide_input=True, help="Prompted for when --subject is not given."
+    ),
+    subject: str = typer.Option(
+        None,
+        "--subject",
+        help="Bind the new user to this identity provider subject: a machine user, no password.",
+    ),
+):
+    """Create a user (admin only).
+
+    With --subject the user is a machine user bound to that subject at the identity
+    provider: no password, no browser login. Without it, a password user; with SSO
+    configured and password_login admin, that user can only sign in once made admin.
+
+    Examples: evalkit users add alice · evalkit users add ci-bot --subject 0oa...
+    """
+    if subject is not None:
+        _client().post("/api/users", json={"username": username, "subject": subject})
+    else:
+        password = password or typer.prompt("Password", hide_input=True)
+        _client().post("/api/users", json={"username": username, "password": password})
     typer.echo(f"created {username}")
+
+
+@users_app.command("bind")
+def users_bind(username: str, subject: str = typer.Option(..., "--subject")):
+    """Bind an existing user to an identity provider subject (admin only).
+
+    Resolves a 409 at sign-in, links a password account that predates SSO, or binds
+    a machine client to an existing user. Example: evalkit users bind alice --subject 0oa...
+    """
+    _client().post(f"/api/users/{username}/identity", json={"subject": subject})
+    typer.echo(f"bound {username} to subject {subject}")
 
 
 @users_app.command("archive")
@@ -937,9 +1235,19 @@ def users_list():
     """List users (admin only). Example: evalkit users list"""
     for user in _client().get("/api/users").json():
         flags = " ".join(
-            flag for flag, on in (("ADMIN", user["is_admin"]), ("ARCHIVED", user["archived"])) if on
+            flag
+            for flag, on in (
+                ("ADMIN", user["is_admin"]),
+                ("ARCHIVED", user["archived"]),
+                ("SUBJECT", user["has_subject"]),
+            )
+            if on
         )
-        typer.echo(f"{user['username']:<24} {flags:<16} created {user['created_at']}")
+        email = user["email"] or ""
+        typer.echo(
+            f"{user['username']:<24} {user['kind']:<8} {email:<32} {flags:<22} "
+            f"created {user['created_at']}"
+        )
 
 
 DOCS_DIR = "evalkit-docs"
@@ -995,8 +1303,9 @@ def contracts_export(
 ):
     """Write the bundled API contracts (OpenAPI + accepted ATIF versions) to a directory.
 
-    Exports harness-api-v1.json, custom-evaluator-api-v1.json and
-    atif-accepted.json, matching the installed evalkit version.
+    Exports harness-api-v1.json, custom-evaluator-api-v1.json, atif-accepted.json,
+    span-mapping-v1.json and cases-v1.json (the case YAML schema), matching the
+    installed evalkit version.
 
     Example: evalkit contracts export --target ./contracts
     """
@@ -1049,6 +1358,14 @@ def init_server_command(
     kit_only: bool = typer.Option(
         False, "--kit-only", help="Only copy the try kit; no database, config.yaml or .env."
     ),
+    port: int = typer.Option(
+        DEFAULT_PORT,
+        "--port",
+        min=1,
+        max=65535,
+        help="Port to serve on; written into server.base_url, which `evalkit serve` reads. "
+        "With --kit-only, set EVALKIT_PORT in the kit's .env instead.",
+    ),
 ):
     """Set up an evalkit server on this machine, against a Postgres you already run.
 
@@ -1060,7 +1377,7 @@ def init_server_command(
 
     Each value comes from its flag or env var; anything missing is prompted for.
 
-    Example: evalkit init-server · evalkit init-server --kit-only --dir ./evalkit-try
+    Example: evalkit init-server --port 9500 · evalkit init-server --kit-only --dir ./evalkit-try
     """
     existing = init_server.kit_files_in(directory)
     if existing and not force:
@@ -1071,6 +1388,8 @@ def init_server_command(
     if kit_only:
         init_server.copy_kit(directory, docker=True)
         typer.echo(f"copied the try kit to {directory}")
+        if port != DEFAULT_PORT:
+            typer.echo(f"copy .env.example to .env and set EVALKIT_PORT={port} to serve on {port}")
         return
     if server_commands is None:
         raise ApiError(
@@ -1118,12 +1437,12 @@ def init_server_command(
                 fg="yellow",
             )
     init_server.copy_kit(directory, docker=False)
-    init_server.write_server_files(directory, answers, encryption_key)
+    init_server.write_server_files(directory, answers, encryption_key, port)
     typer.echo(f"set up {directory}: config.yaml, .env and the try kit")
     typer.echo("next, start the server:")
     typer.echo(f"  cd {directory} && evalkit serve")
     typer.echo("then, in another terminal from the same folder, log in:")
-    typer.echo("  evalkit login --url http://localhost:8020 --username admin")
+    typer.echo(f"  evalkit login --url {init_server.local_url(port)} --username admin")
     typer.echo("  (this replaces a login you saved; Try it locally step 1 shows how to keep it)")
     typer.echo("and follow Try it locally from step 2 (the CLI is already installed)")
 
@@ -1132,15 +1451,22 @@ def init_server_command(
 def serve(
     config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),
     host: str = typer.Option("127.0.0.1", "--host"),
-    port: int = typer.Option(8020, "--port"),
+    port: int | None = typer.Option(
+        None,
+        "--port",
+        min=1,
+        max=65535,
+        help="Default: the port in server.base_url, else 8020.",
+    ),
 ):
     """Start the evalkit server (API + UI).
 
-    Example: evalkit serve --config /etc/evalkit/config.yaml
+    Example: evalkit serve --config /etc/evalkit/config.yaml --port 9500
     """
     if server_commands is None:
         raise ApiError("`evalkit serve` needs the server extra — pip install 'evalkit-py[server]'")
-    server_commands.serve(_server_config(config), host, port)
+    cfg = _server_config(config)
+    server_commands.serve(cfg, host, port or cfg.server.port)
 
 
 @db_app.command("upgrade")
@@ -1188,11 +1514,13 @@ if __name__ == "__main__":
     app()
 
 
-def _selection(tag: str | None, case_id: list[str] | None) -> dict:
+def _selection(tag: list[str] | None, case_id: list[str] | None) -> dict:
+    if tag and case_id:
+        raise ApiError("pass --tag or --case-id, not both")
     if case_id:
         return {"case_ids": list(case_id)}
     if tag:
-        return {"tag": tag}
+        return {"tags": list(tag)}
     return {"all": True}
 
 
@@ -1211,6 +1539,24 @@ def _fmt_comment(comment: dict, *, indent: int) -> str:
     return f"{head}\n{pad}{comment['body']}"
 
 
+def _authored_evaluators(evaluators: dict | None) -> dict | None:
+    if not evaluators:
+        return None
+    return CaseEvaluators.model_validate(evaluators).model_dump(exclude_defaults=True) or None
+
+
+def _case_yaml(case: dict) -> str:
+    fields = {"id": case["case_id"], "input": case["input"], "expected": case.get("expected")}
+    fields |= {
+        "evaluators": _authored_evaluators(case.get("effective_evaluators")),
+        "files": [f["key"] for f in case.get("files") or []] or None,
+        "tags": case.get("tags") or None,
+    }
+    return yaml.safe_dump(
+        {k: v for k, v in fields.items() if v is not None}, sort_keys=False, allow_unicode=True
+    )
+
+
 def _post_decision(dataset: str, case_id: str, action: str, comment: str | None) -> None:
     body = {"action": action, "comment": comment}
     result = _client().post(f"{_case_path(dataset, case_id)}/review", json=body).json()
@@ -1221,7 +1567,9 @@ def _post_decision(dataset: str, case_id: str, action: str, comment: str | None)
 def review_request(
     dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
     reviewer: str = typer.Option(..., "--reviewer", help="Reviewer username."),
-    tag: str = typer.Option(None, "--tag", help="Only cases carrying this tag."),
+    tag: list[str] = typer.Option(
+        None, "--tag", help="Only cases carrying any of these tags. Repeatable."
+    ),
     case_id: list[str] = typer.Option(None, "--case-id", help="Only these case ids."),
 ):
     """Ask a reviewer to look at cases (all cases when no selector is given).
@@ -1233,40 +1581,52 @@ def review_request(
         _client().post(f"/api/datasets/{_dataset_ref(dataset)}/review-requests", json=body).json()
     )
     typer.echo(f"requested review from {reviewer} on {len(requested['requested'])} case(s)")
+    if requested["already_requested"]:
+        typer.echo(
+            f"{len(requested['already_requested'])} case(s) already waiting on {reviewer}, "
+            "left as is: " + ", ".join(requested["already_requested"])
+        )
 
 
 @review_app.command("show")
 def review_show(
     dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
     case_id: str = typer.Argument(None, help="Case id; omit to list every case's state."),
+    as_yaml: bool = typer.Option(
+        False, "--yaml", help="Print only the case as YAML, with overlay evaluators applied."
+    ),
 ):
-    """Show review state for a dataset, or state, changelog and comments for one case.
+    """Show review state for a dataset, or the case, state, changelog and comments for one case.
 
     Example: evalkit review show finance us10k-conv-04
     """
     client = _client()
-    rows = client.get(f"/api/datasets/{_dataset_ref(dataset)}/cases").json()
     if case_id is None:
-        for ex in rows:
+        for ex in client.get(f"/api/datasets/{_dataset_ref(dataset)}/cases").json():
             review = ex.get("review") or {}
             typer.echo(
                 f"{ex['case_id']:<40} {review.get('state', '-'):<18} "
                 f"{review.get('requested_to') or ''}"
             )
         return
-    match = next((ex for ex in rows if ex["case_id"] == case_id), None)
-    if match is None:
-        raise ApiError(f"unknown case: {case_id}")
+    match = client.get(_case_path(dataset, case_id)).json()
+    case_yaml = _case_yaml(match)
+    if as_yaml:
+        typer.echo(case_yaml, nl=False)
+        return
+    typer.echo(case_yaml)
     review = match.get("review") or {}
     typer.echo(f"state: {review.get('state', '-')}")
     if review.get("requested_to"):
         typer.echo(f"requested to: {review['requested_to']}")
     typer.echo("changelog:")
+    shown_ref = slug(_parse(dataset, _connection().username or ""))
     for event in client.get(f"{_case_path(dataset, case_id)}/events").json()["events"]:
         target = f" → {event['target']}" if event.get("target") else ""
+        where = f"  in {event['dataset']}" if event["dataset"] != shown_ref else ""
         typer.echo(
             f"  {event['created_at']}  {event['kind']:<18} {event['actor']}{target}  "
-            f"[{event['content_hash']}]"
+            f"[{event['content_hash']}]{where}"
         )
     typer.echo("comments:")
     for thread in client.get(f"{_case_path(dataset, case_id)}/comments").json()["threads"]:
@@ -1278,14 +1638,29 @@ def review_show(
 @review_app.command("approve")
 def review_approve(
     dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
-    case_id: str = typer.Argument(..., help="Case id."),
-    comment: str = typer.Option(None, "--comment", help="Optional note."),
+    case_ids: list[str] = typer.Argument(None, help="Case ids, one or more."),
+    all_waiting: bool = typer.Option(
+        False, "--all-waiting", help="Every case in the dataset waiting on your review."
+    ),
+    comment: str = typer.Option(None, "--comment", help="Optional note, added to each case."),
 ):
-    """Approve a case (reviewers only).
+    """Approve one or more cases (reviewers only).
 
-    Example: evalkit review approve finance us10k-conv-04
+    Example: evalkit review approve finance@dev us10k-conv-04 us10k-conv-05 ·
+    evalkit review approve finance@dev --all-waiting
     """
-    _post_decision(dataset, case_id, "approve", comment)
+    if bool(case_ids) == all_waiting:
+        raise ApiError("pass case ids or --all-waiting, exactly one")
+    if all_waiting:
+        client = _client()
+        params = {"reviewer": client.get("/api/auth/me").json()["username"]}
+        case_ids = [item["case_id"] for item in _queue_items(client, dataset, params)]
+        if not case_ids:
+            typer.echo("nothing waiting on you")
+            return
+    typer.echo(f"approving {len(case_ids)} case(s) in {dataset}")
+    for case_id in case_ids:
+        _post_decision(dataset, case_id, "approve", comment)
 
 
 @review_app.command("request-changes")
@@ -1305,61 +1680,85 @@ def review_request_changes(
 def review_comment(
     dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
     case_id: str = typer.Argument(..., help="Case id."),
-    text: str = typer.Argument(..., help="Comment body."),
+    text: str = typer.Argument(None, help="Comment body."),
+    comment: str = typer.Option(None, "--comment", help="Comment body, instead of TEXT."),
     reply_to: int = typer.Option(None, "--reply-to", help="Comment id to reply to."),
 ):
     """Comment on a case, or reply to a comment.
 
-    Example: evalkit review comment finance us10k-conv-04 "which fiscal year?"
+    Example: evalkit review comment finance us10k-conv-04 --comment "which fiscal year?"
     """
-    body = {"body": text, "parent_id": reply_to}
+    if (text is None) == (comment is None):
+        raise ApiError("pass the comment as TEXT or --comment, exactly one")
+    body = {"body": text if comment is None else comment, "parent_id": reply_to}
     stored = _client().post(f"{_case_path(dataset, case_id)}/comments", json=body).json()
     typer.echo(f"comment {stored['id']} on {case_id}")
 
 
 @review_app.command("resolve")
 def review_resolve(
-    dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
-    case_id: str = typer.Argument(..., help="Case id."),
-    comment_id: int = typer.Argument(..., help="Comment id."),
+    ids: list[str] = typer.Argument(
+        ...,
+        metavar="COMMENT_ID",
+        help="Comment id (the older DATASET CASE_ID COMMENT_ID works too).",
+    ),
     undo: bool = typer.Option(False, "--undo", help="Mark the comment unresolved again."),
 ):
     """Resolve (or with --undo, unresolve) a comment.
 
-    Example: evalkit review resolve finance us10k-conv-04 12
+    Example: evalkit review resolve 12
     """
-    result = (
-        _client()
-        .patch(f"{_case_path(dataset, case_id)}/comments/{comment_id}", json={"resolved": not undo})
-        .json()
+    if len(ids) not in (1, 3) or not ids[-1].isdigit():
+        raise ApiError("pass a comment id, e.g. evalkit review resolve 12")
+    path = (
+        f"/api/review/comments/{ids[0]}"
+        if len(ids) == 1
+        else f"{_case_path(ids[0], ids[1])}/comments/{ids[2]}"
     )
+    result = _client().patch(path, json={"resolved": not undo}).json()
     typer.echo(f"comment {result['id']} {'resolved' if result['resolved'] else 'unresolved'}")
+
+
+def _queue_items(client: ApiClient, dataset: str | None, params: dict) -> list[dict]:
+    if dataset is not None:
+        params = {**params, "dataset": slug(_parse(dataset, _connection().username or ""))}
+    return client.get("/api/review/queue", params=params).json()["items"]
 
 
 @review_app.command("queue")
 def review_queue(
+    dataset: str | None = typer.Argument(
+        None, help="Only this dataset: finance (yours) or finance@dev; defaults to all."
+    ),
     reviewer: str = typer.Option(None, "--reviewer", help="Whose queue; defaults to you."),
     everyone: bool = typer.Option(False, "--all", help="Every case under review."),
     changes_requested: bool = typer.Option(
         False, "--changes-requested", help="Cases sent back to their authors instead."
     ),
+    workspace: str | None = typer.Option(
+        None, "--workspace", help="Only cases in this workspace, e.g. dev; defaults to all."
+    ),
 ):
     """List cases waiting for review, or with --changes-requested, cases awaiting an edit.
 
-    Example: evalkit review queue
+    Example: evalkit review queue · evalkit review queue finance@dev ·
+    evalkit review queue --workspace dev
     """
+    if dataset is not None and workspace is not None:
+        raise ApiError("pass a dataset or --workspace, not both")
     client = _client()
-    params: dict = {}
+    params: dict = {} if workspace is None else {"workspace": workspace.removeprefix("@")}
     if changes_requested:
         params["state"] = "changes_requested"
     elif not everyone:
         params["reviewer"] = reviewer or client.get("/api/auth/me").json()["username"]
-    items = client.get("/api/review/queue", params=params).json()["items"]
+    items = _queue_items(client, dataset, params)
     if not items:
         typer.echo("nothing waiting")
         return
     for item in items:
+        to = item["author"] if changes_requested else item["requested_to"]
         typer.echo(
             f"{item['dataset']:<20} {item['case_id']:<40} by {item['requested_by']:<16} "
-            f"to {item['requested_to'] or '-':<16} {item['input'][:60]}"
+            f"to {to or '-':<16} {item['input'][:60]}"
         )

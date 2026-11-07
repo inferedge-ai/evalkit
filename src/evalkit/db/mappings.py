@@ -8,7 +8,9 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import MappingStatus
+from evalkit.core.agents import UnknownAgent
 from evalkit.db import models
+from evalkit.db.session import tenant_session
 
 
 class MappingRecord(BaseModel):
@@ -48,11 +50,15 @@ async def active_mapping(session: AsyncSession, agent_id: int) -> models.SpanMap
     )
 
 
-async def retire_active(session: AsyncSession, agent_id: int, keep: int | None = None) -> None:
+async def retire_active(
+    session: AsyncSession, agent_id: int, keep: int | None = None
+) -> int | None:
     current = await active_mapping(session, agent_id)
-    if current is not None and current.id != keep:
-        current.status = MappingStatus.RETIRED.value
-        await session.flush()
+    if current is None or current.id == keep:
+        return None
+    current.status = MappingStatus.RETIRED.value
+    await session.flush()
+    return current.version
 
 
 async def next_version(session: AsyncSession, agent_id: int) -> int:
@@ -80,16 +86,30 @@ async def activate_document(
 
 
 class MappingStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._sessions = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._sessions, self._tenant_id)
+
+    def _tenant_agent_ids(self) -> Select:
+        return (
+            select(models.Agent.id)
+            .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+            .where(models.Workspace.tenant_id == self._tenant_id)
+        )
 
     async def list(self, agent_id: int) -> list[MappingRecord]:
-        async with self._sessions() as session:
+        async with self._session() as session:
             rows = (
                 await session.execute(
                     _with_author(
                         select(models.SpanMapping)
-                        .where(models.SpanMapping.agent_id == agent_id)
+                        .where(
+                            models.SpanMapping.agent_id == agent_id,
+                            models.SpanMapping.agent_id.in_(self._tenant_agent_ids()),
+                        )
                         .order_by(models.SpanMapping.version)
                     )
                 )
@@ -97,12 +117,13 @@ class MappingStore:
         return [_to_record(row, author) for row, author in rows]
 
     async def _with_status(self, agent_id: int, status: str) -> MappingRecord | None:
-        async with self._sessions() as session:
+        async with self._session() as session:
             found = (
                 await session.execute(
                     _with_author(
                         select(models.SpanMapping).where(
                             models.SpanMapping.agent_id == agent_id,
+                            models.SpanMapping.agent_id.in_(self._tenant_agent_ids()),
                             models.SpanMapping.status == status,
                         )
                     )
@@ -118,16 +139,27 @@ class MappingStore:
 
     async def put_draft(
         self, agent_id: int, document: dict[str, Any], created_by: str
-    ) -> MappingRecord:
-        async with self._sessions() as session:
+    ) -> tuple[MappingRecord, bool]:
+        async with self._session() as session:
+            if (
+                await session.scalar(self._tenant_agent_ids().where(models.Agent.id == agent_id))
+                is None
+            ):
+                raise UnknownAgent(str(agent_id))
             current = (
                 await session.execute(
                     select(models.SpanMapping).where(
                         models.SpanMapping.agent_id == agent_id,
+                        models.SpanMapping.agent_id.in_(self._tenant_agent_ids()),
                         models.SpanMapping.status == "draft",
                     )
                 )
             ).scalar_one_or_none()
+            if current is not None and current.mapping == document:
+                author = await session.scalar(
+                    select(models.User.username).where(models.User.id == current.created_by_id)
+                )
+                return _to_record(current, author), True
             if current is not None:
                 current.status = "retired"
                 await session.flush()
@@ -137,27 +169,31 @@ class MappingStore:
                 status="draft",
                 mapping=document,
                 created_by_id=await session.scalar(
-                    select(models.User.id).where(models.User.username == created_by)
+                    select(models.User.id).where(
+                        models.User.tenant_id == self._tenant_id,
+                        models.User.username == created_by,
+                    )
                 ),
             )
             session.add(row)
             await session.commit()
             await session.refresh(row)
-            return _to_record(row, created_by)
+            return _to_record(row, created_by), False
 
-    async def activate(self, agent_id: int, version: int) -> MappingRecord:
-        async with self._sessions() as session:
+    async def activate(self, agent_id: int, version: int) -> tuple[MappingRecord, int | None]:
+        async with self._session() as session:
             row = (
                 await session.execute(
                     select(models.SpanMapping).where(
                         models.SpanMapping.agent_id == agent_id,
+                        models.SpanMapping.agent_id.in_(self._tenant_agent_ids()),
                         models.SpanMapping.version == version,
                     )
                 )
             ).scalar_one_or_none()
             if row is None:
                 raise KeyError(f"no mapping version {version}")
-            await retire_active(session, agent_id, keep=row.id)
+            replaced = await retire_active(session, agent_id, keep=row.id)
             row.status = "active"
             row.activated_at = datetime.now(UTC)
             await session.commit()
@@ -165,4 +201,4 @@ class MappingStore:
             author = await session.scalar(
                 select(models.User.username).where(models.User.id == row.created_by_id)
             )
-            return _to_record(row, author)
+            return _to_record(row, author), replaced

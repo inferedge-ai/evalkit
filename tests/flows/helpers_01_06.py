@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 from click.testing import Result
 from typer.testing import CliRunner
@@ -58,7 +58,7 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
     async def setup():
         factory = make_session_factory(db_url)
         await seed_identity(factory, USERS, shared=("dev",), reviewers=["ravi"], writers=["alice"])
-        await WorkspaceStore(factory).create_shared("prod", None)
+        await WorkspaceStore(factory, "default").create_shared("prod", None)
         await seed_agent(factory, "ouragent", "dev")
         await seed_agent(factory, "ouragent", "prod")
         await seed_evaluators(factory, "dev")
@@ -69,13 +69,13 @@ def build_live(tmp_path_factory, db_url: str, fake: FakeHarness | None = None) -
     cfg = make_cfg(tmp)
     deps = RunnerDeps(
         cfg=cfg,
-        store=PgStore(factory),
+        store=PgStore(factory, "default"),
         blob_store=blob,
-        agents=AgentStore(factory),
-        evaluators=RemoteEvaluatorStore(factory),
+        agents=AgentStore(factory, "default"),
+        evaluators=RemoteEvaluatorStore(factory, "default"),
         credentials=NoKeysLoaded(),
-        harness_transport=httpx.ASGITransport(app=harness.app),
-        custom_eval_transport=httpx.ASGITransport(app=custom_eval_app()),
+        harness_transport=httpx2.ASGITransport(app=harness.app),
+        custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),
     )
     application = create_app(
         cfg,
@@ -97,15 +97,15 @@ def live(tmp_path_factory, stub_judges_module, module_db_url) -> Iterator[Live]:
 
 
 def token(live: Live, user: str) -> str:
-    resp = httpx.post(
+    resp = httpx2.post(
         f"{live.url}/api/auth/login", json={"username": user, "password": USERS[user]}
     )
     resp.raise_for_status()
     return resp.json()["token"]
 
 
-def api(live: Live, user: str) -> httpx.Client:
-    return httpx.Client(
+def api(live: Live, user: str) -> httpx2.Client:
+    return httpx2.Client(
         base_url=live.url, headers={"Authorization": f"Bearer {token(live, user)}"}, timeout=30
     )
 

@@ -17,5 +17,7 @@ class RawSpan(BaseModel):
     attributes: dict[str, Any] = Field(default_factory=dict)
     events: list[dict[str, Any]] = Field(default_factory=list)
     resource: dict[str, Any] = Field(default_factory=dict)
+    scope: str | None = None
+    dropped_attributes_count: int = 0
     received_at: datetime | None = None
     session_id_hint: str | None = Field(default=None, exclude=True)

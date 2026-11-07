@@ -30,12 +30,13 @@ def _selection_for(subpath: str, dataset_dir: Path | None) -> Selection:
         return Selection(all=True)
     on_disk = dataset_dir / subpath if dataset_dir is not None else None
     if on_disk is not None and on_disk.is_dir():
-        return Selection(tag=on_disk.name)
+        return Selection(tags=[on_disk.name])
     if on_disk is not None and on_disk.is_file():
         return Selection(case_ids=_case_ids(on_disk))
-    if Path(subpath).suffix in (".yaml", ".yml"):
-        raise ValueError(f"{subpath} is not on disk; selecting a file needs its case ids")
-    return Selection(tag=Path(subpath).name)
+    raise ValueError(
+        f"{subpath} is not a folder or file of this dataset on disk; "
+        f"to run the cases tagged {Path(subpath).name}, pass --tag {Path(subpath).name}"
+    )
 
 
 def _on_disk(candidate: Path, cases_root: Path | None) -> tuple[Path, str]:

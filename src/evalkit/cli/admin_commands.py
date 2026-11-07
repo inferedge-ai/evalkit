@@ -40,6 +40,29 @@ CLEAR_API_KEY = typer.Option(False, "--clear-api-key", help="Remove the stored A
 ROLE = typer.Option(..., "--role", help="writer or reviewer.")
 
 
+def _check_schema_file(path: Path | None) -> Path | None:
+    if path is None:
+        return None
+    try:
+        schema = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter(f"{path} is not valid JSON: {exc}") from exc
+    if not isinstance(schema, dict):
+        raise typer.BadParameter(f"{path} must hold a JSON object")
+    return path
+
+
+INPUT_SCHEMA = typer.Option(
+    None,
+    "--input-schema",
+    callback=_check_schema_file,
+    exists=True,
+    dir_okay=False,
+    help="JSON Schema file every case input must pass; code-driven agents only. Default: "
+    "an object with a required string question.",
+)
+
+
 def _provides(pairs: list[str]) -> dict[str, bool] | None:
     if not pairs:
         return None
@@ -52,11 +75,15 @@ def _provides(pairs: list[str]) -> dict[str, bool] | None:
     return parsed
 
 
-def _settings(values: dict[str, int | None], provides: list[str]) -> dict:
+def _settings(
+    values: dict[str, int | None], provides: list[str], input_schema: Path | None
+) -> dict:
     settings: dict = {key: value for key, value in values.items() if value is not None}
     flags = _provides(provides)
     if flags is not None:
         settings["provides"] = flags
+    if input_schema is not None:
+        settings["input_schema"] = json.loads(input_schema.read_text())
     return settings
 
 
@@ -66,6 +93,10 @@ def _print_agent(agent: dict) -> None:
     typer.echo(f"  trajectory_source  {agent['trajectory_source']}")
     typer.echo(f"  repo_url           {agent['repo_url'] or '-'}")
     for key, value in agent["settings"].items():
+        if key == "input_schema" and value is None and agent["harness_url"] is None:
+            value = "default (a required string question)"
+        elif isinstance(value, dict) and key == "input_schema":
+            value = json.dumps(value)
         typer.echo(f"  {key:<18} {'-' if value is None else value}")
     if agent["workspace_type"] == "shared":
         typer.echo(f"  api key            {'set' if agent['has_api_key'] else 'not set'}")
@@ -313,7 +344,6 @@ def register(
         model: str = typer.Option(..., "--model"),
         effort: str | None = typer.Option(None, "--effort", help="Reasoning effort."),
         max_tokens: int | None = typer.Option(None, "--max-tokens"),
-        concurrency: int | None = typer.Option(None, "--concurrency"),
     ):
         """Set the judge experiments use unless they pick their own (admin). Options you
         leave out keep their current value.
@@ -323,11 +353,10 @@ def register(
         client = client_factory()
         base_url = client.get(f"/api/llm-providers/{encode(provider)}").json()["base_url"]
         judge = {
-            "base_url": base_url,
+            "provider": provider,
             "model": model,
             "reasoning_effort": effort,
             "max_tokens": max_tokens,
-            "concurrency": concurrency,
         }
         client.patch("/api/judge-default", json=judge)
         typer.echo(f"default judge: {model} on {provider} ({base_url})")
@@ -364,6 +393,7 @@ def register(
         stop_grace: int | None = typer.Option(None, "--stop-grace"),
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
+        input_schema: Path | None = INPUT_SCHEMA,
         api_key_env: str | None = API_KEY_ENV,
     ):
         """Create an agent. In a shared workspace its key is stored on the server
@@ -381,6 +411,7 @@ def register(
                 "trajectory_wait_seconds": trajectory_wait,
             },
             provides,
+            input_schema,
         )
         body = {
             "workspace": workspace or whoami(),
@@ -418,6 +449,10 @@ def register(
         stop_grace: int | None = typer.Option(None, "--stop-grace"),
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
+        input_schema: Path | None = INPUT_SCHEMA,
+        clear_input_schema: bool = typer.Option(
+            False, "--clear-input-schema", help="Go back to the default input schema."
+        ),
         api_key_env: str | None = API_KEY_ENV,
         clear_api_key: bool = CLEAR_API_KEY,
     ):
@@ -441,7 +476,12 @@ def register(
                 "trajectory_wait_seconds": trajectory_wait,
             },
             provides,
+            input_schema,
         )
+        if clear_input_schema:
+            if input_schema is not None:
+                raise ApiError("pass --input-schema or --clear-input-schema, not both")
+            changed["input_schema"] = None
         body: dict = {"settings": {**current["settings"], **changed}}
         if harness_url is not None:
             body["harness_url"] = harness_url
@@ -505,7 +545,15 @@ def register(
         for ws in rows.json():
             state = "archived" if ws["archived"] else ""
             owner = ws["owner"] or "-"
-            typer.echo(f"{ws['name']:<24} {ws['type']:<9} owner {owner:<16} {state}")
+            if ws["promotes_to"]:
+                link = f"promotes to {ws['promotes_to']}"
+            elif ws["promoted_from"]:
+                link = f"promoted from {ws['promoted_from']}"
+            else:
+                link = ""
+            typer.echo(
+                f"{ws['name']:<24} {ws['type']:<9} owner {owner:<16} {link:<30} {state}".rstrip()
+            )
 
     @workspaces_app.command("create")
     def workspaces_create(name: str):

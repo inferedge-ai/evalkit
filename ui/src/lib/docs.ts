@@ -1,15 +1,20 @@
 import quickstart from "../../../docs/user/quickstart.md?raw";
 import install from "../../../docs/user/install.md?raw";
 import login from "../../../docs/user/login.md?raw";
+import sso from "../../../docs/user/sso.md?raw";
 import config from "../../../docs/user/config.md?raw";
+import serverConfig from "../../../docs/user/server-config.md?raw";
 import workspaces from "../../../docs/user/workspaces.md?raw";
+import ciSync from "../../../docs/user/ci-sync.md?raw";
 import sdkRuns from "../../../docs/user/sdk-runs.md?raw";
 import tracing from "../../../docs/user/tracing.md?raw";
 import mappings from "../../../docs/user/mappings.md?raw";
+import frameworkMappings from "../../../docs/user/framework-mappings.md?raw";
 import harnessApi from "../../../docs/user/harness-api.md?raw";
 import tryLocally from "../../../docs/user/try-locally.md?raw";
 import concepts from "../../../docs/user/concepts.md?raw";
 import mcp from "../../../docs/user/mcp.md?raw";
+import caseSchema from "../../../docs/user/case-schema.md?raw";
 
 export const DOC_TABS = [
   {
@@ -27,16 +32,36 @@ export const DOC_TABS = [
   },
   { id: "install", label: "Install", group: "Get started", body: install },
   { id: "login", label: "Login", group: "Get started", body: login },
+  { id: "sso", label: "Single sign-on", group: "Get started", body: sso },
   { id: "config", label: "Config", group: "Get started", body: config },
+  {
+    id: "server-config",
+    label: "Server config",
+    group: "Get started",
+    body: serverConfig,
+  },
   {
     id: "workspaces",
     label: "Workspaces",
     group: "Get started",
     body: workspaces,
   },
+  { id: "ci-sync", label: "CI sync", group: "Get started", body: ciSync },
+  {
+    id: "case-schema",
+    label: "Case schema",
+    group: "Get started",
+    body: caseSchema,
+  },
   { id: "sdk-runs", label: "SDK runs", group: "Traces", body: sdkRuns },
   { id: "tracing", label: "Tracing", group: "Traces", body: tracing },
   { id: "mappings", label: "Mappings", group: "Traces", body: mappings },
+  {
+    id: "framework-mappings",
+    label: "Framework mappings",
+    group: "Traces",
+    body: frameworkMappings,
+  },
   {
     id: "harness-api",
     label: "Harness API",

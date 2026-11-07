@@ -4,6 +4,7 @@ a schema-valid object. Not collected by pytest."""
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 import threading
@@ -12,6 +13,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 
 from tests.fake_harness import FakeHarness
+from tests.identity import FakeIdp
 from tests.native import custom_eval_app
 
 
@@ -77,13 +79,28 @@ if __name__ == "__main__":
         workspace_files={"outputs/report.md": b"# e2e report\n"},
         api_key="client-key",
     )
+    idp = FakeIdp(
+        issuer="http://127.0.0.1:19100",
+        audience=os.environ.get("E2E_IDP_AUDIENCE", "http://localhost:8020"),
+    )
+    idp.access_ttl = int(os.environ.get("E2E_IDP_ACCESS_TTL", "3600"))
+    sub, email, preferred = os.environ.get("E2E_IDP_LOGIN", "e2e-sub,e2e@example.com,e2e").split(
+        ","
+    )
+    idp.next_login = (sub, email, preferred)
+    idp.machine_clients["ci"] = ("e2e-secret", "e2e-ci")
     threads = [
         threading.Thread(target=serve, args=(harness.app, 18080), daemon=True),
         threading.Thread(target=serve, args=(custom_eval_app(), 19000), daemon=True),
         threading.Thread(target=serve, args=(judge_app(), 19090), daemon=True),
+        threading.Thread(target=serve, args=(idp.asgi(), 19100), daemon=True),
     ]
     for t in threads:
         t.start()
-    print("e2e services up: harness :18080, custom evaluator :19000, judge :19090", flush=True)
+    print(
+        "e2e services up: harness :18080, custom evaluator :19000, judge :19090, "
+        "identity provider :19100",
+        flush=True,
+    )
     threading.Event().wait()
     sys.exit(0)

@@ -1,7 +1,8 @@
-import httpx
+import httpx2
 import typer
 
 from evalkit import version
+from evalkit.client import oidc
 from evalkit.client.api import ApiRequestError, SyncApi
 
 
@@ -15,16 +16,16 @@ class ApiClient(SyncApi):
     def __init__(
         self,
         server_url: str,
-        token: str | None = None,
+        auth: httpx2.Auth | None = None,
         *,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx2.BaseTransport | None = None,
         check_version: bool = True,
     ):
-        super().__init__(server_url, token, transport=transport)
+        super().__init__(server_url, auth, transport=transport)
         self._server_url = server_url.rstrip("/")
         self._version_checked = not check_version
 
-    def _check_version(self, resp: httpx.Response) -> None:
+    def _check_version(self, resp: httpx2.Response) -> None:
         if self._version_checked:
             return
         self._version_checked = True
@@ -50,18 +51,28 @@ class ApiClient(SyncApi):
 
     def request(
         self, method: str, path: str, *, retry: bool | None = None, **kwargs
-    ) -> httpx.Response:
-        if not self._version_checked and method not in ("GET", "HEAD"):
-            self._check_version(self._client.get("/api/health"))
-        return super().request(method, path, retry=retry, **kwargs)
+    ) -> httpx2.Response:
+        try:
+            if not self._version_checked and method not in ("GET", "HEAD"):
+                self._check_version(self._client.get("/api/health"))
+            return super().request(method, path, retry=retry, **kwargs)
+        except (oidc.LoginExpired, oidc.ClientCredentialsRefused) as exc:
+            raise ApiError(str(exc)) from exc
 
-    def _handle(self, resp: httpx.Response) -> httpx.Response:
+    def _handle(self, resp: httpx2.Response) -> httpx2.Response:
         self._check_version(resp)
         if resp.status_code >= 400:
             raise ApiError(str(ApiRequestError.from_response(resp)))
         return resp
 
-    def head(self, path: str, **kwargs) -> httpx.Response:
+    def get_if_found(self, path: str, **kwargs) -> httpx2.Response | None:
+        resp = self._client.get(path, **kwargs)
+        if resp.status_code == 404:
+            self._check_version(resp)
+            return None
+        return self._handle(resp)
+
+    def head(self, path: str, **kwargs) -> httpx2.Response:
         resp = super().head(path, **kwargs)
         self._check_version(resp)
         return resp

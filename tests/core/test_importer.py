@@ -5,10 +5,10 @@ import pytest
 from sqlalchemy import func, select
 
 from evalkit.core.access import WorkspaceRef
-from evalkit.core.importer import import_dataset
+from evalkit.core.importer import import_dataset, load_files
 from evalkit.core.review import CaseEventKind, CaseReview, CaseState, CaseVersion
 from evalkit.db import models
-from evalkit.db.cases import current_cases, find_dataset_row, splits
+from evalkit.db.cases import current_cases, find_dataset_row, tag_counts
 from evalkit.db.fixture_blobs import record_blob
 from evalkit.db.review import ReviewLog
 from evalkit.db.store import PgStore
@@ -60,7 +60,7 @@ SUPPORT_BOT_BLOCK_EVALUATORS = {"custom": {"required_tool_calls": {"tools": ["re
 @pytest.fixture
 async def ctx(session_factory):
     world = await seed_world(session_factory)
-    return session_factory, PgStore(session_factory), world
+    return session_factory, PgStore(session_factory, "default"), world
 
 
 def write_suite(tmp_path: Path, rubric2: str = "Computes the CAGR for FY2021.") -> Path:
@@ -99,7 +99,7 @@ async def do_import(
 async def views(ctx, dataset: str = "finance", workspace: str = "canonical", agent=None):
     sf, _, _ = ctx
     async with sf() as s:
-        row = await find_dataset_row(s, workspace, dataset)
+        row = await find_dataset_row(s, "default", workspace, dataset)
         if row is None:
             return {}
         return {v.case_id: v for v in await current_cases(s, row, agent=agent)}
@@ -108,15 +108,15 @@ async def views(ctx, dataset: str = "finance", workspace: str = "canonical", age
 async def split_counts(ctx, dataset: str = "finance", workspace: str = "canonical") -> dict:
     sf, _, _ = ctx
     async with sf() as s:
-        row = await find_dataset_row(s, workspace, dataset)
+        row = await find_dataset_row(s, "default", workspace, dataset)
         assert row is not None
-        return dict(await splits(s, row))
+        return dict(await tag_counts(s, row))
 
 
 async def last_sync_detail(ctx, dataset: str = "finance", workspace: str = "canonical") -> dict:
     sf, _, _ = ctx
     async with sf() as s:
-        row = await find_dataset_row(s, workspace, dataset)
+        row = await find_dataset_row(s, "default", workspace, dataset)
         assert row is not None and row.last_sync is not None
         return row.last_sync.detail
 
@@ -124,7 +124,7 @@ async def last_sync_detail(ctx, dataset: str = "finance", workspace: str = "cano
 async def put_blob(ctx, sha: str) -> None:
     sf, _, world = ctx
     async with sf() as s:
-        await record_blob(s, sha, 1, world.admin_id)
+        await record_blob(s, "default", sha, 1, world.admin_id)
         await s.commit()
 
 
@@ -337,7 +337,7 @@ async def test_sync_of_unknown_dataset_with_no_cases_creates_nothing(ctx):
     report = await do_import(ctx, [])
     assert not report.aborted and report.deleted == 0
     async with sf() as s:
-        assert await find_dataset_row(s, "canonical", "finance") is None
+        assert await find_dataset_row(s, "default", "canonical", "finance") is None
 
 
 async def test_same_case_id_in_two_datasets_of_a_workspace_is_allowed(tmp_path, ctx):
@@ -482,7 +482,7 @@ async def test_sync_records_synced_events_with_actor(tmp_path, ctx):
     sf, _, _ = ctx
     suite = write_suite(tmp_path)
     await do_import(ctx, sorted(suite.glob("*.yaml")), actor="akshat")
-    review = ReviewLog(sf)
+    review = ReviewLog(sf, "default")
     for case_id in ("case-1", "case-2"):
         [event] = await review.history("finance@canonical", case_id)
         assert event.kind is CaseEventKind.SYNCED and event.actor == "akshat"
@@ -499,7 +499,7 @@ async def test_unchanged_resync_records_nothing(tmp_path, ctx):
 
 async def test_edit_of_approved_case_reports_now_unreviewed(tmp_path, ctx):
     sf, _, _ = ctx
-    review = ReviewLog(sf)
+    review = ReviewLog(sf, "default")
     files = sorted(write_suite(tmp_path).glob("*.yaml"))
     await do_import(ctx, files)
     await review.append(
@@ -521,7 +521,7 @@ async def test_edit_of_approved_case_reports_now_unreviewed(tmp_path, ctx):
 
 async def test_edit_under_review_carries_the_request_over(tmp_path, ctx):
     sf, _, _ = ctx
-    review = ReviewLog(sf)
+    review = ReviewLog(sf, "default")
     files = sorted(write_suite(tmp_path).glob("*.yaml"))
     await do_import(ctx, files)
     r = CaseReview.unreviewed("finance@canonical", "case-1", await current_hash_of(ctx, "case-1"))
@@ -621,3 +621,14 @@ async def test_same_case_in_another_workspace_is_not_a_collision(tmp_path, ctx):
     assert not mine.aborted and mine.created == 2
     other = await do_import(ctx, files, dataset="other", workspace=world.akshat_ws, actor="akshat")
     assert not other.aborted and other.created == 2
+
+
+def test_schema_finding_names_the_file_and_case(tmp_path):
+    folder = tmp_path / "acme"
+    folder.mkdir()
+    (folder / "cases.yaml").write_text(
+        "- id: q1\n  input: {question: q}\n  evaluators: {output: {max_response_time: 90}}\n"
+    )
+    _, _, findings = load_files([folder / "cases.yaml"], tmp_path)
+    assert [(f.code, f.case_id) for f in findings] == [("E-SCHEMA", "q1")]
+    assert findings[0].message.startswith("acme/cases.yaml: evaluators.output.max_response_time")

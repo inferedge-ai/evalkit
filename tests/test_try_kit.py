@@ -6,7 +6,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-import httpx
+import httpx2
 from opentelemetry.sdk.trace import ReadableSpan, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -19,7 +19,6 @@ from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.convert import to_atif
 from evalkit.core.traces.mapping import to_esf
 from evalkit.core.traces.raw import RawSpan
-from evalkit.credentials import CredentialRegistry
 
 ROOT = Path(__file__).parent.parent
 KIT = ROOT / "skills" / "evalkit-deployment" / "try"
@@ -36,8 +35,8 @@ def load_agent_module():
     return module
 
 
-def fake_llm(requests: list[dict]) -> httpx.MockTransport:
-    def handle(request: httpx.Request) -> httpx.Response:
+def fake_llm(requests: list[dict]) -> httpx2.MockTransport:
+    def handle(request: httpx2.Request) -> httpx2.Response:
         body = json.loads(request.content)
         requests.append(body)
         if len(requests) == 1:
@@ -57,7 +56,7 @@ def fake_llm(requests: list[dict]) -> httpx.MockTransport:
             }
         else:
             message = {"role": "assistant", "content": "Revenue was 48.2 million in FY2025."}
-        return httpx.Response(
+        return httpx2.Response(
             200,
             json={
                 "choices": [{"message": message}],
@@ -65,7 +64,7 @@ def fake_llm(requests: list[dict]) -> httpx.MockTransport:
             },
         )
 
-    return httpx.MockTransport(handle)
+    return httpx2.MockTransport(handle)
 
 
 def raw(span: ReadableSpan) -> RawSpan:
@@ -91,7 +90,7 @@ def test_sample_agent_spans_convert_to_a_trajectory_with_its_tool_call(monkeypat
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     monkeypatch.setattr(module, "tracer", provider.get_tracer("test"))
     requests: list[dict] = []
-    client = httpx.Client(base_url=LLM_ENV["LLM_BASE_URL"], transport=fake_llm(requests))
+    client = httpx2.Client(base_url=LLM_ENV["LLM_BASE_URL"], transport=fake_llm(requests))
 
     answer = module.Analyst(client).ask("What was Acme Widgets' revenue in FY2025?")
 
@@ -123,22 +122,21 @@ def test_kit_setup_registers_the_llm_as_the_default_judge(monkeypatch):
     monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
     compose = (KIT / "docker-compose.yml").read_text()
     assert (
-        'evalkit llm-providers create try --base-url "$$LLM_BASE_URL" --api-key-env LLM_API_KEY'
-        in compose
+        'evalkit llm-providers create test-llm --base-url "$$LLM_BASE_URL" '
+        "--api-key-env LLM_API_KEY" in compose
     )
-    assert 'evalkit judge-default set --provider try --model "$$LLM_MODEL"' in compose
+    assert 'evalkit judge-default set --provider test-llm --model "$$LLM_MODEL"' in compose
     cfg = load_config(KIT / "config.yaml")
     assert cfg.allow_private_endpoints is True and cfg.encryption_key
 
 
-def test_kit_local_config_reads_the_same_llm(monkeypatch):
+def test_kit_local_config_needs_no_judge_key(monkeypatch):
     for name, value in LLM_ENV.items():
         monkeypatch.setenv(name, value)
     cfg = LocalConfig.find(KIT)
     assert cfg is not None
     assert cfg.cases == KIT / "cases"
-    registry = CredentialRegistry(cfg.credentials, cfg.environ(), home="admin")
-    assert registry.require_judge_key(LLM_ENV["LLM_BASE_URL"]) == "k"
+    assert not cfg.credentials.agents and not cfg.credentials.evaluators
 
 
 def test_kit_env_example_names_every_variable_compose_needs():

@@ -2,7 +2,7 @@ import asyncio
 import json
 from pathlib import Path
 
-import httpx
+import httpx2
 import pytest
 from fastapi import FastAPI
 from sqlalchemy import delete, update
@@ -19,6 +19,8 @@ from evalkit.contracts.enums import (
 )
 from evalkit.contracts.harness import Capabilities
 from evalkit.contracts.settings import JudgeSettings, RemoteEvaluatorSettings
+from evalkit.core import runner as runner_module
+from evalkit.core.blob import tenant_prefix
 from evalkit.core.evaluators import presentation, rubrics, trajectory_rubrics
 from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
 from evalkit.core.evaluators.rubrics import ANSWER_RUBRIC_EMITS
@@ -30,6 +32,7 @@ from evalkit.core.runner import (
     ExperimentRequest,
     InvalidCaseInputs,
     LeaseLost,
+    MissingJudgeKey,
     ScoringFailed,
     drive_experiment,
     evaluate_experiment,
@@ -38,7 +41,7 @@ from evalkit.core.runner import (
 )
 from evalkit.core.scorecard import assemble_report
 from evalkit.core.traces.sessions import SessionTrajectory
-from evalkit.credentials import CredentialRegistry, MissingCredential
+from evalkit.credentials import CredentialRegistry
 from evalkit.db.models import AgentRun, Evaluation
 from evalkit.db.models import Experiment as ExperimentRow
 from evalkit.db.workspaces import WorkspaceStore
@@ -110,7 +113,7 @@ async def test_end_to_end(tmp_path, stub_judges, session_factory):
     assert len(runs) == 4
     for run in runs:
         key = run.agent_run.trajectory_key
-        assert key and await env.blob.object_exists(key)
+        assert key and await env.blob.object_exists(f"{tenant_prefix('default')}{key}")
         by_name = scores_of(run)
         assert "answer_rubric_score" in by_name
         assert "gauge_duration_seconds" in by_name
@@ -215,7 +218,9 @@ async def test_a_harness_that_reuses_a_run_id_fails_only_that_run(
     kept = {
         r.agent_run.harness_run_id: r.agent_run.trajectory_key for r in await env.details(first.id)
     }
-    trajectories = {key: env.blob.objects[key] for key in kept.values()}
+    trajectories = {
+        key: env.blob.objects[f"{tenant_prefix('default')}{key}"] for key in kept.values()
+    }
 
     fake._counter = 0
     second = await prepare(
@@ -228,7 +233,9 @@ async def test_a_harness_that_reuses_a_run_id_fails_only_that_run(
     assert runs and all(run.status == "failed" for run in runs)
     assert all(run.error.startswith("run or session id sess-") for run in runs)
     assert all("#reused-" in run.harness_run_id and run.trajectory_key is None for run in runs)
-    assert {key: env.blob.objects[key] for key in kept.values()} == trajectories
+    assert {
+        key: env.blob.objects[f"{tenant_prefix('default')}{key}"] for key in kept.values()
+    } == trajectories
 
 
 async def test_lost_lease_stops_the_drive(tmp_path, stub_judges, session_factory, monkeypatch):
@@ -396,7 +403,7 @@ async def test_fixture_case_sends_urls_when_harness_accepts_them(
     assert fake.received_file_urls[run_id] == [
         {
             "name": "bs.csv",
-            "url": f"memory://blob/fixtures/sha256/{digest}",
+            "url": f"memory://blob/{tenant_prefix('default')}fixtures/sha256/{digest}",
             "context": "Balance sheet.",
         }
     ]
@@ -509,7 +516,7 @@ async def test_gated_fixture_cases_are_not_checked(tmp_path, stub_judges, sessio
 
 @pytest.mark.parametrize(
     ("error", "expected"),
-    [(httpx.ReadError(""), "ReadError"), (RuntimeError("boom"), "RuntimeError: boom")],
+    [(httpx2.ReadError(""), "ReadError"), (RuntimeError("boom"), "RuntimeError: boom")],
     ids=["empty-message", "with-message"],
 )
 async def test_failed_experiment_error_names_exception_type(
@@ -536,7 +543,7 @@ async def test_artifacts_persisted_eagerly(tmp_path, stub_judges, session_factor
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     for run in await env.details(exp.id):
         key = f"artifacts/{exp.agent_id}/{run.agent_run.harness_run_id}/outputs/report.md"
-        assert env.blob.objects[key] == b"# report"
+        assert env.blob.objects[f"{tenant_prefix('default')}{key}"] == b"# report"
 
 
 async def test_prepare_records_workspace_cases_and_version(tmp_path, stub_judges, session_factory):
@@ -639,7 +646,7 @@ async def seed_overlaid(env) -> None:
         full=True,
     )
     await approve(env)
-    ws = await WorkspaceStore(env.session_factory).get_by_name("canonical")
+    ws = await WorkspaceStore(env.session_factory, "default").get_by_name("canonical")
     await env.store.sync(
         workspace=ws,
         dataset="fake-cases",
@@ -730,7 +737,9 @@ async def test_refetch_trajectories_rescored_from_blob(tmp_path, stub_judges, se
     await evaluate_experiment(env.deps, exp.id, refetch_trajectories=True)
     after = next(r for r in await env.details(exp.id) if r.agent_run_id == first.agent_run_id)
     assert scores_of(after)["gauge_input_tokens"].value
-    stored = json.loads(env.blob.objects[f"trajectories/{exp.agent_id}/{session_id}.json"])
+    stored = json.loads(
+        env.blob.objects[f"{tenant_prefix('default')}trajectories/{exp.agent_id}/{session_id}.json"]
+    )
     assert stored["extra"]["trajectory_status"] == "valid"
 
 
@@ -759,7 +768,7 @@ async def test_harness_agent_with_traces_polls_the_session(tmp_path, stub_judges
     for run in await env.details(exp.id):
         assert run.agent_run.trajectory_status == "valid"
         assert run.agent_run.trajectory_key
-        assert env.blob.objects[run.agent_run.trajectory_key]
+        assert env.blob.objects[f"{tenant_prefix('default')}{run.agent_run.trajectory_key}"]
         assert scores_of(run)["gauge_input_tokens"].value
 
 
@@ -816,7 +825,7 @@ async def test_rescoring_retries_errored_evaluators_and_replaces_their_error_row
     async def broken():
         return {"scores": [{"name": "broken_eval", "score": 1.0}]}
 
-    env.deps.custom_eval_transport = httpx.ASGITransport(app=fixed)
+    env.deps.custom_eval_transport = httpx2.ASGITransport(app=fixed)
     await evaluate_experiment(env.deps, exp.id)
 
     case_2 = next(run for run in await env.details(exp.id) if run.case_id == "case-2")
@@ -828,6 +837,20 @@ async def test_rescoring_retries_errored_evaluators_and_replaces_their_error_row
     assert all(case.errors == {} for case in report.cases)
     assert all(stat.errors == 0 for stat in report.evaluators)
     assert "answer_rubrics" not in report.evaluator_columns
+
+
+async def test_evaluator_error_without_a_message_names_the_exception_type(
+    tmp_path, stub_judges, session_factory, monkeypatch
+):
+    env = await seed_env(session_factory, tmp_path)
+
+    async def timed_out(cfg, **kwargs):
+        raise httpx2.ReadTimeout("")
+
+    monkeypatch.setattr(rubrics, "call_judge", timed_out)
+    exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
+    report = assemble_report(await env.store.aggregate(exp.id))
+    assert {c.errors["answer_rubrics"] for c in report.cases} == {"ReadTimeout"}
 
 
 async def test_rescoring_retries_an_errored_trajectory_judge_once(
@@ -859,7 +882,9 @@ async def test_rescoring_retries_an_errored_trajectory_judge_once(
     monkeypatch.setattr(trajectory_rubrics, "call_judge", forbidden)
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     first = assemble_report(await env.store.aggregate(exp.id))
-    assert all(c.errors == {"trajectory_rubrics": "judge returned 403"} for c in first.cases)
+    assert all(
+        c.errors == {"trajectory_rubrics": "RuntimeError: judge returned 403"} for c in first.cases
+    )
 
     monkeypatch.setattr(trajectory_rubrics, "call_judge", satisfied)
     await evaluate_experiment(env.deps, exp.id)
@@ -985,12 +1010,9 @@ async def test_missing_judge_key_fails_before_any_harness_call(
 ):
     fake = FakeHarness()
     env = await seed_env(session_factory, tmp_path, fake)
-    env.deps.credentials = CredentialRegistry(
-        TEST_CREDENTIALS_CONFIG.model_copy(update={"llm_providers": {}}),
-        {"FAKE_AGENT_KEY": "client-key"},
-    )
+    env.deps.judge_api_key = None
     exp = await prepare(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
-    with pytest.raises(MissingCredential, match=JUDGE_URL):
+    with pytest.raises(MissingJudgeKey, match=JUDGE_URL):
         await run_experiment(env.deps, exp.id, HOLDER)
     assert fake.runs == {}
     assert (await env.experiment(exp.id)).status is FAILED
@@ -1002,7 +1024,9 @@ async def test_workspace_tree_snapshot_lists_every_file(tmp_path, stub_judges, s
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     for run in await env.details(exp.id):
         tree = json.loads(
-            env.blob.objects[f"workspaces/{exp.agent_id}/{run.agent_run.harness_run_id}.json"]
+            env.blob.objects[
+                f"{tenant_prefix('default')}workspaces/{exp.agent_id}/{run.agent_run.harness_run_id}.json"
+            ]
         )
         assert sorted(entry["path"] for entry in tree["files"]) == sorted(files)
 
@@ -1011,10 +1035,36 @@ async def test_a_failed_workspace_listing_keeps_the_experiment(
     tmp_path, stub_judges, session_factory, monkeypatch
 ):
     async def down(self, run_id: str):
-        raise httpx.ConnectError("refused")
+        raise httpx2.ConnectError("refused")
 
     monkeypatch.setattr(HarnessClient, "list_files", down)
     env = await seed_env(session_factory, tmp_path, FakeHarness())
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     assert (await env.experiment(exp.id)).status is COMPLETED
-    assert not any(key.startswith("workspaces/") for key in env.blob.objects)
+    assert not any(
+        key.startswith(f"{tenant_prefix('default')}workspaces/") for key in env.blob.objects
+    )
+
+
+async def test_scoring_runs_at_most_evaluation_concurrency_at_once(
+    tmp_path, stub_judges, session_factory, monkeypatch
+):
+    env = await seed_env(session_factory, tmp_path)
+    real = runner_module._evaluate_run
+    active, peak = 0, 0
+
+    async def tracked(*args, **kwargs):
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0)
+        await real(*args, **kwargs)
+        active -= 1
+
+    monkeypatch.setattr(runner_module, "_evaluate_run", tracked)
+    env.deps.evaluation_concurrency = 1
+    exp = await start(
+        env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical", repetitions=2)
+    )
+    assert exp.status is COMPLETED, exp.status_error
+    assert peak == 1

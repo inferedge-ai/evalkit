@@ -2,22 +2,22 @@ import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, isMissing } from "../lib/api";
 import { fmtWhen } from "../lib/format";
-import type { Dataset, SplitInfo } from "../lib/types";
+import type { Dataset, TagInfo } from "../lib/types";
 import { Tabs } from "../lib/ui";
 import { NotFound } from "../shell/NotFound";
 import { DatasetCasesTab } from "./DatasetCasesTab";
 import { DatasetExperimentsTab } from "./DatasetExperimentsTab";
-import { DatasetSplitsTab } from "./DatasetSplitsTab";
+import { DatasetTagsTab } from "./DatasetTagsTab";
 import { RunLauncher } from "./RunLauncher";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
 
-type Tab = "experiments" | "cases" | "splits";
+type Tab = "experiments" | "cases" | "tags";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "experiments", label: "Experiments" },
   { id: "cases", label: "Cases" },
-  { id: "splits", label: "Splits" },
+  { id: "tags", label: "Tags" },
 ];
 
 export function syncLabel(ds: Dataset): string[] {
@@ -41,7 +41,7 @@ export function DatasetPage() {
   const { ref = "", tab = "experiments" } = useParams();
   useFollowWorkspace(splitRef(ref).workspace);
   const navigate = useNavigate();
-  const [splits, setSplits] = useState<SplitInfo[]>([]);
+  const [tags, setTags] = useState<TagInfo[]>([]);
   const [info, setInfo] = useState<Dataset | null>(null);
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,9 +54,9 @@ export function DatasetPage() {
     api<Dataset>(`/datasets/${encodeURIComponent(ref)}`)
       .then(setInfo)
       .catch((e) => (isMissing(e) ? setMissing(true) : setError(String(e))));
-    api<SplitInfo[]>(`/datasets/${encodeURIComponent(ref)}/splits`)
-      .then(setSplits)
-      .catch(() => setSplits([]));
+    api<TagInfo[]>(`/datasets/${encodeURIComponent(ref)}/tags`)
+      .then(setTags)
+      .catch(() => setTags([]));
   }, [ref, fullRef]);
 
   if (missing || !fullRef)
@@ -85,17 +85,10 @@ export function DatasetPage() {
           </span>
         )}
         <span className="ml-auto">
-          {info?.workspace_is_shared ? (
+          {info && (
             <button className="btn btn-primary" onClick={() => setLaunch({})}>
               Run experiment
             </button>
-          ) : (
-            <span
-              className="row-meta font-mono"
-              title="workspace datasets run from the CLI"
-            >
-              evalkit run {ref} --agent &lt;agent&gt;
-            </span>
           )}
         </span>
       </div>
@@ -114,13 +107,14 @@ export function DatasetPage() {
           />
         )}
         {tab === "experiments" && <DatasetExperimentsTab dataset={ref} />}
-        {tab === "splits" && <DatasetSplitsTab splits={splits} dataset={ref} />}
+        {tab === "tags" && <DatasetTagsTab tags={tags} dataset={ref} />}
       </div>
       {launch && (
         <RunLauncher
           dataset={ref}
-          splits={splits}
+          tags={tags}
           initialCaseIds={launch.caseIds}
+          serverRuns={!!info?.workspace_is_shared}
           onClose={() => setLaunch(null)}
         />
       )}

@@ -3,14 +3,14 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { logout } from "../lib/api";
 import { Select } from "../lib/Select";
 import { othersPersonal, workspaceHint } from "../lib/workspace";
-import type { WorkspaceInfo } from "../lib/types";
+import type { Me, WorkspaceInfo } from "../lib/types";
 import { useMe } from "./capabilities";
 import { JumpPalette } from "./JumpPalette";
 import { ADMIN_NAV, MORE_NAV, NAV } from "./nav";
 import { useTheme } from "./theme";
 import { SWITCH_FLASH_MS, useSwitchWorkspace, useWorkspace } from "./workspace";
 
-function InferEdgeLockup() {
+export function InferEdgeLockup() {
   return (
     <span
       aria-label="InferEdge"
@@ -22,6 +22,17 @@ function InferEdgeLockup() {
       </span>
       <span className="font-bold text-n-700">Edge</span>
     </span>
+  );
+}
+
+export function BrandLink({ to = "/" }: { to?: string }) {
+  return (
+    <NavLink to={to} className="flex items-baseline gap-2">
+      <InferEdgeLockup />
+      <span className="font-mono text-head font-semibold tracking-tight text-brand">
+        Evalkit
+      </span>
+    </NavLink>
   );
 }
 
@@ -72,7 +83,7 @@ function WorkspaceSwitcher() {
   );
 }
 
-const navClass = ({ isActive }: { isActive: boolean }) =>
+export const navClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-md px-2.5 py-1 text-lede transition-colors ${
     isActive ? "bg-info-bg font-medium text-brand" : "text-ink-2 hover:bg-fill"
   }`;
@@ -142,6 +153,20 @@ function MoreMenu() {
   );
 }
 
+export function AccountChip({ me }: { me: Me }) {
+  return (
+    <span
+      className="chip muted flex flex-col items-end leading-tight"
+      title="signed in as"
+    >
+      <span>{me.username}</span>
+      {me.email !== null && (
+        <span className="text-micro text-ink-4">{me.email}</span>
+      )}
+    </span>
+  );
+}
+
 export function Shell() {
   const me = useMe();
   const navigate = useNavigate();
@@ -149,12 +174,7 @@ export function Shell() {
   return (
     <div className="flex h-dvh flex-col">
       <header className="flex items-center gap-4 border-b border-line bg-surface px-4 py-2">
-        <NavLink to="/" className="flex items-baseline gap-2">
-          <InferEdgeLockup />
-          <span className="font-mono text-head font-semibold tracking-tight text-brand">
-            Evalkit
-          </span>
-        </NavLink>
+        <BrandLink />
         <WorkspaceSwitcher />
         <nav className="ml-2 flex items-center gap-0.5">
           {NAV.map((n) => (
@@ -165,9 +185,7 @@ export function Shell() {
           <MoreMenu />
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          <span className="chip muted" title="signed in as">
-            {me.username}
-          </span>
+          <AccountChip me={me} />
           <button
             className="btn"
             title="search datasets, experiments, cases, runs and pages"

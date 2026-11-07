@@ -1,6 +1,6 @@
 import hashlib
 
-import httpx
+import httpx2
 import pytest
 
 from evalkit.contracts.enums import WorkspaceRole
@@ -21,8 +21,8 @@ PERSONAL = {
 }
 
 
-async def _login(admin: httpx.AsyncClient, username: str) -> httpx.AsyncClient:
-    client = httpx.AsyncClient(transport=admin._transport, base_url="http://test")
+async def _login(admin: httpx2.AsyncClient, username: str) -> httpx2.AsyncClient:
+    client = httpx2.AsyncClient(transport=admin._transport, base_url="http://test")
     resp = await client.post("/api/auth/login", json={"username": username, "password": "password"})
     client.headers["Authorization"] = f"Bearer {resp.json()['token']}"
     return client
@@ -34,7 +34,7 @@ async def users(tmp_path, stub_judges, session_factory):
     async with serve(env, tmp_path) as admin:
         for name in ("bob", "carol"):
             await admin.post("/api/users", json={"username": name, "password": "password"})
-        await WorkspaceStore(session_factory).add_member(
+        await WorkspaceStore(session_factory, "default").add_member(
             "canonical", "bob", WorkspaceRole.WRITER, granted_by=env.user_ids["admin"]
         )
         clients = {"admin": admin, "akshat": await login_as(admin, "akshat")}

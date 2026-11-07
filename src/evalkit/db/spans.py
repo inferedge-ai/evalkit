@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import defaultdict, deque
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -18,19 +19,58 @@ from sqlalchemy import (
     not_,
     or_,
     select,
+    text,
+    tuple_,
     type_coerce,
     update,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from evalkit.core.agents import UnknownAgent
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE, AttributeKeys
 from evalkit.core.traces.raw import RawSpan
 from evalkit.db import models
 from evalkit.db.runs import RunSource, eval_run_ids
+from evalkit.db.session import tenant_session
 
 UPSERT_CHUNK = 1000
 SPAN_KEY = ("agent_id", "trace_id", "span_id")
+LOCK_TRACES = text(
+    "SELECT pg_advisory_xact_lock(hashtext(n)) "
+    "FROM unnest(CAST(:names AS text[])) WITH ORDINALITY AS t(n, i) ORDER BY i"
+)
+
+
+class SpanLink(NamedTuple):
+    id: int
+    trace_id: str
+    span_id: str
+    parent_span_id: str | None
+    session_id: str | None
+
+
+def resolve_sessions(links: list[SpanLink]) -> dict[int, str | None]:
+    by_key = {(link.trace_id, link.span_id): link for link in links}
+    children: dict[tuple[str, str | None], list[SpanLink]] = defaultdict(list)
+    roots: dict[str, str | None] = {}
+    for link in links:
+        if link.parent_span_id is None and link.session_id is not None:
+            roots[link.trace_id] = max(roots.get(link.trace_id) or "", link.session_id)
+        if (link.trace_id, link.parent_span_id) in by_key:
+            children[(link.trace_id, link.parent_span_id)].append(link)
+    resolved: dict[int, str | None] = {}
+    queue = deque(
+        (link, link.session_id)
+        for link in links
+        if (link.trace_id, link.parent_span_id) not in by_key
+    )
+    while queue:
+        link, session_id = queue.popleft()
+        resolved[link.id] = roots.get(link.trace_id) or session_id
+        for child in children[(link.trace_id, link.span_id)]:
+            queue.append((child, session_id or child.session_id))
+    return resolved
 
 
 class SessionSummary(BaseModel):
@@ -59,6 +99,8 @@ SPAN_COLUMNS = (
     models.Span.status_code,
     models.Span.status_message,
     models.Span.attributes,
+    models.Span.scope,
+    models.Span.dropped_attributes_count,
     models.Span.received_at,
 )
 HEAD_COLUMNS = tuple(c for c in SPAN_COLUMNS if c is not models.Span.attributes)
@@ -82,6 +124,8 @@ def _to_raw(row: Mapping[Any, Any]) -> RawSpan:
         attributes=row["attributes"],
         events=row.get("events", []),
         resource=row.get("resource", {}),
+        scope=row["scope"],
+        dropped_attributes_count=row["dropped_attributes_count"],
         received_at=_aware(row["received_at"]),
     )
 
@@ -125,6 +169,17 @@ class SessionRead:
         kept = select(rebuilt).select_from(each).where(not_(removed)).scalar_subquery()
         return type_coerce(case((dropped, kept), else_=attributes), models.Span.attributes.type)
 
+    async def roots_received(self) -> bool:
+        traces = select(models.Span.agent_id, models.Span.trace_id).where(self._where).distinct()
+        found = (await self._session.execute(traces)).all()
+        if not found:
+            return False
+        roots = select(func.count(func.distinct(models.Span.trace_id))).where(
+            tuple_(models.Span.agent_id, models.Span.trace_id).in_(found),
+            models.Span.parent_span_id.is_(None),
+        )
+        return (await self._session.execute(roots)).scalar_one() == len(found)
+
     async def attribute_bytes(self, drop: AttributeDrop) -> int:
         size = func.octet_length(cast(self._attributes(drop), Text))
         statement = select(func.coalesce(func.sum(size), 0)).where(self._where)
@@ -143,29 +198,33 @@ class SessionRead:
 
 
 class SpanStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]):
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession], tenant_id: str):
         self._sessions = session_factory
+        self._tenant_id = tenant_id
+
+    def _session(self):
+        return tenant_session(self._sessions, self._tenant_id)
+
+    async def _check_agent(self, session: AsyncSession, agent_id: int) -> None:
+        found = await session.scalar(
+            select(models.Agent.id)
+            .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+            .where(models.Workspace.tenant_id == self._tenant_id, models.Agent.id == agent_id)
+        )
+        if found is None:
+            raise UnknownAgent(str(agent_id))
 
     async def upsert(
         self, agent_id: int, spans: list[RawSpan], *, external_trace_source_id: int | None = None
     ) -> int:
         if not spans:
             return 0
-        roots: dict[str, str | None] = {
-            s.trace_id: s.session_id_hint for s in spans if s.parent_span_id is None
-        }
-        batch_roots = set(roots)
-        async with self._sessions() as session:
-            unknown = {s.trace_id for s in spans if s.trace_id not in roots}
-            if unknown:
-                stored = await session.execute(
-                    select(models.Span.trace_id, models.Span.session_id).where(
-                        models.Span.agent_id == agent_id,
-                        models.Span.trace_id.in_(unknown),
-                        models.Span.parent_span_id.is_(None),
-                    )
-                )
-                roots.update({trace_id: session_id for trace_id, session_id in stored.all()})
+        trace_ids = sorted({s.trace_id for s in spans})
+        async with self._session() as session:
+            await self._check_agent(session, agent_id)
+            await session.execute(
+                LOCK_TRACES, {"names": [f"spans:{agent_id}:{t}" for t in trace_ids]}
+            )
             now = datetime.now(UTC)
             rows = {
                 (span.trace_id, span.span_id): dict(
@@ -173,7 +232,7 @@ class SpanStore:
                     trace_id=span.trace_id,
                     span_id=span.span_id,
                     parent_span_id=span.parent_span_id,
-                    session_id=roots.get(span.trace_id) or span.session_id_hint,
+                    session_id=span.session_id_hint,
                     name=span.name,
                     kind=span.kind,
                     start_time=span.start_time,
@@ -183,6 +242,8 @@ class SpanStore:
                     attributes=span.attributes,
                     events=span.events,
                     resource=span.resource,
+                    scope=span.scope,
+                    dropped_attributes_count=span.dropped_attributes_count,
                     received_at=now,
                     external_trace_source_id=external_trace_source_id,
                 )
@@ -197,21 +258,24 @@ class SpanStore:
                         set_={k: statement.excluded[k] for k in values[0] if k not in SPAN_KEY},
                     )
                 )
-            for trace_id in batch_roots:
-                session_id = roots[trace_id]
-                if session_id:
-                    await session.execute(
-                        update(models.Span)
-                        .where(
-                            models.Span.agent_id == agent_id,
-                            models.Span.trace_id == trace_id,
-                            or_(
-                                models.Span.session_id.is_(None),
-                                models.Span.session_id != session_id,
-                            ),
-                        )
-                        .values(session_id=session_id)
-                    )
+            stored = await session.execute(
+                select(
+                    models.Span.id,
+                    models.Span.trace_id,
+                    models.Span.span_id,
+                    models.Span.parent_span_id,
+                    models.Span.session_id,
+                ).where(models.Span.agent_id == agent_id, models.Span.trace_id.in_(trace_ids))
+            )
+            links = [SpanLink(*row) for row in stored.all()]
+            current = {link.id: link.session_id for link in links}
+            changed = [
+                {"id": span_id, "session_id": session_id}
+                for span_id, session_id in resolve_sessions(links).items()
+                if current[span_id] != session_id
+            ]
+            if changed:
+                await session.execute(update(models.Span), changed)
             await session.commit()
         return len(spans)
 
@@ -234,8 +298,9 @@ class SpanStore:
 
     @asynccontextmanager
     async def read_session(self, agent_id: int, session_id: str) -> AsyncIterator[SessionRead]:
-        async with self._sessions() as session:
+        async with self._session() as session:
             await session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+            await self._check_agent(session, agent_id)
             yield SessionRead(session, self._in_session(agent_id, session_id))
 
     async def stream_session_spans(self, agent_id: int, session_id: str) -> AsyncIterator[RawSpan]:
@@ -245,7 +310,8 @@ class SpanStore:
             .order_by(*SESSION_ORDER)
             .execution_options(yield_per=STREAM_BATCH)
         )
-        async with self._sessions() as session:
+        async with self._session() as session:
+            await self._check_agent(session, agent_id)
             result = await session.stream(statement)
             async for row in result.mappings():
                 yield _to_raw(row)
@@ -287,7 +353,8 @@ class SpanStore:
             grouped = grouped.having(started >= since)
         if until is not None:
             grouped = grouped.having(started < until)
-        async with self._sessions() as session:
+        async with self._session() as session:
+            await self._check_agent(session, agent_id)
             total = (
                 await session.execute(select(func.count()).select_from(grouped.subquery()))
             ).scalar_one()
@@ -341,7 +408,8 @@ class SpanStore:
             .where(*where)
             .group_by(models.Span.trace_id)
         )
-        async with self._sessions() as session:
+        async with self._session() as session:
+            await self._check_agent(session, agent_id)
             total = (
                 await session.execute(select(func.count()).select_from(grouped.subquery()))
             ).scalar_one()

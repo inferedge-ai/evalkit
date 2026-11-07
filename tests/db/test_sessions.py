@@ -14,7 +14,7 @@ from evalkit.db.mappings import MappingStore
 from evalkit.db.sessions import DbSessionReader
 from evalkit.db.spans import SpanStore
 from tests.fake_agents import REFERENCE, reference_mapping
-from tests.identity import seed_identity
+from tests.identity import seed_identity, workspace_ref
 
 START = datetime(2026, 10, 9, 12, 0, tzinfo=UTC)
 SESSION = "chat-1"
@@ -115,14 +115,14 @@ def realistic_session(turns: int = 6, chunk: int = 300) -> list[RawSpan]:
 async def stores(tmp_path, session_factory):
     factory = session_factory
     await seed_identity(factory, {"admin": "password", "akshat": "password"}, shared=())
-    agents = AgentStore(factory)
+    agents = AgentStore(factory, "default")
     record = await agents.create(
-        "akshat",
+        await workspace_ref(factory, "akshat"),
         "support-bot",
         trajectory_source=TrajectorySource.OTEL,
         mapping=reference_mapping(),
     )
-    spans, mappings = SpanStore(factory), MappingStore(factory)
+    spans, mappings = SpanStore(factory, "default"), MappingStore(factory, "default")
     reader = DbSessionReader(agents, spans, mappings, OtelConfig())
     return reader, spans, mappings, record.id
 
@@ -229,3 +229,45 @@ async def test_a_draft_mapping_decides_which_keys_are_input_context(stores):
     assert later.unmapped == ["x.extra"] and later.model == "m"
     active = await reader.read("support-bot@akshat", SESSION, include_esf=True)
     assert active is not None and {s.kind for s in active.esf} == {"other"}
+
+
+async def test_a_sessionless_http_root_counts_as_the_root_once_received(stores):
+    reader, spans, _, agent_id = stores
+    clock = Clock()
+    turn = _span(clock, "t1", "turn", "http", "turn", {"session.id": SESSION})
+    turn.session_id_hint = SESSION
+    await spans.upsert(agent_id, [turn])
+    assert not (await reader.trajectory("support-bot@akshat", SESSION)).root_present
+    http = _span(clock, "t1", "http", None, "POST /chat", {})
+    http.session_id_hint = None
+    await spans.upsert(agent_id, [http])
+    result = await reader.trajectory("support-bot@akshat", SESSION)
+    assert result.root_present and result.span_count == 1
+
+
+async def test_a_settled_session_counts_as_rooted_when_the_root_never_arrives(stores, monkeypatch):
+    reader, spans, _, agent_id = stores
+    clock = Clock()
+    turn = _span(clock, "t1", "turn", "browser", "turn", {"session.id": SESSION})
+    turn.session_id_hint = SESSION
+    await spans.upsert(agent_id, [turn])
+    assert not (await reader.trajectory("support-bot@akshat", SESSION)).root_present
+    monkeypatch.setattr(reader._otel, "settle_seconds", -60)
+    result = await reader.trajectory("support-bot@akshat", SESSION)
+    assert result.settled and result.root_present
+
+
+async def test_a_settled_session_counts_as_rooted_under_a_stored_sessionless_parent(
+    stores, monkeypatch
+):
+    reader, spans, _, agent_id = stores
+    clock = Clock()
+    turn = _span(clock, "t1", "turn", "agent", "turn", {"session.id": SESSION})
+    turn.session_id_hint = SESSION
+    agent = _span(clock, "t1", "agent", "http", "agent", {})
+    agent.session_id_hint = None
+    await spans.upsert(agent_id, [turn, agent])
+    assert not (await reader.trajectory("support-bot@akshat", SESSION)).root_present
+    monkeypatch.setattr(reader._otel, "settle_seconds", -60)
+    result = await reader.trajectory("support-bot@akshat", SESSION)
+    assert result.settled and result.root_present

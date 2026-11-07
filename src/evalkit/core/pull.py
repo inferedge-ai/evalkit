@@ -58,7 +58,7 @@ async def list_harness_runs(
     until: datetime | None = None,
     query: str | None = None,
     user_id: str | None = None,
-    client_id: str | None = None,
+    org_id: str | None = None,
     exclude: Exclude | None = None,
 ) -> HarnessRuns:
     kept: list[RunListItem] = []
@@ -79,7 +79,7 @@ async def list_harness_runs(
             RunListParams(
                 query=query,
                 user_id=user_id,
-                client_id=client_id,
+                org_id=org_id,
                 limit=size,
                 offset=offset,
                 since=since,
@@ -117,8 +117,14 @@ def run_body(
     source: Literal["app", "eval"],
     record: AgentRunRecord | None,
     eval_context: RunEvalContext | None,
+    *,
+    created_at: datetime | None,
 ) -> dict:
-    body: dict = {"run_id": run_id, "source": source}
+    body: dict = {
+        "run_id": run_id,
+        "source": source,
+        "started_at": created_at.isoformat() if created_at else None,
+    }
     if eval_context is not None:
         body["input"] = eval_context.case.input
     if record is not None:

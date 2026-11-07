@@ -48,7 +48,7 @@ sequenceDiagram
   UI->>S: GET experiment, pinned cases, runs
   S-->>UI: run for the chosen repetition
   V->>UI: tab Case | Scores
-  UI-->>V: pinned input + expected, answer/output, per-evaluator scores, explanations, gauges
+  UI-->>V: pinned input + expected, answer/output, per-evaluator scores with where each ran (server or local), explanations, gauges
   V->>UI: tab Trajectory | Cost | Timing
   UI->>S: GET run trajectory (ATIF, step costs priced)
   V->>UI: tab Workspace
@@ -72,7 +72,7 @@ sequenceDiagram
 
   D->>CLI: evalkit summary #lt;id#gt;
   CLI->>S: GET scorecard
-  CLI-->>D: scored buckets, evaluators (cases, errored), failing cases < 0.80, errored cases, gauges (2 decimals)
+  CLI-->>D: scored buckets, evaluators (cases, errored), failing cases (overall or any evaluator < 0.80, naming the evaluators), errored cases, gauges (2 decimals)
 
   D->>CLI: evalkit runs pull --experiment #lt;id#gt; [--out DIR]
   loop pages until every run is pulled

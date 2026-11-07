@@ -12,25 +12,19 @@ claude mcp add --transport http evalkit {{origin}}/mcp --header "Authorization: 
 
 Only login tokens work here: agent tokens (`evalkit tokens create`) and download tickets are refused.
 
-When the server's config has an `mcp.oauth` block, MCP clients that speak OAuth (Claude, Cursor, Codex) can connect with the URL alone: the server points them to the identity provider, and a token issued for `{{origin}}/mcp` with the configured scope (`mcp.oauth.scope`, default `evalkit:read`) is accepted. Evalkit login tokens keep working next to it.
-
-```yaml
-mcp:
-  oauth:
-    issuer: https://id.example.com
-    jwks_uri: https://id.example.com/.well-known/jwks.json
-    # audience: defaults to <server.base_url>/mcp
-    # scope: your identity provider's name for read access; defaults to evalkit:read
-```
-
-An OAuth token is not an evalkit user. Whoever the identity provider gives that scope reads everything an evalkit login reads, which today is every workspace, and archiving someone in evalkit does not cut off their OAuth access: revoke it at the identity provider.
+With single sign-on configured (`auth.oidc`, see [Single sign-on](sso.md)),
+MCP clients that speak OAuth (Claude, Cursor, Codex) connect with the URL
+alone: the server points them to the identity provider, and a token issued
+for `{{origin}}/mcp` or for evalkit's configured audience is accepted. The
+token's subject must be an evalkit user, so archiving someone cuts off their
+MCP access too. Evalkit login tokens keep working next to it.
 
 ## Tools
 
 | Tool | What it returns |
 |---|---|
 | `find_agents` | Agents and the id (`name@workspace`) the run tools take |
-| `find_runs` | An agent's runs in a time window, newest first: id, title, time, `user_id`, `client_id`, app or eval. `include` adds each run's `metrics`, `turns` or `tool_calls` (what it called, with which arguments). `failed_only` keeps runs with a failure; `tool_error` keeps runs where that tool errored. `timezone` reads date-only bounds as `get_run_stats` does. Up to 5,000 rows when listing alone, 200 with `include` or a filter |
+| `find_runs` | An agent's runs in a time window, newest first: id, title, time, `user_id`, `org_id`, app or eval. `include` adds each run's `metrics`, `turns` or `tool_calls` (what it called, with which arguments). `failed_only` keeps runs with a failure; `tool_error` keeps runs where that tool errored. `timezone` reads date-only bounds as `get_run_stats` does. Up to 5,000 rows when listing alone, 200 with `include` or a filter |
 | `get_runs` | Up to 200 runs by id: turns, failed turns, failures, duration, cost and where it came from, tokens, cost by model, tool errors by tool, opening question, final answer; `include` adds `turns` and `tool_calls` |
 | `get_run_stats` | Totals over a time window, or one row per day, user, source, or tool that errored; `group_by` takes several at once and reads the window once |
 | `get_trajectory` | One run's ATIF trajectory, paged by step, long text clipped |
@@ -41,4 +35,4 @@ Every tool answers `{data, meta}`, with `data` a list of rows. Search tools page
 
 A turn is one user message and everything the agent did until the next one. `cost_source` is `reported` when the harness priced the run, `estimated` when evalkit priced it from token counts, `mixed` for both. A turn counts as failed when the harness marks a step in it with `extra.is_error` (see [Harness API](harness-api.md)).
 
-`user_id` and `client_id` are what the harness recorded. Resolve them to people and firms with your identity service.
+`user_id` and `org_id` are what the harness recorded. Resolve them to people and firms with your identity service.

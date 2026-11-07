@@ -1,10 +1,11 @@
-import httpx
+import httpx2
 import pytest
 
 from evalkit.cli.local_run import run_local
 from evalkit.client.connection import Connection
 from evalkit.config import CostMapConfig, LocalConfig
 from evalkit.contracts.enums import ExperimentStatus
+from evalkit.core.blob import tenant_prefix
 from evalkit.core.workspace import Reference
 from evalkit.credentials import CredentialsConfig
 from evalkit.store.base import GitRevision, Selection
@@ -37,7 +38,6 @@ def local_config(tmp_path) -> LocalConfig:
         credentials=CredentialsConfig(
             agents={"fake": "env:LOCAL_AGENT_KEY"},
             evaluators={"required_tool_calls": "env:LOCAL_EVAL_KEY"},
-            llm_providers={"http://judge.test": "env:LOCAL_JUDGE_KEY"},
         ),
     )
 
@@ -58,8 +58,8 @@ async def test_local_run_writes_everything_to_the_server(ctx, tmp_path):
         resume=None,
         revision=GitRevision(sha="abc", branch="feat", dirty=True),
         progress=lines.append,
-        transport=httpx.ASGITransport(app=fake.app),
-        custom_eval_transport=httpx.ASGITransport(app=custom_eval_app()),
+        transport=httpx2.ASGITransport(app=fake.app),
+        custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),
         api_transport=client._transport,
     )
     exp = await env.experiment(exp_id)
@@ -76,9 +76,14 @@ async def test_local_run_writes_everything_to_the_server(ctx, tmp_path):
     assert len(runs) == 2
     for run in runs:
         record = run.agent_run
-        assert record.trajectory_key and env.blob.objects[record.trajectory_key]
         assert (
-            env.blob.objects[f"artifacts/{exp.agent_id}/{record.harness_run_id}/outputs/report.md"]
+            record.trajectory_key
+            and env.blob.objects[f"{tenant_prefix('default')}{record.trajectory_key}"]
+        )
+        assert (
+            env.blob.objects[
+                f"{tenant_prefix('default')}artifacts/{exp.agent_id}/{record.harness_run_id}/outputs/report.md"
+            ]
             == b"# report"
         )
         names = {e.name for e in run.evaluations}
@@ -103,8 +108,8 @@ async def test_resume_runs_only_pending_cases(ctx, tmp_path):
         model=None,
         revision=GitRevision(),
         progress=lambda line: None,
-        transport=httpx.ASGITransport(app=fake.app),
-        custom_eval_transport=httpx.ASGITransport(app=custom_eval_app()),
+        transport=httpx2.ASGITransport(app=fake.app),
+        custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),
         api_transport=client._transport,
     )
     exp_id = await run_local(conn, local_config(tmp_path), resume=None, **kwargs)

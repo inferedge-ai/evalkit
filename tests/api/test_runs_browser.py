@@ -5,13 +5,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import quote
 
-import httpx
+import httpx2
 import pytest
 from fastapi import HTTPException
 
 from evalkit.api import runs
 from evalkit.core import pull as pull_core
-from evalkit.core.blob import artifact_key
+from evalkit.core.blob import artifact_key, tenant_prefix
 from evalkit.core.harness import HarnessClient
 from tests.api.native_api import CAPS, api_env
 from tests.api.test_otel import PROTO, otlp_payload
@@ -220,7 +220,7 @@ async def test_single_file_closes_the_harness_client_on_any_error(
     original = HarnessClient.aclose
 
     async def refuse(self, run_id, path):
-        raise httpx.ConnectError("harness down")
+        raise httpx2.ConnectError("harness down")
 
     async def tracked(self):
         closed.append(True)
@@ -229,7 +229,7 @@ async def test_single_file_closes_the_harness_client_on_any_error(
     monkeypatch.setattr(HarnessClient, "stream_file", refuse)
     monkeypatch.setattr(HarnessClient, "aclose", tracked)
     async with api_env(tmp_path, session_factory, harness) as (client, _):
-        with pytest.raises(httpx.ConnectError):
+        with pytest.raises(httpx2.ConnectError):
             await client.get("/api/agents/fake@canonical/runs/sess-1/files/a.md")
     assert closed == [True]
 
@@ -265,14 +265,14 @@ async def test_zip_aborts_when_the_harness_fails_mid_stream(
 
     async def flaky(self, run_id, path):
         if path == "b.md":
-            request = httpx.Request("GET", "http://fake/b.md")
-            response = httpx.Response(502, request=request)
-            raise httpx.HTTPStatusError("gone", request=request, response=response)
+            request = httpx2.Request("GET", "http://fake/b.md")
+            response = httpx2.Response(502, request=request)
+            raise httpx2.HTTPStatusError("gone", request=request, response=response)
         return await original(self, run_id, path)
 
     monkeypatch.setattr(HarnessClient, "stream_file", flaky)
     async with api_env(tmp_path, session_factory, harness) as (client, _):
-        with pytest.raises(httpx.HTTPStatusError):
+        with pytest.raises(httpx2.HTTPStatusError):
             await client.get("/api/agents/fake@canonical/runs/sess-1/zip")
 
 
@@ -339,11 +339,20 @@ async def test_search_matching_only_the_harness_lists_the_harness_row(shared):
     assert all(not r["stored"] for r in rows.values())
 
 
+async def test_org_filter_lists_only_that_orgs_harness_runs(shared):
+    client, harness, _ = shared
+    harness.runs["sess-extra"]["org_id"] = "org-b"
+    listed = (
+        await client.get("/api/agents/fake@canonical/runs", params={"org_id": "org-b"})
+    ).json()
+    assert [r["run_id"] for r in listed["runs"]] == ["sess-extra"]
+
+
 async def test_harness_down_still_lists_db_runs_with_a_note(shared, monkeypatch):
     client, _, _ = shared
 
     async def down(self, params):
-        raise httpx.ConnectError("refused")
+        raise httpx2.ConnectError("refused")
 
     monkeypatch.setattr(HarnessClient, "list_runs", down)
     listed = (await client.get("/api/agents/fake@canonical/runs")).json()
@@ -362,7 +371,7 @@ async def test_stored_files_come_before_the_harness(tmp_path, stub_judges, sessi
     async with api_env(tmp_path, session_factory, FakeHarness()) as (client, env):
         agent = (await client.get("/api/agents/fake@canonical")).json()
         key = artifact_key(agent["id"], "gone", "outputs/kept.md")
-        await env.deps.blob_store.put_object(key, b"kept")
+        await env.blob.put_object(f"{tenant_prefix('default')}{key}", b"kept")
         base = "/api/agents/fake@canonical/runs/gone/files"
         listed = (await client.get(base)).json()["files"]
         assert [entry["path"] for entry in listed] == ["outputs/kept.md"]

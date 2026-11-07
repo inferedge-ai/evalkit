@@ -3,6 +3,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 
+from evalkit.api.access import build_tenant_stores
 from evalkit.api.limits import body_limit
 from evalkit.config import Config
 from tests.api.native_api import CAPS, api_env
@@ -113,7 +114,7 @@ async def test_route_caps_are_larger_than_the_general_cap():
 
 
 async def test_fixture_upload_streams_and_leaves_no_staging_behind(api):
-    blob = api.app.state.runner_deps.blob_store
+    blob = build_tenant_stores(api.app.state, "default").blob
     data = b"streamed fixture bytes"
     sha = hashlib.sha256(data).hexdigest()
     ok = await api.put(f"/api/fixtures/sha256/{sha}", content=chunks(data))

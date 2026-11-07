@@ -841,6 +841,7 @@ function EvaluatorGroupCard({
   const single = members.length === 1 ? members[0].score : null;
   const label = members.find((m) => m.score.label)?.score.label ?? null;
   const summary = members.find((m) => m.score.summary)?.score.summary;
+  const scoredOn = members.find((m) => m.score.scored_on)?.score.scored_on;
 
   return (
     <div
@@ -852,6 +853,18 @@ function EvaluatorGroupCard({
         <InfoTip term={group.title} />
         {label ? <span className="text-n-400">· {label}</span> : null}
         <SummaryChip summary={summary} />
+        {scoredOn ? (
+          <span
+            className="chip muted"
+            title={
+              scoredOn === "server"
+                ? "scored on the evalkit server"
+                : "scored on the machine that ran the experiment"
+            }
+          >
+            {scoredOn}
+          </span>
+        ) : null}
         <span className="flex-1" />
         {members.length === 0 ? (
           <span className="text-micro text-n-400">not scored</span>

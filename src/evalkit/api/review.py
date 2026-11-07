@@ -1,12 +1,12 @@
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from evalkit.api.access import ActorDep, require, workspace_ref
+from evalkit.api.access import ActorDep, StoresDep, TenantStores, require, workspace_ref
 from evalkit.api.auth import CurrentUser
-from evalkit.api.deps import ReviewLogDep, SessionDep
+from evalkit.api.deps import SessionDep
 from evalkit.contracts.enums import WorkspaceRole
 from evalkit.core.access import WorkspaceRef, can_review
 from evalkit.core.promotion import MissingTargetDataset, PromotionPlan
@@ -22,10 +22,8 @@ from evalkit.core.review import (
     review_summary,
 )
 from evalkit.core.workspace import parse_slug
-from evalkit.db.cases import current_cases, dataset_by_ref, list_datasets
+from evalkit.db.cases import current_cases, dataset_by_ref, find_dataset_row, list_datasets
 from evalkit.db.promotion import execute_promotion, plan_promotion
-from evalkit.db.review import ReviewLog
-from evalkit.db.workspaces import WorkspaceStore
 from evalkit.store.base import CaseView, DatasetRow, Selection, select_cases
 
 router = APIRouter(prefix="/api", tags=["review"])
@@ -50,8 +48,10 @@ class ResolveRequest(BaseModel):
     resolved: bool
 
 
-async def _suite(session: SessionDep, ref: str) -> tuple[DatasetRow, list[CaseView]]:
-    dataset = await dataset_by_ref(session, ref)
+async def _suite(
+    stores: TenantStores, session: SessionDep, ref: str
+) -> tuple[DatasetRow, list[CaseView]]:
+    dataset = await dataset_by_ref(session, stores.tenant_id, ref)
     try:
         ensure_reviewable(dataset)
     except NotReviewable as exc:
@@ -59,28 +59,31 @@ async def _suite(session: SessionDep, ref: str) -> tuple[DatasetRow, list[CaseVi
     return dataset, await current_cases(session, dataset)
 
 
-async def _dataset_workspace(session: SessionDep, ref: str) -> WorkspaceRef:
-    return await workspace_ref(session, (await dataset_by_ref(session, ref)).workspace)
+async def _dataset_workspace(stores: TenantStores, session: SessionDep, ref: str) -> WorkspaceRef:
+    dataset = await dataset_by_ref(session, stores.tenant_id, ref)
+    return await workspace_ref(stores, dataset.workspace)
 
 
-async def _not_target(request: Request, ws: WorkspaceRef, slug: str, case_id: str | None) -> None:
+async def _not_target(
+    stores: TenantStores, ws: WorkspaceRef, slug: str, case_id: str | None
+) -> None:
     if not ws.is_target:
         return
     assert ws.promoted_from is not None
-    source = await WorkspaceStore(request.app.state.session_factory).get_by_id(ws.promoted_from)
+    source = await stores.workspaces.get_by_id(ws.promoted_from)
     where = f"{parse_slug(slug).name}@{source.name}"
     what = f"review {case_id} in {where}" if case_id else f"request review in {where}"
     raise HTTPException(status_code=409, detail=f"{slug} is fed by promotion; {what}")
 
 
 async def _load_case_review(
-    session: SessionDep, review_log: ReviewLog, ref: str, case_id: str
+    stores: TenantStores, session: SessionDep, ref: str, case_id: str
 ) -> CaseReview:
-    _, cases = await _suite(session, ref)
+    _, cases = await _suite(stores, session, ref)
     case = next((c for c in cases if c.case_id == case_id), None)
     if case is None:
         raise HTTPException(status_code=404, detail=f"unknown case: {case_id}")
-    reviews = await review_log.load(ref, [CaseVersion.of(case)])
+    reviews = await stores.review.load(ref, [CaseVersion.of(case)])
     return reviews[case_id]
 
 
@@ -88,27 +91,33 @@ async def _load_case_review(
 async def request_review(
     slug: str,
     body: ReviewRequest,
-    review_log: ReviewLogDep,
+    stores: StoresDep,
     session: SessionDep,
-    request: Request,
     user: CurrentUser,
 ) -> dict:
-    _, cases = await _suite(session, slug)
-    ws = await _dataset_workspace(session, slug)
-    await _not_target(request, ws, slug, None)
-    reviewers = await WorkspaceStore(request.app.state.session_factory).members(
-        ws.name, WorkspaceRole.REVIEWER
-    )
+    _, cases = await _suite(stores, session, slug)
+    ws = await _dataset_workspace(stores, session, slug)
+    await _not_target(stores, ws, slug, None)
+    reviewers = await stores.workspaces.members(ws.name, WorkspaceRole.REVIEWER)
     if body.reviewer not in {m.username for m in reviewers}:
         raise HTTPException(
             status_code=400, detail=f"{body.reviewer} is not a reviewer of {ws.name}"
         )
     matched = select_cases(cases, body.selection)
-    reviews = await review_log.load(slug, [CaseVersion.of(case) for case in matched])
-    await review_log.append(
-        [r.request_review(user.username, body.reviewer) for r in reviews.values()]
+    reviews = await stores.review.load(slug, [CaseVersion.of(case) for case in matched])
+    pending = {
+        case_id
+        for case_id, r in reviews.items()
+        if r.state() is CaseState.REVIEW_REQUESTED and r.requested_to == body.reviewer
+    }
+    await stores.review.append(
+        [
+            r.request_review(user.username, body.reviewer)
+            for case_id, r in reviews.items()
+            if case_id not in pending
+        ]
     )
-    return {"requested": sorted(reviews)}
+    return {"requested": sorted(set(reviews) - pending), "already_requested": sorted(pending)}
 
 
 @router.post("/datasets/{slug}/cases/{case_id}/review")
@@ -116,21 +125,20 @@ async def decide(
     slug: str,
     case_id: str,
     body: DecisionRequest,
-    review_log: ReviewLogDep,
+    stores: StoresDep,
     session: SessionDep,
-    request: Request,
     user: ActorDep,
 ) -> dict:
-    ws = await _dataset_workspace(session, slug)
+    ws = await _dataset_workspace(stores, session, slug)
     require(can_review(user, ws), "only reviewers of this workspace decide")
-    await _not_target(request, ws, slug, case_id)
+    await _not_target(stores, ws, slug, case_id)
     text = (body.comment or "").strip()
     if body.action == "request_changes" and not text:
         raise HTTPException(status_code=400, detail="request_changes needs a comment")
-    review = await _load_case_review(session, review_log, slug, case_id)
+    review = await _load_case_review(stores, session, slug, case_id)
     plan: PromotionPlan | None = None
     if body.action == "approve" and ws.promotes_to is not None:
-        dataset, cases = await _suite(session, slug)
+        dataset, cases = await _suite(stores, session, slug)
         case = next(c for c in cases if c.case_id == case_id)
         try:
             plan = await plan_promotion(session, ws, dataset, case)
@@ -158,21 +166,40 @@ async def decide(
         assert plan is not None
         await execute_promotion(db, plan, actor_id=actor_id, event_id=event_id)
 
-    await review_log.decide(event, comment, promote if plan is not None else None)
-    summary = review_summary(await _load_case_review(session, review_log, slug, case_id))
+    await stores.review.decide(event, comment, promote if plan is not None else None)
+    summary = review_summary(await _load_case_review(stores, session, slug, case_id))
     return {**summary, "promoted_to": plan.target_ref if plan is not None else None}
 
 
+async def _source_dataset(stores: TenantStores, session: SessionDep, slug: str) -> str | None:
+    ws = await _dataset_workspace(stores, session, slug)
+    if not ws.is_target:
+        return None
+    assert ws.promoted_from is not None
+    source = await stores.workspaces.get_by_id(ws.promoted_from)
+    name = parse_slug(slug).name
+    found = await find_dataset_row(session, stores.tenant_id, source.name, name)
+    return None if found is None else found.ref
+
+
 @router.get("/datasets/{slug}/cases/{case_id}/events")
-async def events(slug: str, case_id: str, session: SessionDep, review_log: ReviewLogDep) -> dict:
-    await _load_case_review(session, review_log, slug, case_id)
-    return {"events": [e.model_dump() for e in await review_log.history(slug, case_id)]}
+async def events(slug: str, case_id: str, stores: StoresDep, session: SessionDep) -> dict:
+    await _load_case_review(stores, session, slug, case_id)
+    found = await stores.review.history(slug, case_id)
+    source = await _source_dataset(stores, session, slug)
+    if source is not None:
+        promoted = {e.content_hash for e in found}
+        found += [
+            e for e in await stores.review.history(source, case_id) if e.content_hash in promoted
+        ]
+        found.sort(key=lambda e: (e.created_at, e.id), reverse=True)
+    return {"events": [e.model_dump() for e in found]}
 
 
 @router.get("/datasets/{slug}/cases/{case_id}/comments")
-async def comments(slug: str, case_id: str, session: SessionDep, review_log: ReviewLogDep) -> dict:
-    await _load_case_review(session, review_log, slug, case_id)
-    return {"threads": group_threads(await review_log.comments(slug, case_id))}
+async def comments(slug: str, case_id: str, stores: StoresDep, session: SessionDep) -> dict:
+    await _load_case_review(stores, session, slug, case_id)
+    return {"threads": group_threads(await stores.review.comments(slug, case_id))}
 
 
 @router.post("/datasets/{slug}/cases/{case_id}/comments")
@@ -180,13 +207,13 @@ async def add_comment(
     slug: str,
     case_id: str,
     body: CommentRequest,
+    stores: StoresDep,
     session: SessionDep,
-    review_log: ReviewLogDep,
     user: CurrentUser,
 ) -> dict:
-    review = await _load_case_review(session, review_log, slug, case_id)
+    review = await _load_case_review(stores, session, slug, case_id)
     if body.parent_id is not None:
-        parent = await review_log.get_comment(body.parent_id)
+        parent = await stores.review.get_comment(body.parent_id)
         if (
             parent is None
             or parse_slug(parent.dataset) != parse_slug(slug)
@@ -197,7 +224,7 @@ async def add_comment(
             raise HTTPException(status_code=400, detail="replies nest one level only")
     if not body.body.strip():
         raise HTTPException(status_code=400, detail="comment body is empty")
-    stored = await review_log.add_comment(
+    stored = await stores.review.add_comment(
         NewCaseComment(
             dataset=slug,
             case_id=case_id,
@@ -216,21 +243,37 @@ async def resolve_comment(
     case_id: str,
     comment_id: int,
     body: ResolveRequest,
-    review_log: ReviewLogDep,
+    stores: StoresDep,
     session: SessionDep,
     user: ActorDep,
 ) -> dict:
-    comment = await review_log.get_comment(comment_id)
+    comment = await stores.review.get_comment(comment_id)
     if (
         comment is None
         or parse_slug(comment.dataset) != parse_slug(slug)
         or comment.case_id != case_id
     ):
         raise HTTPException(status_code=404, detail=f"unknown comment: {comment_id}")
-    ws = await _dataset_workspace(session, slug)
+    ws = await _dataset_workspace(stores, session, slug)
     if comment.author != user.username and not can_review(user, ws):
         raise HTTPException(status_code=403, detail="only a reviewer or the author may resolve")
-    return (await review_log.set_resolved(comment_id, body.resolved)).model_dump()
+    return (await stores.review.set_resolved(comment_id, body.resolved)).model_dump()
+
+
+@router.patch("/review/comments/{comment_id}")
+async def resolve_comment_by_id(
+    comment_id: int,
+    body: ResolveRequest,
+    stores: StoresDep,
+    session: SessionDep,
+    user: ActorDep,
+) -> dict:
+    comment = await stores.review.get_comment(comment_id)
+    if comment is None:
+        raise HTTPException(status_code=404, detail=f"unknown comment: {comment_id}")
+    return await resolve_comment(
+        comment.dataset, comment.case_id, comment_id, body, stores, session, user
+    )
 
 
 QueueState = Literal["review_requested", "changes_requested"]
@@ -238,18 +281,28 @@ QueueState = Literal["review_requested", "changes_requested"]
 
 @router.get("/review/queue")
 async def queue(
+    stores: StoresDep,
     session: SessionDep,
-    review_log: ReviewLogDep,
     reviewer: str | None = None,
     state: QueueState = "review_requested",
     workspace: str | None = None,
+    dataset: str | None = None,
 ) -> dict:
+    if workspace is not None:
+        await workspace_ref(stores, workspace)
+    datasets = (
+        [await dataset_by_ref(session, stores.tenant_id, dataset)]
+        if dataset is not None
+        else await list_datasets(session, stores.tenant_id, workspace)
+    )
     items: list[dict] = []
-    for dataset in await list_datasets(session, workspace):
-        if not is_reviewable(dataset):
+    for dataset_row in datasets:
+        if not is_reviewable(dataset_row):
             continue
-        cases = await current_cases(session, dataset)
-        reviews = await review_log.load(dataset.ref, [CaseVersion.of(case) for case in cases])
+        cases = await current_cases(session, dataset_row)
+        reviews = await stores.review.load(
+            dataset_row.ref, [CaseVersion.of(case) for case in cases]
+        )
         for case in cases:
             r = reviews[case.case_id]
             if r.last_event is None or r.state() is not CaseState(state):
@@ -259,10 +312,11 @@ async def queue(
             question = case.input.get("question")
             items.append(
                 {
-                    "dataset": dataset.ref,
+                    "dataset": dataset_row.ref,
                     "case_id": case.case_id,
                     "requested_to": r.requested_to,
                     "requested_by": r.last_event.actor,
+                    "author": r.requested_by,
                     "requested_at": r.last_event.created_at,
                     "input": question if isinstance(question, str) else str(case.input),
                 }

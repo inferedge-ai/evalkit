@@ -41,3 +41,10 @@ async def test_object_url_joins_store_url_and_key():
     assert await Obstore("s3://bucket/").object_url("fixtures/a.csv") == (
         "s3://bucket/fixtures/a.csv"
     )
+
+
+async def test_missing_key_raises_file_not_found(blob_store):
+    with pytest.raises(FileNotFoundError):
+        await blob_store.get_object("missing.txt")
+    with pytest.raises(FileNotFoundError):
+        await blob_store.get_stream("missing.txt")

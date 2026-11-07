@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import httpx
+import httpx2
 
 from evalkit import version
+from evalkit.client import oidc
 from evalkit.client.agents import HttpAgents
 from evalkit.client.api import AsyncApi
 from evalkit.client.blob import HttpBlobStore
 from evalkit.client.connection import Connection
 from evalkit.client.evaluators import HttpEvaluators
+from evalkit.client.server_evaluators import HttpServerEvaluators
 from evalkit.client.sessions import HttpSessionReader
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.config import LocalConfig
@@ -18,8 +20,10 @@ from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import explicit
 from evalkit.core.harness_check import check_harness
 from evalkit.core.runner import (
+    EVALUATION_CONCURRENCY,
     ExperimentRequest,
     RunnerDeps,
+    check_judge_key,
     dropped_cases_text,
     harness_capabilities,
     missing_local_keys,
@@ -45,8 +49,10 @@ def _deps(
     api: AsyncApi,
     exp_id: int,
     progress: Callable[[str], None],
-    harness_transport: httpx.AsyncBaseTransport | None,
-    custom_eval_transport: httpx.AsyncBaseTransport | None,
+    harness_transport: httpx2.AsyncBaseTransport | None,
+    custom_eval_transport: httpx2.AsyncBaseTransport | None,
+    evaluation_concurrency: int,
+    judge_api_key: str | None,
 ) -> RunnerDeps:
     return RunnerDeps(
         cfg=local,
@@ -59,6 +65,9 @@ def _deps(
         custom_eval_transport=custom_eval_transport,
         progress=progress,
         sessions=HttpSessionReader(api),
+        evaluation_concurrency=evaluation_concurrency,
+        server_evaluators=HttpServerEvaluators(api),
+        judge_api_key=judge_api_key,
     )
 
 
@@ -75,11 +84,13 @@ async def run_local(
     revision: GitRevision,
     progress: Callable[[str], None],
     judge: JudgeSettings | None = None,
-    transport: httpx.AsyncBaseTransport | None = None,
-    custom_eval_transport: httpx.AsyncBaseTransport | None = None,
-    api_transport: httpx.AsyncBaseTransport | None = None,
+    judge_api_key: str | None = None,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
+    transport: httpx2.AsyncBaseTransport | None = None,
+    custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> int:
-    api = AsyncApi(conn.url, conn.token, transport=api_transport)
+    api = AsyncApi(conn.url, oidc.build_auth(conn), transport=api_transport)
     holder = holder_for(conn)
     try:
         await api.require_same_version()
@@ -106,9 +117,20 @@ async def run_local(
             if dropped:
                 progress(dropped_cases_text(dropped))
         else:
+            await check_judge_key(store, resume, judge_api_key)
             exp = await store.transition(resume, ExperimentStatus.RUNNING, holder)
         progress(f"experiment {exp.id} (#{exp.number} of {exp.dataset})")
-        deps = _deps(local, conn, api, exp.id, progress, transport, custom_eval_transport)
+        deps = _deps(
+            local,
+            conn,
+            api,
+            exp.id,
+            progress,
+            transport,
+            custom_eval_transport,
+            evaluation_concurrency,
+            judge_api_key,
+        )
         for line in await missing_local_keys(
             deps, await deps.agents.get(explicit(agent)), await store.pinned_cases(exp.id)
         ):
@@ -125,15 +147,28 @@ async def evaluate_local(
     exp_id: int,
     *,
     progress: Callable[[str], None],
-    custom_eval_transport: httpx.AsyncBaseTransport | None = None,
-    api_transport: httpx.AsyncBaseTransport | None = None,
+    custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
     refetch_trajectories: bool = False,
+    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
+    judge_api_key: str | None = None,
 ) -> None:
-    api = AsyncApi(conn.url, conn.token, transport=api_transport)
+    api = AsyncApi(conn.url, oidc.build_auth(conn), transport=api_transport)
     holder = holder_for(conn)
     try:
         await api.require_same_version()
-        deps = _deps(local, conn, api, exp_id, progress, None, custom_eval_transport)
+        deps = _deps(
+            local,
+            conn,
+            api,
+            exp_id,
+            progress,
+            None,
+            custom_eval_transport,
+            evaluation_concurrency,
+            judge_api_key,
+        )
+        await check_judge_key(deps.store, exp_id, judge_api_key)
         await deps.store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
         await rescore_experiment(deps, exp_id, holder, refetch_trajectories=refetch_trajectories)
     finally:
@@ -141,7 +176,7 @@ async def evaluate_local(
 
 
 async def mark_interrupted(conn: Connection, exp_id: int, user: str) -> None:
-    api = AsyncApi(conn.url, conn.token)
+    api = AsyncApi(conn.url, oidc.build_auth(conn))
     try:
         await HttpStore(api).transition(
             exp_id,
@@ -158,10 +193,10 @@ async def local_input_schema(
     local: LocalConfig,
     agent: Reference,
     *,
-    transport: httpx.AsyncBaseTransport | None = None,
-    api_transport: httpx.AsyncBaseTransport | None = None,
+    transport: httpx2.AsyncBaseTransport | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> dict:
-    api = AsyncApi(conn.url, conn.token, transport=api_transport)
+    api = AsyncApi(conn.url, oidc.build_auth(conn), transport=api_transport)
     try:
         definition = await HttpAgents(api).get(explicit(agent))
     finally:
@@ -176,10 +211,10 @@ async def check_local(
     local: LocalConfig,
     agent: Reference,
     *,
-    transport: httpx.AsyncBaseTransport | None = None,
-    api_transport: httpx.AsyncBaseTransport | None = None,
+    transport: httpx2.AsyncBaseTransport | None = None,
+    api_transport: httpx2.AsyncBaseTransport | None = None,
 ) -> dict[str, dict]:
-    api = AsyncApi(conn.url, conn.token, transport=api_transport)
+    api = AsyncApi(conn.url, oidc.build_auth(conn), transport=api_transport)
     try:
         blob_store = HttpBlobStore(api, None)
         definition = await HttpAgents(api).get(explicit(agent))

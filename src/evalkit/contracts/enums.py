@@ -28,6 +28,11 @@ class EvaluationSource(StrEnum):
     CODE = "code"
 
 
+class ScoredOn(StrEnum):
+    LOCAL = "local"
+    SERVER = "server"
+
+
 class MappingStatus(StrEnum):
     DRAFT = "draft"
     ACTIVE = "active"

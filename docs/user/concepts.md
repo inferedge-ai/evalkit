@@ -13,12 +13,15 @@ The words you need before your first scorecard. Everything else is explained on 
 | Task                       | The function `run_experiment` calls once per case. It calls your agent and returns the answer.                                       |
 | Experiment                 | One run of a dataset against an agent.                                                                                               |
 | Run                        | One case answered once.                                                                                                              |
+| Single sign-on             | Signing in through your organisation's identity provider. The first sign-in creates your evalkit user. See [Single sign-on](sso.md). |
+| Subject                    | The stable id your identity provider assigns you; evalkit keys your user on it, not on your email. |
+| Machine user               | A user bound to a machine client at the identity provider, for CI. No password, no browser. `evalkit users add <name> --subject <sub>`. |
 | Trace, span, session       | What your agent records as it works: one span per model call or tool call. One run is one session.                                  |
 | Mapping                    | Which span attribute holds the model, the messages, the tokens and each tool call.                                                   |
 | Trajectory                 | The step-by-step record of a run that evalkit builds from the spans.                                                                 |
-| Judge                      | The LLM that grades an answer against the case's rubrics.                                                                            |
+| Judge                      | The LLM that grades an answer against the case's rubrics. By default it runs on the evalkit server, served by an LLM provider configured there; you can bring your own key instead. |
 | Evaluator                  | One scoring check, for example the rubric check or "did the agent call this tool".                                                   |
-| Scorecard                  | The table of scores for an experiment, per case and per bucket (content, trajectory, presentation, efficiency, custom).              |
+| Scorecard                  | The table of scores for an experiment, per case and per bucket (content, trajectory, presentation, efficiency, custom). [Case schema](case-schema.md#evaluators) maps each bucket to its YAML key, e.g. presentation → `evaluators.output.presentation_judge`. |
 | Unreviewed                 | A case in a shared dataset with no review decision at its current content. It runs like any other case; review decides promotion.  |
 | Promotion                  | An admin links a shared workspace to a target (`evalkit workspaces promote-to dev prod`). Approving a case in `dev` adds it, approved, to the same-named dataset in `prod`. Datasets in `prod` are fed only that way. |
 | `evalkit.yaml`             | The file in your repo that says where your cases are and which environment variables hold API keys.                                  |

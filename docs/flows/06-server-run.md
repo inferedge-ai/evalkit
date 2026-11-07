@@ -11,7 +11,7 @@ How a user runs a dataset against a shared agent: an agent in a shared workspace
   - the experiment page (`ui/src/evals/ExperimentPage.tsx`)
 - **evalkit server**: `src/evalkit/api/experiments.py`. Its experiment runner is in `src/evalkit/core/runner.py`.
 - **Agent harness**: the client's agent behind the Harness API, at the agent's `harness_url`. Admins or writers create the agent with `evalkit agents create` (flow 17); its API key is a stored key, set with `--api-key-env` and kept encrypted in the database.
-- **Judge**: the LLM the built-in evaluators call. Chosen per experiment; the default judge an admin set (`evalkit judge-default set`) applies when the run doesn't set one. Its base URL must be a registered LLM provider, whose stored key the server sends.
+- **Judge**: the LLM the built-in evaluators call. Chosen per experiment; the default judge an admin set (`evalkit judge-default set`) applies when the run doesn't set one. It is served by an LLM provider configured on the server, named by the provider's name; the server sends that provider's stored key.
 
 ## Sequence
 
@@ -57,7 +57,7 @@ sequenceDiagram
     C-->>U: "  running (R/N ran, E/N evaluated)" … "  completed (…)"
   end
   C->>S: GET /api/experiments/{id}/scorecard
-  C-->>U: buckets, evaluators, failing cases (< 0.80), errored cases, gauges
+  C-->>U: buckets, evaluators, failing cases (overall or any evaluator < 0.80, naming the evaluators), errored cases, gauges
   Note over U,S: UI: /experiments/{id} lists every selected case, a progress bar (ran, evaluated), scorecard
 ```
 
@@ -99,7 +99,8 @@ sequenceDiagram
   - The UI shows the run count on the Start button: "Start N runs" = cases × repetitions.
 - **Fixture cases** are skipped when the harness accepts neither files nor file URLs. The CLI prints "skipped N case(s) with fixture files; the agent accepts neither files nor file urls: …".
 - **`--model`** is passed only if the harness accepts a model override. Otherwise the run uses the harness default and the server logs a warning. The model the harness reports is recorded when none was given.
-- **Judge:** CLI `--judge-model`, `--judge-base-url`, `--judge-effort` or the UI's "Judge provider" picker override the default judge. The judge is recorded on the experiment, and Re-evaluate reuses it.
+- **Judge:** CLI `--judge-provider`, `--judge-model`, `--judge-effort` or the UI's "Judge provider" picker override the default judge. The judge is recorded on the experiment by provider name, and Re-evaluate reuses it.
+- **Where scores ran:** every score of a server run records `scored_on: server`.
 - **Recorded with every experiment:** the case revision (git sha, branch, dirty; UI launches take it from the dataset's last sync) and the agent's `revision` and `branch` from its capabilities response.
 - **Pinning:** each case's version and effective evaluators (including overlays) are pinned at start, so later edits don't change old results.
 - **Status moves** `running` → `evaluating` → `completed`, or to `failed` with an error.
@@ -125,8 +126,9 @@ sequenceDiagram
 - **Someone else's personal agent:** CLI "A belongs to U's workspace; only its owner can run it"; API 403 "only the owner of @U can run A".
 - **Unknown agent:** 404.
 - **Archived agent:** 409 "agent A is archived".
-- **Judge not a registered LLM provider:** 400 "<url> is not a registered LLM provider; registered: …".
-- **No judge and no default judge:** 400 "no default judge; …".
+- **Judge names an unknown provider:** 400 "<name> is not a registered LLM provider; registered: …".
+- **Judge with a base URL:** 400 "the server judges with a registered LLM provider, not a base_url (<url>); pass a provider: …".
+- **No judge and no default judge, and a selected case uses a judge-using evaluator:** 400 "no judge: … has no default judge; …". A dataset whose cases use no judge runs without one.
 - **No stored key for the agent, an evaluator or the judge's provider:** the run still starts. The response carries `warnings: […]` (also logged), and the call goes out without a key header. A harness that needs a key then fails, e.g. 502 "could not start experiment: …" when capabilities return 401.
 - **Harness unreachable at start:** 502 "could not start experiment: …".
 - **Sending capabilities for a shared agent:** 400 "capabilities are fetched by the server for shared agents".

@@ -10,17 +10,17 @@ from evalkit.core.access import (
     experiment_workspace,
 )
 
-AKSHAT = WorkspaceRef(1, "akshat", owner_user_id=10, archived=False)
-BOB_WS = WorkspaceRef(2, "bob", owner_user_id=20, archived=False)
-DEV = WorkspaceRef(3, "dev", owner_user_id=None, archived=False)
-PROD = WorkspaceRef(4, "prod", owner_user_id=None, archived=False)
+AKSHAT = WorkspaceRef(1, "akshat", owner_user_id=10, archived=False, tenant_id="default")
+BOB_WS = WorkspaceRef(2, "bob", owner_user_id=20, archived=False, tenant_id="default")
+DEV = WorkspaceRef(3, "dev", owner_user_id=None, archived=False, tenant_id="default")
+PROD = WorkspaceRef(4, "prod", owner_user_id=None, archived=False, tenant_id="default")
 
 
-def actor(uid, admin=False):
-    return Actor(uid, f"u{uid}", admin, {})
+def actor(uid, admin=False, tenant_id="default"):
+    return Actor(uid, f"u{uid}", admin, tenant_id, {})
 
 
-def test_everyone_reads_everything():
+def test_everyone_in_the_tenant_reads_everything():
     assert can_read(actor(20), AKSHAT) and can_read(actor(20), DEV)
 
 
@@ -31,12 +31,14 @@ def test_personal_write_is_owner_only_even_for_admin():
 
 def test_shared_write_admin_or_writer():
     assert can_write(actor(99, admin=True), DEV)
-    assert can_write(Actor(20, "bob", False, {3: frozenset({WorkspaceRole.WRITER})}), DEV)
+    assert can_write(
+        Actor(20, "bob", False, "default", {3: frozenset({WorkspaceRole.WRITER})}), DEV
+    )
     assert not can_write(actor(20), DEV)
 
 
 def test_review_needs_reviewer_role_on_shared():
-    reviewer = Actor(20, "bob", False, {3: frozenset({WorkspaceRole.REVIEWER})})
+    reviewer = Actor(20, "bob", False, "default", {3: frozenset({WorkspaceRole.REVIEWER})})
     assert can_review(reviewer, DEV) and not can_review(reviewer, PROD)
     assert not can_review(actor(99, admin=True), DEV)
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import IO
 from urllib.parse import quote
 
-import httpx
+import httpx2
 
 from evalkit.contracts.atif import Trajectory, validate_trajectory
 from evalkit.contracts.harness import (
@@ -26,7 +26,7 @@ LOGGER = logging.getLogger(__name__)
 
 TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
 GET_ATTEMPTS = 3
-STALE_CONNECTION_ERRORS = (httpx.RemoteProtocolError, httpx.ReadError)
+STALE_CONNECTION_ERRORS = (httpx2.RemoteProtocolError, httpx2.ReadError)
 # Shorter than the 5s idle keep-alive of uvicorn and Node, so evalkit drops an
 # idle connection before the harness closes it under an in-flight poll.
 KEEPALIVE_EXPIRY_SECONDS = 2
@@ -38,7 +38,7 @@ class HarnessFile:
     chunks: AsyncIterator[bytes]
 
 
-async def _response_chunks(resp: httpx.Response) -> AsyncIterator[bytes]:
+async def _response_chunks(resp: httpx2.Response) -> AsyncIterator[bytes]:
     try:
         async for chunk in resp.aiter_bytes():
             yield chunk
@@ -53,14 +53,14 @@ class RunTimeout(Exception):
         super().__init__(f"run {run_id} did not reach a terminal status in time")
 
 
-def _raise_for_status(resp: httpx.Response) -> None:
+def _raise_for_status(resp: httpx2.Response) -> None:
     if resp.is_success:
         return
     message = f"harness returned {resp.status_code} for {resp.request.method} {resp.request.url}"
     body = resp.text.strip()
     if body:
         message += f": {body[:1000]}"
-    raise httpx.HTTPStatusError(message, request=resp.request, response=resp)
+    raise httpx2.HTTPStatusError(message, request=resp.request, response=resp)
 
 
 class HarnessClient:
@@ -69,15 +69,15 @@ class HarnessClient:
         agent: AgentDefinition,
         api_key: str | None,
         *,
-        transport: httpx.AsyncBaseTransport | None = None,
+        transport: httpx2.AsyncBaseTransport | None = None,
     ):
         assert agent.harness_url is not None
         self.agent = agent
-        self._client = httpx.AsyncClient(
+        self._client = httpx2.AsyncClient(
             base_url=agent.harness_url.rstrip("/"),
             headers={"x-api-key": api_key} if api_key else {},
             timeout=60,
-            limits=httpx.Limits(keepalive_expiry=KEEPALIVE_EXPIRY_SECONDS),
+            limits=httpx2.Limits(keepalive_expiry=KEEPALIVE_EXPIRY_SECONDS),
             transport=transport,
         )
         self._capabilities: Capabilities | None = None
@@ -85,7 +85,7 @@ class HarnessClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def _get(self, url: str, *, stream: bool = False, **kwargs) -> httpx.Response:
+    async def _get(self, url: str, *, stream: bool = False, **kwargs) -> httpx2.Response:
         for attempt in range(1, GET_ATTEMPTS + 1):
             try:
                 request = self._client.build_request("GET", url, **kwargs)
@@ -192,7 +192,7 @@ class HarnessClient:
         _raise_for_status(resp)
         return FileList.model_validate(resp.json())
 
-    async def _file_response(self, run_id: str, path: str) -> httpx.Response:
+    async def _file_response(self, run_id: str, path: str) -> httpx2.Response:
         return await self._get(f"/runs/{_run_segment(run_id)}/files/{_file_path(path)}")
 
     async def find_file(self, run_id: str, path: str) -> bytes | None:

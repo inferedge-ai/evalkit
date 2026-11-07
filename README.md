@@ -42,8 +42,9 @@ flowchart LR
    and proposes fixes that name the prompt, tool description, skill or data
    source to change.
 5. **Prove it.** Apply the fixes, re-run, and compare the two experiments
-   case by case: what got fixed, what broke. The cases stay as regression
-   guards for every change after.
+   case by case with `evalkit summary <new-id> --baseline <old-id>`: what
+   got fixed, what broke. The cases stay as regression guards for every
+   change after.
 
 Steps 1, 4 and 5 run as agent skills (`evalkit skills install`) in Claude
 Code or another coding agent. Alongside them are skills for writing cases
@@ -115,14 +116,15 @@ print(result.url)  # the scorecard in the web UI
   Any harness, any model.
 - **See your app runs too.** Browse your agent's real runs with their
   latency, tokens, cost and tool calls, not just eval runs.
-- **Graders you choose.** Any OpenAI-compatible model as the judge, and your
-  own evaluators in Python or over HTTP.
+- **Graders you choose.** Any OpenAI-compatible model as the judge, run by
+  the server or with your own key, and your own evaluators in Python or over
+  HTTP.
 - **Cases are code.** They live in your repository and sync from CI, like
   the rest of your code.
 
 ## Run your own evalkit
 
-1. **Try it locally.** `pip install "evalkit-py[server]"`, then
+1. **Try it locally.** With Python 3.12 or newer, `pip install "evalkit-py[server]"`, then
    `evalkit init-server` against a local Postgres, or use Docker.
    [Try locally](docs/user/try-locally.md) starts the server on your machine,
    judges with your LLM, and runs a sample agent through an SDK run with
@@ -167,6 +169,3 @@ The docs and the Python SDK reference are published at
 - **Security vulnerabilities, or anything else:** email
   [tech@inferedge.com](mailto:tech@inferedge.com). Don't post
   vulnerabilities in a public issue.
-
-evalkit doesn't take pull requests, but issues are very welcome: a clear
-bug report or idea helps just as much.

@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
-import httpx
+import httpx2
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.responses import JSONResponse
@@ -23,7 +23,7 @@ from evalkit.contracts.cases import Case
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import explicit
-from evalkit.core.blob import fixture_blob_key
+from evalkit.core.blob import TenantBlobStore, fixture_blob_key, tenant_prefix
 from evalkit.core.importer import incoming_case
 from evalkit.core.review import CaseReview
 from evalkit.core.runner import (
@@ -42,7 +42,7 @@ from evalkit.db.store import PgStore
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from evalkit.store.base import CaseFile, Experiment, RunDetail, Selection
-from tests.fake_agents import JUDGE_URL, TEST_ENCRYPTION_KEY, fake_credentials
+from tests.fake_agents import JUDGE_URL, TEST_ENCRYPTION_KEY, TEST_ENV, fake_credentials
 from tests.fake_blob import DictBlobStore
 from tests.fake_harness import FakeHarness
 from tests.identity import seed_agent, seed_evaluators, seed_identity
@@ -155,7 +155,7 @@ async def sync_cases(
     kind: DatasetKind = DatasetKind.SUITE,
     actor: str = "admin",
 ) -> None:
-    ws = await WorkspaceStore(env.session_factory).get_by_name(workspace)
+    ws = await WorkspaceStore(env.session_factory, "default").get_by_name(workspace)
     await env.store.sync(
         workspace=ws,
         dataset=dataset,
@@ -193,9 +193,9 @@ async def approve(
 
 async def put_fixture(env: Env, data: bytes = FILE_BYTES, key: str = "bs.csv") -> CaseFile:
     digest = hashlib.sha256(data).hexdigest()
-    await env.blob.put_object(fixture_blob_key(digest), data)
+    await env.blob.put_object(f"{tenant_prefix('default')}{fixture_blob_key(digest)}", data)
     async with env.session_factory() as s:
-        await record_blob(s, digest, len(data), env.user_ids["admin"])
+        await record_blob(s, "default", digest, len(data), env.user_ids["admin"])
         await s.commit()
     return CaseFile(key=key, sha256=digest, context="Balance sheet.")
 
@@ -213,20 +213,23 @@ async def seed_env(
     await seed_agent(session_factory)
     await seed_agent(session_factory, "fake", "akshat")
     await seed_evaluators(session_factory)
-    user_ids = {u.username: u.id for u in await UserStore(session_factory).list()}
-    store = PgStore(session_factory)
+    user_ids = {u.username: u.id for u in await UserStore(session_factory, "default").list()}
+    store = PgStore(session_factory, "default")
     blob_store = blob or DictBlobStore()
     deps = RunnerDeps(
         cfg=make_cfg(tmp_path),
         store=store,
-        blob_store=blob_store,
-        agents=AgentStore(session_factory),
-        evaluators=RemoteEvaluatorStore(session_factory),
+        blob_store=TenantBlobStore(blob_store, "default"),
+        agents=AgentStore(session_factory, "default"),
+        evaluators=RemoteEvaluatorStore(session_factory, "default"),
         credentials=fake_credentials(),
-        harness_transport=httpx.ASGITransport(app=(fake or FakeHarness()).app),
-        custom_eval_transport=httpx.ASGITransport(app=custom_eval_app()),
+        harness_transport=httpx2.ASGITransport(app=(fake or FakeHarness()).app),
+        custom_eval_transport=httpx2.ASGITransport(app=custom_eval_app()),
+        judge_api_key=TEST_ENV["JUDGE_KEY"],
     )
-    env = Env(session_factory, store, blob_store, deps, user_ids, ReviewLog(session_factory))
+    env = Env(
+        session_factory, store, blob_store, deps, user_ids, ReviewLog(session_factory, "default")
+    )
     evaluators_2 = dict(CASE_EVALUATORS)
     if broken_on_case_2:
         evaluators_2 = {
@@ -274,19 +277,18 @@ async def start(env: Env, req: ExperimentRequest, *, holder: str = HOLDER) -> Ex
 
 
 @asynccontextmanager
-async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[httpx.AsyncClient]:
+async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[httpx2.AsyncClient]:
     app = create_app(
         env.deps.cfg,  # type: ignore[arg-type]
         blob_store=env.blob,
         runner_deps=env.deps,
-        agents=env.deps.agents,  # type: ignore[arg-type]
         session_factory=env.session_factory,
         check_schema=False,
         holder=HOLDER,
     )
     async with app.router.lifespan_context(app):
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        transport = httpx2.ASGITransport(app=app)
+        async with httpx2.AsyncClient(transport=transport, base_url="http://test") as client:
             client.app = app  # type: ignore[attr-defined]
             resp = await client.post(
                 "/api/auth/login", json={"username": user, "password": USERS[user]}
@@ -295,8 +297,8 @@ async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[htt
             yield client
 
 
-async def login_as(client: httpx.AsyncClient, username: str) -> httpx.AsyncClient:
-    other = httpx.AsyncClient(transport=client._transport, base_url="http://test")
+async def login_as(client: httpx2.AsyncClient, username: str) -> httpx2.AsyncClient:
+    other = httpx2.AsyncClient(transport=client._transport, base_url="http://test")
     resp = await other.post(
         "/api/auth/login", json={"username": username, "password": USERS[username]}
     )
@@ -305,7 +307,7 @@ async def login_as(client: httpx.AsyncClient, username: str) -> httpx.AsyncClien
 
 
 async def wait_for(
-    client: httpx.AsyncClient, exp_id: int, statuses=("completed", "failed")
+    client: httpx2.AsyncClient, exp_id: int, statuses=("completed", "failed")
 ) -> dict:
     for _ in range(400):
         body = (await client.get(f"/api/experiments/{exp_id}")).json()

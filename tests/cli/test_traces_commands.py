@@ -1,16 +1,17 @@
 import json
 
-import httpx
+import httpx2
 import pytest
-import respx
+from respx import MockResponse
 from typer.testing import CliRunner
 
 from evalkit.cli import main as main_module
 from evalkit.cli.client import ApiClient
 from evalkit.cli.main import app as cli_app
-from evalkit.cli.traces_commands import render_check
 from evalkit.client import connection
 from evalkit.client.api import AsyncApi
+from evalkit.client.oidc import static_auth
+from evalkit.core.traces.check import render_check
 from evalkit.sdk.runner import _session_summary
 
 SESSION = {
@@ -86,7 +87,7 @@ def test_render_check_lines():
 def test_render_check_without_root():
     session = {**SESSION, "root_present": False, "esf": SESSION["esf"][1:], "mapping_version": None}
     lines, ok = render_check(session)
-    assert not ok and lines[1].startswith("  ✗ root")
+    assert lines[1].startswith("  ! root")
     assert lines[2] == "  ! mapping        no active mapping; the agent's spans are unmapped"
 
 
@@ -105,15 +106,23 @@ def test_render_check_warns_on_llm_spans_without_messages():
     )
 
 
+def test_render_check_warns_on_llm_spans_with_dropped_attributes():
+    esf = [{**s, "dropped_attributes": 3} for s in SESSION["esf"]]
+    lines, _ = render_check({**SESSION, "esf": esf})
+    assert lines[3].startswith("  ! llm            1 spans")
+    assert "1 with attributes dropped by the OTel SDK" in lines[3]
+    assert "OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT" in lines[3]
+
+
 PROXY_502 = "<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>"
 
 
 @pytest.fixture
 def proxy_down(monkeypatch):
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         if request.url.path == "/api/auth/me":
-            return httpx.Response(200, json={"username": "akshat"})
-        return httpx.Response(502, text=PROXY_502, headers={"content-type": "text/html"})
+            return httpx2.Response(200, json={"username": "akshat"})
+        return httpx2.Response(502, text=PROXY_502, headers={"content-type": "text/html"})
 
     monkeypatch.setattr(
         connection, "active", lambda path=None: connection.Connection("http://t", "tok", None)
@@ -121,7 +130,7 @@ def proxy_down(monkeypatch):
     monkeypatch.setattr(
         main_module,
         "ApiClient",
-        lambda url, token: ApiClient(url, token, transport=httpx.MockTransport(handler)),
+        lambda url, auth: ApiClient(url, auth, transport=httpx2.MockTransport(handler)),
     )
 
 
@@ -141,29 +150,27 @@ def test_server_502_exits_1_with_a_status_line(proxy_down, args, line):
     assert result.output.strip() == line
 
 
-@respx.mock
-def test_traces_check_prints_the_size_limit_on_413(tmp_path, monkeypatch):
+def test_traces_check_prints_the_size_limit_on_413(httpx2_mock, tmp_path, monkeypatch):
     monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
     monkeypatch.setenv("EVALKIT_SERVER_URL", "http://srv")
     monkeypatch.setenv("EVALKIT_TOKEN", "tok")
     detail = "session big of agent sdk holds 900.0 MiB of span attributes, over this server's "
-    respx.get("http://srv/api/auth/me").mock(
-        return_value=httpx.Response(200, json={"username": "admin"})
+    httpx2_mock.get("http://srv/api/auth/me").mock(
+        return_value=MockResponse(200, json={"username": "admin"})
     )
-    respx.get("http://srv/api/agents/sdk@canonical/sessions/big/trajectory").mock(
-        return_value=httpx.Response(413, json={"detail": detail})
+    httpx2_mock.get("http://srv/api/agents/sdk@canonical/sessions/big/trajectory").mock(
+        return_value=MockResponse(413, json={"detail": detail})
     )
     result = CliRunner().invoke(cli_app, ["traces", "check", "sdk@canonical", "big"])
     assert result.exit_code == 1
     assert "413" in result.output and "900.0 MiB" in result.output
 
 
-@respx.mock
-async def test_dry_run_session_summary_shows_the_size_limit_on_413():
-    respx.get("http://srv/s").mock(
-        return_value=httpx.Response(413, json={"detail": "holds 900.0 MiB, over the limit"})
+async def test_dry_run_session_summary_shows_the_size_limit_on_413(httpx2_mock):
+    httpx2_mock.get("http://srv/s").mock(
+        return_value=MockResponse(413, json={"detail": "holds 900.0 MiB, over the limit"})
     )
-    api = AsyncApi("http://srv", "tok")
+    api = AsyncApi("http://srv", static_auth("tok"))
     assert (
         await _session_summary(api, "/s", "big") == "  session big: holds 900.0 MiB, over the limit"
     )
@@ -225,36 +232,36 @@ def import_view(status: str, reached: str = "2026-10-03T00:00:00Z", **extra) -> 
 
 
 @pytest.fixture
-def srv(tmp_path, monkeypatch):
+def srv(tmp_path, monkeypatch, httpx2_mock):
     monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
     monkeypatch.setenv("EVALKIT_SERVER_URL", "http://srv")
     monkeypatch.setenv("EVALKIT_TOKEN", "tok")
     monkeypatch.setattr("evalkit.cli.traces_commands.time.sleep", lambda _: None)
-    with respx.mock(assert_all_called=False) as mock:
-        mock.get("http://srv/api/auth/me").mock(
-            return_value=httpx.Response(200, json={"username": "admin"})
-        )
-        mock.get("http://srv/api/health").mock(return_value=httpx.Response(200, json={"ok": True}))
-        yield mock
+    httpx2_mock.get("http://srv/api/auth/me").mock(
+        return_value=MockResponse(200, json={"username": "admin"})
+    )
+    httpx2_mock.get("http://srv/api/health").mock(return_value=MockResponse(200, json={"ok": True}))
+    return httpx2_mock
 
 
 IMPORTS = "http://srv/api/agents/sdk@canonical/imports"
 
 
+@pytest.mark.httpx2(assert_all_called=False)
 def test_range_import_starts_follows_and_checks_the_sample_session(srv):
-    started = srv.post(IMPORTS).mock(return_value=httpx.Response(202, json=import_view("running")))
+    started = srv.post(IMPORTS).mock(return_value=MockResponse(202, json=import_view("running")))
     srv.get(f"{IMPORTS}/12").mock(
         side_effect=[
-            httpx.Response(200, json=import_view("running")),
-            httpx.Response(200, json=import_view("running")),
-            httpx.Response(
+            MockResponse(200, json=import_view("running")),
+            MockResponse(200, json=import_view("running")),
+            MockResponse(
                 200, json=import_view("done", "2026-10-04T12:00:00Z", sample_session="s9")
             ),
         ]
     )
-    srv.get("http://srv/api/meta").mock(return_value=httpx.Response(200, json={}))
+    srv.get("http://srv/api/meta").mock(return_value=MockResponse(200, json={}))
     srv.get("http://srv/api/agents/sdk@canonical/sessions/s9/trajectory").mock(
-        return_value=httpx.Response(200, json=SESSION)
+        return_value=MockResponse(200, json=SESSION)
     )
     args = ["traces", "import", "sdk@canonical", "--source", "phx", "--project", "research-agent"]
     result = CliRunner().invoke(cli_app, [*args, "--since", "2026-10-01", "--until", "2026-10-05"])
@@ -274,9 +281,10 @@ def test_range_import_starts_follows_and_checks_the_sample_session(srv):
     assert lines[4].startswith("  ✓ session")
 
 
+@pytest.mark.httpx2(assert_all_called=False)
 def test_a_failed_import_prints_how_to_continue(srv):
     srv.get(f"{IMPORTS}/12").mock(
-        return_value=httpx.Response(200, json=import_view("failed", error="HTTPStatusError: 500"))
+        return_value=MockResponse(200, json=import_view("failed", error="HTTPStatusError: 500"))
     )
     result = CliRunner().invoke(cli_app, ["traces", "imports", "sdk@canonical", "12"])
     assert result.exit_code == 1
@@ -284,16 +292,17 @@ def test_a_failed_import_prints_how_to_continue(srv):
     assert "evalkit traces imports sdk@canonical 12 --continue" in result.output
 
 
+@pytest.mark.httpx2(assert_all_called=False)
 def test_imports_lists_stops_and_continues(srv):
-    srv.get(IMPORTS).mock(return_value=httpx.Response(200, json=[import_view("done")]))
+    srv.get(IMPORTS).mock(return_value=MockResponse(200, json=[import_view("done")]))
     stop = srv.post(f"{IMPORTS}/12/stop").mock(
-        return_value=httpx.Response(200, json=import_view("stopping"))
+        return_value=MockResponse(200, json=import_view("stopping"))
     )
     resume = srv.post(f"{IMPORTS}/12/continue").mock(
-        return_value=httpx.Response(200, json=import_view("running"))
+        return_value=MockResponse(200, json=import_view("running"))
     )
-    srv.get(f"{IMPORTS}/12").mock(return_value=httpx.Response(200, json=import_view("done")))
-    srv.get("http://srv/api/meta").mock(return_value=httpx.Response(200, json={}))
+    srv.get(f"{IMPORTS}/12").mock(return_value=MockResponse(200, json=import_view("done")))
+    srv.get("http://srv/api/meta").mock(return_value=MockResponse(200, json={}))
     listed = CliRunner().invoke(cli_app, ["traces", "imports", "sdk@canonical"])
     assert listed.exit_code == 0 and "phx/research-agent  by admin" in listed.output
     stopped = CliRunner().invoke(cli_app, ["traces", "imports", "sdk@canonical", "12", "--stop"])
@@ -309,7 +318,84 @@ def test_imports_lists_stops_and_continues(srv):
     "extra",
     [["abc", "--since", "2026-10-01"], [], ["abc", "--until", "2026-10-05"]],
 )
+@pytest.mark.httpx2(assert_all_called=False)
 def test_import_needs_exactly_one_of_a_session_or_since(srv, extra):
     args = ["traces", "import", "sdk@canonical", "--source", "phx", "--project", "p", *extra]
     result = CliRunner().invoke(cli_app, args, env={"COLUMNS": "200"})
     assert result.exit_code == 2
+
+
+def test_render_check_warns_on_output_messages_with_unknown_roles():
+    esf = [
+        {**span, "output_messages": [{"role": "assistant", "text": "x"}, {"role": "robot"}]}
+        if span["kind"] == "llm"
+        else span
+        for span in SESSION["esf"]
+    ]
+    lines, _ = render_check({**SESSION, "esf": esf})
+    llm = next(line for line in lines if " llm " in line)
+    assert llm.startswith("  ! llm")
+    assert "output messages with unknown roles are dropped (robot)" in llm
+
+
+def test_render_check_warns_on_tool_spans_but_no_tool_calls():
+    trajectory = {**SESSION["trajectory"], "steps": [{"step_id": 1, "source": "agent"}]}
+    lines, _ = render_check({**SESSION, "trajectory": trajectory})
+    assert lines[4] == (
+        "  ! tools          1 spans, 0 matched to calls by id, but the trajectory has 0 tool "
+        "calls (do the llm output messages carry them?)"
+    )
+
+
+def test_render_check_skips_excluded_spans():
+    excluded = {**SESSION["esf"][1], "span_id": "l9", "output_messages": None, "excluded": True}
+    lines, _ = render_check({**SESSION, "esf": [*SESSION["esf"], excluded]})
+    assert lines[3] == "  ✓ llm            1 spans, model m, tokens in=10 out=2 cached=4"
+
+
+def test_render_check_names_the_top_span_when_the_root_is_outside_the_session():
+    lines, _ = render_check({**SESSION, "esf": SESSION["esf"][1:]})
+    top = SESSION["esf"][1]
+    assert lines[1] == (
+        "  ! root           the trace root is outside this session; "
+        f'the top span is "{top["name"]}" '
+        f"under parent {top['parent_id']} (often an HTTP server's request span); its spans join "
+        "the session of their outermost ancestor that carries one"
+    )
+
+
+def test_render_check_says_an_unsettled_root_may_not_have_arrived():
+    lines, _ = render_check({**SESSION, "settled": False, "esf": SESSION["esf"][1:]})
+    assert lines[1].startswith(
+        "  ! root           the trace root is outside this session or not received yet; "
+    )
+
+
+def test_render_check_warns_when_subagents_hold_all_the_work():
+    sub = {"schema_version": "ATIF-v1.8", "steps": [{"source": "agent", "timestamp": "t"}]}
+    trajectory = {"schema_version": "ATIF-v1.8", "steps": [], "subagent_trajectories": [sub]}
+    lines, _ = render_check({**SESSION, "trajectory": trajectory})
+    assert lines[-1].startswith("  ! subagents      the main agent has no llm calls")
+
+
+def test_render_check_warns_on_more_llm_spans_than_llm_steps():
+    second = {**SESSION["esf"][1], "span_id": "l2"}
+    steps = [{"step_id": 1, "source": "agent", "timestamp": "2026-10-09T00:00:01Z"}]
+    trajectory = {**SESSION["trajectory"], "steps": steps}
+    lines, _ = render_check({**SESSION, "esf": [*SESSION["esf"], second], "trajectory": trajectory})
+    assert "  ! steps          2 llm spans but 1 llm steps" in lines[-1]
+
+
+def test_render_check_counts_llm_steps_without_a_model_name():
+    steps = [{"step_id": 1, "source": "agent", "timestamp": "2026-10-09T00:00:01Z"}]
+    lines, _ = render_check({**SESSION, "trajectory": {**SESSION["trajectory"], "steps": steps}})
+    assert not any(" steps " in line for line in lines)
+
+
+def test_render_check_warns_when_the_answer_span_is_missing():
+    trajectory = {**SESSION["trajectory"], "extra": {"answer_span_missing": "invoke_agent X"}}
+    lines, _ = render_check({**SESSION, "trajectory": trajectory})
+    assert lines[7] == (
+        '  ! answer         no span named "invoke_agent X", which the mapping\'s answer rule '
+        "names; the trajectory has no answer"
+    )

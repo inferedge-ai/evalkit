@@ -15,6 +15,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    and_,
     case,
     func,
     text,
@@ -32,6 +33,7 @@ from evalkit.contracts.enums import (
     ExperimentStatus,
     MappingStatus,
     RunStatus,
+    ScoredOn,
     SyncSource,
     TokenKind,
     TraceImportStatus,
@@ -67,21 +69,60 @@ class AuditMixin:
     )
 
 
+class TenantSettings(AuditMixin, Base):
+    __tablename__ = "tenant_settings"
+
+    tenant_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    default_judge: Mapped[dict | None] = mapped_column(JSONB, default=None)
+
+
 class User(AuditMixin, Base):
     __tablename__ = "users"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "username", name="uq_users_tenant_username"),
+        Index(
+            "uq_users_tenant_subject",
+            "tenant_id",
+            "issuer",
+            "subject",
+            unique=True,
+            postgresql_where=text("subject IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    username: Mapped[str] = mapped_column(String(150), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(200))
+    tenant_id: Mapped[str] = mapped_column(String(64))
+    username: Mapped[str] = mapped_column(String(150))
+    password_hash: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    issuer: Mapped[str | None] = mapped_column(Text, default=None)
+    subject: Mapped[str | None] = mapped_column(Text, default=None)
+    email: Mapped[str | None] = mapped_column(Text, default=None)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    @hybrid_property
+    def kind(self) -> str:
+        machine = self.subject is not None and self.email is None and self.password_hash is None
+        return "machine" if machine else "human"
+
+    @kind.inplace.expression
+    @classmethod
+    def _kind_expression(cls) -> ColumnElement[str]:
+        return case(
+            (
+                and_(cls.subject.is_not(None), cls.email.is_(None), cls.password_hash.is_(None)),
+                "machine",
+            ),
+            else_="human",
+        )
 
 
 class Workspace(AuditMixin, Base):
     __tablename__ = "workspaces"
-    __table_args__ = (UniqueConstraint("name", name="uq_workspaces_name"),)
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_workspaces_tenant_name"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(150))
     owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
@@ -176,33 +217,27 @@ class RemoteEvaluator(AuditMixin, Base):
 class LlmProvider(AuditMixin, Base):
     __tablename__ = "llm_providers"
     __table_args__ = (
-        UniqueConstraint("name", name="uq_llm_providers_name"),
-        UniqueConstraint("base_url", name="uq_llm_providers_base_url"),
+        UniqueConstraint("tenant_id", "name", name="uq_llm_providers_tenant_name"),
+        UniqueConstraint("tenant_id", "base_url", name="uq_llm_providers_tenant_base_url"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(150))
     base_url: Mapped[str] = mapped_column(String(500))
     api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
 
-class ServerSettings(AuditMixin, Base):
-    __tablename__ = "server_settings"
-    __table_args__ = (CheckConstraint("id = 1", name="ck_server_settings_single_row"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    default_judge: Mapped[dict | None] = mapped_column(JSONB, default=None)
-
-
 class TraceSource(AuditMixin, Base):
     __tablename__ = "trace_sources"
     __table_args__ = (
-        UniqueConstraint("name", name="uq_trace_sources_name"),
+        UniqueConstraint("tenant_id", "name", name="uq_trace_sources_tenant_name"),
         check_in("provider", TraceProvider, "ck_trace_sources_provider"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(150))
     provider: Mapped[str] = mapped_column(String(16))
     config: Mapped[dict] = mapped_column(JSONB)
@@ -266,6 +301,10 @@ class Span(Base):
     attributes: Mapped[dict] = mapped_column(JSONB)
     events: Mapped[list] = mapped_column(JSONB)
     resource: Mapped[dict] = mapped_column(JSONB)
+    scope: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    dropped_attributes_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=func.now(), server_default=func.now(), nullable=False
     )
@@ -306,9 +345,10 @@ class SpanMapping(AuditMixin, Base):
 
 class Case(AuditMixin, Base):
     __tablename__ = "cases"
-    __table_args__ = (UniqueConstraint("case_id", name="uq_cases_case_id"),)
+    __table_args__ = (UniqueConstraint("tenant_id", "case_id", name="uq_cases_tenant_case_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    tenant_id: Mapped[str] = mapped_column(String(64))
     case_id: Mapped[str] = mapped_column(String(255))
 
 
@@ -327,6 +367,7 @@ class CaseVersion(AuditMixin, Base):
 class FixtureBlob(AuditMixin, Base):
     __tablename__ = "fixture_blobs"
 
+    tenant_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     sha256: Mapped[str] = mapped_column(String(64), primary_key=True)
     size: Mapped[int] = mapped_column(BigInteger)
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
@@ -338,12 +379,18 @@ class CaseVersionFile(AuditMixin, Base):
         ForeignKeyConstraint(
             ["case_ref", "content_hash"], ["case_versions.case_ref", "case_versions.content_hash"]
         ),
+        ForeignKeyConstraint(
+            ["tenant_id", "sha256"],
+            ["fixture_blobs.tenant_id", "fixture_blobs.sha256"],
+            name="fk_case_version_files_blob",
+        ),
     )
 
     case_ref: Mapped[int] = mapped_column(primary_key=True)
     content_hash: Mapped[str] = mapped_column(String(16), primary_key=True)
     key: Mapped[str] = mapped_column(String(255), primary_key=True)
-    sha256: Mapped[str] = mapped_column(ForeignKey("fixture_blobs.sha256"))
+    tenant_id: Mapped[str] = mapped_column(String(64))
+    sha256: Mapped[str] = mapped_column(String(64))
     context: Mapped[str] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer)
 
@@ -548,6 +595,7 @@ class Evaluation(AuditMixin, Base):
         UniqueConstraint("experiment_run_id", "name", name="uq_evaluations_run_name"),
         check_in("kind", EvaluatorKind, "ck_evaluations_kind"),
         check_in("source", EvaluationSource, "ck_evaluations_source"),
+        check_in("scored_on", ScoredOn, "ck_evaluations_scored_on"),
         CheckConstraint(
             f"bucket IS NULL OR bucket IN ({', '.join(repr(b.value) for b in Bucket)})",
             name="ck_evaluations_bucket",
@@ -560,8 +608,19 @@ class Evaluation(AuditMixin, Base):
     name: Mapped[str] = mapped_column(String(150))
     kind: Mapped[str] = mapped_column(String(8))
     source: Mapped[str] = mapped_column(String(8))
+    scored_on: Mapped[str] = mapped_column(String(8))
     bucket: Mapped[str | None] = mapped_column(String(32), default=None)
     value: Mapped[float | None] = mapped_column(Float, default=None)
     label: Mapped[str | None] = mapped_column(String(150), default=None)
     explanation: Mapped[str | None] = mapped_column(Text, default=None)
     error: Mapped[str | None] = mapped_column(Text, default=None)
+
+
+ROOT_MODELS: tuple[type[Base], ...] = (
+    User,
+    Workspace,
+    Case,
+    LlmProvider,
+    TraceSource,
+    FixtureBlob,
+)

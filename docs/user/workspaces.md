@@ -30,6 +30,79 @@ with one entry per shared workspace.
 | ✗   | anyone, server or UI, `--agent myagent@alice`                   | any                          | myagent@alice                     | refused        |                    |                                       |               | the server cannot reach a laptop                    |
 | ✗   | bob, `--agent myagent@alice`                                    | any                          | myagent@alice                     | refused        |                    |                                       |               | only the owner runs a personal agent                |
 
+## Example setup: personal → dev → prod
+
+A common setup with two shared workspaces, one per deployed environment of
+your agent:
+
+- **Personal workspaces:** each developer writes and runs cases in their own
+  workspace, on their laptop.
+- **`@dev`:** a PR adds or changes cases in the repo. On merge, CI syncs them
+  into `@dev`. Reviewers of `@dev` approve them there.
+- **`@prod`:** the promotion target of `@dev`. Approving a case in `@dev`
+  copies that version into `@prod`, already approved. Nothing else writes
+  cases to `@prod`, so it always holds the released set.
+
+```text
+@alice ──PR merged, CI syncs──▶ @dev (Unreviewed) ──reviewer approves──▶ @dev (Approved) ──promotion──▶ @prod (Approved)
+```
+
+### Set it up
+
+An admin runs these once:
+
+```bash
+evalkit users add alice                                 # prompts for a password; once per user
+evalkit users add bob
+evalkit workspaces create dev
+evalkit workspaces create prod
+evalkit workspaces promote-to dev prod                  # approvals in @dev land in @prod
+evalkit workspaces members add dev alice --role writer  # may sync and run in @dev
+evalkit workspaces members add dev bob --role reviewer  # may approve cases in @dev
+evalkit datasets create finance@prod                    # once per dataset, before its first approval
+```
+
+Then:
+
+1. Set up CI to lint cases on every PR and sync them into `@dev` on merge.
+   See [CI sync](ci-sync.md).
+2. If the server drives your deployed agent, register it once per
+   workspace, pointing each at that environment's deployment:
+   `evalkit agents create ouragent --workspace dev --harness-url …` and the
+   same with `--workspace prod`.
+
+### Day to day
+
+1. **Write and try a case.** Alice adds `finance/net-debt.yaml` and runs it
+   against her own agent: `evalkit run finance --agent myagent`. This syncs
+   the directory into `finance@alice` and runs it there.
+2. **Open a PR.** CI runs `evalkit lint` on the cases and fails on errors.
+3. **Merge.** CI runs `evalkit sync` into `finance@dev`. The new case is
+   Unreviewed.
+4. **Review.** Alice asks for a review:
+   `evalkit review request finance@dev --case-id net-debt --reviewer bob`.
+   Bob approves it: `evalkit review approve finance@dev net-debt`.
+   He can approve several at once (`evalkit review approve finance@dev
+   net-debt fx-rate`) or every case waiting on him
+   (`evalkit review approve finance@dev --all-waiting`). To ask a question
+   first: `evalkit review comment finance@dev net-debt --comment "which
+   fiscal year?"`; resolve it later by its id: `evalkit review resolve 12`.
+   `evalkit review queue finance@dev` lists what is waiting in one dataset.
+5. **Promotion.** The approval adds that version of the case to
+   `finance@prod`, approved.
+6. **Run.** `finance@dev` holds every merged case, for regression runs
+   after a merge. `finance@prod` holds the approved ones, for the release
+   gate (rows 5 and 7 in the table above).
+
+Changing a case starts the loop again. The new version is Unreviewed in
+`@dev`, and `@prod` keeps the old approved version until the new one is
+approved.
+
+A change to a case that is waiting for review, or was sent back with
+changes requested, goes back to the same reviewer on sync: you don't need
+to run `review request` again. If you do, cases already waiting on that
+reviewer are left as they are.
+
 ## Several branches
 
 - `evalkit run` syncs the dataset directory first. The dataset in your

@@ -3,13 +3,14 @@ import json
 import pytest
 from cryptography.fernet import Fernet
 
+from evalkit.api.access import build_tenant_stores
 from evalkit.client.api import AsyncApi
+from evalkit.client.oidc import static_auth
 from evalkit.client.sessions import HttpSessionReader
 from evalkit.contracts.enums import TrajectorySource
 from evalkit.core.traces.poll import poll_trajectory
 from evalkit.core.traces.sessions import SessionTooLarge
 from evalkit.db.crypto import SecretBox
-from evalkit.db.trace_sources import TraceSourceStore
 from tests.api.native_api import api_env, login_as
 from tests.api.test_otel import PROTO, otlp_payload
 from tests.fake_agents import reference_mapping
@@ -50,7 +51,9 @@ async def test_mapping_lifecycle_and_previews(api):
     bad = await api.put("/api/agents/sdk@admin/mappings/draft", json=bad_doc)
     assert bad.status_code == 400 and "attribute" in bad.json()["detail"]
     draft = (await api.put("/api/agents/sdk@admin/mappings/draft", json=DOC)).json()
-    assert draft["version"] == 2 and draft["status"] == "draft"
+    assert draft["version"] == 2 and draft["status"] == "draft" and not draft["unchanged"]
+    same = (await api.put("/api/agents/sdk@admin/mappings/draft", json=DOC)).json()
+    assert same["version"] == 2 and same["unchanged"]
     preview = (
         await api.get(
             "/api/agents/sdk@admin/sessions/sess-1/trajectory",
@@ -62,25 +65,21 @@ async def test_mapping_lifecycle_and_previews(api):
     before = (await api.get("/api/agents/sdk@admin/sessions/sess-1/trajectory")).json()
     assert before["mapping_version"] == 1
     activated = (await api.post("/api/agents/sdk@admin/mappings/2/activate")).json()
-    assert activated["status"] == "active"
+    assert activated["status"] == "active" and activated["replaced_version"] == 1
     after = (await api.get("/api/agents/sdk@admin/sessions/sess-1/trajectory")).json()
     assert after["mapping_version"] == 2
-    pushed = (
-        await api.put("/api/agents/sdk@admin/mappings/draft", params={"activate": "true"}, json=DOC)
-    ).json()
-    assert pushed["version"] == 3 and pushed["status"] == "active"
     assert (await api.post("/api/agents/sdk@admin/mappings/9/activate")).status_code == 404
     assert (await api.get("/api/agents/nope@admin/sessions/x/trajectory")).status_code == 404
 
 
 def with_encryption(api) -> None:
     box = SecretBox(Fernet.generate_key().decode())
-    api.app.state.trace_sources = TraceSourceStore(api.app.state.session_factory, box)
+    api.app.state.box = box
 
 
 async def test_trace_sources_are_admin_rows_and_hide_keys(api):
     body = {"name": "phx", "provider": "phoenix", "url": "u", "api_key": "secret"}
-    api.app.state.trace_sources = TraceSourceStore(api.app.state.session_factory, None)
+    api.app.state.box = None
     refused = await api.post("/api/trace-sources", json=body)
     assert refused.status_code == 400 and "encryption_key" in refused.json()["detail"]
     with_encryption(api)
@@ -96,7 +95,8 @@ async def test_trace_sources_are_admin_rows_and_hide_keys(api):
 
 async def test_trajectory_response_is_the_session_model_as_json(api):
     api.app.state.cfg.otel.settle_seconds = 3600
-    reader = api.app.state.sessions
+    stores = build_tenant_stores(api.app.state, "default")
+    reader = stores.sessions
     for esf in (False, True):
         expected = await reader.read("sdk@admin", "sess-1", include_esf=esf)
         resp = await api.get(
@@ -107,7 +107,7 @@ async def test_trajectory_response_is_the_session_model_as_json(api):
         assert resp.json() == expected.model_dump(mode="json")
     spans = (await api.get("/api/agents/sdk@admin/sessions/sess-1/spans")).json()
     record = await reader.agent("sdk@admin")
-    stored = await api.app.state.spans.session_spans(record.id, "sess-1")
+    stored = await stores.spans.session_spans(record.id, "sess-1")
     assert spans == [s.model_dump(mode="json") for s in stored]
     assert (await api.get("/api/agents/nope@admin/sessions/x/spans")).status_code == 404
 
@@ -122,7 +122,7 @@ async def test_session_over_the_size_cap_is_refused_with_413(api):
     spans = await api.get("/api/agents/sdk@admin/sessions/sess-1/spans")
     assert spans.status_code == 200 and len(spans.json()) == 2
     token = api.headers["Authorization"].removeprefix("Bearer ")
-    client = AsyncApi("http://test", token, transport=api._transport)
+    client = AsyncApi("http://test", static_auth(token), transport=api._transport)
     sessions = HttpSessionReader(client)
     with pytest.raises(SessionTooLarge, match="otel.max_session_bytes"):
         await sessions.trajectory("sdk@admin", "sess-1")

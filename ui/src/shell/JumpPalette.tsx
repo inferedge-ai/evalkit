@@ -7,7 +7,7 @@ import {
   SEARCH_KINDS,
   levelOne,
   rankItems,
-  splitItems,
+  tagItems,
   workspaceItems,
 } from "../lib/palette";
 import type { LevelOneEntry, PaletteItem, SearchKind } from "../lib/palette";
@@ -24,7 +24,7 @@ import { useSwitchWorkspace, useWorkspace } from "./workspace";
 
 interface Loaded {
   dataset: PaletteItem[];
-  split: PaletteItem[];
+  tag: PaletteItem[];
   experiment: PaletteItem[];
   case: PaletteItem[];
 }
@@ -55,8 +55,8 @@ async function loadLocal(workspace: string): Promise<Loaded> {
       route: `/datasets/${enc(ds.ref)}`,
       terms: [ds.ref],
     })),
-    split: perDataset
-      .flatMap(({ ds, cases }) => splitItems(ds.ref, cases))
+    tag: perDataset
+      .flatMap(({ ds, cases }) => tagItems(ds.ref, cases))
       .sort(
         (a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key),
       ),
@@ -179,7 +179,7 @@ export function JumpPalette() {
     () => [
       ...spaces,
       ...(local
-        ? [...local.dataset, ...local.split, ...local.experiment, ...local.case]
+        ? [...local.dataset, ...local.tag, ...local.experiment, ...local.case]
         : []),
     ],
     [spaces, local],

@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 
 from evalkit.contracts.enums import TrajectorySource
 from evalkit.core.harness import HarnessClient
@@ -19,7 +19,7 @@ async def run_check(tmp_path, fake: FakeHarness, blob_store: DictBlobStore | Non
         fake_agent(),
         "client-key",
         blob_store or DictBlobStore(),
-        transport=httpx.ASGITransport(app=fake.app),
+        transport=httpx2.ASGITransport(app=fake.app),
     )
 
 
@@ -141,7 +141,7 @@ async def test_traces_agent_reports_trajectory_from_traces_and_polls_session(tmp
         agent,
         "client-key",
         DictBlobStore(),
-        transport=httpx.ASGITransport(app=fake.app),
+        transport=httpx2.ASGITransport(app=fake.app),
         sessions=Sessions(),
         agent_slug="fake@canonical",
     )

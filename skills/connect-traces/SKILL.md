@@ -24,16 +24,29 @@ Workspace tab in evalkit) come from the Harness API files endpoints, which
 spans do not carry. If the developer wants that tab, the agent needs a
 Harness API with those endpoints (see the evalkit-usage skill).
 
-Every OTel agent has its own mapping, set when the agent is created. Two
-starting points ship in `references/`: `openinference.json` for spans with
-`openinference.span.kind`, and `gen_ai.json` for spans with
-`gen_ai.operation.name`. Copy the one that
-fits and change it if the agent's attributes differ. The mapping also holds
+Every OTel agent has its own mapping, set when the agent is created.
+`references/` ships one per popular framework: `langchain.json`,
+`crewai.json`, `agno.json`, `llamaindex.json`, `google-adk.json`,
+`claude-agent-sdk.json` and `mastra.json`. Pick the agent's framework first;
+[Framework mappings](../evalkit-docs/framework-mappings.md) lists which file
+fits which framework (LangGraph, OpenAI Agents SDK and Pydantic AI use the
+generic files as they are) and the agent-side changes each one still needs.
+(`evalkit-docs/` sits beside the installed skills; in the evalkit
+repository the page is `docs/user/framework-mappings.md`.)
+Otherwise fall back to the two generic files: `openinference.json` for spans
+with `openinference.span.kind`, and `gen_ai.json` for spans with
+`gen_ai.operation.name`. Copy the one that fits and change it if the agent's
+attributes differ. The mapping also holds
 two run-level settings:
 
 - `answer`: where the run's answer comes from. `root` (the usual value), a
   span name, or `<span name>.<output key>`.
-- `exclude_spans`: span names left out of the trajectory.
+- `exclude_spans`: spans left out of the trajectory, by name glob
+  (`"OpenAILike.*"`), attribute (`{"attribute": K, "equals": V}`) or
+  instrumentation scope (`{"scope": "mcp"}`).
+- `rekind_spans`, `main_agent`, `subagent_spans`: change a span's kind, pin the
+  main agent, or keep sibling agents apart. See
+  `references/span-mapping-schema.md`.
 
 A span the agent's mapping cannot read is not an error: it comes out as kind
 `other` with every attribute listed as unmapped, and the trajectory simply
@@ -65,8 +78,8 @@ lacks it. That is what a wrong mapping looks like in the check.
    (its Loop 2).
    To export only eval runs, see "Choosing what a shared worker exports"
    below.
-2. **Create the agent with a mapping.** Copy the starting point from
-   step 1 into the repo and create the agent with it. Add `--harness-url`
+2. **Create the agent with a mapping.** Copy the framework's file (or the
+   generic starting point from step 1) into the repo and create the agent with it. Add `--harness-url`
    when the agent also has a Harness API; leave it out for a code-driven
    agent.
 
@@ -96,7 +109,7 @@ lacks it. That is what a wrong mapping looks like in the check.
    stamps the run's `session.id` and `evalkit.*` attributes),
    `tracing.exporter(agent=...)` the OTLP HTTP exporter inside it, and
    `tracing.headers(agent=...)` its headers. All three read the server URL
-   and token like `register` does, `EVALKIT_OTEL_TOKEN` first.
+   like `register` does and require `EVALKIT_OTEL_TOKEN`.
    `register` only sees spans that pass through the provider's span
    processors. Code that hands spans straight to one processor or exporter
    (a bridge that converts another tool's spans, for example) bypasses it;
@@ -137,25 +150,33 @@ lacks it. That is what a wrong mapping looks like in the check.
    | `session` | span count, trace count, settled or not |
    | `root` | the root span's name and kind; missing root means the session id is not on the root span |
    | `mapping` | the active version, `vN` |
-   | `llm` | spans read as `llm`, the model, token totals; `no llm spans` means the kind rule does not match; `without messages` means those spans carry no messages, usually because message content capture is off |
+   | `llm` | spans read as `llm`, the model, token totals; `no llm spans` means the kind rule does not match; `without messages` means those spans carry no messages, usually because message content capture is off; `attributes dropped by the OTel SDK` means those spans passed the SDK's 128-attribute limit and lost messages or parts of them, so set `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096` in the agent's environment |
    | `tools` | spans read as `tool`, and how many carry a `tool_call_id` that matches a call the LLM spans emitted; a gap means tool spans exist but their call ids are not read, so results only match by time and order; `in no step` names tool spans that started before any LLM span and so are not in the trajectory |
    | `unmapped` | attributes no rule read, apart from the mapping's `known_attributes` |
    | `trajectory` | ATIF steps, tool calls, subagents |
+   | `steps` | shown only when there are more LLM spans than LLM steps; check `exclude_spans` and the kind rule |
+   | `subagents` | shown only when subagents hold every LLM call and the main agent none; usually an outer wrapper span; set `main_agent` or `exclude_spans` |
+   | `answer` | shown only when the mapping's `answer` rule names a span the session does not have; fix the name (a copied placeholder such as `<agent name>`, or a typo) |
 
-   Then check the agent's top-level span is an AGENT span
-   (`openinference.span.kind=AGENT` or `gen_ai.operation.name=invoke_agent`).
-   evalkit builds the main trajectory from it, and every AGENT span inside it
-   becomes a subagent named by its `agent.name` (`gen_ai.agent.name`). When
-   the root span is not an AGENT span, evalkit takes the earliest AGENT span
-   that is not inside another one as the main agent. If that span is a tool
-   call that starts a subagent partway through the run, the subagent's steps
-   end up in the main trajectory and its call has no result. Fix that in the
-   agent's instrumentation: mark its top-level span as an AGENT span.
+   Each line of the check output starts with `✓` (fine), `!` (a warning) or
+   `✗` (a failure). Read every `!` line, even when the check exits 0: each
+   one names a trajectory that is likely wrong, such as tool spans with no
+   tool calls in the trajectory, or subagents holding all the LLM calls while
+   the main agent has none.
+
+   An AGENT span (`openinference.span.kind=AGENT` or
+   `gen_ai.operation.name=invoke_agent`) becomes a subagent named by its
+   `agent.name` (`gen_ai.agent.name`) only when it sits under a tool span or
+   carries the `tool_call_id` that started it. Every other AGENT span (an
+   outer wrapper, graph nodes tagged AGENT, one root span per chat turn) is
+   merged into the main agent. When that is wrong for the agent, set
+   `main_agent` or `subagent_spans` in the mapping; drop duplicate spans with
+   `exclude_spans` and fix a wrong kind with `rekind_spans`.
 
    If the check fails with `413` and names `otel.max_session_bytes`, the
    session holds more span attributes than the server will build into a
    trajectory (384 MiB by default). The limit counts what a build loads: the
-   input messages of each agent's first LLM call, and the output, tool calls
+   input messages of the first LLM call under each root span and in each subagent, and the output, tool calls
    and tokens of every LLM call, not the input of later calls. Check a shorter session, and tell the
    developer: the deployment's admin can raise the limit together with the
    server's memory.
@@ -173,10 +194,12 @@ lacks it. That is what a wrong mapping looks like in the check.
    ```
 
    Repeat until the unmapped list holds nothing that matters and the counts
-   are right. A push replaces the previous draft and gets the next version.
+   are right. A push replaces the previous draft and gets the next version;
+   pushing the same document again keeps the draft's version.
 7. **Activation needs the developer's approval.** If the developer has
    approved the document in this conversation, run
-   `evalkit traces mapping push <agent> eval/span-mapping.json --activate`.
+   `evalkit traces mapping activate <agent> <version>` with the version
+   `mapping push` printed for the draft you checked.
    Otherwise tell them to review it on the agent's Mappings tab (Agents →
    the agent → Mappings in the web UI) and activate it there. Green check
    output is not approval; a mapping applies to every future run of the agent.

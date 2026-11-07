@@ -4,8 +4,11 @@ import pytest
 from sqlalchemy import update
 
 from evalkit.contracts.enums import TraceImportStatus, TraceProvider
+from evalkit.core.agents import UnknownAgent
 from evalkit.db import models
 from evalkit.db.agents import AgentStore
+from evalkit.db.models import TenantSettings
+from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.trace_imports import (
     ImportNotActive,
     ImportRunning,
@@ -13,9 +16,9 @@ from evalkit.db.trace_imports import (
     UnknownTraceImport,
     reap_imports,
 )
-from evalkit.db.trace_sources import TraceSourceStore
+from evalkit.db.trace_sources import TraceSourceStore, UnknownTraceSource
 from evalkit.db.users import UserStore
-from tests.identity import seed_identity
+from tests.identity import seed_identity, workspace_ref
 
 SINCE = datetime(2026, 10, 1, tzinfo=UTC)
 UNTIL = datetime(2026, 10, 8, tzinfo=UTC)
@@ -24,12 +27,16 @@ UNTIL = datetime(2026, 10, 8, tzinfo=UTC)
 @pytest.fixture
 async def db(session_factory):
     await seed_identity(session_factory, {"admin": "password", "akshat": "password"}, shared=())
-    agent = await AgentStore(session_factory).create("akshat", "research-agent")
-    source = await TraceSourceStore(session_factory, None).create(
+    agent = await AgentStore(session_factory, "default").create(
+        await workspace_ref(session_factory, "akshat"), "research-agent"
+    )
+    source = await TraceSourceStore(session_factory, "default", None).create(
         "phx", TraceProvider.PHOENIX, "https://phoenix.example.com", None
     )
-    user = next(u for u in await UserStore(session_factory).list() if u.username == "akshat")
-    store = TraceImportStore(session_factory)
+    user = next(
+        u for u in await UserStore(session_factory, "default").list() if u.username == "akshat"
+    )
+    store = TraceImportStore(session_factory, "default")
 
     async def start(holder: str = "pod:a") -> int:
         view = await store.create(
@@ -180,3 +187,37 @@ async def test_renew_extends_the_lease_without_moving_progress(db):
     assert (view.resume_from, view.traces, view.spans) == (SINCE, 0, 0)
     await store.stop(agent_id, import_id)
     assert await store.renew(import_id, "pod:a") is TraceImportStatus.STOPPING
+
+
+async def _second_tenant(raw_session_factory) -> None:
+    async with tenant_session(raw_session_factory, ALL_TENANTS) as s:
+        s.add(TenantSettings(tenant_id="tenant-2"))
+        await s.commit()
+
+
+async def test_create_refuses_an_agent_from_another_tenant(db, raw_session_factory):
+    _, agent_id, _, _ = db
+    await _second_tenant(raw_session_factory)
+    root = await UserStore(raw_session_factory, "tenant-2").create(
+        "root", password="password", is_admin=True
+    )
+    source = await TraceSourceStore(raw_session_factory, "tenant-2", None).create(
+        "phx", TraceProvider.PHOENIX, "https://phoenix.other", None
+    )
+    with pytest.raises(UnknownAgent):
+        await TraceImportStore(raw_session_factory, "tenant-2").create(
+            agent_id, source.id, "proj", SINCE, UNTIL, root.id, "pod:x"
+        )
+
+
+async def test_create_refuses_a_trace_source_from_another_tenant(db, raw_session_factory):
+    store, agent_id, _, _ = db
+    await _second_tenant(raw_session_factory)
+    foreign = await TraceSourceStore(raw_session_factory, "tenant-2", None).create(
+        "phx2", TraceProvider.PHOENIX, "https://phoenix.other", None
+    )
+    user = next(
+        u for u in await UserStore(raw_session_factory, "default").list() if u.username == "akshat"
+    )
+    with pytest.raises(UnknownTraceSource):
+        await store.create(agent_id, foreign.id, "proj", SINCE, UNTIL, user.id, "pod:x")

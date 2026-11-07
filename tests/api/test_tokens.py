@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 from sqlalchemy import select
 
@@ -18,8 +18,8 @@ async def api(tmp_path, stub_judges, session_factory):
         yield client
 
 
-def bearer(client: httpx.AsyncClient, token: str) -> httpx.AsyncClient:
-    return httpx.AsyncClient(
+def bearer(client: httpx2.AsyncClient, token: str) -> httpx2.AsyncClient:
+    return httpx2.AsyncClient(
         transport=client._transport,
         base_url="http://test",
         headers={"Authorization": f"Bearer {token}"},
@@ -54,7 +54,7 @@ async def test_minting_needs_write_on_the_agents_workspace(api, session_factory)
     unknown = await api.post("/api/tokens", json={"agent": "ghost"})
     assert unknown.status_code == 404
     assert "create it with evalkit agents create" in unknown.json()["detail"]
-    await WorkspaceStore(session_factory).add_member(
+    await WorkspaceStore(session_factory, "default").add_member(
         "canonical", "alice", WorkspaceRole.WRITER, granted_by=1
     )
     assert (await alice.post("/api/tokens", json={"agent": "fake@canonical"})).status_code == 200

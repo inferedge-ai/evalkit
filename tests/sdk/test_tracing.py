@@ -3,12 +3,14 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import pytest
 from opentelemetry import trace
 from opentelemetry.context import Context
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+from evalkit.credentials import MissingCredential
 from evalkit.sdk import tracing
 
 
@@ -82,8 +84,7 @@ def test_collector_url_and_token_resolution(monkeypatch):
 def test_register_adds_an_exporter_to_the_global_provider(monkeypatch):
     with collector() as (url, received):
         monkeypatch.setenv("EVALKIT_SERVER_URL", url)
-        monkeypatch.setenv("EVALKIT_TOKEN", "user-token")
-        monkeypatch.delenv("EVALKIT_OTEL_TOKEN", raising=False)
+        monkeypatch.setenv("EVALKIT_OTEL_TOKEN", "agent-token")
         provider = TracerProvider()
         trace.set_tracer_provider(provider)
         tracing.register(agent="sdk")
@@ -92,12 +93,11 @@ def test_register_adds_an_exporter_to_the_global_provider(monkeypatch):
         evalkit.batch.span_exporter.export(one_span())
     [request] = received
     assert request["path"] == "/api/otel/v1/traces"
-    assert request["authorization"] == "Bearer user-token"
+    assert request["authorization"] == "Bearer agent-token"
     assert request["x-evalkit-agent"] == "sdk"
 
 
-def test_exporter_prefers_the_agent_token_from_the_environment(monkeypatch):
-    monkeypatch.setenv("EVALKIT_TOKEN", "user-token")
+def test_exporter_uses_the_agent_token(monkeypatch):
     monkeypatch.setenv("EVALKIT_OTEL_TOKEN", "agent-token")
     with collector() as (url, received):
         monkeypatch.setenv("EVALKIT_SERVER_URL", url)
@@ -110,6 +110,16 @@ def test_exporter_prefers_the_agent_token_from_the_environment(monkeypatch):
         "Authorization": "Bearer agent-token",
         "X-Evalkit-Agent": "worker",
     }
+
+
+def test_export_without_an_agent_token_is_refused(monkeypatch):
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "http://env")
+    monkeypatch.setenv("EVALKIT_TOKEN", "user-token")
+    monkeypatch.delenv("EVALKIT_OTEL_TOKEN", raising=False)
+    with pytest.raises(MissingCredential, match="EVALKIT_OTEL_TOKEN"):
+        tracing.resolve_destination()
+    with pytest.raises(MissingCredential):
+        tracing.register(agent="sdk")
 
 
 def test_processor_fans_in_spans_handed_straight_to_it(monkeypatch):

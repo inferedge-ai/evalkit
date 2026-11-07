@@ -1,12 +1,55 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   NotFoundError,
+  apiFetch,
+  bearer,
   detailText,
   isMissing,
+  logout,
   noteServerDate,
+  register,
   serverNow,
+  setToken,
 } from "./api";
+import { ErrorResponse } from "oidc-client-ts";
+import { setSessionForTest, type OidcSession } from "../auth/oidc";
+
+function fakeSession(
+  user: {
+    access_token: string;
+    id_token?: string;
+    expires_in?: number;
+    refresh_token?: string;
+  } | null,
+  renewed: { access_token: string; expires_in?: number } | null = null,
+): OidcSession & { calls: string[] } {
+  const calls: string[] = [];
+  return {
+    calls,
+    getUser: async () => {
+      calls.push("getUser");
+      return user;
+    },
+    signinSilent: async () => {
+      calls.push("signinSilent");
+      return renewed;
+    },
+    signinRedirect: async () => {
+      calls.push("signinRedirect");
+    },
+    signinCallback: async () => undefined,
+    removeUser: async () => {
+      calls.push("removeUser");
+    },
+  };
+}
+
+afterEach(() => {
+  setToken(null);
+  setSessionForTest(undefined);
+  vi.unstubAllGlobals();
+});
 
 describe("api errors", () => {
   it("formats validation details instead of [object Object]", () => {
@@ -37,5 +80,243 @@ describe("serverNow", () => {
     expect(serverNow() - Date.now()).toBeGreaterThan(58_000);
     noteServerDate(new Date().toUTCString());
     expect(Math.abs(serverNow() - Date.now())).toBeLessThan(1_500);
+  });
+});
+
+describe("bearer", () => {
+  it("prefers the password token", async () => {
+    setToken("evalkit-token");
+    setSessionForTest(fakeSession({ access_token: "idp", expires_in: 3600 }));
+    expect(await bearer()).toBe("evalkit-token");
+  });
+
+  it("hands out the IdP access token when it has more than a minute left", async () => {
+    const s = fakeSession({ access_token: "idp", expires_in: 3600 });
+    setSessionForTest(s);
+    expect(await bearer()).toBe("idp");
+    expect(s.calls).toEqual(["getUser"]);
+  });
+
+  it("refreshes when the access token expires within a minute", async () => {
+    const s = fakeSession(
+      { access_token: "old", expires_in: 30, refresh_token: "r" },
+      { access_token: "new", expires_in: 3600 },
+    );
+    setSessionForTest(s);
+    expect(await bearer()).toBe("new");
+    expect(s.calls).toEqual(["getUser", "getUser", "signinSilent"]);
+  });
+
+  it("is null when the refresh is refused", async () => {
+    setSessionForTest(
+      fakeSession(
+        { access_token: "old", expires_in: 0, refresh_token: "r" },
+        null,
+      ),
+    );
+    expect(await bearer()).toBeNull();
+  });
+
+  it.each([undefined, ""])(
+    "signs out without a silent refresh when the refresh token is %j",
+    async (refresh_token) => {
+      const s = fakeSession(
+        { access_token: "old", expires_in: 10, refresh_token },
+        { access_token: "new", expires_in: 3600 },
+      );
+      setSessionForTest(s);
+      expect(await bearer()).toBeNull();
+      expect(s.calls).toEqual(["getUser", "getUser", "removeUser"]);
+    },
+  );
+
+  it("is null with no session and no token", async () => {
+    setSessionForTest(null);
+    expect(await bearer()).toBeNull();
+  });
+});
+
+describe("apiFetch", () => {
+  it("sends the bearer and clears credentials on 401", async () => {
+    const s = fakeSession({ access_token: "idp", expires_in: 3600 });
+    setSessionForTest(s);
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+      ok: false,
+      status: 401,
+      headers: new Headers(),
+      json: async () => ({ detail: "token expired" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const resp = await apiFetch("/auth/me");
+    expect(resp.status).toBe(401);
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer idp");
+    expect(s.calls).toContain("removeUser");
+  });
+});
+
+describe("register", () => {
+  it("posts the ID token with the access token as bearer", async () => {
+    setSessionForTest(fakeSession({ access_token: "idp", expires_in: 3600 }));
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => ({
+        username: "akshat",
+        is_admin: false,
+        email: "akshat@example.com",
+        kind: "human",
+        created: true,
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const me = await register("id-token");
+    expect(me.username).toBe("akshat");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/auth/oidc/register");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ id_token: "id-token" });
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer idp");
+  });
+});
+
+describe("logout", () => {
+  it("posts to the server for a password session", async () => {
+    setToken("evalkit-token");
+    setSessionForTest(null);
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      headers: new Headers(),
+      json: async () => ({ ok: true }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    await logout();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/auth/logout");
+    expect(await bearer()).toBeNull();
+  });
+
+  it("removes the IdP user for an SSO session without calling the server", async () => {
+    const s = fakeSession({ access_token: "idp", expires_in: 3600 });
+    setSessionForTest(s);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await logout();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(s.calls).toContain("removeUser");
+  });
+});
+
+describe("refresh failures and single flight", () => {
+  const near = { access_token: "old", expires_in: 10, refresh_token: "r" };
+
+  it("shares one signinSilent between parallel callers", async () => {
+    const s = fakeSession(near, { access_token: "new", expires_in: 3600 });
+    setSessionForTest(s);
+    const [a, b] = await Promise.all([bearer(), bearer()]);
+    expect([a, b]).toEqual(["new", "new"]);
+    expect(s.calls.filter((c) => c === "signinSilent")).toHaveLength(1);
+  });
+
+  it("removes the user and returns null when the IdP refuses the refresh", async () => {
+    const s = fakeSession(near);
+    s.signinSilent = async () => {
+      throw new ErrorResponse({ error: "invalid_grant" });
+    };
+    setSessionForTest(s);
+    expect(await bearer()).toBeNull();
+    expect(s.calls).toContain("removeUser");
+  });
+
+  it("propagates other refresh failures and keeps the user", async () => {
+    const s = fakeSession(near);
+    s.signinSilent = async () => {
+      throw new Error("network down");
+    };
+    setSessionForTest(s);
+    await expect(bearer()).rejects.toThrow("network down");
+    expect(s.calls).not.toContain("removeUser");
+  });
+});
+
+describe("401 redirect", () => {
+  function stub401(): void {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, _init?: RequestInit) => ({
+        ok: false,
+        status: 401,
+        headers: new Headers(),
+        json: async () => ({ detail: "nope" }),
+      })),
+    );
+  }
+
+  function stubWindow(pathname: string): ReturnType<typeof vi.fn> {
+    const assign = vi.fn();
+    vi.stubGlobal("window", {
+      location: { pathname, search: "?a=1", assign },
+    });
+    return assign;
+  }
+
+  it("navigates to login with the encoded path and search", async () => {
+    setSessionForTest(null);
+    stub401();
+    const assign = stubWindow("/x");
+    await apiFetch("/datasets");
+    expect(assign).toHaveBeenCalledWith("/login?next=%2Fx%3Fa%3D1");
+  });
+
+  it.each(["/auth/me", "/auth/oidc/register"])(
+    "does not navigate on a 401 from %s but clears credentials",
+    async (path) => {
+      const s = fakeSession(null);
+      setSessionForTest(s);
+      stub401();
+      const assign = stubWindow("/login/callback");
+      await apiFetch(path);
+      expect(assign).not.toHaveBeenCalled();
+      expect(s.calls).toContain("removeUser");
+    },
+  );
+
+  it("does not navigate when already on the login page", async () => {
+    setSessionForTest(null);
+    stub401();
+    const assign = stubWindow("/login");
+    await apiFetch("/datasets");
+    expect(assign).not.toHaveBeenCalled();
+  });
+});
+
+describe("cross-tab refresh", () => {
+  const near = { access_token: "old", expires_in: 10, refresh_token: "r" };
+
+  it("refreshes under the shared lock and skips it when another tab rotated the token", async () => {
+    const names: string[] = [];
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async (name: string, cb: () => Promise<unknown>) => {
+          names.push(name);
+          return cb();
+        },
+      },
+    });
+    const s = fakeSession(near, { access_token: "new", expires_in: 3600 });
+    const reads = [near, { access_token: "rotated", expires_in: 3600 }];
+    s.getUser = async () => reads.shift() ?? null;
+    setSessionForTest(s);
+    expect(await bearer()).toBe("rotated");
+    expect(names).toEqual(["evalkit-oidc-refresh"]);
+    expect(s.calls).not.toContain("signinSilent");
+  });
+
+  it("sends the token as is when expires_in is missing", async () => {
+    const s = fakeSession({ access_token: "idp", refresh_token: "r" });
+    setSessionForTest(s);
+    expect(await bearer()).toBe("idp");
+    expect(s.calls).not.toContain("signinSilent");
   });
 });

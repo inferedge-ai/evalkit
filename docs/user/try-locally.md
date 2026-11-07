@@ -12,7 +12,7 @@ on one machine. For a real deployment, follow the evalkit-deployment skill.
 
 ## What you need
 
-- `uv` and port 8020 free.
+- `uv`.
 - An OpenAI-compatible LLM endpoint (OpenAI, a LiteLLM proxy, vLLM, Ollama,
   ...) that supports tool calls and structured output, with its base URL, API
   key and model name. The sample agent and the judge both use it.
@@ -21,16 +21,21 @@ on one machine. For a real deployment, follow the evalkit-deployment skill.
 
 ## Start the server
 
-Pick one way. Both end with the server on http://localhost:8020 and the try
-kit in a folder, and the steps after this section are the same.
+Pick one way. Both end with the server on the port you picked (8020 by
+default) and the try kit in a folder, and the steps after this section are the
+same.
+
+To use another port, run `evalkit init-server --port 9500` without Docker
+(`evalkit serve` reads it from `config.yaml`), or set `EVALKIT_PORT=9500` in
+`.env` with Docker.
 
 ### Without Docker
 
-evalkit is on PyPI as `evalkit-py`. Install it with the server extra, then
+evalkit is on PyPI as `evalkit-py` and needs Python 3.12 or newer. Install it with the server extra, then
 let `evalkit init-server` set up the rest:
 
 ```bash
-uv tool install "evalkit-py[server]"   # or: pip install "evalkit-py[server]"
+uv tool install --reinstall "evalkit-py[server]=={{version}}"   # or: pip install "evalkit-py[server]=={{version}}"
 evalkit init-server
 cd evalkit-try
 evalkit serve
@@ -43,10 +48,12 @@ when its flag or environment variable is set (`evalkit init-server --help`
 lists both); `--yes` never asks. It then:
 
 - creates the database when it does not exist, and migrates it
-- registers your LLM as the LLM provider `try` and makes it the default judge,
+- registers your LLM as the LLM provider `test-llm` and makes it the default judge,
   with its API key stored encrypted in the database
 - copies the try kit into `./evalkit-try`
-- writes `config.yaml` there, with blobs stored under `evalkit-try/data`
+- writes `config.yaml` there, with blobs stored under `evalkit-try/data` and a
+  database pool sized for one machine ([Server config](server-config.md) lists
+  every key and its default)
 - writes `.env` beside it, with your LLM settings, the admin password and the
   key that encrypts stored API keys; `evalkit serve` reads it. Keep `.env`:
   without that key the server cannot read the stored LLM key
@@ -92,7 +99,7 @@ every start.
 | `run.py` | The SDK run: `tracing.register` sends the spans to evalkit, and `run_experiment` calls the agent once per case and scores the answers. |
 | `mapping.json` | The span mapping: which span attribute holds the model, the messages, the tokens and each tool call. It starts as the connect-traces skill's `gen_ai.json`. |
 | `cases/acme/` | Five cases in two folders (tags), with answer rubrics and a tool check. |
-| `evalkit.yaml`, `.env` | Where the cases are, and the judge's key. |
+| `evalkit.yaml`, `.env` | Where the cases are. |
 | `config.yaml` | The server's config. |
 | `docker-compose.yml`, `.env.example` | With Docker only: the stack, and the template for its `.env`. `init-server` leaves them out. |
 
@@ -100,19 +107,19 @@ every start.
 
 ```bash
 uv tool install --reinstall "evalkit-py=={{version}}"   # with Docker only
-evalkit login --url http://localhost:8020 --username admin --password evalkit-admin
+evalkit login --url {{origin}} --username admin --password evalkit-admin
 ```
 
-`{{version}}` is the server's version; `curl http://localhost:8020/api/cli`
+`{{version}}` is the server's version; `curl {{origin}}/api/cli`
 prints it.
 
 `evalkit login` replaces any login you already saved. To keep it, skip
-`evalkit login` and point this shell at the try-it server instead (this needs
-`jq`):
+`evalkit login` and give this shell a token for the try-it server instead
+(this needs `jq`):
 
 ```bash
-export EVALKIT_SERVER_URL=http://localhost:8020
-export EVALKIT_TOKEN=$(curl -fsSL -X POST http://localhost:8020/api/auth/login \
+export EVALKIT_SERVER_URL={{origin}}
+export EVALKIT_TOKEN=$(curl -fsSL -X POST {{origin}}/api/auth/login \
   -H 'content-type: application/json' -d '{"username": "admin", "password": "evalkit-admin"}' | jq -r .token)
 ```
 
@@ -169,7 +176,7 @@ The `answer_rubric_*` rows by rubric type (`factual_retrieval`,
 `derived_computation`, `analysis_interpretation`) count only the cases that
 have a rubric of that type, so their case counts differ.
 
-Open http://localhost:8020, log in as `admin` with the admin password, and open the
+Open {{origin}}, log in as `admin` with the admin password, and open the
 experiment under the `acme` dataset. Each run shows its trajectory, the
 judge's verdict on every rubric and the tool check. The Runs page lists the
 raw sessions.
@@ -182,7 +189,7 @@ This is the loop you will run on your own agent:
   `run.py` again. Compare the two experiments in the UI.
 - Edit or add a case under `cases/acme/` and run again. The run syncs the
   folder first.
-- Run one folder: `run_experiment(..., split="balance-sheet")`.
+- Run one folder: `run_experiment(..., tags=["balance-sheet"])`. A folder's name is a tag on its cases.
 
 ## 5. Connect your own agent
 
@@ -196,13 +203,12 @@ Do the same in your own repository:
    connect-traces skill writes or checks the span mapping
    ([Mappings](mappings.md)).
 2. **Setup.** Put an `evalkit.yaml` at the root of your repository, with
-   `cases:` pointing at your cases directory and the judge's key under
-   `credentials.llm_providers`. That map is keyed by the judge's base URL, which must
-   match the judge the run uses: the server's default judge
-   (`{{origin}}/api/judge-default` shows its `base_url`), or the one you pass to
-   `run_experiment(judge=...)`. This kit keys it with `env:LLM_BASE_URL` so the
-   URL comes from `.env`. Keep the keys in a `.env` beside `evalkit.yaml`.
-3. **Script.** Copy `run.py`. Pin evalkit in its header to your evalkit
+   `cases:` pointing at your cases directory. Keep any keys it names in a
+   `.env` beside it.
+3. **Judge.** Nothing to set up: the evaluators that use a judge run on the
+   evalkit server, with the LLM provider configured there as the default
+   judge. To judge with your own key instead, see [Config](config.md).
+4. **Script.** Copy `run.py`. Pin evalkit in its header to your evalkit
    server's version (`evalkit-py[otel]==<version>`), call
    `tracing.register(agent="myagent")`, and write a `task` that calls your
    agent with the case input. `uv run run.py` builds an environment from the
@@ -226,9 +232,9 @@ Do the same in your own repository:
    evalkit traces check myagent <session id> --mapping draft
    ```
 
-   When it reads right, activate it: `evalkit traces mapping push myagent
-   my-mapping.json --activate`, or use the agent's Mappings tab in the web
-   UI. Runs always use the active mapping. The connect-traces skill walks a
+   When it reads right, activate it with the version push printed:
+   `evalkit traces mapping activate myagent <version>`, or use the agent's
+   Mappings tab in the web UI. Runs always use the active mapping. The connect-traces skill walks a
    coding agent through the same loop.
 
 [SDK runs](sdk-runs.md) covers the rest: agents in another process, Python

@@ -10,33 +10,38 @@ import time
 import zipfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
-import httpx
+import httpx2
 import pytest
 import sqlalchemy as sa
 import uvicorn
+from sqlalchemy import create_engine, text
 from typer.testing import CliRunner
 
+from evalkit.api import experiments as experiments_api
 from evalkit.api.app import create_app
+from evalkit.cli import local_run, runs_commands
 from evalkit.cli import main as main_module
-from evalkit.cli import runs_commands
 from evalkit.cli.client import ApiError
 from evalkit.cli.main import app as cli_app
 from evalkit.client import connection
+from evalkit.client import oidc as client_oidc
+from evalkit.client.oidc import ClientCredentialsRefused, EvalkitAuth, LoginExpired
 from evalkit.contracts.enums import DatasetKind, SyncSource, TrajectorySource
 from evalkit.core.harness import HarnessClient
 from evalkit.core.importer import incoming_case
 from evalkit.core.pull import safe_dir
 from evalkit.db import models
 from evalkit.db.fixture_blobs import record_blob
-from evalkit.db.session import make_session_factory
+from evalkit.db.session import make_session_factory, tenant_session
 from evalkit.db.store import PgStore
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from evalkit.store.base import CaseFile, Experiment, RunDetail
 from tests.fake_agents import fake_agent, reference_mapping
 from tests.fake_harness import FakeHarness
-from tests.identity import seed_agent
+from tests.identity import FakeIdp, seed_agent
 from tests.native import CASE_EVALUATORS, HOLDER, seed_env, suite_case
 
 runner = CliRunner()
@@ -105,7 +110,7 @@ def server(tmp_path_factory, stub_judges_module, fake_harness, harness_url, modu
     async def setup_db():
         factory = make_session_factory(module_db_url)
         env = await seed_env(factory, tmp_path, fake_harness)
-        await UserStore(factory).create("ravi", "password")
+        await UserStore(factory, "default").create("ravi", password="password")
         await seed_agent(factory, "fake", "admin", harness_url=harness_url)
         await seed_agent(factory, "fake", "ravi", harness_url=harness_url)
         await seed_agent(
@@ -138,7 +143,7 @@ def server(tmp_path_factory, stub_judges_module, fake_harness, harness_url, modu
 def env(server, tmp_path, monkeypatch, module_db_url):
     base_url, application = server
     monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
-    resp = httpx.post(
+    resp = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
     )
     token = resp.json()["token"]
@@ -148,7 +153,7 @@ def env(server, tmp_path, monkeypatch, module_db_url):
 
 
 def api_get(path: str, **params):
-    resp = httpx.get(
+    resp = httpx2.get(
         f"{os.environ['EVALKIT_SERVER_URL']}{path}",
         params=params,
         headers={"Authorization": f"Bearer {os.environ['EVALKIT_TOKEN']}"},
@@ -173,7 +178,7 @@ def experiment_runs(exp_id: int) -> list[RunDetail]:
 def in_db(url: str, work):
     async def go():
         factory = make_session_factory(url)
-        async with factory() as session:
+        async with tenant_session(factory, "default") as session:
             result = await work(session)
             await session.commit()
         await factory.kw["bind"].dispose()
@@ -487,6 +492,29 @@ def test_datasets_list(env):
     assert "finance" in result.output
 
 
+def test_datasets_list_by_workspace(env):
+    shared = runner.invoke(cli_app, ["datasets", "list", "--workspace", "canonical"])
+    assert shared.exit_code == 0, shared.output
+    assert "finance@canonical" in shared.output
+    empty = runner.invoke(cli_app, ["datasets", "list", "--workspace", "admin"])
+    assert empty.exit_code == 0, empty.output
+    assert "finance@canonical" not in empty.output
+    at_form = runner.invoke(cli_app, ["datasets", "list", "--workspace", "@canonical"])
+    assert "finance@canonical" in at_form.output
+    assert runner.invoke(cli_app, ["datasets", "list", "--workspace", "nope"]).exit_code == 1
+    both = runner.invoke(cli_app, ["datasets", "list", "finance@canonical", "--workspace", "dev"])
+    assert both.exit_code == 1
+
+
+def test_datasets_show(env):
+    shown = runner.invoke(cli_app, ["datasets", "show", "finance@canonical"])
+    assert shown.exit_code == 0, shown.output
+    assert "dataset: finance@canonical" in shown.output
+    assert re.search(r"cases: \d+", shown.output)
+    assert "review: " in shown.output and "tags: " in shown.output
+    assert runner.invoke(cli_app, ["datasets", "show", "nope@canonical"]).exit_code == 1
+
+
 def _write_registry(path, key: str, data: bytes) -> None:
     path.write_text(
         f"fixtures:\n- key: {key}\n  sha256: {hashlib.sha256(data).hexdigest()}\n  context: ctx\n"
@@ -782,33 +810,51 @@ def test_review_request_show_and_approve(env):
     queue = runner.invoke(cli_app, ["review", "queue"])
     assert queue.exit_code == 0, queue.output
     assert "case-2" in queue.output
+    in_dataset = runner.invoke(cli_app, ["review", "queue", "finance@canonical"])
+    assert in_dataset.exit_code == 0 and "case-2" in in_dataset.output
+    assert runner.invoke(cli_app, ["review", "queue", "other@canonical"]).exit_code == 1
+    elsewhere = runner.invoke(cli_app, ["review", "queue", "--workspace", "admin"])
+    assert "nothing waiting" in elsewhere.output
+    assert runner.invoke(cli_app, ["review", "queue", "--workspace", "nope"]).exit_code == 1
 
     commented = runner.invoke(
-        cli_app, ["review", "comment", "finance@canonical", "case-2", "looks fine"]
+        cli_app, ["review", "comment", "finance@canonical", "case-2", "--comment", "looks fine"]
     )
     assert commented.exit_code == 0, commented.output
     comment_id = re.search(r"comment (\d+)", commented.output).group(1)
 
+    neither = runner.invoke(cli_app, ["review", "approve", "finance@canonical"])
+    assert neither.exit_code == 1
     approved = runner.invoke(
-        cli_app, ["review", "approve", "finance@canonical", "case-2", "--comment", "ok"]
+        cli_app, ["review", "approve", "finance@canonical", "--all-waiting", "--comment", "ok"]
     )
     assert approved.exit_code == 0, approved.output
+    assert "approving 1 case(s) in finance@canonical" in approved.output
     assert "case-2: approved" in approved.output
+    again = runner.invoke(cli_app, ["review", "approve", "finance@canonical", "--all-waiting"])
+    assert "nothing waiting on you" in again.output
 
-    resolved = runner.invoke(
-        cli_app, ["review", "resolve", "finance@canonical", "case-2", comment_id]
+    wrong_case = runner.invoke(
+        cli_app, ["review", "resolve", "finance@canonical", "case-1", comment_id]
     )
+    assert wrong_case.exit_code == 1
+    resolved = runner.invoke(cli_app, ["review", "resolve", comment_id])
     assert resolved.exit_code == 0, resolved.output
     assert f"comment {comment_id} resolved" in resolved.output
 
     detail = runner.invoke(cli_app, ["review", "show", "finance@canonical", "case-2"])
     assert detail.exit_code == 0, detail.output
     assert "state: approved" in detail.output
+    assert "id: case-2" in detail.output
     assert "looks fine" in detail.output and "[resolved]" in detail.output
     assert "review_requested" in detail.output and "approved" in detail.output
 
     empty = runner.invoke(cli_app, ["review", "queue"])
     assert "nothing waiting" in empty.output
+
+    only_yaml = runner.invoke(cli_app, ["review", "show", "finance@canonical", "case-2", "--yaml"])
+    assert only_yaml.exit_code == 0, only_yaml.output
+    assert only_yaml.output.startswith("id: case-2\n") and "changelog" not in only_yaml.output
 
 
 def test_lint_agent_with_offline_is_a_usage_error(tmp_path):
@@ -834,7 +880,6 @@ def write_local_config(tmp_path, harness_url: str) -> Path:
         "cases: eval/cases\nfixtures: eval/fixtures\n"
         f"cost_map:\n  source: {cost_map}\n"
         "credentials:\n  agents:\n    fake: env:CLI_AGENT_KEY\n"
-        "  llm_providers:\n    http://judge.test: env:CLI_JUDGE_KEY\n"
     )
     (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
     return tmp_path
@@ -954,8 +999,14 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 0, result.output
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
+    assert result.exit_code == 0, result.output
+    own_judge = ["--judge-base-url", "http://judge.test", "--judge-api-key-env", "CLI_JUDGE_KEY"]
+    result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake", *own_judge])
     assert result.exit_code == 1, result.output
-    assert "CLI_JUDGE_KEY" in result.output
+    assert "CLI_JUDGE_KEY is not set" in result.output
+    dotenv.write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
+    result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake", *own_judge])
+    assert result.exit_code == 0, result.output
 
 
 def test_canonical_sync_reuses_bytes_already_uploaded(env, tmp_path, monkeypatch, harness_url):
@@ -989,6 +1040,42 @@ def test_local_harness_check(env, tmp_path, monkeypatch, harness_url):
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 0, result.output
     assert "capabilities" in result.output and "✓" in result.output
+
+
+def test_local_harness_check_reports_an_expired_login_as_one_line(
+    env, tmp_path, monkeypatch, harness_url
+):
+    class ExpiredSource:
+        def bearer(self) -> str:
+            raise LoginExpired("http://x")
+
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        local_run, "oidc", SimpleNamespace(build_auth=lambda conn: EvalkitAuth(ExpiredSource()))
+    )
+    result = runner.invoke(cli_app, ["harness", "check", "fake"])
+    assert result.exit_code == 1
+    assert "run `evalkit login --url http://x`" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_local_harness_check_reports_refused_client_credentials_as_one_line(
+    env, tmp_path, monkeypatch, harness_url
+):
+    class RefusedSource:
+        def bearer(self) -> str:
+            raise ClientCredentialsRefused("invalid_client", "bad secret")
+
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        local_run, "oidc", SimpleNamespace(build_auth=lambda conn: EvalkitAuth(RefusedSource()))
+    )
+    result = runner.invoke(cli_app, ["harness", "check", "fake"])
+    assert result.exit_code == 1
+    assert "client credentials refused by the identity provider: invalid_client" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_run_rejects_another_users_agent_before_syncing(env, tmp_path, monkeypatch, harness_url):
@@ -1037,6 +1124,46 @@ def test_run_and_harness_check_refuse_code_driven_agents(env, tmp_path, monkeypa
     assert result.exit_code == 1 and "evalkit traces check" in result.output
 
 
+def test_code_driven_agent_input_schema_drives_lint(env, tmp_path, monkeypatch, harness_url):
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    case = tmp_path / "turns.yaml"
+    case.write_text("- id: multi\n  input: {turns: [hi, again]}\n")
+    created = runner.invoke(cli_app, ["agents", "create", "multiturn"])
+    assert created.exit_code == 0, created.output
+    assert "default (a required string question)" in created.output
+    refused = runner.invoke(cli_app, ["lint", str(case), "--agent", "multiturn"])
+    assert refused.exit_code == 1 and "'question' is a required property" in refused.output
+    schema = tmp_path / "schema.json"
+    schema.write_text(json.dumps({"type": "object", "required": ["turns"]}))
+    edited = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--input-schema", str(schema)])
+    assert edited.exit_code == 0, edited.output
+    assert '{"type": "object", "required": ["turns"]}' in edited.output
+    passed = runner.invoke(cli_app, ["lint", str(case), "--agent", "multiturn"])
+    assert passed.exit_code == 0, passed.output
+    not_json = tmp_path / "schema.yaml"
+    not_json.write_text("type: object\n")
+    bad = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--input-schema", str(not_json)])
+    assert bad.exit_code == 2
+    kept = runner.invoke(cli_app, ["agents", "show", "multiturn"]).output
+    assert '{"type": "object", "required": ["turns"]}' in kept
+    cleared = runner.invoke(cli_app, ["agents", "edit", "multiturn", "--clear-input-schema"])
+    assert "default (a required string question)" in cleared.output
+    harness = runner.invoke(
+        cli_app,
+        [
+            "agents",
+            "create",
+            "typedharness",
+            "--harness-url",
+            "http://h",
+            "--input-schema",
+            str(schema),
+        ],
+    )
+    assert harness.exit_code == 1 and "code-driven" in harness.output
+
+
 def test_evaluate_refuses_python_evaluator_experiments(
     env, tmp_path, monkeypatch, harness_url, module_db_url
 ):
@@ -1066,13 +1193,13 @@ def _seed_canonical(url: str, dataset: str) -> None:
 
     async def seed():
         factory = make_session_factory(url)
-        async with factory() as session:
-            await record_blob(session, digest, 1, None)
+        async with tenant_session(factory, "default") as session:
+            await record_blob(session, "default", digest, 1, None)
             await session.commit()
-        canonical = await WorkspaceStore(factory).get_by_name("canonical")
-        admin = {u.username: u.id for u in await UserStore(factory).list()}["admin"]
+        canonical = await WorkspaceStore(factory, "default").get_by_name("canonical")
+        admin = {u.username: u.id for u in await UserStore(factory, "default").list()}["admin"]
         doc = CaseFile(key="doc.pdf", sha256=digest, context="c")
-        await PgStore(factory).sync(
+        await PgStore(factory, "default").sync(
             workspace=canonical,
             dataset=dataset,
             kind=DatasetKind.SUITE,
@@ -1164,13 +1291,12 @@ def test_local_run_with_failed_scoring_says_how_to_finish(env, tmp_path, monkeyp
     _, application = env
     write_local_config(tmp_path, harness_url)
     monkeypatch.chdir(tmp_path)
-    store = application.state.store
-    real_publish = store.publish_evaluations
+    real_publish = experiments_api.db_publish_evaluations
 
-    async def publish_failing(experiment_run_id, rows, *, force, holder=None):
+    async def publish_failing(session, experiment_run_id, rows, **kwargs):
         raise RuntimeError("store down")
 
-    monkeypatch.setattr(store, "publish_evaluations", publish_failing)
+    monkeypatch.setattr(experiments_api, "db_publish_evaluations", publish_failing)
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
     assert result.exit_code == 1, result.output
     exp = latest_experiment("finance@admin")
@@ -1178,7 +1304,7 @@ def test_local_run_with_failed_scoring_says_how_to_finish(env, tmp_path, monkeyp
     assert "scoring failed for 1 of 1 runs" in result.output
     assert f"finish it with: evalkit evaluate {exp.id}" in result.output
 
-    monkeypatch.setattr(store, "publish_evaluations", real_publish)
+    monkeypatch.setattr(experiments_api, "db_publish_evaluations", real_publish)
     result = runner.invoke(cli_app, ["evaluate", str(exp.id)])
     assert result.exit_code == 0, result.output
     assert experiment_runs(exp.id)[0].evaluations
@@ -1244,18 +1370,101 @@ def test_agents_commands(env, tmp_path):
     assert bad.exit_code == 1 and "key=true" in bad.output
 
 
-def test_run_judge_flags_start_from_the_server_default(env, tmp_path, monkeypatch, harness_url):
+def test_run_judge_flags_start_from_the_server_default(
+    env, tmp_path, monkeypatch, harness_url, module_db_url
+):
     default = api_get("/api/judge-default")
     assert default["model"] == "judge-model"
     write_local_config(tmp_path, harness_url)
     monkeypatch.chdir(tmp_path)
     _local_run("finance", "--agent", "fake", "--judge-model", "x", "--judge-effort", "low")
     judge = latest_experiment("finance@admin").config.judge
-    assert (judge.model, judge.reasoning_effort, judge.base_url) == (
-        "x",
-        "low",
-        default["base_url"],
+    assert (judge.model, judge.reasoning_effort, judge.provider) == ("x", "low", "judge")
+    no_key = runner.invoke(
+        cli_app, ["run", "finance", "--agent", "fake", "--judge-base-url", "http://judge.test"]
     )
+    assert no_key.exit_code == 1 and "--judge-api-key-env" in no_key.output
+    stray = runner.invoke(
+        cli_app, ["run", "finance", "--agent", "fake", "--judge-api-key-env", "CLI_JUDGE_KEY"]
+    )
+    assert stray.exit_code == 1 and "goes with --judge-base-url" in stray.output
+    _local_run(
+        "finance",
+        "--agent",
+        "fake",
+        "--judge-base-url",
+        "http://judge.test",
+        "--judge-api-key-env",
+        "CLI_JUDGE_KEY",
+    )
+    byok = latest_experiment("finance@admin")
+    judge = byok.config.judge
+    assert judge is not None and judge.api_key is None
+    rescore = runner.invoke(cli_app, ["evaluate", str(byok.id)])
+    assert rescore.exit_code == 1 and "--judge-api-key-env" in rescore.output
+    assert api_get(f"/api/experiments/{byok.id}")["status"] == "completed"
+    rescore = runner.invoke(
+        cli_app, ["evaluate", str(byok.id), "--judge-api-key-env", "CLI_JUDGE_KEY"]
+    )
+    assert rescore.exit_code == 0, rescore.output
+    engine = create_engine(module_db_url, isolation_level="AUTOCOMMIT")
+    with engine.connect() as conn:
+        run_id = conn.execute(
+            text("SELECT min(id) FROM experiment_runs WHERE experiment_id = :e"),
+            {"e": byok.id},
+        ).scalar()
+        conn.execute(text("DELETE FROM evaluations WHERE experiment_run_id = :r"), {"r": run_id})
+        conn.execute(text("DELETE FROM experiment_runs WHERE id = :r"), {"r": run_id})
+        conn.execute(text("UPDATE experiments SET status = 'failed' WHERE id = :e"), {"e": byok.id})
+    engine.dispose()
+    resume = ["run", "finance", "--agent", "fake", "--resume", str(byok.id)]
+    refused = runner.invoke(cli_app, resume)
+    assert refused.exit_code == 1 and "--judge-api-key-env" in refused.output
+    assert api_get(f"/api/experiments/{byok.id}")["status"] == "failed"
+    resumed = runner.invoke(cli_app, [*resume, "--judge-api-key-env", "CLI_JUDGE_KEY"])
+    assert resumed.exit_code == 0, resumed.output
+    assert (judge.base_url, judge.provider, judge.model) == (
+        "http://judge.test",
+        None,
+        "judge-model",
+    )
+    both = runner.invoke(
+        cli_app,
+        ["run", "finance", "--agent", "fake", "--judge-provider", "judge", "--judge-base-url", "u"],
+    )
+    assert both.exit_code == 1 and "not both" in both.output
+
+
+def test_a_full_base_url_judge_runs_without_a_default_judge(
+    env, tmp_path, monkeypatch, harness_url, module_db_url
+):
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    engine = create_engine(module_db_url, isolation_level="AUTOCOMMIT")
+    with engine.connect() as conn:
+        saved = conn.execute(text("SELECT default_judge FROM tenant_settings")).scalar()
+        conn.execute(text("UPDATE tenant_settings SET default_judge = NULL"))
+    try:
+        _local_run(
+            "finance",
+            "--agent",
+            "fake",
+            "--judge-base-url",
+            "http://judge.test",
+            "--judge-model",
+            "m",
+            "--judge-api-key-env",
+            "CLI_JUDGE_KEY",
+        )
+        judge = latest_experiment("finance@admin").config.judge
+        assert (judge.base_url, judge.model) == ("http://judge.test", "m")
+    finally:
+        with engine.connect() as conn:
+            conn.execute(
+                text("UPDATE tenant_settings SET default_judge = CAST(:j AS jsonb)"),
+                {"j": json.dumps(saved)},
+            )
+        engine.dispose()
 
 
 def test_runs_pull_app_runs_of_a_personal_harness_agent(
@@ -1337,7 +1546,7 @@ def test_runs_list_notes_a_code_driven_agent_without_traces(env, monkeypatch):
 
     class StubClient:
         def get(self, path, **kwargs):
-            return httpx.Response(200, json={"runs": [], "total": 0})
+            return httpx2.Response(200, json={"runs": [], "total": 0})
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
     result = runner.invoke(cli_app, ["runs", "list", "task", "--source", "app"])
@@ -1358,7 +1567,7 @@ def test_runs_pull_pages_server_calls_above_100(env, tmp_path, monkeypatch):
     class StubClient:
         def post(self, path, json=None, **kwargs):
             calls.append(json)
-            return httpx.Response(200, content=page(json))
+            return httpx2.Response(200, content=page(json))
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
     monkeypatch.setattr(main_module, "_agent_definition", lambda ref: fake_agent())
@@ -1394,7 +1603,7 @@ def test_runs_list_personal_agent_with_a_down_harness_prints_a_note(
     monkeypatch.chdir(tmp_path)
 
     async def down(self, params=None):
-        raise httpx.ConnectError("refused")
+        raise httpx2.ConnectError("refused")
 
     monkeypatch.setattr(HarnessClient, "list_runs", down)
     result = runner.invoke(cli_app, ["runs", "list", "fake", "--source", "app"])
@@ -1427,3 +1636,242 @@ async def test_runs_files_refuses_an_unsafe_run_id_before_calling_the_harness():
         await runs_commands._harness_listing(harness, "../x")
     with pytest.raises(ApiError, match="must be one plain path segment"):
         await runs_commands._harness_fetch(harness, "a/b", ["f.txt"], lambda name, data: None)
+
+
+def test_summary_with_baseline_reads_the_compare_endpoint(monkeypatch):
+    def report(exp_id, overall):
+        case = {"case_id": "c1", "overall": overall, "scores": {}, "errors": {}, "run_errors": []}
+        return {
+            "name": f"#{exp_id}",
+            "experiment_id": str(exp_id),
+            "dataset": "finance@dev",
+            "buckets": {},
+            "evaluators": [],
+            "cases": [case],
+            "gauges": [],
+        }
+
+    class StubResponse:
+        def json(self):
+            return {"base": report(3, 0.0), "compare": report(4, 1.0)}
+
+    class StubClient:
+        def get(self, path, **kwargs):
+            assert path == "/api/experiments/compare"
+            assert kwargs["params"] == {"base": 3, "compare": 4}
+            return StubResponse()
+
+    monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    result = runner.invoke(cli_app, ["summary", "4", "--baseline", "3"])
+    assert result.exit_code == 0, result.output
+    assert "vs experiment 3  #3 of finance@dev" in result.output
+    assert re.search(r"c1\s+0\.00 → 1\.00  Δ\+1\.00$", result.output, re.M)
+
+
+def test_offline_lint_refuses_a_file_that_is_not_a_case_file(tmp_path):
+    registry = tmp_path / "fixtures.yaml"
+    registry.write_text("fixtures: []\n")
+    result = runner.invoke(cli_app, ["lint", "--offline", str(registry)])
+    assert result.exit_code != 0
+    assert "is not a case file" in result.output
+
+
+def test_offline_lint_reports_schema_errors_as_findings(tmp_path):
+    (tmp_path / "acme").mkdir()
+    (tmp_path / "acme" / "cases.yaml").write_text(
+        "- id: q1\n  input: {question: q}\n  evaluators: {output: {max_response_time: 90}}\n"
+    )
+    result = runner.invoke(cli_app, ["lint", "--offline", str(tmp_path)])
+    assert result.exit_code != 0
+    assert "E-SCHEMA [q1] acme/cases.yaml: evaluators.output.max_response_time" in result.output
+
+
+def test_users_add_with_a_subject_skips_the_password(env):
+    result = runner.invoke(cli_app, ["users", "add", "ci-bot", "--subject", "client-1"])
+    assert result.exit_code == 1 and "SSO is not configured" in result.output
+
+
+def test_users_list_shows_kind_and_email(env):
+    result = runner.invoke(cli_app, ["users", "list"])
+    assert result.exit_code == 0
+    assert "human" in result.output
+
+
+def idp_providers(idp: FakeIdp, scopes: list[str]) -> dict:
+    return {
+        "password": "admin",
+        "oidc": {
+            **idp.discovery(),
+            "name": "Fake",
+            "client_id": idp.client_id,
+            "audience": idp.audience,
+            "scopes": scopes,
+            "authorize_params": {},
+        },
+    }
+
+
+REGISTERED = {
+    "username": "ann",
+    "is_admin": False,
+    "email": "ann@example.com",
+    "kind": "human",
+    "created": True,
+}
+
+
+def test_login_falls_back_to_the_password_path_without_an_idp(server, tmp_path, monkeypatch):
+    base_url, _ = server
+    config_path = tmp_path / "login.toml"
+    monkeypatch.setattr(connection, "CONFIG_PATH", config_path)
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", base_url], input="admin\nhunter2-pw\n")
+    assert result.exit_code == 0, result.output
+    assert "token = " in config_path.read_text()
+
+
+def test_login_runs_the_loopback_flow_and_registers(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    idp.next_login = ("sub-ann", "ann@example.com", "ann")
+    providers = idp_providers(idp, ["openid", "email", "profile", "offline_access"])
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+    monkeypatch.setattr(
+        client_oidc, "register_identity", lambda url, tokens, transport=None: REGISTERED
+    )
+    monkeypatch.setattr(
+        client_oidc,
+        "run_loopback_flow",
+        lambda oidc_cfg, open_browser, **kw: idp._issue(idp._login()),
+    )
+    config_path = tmp_path / "login.toml"
+    monkeypatch.setattr(connection, "CONFIG_PATH", config_path)
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert result.exit_code == 0, result.output
+    assert "logged in as ann on https://evalkit.test" in result.output
+    saved = connection.load(config_path)
+    assert saved is not None
+    assert saved.username == "ann" and saved.oidc is not None and saved.token is None
+
+
+def test_login_reports_a_refused_code_exchange_as_one_line(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    providers = idp_providers(idp, ["openid", "email", "profile", "offline_access"])
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+
+    def refused(oidc_cfg, open_browser, **kw):
+        raise client_oidc.LoginRefused("invalid_grant: code expired")
+
+    monkeypatch.setattr(client_oidc, "run_loopback_flow", refused)
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert result.exit_code == 1
+    assert "invalid_grant" in result.output and "Traceback" not in result.output
+
+
+def test_login_no_browser_uses_the_device_flow(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    idp.next_login = ("sub-ann", "ann@example.com", "ann")
+    providers = idp_providers(idp, ["openid"])
+    called: list[str] = []
+
+    def device(oidc_cfg, echo, **kw):
+        called.append("device")
+        return idp._issue(idp._login())
+
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+    monkeypatch.setattr(
+        client_oidc, "register_identity", lambda url, tokens, transport=None: REGISTERED
+    )
+    monkeypatch.setattr(client_oidc, "run_device_flow", device)
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test", "--no-browser"])
+    assert result.exit_code == 0, result.output
+    assert called == ["device"]
+
+
+def test_login_reports_a_refused_login_as_one_line(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    providers = idp_providers(idp, ["openid"])
+
+    def refuse(oidc_cfg, open_browser, **kw):
+        raise client_oidc.LoginRefused("access_denied: no")
+
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+    monkeypatch.setattr(client_oidc, "run_loopback_flow", refuse)
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert result.exit_code == 1
+    assert "access_denied: no" in result.output
+    assert not (tmp_path / "login.toml").exists()
+
+
+def test_login_refuses_tokens_without_a_refresh_token(tmp_path, monkeypatch):
+    idp = FakeIdp()
+    idp.next_login = ("sub-ann", "ann@example.com", "ann")
+    providers = idp_providers(idp, ["openid"])
+    tokens = {k: v for k, v in idp._issue(idp._login()).items() if k != "refresh_token"}
+    monkeypatch.setattr(client_oidc, "fetch_providers", lambda url, transport=None: providers)
+    monkeypatch.setattr(
+        client_oidc, "register_identity", lambda url, tokens, transport=None: REGISTERED
+    )
+    monkeypatch.setattr(
+        client_oidc, "run_loopback_flow", lambda oidc_cfg, open_browser, **kw: tokens
+    )
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert result.exit_code == 1
+    assert "issued no refresh token" in result.output and "offline_access" in result.output
+    assert not (tmp_path / "login.toml").exists()
+
+
+def test_whoami_names_the_login_kind(env):
+    result = runner.invoke(cli_app, ["whoami"])
+    assert result.exit_code == 0 and "login: password" in result.output
+
+
+def test_half_of_the_client_credentials_is_a_one_line_error(monkeypatch):
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("EVALKIT_OIDC_CLIENT_ID", "ci")
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_SECRET", raising=False)
+    result = runner.invoke(cli_app, ["datasets", "list"])
+    assert result.exit_code == 1
+    assert "EVALKIT_OIDC_CLIENT_SECRET" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_experiments_list_filters_by_dataset(env):
+    listed = runner.invoke(cli_app, ["experiments", "list", "--dataset", "finance@canonical"])
+    assert listed.exit_code == 0, listed.output
+    rows = api_get("/api/experiments", dataset="finance@canonical")
+    if rows:
+        header, first = listed.output.splitlines()[:2]
+        assert header.split()[:2] == ["id", "dataset"]
+        assert first.split()[0] == str(rows[0]["id"])
+    else:
+        assert "no experiments" in listed.output
+    missing = runner.invoke(cli_app, ["experiments", "list", "--dataset", "nope@canonical"])
+    assert missing.exit_code == 1
+
+
+def test_review_show_yaml_drops_filled_in_defaults():
+    stored = {
+        "output": {
+            "answer_rubrics": {
+                "rubrics": [{"rubric": "Net debt is $1.2B", "type": "derived_computation"}]
+            },
+            "max_response_time": {"max_seconds": 120.0},
+        },
+        "trajectory": {
+            "tool_trajectory_match": {"expected": [{"name": "search"}], "ordered": False}
+        },
+    }
+    full = main_module.CaseEvaluators.model_validate(stored).as_metadata()
+    shown = main_module._authored_evaluators(full)
+    assert "source" not in str(shown) and "args_mode" not in str(shown)
+    assert shown["trajectory"] == {"tool_trajectory_match": {"expected": [{"name": "search"}]}}
+    assert main_module._authored_evaluators({}) is None

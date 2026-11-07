@@ -38,6 +38,9 @@ theme:
 extra_css:
   - stylesheets/evalkit.css
 
+extra_javascript:
+  - javascripts/outdated.js
+
 hooks:
   - docs/site/hooks.py
 
@@ -88,12 +91,17 @@ nav:
       - Try locally: try-locally.md
       - Install: install.md
       - Login: login.md
+      - Single sign-on: sso.md
       - Config: config.md
+      - Server config: server-config.md
       - Workspaces: workspaces.md
+      - CI sync: ci-sync.md
+      - Case schema: case-schema.md
   - Traces:
       - SDK runs: sdk-runs.md
       - Tracing: tracing.md
       - Mappings: mappings.md
+      - Framework mappings: framework-mappings.md
   - Harness API: harness-api.md
   - MCP: mcp.md
   - SDK reference: sdk-reference.md

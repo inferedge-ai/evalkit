@@ -28,7 +28,9 @@ and how case review works.
 ## Install and log in
 
 1. Install the CLI from PyPI at the server's version. evalkit is on PyPI as
-   `evalkit-py`; `curl <server url>/api/cli` prints the server's version:
+   `evalkit-py` and needs Python 3.12 or newer, in the tool and in any
+   project that adds the SDK. `curl <server url>/api/cli` prints the server's
+   version:
 
    ```bash
    uv tool install --reinstall "evalkit-py==<version>"
@@ -51,26 +53,34 @@ and how case review works.
    --url https://evalkit.internal`. The login is stored in
    `~/.evalkit/config.toml`. The CLI talks to one server at a time; logging
    in again replaces the stored login. Dev and prod are shared workspaces on
-   that server (`@dev`, `@prod`), not separate logins. The token expires after
-   the TTL the deployer configured (default 30 days) — when commands start
-   failing with 401, log in again. `evalkit whoami` shows when the token
-   expires; run it before a long run.
-3. Scripts and CI have two options. Set `EVALKIT_SERVER_URL` and
-   `EVALKIT_TOKEN` in the environment to bypass the file. Or, better, keep a
-   password in the secret store and run a non-interactive `evalkit login`
-   at the start of every job (see `evalkit login --help`). A stored token
-   will expire and break the job; a stored password will not.
+   that server (`@dev`, `@prod`), not separate logins. With single sign-on
+   configured on the server, the command opens your browser at your identity
+   provider and stores its tokens, which refresh themselves; on a machine
+   without a browser, `evalkit login --url <url> --no-browser` prints a URL
+   and a code to enter on any device. Without single sign-on (or with
+   `--username`) it asks for a password and stores an evalkit token that
+   expires after the TTL the deployer configured (default 30 days). When a
+   command says `your login has expired`, log in again. `evalkit whoami`
+   shows the login kind and when the token expires.
+3. Scripts and CI authenticate as a machine user. With single sign-on, set
+   `EVALKIT_SERVER_URL`, `EVALKIT_OIDC_CLIENT_ID` and
+   `EVALKIT_OIDC_CLIENT_SECRET` (a machine client at the identity provider,
+   bound once by an admin with `evalkit users add <name> --subject <sub>`);
+   no login step is needed. Without single sign-on, use a dedicated non-admin
+   password user and run a non-interactive `evalkit login` at the start of
+   every job (see `evalkit login --help`). Never the admin account. See
+   [CI sync](../evalkit-docs/ci-sync.md) and
+   [Single sign-on](../evalkit-docs/sso.md).
    `EVALKIT_TIMEOUT` (seconds, default 120) sets how long the CLI and SDK
    wait for each server call; it does not change the server's limits on
    its own calls to a harness. Every server
    call needs a login, lint included; only `evalkit lint --offline` runs
    without one, and it skips the checks that need server state. The server
    lint covers everything `--offline` does, fixture keys included, so CI
-   needs only the server lint. Log in as
-   `admin` (the deployer's `EVALKIT_ADMIN_PASSWORD`) in both the lint job
-   and the sync job. The sync job targets a shared workspace
-   (`--workspace dev`) and passes `--actor <merge author>` so the changelog
-   names the real author (`--actor` is admin only). Install
+   needs only the server lint. The lint job and the sync job both use the
+   machine user. The sync job targets a shared workspace
+   (`--workspace dev`); a machine user is recorded as the changelog actor
+   (`--actor` is admin only). Install
    the CLI at the start of the job so CI always runs the server's build:
 
    ```bash
@@ -91,6 +101,7 @@ Every dataset and agent lives in a workspace:
   workspace's API keys there. `evalkit workspaces list` and
   `evalkit workspaces members list <ws>` show them.
 - CI syncs into the shared workspace the deployer picked (usually `dev`).
+  Setting that CI up is on the [CI sync](../evalkit-docs/ci-sync.md) page.
 
 References:
 
@@ -142,7 +153,9 @@ evalkit agents list --workspace dev
 Put an `evalkit.yaml` in your repo. `evalkit run finance --agent myagent`
 then syncs `<cases>/finance` to `finance@<you>`, drives `myagent` from this
 machine, scores, and writes everything to the server. Run `finance@dev` to
-use the shared cases instead (Approved ones only, no sync). Fixture bytes are
+use the shared cases instead (Approved ones only, no sync). `evalkit run`
+drives agents with a `harness_url`; for a code-driven agent, run the eval
+script with `case_ids=[...]` (see `sdk-runs.md`). Fixture bytes are
 read from the `fixtures` directory and uploaded by sha256 on every run or
 sync.
 
@@ -154,8 +167,6 @@ credentials:                 # env:NAME references only, never the key itself
     myagent: env:MYAGENT_API_KEY             # bare name = your workspace
   evaluators:
     citation_check: env:CITATION_API_KEY
-  llm_providers:
-    https://litellm.example.com: env:LITELLM_API_KEY   # keyed by judge base URL
 ```
 
 - `credentials.agents` here is only for your personal Harness API agents.
@@ -167,24 +178,40 @@ credentials:                 # env:NAME references only, never the key itself
   `evalkit.yaml`. A variable set in the environment wins over `.env`.
 - An agent or evaluator with no `credentials` entry gets no auth header, and
   the run prints one line saying so.
-- A judge with no entry for its base URL fails the run before it starts:
-  `no credentials.llm_providers entry for <url>`.
-- `credentials.judges` was renamed to `credentials.llm_providers`; the old
-  name fails to load.
+- `credentials` holds agent and evaluator keys only; a file with
+  `credentials.llm_providers` (or `credentials.judges`) fails to load. Your own
+  judge's key goes with the run (below).
 - `cases` and `fixtures` are only needed to sync your own datasets by name.
 
 ### The judge
 
 The judge is chosen per experiment. By default it is the server's
 default judge, which an admin sets with `evalkit judge-default set`
-(`evalkit judge-default show` prints it); `evalkit run` takes `--judge-model`, `--judge-base-url` and
-`--judge-effort` to change it for one experiment. `evalkit evaluate` reuses
-the experiment's judge. A server run may only use a judge whose base URL is a
-registered LLM provider (`evalkit llm-providers list`).
+(`evalkit judge-default show` prints it). A judge names either an LLM
+provider configured on the server or a base URL, never both:
+
+- **Served by an LLM provider on the server (the default):** the evaluators that use a judge
+  (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) run on the
+  evalkit server with its stored key, also in local and SDK runs. No judge
+  key is needed on your machine. `evalkit run --judge-provider NAME`
+  (`evalkit llm-providers list`) picks another one.
+- **Your own judge:** `evalkit run --judge-base-url URL --judge-model M
+  --judge-api-key-env NAME` (the env var or `.env` entry holding the key), or
+  `Judge(base_url=..., model=..., api_key=...)` in the SDK. Those evaluators
+  run on your machine. The key is never stored: `evalkit evaluate <id>` and
+  `evalkit run … --resume <id>` need `--judge-api-key-env NAME` again; in the SDK, pass the same
+  `Judge(..., api_key=...)` to `evaluate_experiment(..., judge=...)`. A
+  different judge is refused. Server runs refuse `--judge-base-url`.
+
+`--judge-model` and `--judge-effort` change the rest for one experiment.
+`evalkit evaluate` reuses the experiment's judge. `tool_trajectory_match`,
+`required_tools_called` and `max_response_time` always run on your machine.
+Each score records where it ran (`scored_on`: `local` or `server`).
 
 Inside a dataset directory, subfolders become tags (`finance/statement-analysis/x.yaml`
-gets the tag `statement-analysis`), and `evalkit run finance/statement-analysis`
-runs that split. Local runs require the CLI and server versions to match.
+gets the tag `statement-analysis`). `evalkit run finance --tag statement-analysis`
+runs the cases carrying that tag; repeat `--tag` to run the cases carrying any
+of several tags. Local runs require the CLI and server versions to match.
 
 ## SDK runs
 
@@ -194,12 +221,11 @@ Docs → Install page has the exact command for your server; it is
 `evalkit-py` with the `otel` extra), create a code-driven agent (no `--harness-url`),
 and run the experiment from your own code. A local run uses
 your own login for the API calls (the one from `evalkit login`, or
-`EVALKIT_SERVER_URL` and `EVALKIT_TOKEN`), and for the exported traces when
-the agent runs inside the same Python process. Any exporter outside that
-process (a worker, a queue consumer, a service in another language) needs
-an agent token from `evalkit tokens create --agent <name>`: it never expires,
-while the login token runs out under a long-running worker and the export
-fails silently.
+`EVALKIT_SERVER_URL` and the machine client variables). The exported traces
+need an agent token from `evalkit tokens create --agent <name>` in
+`EVALKIT_OTEL_TOKEN`, required by `tracing.register`: it never expires,
+while a login token runs out under a long-running process and the export
+would fail silently.
 
 ```python
 # eval/run.py — uv run python eval/run.py
@@ -239,7 +265,7 @@ Rules of the road:
 - `run_experiment` is a push model: your process runs the task once per case
   and repetition, exports the agent's OpenTelemetry spans to the server,
   waits for each session to settle, and records runs and scores through the
-  API. `dataset`, `case_ids`, `split`, `repetitions`, `model` and `resume` mean
+  API. `dataset`, `case_ids`, `tags`, `repetitions`, `model` and `resume` mean
   what they mean on `evalkit run` (see `evalkit --help`).
 - The task's parameters bind **by name** from `input`, `files`, `model` and
   `metadata`, in any order; any other required parameter is an error, and
@@ -278,6 +304,11 @@ Rules of the road:
   `artifacts` and `workspace` false) and never reads them from spans. Pass
   `--provides thinking=true` to `evalkit agents create` (or `edit`) when its
   spans carry the model's reasoning.
+- A code-driven agent's case inputs must pass its input schema, by default
+  an object with a required string `question`. For other inputs (multi-turn
+  `turns`, structured fields), write a JSON Schema file and run
+  `evalkit agents edit <agent> --input-schema schema.json`.
+  `run_experiment(dry_run=...)` checks it too.
 - Python evaluators (`@evaluator`) see the same payload as the HTTP Custom
   Evaluator API and are selected by name under a case's `evaluators.custom`.
   Re-score with `evaluate_experiment(...)` from the same script;
@@ -349,7 +380,8 @@ Harness API page has the full table.
 
 | You want to | Command |
 |---|---|
-| See what datasets exist and their versions | `evalkit datasets list` |
+| See what datasets exist and their versions | `evalkit datasets list` (`--workspace dev` for one workspace) |
+| See one dataset's last sync, case count and review progress | `evalkit datasets show <dataset>` |
 | List a dataset's cases with review state, tags and fixtures (to pick `--case-id`s) | `evalkit datasets list <dataset>` (`--state`, `--tag`) |
 | Check case YAML before pushing | `evalkit lint` |
 | Check case inputs against an agent's `input_schema` (on demand, not CI) | `evalkit lint <dir> --agent <name>` |
@@ -364,7 +396,7 @@ Harness API page has the full table.
 | See or fetch a pulled run's workspace files and full tool outputs | `evalkit runs files <pull dir> <run_id>` lists the tree; add `--path <file or folder>` to fetch only those |
 | Generate new eval cases from an agent's app runs (production, staging or manual traffic) | the `eval-driven-development` skill, Loop 2 (`runs list` / `runs pull --source app`, then analysis and authoring) |
 | Re-score recorded runs after an evaluator change, or retry evaluators that errored | `evalkit evaluate` (`--refetch-trajectories` for runs whose trajectory arrived late) |
-| Inspect a traced session, push or list a span mapping | `evalkit traces` (subcommands `check`, `mapping push`, `mapping list`, `import`) |
+| Inspect a traced session, push or list a span mapping | `evalkit traces` (subcommands `check`, `mapping push`, `mapping activate`, `mapping list`, `import`) |
 | Mint, list or revoke a collector token for a deployed agent | `evalkit tokens` |
 | Move cases through review | `evalkit review` (subcommands below) |
 | Ask about runs, failures, usage or experiments from Claude, Cursor or Codex | the MCP server at `{{origin}}/mcp` (below) |
@@ -465,7 +497,8 @@ it. Nothing else reaches the target:
 Both case pages show the twin: on the source, "prod: same version · approved
 …" / "ahead of prod" / "not in prod"; on the target, "newer in dev" / "removed
 in dev". The `twin` field on `GET /api/datasets/<ref>/cases` carries the same
-information. `evalkit workspaces list` shows the link; `promote-to <source>
+information. `evalkit workspaces list` shows the link (`promotes to prod` on
+the source row, `promoted from dev` on the target row); `promote-to <source>
 --none` clears it. One target per source, one source per target, no chains.
 
 Commands, in the order a case usually moves: `evalkit review request` →

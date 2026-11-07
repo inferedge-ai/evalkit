@@ -6,28 +6,32 @@ from evalkit.db import models
 from evalkit.store.base import FixtureUse, FixtureUsePage
 
 
-async def known_blobs(session: AsyncSession, shas: list[str]) -> set[str]:
+async def known_blobs(session: AsyncSession, tenant_id: str, shas: list[str]) -> set[str]:
     if not shas:
         return set()
     rows = await session.scalars(
-        select(models.FixtureBlob.sha256).where(models.FixtureBlob.sha256.in_(shas))
+        select(models.FixtureBlob.sha256).where(
+            models.FixtureBlob.tenant_id == tenant_id, models.FixtureBlob.sha256.in_(shas)
+        )
     )
     return set(rows.all())
 
 
-async def blob_size(session: AsyncSession, sha256: str) -> int | None:
+async def blob_size(session: AsyncSession, tenant_id: str, sha256: str) -> int | None:
     return await session.scalar(
-        select(models.FixtureBlob.size).where(models.FixtureBlob.sha256 == sha256)
+        select(models.FixtureBlob.size).where(
+            models.FixtureBlob.tenant_id == tenant_id, models.FixtureBlob.sha256 == sha256
+        )
     )
 
 
 async def record_blob(
-    session: AsyncSession, sha256: str, size: int, uploaded_by: int | None
+    session: AsyncSession, tenant_id: str, sha256: str, size: int, uploaded_by: int | None
 ) -> None:
     await session.execute(
         insert(models.FixtureBlob)
-        .values(sha256=sha256, size=size, uploaded_by=uploaded_by)
-        .on_conflict_do_nothing(index_elements=["sha256"])
+        .values(tenant_id=tenant_id, sha256=sha256, size=size, uploaded_by=uploaded_by)
+        .on_conflict_do_nothing(index_elements=["tenant_id", "sha256"])
     )
 
 
@@ -46,7 +50,11 @@ def _uses(workspace_id: int, text: str | None) -> Select:
             & (models.DatasetCase.content_hash == models.CaseVersionFile.content_hash),
         )
         .join(models.Dataset, models.Dataset.id == models.DatasetCase.dataset_id)
-        .join(models.FixtureBlob, models.FixtureBlob.sha256 == models.CaseVersionFile.sha256)
+        .join(
+            models.FixtureBlob,
+            (models.FixtureBlob.tenant_id == models.CaseVersionFile.tenant_id)
+            & (models.FixtureBlob.sha256 == models.CaseVersionFile.sha256),
+        )
         .outerjoin(models.User, models.User.id == models.FixtureBlob.uploaded_by)
         .where(models.Dataset.workspace_id == workspace_id, models.DatasetCase.removed_at.is_(None))
         .group_by(

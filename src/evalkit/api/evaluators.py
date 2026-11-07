@@ -1,18 +1,13 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter
 from pydantic import BaseModel
 
-from evalkit.api.access import ActorDep, writable, writable_endpoint
-from evalkit.api.deps import ConfigDep, KeysDep, SessionDep
+from evalkit.api.access import ActorDep, StoresDep, writable, writable_endpoint
+from evalkit.api.deps import ConfigDep
 from evalkit.contracts.enums import EvaluatorKind
 from evalkit.contracts.settings import RemoteEvaluatorSettings
 from evalkit.core.remote_evaluators import RemoteEvaluator
-from evalkit.db.evaluators import RemoteEvaluatorStore
 
 router = APIRouter(prefix="/api/evaluators", tags=["evaluators"])
-
-
-def _store(request: Request) -> RemoteEvaluatorStore:
-    return RemoteEvaluatorStore(request.app.state.session_factory)
 
 
 def _view(evaluator: RemoteEvaluator) -> dict:
@@ -21,9 +16,9 @@ def _view(evaluator: RemoteEvaluator) -> dict:
 
 @router.get("")
 async def list_evaluators(
-    request: Request, workspace: str | None = None, include_archived: bool = False
+    stores: StoresDep, workspace: str | None = None, include_archived: bool = False
 ) -> list[dict]:
-    rows = await _store(request).list_evaluators(
+    rows = await stores.evaluators.list_evaluators(
         workspace=workspace, include_archived=include_archived
     )
     return [_view(e) for e in rows]
@@ -40,26 +35,24 @@ class CreateEvaluator(BaseModel):
 @router.post("")
 async def create_evaluator(
     body: CreateEvaluator,
-    request: Request,
-    keys: KeysDep,
-    session: SessionDep,
+    stores: StoresDep,
     actor: ActorDep,
     cfg: ConfigDep,
 ) -> dict:
-    await writable_endpoint(
-        session,
+    ws = await writable_endpoint(
+        stores,
         actor,
         cfg,
         body.workspace,
         api_key="api_key" in body.model_fields_set,
         url=body.settings.endpoint,
     )
-    created = await _store(request).create(
-        body.workspace,
+    created = await stores.evaluators.create(
+        ws,
         body.name,
         body.kind,
         body.settings,
-        keys.seal(body.api_key),
+        stores.keys.seal(body.api_key),
     )
     return _view(created)
 
@@ -73,49 +66,43 @@ class EditEvaluator(BaseModel):
 async def edit_evaluator(
     ref: str,
     body: EditEvaluator,
-    request: Request,
-    keys: KeysDep,
-    session: SessionDep,
+    stores: StoresDep,
     actor: ActorDep,
     cfg: ConfigDep,
 ) -> dict:
-    current = await _store(request).get(ref)
+    current = await stores.evaluators.get(ref)
     moved = body.settings is not None and body.settings.endpoint != current.settings.endpoint
     await writable_endpoint(
-        session,
+        stores,
         actor,
         cfg,
         current.workspace,
         api_key="api_key" in body.model_fields_set,
         url=body.settings.endpoint if moved and body.settings is not None else None,
     )
-    edited = await _store(request).edit(
+    edited = await stores.evaluators.edit(
         ref,
         body.settings,
-        api_key_encrypted=keys.seal(body.api_key),
+        api_key_encrypted=stores.keys.seal(body.api_key),
         clear_api_key="api_key" in body.model_fields_set and not body.api_key,
     )
     return _view(edited)
 
 
 @router.get("/{ref}")
-async def get_evaluator(ref: str, request: Request) -> dict:
-    return _view(await _store(request).get(ref))
+async def get_evaluator(ref: str, stores: StoresDep) -> dict:
+    return _view(await stores.evaluators.get(ref))
 
 
 @router.post("/{ref}/archive")
-async def archive_evaluator(
-    ref: str, request: Request, session: SessionDep, actor: ActorDep
-) -> dict:
-    current = await _store(request).get(ref)
-    await writable(session, actor, current.workspace)
-    return _view(await _store(request).archive(ref))
+async def archive_evaluator(ref: str, stores: StoresDep, actor: ActorDep) -> dict:
+    current = await stores.evaluators.get(ref)
+    await writable(stores, actor, current.workspace)
+    return _view(await stores.evaluators.archive(ref))
 
 
 @router.post("/{ref}/restore")
-async def restore_evaluator(
-    ref: str, request: Request, session: SessionDep, actor: ActorDep
-) -> dict:
-    current = await _store(request).get(ref)
-    await writable(session, actor, current.workspace)
-    return _view(await _store(request).restore(ref))
+async def restore_evaluator(ref: str, stores: StoresDep, actor: ActorDep) -> dict:
+    current = await stores.evaluators.get(ref)
+    await writable(stores, actor, current.workspace)
+    return _view(await stores.evaluators.restore(ref))

@@ -4,8 +4,11 @@ import pytest
 from pydantic import ValidationError
 
 from evalkit.config import (
+    AuthConfig,
+    Config,
     LocalConfig,
     MissingEnvError,
+    OidcConfig,
     RunnerConfig,
     load_config,
 )
@@ -97,9 +100,9 @@ def test_local_credentials_must_be_plain_env_names(tmp_path):
             LocalConfig.find(tmp_path)
 
 
-def test_local_judges_map_was_renamed(tmp_path):
-    (tmp_path / "evalkit.yaml").write_text("credentials:\n  judges:\n    http://j: env:K\n")
-    with pytest.raises(ValidationError, match="now credentials.llm_providers"):
+def test_local_judge_keys_were_removed(tmp_path):
+    (tmp_path / "evalkit.yaml").write_text("credentials:\n  llm_providers:\n    http://j: env:K\n")
+    with pytest.raises(ValidationError, match="credentials.llm_providers was removed"):
         LocalConfig.find(tmp_path)
 
 
@@ -152,8 +155,6 @@ fixtures: eval/fixtures
 credentials:
   agents:
     research-agent: env:RESEARCH_AGENT_KEY
-  llm_providers:
-    http://litellm.local: env:LITELLM_KEY
 """
 
 
@@ -218,3 +219,88 @@ def test_the_moved_to_db_hint_names_env_refs_as_shell_variables(tmp_path, monkey
     message = str(raised.value)
     assert "--base-url $LLM_BASE_URL --api-key-env LLM_API_KEY" in message
     assert "--model m1" in message
+
+
+def test_db_pool_defaults_and_overrides(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "pk")
+    cfg = load_config(write(tmp_path, BASIC))
+    assert (cfg.db.pool_size, cfg.db.max_overflow) == (20, 10)
+    text = BASIC.replace("db:\n", "db:\n  pool_size: 40\n  max_overflow: 0\n")
+    cfg = load_config(write(tmp_path, text))
+    assert (cfg.db.pool_size, cfg.db.max_overflow) == (40, 0)
+
+
+def test_runner_evaluation_concurrency(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "pk")
+    assert load_config(write(tmp_path, BASIC)).runner.evaluation_concurrency == 16
+    text = BASIC + "runner:\n  evaluation_concurrency: 4\n"
+    assert load_config(write(tmp_path, text)).runner.evaluation_concurrency == 4
+
+
+def test_a_base_url_with_a_bad_port_is_a_config_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "postgresql+psycopg://localhost/x")
+    text = BASIC.replace("https://evalkit.internal", "http://localhost:80a0")
+    with pytest.raises(ValueError, match="base_url"):
+        load_config(write(tmp_path, text))
+
+
+OIDC_BASE = {
+    "server": {"base_url": "http://evalkit.test"},
+    "db": {"url": "postgresql+psycopg://x/y"},
+    "blob": {"url": "file:///tmp/blob"},
+}
+OIDC = {
+    "issuer": "https://idp.test",
+    "client_id": "evalkit-ui",
+    "audience": "https://evalkit.test",
+    "name": "Okta",
+}
+
+
+def test_oidc_config_defaults():
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": OIDC}})
+    assert cfg.auth.oidc == OidcConfig(**OIDC)
+    assert cfg.auth.oidc.scopes == ["openid", "profile", "email", "offline_access"]
+    assert cfg.auth.oidc.authorize_params == {}
+    assert cfg.auth.oidc.algorithms == ["RS256"]
+    assert cfg.auth.password_login == "admin"
+
+
+def test_oidc_scopes_must_include_openid():
+    with pytest.raises(ValidationError, match="must include openid"):
+        Config.model_validate({**OIDC_BASE, "auth": {"oidc": {**OIDC, "scopes": ["email"]}}})
+
+
+def test_oidc_required_scopes_must_be_requested():
+    scopes = ["openid", "evalkit:read"]
+    with pytest.raises(ValidationError, match="required_scopes lists evalkit:read, which"):
+        Config.model_validate(
+            {**OIDC_BASE, "auth": {"oidc": {**OIDC, "required_scopes": ["evalkit:read"]}}}
+        )
+    cfg = Config.model_validate(
+        {
+            **OIDC_BASE,
+            "auth": {"oidc": {**OIDC, "scopes": scopes, "required_scopes": ["evalkit:read"]}},
+        }
+    )
+    assert cfg.auth.oidc.required_scopes == ["evalkit:read"]
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": {**OIDC, "required_scopes": []}}})
+    assert cfg.auth.oidc.required_scopes == []
+
+
+def test_password_login_is_admin_or_all():
+    with pytest.raises(ValidationError):
+        Config.model_validate({**OIDC_BASE, "auth": {"password_login": "nobody"}})
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": OIDC, "password_login": "all"}})
+    assert cfg.auth.resolve_password_login() == "all"
+
+
+def test_password_login_is_all_without_an_idp():
+    assert AuthConfig().resolve_password_login() == "all"
+    assert AuthConfig(password_login="admin").resolve_password_login() == "all"
+    assert AuthConfig(oidc=OidcConfig(**OIDC)).resolve_password_login() == "admin"
+
+
+def test_mcp_oauth_moved_to_auth_oidc():
+    with pytest.raises(ValidationError, match="mcp.oauth moved to auth.oidc"):
+        Config.model_validate({**OIDC_BASE, "mcp": {"oauth": {"issuer": "x", "jwks_uri": "y"}}})

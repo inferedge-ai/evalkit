@@ -28,7 +28,7 @@ def app_for(tmp_path, db_url: str, migrate_on_start: bool):
     factory = make_session_factory(db_url)
     deps = RunnerDeps(
         cfg=cfg,
-        store=PgStore(factory),
+        store=PgStore(factory, "default"),
         blob_store=DictBlobStore(),
         agents=FakeAgents(),
         evaluators=FakeEvaluators(),

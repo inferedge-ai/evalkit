@@ -1,36 +1,41 @@
 import gzip
 import json
 
-import httpx
+import httpx2
 import pytest
 from opentelemetry.exporter.otlp.proto.common.trace_encoder import encode_spans
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace import SpanLimits, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from sqlalchemy import select
 
 from evalkit.contracts.enums import TrajectorySource, WorkspaceRole
 from evalkit.db.models import AuthToken
+from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from tests.api.native_api import CAPS, api_env, login_as
+from tests.api.test_auth_sso import sso_app
 from tests.fake_agents import reference_mapping
 from tests.fake_harness import FakeHarness
-from tests.identity import seed_agent
+from tests.identity import FakeIdp, seed_agent
+from tests.native import seed_env
 
 PROTO = {"content-type": "application/x-protobuf"}
 
 
-def otlp_payload(session_id="sess-1", agent_attr=None, child=True) -> bytes:
+def otlp_payload(session_id="sess-1", agent_attr=None, child=True, llm_extra=0) -> bytes:
     exporter = InMemorySpanExporter()
     resource = Resource.create({"evalkit.agent": agent_attr} if agent_attr else {})
-    provider = TracerProvider(resource=resource)
+    limits = SpanLimits(max_span_attributes=2) if llm_extra else None
+    provider = TracerProvider(resource=resource, span_limits=limits)
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     tracer = provider.get_tracer("t")
     root_attrs = {"session.id": session_id, "openinference.span.kind": "CHAIN"}
     with tracer.start_as_current_span("evalkit.run", attributes=root_attrs):
         if child:
             llm_attrs = {"openinference.span.kind": "LLM", "llm.model_name": "m"}
+            llm_attrs |= {f"llm.input_messages.{i}.message.role": "user" for i in range(llm_extra)}
             with tracer.start_as_current_span("llm", attributes=llm_attrs):
                 pass
     return encode_spans(exporter.get_finished_spans()).SerializeToString()
@@ -55,12 +60,12 @@ async def api(tmp_path, stub_judges, session_factory):
         yield client
 
 
-async def export(client: httpx.AsyncClient, payload: bytes, headers: dict) -> int:
+async def export(client: httpx2.AsyncClient, payload: bytes, headers: dict) -> int:
     return (await client.post("/api/otel/v1/traces", content=payload, headers=headers)).status_code
 
 
-def bearer(client: httpx.AsyncClient, token: str) -> httpx.AsyncClient:
-    return httpx.AsyncClient(
+def bearer(client: httpx2.AsyncClient, token: str) -> httpx2.AsyncClient:
+    return httpx2.AsyncClient(
         transport=client._transport,
         base_url="http://test",
         headers={"Authorization": f"Bearer {token}"},
@@ -82,6 +87,16 @@ async def test_protobuf_export_by_header_stores_spans(api):
     assert all("session_id_hint" not in s for s in spans)
 
 
+async def test_spans_keep_the_sdks_dropped_attribute_count(api):
+    payload = otlp_payload(llm_extra=3)
+    assert await export(api, payload, {**PROTO, "X-Evalkit-Agent": "sdk"}) == 200
+    spans = (await api.get("/api/agents/sdk@admin/sessions/sess-1/spans")).json()
+    assert {s["name"]: s["dropped_attributes_count"] for s in spans} == {
+        "evalkit.run": 0,
+        "llm": 3,
+    }
+
+
 async def test_json_export_by_resource_attribute_and_gzip(api):
     body = {
         "resourceSpans": [
@@ -91,6 +106,7 @@ async def test_json_export_by_resource_attribute_and_gzip(api):
                 },
                 "scopeSpans": [
                     {
+                        "scope": {"name": "mcp"},
                         "spans": [
                             {
                                 "traceId": "0af7651916cd43dd8448eb211c80319c",
@@ -108,8 +124,9 @@ async def test_json_export_by_resource_attribute_and_gzip(api):
                                     },
                                 ],
                                 "status": {"code": 2, "message": "boom"},
+                                "droppedAttributesCount": 4,
                             }
-                        ]
+                        ],
                     }
                 ],
             }
@@ -125,6 +142,8 @@ async def test_json_export_by_resource_attribute_and_gzip(api):
     assert spans[0]["attributes"] == {"session.id": "j-1", "n": 3, "tags": ["a"]}
     assert spans[0]["status_code"] == "ERROR" and spans[0]["status_message"] == "boom"
     assert spans[0]["trace_id"] == "0af7651916cd43dd8448eb211c80319c"
+    assert spans[0]["scope"] == "mcp"
+    assert spans[0]["dropped_attributes_count"] == 4
 
 
 async def test_foreign_workspace_unknown_agent_and_size_cap(api):
@@ -240,7 +259,7 @@ def two_agent_payload(resource_agent=None) -> bytes:
     return encode_spans(exporter.get_finished_spans()).SerializeToString()
 
 
-async def span_count(client: httpx.AsyncClient, agent: str, session: str) -> int:
+async def span_count(client: httpx2.AsyncClient, agent: str, session: str) -> int:
     resp = await client.get(f"/api/agents/{agent}/sessions/{session}/trajectory")
     return resp.json()["span_count"] if resp.status_code == 200 else 0
 
@@ -317,7 +336,7 @@ async def test_archived_workspace_refuses_trace_writes(api):
     assert draft.status_code == 409
 
 
-async def shared_agent_token(api, session_factory) -> httpx.AsyncClient:
+async def shared_agent_token(api, session_factory) -> httpx2.AsyncClient:
     await seed_agent(
         session_factory,
         "team",
@@ -327,7 +346,7 @@ async def shared_agent_token(api, session_factory) -> httpx.AsyncClient:
         mapping=reference_mapping(),
     )
     alice = await login_as(api, "alice", "password")
-    await WorkspaceStore(session_factory).add_member(
+    await WorkspaceStore(session_factory, "default").add_member(
         "canonical", "alice", WorkspaceRole.WRITER, granted_by=1
     )
     minted = await alice.post("/api/tokens", json={"agent": "team@canonical"})
@@ -371,3 +390,41 @@ async def test_login_token_cannot_export_to_an_archived_agent(api):
     assert (await api.post("/api/agents/deployed@admin/archive")).status_code == 200
     headers = {**PROTO, "X-Evalkit-Agent": "deployed"}
     assert await export(api, otlp_payload(session_id="p-1"), headers) == 409
+
+
+async def test_an_idp_token_can_export_to_its_own_agent(tmp_path, stub_judges, session_factory):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(session_factory, "default").create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp) as client:
+        headers = {
+            **PROTO,
+            "Authorization": f"Bearer {idp.access_token('sub-ann')}",
+            "X-Evalkit-Agent": "fake@ann",
+        }
+        resp = await client.post("/api/otel/v1/traces", content=otlp_payload(), headers=headers)
+    assert resp.status_code != 401
+
+
+async def test_the_collector_refuses_an_idp_token_without_the_required_scope(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path)
+    idp = FakeIdp(audience="http://evalkit.test")
+    await UserStore(session_factory, "default").create(
+        "ann", issuer=idp.issuer, subject="sub-ann", email="ann@example.com"
+    )
+    async with sso_app(env, idp, required_scopes=["evalkit:read"]) as client:
+        headers = {
+            **PROTO,
+            "Authorization": f"Bearer {idp.access_token('sub-ann')}",
+            "X-Evalkit-Agent": "fake@ann",
+        }
+        resp = await client.post("/api/otel/v1/traces", content=otlp_payload(), headers=headers)
+        assert resp.status_code == 403
+        minted = await client.post("/api/tokens", json={"agent": "fake@canonical"})
+        agent = bearer(client, minted.json()["token"])
+        assert await export(agent, otlp_payload(session_id="s-1"), PROTO) == 200
+        await agent.aclose()

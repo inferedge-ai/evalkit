@@ -134,7 +134,7 @@ def match_trajectory(
     )
 
 
-@builtin_evaluator("tool_trajectory_match", requires=REQUIRES)
+@builtin_evaluator("tool_trajectory_match", requires=REQUIRES, local_only=True)
 async def tool_trajectory_match(ctx: EvalContext, config: dict[str, Any]) -> list[ScoreRow]:
     cfg = ToolTrajectoryMatch.model_validate(config)
     if ctx.trajectory_view is None:
@@ -166,7 +166,7 @@ async def tool_trajectory_match(ctx: EvalContext, config: dict[str, Any]) -> lis
     ]
 
 
-@builtin_evaluator("required_tools_called", requires=REQUIRES)
+@builtin_evaluator("required_tools_called", requires=REQUIRES, local_only=True)
 async def required_tools_called(ctx: EvalContext, config: dict[str, Any]) -> list[ScoreRow]:
     cfg = RequiredToolsCalled.model_validate(config)
     if ctx.trajectory_view is None:

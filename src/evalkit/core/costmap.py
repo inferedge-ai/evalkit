@@ -2,7 +2,7 @@ import json
 from importlib import resources
 from pathlib import Path
 
-import httpx
+import httpx2
 from pydantic import BaseModel
 
 from evalkit.config import CostMapConfig
@@ -25,7 +25,7 @@ def bundled_cost_map_path() -> Path:
 
 
 def fetch_cost_map() -> dict:
-    resp = httpx.get(COST_MAP_URL, timeout=30, follow_redirects=True)
+    resp = httpx2.get(COST_MAP_URL, timeout=30, follow_redirects=True)
     resp.raise_for_status()
     return resp.json()
 
@@ -46,7 +46,7 @@ def load_cost_map(cfg: CostMapConfig) -> dict:
         write_cost_map(cost_map, path)
         return cost_map
     if cfg.source.startswith(("http://", "https://")):
-        resp = httpx.get(cfg.source, timeout=30, follow_redirects=True)
+        resp = httpx2.get(cfg.source, timeout=30, follow_redirects=True)
         resp.raise_for_status()
         return resp.json()
     return json.loads(Path(cfg.source).read_text())

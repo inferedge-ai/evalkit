@@ -1,4 +1,4 @@
-import httpx
+import httpx2
 import pytest
 
 from evalkit.contracts.enums import WorkspaceRole
@@ -26,8 +26,8 @@ cases:
 @pytest.fixture
 async def env(tmp_path, session_factory):
     env = await seed_env(session_factory, tmp_path, FakeHarness(), approved=False)
-    await UserStore(session_factory).create("sme", "password")
-    workspaces = WorkspaceStore(session_factory)
+    await UserStore(session_factory, "default").create("sme", password="password")
+    workspaces = WorkspaceStore(session_factory, "default")
     admin_id = env.user_ids["admin"]
     for name in ("dev", "prod"):
         await workspaces.create_shared(name, admin_id)
@@ -39,7 +39,7 @@ async def env(tmp_path, session_factory):
     async with serve(env, tmp_path) as admin:
         clients = {"admin": admin}
         for name in ("alice", "sme"):
-            client = httpx.AsyncClient(transport=admin._transport, base_url="http://test")
+            client = httpx2.AsyncClient(transport=admin._transport, base_url="http://test")
             resp = await client.post(
                 "/api/auth/login", json={"username": name, "password": USERS.get(name, "password")}
             )
@@ -81,10 +81,13 @@ async def test_approve_promotes_and_rejection_does_not(env):
     assert prod["case-1"]["review"]["state"] == "approved"
     assert prod["case-1"]["review"]["updated_at"] is not None
     events = (await clients["sme"].get(f"/api/datasets/{PROD}/cases/case-1/events")).json()
-    assert [(e["kind"], e["actor"]) for e in events["events"]] == [
+    prod_events = [e for e in events["events"] if e["dataset"] == PROD]
+    assert [(e["kind"], e["actor"]) for e in prod_events] == [
         ("approved", "sme"),
         ("synced", "sme"),
     ]
+    dev_events = [(e["kind"], e["dataset"]) for e in events["events"] if e["dataset"] == DEV]
+    assert ("approved", DEV) in dev_events and ("synced", DEV) in dev_events
     last = (await clients["sme"].get(f"/api/datasets/{PROD}")).json()["last_sync"]
     assert last["source"] == "promotion" and last["detail"]["from"] == DEV
 
@@ -130,6 +133,8 @@ async def test_prod_stays_on_last_approved_version(env):
     dev = await _cases(clients["sme"], DEV)
     assert dev["case-1"]["review"]["state"] == "unreviewed"
     assert (await _cases(clients["sme"], PROD))["case-1"]["content_hash"] == first
+    events = (await clients["sme"].get(f"/api/datasets/{PROD}/cases/case-1/events")).json()
+    assert {e["content_hash"] for e in events["events"]} == {first}
 
     resp = await _decide(clients["sme"], DEV, "case-1", "approve")
     assert resp.status_code == 200

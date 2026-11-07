@@ -19,11 +19,11 @@ from evalkit.db.models import (
 
 
 async def _base(s):
-    user = User(username="akshat", password_hash="x")
+    user = User(tenant_id="default", username="akshat", password_hash="x")
     s.add(user)
     await s.flush()
-    ws = Workspace(name="dev")
-    case = Case(case_id="q-1")
+    ws = Workspace(tenant_id="default", name="dev")
+    case = Case(tenant_id="default", case_id="q-1")
     s.add_all([ws, case])
     await s.flush()
     dataset = Dataset(workspace_id=ws.id, name="finance", kind="suite")
@@ -101,7 +101,12 @@ async def test_evaluation_kind_is_checked(session_factory):
         exp_run_id = await _experiment_run(s)
         s.add(
             Evaluation(
-                experiment_run_id=exp_run_id, producer="p", name="n", kind="bogus", source="builtin"
+                experiment_run_id=exp_run_id,
+                producer="p",
+                name="n",
+                kind="bogus",
+                source="builtin",
+                scored_on="local",
             )
         )
         with pytest.raises(IntegrityError, match="ck_evaluations_kind"):

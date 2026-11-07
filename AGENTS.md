@@ -22,7 +22,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Member | A `writer` or `reviewer` grant on a shared workspace. |
 | Shared agent | An agent in a shared workspace. The server drives it. |
 | Reference | How a dataset, agent or evaluator is named: `name@workspace`. The API and UI always use the full form; the CLI also takes a bare `name`, meaning your personal workspace. |
-| Local run | An experiment whose agent is in a personal workspace: the user's CLI drives the harness, runs evaluators and the judge, and writes results to the server. |
+| Local run | An experiment whose agent is in a personal workspace: the user's CLI drives the harness, runs evaluators, and writes results to the server. Judge-using built-ins run on the server unless the run brings its own judge key. |
 | Server run | An experiment whose agent is shared: the server's own runner drives it. |
 | Developer config | `evalkit.yaml` in the client's repo: the `credentials:` map (keys for personal agents and evaluators and the judge's LLM provider), the `cases` / `fixtures` directories. Keys come from env or a `.env` beside it. |
 | Experiment | One run of one dataset against one agent (× N repetitions). |
@@ -37,14 +37,17 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Evaluator | A scoring function. Compares expected vs actual, returns score + explanation. |
 | Remote evaluator | A client-hosted evaluator reached through the Custom Evaluator API, stored in a workspace (`evalkit evaluators create`). |
 | Evaluation | One evaluator's output on one run: a `score` or a `gauge` reading. |
+| Server evaluator | A built-in evaluator the evalkit server runs for a local or SDK run, over `POST /api/experiment-runs/{id}/server-evaluations/{name}`: one call per run per evaluator; the server scores from what it stored and returns rows, the runner publishes them. |
+| Local-only evaluator | A built-in that always runs on the developer's machine (`builtin_evaluator(..., local_only=True)`): `tool_trajectory_match`, `required_tools_called`, `max_response_time`. |
+| Scored on | Where an evaluation was computed: `local` (the CLI or SDK process) or `server`. A column on every evaluation, separate from its `source`. |
 | Gauge | A measurement, not a score: tokens, cost, time, tool-call counts. |
-| Judge | An LLM used by an evaluator to grade an answer. Chosen per experiment; the default judge applies when the run doesn't set one. A server run's judge must use a registered LLM provider. |
+| Judge | An LLM used by an evaluator to grade an answer. Chosen per experiment; the default judge applies when the run doesn't set one. Names exactly one of a registered LLM `provider` (judge-using built-ins run on the server with its stored key) or a `base_url` (bring your own key: they run locally). A server run's judge must be a provider. |
 | LLM provider | An OpenAI-compatible endpoint evalkit may call: a name (`openai`), a base URL and a stored key. Today only judges use providers. Admins manage them (`evalkit llm-providers`). |
-| Default judge | The judge (provider, model, effort, limits) an experiment uses when it does not set its own. Set by an admin in the database (`evalkit judge-default set`). |
+| Default judge | The judge (provider name, model, effort, limits) an experiment uses when it does not set its own. Set by an admin in the database (`evalkit judge-default set`). |
 | Stored key | An API key saved in the database, encrypted with the server's `encryption_key`, never returned (reads show `has_api_key`). Shared agents, shared remote evaluators, LLM providers and trace sources have one. |
-| Credential registry | The CLI and SDK lookup from a reference (or a judge base URL) to an API key, built from the `credentials:` map in `evalkit.yaml` (`agents`, `evaluators`, `llm_providers`). Used by local and SDK runs only; the server uses stored keys. |
+| Credential registry | The CLI and SDK lookup from an agent or evaluator reference to an API key, built from the `credentials:` map in `evalkit.yaml` (`agents`, `evaluators`). Used by local and SDK runs only; the server uses stored keys. A judge the run brings carries its own key (`--judge-api-key-env`, `Judge(api_key=...)`), never stored. |
 | Bucket | A scorecard grouping of evaluator scores: content, trajectory, presentation, efficiency, custom. |
-| Split | A selectable subset of a dataset, built from case tags. |
+| Tag | A label on a case: from its YAML `tags`, its folder in the suite, or an overlay. `evalkit run --tag` (repeatable) runs the cases carrying any of the given tags. |
 | Overlay | A client extension of a case in another suite: extra evaluator config attached by case id, scored only for the agents it names. |
 | Review state | Unreviewed, Review requested, Changes requested or Approved. Derived from a case's current content hash and the latest decisive event at that hash; never stored as a column. Never filters a run: `evalkit run` executes every selected case. Approval in a promotion source promotes the case; personal datasets have no review state. |
 | Reviewer | A member with the `reviewer` role on a shared workspace. Only reviewers approve or request changes there. |
@@ -72,8 +75,14 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Trajectory source | Where an agent's trajectories come from: `atif` (served by a harness or returned by a task) or `otel` (collected spans converted by evalkit). Recorded on the agent row and the experiment. |
 | Trace source | A third-party trace store (Phoenix), created by an admin and used only to import history. Its API key is stored encrypted with the server's `encryption_key`. |
 | Python evaluator | A custom evaluator written as a Python function and passed to `run_experiment`. The in-process twin of the Custom Evaluator API. |
-| Try-it stack | The Compose kit in `skills/evalkit-deployment/try/`: server and Postgres judging with the developer's LLM (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`), plus a sample agent run through an SDK run with OTel traces. For trying evalkit on one machine; never a deployment. |
+| Try-it stack | The Compose kit in `skills/evalkit-deployment/try/`: server and Postgres judging with the developer's LLM (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`) on host port `EVALKIT_PORT` (default 8020), plus a sample agent run through an SDK run with OTel traces. For trying evalkit on one machine; never a deployment. |
 | Sample agent | The try-it stack's `agent.py`: a small agent that calls the developer's LLM with one tool and emits GenAI-convention spans. Example client code, not part of the package. |
+| SSO | Single sign-on: a person signs in through the IdP; the UI and CLI are public OAuth clients and the server verifies the IdP's JWT access token on every request. |
+| IdP | The identity provider: the OAuth authorization server and OpenID provider an organisation runs. Configured once per server in `auth.oidc`. |
+| Access token | The IdP-issued JWT a client presents as bearer. Its `aud` names evalkit. Verified against the IdP's JWKS; no `auth_tokens` row. |
+| Subject | The pair `(issuer, sub)` identifying one identity at one IdP; keys the `users` row with the tenant. |
+| Machine user | A `users` row bound to a machine client's subject: no password, no email, `kind` is `machine`. CI authenticates as one with the client credentials grant. |
+| Tenant | One organisation's slice of the database; the public repo has exactly one, id 1. |
 
 ## Layout
 
@@ -116,12 +125,12 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - `serve` and `db upgrade` load the `.env` beside `config.yaml`; the environment wins.
 - A source checkout reports the plain semver; `GET /api/cli` returns `{"version", "package"}`.
 - The try-it stack (`skills/evalkit-deployment/try/`, walkthrough in `docs/user/try-locally.md`) builds the image from this checkout: `docker compose up -d --wait --build`.
-- `tests/e2e/services.py` serves a fake harness, custom evaluator and judge on ports 18080, 19000 and 19090 for e2e runs against a built image.
+- `uv run python -m tests.e2e.services` serves a fake harness, custom evaluator and judge on ports 18080, 19000 and 19090, and a fake identity provider on port 19100 (issuer `http://127.0.0.1:19100`, client id `evalkit-ui`, machine client `ci` / `e2e-secret`; see `tests/e2e/README.md`), for e2e runs against a built image.
 
 ### UI changes in a PR
 
 - Run the server and UI locally (see "Local server"; a throwaway Postgres,
-  dummy keys and the fake services in `tests/e2e/services.py` are enough).
+  dummy keys and the fake services in `python -m tests.e2e.services` are enough).
 - Click through every page and flow the PR changes and take screenshots.
 - Add them to the PR description under "Screenshots" with
   `gh pr edit <n> --body-file body.md --attach ./shot.png ...`: write
@@ -131,7 +140,44 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - No browser `alert()`, `confirm()` or `prompt()` in new UI code: use inline
   fields or dialogs.
 
+## Extending evalkit
+
+Another package can serve evalkit with API routes and UI pages of its own.
+
+**API routes.** Build the app with `create_app(cfg, ui_dist=..., resolve_tenant=...)`,
+then add plain FastAPI routes with `app.include_router(...)`.
+
+- The UI is served by FastAPI's `app.frontend()`, which is tried only after
+  every other route, so routes added after `create_app` answer GET.
+- evalkit's routes come first and win a path clash, including ones with
+  parameters such as `/api/agents/{ref}`. Keep yours under a prefix of your own
+  (`/api/billing/...`).
+- A route that needs a signed-in user is added with
+  `dependencies=SIGNED_IN` from `evalkit.api.auth`; without it the route is
+  public. `SIGNED_IN` covers path operations (`@router.get` and the like), not
+  `router.add_route()` or mounts. A handler that needs the user takes
+  `CurrentUser`; an admin-only one takes `AdminUser`.
+
+**UI pages.** The UI takes extra pages and nav items from
+`ui/src/extensions/index.tsx`, which exports `extensions` of type
+`UiExtensions` (`ui/src/lib/extensions.ts`). In evalkit it is empty.
+
+- Clone evalkit at the tag `vX.Y.Z` of the `evalkit-py` the server runs, replace
+  the `ui/src/extensions/` folder with yours, build the UI there
+  (`npm ci && npx tsc -b && npx vite build`) and pass `ui/dist` as `ui_dist`.
+  `tsc -b` checks your pages against evalkit's types. A Vite alias to a module
+  outside `ui/` does not work: imports in that module, such as `react`, do not
+  resolve.
+- `routes` render for signed-in users inside the app shell. `nav` items join
+  the top bar, `moreNav` the More menu, and `adminNav` the admin part of that
+  menu. `adminNav` only hides the item from non-admins; the page's endpoints
+  must check admin themselves.
+- Keep the folder path, the `extensions` export, `UiExtensions` and
+  `SIGNED_IN` stable: other packages build against them.
+
 ## CI
+
+- **Open pull requests as drafts** (`gh pr create --draft`). CI skips drafts, so run the tests locally and mark the PR ready (`gh pr ready <number>`) when it should be reviewed and run CI.
 
 `.github/workflows/ci.yml` runs on PRs to `develop`/`main` (non-draft; jobs are
 path-filtered against the PR base) and on pushes to those branches:
@@ -146,7 +192,7 @@ path-filtered against the PR base) and on pushes to those branches:
   packaging, Dockerfile), it builds the server image and pushes it to
   `ghcr.io/inferedge-ai/evalkit`, tagged with the full git sha and the branch
   name. It always builds the wheel (web UI included) as a workflow artifact,
-  and when code changed it publishes it to PyPI as `evalkit-py` (job `pypi`,
+  and on `main`, when code changed, it publishes it to PyPI as `evalkit-py` (job `pypi`,
   trusted publishing through the `pypi` environment).
 - `main` only: the image is also tagged with the version, and the workflow
   creates GitHub release `vX.Y.Z` with the wheel attached and the version's
@@ -180,12 +226,20 @@ path-filtered against the PR base) and on pushes to those branches:
 ## Changelog
 
 `CHANGELOG.md` has one section per released version plus `## Unreleased` at
-the top. Every PR that changes what a user can do or see (a command, flag,
-endpoint, field, UI control, review or run behaviour) adds its entry under
-`## Unreleased`, in the same PR; the release PR renames that section.
-Write it for the person upgrading: what they can do now, how to invoke it, and
-what is refused or different. Internal refactors and test-only changes do
-not need an entry.
+the top. It is a general record of what changed in each version, for anyone
+reading it: users, operators, contributors. Every PR that changes behaviour,
+an interface, a dependency, the schema, packaging or the build adds its
+entry under `## Unreleased`, in the same PR; the release PR renames that
+section. An entry says what changed and, when it is not obvious, why; name
+the command, flag, endpoint, field or config key so a reader can find it.
+Note anything refused or different from before in the same entry. Test-only
+changes and refactors with no visible effect do not need an entry.
+
+## Specs and plans
+
+Design specs, implementation plans and other planning documents are not
+checked in to this repo. Share them in the pull request instead: paste them
+into the description or link to them.
 
 ## Code style
 

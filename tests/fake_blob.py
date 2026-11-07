@@ -16,11 +16,16 @@ class DictBlobStore:
     async def put_stream(self, key, chunks) -> None:
         self.objects[key] = b"".join([chunk async for chunk in chunks])
 
-    async def get_object(self, key: str) -> bytes:
+    def _read(self, key: str) -> bytes:
+        if key not in self.objects:
+            raise FileNotFoundError(key)
         return self.objects[key]
 
+    async def get_object(self, key: str) -> bytes:
+        return self._read(key)
+
     async def get_stream(self, key: str) -> BlobStream:
-        data = self.objects[key]
+        data = self._read(key)
         return BlobStream(len(data), _once(data))
 
     async def object_exists(self, key: str) -> bool:

@@ -7,7 +7,7 @@ from evalkit.core.evaluators.base import EvalContext, builtin_evaluator
 from evalkit.store.base import ScoreRow
 
 
-@builtin_evaluator("max_response_time")
+@builtin_evaluator("max_response_time", local_only=True)
 async def max_response_time(ctx: EvalContext, config: dict[str, Any]) -> list[ScoreRow]:
     cfg = MaxResponseTime.model_validate(config)
     seconds = ctx.wall_ms / 1000

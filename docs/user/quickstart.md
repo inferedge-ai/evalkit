@@ -16,6 +16,8 @@ The Workspace tab on a run lists the files the agent wrote. evalkit reads them t
 
 ## 2. Install and log in
 
+evalkit needs Python 3.12 or newer.
+
 ```bash
 uv tool install --reinstall "evalkit-py=={{version}}"
 evalkit login --url {{origin}}
@@ -34,9 +36,9 @@ fixtures: eval/fixtures
 credentials:
   agents:
     myagent: env:MYAGENT_API_KEY # only for a Harness API agent that needs a key
-  llm_providers:
-    https://litellm.example.com: env:LITELLM_API_KEY # the server's judge base URL
 ```
+
+The file holds no judge key. By default the evaluators that use a judge run on the evalkit server, with the LLM provider configured there. To judge with your own key instead, see [Config](config.md).
 
 Put the keys in a `.env` next to `evalkit.yaml`. Then create your agent on the server once:
 
@@ -47,7 +49,7 @@ evalkit agents create myagent --trajectory-source otel --mapping openinference.j
 evalkit agents create myagent --harness-url http://localhost:8080/evalkit/v1
 ```
 
-`openinference.json` (or `gen_ai.json`) comes from the `connect-traces` skill.
+`openinference.json` (or `gen_ai.json`) comes from the `connect-traces` skill: `evalkit skills install` copies it to `.claude/skills/connect-traces/references/` (or `.agents/skills/…`). See [Install](install.md#the-skills). The skill also ships a mapping per popular framework (LangChain, CrewAI, LlamaIndex, Google ADK, Mastra, …); see [Framework mappings](framework-mappings.md).
 
 Each directory under `cases` is a dataset. Add `eval/cases/smoke/cases.yaml`:
 
@@ -68,7 +70,7 @@ More in [Config](config.md).
 
 ## 4. Run it
 
-SDK path: install the SDK into your project (see [Install](install.md)), then write `eval/run.py`:
+SDK path: install the SDK into your project (see [Install](install.md)). Mint an agent token and export it: `evalkit tokens create --agent myagent`, then `export EVALKIT_OTEL_TOKEN=<token>`. Then write `eval/run.py`:
 
 ```python
 from evalkit.sdk import run_experiment, tracing
@@ -128,11 +130,13 @@ A run or sync uploads any fixture whose sha256 the server doesn't hold yet, and 
 ## 7. Iterate and promote
 
 ```bash
+evalkit experiments list --dataset smoke       # experiment ids, newest first
+evalkit summary <new-id> --baseline <old-id>    # compare two experiments: fixed, broken, gauge deltas
 evalkit evaluate <experiment-id>        # re-score the same runs after an evaluator change; no agent calls
 evalkit runs pull --experiment <experiment-id>   # download every run (trajectory, case, scores) to diagnose failures
 ```
 
-Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as `dev`, where they start Unreviewed; a reviewer of that workspace approves them, and if `dev` is linked to `prod`, approval promotes them there.
+Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as `dev`, where they start Unreviewed; a reviewer of that workspace approves them, and if `dev` is linked to `prod`, approval promotes them there. [CI sync](ci-sync.md) shows how to set up that CI job.
 
 ```bash
 evalkit review request finance@dev --case-id net-debt-fy2025 --reviewer <user>

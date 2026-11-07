@@ -4,7 +4,7 @@
 
 ## How
 
-<!-- The approach, and anything a reviewer should look at closely. -->
+<!-- The approach, and anything a reviewer should look at closely. Paste or link any design spec or plan; they are not checked in. -->
 
 ## Testing
 
