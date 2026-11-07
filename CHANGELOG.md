@@ -3,6 +3,22 @@
 ## 0.4.0
 
 - evalkit is now licensed under Apache-2.0 instead of AGPL-3.0 (`LICENSE`).
+- The server serves the web UI with FastAPI's `app.frontend()` instead of a
+  catch-all route, so API routes another package adds with
+  `app.include_router()` after `create_app` answer GET.
+  `evalkit.api.auth.SIGNED_IN` puts such a route behind evalkit's sign-in. The
+  web UI takes extra pages and nav items from `ui/src/extensions/`, empty in
+  evalkit. See "Extending evalkit" in `AGENTS.md`. Responses that change:
+  - A page path such as `/datasets` returns the UI only to a browser
+    navigating to it (`Accept: text/html`); other clients get 404. `/`
+    returns it to every client, and `HEAD /` answers 200 instead of 405.
+  - A request to an unknown path with a method other than GET or HEAD
+    answers 404 instead of 405, `/api` paths included. A GET to an API path
+    that only takes other methods (`GET /api/auth/login`) answers 405
+    instead of 404.
+  - A path that differs from an API route only by a trailing slash
+    (`/api/agents/`) gets a 307 redirect to the route instead of 404 or 405.
+  - A page path containing an encoded NUL byte answers 404 instead of 500.
 - New docs page, Framework mappings (`docs/user/framework-mappings.md`): a
   ready-to-use span mapping per agent framework (LangGraph, LangChain,
   CrewAI, Agno, OpenAI Agents SDK, LlamaIndex, Google ADK, Pydantic AI,

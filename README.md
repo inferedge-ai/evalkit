@@ -169,6 +169,3 @@ The docs and the Python SDK reference are published at
 - **Security vulnerabilities, or anything else:** email
   [tech@inferedge.com](mailto:tech@inferedge.com). Don't post
   vulnerabilities in a public issue.
-
-evalkit doesn't take pull requests, but issues are very welcome: a clear
-bug report or idea helps just as much.

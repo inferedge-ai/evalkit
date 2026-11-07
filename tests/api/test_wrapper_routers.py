@@ -1,0 +1,85 @@
+import httpx2
+import pytest
+from fastapi import APIRouter, HTTPException
+
+from evalkit.api.app import create_app
+from evalkit.api.auth import SIGNED_IN, CurrentUser
+from tests.native import HOLDER, USERS, seed_env
+
+billing = APIRouter(prefix="/api/billing")
+public = APIRouter()
+
+
+@billing.get("/plan")
+async def get_plan(user: CurrentUser) -> dict:
+    return {"plan": "team", "user": user.username}
+
+
+@billing.post("/plan")
+async def change_plan() -> dict:
+    return {"changed": True}
+
+
+@public.get("/api/prices")
+async def get_prices() -> dict:
+    return {"team": 49}
+
+
+@public.post("/mcp")
+async def take_mcp() -> dict:
+    return {"from": "wrapper"}
+
+
+@public.get("/billing/invoices/{number}")
+async def get_invoice(number: int) -> dict:
+    raise HTTPException(status_code=404, detail=f"no invoice {number}")
+
+
+@pytest.fixture
+async def client(tmp_path, session_factory):
+    env = await seed_env(session_factory, tmp_path)
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    (dist / "index.html").write_text("<html>evalkit spa</html>")
+    app = create_app(
+        env.deps.cfg,  # type: ignore[arg-type]
+        blob_store=env.blob,
+        runner_deps=env.deps,
+        session_factory=session_factory,
+        check_schema=False,
+        ui_dist=dist,
+        holder=HOLDER,
+    )
+    app.include_router(billing, dependencies=SIGNED_IN)
+    app.include_router(public)
+    async with app.router.lifespan_context(app):
+        transport = httpx2.ASGITransport(app=app)
+        async with httpx2.AsyncClient(transport=transport, base_url="http://test") as client:
+            yield client
+
+
+async def test_serves_routes_added_after_create_app(client):
+    signed_out = await client.get("/api/billing/plan")
+    signed_out_change = await client.post("/api/billing/plan")
+    prices = await client.get("/api/prices")
+    mcp = await client.post("/mcp", json={})
+    login = await client.post(
+        "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
+    )
+    client.headers["Authorization"] = f"Bearer {login.json()['token']}"
+
+    plan = await client.get("/api/billing/plan")
+    changed = await client.post("/api/billing/plan")
+    page = await client.get("/billing", headers={"Accept": "text/html"})
+    invoice = await client.get("/billing/invoices/7", headers={"Accept": "text/html"})
+    unknown = await client.get("/api/billing/nope")
+
+    assert signed_out.status_code == 401
+    assert signed_out_change.status_code == 401
+    assert prices.status_code == 200 and prices.json() == {"team": 49}
+    assert mcp.status_code == 401 and "WWW-Authenticate" in mcp.headers
+    assert plan.status_code == 200 and plan.json() == {"plan": "team", "user": "admin"}
+    assert changed.json() == {"changed": True}
+    assert page.status_code == 200 and "evalkit spa" in page.text
+    assert invoice.status_code == 404 and invoice.json() == {"detail": "no invoice 7"}
+    assert unknown.status_code == 404
