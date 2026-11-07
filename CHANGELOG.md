@@ -2,6 +2,7 @@
 
 ## 0.4.0
 
+- evalkit is now licensed under Apache-2.0 instead of AGPL-3.0 (`LICENSE`).
 - An evaluator that raises an exception without a message (an httpx
   timeout, say) now records the exception type, e.g. `ReadTimeout`,
   instead of an empty error, in the CLI, `evaluations.json` and the
