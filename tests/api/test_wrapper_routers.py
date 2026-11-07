@@ -3,10 +3,11 @@ import pytest
 from fastapi import APIRouter
 
 from evalkit.api.app import create_app
-from evalkit.api.auth import CurrentUser
+from evalkit.api.auth import SIGNED_IN, CurrentUser
 from tests.native import HOLDER, USERS, seed_env
 
 billing = APIRouter(prefix="/api/billing")
+public = APIRouter()
 
 
 @billing.get("/plan")
@@ -19,10 +20,12 @@ async def change_plan() -> dict:
     return {"changed": True}
 
 
-clash = APIRouter()
+@public.get("/api/prices")
+async def get_prices() -> dict:
+    return {"team": 49}
 
 
-@clash.post("/mcp")
+@public.post("/mcp")
 async def take_mcp() -> dict:
     return {"from": "wrapper"}
 
@@ -41,17 +44,19 @@ async def client(tmp_path, session_factory):
         check_schema=False,
         ui_dist=dist,
         holder=HOLDER,
-        routers=[billing, clash],
     )
+    app.include_router(billing, dependencies=SIGNED_IN)
+    app.include_router(public)
     async with app.router.lifespan_context(app):
         transport = httpx2.ASGITransport(app=app)
         async with httpx2.AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
 
 
-async def test_serves_wrapper_routes(client):
+async def test_serves_routes_added_after_create_app(client):
     signed_out = await client.get("/api/billing/plan")
     signed_out_change = await client.post("/api/billing/plan")
+    prices = await client.get("/api/prices")
     mcp = await client.post("/mcp", json={})
     login = await client.post(
         "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
@@ -66,6 +71,7 @@ async def test_serves_wrapper_routes(client):
 
     assert signed_out.status_code == 401
     assert signed_out_change.status_code == 401
+    assert prices.status_code == 200 and prices.json() == {"team": 49}
     assert mcp.status_code == 401 and "WWW-Authenticate" in mcp.headers
     assert plan.status_code == 200 and plan.json() == {"plan": "team", "user": "admin"}
     assert changed.json() == {"changed": True}

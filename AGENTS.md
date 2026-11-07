@@ -140,36 +140,39 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - No browser `alert()`, `confirm()` or `prompt()` in new UI code: use inline
   fields or dialogs.
 
-## Wrapping evalkit
+## Extending evalkit
 
-A wrapper is another package that serves evalkit with features of its own.
-It builds the server with `create_app` and may pass:
+Another package can serve evalkit with API routes and UI pages of its own.
 
-- `routers`: its FastAPI routers, included after evalkit's API and MCP routes
-  and before the route that serves the UI, so their GET endpoints answer.
-  evalkit's routes win when a path clashes, including ones with parameters
-  such as `/api/agents/{ref}`, so a wrapper keeps its routes under a prefix of
-  its own (`/api/billing/...`). They sit behind evalkit's sign-in, as its own
-  API routes do; a handler that needs the user takes `CurrentUser` from
-  `evalkit.api.auth`.
-- `resolve_tenant`: picks each request's tenant.
-- `ui_dist`: the folder of a UI build to serve instead of the bundled one.
+**API routes.** Build the app with `create_app(cfg, ui_dist=..., resolve_tenant=...)`,
+then add plain FastAPI routes with `app.include_router(...)`.
 
-The UI takes extra pages and nav items from `ui/src/extensions/index.tsx`,
-which exports `extensions` of type `UiExtensions` (`ui/src/lib/extensions.ts`).
-In evalkit it is empty.
+- The UI is served from the not-found handler, not a catch-all route, so
+  routes added after `create_app` answer GET.
+- evalkit's routes come first and win a path clash, including ones with
+  parameters such as `/api/agents/{ref}`. Keep yours under a prefix of your own
+  (`/api/billing/...`).
+- A route that needs a signed-in user is added with
+  `dependencies=SIGNED_IN` from `evalkit.api.auth`; without it the route is
+  public. A handler that needs the user takes `CurrentUser`; an admin-only one
+  takes `AdminUser`.
 
-- A wrapper replaces the `ui/src/extensions/` folder with its own, builds the
-  UI (`npm ci && npx tsc -b && npx vite build`) from the same evalkit version
-  as its server package, and passes `ui/dist` as `ui_dist`. `tsc -b` checks
-  its pages against evalkit's types.
+**UI pages.** The UI takes extra pages and nav items from
+`ui/src/extensions/index.tsx`, which exports `extensions` of type
+`UiExtensions` (`ui/src/lib/extensions.ts`). In evalkit it is empty.
+
+- Clone evalkit at the tag `vX.Y.Z` of the `evalkit-py` the server runs, replace
+  the `ui/src/extensions/` folder with yours, build the UI there
+  (`npm ci && npx tsc -b && npx vite build`) and pass `ui/dist` as `ui_dist`.
+  `tsc -b` checks your pages against evalkit's types. A Vite alias to a module
+  outside `ui/` does not work: imports in that module, such as `react`, do not
+  resolve.
 - `routes` render for signed-in users inside the app shell. `nav` items join
   the top bar, `moreNav` the More menu, and `adminNav` the admin part of that
-  menu, which only admins see.
-- Keep the folder path, the `extensions` export and `UiExtensions` stable:
-  wrappers build against them.
-- A Vite alias to a module outside `ui/` does not work: imports in that module,
-  such as `react`, do not resolve.
+  menu. `adminNav` only hides the item from non-admins; the page's endpoints
+  must check admin themselves.
+- Keep the folder path, the `extensions` export, `UiExtensions` and
+  `SIGNED_IN` stable: other packages build against them.
 
 ## CI
 

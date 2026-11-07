@@ -2,14 +2,13 @@
 
 ## Unreleased
 
-- `create_app` takes `routers`, FastAPI routers from a package that wraps
-  evalkit, and includes them behind evalkit's sign-in, after its API and MCP
-  routes and before the route that serves the web UI. Routes a wrapper added
-  after `create_app` returned were unreachable for GET: `GET /api/<x>`
-  answered 404 and any other path returned the UI. The web UI takes extra
-  pages and nav items from `ui/src/extensions/`, empty in evalkit, which a
-  wrapper replaces before building the UI. See "Wrapping evalkit" in
-  `AGENTS.md`.
+- The server serves the web UI from its not-found handler instead of a
+  catch-all route, so API routes another package adds with
+  `app.include_router()` after `create_app` answer GET.
+  `evalkit.api.auth.SIGNED_IN` puts such a route behind evalkit's sign-in. A
+  request other than GET or HEAD to a page path now answers 404 instead of
+  405. The web UI takes extra pages and nav items from `ui/src/extensions/`,
+  empty in evalkit. See "Extending evalkit" in `AGENTS.md`.
 - New docs page, Framework mappings (`docs/user/framework-mappings.md`): a
   ready-to-use span mapping per agent framework (LangGraph, LangChain,
   CrewAI, Agno, OpenAI Agents SDK, LlamaIndex, Google ADK, Pydantic AI,

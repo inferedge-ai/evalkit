@@ -95,6 +95,7 @@ async def test_spa_history_fallback(api):
         resp = await client.get(route)
         assert resp.status_code == 200, route
         assert "evalkit spa" in resp.text
+    assert (await client.head("/")).status_code == 200
     assert (await client.get("/favicon.svg")).text == "<svg/>"
     assert (await client.get("/assets/index.js")).status_code == 200
     assert (await client.get("/assets/missing.js")).status_code == 404

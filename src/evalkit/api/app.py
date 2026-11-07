@@ -5,16 +5,16 @@ import os
 import signal
 import socket
 import time
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx2
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from sqlalchemy.exc import TimeoutError as PoolTimeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.responses import FileResponse, JSONResponse
+from starlette.responses import FileResponse, JSONResponse, Response
 from starlette.staticfiles import StaticFiles
 
 from evalkit import version
@@ -43,7 +43,7 @@ from evalkit.api import (
     users,
     workspaces,
 )
-from evalkit.api.auth import bootstrap_admin, current_user
+from evalkit.api.auth import SIGNED_IN, bootstrap_admin
 from evalkit.api.auth import router as auth_router
 from evalkit.api.limits import BodyLimitMiddleware
 from evalkit.api.mcp.auth import MCP_PATH
@@ -203,7 +203,6 @@ def create_app(
     holder: str | None = None,
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
     resolve_tenant: TenantResolver = default_resolve_tenant,
-    routers: Sequence[APIRouter] = (),
 ) -> FastAPI:
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (
@@ -268,7 +267,6 @@ def create_app(
             await engine.dispose()
 
     app = FastAPI(title="evalkit", lifespan=lifespan, docs_url=None, redoc_url=None)
-    app.add_exception_handler(StarletteHTTPException, otel.log_rejection)
     app.state.cfg = cfg
     app.state.resolve_tenant = resolve_tenant
     app.state.runner_deps = resolved_deps
@@ -369,51 +367,56 @@ def create_app(
         return {"ok": True}
 
     app.include_router(auth_router)
-    wall = [Depends(current_user)]
-    app.include_router(datasets.router, dependencies=wall)
-    app.include_router(meta.router, dependencies=wall)
-    app.include_router(experiments.router, dependencies=wall)
-    app.include_router(experiments.runs_router, dependencies=wall)
-    app.include_router(agents_api.router, dependencies=wall)
-    app.include_router(evaluators.router, dependencies=wall)
-    app.include_router(builtin_evaluators.router, dependencies=wall)
-    app.include_router(trace_sources.router, dependencies=wall)
-    app.include_router(llm_providers.router, dependencies=wall)
-    app.include_router(runs.router, dependencies=wall)
-    app.include_router(pull.router, dependencies=wall)
-    app.include_router(harness_check.router, dependencies=wall)
-    app.include_router(imports.router, dependencies=wall)
-    app.include_router(review.router, dependencies=wall)
-    app.include_router(fixtures.router, dependencies=wall)
-    app.include_router(users.router, dependencies=wall)
-    app.include_router(workspaces.router, dependencies=wall)
-    app.include_router(tokens.router, dependencies=wall)
-    app.include_router(traces.router, dependencies=wall)
-    app.include_router(trace_imports.router, dependencies=wall)
+    app.include_router(datasets.router, dependencies=SIGNED_IN)
+    app.include_router(meta.router, dependencies=SIGNED_IN)
+    app.include_router(experiments.router, dependencies=SIGNED_IN)
+    app.include_router(experiments.runs_router, dependencies=SIGNED_IN)
+    app.include_router(agents_api.router, dependencies=SIGNED_IN)
+    app.include_router(evaluators.router, dependencies=SIGNED_IN)
+    app.include_router(builtin_evaluators.router, dependencies=SIGNED_IN)
+    app.include_router(trace_sources.router, dependencies=SIGNED_IN)
+    app.include_router(llm_providers.router, dependencies=SIGNED_IN)
+    app.include_router(runs.router, dependencies=SIGNED_IN)
+    app.include_router(pull.router, dependencies=SIGNED_IN)
+    app.include_router(harness_check.router, dependencies=SIGNED_IN)
+    app.include_router(imports.router, dependencies=SIGNED_IN)
+    app.include_router(review.router, dependencies=SIGNED_IN)
+    app.include_router(fixtures.router, dependencies=SIGNED_IN)
+    app.include_router(users.router, dependencies=SIGNED_IN)
+    app.include_router(workspaces.router, dependencies=SIGNED_IN)
+    app.include_router(tokens.router, dependencies=SIGNED_IN)
+    app.include_router(traces.router, dependencies=SIGNED_IN)
+    app.include_router(trace_imports.router, dependencies=SIGNED_IN)
     app.include_router(otel.router)
     mcp_app = mount_mcp(app)
-    for router in routers:
-        app.include_router(router, dependencies=wall)
 
-    if ui_dist is None:
-        ui_dist = ui_root()
-    if ui_dist.is_dir():
-        assets = ui_dist / "assets"
-        if assets.is_dir():
-            app.mount("/assets", StaticFiles(directory=assets), name="assets")
-        index = ui_dist / "index.html"
-        root = ui_dist.resolve()
-
-        # SPA history fallback: real files are served as-is; any other
-        # non-API path gets index.html so client-side routes survive a
-        # refresh or a direct link. Unmatched /api/* paths stay 404s.
-        @app.get("/{path:path}", include_in_schema=False)
-        async def spa(path: str):
-            if path.startswith(("api/", "assets/", ".well-known/")):
-                raise HTTPException(status_code=404)
-            candidate = (ui_dist / path).resolve()
-            if candidate.is_relative_to(root) and candidate.is_file():
-                return FileResponse(candidate)
-            return FileResponse(index)
-
+    ui = ui_dist if ui_dist is not None else ui_root()
+    if (ui / "assets").is_dir():
+        app.mount("/assets", StaticFiles(directory=ui / "assets"), name="assets")
+    app.add_exception_handler(
+        StarletteHTTPException, page_fallback(ui) if ui.is_dir() else otel.log_rejection
+    )
     return app
+
+
+def page_fallback(ui_dist: Path) -> Callable[[Request, Exception], Awaitable[Response]]:
+    root = ui_dist.resolve()
+
+    # A not-found handler rather than a catch-all route, so routes added to the
+    # app after create_app still answer GET. Any other non-API path gets its
+    # file or index.html, for the UI's client-side router to draw.
+    async def serve_page(request: Request, exc: Exception) -> Response:
+        assert isinstance(exc, StarletteHTTPException)
+        path = request.url.path.lstrip("/")
+        if (
+            exc.status_code != 404
+            or request.method not in ("GET", "HEAD")
+            or path.startswith(("api/", "assets/", ".well-known/"))
+        ):
+            return await otel.log_rejection(request, exc)
+        candidate = (root / path).resolve()
+        if candidate.is_relative_to(root) and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(root / "index.html")
+
+    return serve_page
