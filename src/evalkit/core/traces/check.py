@@ -163,6 +163,16 @@ def render_check(session: dict[str, Any]) -> tuple[list[str], bool]:
                 f"steps, {len(_calls(trajectory))} tool calls, {subs} subagents",
             )
         )
+        missing = (trajectory.get("extra") or {}).get("answer_span_missing")
+        if missing:
+            lines.append(
+                _line(
+                    "warn",
+                    "answer",
+                    f'no span named "{missing}", which the mapping\'s answer rule names; '
+                    "the trajectory has no answer",
+                )
+            )
         lines += _shape_lines(llms, trajectory, every)
     else:
         lines.append(_line("fail", "trajectory", "no trajectory"))

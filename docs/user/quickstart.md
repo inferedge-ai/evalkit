@@ -49,7 +49,7 @@ evalkit agents create myagent --trajectory-source otel --mapping openinference.j
 evalkit agents create myagent --harness-url http://localhost:8080/evalkit/v1
 ```
 
-`openinference.json` (or `gen_ai.json`) comes from the `connect-traces` skill: `evalkit skills install` copies it to `.claude/skills/connect-traces/references/` (or `.agents/skills/…`). See [Install](install.md#the-skills).
+`openinference.json` (or `gen_ai.json`) comes from the `connect-traces` skill: `evalkit skills install` copies it to `.claude/skills/connect-traces/references/` (or `.agents/skills/…`). See [Install](install.md#the-skills). The skill also ships a mapping per popular framework (LangChain, CrewAI, LlamaIndex, Google ADK, Mastra, …); see [Framework mappings](framework-mappings.md).
 
 Each directory under `cases` is a dataset. Add `eval/cases/smoke/cases.yaml`:
 

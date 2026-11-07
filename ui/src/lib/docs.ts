@@ -9,6 +9,7 @@ import ciSync from "../../../docs/user/ci-sync.md?raw";
 import sdkRuns from "../../../docs/user/sdk-runs.md?raw";
 import tracing from "../../../docs/user/tracing.md?raw";
 import mappings from "../../../docs/user/mappings.md?raw";
+import frameworkMappings from "../../../docs/user/framework-mappings.md?raw";
 import harnessApi from "../../../docs/user/harness-api.md?raw";
 import tryLocally from "../../../docs/user/try-locally.md?raw";
 import concepts from "../../../docs/user/concepts.md?raw";
@@ -55,6 +56,12 @@ export const DOC_TABS = [
   { id: "sdk-runs", label: "SDK runs", group: "Traces", body: sdkRuns },
   { id: "tracing", label: "Tracing", group: "Traces", body: tracing },
   { id: "mappings", label: "Mappings", group: "Traces", body: mappings },
+  {
+    id: "framework-mappings",
+    label: "Framework mappings",
+    group: "Traces",
+    body: frameworkMappings,
+  },
   {
     id: "harness-api",
     label: "Harness API",

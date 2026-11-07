@@ -18,6 +18,7 @@ describe("docs", () => {
       "sdk-runs",
       "tracing",
       "mappings",
+      "framework-mappings",
       "harness-api",
       "mcp",
     ]);

@@ -2,7 +2,7 @@
 
 A mapping tells evalkit which span attribute holds each field of the evalkit span format (ESF): the span kind, the session id, the model, the messages, the token counts, the tool name and call id. It also says where the run's answer comes from (`answer`) and which spans to leave out (`exclude_spans`).
 
-Every agent whose trajectories come from traces has its own mapping. `evalkit agents create NAME --trajectory-source otel --mapping FILE` makes the first version active. Start from the `connect-traces` skill's `openinference.json` or `gen_ai.json`, which cover agents on the OpenInference or GenAI semantic conventions as they are. Spans that reach an agent with no active mapping are stored without a session id.
+Every agent whose trajectories come from traces has its own mapping. `evalkit agents create NAME --trajectory-source otel --mapping FILE` makes the first version active. Start from the file for your framework in [Framework mappings](framework-mappings.md), or from the `connect-traces` skill's `openinference.json` or `gen_ai.json`, which cover agents on the OpenInference or GenAI semantic conventions as they are. Spans that reach an agent with no active mapping are stored without a session id.
 
 An existing agent switches between ATIF and traces with `evalkit agents edit NAME --trajectory-source otel --mapping FILE` (or `--trajectory-source atif`), or from the agent's Edit dialog. Switching to traces without a file reuses the agent's last active mapping. The switch is refused while one of the agent's experiments is running, and experiments that already ran keep the source they ran with.
 
