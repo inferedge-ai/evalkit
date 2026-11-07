@@ -142,7 +142,7 @@ lacks it. That is what a wrong mapping looks like in the check.
    | `session` | span count, trace count, settled or not |
    | `root` | the root span's name and kind; missing root means the session id is not on the root span |
    | `mapping` | the active version, `vN` |
-   | `llm` | spans read as `llm`, the model, token totals; `no llm spans` means the kind rule does not match; `without messages` means those spans carry no messages, usually because message content capture is off |
+   | `llm` | spans read as `llm`, the model, token totals; `no llm spans` means the kind rule does not match; `without messages` means those spans carry no messages, usually because message content capture is off; `attributes dropped by the OTel SDK` means those spans passed the SDK's 128-attribute limit and lost messages or parts of them, so set `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096` in the agent's environment |
    | `tools` | spans read as `tool`, and how many carry a `tool_call_id` that matches a call the LLM spans emitted; a gap means tool spans exist but their call ids are not read, so results only match by time and order; `in no step` names tool spans that started before any LLM span and so are not in the trajectory |
    | `unmapped` | attributes no rule read, apart from the mapping's `known_attributes` |
    | `trajectory` | ATIF steps, tool calls, subagents |

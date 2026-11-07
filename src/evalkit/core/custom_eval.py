@@ -10,6 +10,7 @@ from evalkit.contracts.custom_evaluator import (
     EvalRun,
     ScoreItem,
 )
+from evalkit.core.errors import error_text
 from evalkit.core.remote_evaluators import RemoteEvaluator
 
 LOGGER = logging.getLogger(__name__)
@@ -46,5 +47,6 @@ async def score_with_custom_evaluator(
             resp.raise_for_status()
             return EvalResponse.model_validate(resp.json()).scores
     except (httpx2.HTTPError, ValidationError, ValueError) as exc:
-        LOGGER.warning("custom evaluator %s errored: %s", evaluator.ref, exc)
-        return EvalError(evaluator=evaluator.name, message=str(exc))
+        error = error_text(exc)
+        LOGGER.warning("custom evaluator %s errored: %s", evaluator.ref, error)
+        return EvalError(evaluator=evaluator.name, message=error)

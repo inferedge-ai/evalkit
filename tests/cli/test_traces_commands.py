@@ -106,6 +106,14 @@ def test_render_check_warns_on_llm_spans_without_messages():
     )
 
 
+def test_render_check_warns_on_llm_spans_with_dropped_attributes():
+    esf = [{**s, "dropped_attributes": 3} for s in SESSION["esf"]]
+    lines, _ = render_check({**SESSION, "esf": esf})
+    assert lines[3].startswith("  ! llm            1 spans")
+    assert "1 with attributes dropped by the OTel SDK" in lines[3]
+    assert "OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT" in lines[3]
+
+
 PROXY_502 = "<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>"
 
 

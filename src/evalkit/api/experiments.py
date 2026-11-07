@@ -36,6 +36,7 @@ from evalkit.core.access import (
 from evalkit.core.agents import AgentDefinition, explicit, server_may_drive
 from evalkit.core.blob import trajectory_key
 from evalkit.core.costmap import load_cost_map
+from evalkit.core.errors import error_text
 from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
 from evalkit.core.runner import (
     ACTIVE,
@@ -46,7 +47,6 @@ from evalkit.core.runner import (
     NothingRunnable,
     RunnerDeps,
     build_context,
-    error_text,
     harness_capabilities,
     prepare_experiment,
     rescore_experiment,

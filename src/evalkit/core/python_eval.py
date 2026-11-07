@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from evalkit.contracts.custom_evaluator import EvalCase, EvalRun, ScoreItem
 from evalkit.core.custom_eval import EvalError
+from evalkit.core.errors import error_text
 
 LOGGER = logging.getLogger(__name__)
 
@@ -55,5 +56,6 @@ async def score_with_python_evaluator(
                 result = await result
         return _normalise(evaluator.name, result)
     except Exception as exc:
-        LOGGER.warning("python evaluator %s errored: %s", evaluator.name, exc)
-        return EvalError(evaluator=evaluator.name, message=f"{type(exc).__name__}: {exc}")
+        error = error_text(exc)
+        LOGGER.warning("python evaluator %s errored: %s", evaluator.name, error)
+        return EvalError(evaluator=evaluator.name, message=error)

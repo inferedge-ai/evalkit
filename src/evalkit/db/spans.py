@@ -100,6 +100,7 @@ SPAN_COLUMNS = (
     models.Span.status_message,
     models.Span.attributes,
     models.Span.scope,
+    models.Span.dropped_attributes_count,
     models.Span.received_at,
 )
 HEAD_COLUMNS = tuple(c for c in SPAN_COLUMNS if c is not models.Span.attributes)
@@ -124,6 +125,7 @@ def _to_raw(row: Mapping[Any, Any]) -> RawSpan:
         events=row.get("events", []),
         resource=row.get("resource", {}),
         scope=row["scope"],
+        dropped_attributes_count=row["dropped_attributes_count"],
         received_at=_aware(row["received_at"]),
     )
 
@@ -241,6 +243,7 @@ class SpanStore:
                     events=span.events,
                     resource=span.resource,
                     scope=span.scope,
+                    dropped_attributes_count=span.dropped_attributes_count,
                     received_at=now,
                     external_trace_source_id=external_trace_source_id,
                 )

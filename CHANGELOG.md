@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- An evaluator that raises an exception without a message (an httpx
+  timeout, say) now records the exception type, e.g. `ReadTimeout`,
+  instead of an empty error, in the CLI, `evaluations.json` and the
+  server log. Builtin, remote and Python evaluators all do this.
+- A re-score (`evalkit evaluate`, SDK `evaluate_experiment`) now retries
+  an evaluator that errored after an earlier success. Before, the old
+  success rows stayed next to the error row, so the evaluator counted as
+  done and the error never cleared. An evaluator with any row marked as an
+  error (an `error` or the label `error`) is never done. Publishing an
+  evaluator's rows now replaces every row it wrote for that run.
+- The collector stores each span's `dropped_attributes_count` (the
+  attributes the OTel SDK dropped past its limit) in a new `spans` column
+  (migration 0018). `GET /api/agents/<ref>/sessions/<id>/spans` returns it,
+  ESF spans carry it as `dropped_attributes`, and `evalkit traces check`
+  warns on its `llm` line when an LLM span lost attributes, which usually
+  means lost messages. The Tracing page and the connect-traces skill explain
+  how to raise `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT` (default 128).
 - The collector now gives each span the session of its outermost ancestor
   that carries one, not only the trace root's. An agent behind FastAPI or
   another instrumented HTTP server no longer loses its spans when the

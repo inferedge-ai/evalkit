@@ -237,14 +237,24 @@ async def runs_to_score(
     }
     done: dict[int, set[str]] = {}
     if not force:
-        succeeded = await session.execute(
-            select(models.Evaluation.experiment_run_id, models.Evaluation.name).where(
-                models.Evaluation.experiment_run_id.in_([er.id for er, _, _ in rows]),
-                models.Evaluation.error.is_(None),
-            )
+        evaluations = await session.execute(
+            select(
+                models.Evaluation.experiment_run_id,
+                models.Evaluation.producer,
+                models.Evaluation.name,
+                models.Evaluation.error,
+                models.Evaluation.label,
+            ).where(models.Evaluation.experiment_run_id.in_([er.id for er, _, _ in rows]))
         )
-        for run_id, name in succeeded.all():
-            done.setdefault(run_id, set()).add(name)
+        found = evaluations.all()
+        errored = {
+            (run_id, producer)
+            for run_id, producer, _, error, label in found
+            if error is not None or label == "error"
+        }
+        for run_id, producer, name, _, _ in found:
+            if (run_id, producer) not in errored:
+                done.setdefault(run_id, set()).add(name)
     return [
         RunForScoring(
             experiment_run_id=er.id,
@@ -287,13 +297,15 @@ async def publish_evaluations(
         if exp_id is None:
             raise InvalidRun(f"unknown experiment run: {experiment_run_id}")
         await _leased_experiment(session, exp_id, holder)
-    succeeded = {r.producer for r in rows if r.error is None}
-    if succeeded:
+    published: dict[str, set[str]] = {}
+    for row in rows:
+        published.setdefault(row.producer, set()).add(row.name)
+    for producer, names in published.items():
         await session.execute(
             delete(models.Evaluation).where(
                 models.Evaluation.experiment_run_id == experiment_run_id,
-                models.Evaluation.producer.in_(succeeded),
-                models.Evaluation.error.is_not(None),
+                models.Evaluation.producer == producer,
+                models.Evaluation.name.not_in(names),
             )
         )
     for row in rows:

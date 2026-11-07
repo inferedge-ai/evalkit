@@ -59,6 +59,7 @@ from evalkit.core.blob import (
 from evalkit.core.capabilities import SDK_CONTRACT_VERSION, traced_capabilities
 from evalkit.core.costmap import load_cost_map
 from evalkit.core.custom_eval import EvalError, score_with_custom_evaluator
+from evalkit.core.errors import error_text
 from evalkit.core.evaluators.base import (
     BUILTIN_EVALUATORS,
     BUILTIN_GAUGES,
@@ -260,11 +261,6 @@ class LeaseLost(ValueError):
             f"experiment {exp_id} was taken over by another runner or marked failed; "
             f"check it with evalkit status {exp_id}, then resume it"
         )
-
-
-def error_text(exc: BaseException) -> str:
-    message = str(exc)
-    return f"{type(exc).__name__}: {message}" if message else type(exc).__name__
 
 
 class ScoringFailed(Exception):
@@ -929,8 +925,9 @@ async def score_builtin(
             return result.rows, scored_on
         return await execute(evaluator, ctx, config, caps), scored_on
     except Exception as exc:
-        LOGGER.warning("evaluator %s errored on run %s: %s", name, run_id, exc)
-        return [ScoreRow(name=name, score=None, label="error", error=str(exc))], scored_on
+        error = error_text(exc)
+        LOGGER.warning("evaluator %s errored on run %s: %s", name, run_id, error)
+        return [ScoreRow(name=name, score=None, label="error", error=error)], scored_on
 
 
 async def _evaluate_run(
