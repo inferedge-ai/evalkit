@@ -1,6 +1,6 @@
 [project]
 name = "evalkit-py"
-version = "0.3.0"
+version = "0.4.0"
 description = "Self-hosted system for improving AI agents: server, CLI, web UI, Python SDK and agent skills"
 readme = "README.md"
 authors = [

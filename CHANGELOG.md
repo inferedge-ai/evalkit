@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
 
+- evalkit is now licensed under Apache-2.0 instead of AGPL-3.0 (`LICENSE`).
 - The server serves the web UI with FastAPI's `app.frontend()` instead of a
   catch-all route, so API routes another package adds with
   `app.include_router()` after `create_app` answer GET.
