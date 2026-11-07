@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- The collector now gives each span the session of its outermost ancestor
+  that carries one, not only the trace root's. An agent behind FastAPI or
+  another instrumented HTTP server no longer loses its spans when the
+  server's request span (`POST /chat`) is the root: put the session id on
+  your own turn span and the agent's spans join it. A root span with a
+  session still sets the session for the whole trace. `evalkit traces check`
+  now warns, instead of failing, when the trace root is outside the session,
+  and names the top span. The Tracing page has an "Agent behind an HTTP
+  server" recipe.
 - Local and SDK runs now score the judge-using built-in evaluators
   (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) on the evalkit
   server by default, with the server's LLM provider and its stored key. You no

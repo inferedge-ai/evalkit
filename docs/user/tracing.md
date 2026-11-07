@@ -57,7 +57,7 @@ A harness agent learns that a run is an eval run from the `metadata` of `POST /r
 
 `only` decides by trace, not by span. It is any function that takes a span and returns a bool, and it runs on each span as the span starts and again as it ends. Once it is true for one span, the processor keeps every span of that span's trace that reaches it: spans started inside `eval_run`, the job's own spans started before `eval_run` in the same trace, and finished spans a bridge hands straight to the processor. Spans of other traces are dropped. A custom `only` picks whole traces the same way.
 
-The rule for order: a span is kept when its trace is already marked by the time the span ends. The first span started inside `eval_run` marks its trace as it starts, before anything under it ends, so spans that end before it and spans a bridge hands over later are both kept. A span that ends before any span of its trace was marked is dropped. A bridge that may hand spans over that early can copy the `evalkit.*` attributes onto them, so each one marks its own trace. A bridge should copy `session.id` either way: the server takes a trace's session from its root span when the root reaches it, and from each span's own `session.id` otherwise.
+The rule for order: a span is kept when its trace is already marked by the time the span ends. The first span started inside `eval_run` marks its trace as it starts, before anything under it ends, so spans that end before it and spans a bridge hands over later are both kept. A span that ends before any span of its trace was marked is dropped. A bridge that may hand spans over that early can copy the `evalkit.*` attributes onto them, so each one marks its own trace. A bridge should copy `session.id` either way: the server gives each span the session of its outermost ancestor that carries one, and the span's own `session.id` when no ancestor does.
 
 The processor remembers the 10,000 most recently used eval traces and forgets the oldest. Each kept span refreshes its trace, so a trace is only forgotten once 10,000 other eval traces have been used since its last span.
 
@@ -79,7 +79,33 @@ export OTEL_RESOURCE_ATTRIBUTES="evalkit.agent=myagent"   # alternative to the h
 
 The collector picks the agent per span: the span's `evalkit.agent` attribute first, then the resource's, then the `X-Evalkit-Agent` header. One process that serves several agents can therefore share one exporter and set `evalkit.agent` on each agent's spans. The value is an agent reference (`myagent` or `myagent@workspace`). Every agent a batch names is checked as if it came in the header: an agent token writes only its own agent, a login token only agents in workspaces you can write to (your own, or a shared one where you are a writer). If any span names an agent the token may not write, the whole batch is refused.
 
-Put the session id on the root span of each trace, in the attribute your mapping's `session_id` rule names (`session.id` in `openinference.json`, `gen_ai.conversation.id` in `gen_ai.json`). Every span in a trace belongs to the session of the trace's root, even one that carries a session attribute of its own. Only when the root has no session do child spans keep theirs.
+Put the session id on the outermost span of each turn, in the attribute your mapping's `session_id` rule names (`session.id` in `openinference.json`, `gen_ai.conversation.id` in `gen_ai.json`). Each span belongs to the session of its outermost ancestor that carries one, even when the span carries a session attribute of its own. A span with no such ancestor keeps its own session. So a root span with a session sets the session for the whole trace, and a root span without one (an HTTP server's request span) does not matter.
+
+### Agent behind an HTTP server
+
+When the agent runs behind FastAPI, Express or any other instrumented HTTP server, the server's request span (`POST /chat`) is the root of the trace and carries no session id. Pick one:
+
+- Start a span of your own around each turn and put the session id on it. The agent's spans underneath join that session:
+
+  ```python
+  with tracer.start_as_current_span("turn", attributes={"session.id": session_id}):
+      answer = await agent.run(question)
+  ```
+
+- With OpenInference, wrap the turn in `using_session(session_id)`; it stamps `session.id` onto every span started inside it:
+
+  ```python
+  from openinference.instrumentation import using_session
+
+  with using_session(session_id):
+      answer = await agent.run(question)
+  ```
+
+- Turn off the server framework's tracing, so the agent's own spans are the roots.
+
+Pydantic AI sets its own `gen_ai.conversation.id` on its spans. Your turn span's id already wins over it in evalkit. Passing yours anyway, `agent.run(question, conversation_id=session_id)`, is optional: it keeps the ids the same in other trace tools.
+
+`evalkit traces check` warns when a session's trace root is outside the session and names the top span the session starts from.
 
 ## Deployed agents
 

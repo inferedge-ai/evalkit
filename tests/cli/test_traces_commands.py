@@ -87,7 +87,7 @@ def test_render_check_lines():
 def test_render_check_without_root():
     session = {**SESSION, "root_present": False, "esf": SESSION["esf"][1:], "mapping_version": None}
     lines, ok = render_check(session)
-    assert not ok and lines[1].startswith("  ✗ root")
+    assert lines[1].startswith("  ! root")
     assert lines[2] == "  ! mapping        no active mapping; the agent's spans are unmapped"
 
 
@@ -345,12 +345,21 @@ def test_render_check_skips_excluded_spans():
     assert lines[3] == "  ✓ llm            1 spans, model m, tokens in=10 out=2 cached=4"
 
 
-def test_render_check_explains_a_missing_root():
-    lines, ok = render_check({**SESSION, "esf": SESSION["esf"][1:]})
-    assert not ok
+def test_render_check_names_the_top_span_when_the_root_is_outside_the_session():
+    lines, _ = render_check({**SESSION, "esf": SESSION["esf"][1:]})
+    top = SESSION["esf"][1]
     assert lines[1] == (
-        "  ✗ root           no root span (parent_span_id null) in this session: 2 spans were "
-        "grouped without it; put the session id on the root span, or stamp it on every span"
+        "  ! root           the trace root is outside this session; "
+        f'the top span is "{top["name"]}" '
+        f"under parent {top['parent_id']} (often an HTTP server's request span); its spans join "
+        "the session of their outermost ancestor that carries one"
+    )
+
+
+def test_render_check_says_an_unsettled_root_may_not_have_arrived():
+    lines, _ = render_check({**SESSION, "settled": False, "esf": SESSION["esf"][1:]})
+    assert lines[1].startswith(
+        "  ! root           the trace root is outside this session or not received yet; "
     )
 
 
