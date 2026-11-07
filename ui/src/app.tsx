@@ -22,6 +22,7 @@ import { ExperimentsPage } from "./evals/ExperimentsPage";
 import { RunPage } from "./evals/RunPage";
 import { RunsBrowser } from "./runs/RunsBrowser";
 import { AgentRunPage } from "./runs/AgentRunPage";
+import { extensions } from "./extensions";
 
 export function App() {
   return (
@@ -89,6 +90,9 @@ export function App() {
                 path="/admin/llm-providers"
                 element={<LlmProvidersPage />}
               />
+              {extensions.routes.map((r) => (
+                <Route key={r.path} path={r.path} element={r.element} />
+              ))}
               <Route
                 path="*"
                 element={

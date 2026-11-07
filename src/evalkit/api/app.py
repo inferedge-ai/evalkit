@@ -11,11 +11,10 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx2
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from sqlalchemy.exc import TimeoutError as PoolTimeout
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.responses import FileResponse, JSONResponse
-from starlette.staticfiles import StaticFiles
+from starlette.responses import JSONResponse
 
 from evalkit import version
 from evalkit.api import (
@@ -43,7 +42,7 @@ from evalkit.api import (
     users,
     workspaces,
 )
-from evalkit.api.auth import bootstrap_admin, current_user
+from evalkit.api.auth import SIGNED_IN, bootstrap_admin
 from evalkit.api.auth import router as auth_router
 from evalkit.api.limits import BodyLimitMiddleware
 from evalkit.api.mcp.auth import MCP_PATH
@@ -368,49 +367,31 @@ def create_app(
         return {"ok": True}
 
     app.include_router(auth_router)
-    wall = [Depends(current_user)]
-    app.include_router(datasets.router, dependencies=wall)
-    app.include_router(meta.router, dependencies=wall)
-    app.include_router(experiments.router, dependencies=wall)
-    app.include_router(experiments.runs_router, dependencies=wall)
-    app.include_router(agents_api.router, dependencies=wall)
-    app.include_router(evaluators.router, dependencies=wall)
-    app.include_router(builtin_evaluators.router, dependencies=wall)
-    app.include_router(trace_sources.router, dependencies=wall)
-    app.include_router(llm_providers.router, dependencies=wall)
-    app.include_router(runs.router, dependencies=wall)
-    app.include_router(pull.router, dependencies=wall)
-    app.include_router(harness_check.router, dependencies=wall)
-    app.include_router(imports.router, dependencies=wall)
-    app.include_router(review.router, dependencies=wall)
-    app.include_router(fixtures.router, dependencies=wall)
-    app.include_router(users.router, dependencies=wall)
-    app.include_router(workspaces.router, dependencies=wall)
-    app.include_router(tokens.router, dependencies=wall)
-    app.include_router(traces.router, dependencies=wall)
-    app.include_router(trace_imports.router, dependencies=wall)
+    app.include_router(datasets.router, dependencies=SIGNED_IN)
+    app.include_router(meta.router, dependencies=SIGNED_IN)
+    app.include_router(experiments.router, dependencies=SIGNED_IN)
+    app.include_router(experiments.runs_router, dependencies=SIGNED_IN)
+    app.include_router(agents_api.router, dependencies=SIGNED_IN)
+    app.include_router(evaluators.router, dependencies=SIGNED_IN)
+    app.include_router(builtin_evaluators.router, dependencies=SIGNED_IN)
+    app.include_router(trace_sources.router, dependencies=SIGNED_IN)
+    app.include_router(llm_providers.router, dependencies=SIGNED_IN)
+    app.include_router(runs.router, dependencies=SIGNED_IN)
+    app.include_router(pull.router, dependencies=SIGNED_IN)
+    app.include_router(harness_check.router, dependencies=SIGNED_IN)
+    app.include_router(imports.router, dependencies=SIGNED_IN)
+    app.include_router(review.router, dependencies=SIGNED_IN)
+    app.include_router(fixtures.router, dependencies=SIGNED_IN)
+    app.include_router(users.router, dependencies=SIGNED_IN)
+    app.include_router(workspaces.router, dependencies=SIGNED_IN)
+    app.include_router(tokens.router, dependencies=SIGNED_IN)
+    app.include_router(traces.router, dependencies=SIGNED_IN)
+    app.include_router(trace_imports.router, dependencies=SIGNED_IN)
     app.include_router(otel.router)
     mcp_app = mount_mcp(app)
 
-    if ui_dist is None:
+    if ui_dist is None and ui_root().is_dir():
         ui_dist = ui_root()
-    if ui_dist.is_dir():
-        assets = ui_dist / "assets"
-        if assets.is_dir():
-            app.mount("/assets", StaticFiles(directory=assets), name="assets")
-        index = ui_dist / "index.html"
-        root = ui_dist.resolve()
-
-        # SPA history fallback: real files are served as-is; any other
-        # non-API path gets index.html so client-side routes survive a
-        # refresh or a direct link. Unmatched /api/* paths stay 404s.
-        @app.get("/{path:path}", include_in_schema=False)
-        async def spa(path: str):
-            if path.startswith(("api/", "assets/", ".well-known/")):
-                raise HTTPException(status_code=404)
-            candidate = (ui_dist / path).resolve()
-            if candidate.is_relative_to(root) and candidate.is_file():
-                return FileResponse(candidate)
-            return FileResponse(index)
-
+    if ui_dist is not None:
+        app.frontend("/", directory=ui_dist)
     return app
