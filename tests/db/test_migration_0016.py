@@ -3,7 +3,7 @@ import json
 import pytest
 from sqlalchemy import create_engine, inspect, text
 
-from evalkit.db.session import downgrade_migrations, run_migrations
+from evalkit.db.session import downgrade_migrations, head_revision, run_migrations
 
 
 def _exec(url: str, statements: list[str]) -> None:
@@ -50,9 +50,7 @@ def test_0016_backfills_tenant_1_and_folds_server_settings(fresh_db_url):
     run_migrations(fresh_db_url, "0015")
     _seed_at_0015(fresh_db_url)
     run_migrations(fresh_db_url, "0016")
-<<<<<<< HEAD
-=======
->>>>>>> 0705b573 (Store OTel dropped_attributes_count and warn on it; count error labels as errored (ENG-14508 review))
+    assert head_revision() == "0018"
     [(judge,)] = _rows(
         fresh_db_url,
         "SELECT default_judge->>'model' FROM tenant_settings WHERE tenant_id = 'default'",
