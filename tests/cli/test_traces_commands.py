@@ -390,3 +390,12 @@ def test_render_check_counts_llm_steps_without_a_model_name():
     steps = [{"step_id": 1, "source": "agent", "timestamp": "2026-10-09T00:00:01Z"}]
     lines, _ = render_check({**SESSION, "trajectory": {**SESSION["trajectory"], "steps": steps}})
     assert not any(" steps " in line for line in lines)
+
+
+def test_render_check_warns_when_the_answer_span_is_missing():
+    trajectory = {**SESSION["trajectory"], "extra": {"answer_span_missing": "invoke_agent X"}}
+    lines, _ = render_check({**SESSION, "trajectory": trajectory})
+    assert lines[7] == (
+        '  ! answer         no span named "invoke_agent X", which the mapping\'s answer rule '
+        "names; the trajectory has no answer"
+    )

@@ -101,6 +101,7 @@ nav:
       - SDK runs: sdk-runs.md
       - Tracing: tracing.md
       - Mappings: mappings.md
+      - Framework mappings: framework-mappings.md
   - Harness API: harness-api.md
   - MCP: mcp.md
   - SDK reference: sdk-reference.md

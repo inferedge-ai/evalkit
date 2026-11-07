@@ -6,10 +6,23 @@
   evalkit, and includes them behind evalkit's sign-in, after its API and MCP
   routes and before the route that serves the web UI. Routes a wrapper added
   after `create_app` returned were unreachable for GET: `GET /api/<x>`
-  answered 404 and any other path returned the UI. The web UI
-  takes extra pages and nav items from `ui/src/extensions/`, empty in evalkit,
-  which a wrapper replaces before building the UI. See "Wrapping evalkit" in
+  answered 404 and any other path returned the UI. The web UI takes extra
+  pages and nav items from `ui/src/extensions/`, empty in evalkit, which a
+  wrapper replaces before building the UI. See "Wrapping evalkit" in
   `AGENTS.md`.
+- New docs page, Framework mappings (`docs/user/framework-mappings.md`): a
+  ready-to-use span mapping per agent framework (LangGraph, LangChain,
+  CrewAI, Agno, OpenAI Agents SDK, LlamaIndex, Google ADK, Pydantic AI,
+  Claude Agent SDK, Mastra), with the agent-side changes a mapping cannot
+  make. The `connect-traces` skill ships the files under `references/`
+  (`langchain.json`, `crewai.json`, `agno.json`, `llamaindex.json`,
+  `google-adk.json`, `claude-agent-sdk.json`, `mastra.json`) and tells
+  coding agents to pick the framework's file first.
+- `evalkit traces check` (and the SDK's dry run) warns on a new `answer`
+  line when the mapping's `answer` rule names a span the session does not
+  have, for example a copied `<agent name>` placeholder or a typo. Before,
+  the trajectory silently had no answer. The trajectory's `extra` carries
+  the name as `answer_span_missing`.
 - An evaluator that raises an exception without a message (an httpx
   timeout, say) now records the exception type, e.g. `ReadTimeout`,
   instead of an empty error, in the CLI, `evaluations.json` and the
