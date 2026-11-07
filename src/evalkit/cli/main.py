@@ -744,8 +744,22 @@ def run(
     judge_model: str | None = typer.Option(
         None, "--judge-model", help="Judge model for this experiment; default: the server's."
     ),
+    judge_provider: str | None = typer.Option(
+        None,
+        "--judge-provider",
+        help="A registered LLM provider to judge with; judge-using evaluators run on the server.",
+    ),
     judge_base_url: str | None = typer.Option(
-        None, "--judge-base-url", help="Judge endpoint; its key is credentials.judges[url]."
+        None,
+        "--judge-base-url",
+        help="Bring your own judge: judge-using evaluators run on this machine. Needs "
+        "--judge-api-key-env.",
+    ),
+    judge_api_key_env: str | None = typer.Option(
+        None,
+        "--judge-api-key-env",
+        help="The env var (or .env entry beside evalkit.yaml) holding the key for "
+        "--judge-base-url. Never stored.",
     ),
     judge_effort: str | None = typer.Option(None, "--judge-effort", help="Judge reasoning effort."),
     evaluation_concurrency: int | None = typer.Option(
@@ -799,7 +813,8 @@ def run(
             fixtures_dir=local.fixtures if local else None,
         )
     dataset_slug = slug(resolved.ref)
-    judge = _judge_override(judge_model, judge_base_url, judge_effort)
+    judge = _judge_override(judge_model, judge_provider, judge_base_url, judge_effort)
+    judge_key = _judge_api_key(judge, judge_api_key_env, local, resuming=resume is not None)
     if route is Driver.SERVER:
         exp_id = _run_on_server(
             dataset_slug,
@@ -830,6 +845,7 @@ def run(
                     revision=revision,
                     progress=progress,
                     judge=JudgeSettings.model_validate(judge) if judge else None,
+                    judge_api_key=judge_key,
                     evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
                 )
             )
@@ -853,11 +869,36 @@ def run(
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
 
 
-def _judge_override(model: str | None, base_url: str | None, effort: str | None) -> dict | None:
+def _judge_api_key(
+    judge: dict | None, env_name: str | None, local: LocalConfig | None, *, resuming: bool
+) -> str | None:
+    own = judge is not None and judge.get("base_url") is not None
+    if env_name is None:
+        if own:
+            raise ApiError("--judge-base-url needs --judge-api-key-env NAME, the key's env var")
+        return None
+    if not own and not resuming:
+        raise ApiError("--judge-api-key-env goes with --judge-base-url or --resume")
+    return _env_value(env_name, local)
+
+
+def _env_value(name: str, local: LocalConfig | None) -> str:
+    environ = local.environ() if local is not None else dict(os.environ)
+    if name not in environ:
+        raise ApiError(f"env var {name} is not set (shell or the .env beside evalkit.yaml)")
+    return environ[name]
+
+
+def _judge_override(
+    model: str | None, provider: str | None, base_url: str | None, effort: str | None
+) -> dict | None:
+    if provider is not None and base_url is not None:
+        raise ApiError("pass --judge-provider or --judge-base-url, not both")
     changes = {
         key: value
         for key, value in {
             "model": model,
+            "provider": provider,
             "base_url": base_url,
             "reasoning_effort": effort,
         }.items()
@@ -865,7 +906,11 @@ def _judge_override(model: str | None, base_url: str | None, effort: str | None)
     }
     if not changes:
         return None
-    return {**_client().get("/api/judge-default").json(), **changes}
+    found = _client().get_if_found("/api/judge-default")
+    current = found.json() if found is not None else {}
+    if provider is not None or base_url is not None:
+        current = {k: v for k, v in current.items() if k not in ("provider", "base_url")}
+    return {**current, **changes}
 
 
 def _require_agent_key(
@@ -896,6 +941,12 @@ def evaluate(
         min=1,
         help=f"How many runs are scored at once (default {EVALUATION_CONCURRENCY}).",
     ),
+    judge_api_key_env: str | None = typer.Option(
+        None,
+        "--judge-api-key-env",
+        help="For an experiment that brought its own judge (--judge-base-url): the env var "
+        "holding its key. Keys are never stored, so re-scoring asks again.",
+    ),
 ):
     """Re-score an experiment's recorded runs from this machine (idempotent).
 
@@ -925,6 +976,7 @@ def evaluate(
                 progress=typer.echo,
                 refetch_trajectories=refetch_trajectories,
                 evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
+                judge_api_key=_env_value(judge_api_key_env, local) if judge_api_key_env else None,
             )
         )
     except ScoringFailed as exc:

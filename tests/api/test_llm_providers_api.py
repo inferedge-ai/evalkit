@@ -40,22 +40,35 @@ async def test_admins_manage_providers_and_keys_stay_hidden(api):
 async def test_the_default_judge_is_set_by_admins(api):
     alice = await login_as(api, "alice", "password")
     judge = (await alice.get("/api/judge-default")).json()
-    assert judge["base_url"] == JUDGE_URL
+    assert judge == {
+        "provider": "judge",
+        "model": "judge-model",
+        "reasoning_effort": "high",
+        "max_tokens": 32768,
+    }
     new = {**judge, "model": "bigger"}
     assert (await alice.put("/api/judge-default", json=new)).status_code == 403
     assert (await api.put("/api/judge-default", json=new)).json()["model"] == "bigger"
-    unknown = await api.put("/api/judge-default", json={**new, "base_url": "http://nope"})
+    unknown = await api.put("/api/judge-default", json={**new, "provider": "nope"})
     assert unknown.status_code == 404
+    by_url = await api.put("/api/judge-default", json={"base_url": JUDGE_URL, "model": "m"})
+    assert by_url.status_code == 400 and "provider" in by_url.json()["detail"]
     await alice.aclose()
 
 
-async def test_server_runs_need_a_registered_judge_and_a_default(api, session_factory):
+async def test_server_runs_need_a_registered_provider_judge_and_a_default(api, session_factory):
+    by_url = await api.post(
+        "/api/experiments", json={**RUN, "judge": {"base_url": JUDGE_URL, "model": "m"}}
+    )
+    assert by_url.status_code == 400
+    assert "not a base_url" in by_url.json()["detail"]
     unregistered = await api.post(
-        "/api/experiments", json={**RUN, "judge": {"base_url": "http://other", "model": "m"}}
+        "/api/experiments", json={**RUN, "judge": {"provider": "other", "model": "m"}}
     )
     assert unregistered.status_code == 400
     assert (
-        "not a registered LLM provider; registered: " + JUDGE_URL in (unregistered.json()["detail"])
+        "other is not a registered LLM provider; registered: judge"
+        in (unregistered.json()["detail"])
     )
     async with session_factory() as session:
         tenant = await session.get(TenantSettings, "default")
@@ -75,9 +88,7 @@ async def test_keyless_endpoints_warn_but_run(api):
     await api.patch("/api/agents/fake@canonical", json={"api_key": "client-key"})
     started = await api.post("/api/experiments", json=RUN)
     assert started.status_code == 200, started.text
-    assert started.json()["warnings"] == [
-        f"LLM provider {JUDGE_URL} has no API key; judging without one"
-    ]
+    assert started.json()["warnings"] == ["LLM provider judge has no API key; judging without one"]
 
 
 async def test_private_endpoints_are_refused_unless_allowed(api):
@@ -96,7 +107,7 @@ async def test_private_endpoints_are_refused_unless_allowed(api):
 async def test_judge_default_patch_keeps_unset_fields(api):
     await api.put(
         "/api/judge-default",
-        json={"base_url": JUDGE_URL, "model": "judge-model", "max_tokens": 4},
+        json={"provider": "judge", "model": "judge-model", "max_tokens": 4},
     )
     patched = await api.patch("/api/judge-default", json={"model": "bigger"})
     assert patched.json()["model"] == "bigger" and patched.json()["max_tokens"] == 4
@@ -105,7 +116,7 @@ async def test_judge_default_patch_keeps_unset_fields(api):
 async def test_judge_concurrency_from_older_clients_is_dropped(api):
     put = await api.put(
         "/api/judge-default",
-        json={"base_url": JUDGE_URL, "model": "judge-model", "concurrency": 4},
+        json={"provider": "judge", "model": "judge-model", "concurrency": 4},
     )
     assert put.status_code == 200, put.text
     assert "concurrency" not in put.json()
@@ -146,7 +157,7 @@ async def test_personal_endpoints_skip_the_private_address_check(api):
 async def test_resume_and_evaluate_refuse_a_judge_that_is_no_longer_registered(api):
     await api.post("/api/llm-providers", json={"name": "other", "base_url": "http://other/v1"})
     started = await api.post(
-        "/api/experiments", json={**RUN, "judge": {"base_url": "http://other/v1", "model": "m"}}
+        "/api/experiments", json={**RUN, "judge": {"provider": "other", "model": "m"}}
     )
     assert started.status_code == 200, started.text
     await api.post("/api/llm-providers/other/archive")
@@ -154,4 +165,16 @@ async def test_resume_and_evaluate_refuse_a_judge_that_is_no_longer_registered(a
     for action in ("resume", "evaluate"):
         refused = await api.post(f"/api/experiments/{exp_id}/{action}")
         assert refused.status_code == 400
-        assert "http://other/v1 is not a registered LLM provider" in refused.json()["detail"]
+        assert "other is not a registered LLM provider" in refused.json()["detail"]
+
+
+async def test_editing_the_default_judges_provider_url_is_allowed(api):
+    moved = await api.patch("/api/llm-providers/judge", json={"base_url": "http://judge2/v1"})
+    assert moved.status_code == 200, moved.text
+    assert (await api.get("/api/judge-default")).json()["provider"] == "judge"
+
+
+async def test_judge_default_patch_switches_provider(api):
+    await api.post("/api/llm-providers", json={"name": "other", "base_url": "http://other/v1"})
+    patched = await api.patch("/api/judge-default", json={"provider": "other"})
+    assert patched.json()["provider"] == "other" and patched.json()["model"] == "judge-model"

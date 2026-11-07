@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from evalkit.contracts.enums import TraceImportStatus
 from evalkit.contracts.esf import MappingDocument
-from evalkit.core.runner import error_text
+from evalkit.core.errors import error_text
 from evalkit.core.traces.mapping import session_id_of
 from evalkit.core.traces.raw import RawSpan
 from evalkit.core.traces.sources import TraceSourceClient

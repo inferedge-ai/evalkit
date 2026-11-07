@@ -49,6 +49,8 @@ async def gauge_judge_cost_usd(ctx: EvalContext, config: dict[str, Any]) -> list
     usage = ctx.judge_usage
     if usage.input_tokens == 0 and usage.output_tokens == 0:
         return _reading("gauge_judge_cost_usd", None)
+    if ctx.judge_cfg is None:
+        return _reading("gauge_judge_cost_usd", None)
     rates = resolve_rates(ctx.cost_map, ctx.judge_cfg.model)
     if rates is None:
         return _reading("gauge_judge_cost_usd", None)

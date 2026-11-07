@@ -234,12 +234,10 @@ def test_flow_17_server_keys_come_from_the_database(live):
     assert not any("nokey" in w for w in started.json()["warnings"])
     judged = admin.post(
         "/api/experiments",
-        json={**run, "judge": {"base_url": "http://nokey-judge.test", "model": "m"}},
+        json={**run, "judge": {"provider": "nokey-judge", "model": "m"}},
     )
     assert judged.status_code == 400
-    assert judged.json()["detail"].startswith(
-        "http://nokey-judge.test is not a registered LLM provider"
-    )
+    assert judged.json()["detail"].startswith("nokey-judge is not a registered LLM provider")
 
 
 def test_flow_17_key_commands_store_keys_and_providers(live):
@@ -299,5 +297,5 @@ def test_flow_17_key_commands_store_keys_and_providers(live):
     judge = live.run("judge-default", "set", "--provider", "openai", "--model", "gpt-5")
     assert judge.exit_code == 0, judge.output
     shown = live.run("judge-default", "show").output
-    assert "http://o/v1" in shown and "gpt-5" in shown
+    assert "openai" in shown and "gpt-5" in shown
     assert live.run("llm-providers", "archive", "openai").exit_code == 1

@@ -36,9 +36,9 @@ fixtures: eval/fixtures
 credentials:
   agents:
     myagent: env:MYAGENT_API_KEY # only for a Harness API agent that needs a key
-  llm_providers:
-    https://litellm.example.com: env:LITELLM_API_KEY # the server's judge base URL
 ```
+
+The file holds no judge key. By default the evaluators that use a judge run on the evalkit server, with the LLM provider configured there. To judge with your own key instead, see [Config](config.md).
 
 Put the keys in a `.env` next to `evalkit.yaml`. Then create your agent on the server once:
 

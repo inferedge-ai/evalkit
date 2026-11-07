@@ -37,6 +37,7 @@ from evalkit.contracts.enums import (
     EvaluatorKind,
     ExperimentStatus,
     RunStatus,
+    ScoredOn,
     TrajectoryStatus,
 )
 from evalkit.contracts.harness import (
@@ -58,6 +59,7 @@ from evalkit.core.blob import (
 from evalkit.core.capabilities import SDK_CONTRACT_VERSION, traced_capabilities
 from evalkit.core.costmap import load_cost_map
 from evalkit.core.custom_eval import EvalError, score_with_custom_evaluator
+from evalkit.core.errors import error_text
 from evalkit.core.evaluators.base import (
     BUILTIN_EVALUATORS,
     BUILTIN_GAUGES,
@@ -69,6 +71,14 @@ from evalkit.core.harness import HarnessClient, RunTimeout
 from evalkit.core.paths import is_safe_path
 from evalkit.core.python_eval import PythonEvaluator, score_with_python_evaluator
 from evalkit.core.remote_evaluators import EvaluatorLookup, RemoteEvaluator
+from evalkit.core.server_evaluators import (
+    Location,
+    ServerEvaluators,
+    ServerScore,
+    configured_builtins,
+    needs_judge,
+    resolve_location,
+)
 from evalkit.core.traces.poll import poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
 from evalkit.core.trajectory import (
@@ -156,6 +166,9 @@ class RunnerDeps:
     python_evaluators: dict[str, PythonEvaluator] = field(default_factory=dict)
     agent_keys: AgentKeySource | None = None
     evaluation_concurrency: int = EVALUATION_CONCURRENCY
+    server_evaluators: ServerEvaluators | None = None
+    scored_on: ScoredOn = ScoredOn.LOCAL
+    judge_api_key: str | None = None
 
 
 class ExperimentFactory(Protocol):
@@ -200,6 +213,22 @@ class AgentArchived(ValueError):
         super().__init__(f"agent {ref} is archived")
 
 
+class MissingJudgeKey(ValueError):
+    def __init__(self, base_url: str):
+        super().__init__(
+            f"your judge at {base_url} needs its API key: pass --judge-api-key-env NAME "
+            "(CLI) or Judge(base_url=..., api_key=...) (SDK)"
+        )
+
+
+class NoJudge(ValueError):
+    def __init__(self) -> None:
+        super().__init__(
+            "no judge: a selected case uses a judge-using evaluator and the server has no "
+            "default judge; pass a judge, or an admin sets one with evalkit judge-default set"
+        )
+
+
 class NothingRunnable(ValueError):
     def __init__(self, dataset: str, dropped: list[str]):
         reason = (
@@ -232,11 +261,6 @@ class LeaseLost(ValueError):
             f"experiment {exp_id} was taken over by another runner or marked failed; "
             f"check it with evalkit status {exp_id}, then resume it"
         )
-
-
-def error_text(exc: BaseException) -> str:
-    message = str(exc)
-    return f"{type(exc).__name__}: {message}" if message else type(exc).__name__
 
 
 class ScoringFailed(Exception):
@@ -509,7 +533,7 @@ async def prepare_experiment(
     agent: AgentDefinition,
     caps: Capabilities,
     remote_evaluators: dict[str, RemoteEvaluator],
-    judge: JudgeSettings,
+    judge: JudgeSettings | None,
     runner: str,
     holder: str,
     revision: GitRevision | None = None,
@@ -527,6 +551,8 @@ async def prepare_experiment(
     if not cases:
         raise NothingRunnable(dataset.ref, dropped)
     check_inputs(req.agent, caps, cases)
+    if judge is None and needs_judge(cases):
+        raise NoJudge()
     config = ExperimentConfig(
         model=model,
         judge=judge,
@@ -694,27 +720,57 @@ async def rescore_experiment(
 
 
 def judge_key_for(
-    credentials: KeySource, judge: JudgeSettings, cases: Iterable[CaseView]
+    judge: JudgeSettings | None, api_key: str | None, cases: Iterable[CaseView]
 ) -> str | None:
-    needed = any(
-        BUILTIN_EVALUATORS[name].uses_judge
-        for case in cases
-        for name in _configured_builtins(case.effective_evaluators)
+    if judge is None or judge.base_url is None or not needs_judge(cases):
+        return None
+    if api_key is None:
+        raise MissingJudgeKey(judge.base_url)
+    return api_key
+
+
+async def check_judge_key(store: Store, exp_id: int, api_key: str | None) -> None:
+    exp = await store.get_experiment(exp_id)
+    judge_key_for(exp.config.judge, api_key, await store.pinned_cases(exp_id))
+
+
+class JudgeChanged(ValueError):
+    def __init__(self, exp_id: int):
+        super().__init__(
+            f"experiment {exp_id} was judged with another judge; re-scoring takes the same "
+            "judge (its key may change). Re-judging with a different judge is not supported yet"
+        )
+
+
+def check_rescore_judge(exp: Experiment, judge: JudgeSettings | None) -> None:
+    if judge is None:
+        return
+    if exp.config.judge is None or judge.model_dump() != exp.config.judge.model_dump():
+        raise JudgeChanged(exp.id)
+
+
+def judge_key(
+    deps: RunnerDeps, judge: JudgeSettings | None, cases: Iterable[CaseView]
+) -> str | None:
+    return judge_key_for(judge, deps.judge_api_key, cases)
+
+
+def resolve_judge(
+    deps: RunnerDeps, judge: JudgeSettings | None, cases: Iterable[CaseView]
+) -> tuple[JudgeSettings | None, str | None]:
+    cases = list(cases)
+    if judge is None or judge.provider is None:
+        return judge, judge_key(deps, judge, cases)
+    if deps.server_evaluators is not None or not needs_judge(cases):
+        return judge, None
+    base_url, api_key = deps.credentials.provider_judge(judge.provider)
+    resolved = JudgeSettings(
+        base_url=base_url,
+        model=judge.model,
+        reasoning_effort=judge.reasoning_effort,
+        max_tokens=judge.max_tokens,
     )
-    return credentials.require_judge_key(judge.base_url) if needed else None
-
-
-def judge_key(deps: RunnerDeps, judge: JudgeSettings, cases: Iterable[CaseView]) -> str | None:
-    return judge_key_for(deps.credentials, judge, cases)
-
-
-def _configured_builtins(evaluators: dict) -> dict[str, dict]:
-    configured: dict[str, dict] = {}
-    for family in ("output", "trajectory"):
-        for name, config in (evaluators.get(family) or {}).items():
-            if name in BUILTIN_EVALUATORS:
-                configured[name] = config
-    return configured
+    return resolved, api_key
 
 
 REFETCHABLE = (TrajectoryStatus.PARTIAL, TrajectoryStatus.UNAVAILABLE)
@@ -758,7 +814,10 @@ async def _load_view(deps: RunnerDeps, agent_id: int, run: AgentRunRecord) -> Tr
 
 
 def _rows(
-    producer: str, source: EvaluationSource, scores: Iterable[ScoreRow]
+    producer: str,
+    source: EvaluationSource,
+    scores: Iterable[ScoreRow],
+    scored_on: ScoredOn = ScoredOn.LOCAL,
 ) -> list[EvaluationRow]:
     return [
         EvaluationRow(
@@ -766,6 +825,7 @@ def _rows(
             name=score.name,
             kind=EvaluatorKind.GAUGE if score.kind == "gauge" else EvaluatorKind.SCORE,
             source=source,
+            scored_on=scored_on,
             value=score.score,
             label=score.label,
             explanation=score.explanation,
@@ -809,19 +869,14 @@ def custom_case_input(case: CaseView) -> dict:
     return {**case.input, "files": [file.model_dump() for file in case.files]}
 
 
-async def _evaluate_run(
+async def build_context(
     deps: RunnerDeps,
-    exp: Experiment,
     agent: AgentDefinition,
-    caps: Capabilities,
     cost_map: dict,
     run: RunForScoring,
+    judge: JudgeSettings | None,
     judge_api_key: str | None,
-    configured_custom: dict[str, RemoteEvaluator],
-    holder: str | None,
-    *,
-    force: bool = False,
-) -> None:
+) -> tuple[EvalContext, TrajectoryView | None]:
     record = run.agent_run
     structured = record.output
     answer = (
@@ -838,26 +893,71 @@ async def _evaluate_run(
         output=structured,
         trajectory_view=view,
         wall_ms=metrics_dict.get("duration_ms") or 0,
-        judge_cfg=exp.config.judge,
+        judge_cfg=judge,
         judge_api_key=judge_api_key,
         metrics=RunMetrics.model_validate(metrics_dict) if metrics_dict else None,
         session_id=record.harness_run_id,
         cost_map=cost_map,
     )
+    return ctx, view
+
+
+async def score_builtin(
+    deps: RunnerDeps,
+    exp: Experiment,
+    ctx: EvalContext,
+    caps: Capabilities,
+    run_id: int,
+    name: str,
+    config: dict,
+) -> tuple[list[ScoreRow], ScoredOn]:
+    evaluator = BUILTIN_EVALUATORS[name]
+    server = (
+        deps.server_evaluators
+        if resolve_location(evaluator, exp.config.judge) is Location.SERVER
+        else None
+    )
+    scored_on = ScoredOn.SERVER if server is not None else deps.scored_on
+    try:
+        if server is not None:
+            result: ServerScore = await server.score(run_id, name, config)
+            ctx.record_judge_usage(result.judge_usage)
+            return result.rows, scored_on
+        return await execute(evaluator, ctx, config, caps), scored_on
+    except Exception as exc:
+        error = error_text(exc)
+        LOGGER.warning("evaluator %s errored on run %s: %s", name, run_id, error)
+        return [ScoreRow(name=name, score=None, label="error", error=error)], scored_on
+
+
+async def _evaluate_run(
+    deps: RunnerDeps,
+    exp: Experiment,
+    agent: AgentDefinition,
+    caps: Capabilities,
+    cost_map: dict,
+    run: RunForScoring,
+    judge: JudgeSettings | None,
+    judge_api_key: str | None,
+    configured_custom: dict[str, RemoteEvaluator],
+    holder: str | None,
+    *,
+    force: bool = False,
+) -> None:
+    ctx, view = await build_context(deps, agent, cost_map, run, judge, judge_api_key)
+    answer = ctx.answer
+    structured = ctx.output
     already = set() if force else run.done
     rows: list[EvaluationRow] = []
     evaluators = run.case.effective_evaluators
 
-    for name, config in _configured_builtins(evaluators).items():
-        evaluator = BUILTIN_EVALUATORS[name]
-        if set(evaluator.emits) <= already:
+    for name, config in configured_builtins(evaluators).items():
+        if set(BUILTIN_EVALUATORS[name].emits) <= already:
             continue
-        try:
-            scores = await execute(evaluator, ctx, config, caps)
-        except Exception as exc:
-            LOGGER.warning("evaluator %s errored on run %s: %s", name, run.experiment_run_id, exc)
-            scores = [ScoreRow(name=name, score=None, label="error", error=str(exc))]
-        rows.extend(_rows(name, EvaluationSource.BUILTIN, scores))
+        scores, scored_on = await score_builtin(
+            deps, exp, ctx, caps, run.experiment_run_id, name, config
+        )
+        rows.extend(_rows(name, EvaluationSource.BUILTIN, scores, scored_on))
 
     custom_config = evaluators.get("custom") or {}
     trajectory_doc: dict = {}
@@ -925,6 +1025,8 @@ async def _evaluate_run(
             continue
         rows.extend(_rows(name, EvaluationSource.BUILTIN, await execute(gauge, ctx, {}, caps)))
 
+    if deps.scored_on is ScoredOn.SERVER:
+        rows = [row.model_copy(update={"scored_on": ScoredOn.SERVER}) for row in rows]
     if rows:
         await deps.store.publish_evaluations(
             run.experiment_run_id, rows, force=force, holder=holder
@@ -978,7 +1080,7 @@ async def evaluate_experiment(
     cost_map = load_cost_map(deps.cfg.cost_map)
     runs = await deps.store.runs_to_score(exp_id, force=False)
     refetched = await _refetch(deps, exp, agent, runs) if refetch_trajectories else set()
-    api_key = judge_key(deps, exp.config.judge, [run.case for run in runs])
+    judge, api_key = resolve_judge(deps, exp.config.judge, [run.case for run in runs])
     configured_custom = (
         await deps.evaluators.in_workspace(agent.workspace)
         if any(run.case.effective_evaluators.get("custom") for run in runs)
@@ -994,6 +1096,7 @@ async def evaluate_experiment(
                 caps,
                 cost_map,
                 run,
+                judge,
                 api_key,
                 configured_custom,
                 holder,

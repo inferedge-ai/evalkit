@@ -5,7 +5,7 @@ import pytest
 from evalkit.core.traces.mapping import AttributeKeys
 from evalkit.core.traces.raw import RawSpan
 from evalkit.db.agents import AgentStore
-from evalkit.db.spans import AttributeDrop, SpanStore
+from evalkit.db.spans import AttributeDrop, SpanLink, SpanStore, resolve_sessions
 from tests.identity import seed_identity, workspace_ref
 
 NOW = datetime(2026, 10, 9, tzinfo=UTC)
@@ -123,6 +123,32 @@ async def test_children_keep_their_session_when_the_root_has_none(db):
     assert total == 1 and items[0].session_id == "F"
 
 
+async def test_spans_under_a_sessionless_root_take_the_outermost_ancestors_session(db):
+    store, agent_id = db
+    await store.upsert(agent_id, [span("llm", parent="agent", at=3)])
+    await store.upsert(agent_id, [span("agent", parent="turn", session="X", at=2)])
+    await store.upsert(agent_id, [span("http", name="POST /chat")])
+    await store.upsert(agent_id, [span("turn", parent="http", session="S", at=1)])
+    await store.upsert(agent_id, [span("tool", parent="agent", at=4)])
+    rows = await store.session_spans(agent_id, "S")
+    assert sorted(r.span_id for r in rows) == ["agent", "llm", "tool", "turn"]
+    items, total = await store.list_sessions(agent_id, query=None, limit=10, offset=0)
+    assert total == 1 and items[0].session_id == "S" and items[0].span_count == 4
+
+
+async def test_parent_cycles_end_and_keep_their_own_session(db):
+    store, agent_id = db
+    batch = [
+        span("self", parent="self", session="A"),
+        span("a", parent="b", session="B"),
+        span("b", parent="a"),
+        span("child", parent="self"),
+    ]
+    assert await store.upsert(agent_id, batch) == 4
+    assert [r.span_id for r in await store.session_spans(agent_id, "A")] == ["self"]
+    assert [r.span_id for r in await store.session_spans(agent_id, "B")] == ["a"]
+
+
 async def test_session_read_drops_keys_on_listed_rows_only(db):
     store, agent_id = db
     big = {
@@ -158,3 +184,12 @@ async def test_session_read_drops_keys_on_listed_rows_only(db):
     assert streamed[1].events == [] and streamed[1].resource == {}
     async with store.read_session(agent_id, "nope") as rows:
         assert await rows.attribute_bytes(AttributeDrop([], keys)) == 0
+
+
+def test_resolve_sessions_walks_a_deep_chain_once():
+    links = [SpanLink(0, "t", "s0", "http", "S")]
+    links += [
+        SpanLink(i, "t", f"s{i}", f"s{i - 1}", "X" if i % 2 else None) for i in range(1, 10_000)
+    ]
+    resolved = resolve_sessions(links)
+    assert len(resolved) == 10_000 and set(resolved.values()) == {"S"}

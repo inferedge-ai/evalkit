@@ -138,7 +138,7 @@ indirection, resolved at load time — keep secrets out of the file.
 | `db` | Postgres URL (`postgresql+psycopg://…`); optional `migrate_on_start` (default `false`, see below) |
 | `blob` | one blob URL: `fixtures/sha256/<sha256>` (case input files), `trajectories/`, `artifacts/` |
 | `encryption_key` | Fernet key that encrypts the stored API keys of agents, remote evaluators, LLM providers and trace sources. The server refuses to start without it once any exist. `evalkit db rekey --config config.yaml --old-key-env OLD --new-key-env NEW` re-encrypts all of them after a change. |
-| `allow_private_endpoints` | default `false`. The server refuses (400) a harness URL, evaluator endpoint or LLM provider base URL that resolves to a loopback, private, link-local, unspecified, multicast or reserved address, or does not resolve. Set `true` when they run in the same cluster or on `host.docker.internal`. |
+| `allow_private_endpoints` | default `false`. The server refuses (400) a harness URL, evaluator endpoint, LLM provider base URL or trace source URL that resolves to a loopback, private, link-local, unspecified, multicast or reserved address, or does not resolve. Set `true` when they run in the same cluster or on `host.docker.internal`. |
 | `sentry` | optional: `dsn`, `environment`, `traces_sample_rate` (default `0.0`, errors only), `max_request_body_size` (default `never`; `small` up to 1 KB, `medium` up to 10 KB, `always`; bodies can hold client case and trajectory data). With it, the server reports unhandled errors, 500 responses and error logs to Sentry, tagged with release `evalkit@<version>`. IPs, cookies and sensitive headers are never sent. |
 | `cost_map` | `bundled` (snapshot in the image) or a path/URL override |
 | `auth` | `token_ttl_hours` for UI/CLI tokens |
@@ -223,7 +223,7 @@ the CLI or the UI:
 |---|---|---|
 | Agent | `evalkit agents create <name> --workspace dev --harness-url … --api-key-env VAR` | admin or writer; the key is stored encrypted and never shown (`agents show` prints `api key  set\|not set`); omit `--harness-url` for a code-driven agent; `--trajectory-source otel` needs `--mapping`; run settings such as `--max-concurrent-runs` (min'd with the harness's own limit), `--run-timeout`, `--stop-grace` are flags; `evalkit agents edit` changes them |
 | Remote evaluator | `evalkit evaluators create <name> --workspace dev --endpoint … --kind score --api-key-env VAR` | admin or writer; `--kind gauge` for measurements; runs use the evaluators in the agent's workspace |
-| LLM provider | `evalkit llm-providers create <name> --base-url … --api-key-env VAR` | admin only; server runs may only use a judge whose base URL is an active provider |
+| LLM provider | `evalkit llm-providers create <name> --base-url … --api-key-env VAR` | admin only; a judge names a provider by its name. The server calls it for server runs, and for local and SDK runs that do not bring their own judge key |
 | Default judge | `evalkit judge-default set --provider <name> --model M [--effort E] [--max-tokens N]` | admin only; `evalkit judge-default show` prints it. Use a reproducibility-tested model |
 | Trace source | `evalkit trace-sources create <name> --url … --api-key-env VAR` | admin only to create; any user can import from it (see below) |
 | Shared workspace | `evalkit workspaces create <name>` | admin only |
@@ -238,11 +238,17 @@ express a limit (concurrency), evalkit takes the minimum.
 - The server calls these URLs:
   - a shared agent's `harness_url` (set by an admin or a writer)
   - shared remote evaluator endpoints (set by an admin or a writer)
-  - LLM provider base URLs, used by judges (set by an admin)
+  - LLM provider base URLs, used by judges (set by an admin). The server also
+    judges for local and SDK runs: each judge-using evaluator is one
+    `POST /api/experiment-runs/{id}/server-evaluations/{name}` that waits for
+    the judge, which can take minutes. A proxy in front of the server must let
+    requests on `/api/experiment-runs/*/server-evaluations/*` run that long
+    (the CLI and SDK wait up to 900 s, `EVALKIT_SERVER_EVALUATOR_TIMEOUT`).
   - trace source URLs (set by an admin)
-- Without `allow_private_endpoints: true`, the server refuses agent, evaluator
-  and LLM provider URLs that resolve to internal addresses: localhost, private
-  ranges, link-local (including `169.254.169.254`), or that don't resolve.
+- Without `allow_private_endpoints: true`, the server refuses agent, evaluator,
+  LLM provider and trace source URLs that resolve to internal addresses:
+  localhost, private ranges, link-local (including `169.254.169.254`), or that
+  don't resolve.
 - The server never calls URLs from personal workspaces.
 - A server run whose agent, evaluator or LLM provider has no stored key calls
   it without a key header. The create, resume or evaluate response carries

@@ -1,4 +1,1 @@
 cases: cases
-credentials:
-  llm_providers:
-    env:LLM_BASE_URL: env:LLM_API_KEY

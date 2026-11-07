@@ -58,7 +58,7 @@ async def seed_identity(
             await workspaces.add_member(name, user, WorkspaceRole.WRITER, granter)
     providers = LlmProviderStore(session_factory, "default")
     await providers.create("judge", JUDGE_URL, TEST_BOX.seal(TEST_ENV["JUDGE_KEY"]))
-    await providers.set_default_judge(JudgeSettings(base_url=JUDGE_URL, model="judge-model"))
+    await providers.set_default_judge(JudgeSettings(provider="judge", model="judge-model"))
 
 
 async def seed_agent(

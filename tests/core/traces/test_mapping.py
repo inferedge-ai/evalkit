@@ -68,6 +68,12 @@ def test_openinference_llm_span():
     assert span.unmapped == ["llm.prompt_template.version"]
 
 
+def test_esf_span_carries_the_raw_dropped_attribute_count():
+    span = to_esf(raw(OPENINFERENCE_LLM, dropped_attributes_count=7), REFERENCE["openinference"])
+    assert span.dropped_attributes == 7
+    assert to_esf(raw(OPENINFERENCE_LLM), REFERENCE["openinference"]).dropped_attributes == 0
+
+
 def test_openinference_tool_span_reads_tool_rules_and_json():
     span = to_esf(
         raw(

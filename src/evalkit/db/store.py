@@ -110,6 +110,11 @@ class PgStore:
         async with self._session() as s:
             return await runs.runs_to_score(s, exp_id, force=force)
 
+    async def run_to_score(self, exp_id: int, run_id: int) -> RunForScoring | None:
+        async with self._session() as s:
+            found = await runs.runs_to_score(s, exp_id, force=True, only_run=run_id)
+        return found[0] if found else None
+
     async def publish_evaluations(
         self,
         experiment_run_id: int,

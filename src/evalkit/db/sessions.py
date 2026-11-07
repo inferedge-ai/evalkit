@@ -75,13 +75,17 @@ class DbSessionReader:
             builder = SessionBuilder(document)
             async for span in rows.stream(drop):
                 builder.add(span)
-            return builder.build(
+            result = builder.build(
                 agent_name=record.name,
                 mapping_version=chosen.version if chosen else None,
                 now=datetime.now(UTC),
                 settle_seconds=self._otel.settle_seconds,
                 include_esf=include_esf,
             )
+            if result.root_present or not result.span_count:
+                return result
+            received = result.settled or await rows.roots_received()
+            return result.model_copy(update={"root_present": received})
 
     async def trajectory(self, agent: str, session_id: str) -> SessionTrajectory:
         result = await self.read(agent, session_id)

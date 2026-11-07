@@ -12,12 +12,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 async def server_keys(
-    stores: TenantStores, cfg: Config, agent: AgentDefinition, judge_base_url: str | None
+    stores: TenantStores, cfg: Config, agent: AgentDefinition, judge_provider: str | None
 ) -> tuple[StoredKeys, list[str]]:
-    for url in (agent.harness_url, judge_base_url):
+    keys = await stores.keys.load(agent, judge_provider)
+    judge_url = keys.provider_judge(judge_provider)[0] if judge_provider is not None else None
+    for url in (agent.harness_url, judge_url):
         if url is not None:
             await check_endpoint(url, allow_private=cfg.allow_private_endpoints)
-    keys = await stores.keys.load(agent, judge_base_url)
     warnings = []
     if agent.harness_url is not None and keys.key_for("agent", agent.ref) is None:
         warnings.append(
@@ -29,8 +30,8 @@ async def server_keys(
             warnings.append(
                 f"evaluator {evaluator.ref} has no API key; calling it without x-api-key"
             )
-    if judge_base_url is not None and keys.require_judge_key(judge_base_url) is None:
-        warnings.append(f"LLM provider {judge_base_url} has no API key; judging without one")
+    if judge_provider is not None and keys.provider_judge(judge_provider)[1] is None:
+        warnings.append(f"LLM provider {judge_provider} has no API key; judging without one")
     for warning in warnings:
         LOGGER.warning("%s", warning)
     return keys, warnings

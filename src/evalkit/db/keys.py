@@ -5,13 +5,18 @@ from evalkit.credentials import Kind
 from evalkit.db.agents import AgentStore
 from evalkit.db.crypto import SecretBox
 from evalkit.db.evaluators import RemoteEvaluatorStore
-from evalkit.db.llm_providers import LlmProviderStore
+from evalkit.db.llm_providers import LlmProviderStore, UnknownLlmProvider
 from evalkit.db.trace_sources import EncryptionKeyMissing
 
 
 class StoredKeys:
-    def __init__(self, keys: dict[tuple[Kind, str], tuple[str, str]]):
+    def __init__(
+        self,
+        keys: dict[tuple[Kind, str], tuple[str, str]],
+        providers: dict[str, tuple[str, str | None]] | None = None,
+    ):
         self._keys = keys
+        self._providers = providers or {}
 
     def key_for(self, kind: Kind, ref: str, url: str | None = None) -> str | None:
         stored = self._keys.get((kind, ref))
@@ -20,15 +25,17 @@ class StoredKeys:
         key, stored_url = stored
         return key if url is None or url == stored_url else None
 
-    def require_judge_key(self, base_url: str) -> str | None:
-        return self.key_for("llm_provider", base_url)
+    def provider_judge(self, name: str) -> tuple[str, str | None]:
+        if name not in self._providers:
+            raise UnknownLlmProvider(name)
+        return self._providers[name]
 
 
 class NoKeysLoaded:
     def key_for(self, kind: Kind, ref: str, url: str | None = None) -> str | None:
         raise RuntimeError("server keys are loaded per experiment with KeyLoader.load")
 
-    def require_judge_key(self, base_url: str) -> str | None:
+    def provider_judge(self, name: str) -> tuple[str, str | None]:
         raise RuntimeError("server keys are loaded per experiment with KeyLoader.load")
 
 
@@ -62,10 +69,20 @@ class KeyLoader:
         sealed = await self._agents.sealed_key(agent.ref)
         return self._open(sealed) if sealed is not None else None
 
-    async def load(self, agent: AgentDefinition, judge_base_url: str | None) -> StoredKeys:
+    async def provider_judges(self, name: str | None) -> dict[str, tuple[str, str | None]]:
+        if name is None:
+            return {}
+        endpoint = await self._providers.active_endpoint(name)
+        if endpoint is None:
+            return {}
+        base_url, sealed = endpoint
+        return {name: (base_url, self._open(sealed) if sealed is not None else None)}
+
+    async def load(self, agent: AgentDefinition, judge_provider: str | None) -> StoredKeys:
         keys: dict[tuple[Kind, str], tuple[str, str]] = {}
+        providers = await self.provider_judges(judge_provider)
         if not agent.workspace_is_shared:
-            return StoredKeys(keys)
+            return StoredKeys(keys, providers)
         sealed_agent = await self._agents.sealed_key(agent.ref)
         if sealed_agent is not None and agent.harness_url is not None:
             keys["agent", agent.ref] = (self._open(sealed_agent), agent.harness_url)
@@ -73,11 +90,4 @@ class KeyLoader:
             await self._evaluators.sealed_keys(agent.workspace)
         ).items():
             keys["evaluator", f"{name}@{agent.workspace}"] = (self._open(sealed), endpoint)
-        if judge_base_url is not None:
-            sealed_provider = await self._providers.sealed_key(judge_base_url)
-            if sealed_provider is not None:
-                keys["llm_provider", judge_base_url] = (
-                    self._open(sealed_provider),
-                    judge_base_url,
-                )
-        return StoredKeys(keys)
+        return StoredKeys(keys, providers)

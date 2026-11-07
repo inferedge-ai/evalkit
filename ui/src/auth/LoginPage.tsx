@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "../lib/api";
+import { PublicShell } from "../shell/PublicShell";
 import { safeNext } from "./next";
 import { loadProviders, session, type Providers } from "./oidc";
 
@@ -141,23 +142,25 @@ export function LoginPage() {
   const fallback: Providers = { password: "all", oidc: null };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-canvas">
-      {providers === null && error === null ? (
-        <div className="pane-status">Loading sign-in options…</div>
-      ) : (
-        <div>
-          {error !== null && (
-            <div className="card mb-3 w-84 p-3 text-meta text-err-text">
-              {error}
-            </div>
-          )}
-          <LoginChoices
-            providers={providers ?? fallback}
-            next={next}
-            onSso={startSso}
-          />
-        </div>
-      )}
-    </div>
+    <PublicShell>
+      <div className="flex min-h-full items-center justify-center bg-canvas">
+        {providers === null && error === null ? (
+          <div className="pane-status">Loading sign-in options…</div>
+        ) : (
+          <div>
+            {error !== null && (
+              <div className="card mb-3 w-84 p-3 text-meta text-err-text">
+                {error}
+              </div>
+            )}
+            <LoginChoices
+              providers={providers ?? fallback}
+              next={next}
+              onSso={startSso}
+            />
+          </div>
+        )}
+      </div>
+    </PublicShell>
   );
 }

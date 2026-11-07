@@ -44,6 +44,6 @@ Any value can be `env:NAME` (required) or `env:NAME:<default>`. Unknown keys fai
 | `limits.request_bytes` | `10485760` (10 MB) | Any other request body. |
 | `sentry` | none | Report server errors to Sentry: `dsn` (required), `environment`, `traces_sample_rate` (`0.0`), `max_request_body_size` (`never`, `small`, `medium` or `always`). |
 | `encryption_key` | none | Fernet key that encrypts stored API keys. The server refuses to start without it once any exist. |
-| `allow_private_endpoints` | `false` | Let agents, evaluators and LLM providers point at loopback, private or link-local addresses. |
+| `allow_private_endpoints` | `false` | Let agents, evaluators, LLM providers and trace sources point at loopback, private or link-local addresses. |
 
 LLM providers, the default judge and stored API keys live in the database, not here: set them with `evalkit llm-providers`, `evalkit judge-default set` and `evalkit agents edit`.

@@ -101,7 +101,12 @@ async def test_evaluation_kind_is_checked(session_factory):
         exp_run_id = await _experiment_run(s)
         s.add(
             Evaluation(
-                experiment_run_id=exp_run_id, producer="p", name="n", kind="bogus", source="builtin"
+                experiment_run_id=exp_run_id,
+                producer="p",
+                name="n",
+                kind="bogus",
+                source="builtin",
+                scored_on="local",
             )
         )
         with pytest.raises(IntegrityError, match="ck_evaluations_kind"):
