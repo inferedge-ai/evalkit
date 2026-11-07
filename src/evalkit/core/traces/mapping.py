@@ -423,6 +423,7 @@ def to_esf(raw: RawSpan, mapping: MappingDocument | None) -> EsfSpan:
         cache_write_tokens=_int(rule(doc.tokens.cache_write)),
         cost_usd=_float(rule(doc.cost_usd)),
         scope=raw.scope,
+        dropped_attributes=raw.dropped_attributes_count,
         excluded=_matched(doc.exclude_spans, raw),
         agent_role="main" if main else "subagent" if _matched(doc.subagent_spans, raw) else None,
     )

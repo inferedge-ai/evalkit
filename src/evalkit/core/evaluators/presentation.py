@@ -104,7 +104,7 @@ async def _judge_verdicts(
     missing: list[int] = []
     for attempt in (1, 2):
         parsed, usage = await call_judge(
-            ctx.judge_cfg,
+            ctx.require_judge(),
             api_key=ctx.judge_api_key,
             system_prompt=SYSTEM_PROMPT,
             user_prompt=current,

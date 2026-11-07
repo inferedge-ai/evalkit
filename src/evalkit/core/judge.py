@@ -27,6 +27,8 @@ async def call_judge[T: BaseModel](
     evaluator_name: str,
     model: str | None = None,
 ) -> tuple[T, JudgeUsage]:
+    if cfg.base_url is None:
+        raise ValueError(f"judge provider {cfg.provider} is called by the evalkit server")
     usage = JudgeUsage()
     messages = [
         {"role": "system", "content": system_prompt},

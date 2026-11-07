@@ -346,6 +346,9 @@ def to_atif(
     unplaced_tools = [s.name for s in unplaced if s.kind == "tool"]
     if unplaced_tools:
         extra["unplaced_tool_spans"] = unplaced_tools
+    answer_span = rule.partition(".")[0]
+    if rule != "root" and not any(s.name == answer_span for s in kept):
+        extra["answer_span_missing"] = answer_span
     anchor = main_root or (kept[0] if kept else None)
     return Trajectory(
         schema_version=ATIF_VERSION,

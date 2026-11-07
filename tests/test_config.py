@@ -100,9 +100,9 @@ def test_local_credentials_must_be_plain_env_names(tmp_path):
             LocalConfig.find(tmp_path)
 
 
-def test_local_judges_map_was_renamed(tmp_path):
-    (tmp_path / "evalkit.yaml").write_text("credentials:\n  judges:\n    http://j: env:K\n")
-    with pytest.raises(ValidationError, match="now credentials.llm_providers"):
+def test_local_judge_keys_were_removed(tmp_path):
+    (tmp_path / "evalkit.yaml").write_text("credentials:\n  llm_providers:\n    http://j: env:K\n")
+    with pytest.raises(ValidationError, match="credentials.llm_providers was removed"):
         LocalConfig.find(tmp_path)
 
 
@@ -155,8 +155,6 @@ fixtures: eval/fixtures
 credentials:
   agents:
     research-agent: env:RESEARCH_AGENT_KEY
-  llm_providers:
-    http://litellm.local: env:LITELLM_KEY
 """
 
 

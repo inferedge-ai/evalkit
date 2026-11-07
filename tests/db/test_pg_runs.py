@@ -115,7 +115,9 @@ async def test_runs_to_score_skips_errored_runs_and_lists_done(session_factory, 
         ok = await record_run(s, exp_id, "q-1", 1, attempt("h1", RunStatus.COMPLETED), None)
         await record_run(s, exp_id, "q-2", 1, attempt("h2", RunStatus.FAILED, "boom"), None)
         await publish_evaluations(
-            s, ok.experiment_run_id, [score("answer_rubric_score"), score("x", error="judge down")]
+            s,
+            ok.experiment_run_id,
+            [score("answer_rubric_score"), score("x", producer="x", error="judge down")],
         )
         runs = await runs_to_score(s, exp_id, force=False)
         forced = await runs_to_score(s, exp_id, force=True)
@@ -134,6 +136,57 @@ async def test_success_deletes_the_producers_error_rows(session_factory, exp_id)
         await publish_evaluations(s, ref.experiment_run_id, [score("answer_rubric_score")])
         found = await _evaluations(s, ref.experiment_run_id)
     assert set(found) == {"answer_rubric_score"}
+
+
+async def test_forced_error_replaces_the_producers_rows_and_is_retried(session_factory, exp_id):
+    async with session_factory() as s:
+        ref = await record_run(s, exp_id, "q-1", 1, attempt("h1", RunStatus.COMPLETED), None)
+        run_id = ref.experiment_run_id
+        await publish_evaluations(
+            s, run_id, [score("answer_rubric_score"), score("answer_rubric_coverage")]
+        )
+        await publish_evaluations(
+            s, run_id, [score("answer_rubric", error="ReadTimeout", value=None)], force=True
+        )
+        found = await _evaluations(s, run_id)
+        [run] = await runs_to_score(s, exp_id, force=False)
+    assert set(found) == {"answer_rubric"}
+    assert "answer_rubric" not in run.done
+
+
+async def test_producer_with_an_error_row_is_not_done(session_factory, exp_id):
+    async with session_factory() as s:
+        ref = await record_run(s, exp_id, "q-1", 1, attempt("h1", RunStatus.COMPLETED), None)
+        await publish_evaluations(
+            s,
+            ref.experiment_run_id,
+            [score("answer_rubric_score"), score("answer_rubric", error="boom", value=None)],
+        )
+        [run] = await runs_to_score(s, exp_id, force=False)
+    assert run.done == set()
+
+
+async def test_producer_with_an_error_label_is_not_done(session_factory, exp_id):
+    async with session_factory() as s:
+        ref = await record_run(s, exp_id, "q-1", 1, attempt("h1", RunStatus.COMPLETED), None)
+        await publish_evaluations(
+            s,
+            ref.experiment_run_id,
+            [score("answer_rubric_score"), score("answer_rubric", label="error", value=None)],
+        )
+        [run] = await runs_to_score(s, exp_id, force=False)
+    assert run.done == set()
+
+
+async def test_a_publication_replaces_only_its_own_producers_rows(session_factory, exp_id):
+    async with session_factory() as s:
+        ref = await record_run(s, exp_id, "q-1", 1, attempt("h1", RunStatus.COMPLETED), None)
+        run_id = ref.experiment_run_id
+        await publish_evaluations(s, run_id, [score("answer_rubric_score")])
+        await publish_evaluations(s, run_id, [score("tone", producer="tone")])
+        await publish_evaluations(s, run_id, [score("answer_rubric_coverage")])
+        found = await _evaluations(s, run_id)
+    assert set(found) == {"tone", "answer_rubric_coverage"}
 
 
 async def test_multi_name_producer_stores_one_row_per_name(session_factory, exp_id):

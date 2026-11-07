@@ -22,6 +22,7 @@ from evalkit.api import (
     agents as agents_api,
 )
 from evalkit.api import (
+    builtin_evaluators,
     cli_dist,
     datasets,
     evaluators,
@@ -73,6 +74,7 @@ from evalkit.db.experiments import reap
 from evalkit.db.keys import NoKeysLoaded
 from evalkit.db.llm_providers import (
     LlmProviderExists,
+    NotAProviderJudge,
     ProviderInUse,
     UnknownLlmProvider,
 )
@@ -335,6 +337,7 @@ def create_app(
     @app.exception_handler(MissingCredential)
     @app.exception_handler(EncryptionKeyMissing)
     @app.exception_handler(BlockedEndpoint)
+    @app.exception_handler(NotAProviderJudge)
     async def bad_request(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse(status_code=400, content={"detail": str(exc)})
 
@@ -372,6 +375,7 @@ def create_app(
     app.include_router(experiments.runs_router, dependencies=wall)
     app.include_router(agents_api.router, dependencies=wall)
     app.include_router(evaluators.router, dependencies=wall)
+    app.include_router(builtin_evaluators.router, dependencies=wall)
     app.include_router(trace_sources.router, dependencies=wall)
     app.include_router(llm_providers.router, dependencies=wall)
     app.include_router(runs.router, dependencies=wall)

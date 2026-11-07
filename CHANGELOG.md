@@ -10,6 +10,82 @@
   (`langchain.json`, `crewai.json`, `agno.json`, `llamaindex.json`,
   `google-adk.json`, `claude-agent-sdk.json`, `mastra.json`) and tells
   coding agents to pick the framework's file first.
+- `evalkit traces check` (and the SDK's dry run) warns on a new `answer`
+  line when the mapping's `answer` rule names a span the session does not
+  have, for example a copied `<agent name>` placeholder or a typo. Before,
+  the trajectory silently had no answer. The trajectory's `extra` carries
+  the name as `answer_span_missing`.
+- An evaluator that raises an exception without a message (an httpx
+  timeout, say) now records the exception type, e.g. `ReadTimeout`,
+  instead of an empty error, in the CLI, `evaluations.json` and the
+  server log. Builtin, remote and Python evaluators all do this.
+- A re-score (`evalkit evaluate`, SDK `evaluate_experiment`) now retries
+  an evaluator that errored after an earlier success. Before, the old
+  success rows stayed next to the error row, so the evaluator counted as
+  done and the error never cleared. An evaluator with any row marked as an
+  error (an `error` or the label `error`) is never done. Publishing an
+  evaluator's rows now replaces every row it wrote for that run.
+- The collector stores each span's `dropped_attributes_count` (the
+  attributes the OTel SDK dropped past its limit) in a new `spans` column
+  (migration 0018). `GET /api/agents/<ref>/sessions/<id>/spans` returns it,
+  ESF spans carry it as `dropped_attributes`, and `evalkit traces check`
+  warns on its `llm` line when an LLM span lost attributes, which usually
+  means lost messages. The Tracing page and the connect-traces skill explain
+  how to raise `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT` (default 128).
+- The collector now gives each span the session of its outermost ancestor
+  that carries one, not only the trace root's. An agent behind FastAPI or
+  another instrumented HTTP server no longer loses its spans when the
+  server's request span (`POST /chat`) is the root: put the session id on
+  your own turn span and the agent's spans join it. A root span with a
+  session still sets the session for the whole trace. `evalkit traces check`
+  now warns, instead of failing, when the trace root is outside the session,
+  and names the top span. The Tracing page has an "Agent behind an HTTP
+  server" recipe.
+- Local and SDK runs now score the judge-using built-in evaluators
+  (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) on the evalkit
+  server by default, with the server's LLM provider and its stored key. You no
+  longer need a judge key in `evalkit.yaml` for these runs.
+  - A judge now names exactly one of `provider` (a registered LLM provider, by
+    name) or `base_url`. `Judge(provider="openai", model="gpt-5")` or
+    `evalkit run --judge-provider openai` picks another provider, still scored
+    on the server.
+  - To bring your own judge, pass `Judge(base_url=..., model=..., api_key=...)`
+    or `evalkit run --judge-base-url URL --judge-api-key-env NAME` (the env
+    var or `.env` entry holding the key); those evaluators then run on your
+    machine. The key is never stored, so re-scoring and resuming need it
+    again: `evalkit evaluate <id> --judge-api-key-env NAME`,
+    `evalkit run … --resume <id> --judge-api-key-env NAME`, or
+    `evaluate_experiment(..., judge=Judge(...))` with the same judge (a
+    different judge is refused). `--judge-provider` with
+    `--judge-base-url` is refused, and so is `--judge-base-url` without
+    `--judge-api-key-env`.
+  - `credentials.llm_providers` is gone from `evalkit.yaml`: a file that still
+    has it (or `credentials.judges`) fails to load. Move the key to
+    `--judge-api-key-env` or `Judge(api_key=...)`.
+  - `tool_trajectory_match`, `required_tools_called` and `max_response_time`
+    always run on your machine.
+  - Each evaluation records `scored_on` (`local` or `server`); the run page
+    shows it beside each score.
+  - New endpoints: `POST /api/experiment-runs/<id>/server-evaluations/<name>`
+    (for the CLI and SDK; only users who may change the experiment) and
+    `GET /api/builtin-evaluators`. A proxy in front of the server must let
+    the server-evaluations call run for minutes; the CLI and SDK wait up to
+    900 s (`EVALKIT_SERVER_EVALUATOR_TIMEOUT`).
+  - The default judge is stored by provider name: `GET`/`PUT`/`PATCH
+    /api/judge-default` use `provider`, and a `base_url` is refused. Server
+    runs refuse a `base_url` judge. Changing the default judge's provider URL
+    is now allowed; archiving it is still refused.
+  - Starting an experiment with no judge and no default judge is refused only
+    when a selected case uses a judge-using evaluator.
+  - A remote evaluator can no longer take a built-in's name.
+  - The workspace Evaluators page lists the built-in evaluators.
+  - Migration `0017` adds `evaluations.scored_on` (`server` for server runs,
+    that is shared agents with a harness URL; `local` otherwise, including SDK
+    runs of shared code-driven agents) and rewrites the default judge, and server runs'
+    recorded judges, from base URL to provider name. It fails if the default
+    judge's base URL matches no provider: register one or clear the default
+    judge first.
+
 - The web UI's docs pages (`/docs/...`, `/cli`) no longer need a sign-in.
   Signed-out visitors see them under a public navbar (logo, Docs, theme
   toggle, Sign in); signed-in users still see them inside the full app. The

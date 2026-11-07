@@ -30,17 +30,23 @@ def _llm_steps(trajectory: dict) -> int:
     )
 
 
-def _root_line(spans: list[dict], root: dict | None) -> str:
+def _root_line(spans: list[dict], root: dict | None, settled: bool) -> str:
     if root is not None:
         ended = "ended" if root["ended_at"] else "not ended"
         return _line("pass", "root", f'"{root["name"]}" ({root["kind"]}), {ended}')
-    orphans = sum(1 for s in spans if s["parent_id"] is not None)
-    return _line(
-        "fail",
-        "root",
-        f"no root span (parent_span_id null) in this session: {orphans} spans were grouped "
-        "without it; put the session id on the root span, or stamp it on every span",
-    )
+    ids = {s["span_id"] for s in spans}
+    tops = [s for s in spans if s["parent_id"] not in ids]
+    if tops:
+        top = min(tops, key=lambda s: s["started_at"])
+        return _line(
+            "warn",
+            "root",
+            f"the trace root is outside this session{'' if settled else ' or not received yet'}; "
+            f'the top span is "{top["name"]}" '
+            f"under parent {top['parent_id']} (often an HTTP server's request span); its spans "
+            "join the session of their outermost ancestor that carries one",
+        )
+    return _line("fail", "root", "no root span in this session")
 
 
 def _llm_line(llms: list[dict]) -> str:
@@ -64,7 +70,14 @@ def _llm_line(llms: list[dict]) -> str:
     unknown = sorted(map(str, roles - CANONICAL_ROLES))
     if unknown:
         detail += f", output messages with unknown roles are dropped ({', '.join(unknown)})"
-    return _line("warn" if bare or no_tokens or unknown else "pass", "llm", detail)
+    dropped = sum(1 for s in llms if s.get("dropped_attributes"))
+    if dropped:
+        detail += (
+            f", {dropped} with attributes dropped by the OTel SDK (its limit is 128 per span, "
+            "often losing messages; raise OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT)"
+        )
+    warn = bare or no_tokens or unknown or dropped
+    return _line("warn" if warn else "pass", "llm", detail)
 
 
 def _tools_line(tools: list[dict], every: list[dict]) -> str:
@@ -121,7 +134,7 @@ def render_check(session: dict[str, Any]) -> tuple[list[str], bool]:
             "session",
             f"{session['span_count']} spans in {len(traces)} trace{plural}, {settled}",
         ),
-        _root_line(spans, root),
+        _root_line(spans, root, session["settled"]),
     ]
     version = session.get("mapping_version")
     lines.append(
@@ -150,6 +163,16 @@ def render_check(session: dict[str, Any]) -> tuple[list[str], bool]:
                 f"steps, {len(_calls(trajectory))} tool calls, {subs} subagents",
             )
         )
+        missing = (trajectory.get("extra") or {}).get("answer_span_missing")
+        if missing:
+            lines.append(
+                _line(
+                    "warn",
+                    "answer",
+                    f'no span named "{missing}", which the mapping\'s answer rule names; '
+                    "the trajectory has no answer",
+                )
+            )
         lines += _shape_lines(llms, trajectory, every)
     else:
         lines.append(_line("fail", "trajectory", "no trajectory"))

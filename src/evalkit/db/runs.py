@@ -2,11 +2,17 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, Select, delete, func, select
+from sqlalchemy import ColumnElement, Select, delete, func, select, true
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from evalkit.contracts.enums import EvaluationSource, EvaluatorKind, ExperimentStatus, RunStatus
+from evalkit.contracts.enums import (
+    EvaluationSource,
+    EvaluatorKind,
+    ExperimentStatus,
+    RunStatus,
+    ScoredOn,
+)
 from evalkit.core.runner import ACTIVE
 from evalkit.core.scorecard import EXCLUDED_FROM_BUCKETS, bucket_for
 from evalkit.db import models
@@ -195,7 +201,9 @@ def _record(row: models.AgentRun) -> AgentRunRecord:
     return AgentRunRecord.model_validate(row, from_attributes=True)
 
 
-async def runs_to_score(session: AsyncSession, exp_id: int, *, force: bool) -> list[RunForScoring]:
+async def runs_to_score(
+    session: AsyncSession, exp_id: int, *, force: bool, only_run: int | None = None
+) -> list[RunForScoring]:
     exp = await _experiment(session, exp_id)
     rows = (
         await session.execute(
@@ -209,6 +217,7 @@ async def runs_to_score(session: AsyncSession, exp_id: int, *, force: bool) -> l
             .where(
                 models.ExperimentRun.experiment_id == exp_id,
                 models.AgentRun.error.is_(None) | models.AgentRun.output.is_not(None),
+                true() if only_run is None else models.ExperimentRun.id == only_run,
             )
             .order_by(models.ExperimentRun.id)
         )
@@ -228,14 +237,24 @@ async def runs_to_score(session: AsyncSession, exp_id: int, *, force: bool) -> l
     }
     done: dict[int, set[str]] = {}
     if not force:
-        succeeded = await session.execute(
-            select(models.Evaluation.experiment_run_id, models.Evaluation.name).where(
-                models.Evaluation.experiment_run_id.in_([er.id for er, _, _ in rows]),
-                models.Evaluation.error.is_(None),
-            )
+        evaluations = await session.execute(
+            select(
+                models.Evaluation.experiment_run_id,
+                models.Evaluation.producer,
+                models.Evaluation.name,
+                models.Evaluation.error,
+                models.Evaluation.label,
+            ).where(models.Evaluation.experiment_run_id.in_([er.id for er, _, _ in rows]))
         )
-        for run_id, name in succeeded.all():
-            done.setdefault(run_id, set()).add(name)
+        found = evaluations.all()
+        errored = {
+            (run_id, producer)
+            for run_id, producer, _, error, label in found
+            if error is not None or label == "error"
+        }
+        for run_id, producer, name, _, _ in found:
+            if (run_id, producer) not in errored:
+                done.setdefault(run_id, set()).add(name)
     return [
         RunForScoring(
             experiment_run_id=er.id,
@@ -278,13 +297,15 @@ async def publish_evaluations(
         if exp_id is None:
             raise InvalidRun(f"unknown experiment run: {experiment_run_id}")
         await _leased_experiment(session, exp_id, holder)
-    succeeded = {r.producer for r in rows if r.error is None}
-    if succeeded:
+    published: dict[str, set[str]] = {}
+    for row in rows:
+        published.setdefault(row.producer, set()).add(row.name)
+    for producer, names in published.items():
         await session.execute(
             delete(models.Evaluation).where(
                 models.Evaluation.experiment_run_id == experiment_run_id,
-                models.Evaluation.producer.in_(succeeded),
-                models.Evaluation.error.is_not(None),
+                models.Evaluation.producer == producer,
+                models.Evaluation.name.not_in(names),
             )
         )
     for row in rows:
@@ -309,6 +330,7 @@ def _evaluation(row: models.Evaluation) -> EvaluationRow:
         name=row.name,
         kind=EvaluatorKind(row.kind),
         source=EvaluationSource(row.source),
+        scored_on=ScoredOn(row.scored_on),
         value=row.value,
         label=row.label,
         explanation=row.explanation,

@@ -26,6 +26,13 @@ class ProviderInUse(ValueError):
     pass
 
 
+class NotAProviderJudge(ValueError):
+    def __init__(self) -> None:
+        super().__init__(
+            "the default judge names a registered LLM provider (provider), not a base_url"
+        )
+
+
 class LlmProviderView(BaseModel):
     name: str
     base_url: str
@@ -68,11 +75,11 @@ class LlmProviderStore:
         )
         return await session.get_one(models.TenantSettings, self._tenant_id)
 
-    async def _judge_base_url(self, session: AsyncSession) -> str | None:
+    async def _judge_provider(self, session: AsyncSession) -> str | None:
         settings = await session.get(models.TenantSettings, self._tenant_id)
         if settings is None or settings.default_judge is None:
             return None
-        return settings.default_judge.get("base_url")
+        return settings.default_judge.get("provider")
 
     async def _check_free(self, session: AsyncSession, name: str, base_url: str) -> None:
         taken = await session.scalar(
@@ -111,11 +118,6 @@ class LlmProviderStore:
         async with self._session() as session:
             row = await self._row(session, name)
             if base_url is not None and base_url != row.base_url:
-                if await self._judge_base_url(session) == row.base_url:
-                    raise ProviderInUse(
-                        f"{name} is the default judge's provider; "
-                        "set another default judge before changing its base URL"
-                    )
                 row.base_url = base_url
                 row.api_key_encrypted = None
             if api_key_encrypted is not None or clear_api_key:
@@ -126,7 +128,7 @@ class LlmProviderStore:
     async def archive(self, name: str) -> LlmProviderView:
         async with self._session() as session:
             row = await self._row(session, name)
-            if await self._judge_base_url(session) == row.base_url:
+            if await self._judge_provider(session) == row.name:
                 raise ProviderInUse(
                     f"{name} is the default judge's provider; set another default judge first"
                 )
@@ -167,15 +169,16 @@ class LlmProviderStore:
             )
         return _view(row) if row is not None else None
 
-    async def sealed_key(self, base_url: str) -> bytes | None:
+    async def active_endpoint(self, name: str) -> tuple[str, bytes | None] | None:
         async with self._session() as session:
-            return await session.scalar(
-                select(models.LlmProvider.api_key_encrypted).where(
+            row = await session.scalar(
+                select(models.LlmProvider).where(
                     models.LlmProvider.tenant_id == self._tenant_id,
-                    models.LlmProvider.base_url == base_url,
+                    models.LlmProvider.name == name,
                     models.LlmProvider.archived_at.is_(None),
                 )
             )
+        return (row.base_url, row.api_key_encrypted) if row is not None else None
 
     async def default_judge(self) -> JudgeSettings | None:
         async with self._session() as session:
@@ -185,10 +188,12 @@ class LlmProviderStore:
         return JudgeSettings.model_validate(row.default_judge)
 
     async def set_default_judge(self, judge: JudgeSettings) -> JudgeSettings:
-        if await self.active_by_base_url(judge.base_url) is None:
-            raise UnknownLlmProvider(judge.base_url)
+        if judge.provider is None:
+            raise NotAProviderJudge()
+        if await self.active_endpoint(judge.provider) is None:
+            raise UnknownLlmProvider(judge.provider)
         async with self._session() as session:
             settings = await self._ensure_settings(session)
-            settings.default_judge = judge.model_dump()
+            settings.default_judge = judge.model_dump(exclude_none=True)
             await session.commit()
         return judge

@@ -79,7 +79,7 @@ async def test_server_refuses_to_start_with_sources_but_no_key(tmp_path, session
 async def test_default_judge_lives_on_the_tenant_row(session_factory):
     store = LlmProviderStore(session_factory, "default")
     await store.create("p", "https://llm.example", None)
-    judge = JudgeSettings(base_url="https://llm.example", model="m")
+    judge = JudgeSettings(provider="p", model="m")
     await store.set_default_judge(judge)
     assert await store.default_judge() == judge
     async with session_factory() as s:
@@ -111,7 +111,7 @@ async def test_trace_import_refuses_a_source_from_another_tenant(raw_session_fac
 async def test_concurrent_first_writes_create_one_tenant_settings_row(raw_session_factory):
     store = LlmProviderStore(raw_session_factory, "tenant-7")
     await store.create("p", "https://llm.example", None)
-    judges = [JudgeSettings(base_url="https://llm.example", model=f"m{i}") for i in range(5)]
+    judges = [JudgeSettings(provider="p", model=f"m{i}") for i in range(5)]
     await asyncio.gather(
         *(LlmProviderStore(raw_session_factory, "tenant-7").set_default_judge(j) for j in judges)
     )

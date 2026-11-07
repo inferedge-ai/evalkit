@@ -2,14 +2,14 @@ import type { JudgeSettings } from "./types";
 
 export interface JudgeChoice {
   model: string;
-  base_url: string;
+  provider: string;
   reasoning_effort: string;
 }
 
 export function judgeChoice(defaults: JudgeSettings): JudgeChoice {
   return {
     model: defaults.model,
-    base_url: defaults.base_url,
+    provider: defaults.provider ?? "",
     reasoning_effort: defaults.reasoning_effort,
   };
 }
@@ -21,11 +21,11 @@ export function judgeOverride(
   choice: JudgeChoice,
 ): JudgeSettings | null {
   if (!defaults) {
-    const base_url = choice.base_url.trim();
+    const provider = choice.provider.trim();
     const model = choice.model.trim();
-    if (!base_url || !model) return null;
+    if (!provider || !model) return null;
     return {
-      base_url,
+      provider,
       model,
       reasoning_effort: choice.reasoning_effort.trim() || "high",
       max_tokens: 32768,
@@ -33,13 +33,13 @@ export function judgeOverride(
   }
   const picked = {
     model: choice.model.trim() || defaults.model,
-    base_url: choice.base_url.trim() || defaults.base_url,
+    provider: choice.provider.trim() || defaults.provider || "",
     reasoning_effort:
       choice.reasoning_effort.trim() || defaults.reasoning_effort,
   };
   const same =
     picked.model === defaults.model &&
-    picked.base_url === defaults.base_url &&
+    picked.provider === defaults.provider &&
     picked.reasoning_effort === defaults.reasoning_effort;
-  return same ? null : { ...defaults, ...picked };
+  return same ? null : { ...defaults, ...picked, base_url: null };
 }

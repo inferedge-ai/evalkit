@@ -65,6 +65,13 @@ class ApiClient(SyncApi):
             raise ApiError(str(ApiRequestError.from_response(resp)))
         return resp
 
+    def get_if_found(self, path: str, **kwargs) -> httpx2.Response | None:
+        resp = self._client.get(path, **kwargs)
+        if resp.status_code == 404:
+            self._check_version(resp)
+            return None
+        return self._handle(resp)
+
     def head(self, path: str, **kwargs) -> httpx2.Response:
         resp = super().head(path, **kwargs)
         self._check_version(resp)

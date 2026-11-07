@@ -94,12 +94,16 @@
   ],
   "rekind_spans": [
     {
-      "name": "OpenAILike.astream_chat",
+      "name": "*.astream_chat",
       "attribute": "llm.finish_reason",
       "kind": "llm"
     },
     {
-      "name": "OpenAILike.*",
+      "name": "*.astream_chat",
+      "kind": "chain"
+    },
+    {
+      "name": "*._prepare_chat_with_tools",
       "kind": "chain"
     }
   ]

@@ -13,14 +13,20 @@ router = APIRouter(tags=["llm providers"])
 NO_DEFAULT_JUDGE = "no default judge; an admin sets one with evalkit judge-default set"
 
 
-async def require_registered_judge(providers: LlmProviderStore, base_url: str) -> None:
-    if await providers.active_by_base_url(base_url) is None:
-        registered = ", ".join(p.base_url for p in await providers.list_providers())
+async def require_provider_judge(providers: LlmProviderStore, judge: JudgeSettings) -> str:
+    registered = ", ".join(p.name for p in await providers.list_providers()) or "none"
+    if judge.provider is None:
         raise HTTPException(
             status_code=400,
-            detail=f"{base_url} is not a registered LLM provider; "
-            f"registered: {registered or 'none'}",
+            detail=f"the server judges with a registered LLM provider, not a base_url "
+            f"({judge.base_url}); pass a provider: {registered}",
         )
+    if await providers.active_endpoint(judge.provider) is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{judge.provider} is not a registered LLM provider; registered: {registered}",
+        )
+    return judge.provider
 
 
 @router.get("/api/llm-providers")
@@ -91,16 +97,16 @@ async def get_judge_default(stores: StoresDep) -> dict:
     judge = await stores.providers.default_judge()
     if judge is None:
         raise HTTPException(status_code=404, detail=NO_DEFAULT_JUDGE)
-    return judge.model_dump()
+    return judge.model_dump(exclude_none=True)
 
 
 @router.put("/api/judge-default")
 async def set_judge_default(body: JudgeSettings, stores: StoresDep, admin: AdminUser) -> dict:
-    return (await stores.providers.set_default_judge(body)).model_dump()
+    return (await stores.providers.set_default_judge(body)).model_dump(exclude_none=True)
 
 
 class JudgePatch(BaseModel):
-    base_url: str | None = None
+    provider: str | None = None
     model: str | None = None
     reasoning_effort: str | None = None
     max_tokens: int | None = None
@@ -110,8 +116,8 @@ class JudgePatch(BaseModel):
 async def patch_judge_default(body: JudgePatch, stores: StoresDep, admin: AdminUser) -> dict:
     current = await stores.providers.default_judge()
     merged = {
-        **(current.model_dump() if current is not None else {}),
+        **(current.model_dump(exclude_none=True) if current is not None else {}),
         **body.model_dump(exclude_none=True),
     }
     judge = JudgeSettings.model_validate(merged)
-    return (await stores.providers.set_default_judge(judge)).model_dump()
+    return (await stores.providers.set_default_judge(judge)).model_dump(exclude_none=True)

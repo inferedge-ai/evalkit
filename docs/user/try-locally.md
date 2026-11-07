@@ -48,7 +48,7 @@ when its flag or environment variable is set (`evalkit init-server --help`
 lists both); `--yes` never asks. It then:
 
 - creates the database when it does not exist, and migrates it
-- registers your LLM as the LLM provider `try` and makes it the default judge,
+- registers your LLM as the LLM provider `test-llm` and makes it the default judge,
   with its API key stored encrypted in the database
 - copies the try kit into `./evalkit-try`
 - writes `config.yaml` there, with blobs stored under `evalkit-try/data` and a
@@ -99,7 +99,7 @@ every start.
 | `run.py` | The SDK run: `tracing.register` sends the spans to evalkit, and `run_experiment` calls the agent once per case and scores the answers. |
 | `mapping.json` | The span mapping: which span attribute holds the model, the messages, the tokens and each tool call. It starts as the connect-traces skill's `gen_ai.json`. |
 | `cases/acme/` | Five cases in two folders (tags), with answer rubrics and a tool check. |
-| `evalkit.yaml`, `.env` | Where the cases are, and the judge's key. |
+| `evalkit.yaml`, `.env` | Where the cases are. |
 | `config.yaml` | The server's config. |
 | `docker-compose.yml`, `.env.example` | With Docker only: the stack, and the template for its `.env`. `init-server` leaves them out. |
 
@@ -203,13 +203,12 @@ Do the same in your own repository:
    connect-traces skill writes or checks the span mapping
    ([Mappings](mappings.md)).
 2. **Setup.** Put an `evalkit.yaml` at the root of your repository, with
-   `cases:` pointing at your cases directory and the judge's key under
-   `credentials.llm_providers`. That map is keyed by the judge's base URL, which must
-   match the judge the run uses: the server's default judge
-   (`{{origin}}/api/judge-default` shows its `base_url`), or the one you pass to
-   `run_experiment(judge=...)`. This kit keys it with `env:LLM_BASE_URL` so the
-   URL comes from `.env`. Keep the keys in a `.env` beside `evalkit.yaml`.
-3. **Script.** Copy `run.py`. Pin evalkit in its header to your evalkit
+   `cases:` pointing at your cases directory. Keep any keys it names in a
+   `.env` beside it.
+3. **Judge.** Nothing to set up: the evaluators that use a judge run on the
+   evalkit server, with the LLM provider configured there as the default
+   judge. To judge with your own key instead, see [Config](config.md).
+4. **Script.** Copy `run.py`. Pin evalkit in its header to your evalkit
    server's version (`evalkit-py[otel]==<version>`), call
    `tracing.register(agent="myagent")`, and write a `task` that calls your
    agent with the case input. `uv run run.py` builds an environment from the

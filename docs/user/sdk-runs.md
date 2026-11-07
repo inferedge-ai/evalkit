@@ -126,16 +126,27 @@ evalkit agents create myagent-sdk --trajectory-source otel --mapping openinferen
 
 Its `answer` rule and `exclude_spans` live in its span mapping. `evalkit.yaml` is still required; it holds the cases, fixtures and credentials.
 
-The judge is the server's default unless you pass one:
+The judge is the server's default unless you pass one. An admin sets the default with `evalkit judge-default set`. With the default, or any other judge served by an LLM provider configured on the server (`Judge(provider=...)`), the evaluators that use a judge (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) run on the evalkit server with its stored key; your machine needs no judge key:
 
 ```python
 from evalkit.sdk import Judge, run_experiment
 
+run_experiment(dataset="finance", agent="myagent-sdk", task=task)  # the server's default judge
 run_experiment(dataset="finance", agent="myagent-sdk", task=task,
-               judge=Judge(base_url="https://litellm.example.com", model="gpt-5"))
+               judge=Judge(provider="openai", model="gpt-5"))       # another provider on the server
 ```
 
-An admin sets the default judge with `evalkit judge-default set`. Either way, the SDK reads the judge's key from `credentials.llm_providers` in `evalkit.yaml`, keyed by the judge's base URL.
+To bring your own judge, pass its base URL and key. Those evaluators then run on your machine. evalkit sends the key only to your judge's base URL; it never stores it on the evalkit server or prints it:
+
+```python
+run_experiment(dataset="finance", agent="myagent-sdk", task=task,
+               judge=Judge(base_url="https://litellm.example.com", model="gpt-5",
+                           api_key=os.environ["LITELLM_API_KEY"]))
+```
+
+Re-scoring such an experiment needs the key again: pass the same judge, key included, to `evaluate_experiment(experiment_id=..., judge=Judge(...))`. A different judge (another endpoint or model, or other settings) is refused.
+
+A judge sets `provider` or `base_url`, never both. `tool_trajectory_match`, `required_tools_called` and `max_response_time` always run on your machine. The run page shows `server` or `local` beside each score.
 
 ## Capabilities
 

@@ -7,7 +7,7 @@ cp .claude/skills/connect-traces/references/<framework>.json eval/span-mapping.j
 evalkit agents create myagent --trajectory-source otel --mapping eval/span-mapping.json
 ```
 
-Then run one session and check it with `evalkit traces check myagent <session id>` (see [Tracing](tracing.md)). Instrumentors change between versions, so read every `!` line even when you start from a file below.
+Then run one session and check it with `evalkit traces check myagent <session id>` (see [Tracing](tracing.md)). Each line of the check output starts with `✓` (fine), `!` (a warning: the check still exits 0, but the trajectory is likely wrong) or `✗` (a failure). Instrumentors change between versions, so read every warning line even when you start from a file below.
 
 | Framework | Instrumentation | File | Verified with |
 | -- | -- | -- | -- |
@@ -19,7 +19,7 @@ Then run one session and check it with `evalkit traces check myagent <session id
 | LlamaIndex `FunctionAgent` | OpenInference LlamaIndex | `llamaindex.json` | LlamaIndex 0.14 |
 | Google ADK | ADK's own GenAI spans | `google-adk.json` | ADK 2.13 |
 | Pydantic AI | built-in GenAI spans | `gen_ai.json` | Pydantic AI 2.65 |
-| Claude Agent SDK | hand-built GenAI spans + the `mcp` library | `claude-agent-sdk.json` | — |
+| Claude Agent SDK | hand-built GenAI spans + the `mcp` library | `claude-agent-sdk.json` | claude-agent-sdk 0.2.177 |
 | Mastra (TypeScript) | `@mastra/otel-exporter` GenAI spans | `mastra.json` | Mastra 1.81 |
 
 Some fixes need a change in the agent, not the mapping: a mapping reads one span at a time and cannot move a session id or an output from one span to another. Each section says what the agent still needs.
@@ -55,7 +55,7 @@ Tool spans from most OpenInference instrumentors carry no `tool.id`. The check t
 
 `agno.json`: `openinference.json` with `agno.*` in `known_attributes`.
 
-- Set `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096`. The default of 128 attributes per span drops the system prompt from the flattened messages.
+- Set `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096`. The default of 128 attributes per span drops the system prompt from the flattened messages. `evalkit traces check` warns on its `llm` line when a span lost attributes this way.
 
 ## OpenAI Agents SDK
 
@@ -66,16 +66,17 @@ Tool spans from most OpenInference instrumentors carry no `tool.id`. The check t
 
 ## LlamaIndex
 
-`llamaindex.json`: `openinference.json` with `input.value` and `output.value` in `known_attributes`, and two `rekind_spans` rules. LlamaIndex emits three LLM-kind spans per model call (an empty `_prepare_chat_with_tools` span and an outer `astream_chat` span around the real one). The rules keep the `astream_chat` span that carries `llm.finish_reason` as the LLM call and make every other `OpenAILike.*` span a chain:
+`llamaindex.json`: `openinference.json` with `input.value` and `output.value` in `known_attributes`, and three `rekind_spans` rules. LlamaIndex emits three LLM-kind spans per model call (an empty `_prepare_chat_with_tools` span and an outer `astream_chat` span around the real one), each named after the LLM class (`OpenAI.astream_chat`, `OpenAILike.astream_chat`, …). The rules keep the `astream_chat` span that carries `llm.finish_reason` as the LLM call and make the other two chains, whatever the class:
 
 ```json
 "rekind_spans": [
-  {"name": "OpenAILike.astream_chat", "attribute": "llm.finish_reason", "kind": "llm"},
-  {"name": "OpenAILike.*", "kind": "chain"}
+  {"name": "*.astream_chat", "attribute": "llm.finish_reason", "kind": "llm"},
+  {"name": "*.astream_chat", "kind": "chain"},
+  {"name": "*._prepare_chat_with_tools", "kind": "chain"}
 ]
 ```
 
-- Replace `OpenAILike` with your LLM class's name.
+- If `traces check` still shows more LLM spans than LLM steps, look up the extra span's name in `--dump spans.json` and add a rule for it.
 - For token counts on streamed calls, pass `additional_kwargs={"stream_options": {"include_usage": True}}` to the LLM.
 - Put the session id on a span of your own around each turn (see above).
 
@@ -86,7 +87,6 @@ Tool spans from most OpenInference instrumentors carry no `tool.id`. The check t
 - Set `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=SPAN_ONLY`. On ADK 2.13, `true` gives spans without messages.
 - Put the session id on a span of your own around each turn (see above), or create the app with `FastAPI(telemetry={"tracing": False})`.
 - ADK's `execute_tool` spans carry no `gen_ai.conversation.id`; they join the session through the turn span above them.
-- ADK reports the model's messages with role `model`, not `assistant`. Until evalkit reads that role, tool calls may be missing from the trajectory.
 
 ## Pydantic AI
 
@@ -108,7 +108,7 @@ Tool spans from most OpenInference instrumentors carry no `tool.id`. The check t
 `mastra.json`: `gen_ai.json` with these changes:
 
 - `exclude_spans` drops Mastra's internal spans by `mastra.span.type`: `processor_run`, `memory_operation` and `model_chunk`.
-- `answer` is `invoke_agent <agent name>.text`. Replace `<agent name>` with your agent's name.
+- `answer` is `invoke_agent <agent name>.text`. Replace `<agent name>` with your agent's name. If you don't, `evalkit traces check` warns on its `answer` line that no span has that name, and the trajectory has no answer. The rule splits on the first `.`, so this form does not work for an agent name with a dot in it; rename the agent or use `root`.
 - `known_attributes` adds `mastra.*`, `gen_ai.usage.reasoning_tokens` and `gen_ai.tool.call.id`.
 
 Mastra's `chat` spans end without `gen_ai.output.messages`; the text and tool calls sit on the parent `agent_step` span, and a mapping cannot read a parent span. Wrap the exporter in a `SpanExporter` that copies `mastra.model_step.output` from each `agent_step` span onto its `chat` span.

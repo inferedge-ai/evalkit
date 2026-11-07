@@ -23,7 +23,6 @@ TEST_CREDENTIALS_CONFIG = CredentialsConfig(
         "required_tool_calls@canonical": "env:CUSTOM_EVAL_KEY",
         "broken_eval@canonical": "env:CUSTOM_EVAL_KEY",
     },
-    llm_providers={JUDGE_URL: "env:JUDGE_KEY", "http://j": "env:JUDGE_KEY"},
 )
 TEST_ENV = {"FAKE_AGENT_KEY": "client-key", "CUSTOM_EVAL_KEY": "client-key", "JUDGE_KEY": "jk"}
 TEST_ENCRYPTION_KEY = "6lq9yMcTJhmV4V9Yb2tBz9b0d5uTn1V7hWkJr6m1dGc="

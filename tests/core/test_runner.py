@@ -32,6 +32,7 @@ from evalkit.core.runner import (
     ExperimentRequest,
     InvalidCaseInputs,
     LeaseLost,
+    MissingJudgeKey,
     ScoringFailed,
     drive_experiment,
     evaluate_experiment,
@@ -40,7 +41,7 @@ from evalkit.core.runner import (
 )
 from evalkit.core.scorecard import assemble_report
 from evalkit.core.traces.sessions import SessionTrajectory
-from evalkit.credentials import CredentialRegistry, MissingCredential
+from evalkit.credentials import CredentialRegistry
 from evalkit.db.models import AgentRun, Evaluation
 from evalkit.db.models import Experiment as ExperimentRow
 from evalkit.db.workspaces import WorkspaceStore
@@ -838,6 +839,20 @@ async def test_rescoring_retries_errored_evaluators_and_replaces_their_error_row
     assert "answer_rubrics" not in report.evaluator_columns
 
 
+async def test_evaluator_error_without_a_message_names_the_exception_type(
+    tmp_path, stub_judges, session_factory, monkeypatch
+):
+    env = await seed_env(session_factory, tmp_path)
+
+    async def timed_out(cfg, **kwargs):
+        raise httpx2.ReadTimeout("")
+
+    monkeypatch.setattr(rubrics, "call_judge", timed_out)
+    exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
+    report = assemble_report(await env.store.aggregate(exp.id))
+    assert {c.errors["answer_rubrics"] for c in report.cases} == {"ReadTimeout"}
+
+
 async def test_rescoring_retries_an_errored_trajectory_judge_once(
     tmp_path, stub_judges, session_factory, monkeypatch
 ):
@@ -867,7 +882,9 @@ async def test_rescoring_retries_an_errored_trajectory_judge_once(
     monkeypatch.setattr(trajectory_rubrics, "call_judge", forbidden)
     exp = await start(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
     first = assemble_report(await env.store.aggregate(exp.id))
-    assert all(c.errors == {"trajectory_rubrics": "judge returned 403"} for c in first.cases)
+    assert all(
+        c.errors == {"trajectory_rubrics": "RuntimeError: judge returned 403"} for c in first.cases
+    )
 
     monkeypatch.setattr(trajectory_rubrics, "call_judge", satisfied)
     await evaluate_experiment(env.deps, exp.id)
@@ -993,12 +1010,9 @@ async def test_missing_judge_key_fails_before_any_harness_call(
 ):
     fake = FakeHarness()
     env = await seed_env(session_factory, tmp_path, fake)
-    env.deps.credentials = CredentialRegistry(
-        TEST_CREDENTIALS_CONFIG.model_copy(update={"llm_providers": {}}),
-        {"FAKE_AGENT_KEY": "client-key"},
-    )
+    env.deps.judge_api_key = None
     exp = await prepare(env, ExperimentRequest(dataset="finance@canonical", agent="fake@canonical"))
-    with pytest.raises(MissingCredential, match=JUDGE_URL):
+    with pytest.raises(MissingJudgeKey, match=JUDGE_URL):
         await run_experiment(env.deps, exp.id, HOLDER)
     assert fake.runs == {}
     assert (await env.experiment(exp.id)).status is FAILED

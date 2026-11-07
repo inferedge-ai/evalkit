@@ -10,6 +10,7 @@ from evalkit.contracts.enums import (
     EvaluatorKind,
     ExperimentStatus,
     RunStatus,
+    ScoredOn,
     TrajectorySource,
     TrajectoryStatus,
 )
@@ -149,7 +150,7 @@ class ExperimentSnapshot(BaseModel):
 
 class ExperimentConfig(BaseModel):
     model: str | None = None
-    judge: JudgeSettings
+    judge: JudgeSettings | None = None
     selection: Selection
     revision: GitRevision | None = None
     snapshot: ExperimentSnapshot
@@ -217,6 +218,7 @@ class EvaluationRow(BaseModel):
     name: str
     kind: EvaluatorKind
     source: EvaluationSource
+    scored_on: ScoredOn = ScoredOn.LOCAL
     value: float | None = None
     label: str | None = None
     explanation: str | None = None

@@ -38,7 +38,6 @@ def local_config(tmp_path) -> LocalConfig:
         credentials=CredentialsConfig(
             agents={"fake": "env:LOCAL_AGENT_KEY"},
             evaluators={"required_tool_calls": "env:LOCAL_EVAL_KEY"},
-            llm_providers={"http://judge.test": "env:LOCAL_JUDGE_KEY"},
         ),
     )
 

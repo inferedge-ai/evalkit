@@ -51,6 +51,7 @@ class EsfSpan(BaseModel):
     excluded: bool = False
     agent_role: AgentRole | None = None
     unmapped: list[str] = Field(default_factory=list)
+    dropped_attributes: int = 0
 
 
 class MappingModel(BaseModel):

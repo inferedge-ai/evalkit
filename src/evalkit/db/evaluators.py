@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from evalkit.contracts.enums import EvaluatorKind
 from evalkit.contracts.settings import RemoteEvaluatorSettings
 from evalkit.core.access import WorkspaceRef
+from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
 from evalkit.core.remote_evaluators import RemoteEvaluator, UnknownEvaluator
 from evalkit.db import models
 from evalkit.db.locks import lock_name
@@ -70,6 +71,10 @@ class RemoteEvaluatorStore:
     ) -> RemoteEvaluator:
         if "@" in name or not name:
             raise InvalidEvaluator(f"invalid evaluator name: {name!r}")
+        if name in BUILTIN_EVALUATORS:
+            raise InvalidEvaluator(
+                f"{name} is a built-in evaluator, available in every workspace; pick another name"
+            )
         if workspace.tenant_id != self._tenant_id:
             raise UnknownWorkspace(workspace.name)
         async with self._session() as session:

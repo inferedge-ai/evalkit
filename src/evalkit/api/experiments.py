@@ -22,10 +22,11 @@ from evalkit.api.access import (
     workspace_ref,
 )
 from evalkit.api.deps import ConfigDep, HolderDep, SessionDep
-from evalkit.api.llm_providers import NO_DEFAULT_JUDGE, require_registered_judge
+from evalkit.api.llm_providers import require_provider_judge
 from evalkit.api.server_keys import server_keys, with_keys
 from evalkit.contracts.atif import validate_trajectory
-from evalkit.contracts.enums import ExperimentStatus, SyncSource
+from evalkit.contracts.enums import ExperimentStatus, ScoredOn, SyncSource
+from evalkit.contracts.harness import Capabilities
 from evalkit.core.access import (
     Actor,
     can_change_experiment,
@@ -35,21 +36,26 @@ from evalkit.core.access import (
 from evalkit.core.agents import AgentDefinition, explicit, server_may_drive
 from evalkit.core.blob import trajectory_key
 from evalkit.core.costmap import load_cost_map
+from evalkit.core.errors import error_text
+from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
 from evalkit.core.runner import (
     ACTIVE,
     REFETCHABLE,
     ExperimentRequest,
     InvalidCaseInputs,
+    NoJudge,
     NothingRunnable,
     RunnerDeps,
-    error_text,
+    build_context,
     harness_capabilities,
     prepare_experiment,
     rescore_experiment,
     run_experiment,
+    score_builtin,
     stored_trajectory_doc,
 )
 from evalkit.core.scorecard import assemble_report
+from evalkit.core.server_evaluators import ServerEvaluationRequest, ServerScore
 from evalkit.core.trajectory import backfill_step_costs
 from evalkit.core.workspace import Reference, parse_slug
 from evalkit.db import experiments as db_experiments
@@ -57,6 +63,7 @@ from evalkit.db import scorecard as db_scorecard
 from evalkit.db.agents import agent_definition, agent_id_for
 from evalkit.db.cases import dataset_by_ref
 from evalkit.db.experiments import tenant_of_experiment
+from evalkit.db.keys import StoredKeys
 from evalkit.db.models import AgentRun as AgentRunRow
 from evalkit.db.models import ExperimentRun as ExperimentRunRow
 from evalkit.db.models import User
@@ -220,7 +227,11 @@ def _scoring(
             status_code=400,
             detail=f"evaluation_concurrency {asked} is above this server's limit of {limit}",
         )
-    return replace(deps, evaluation_concurrency=asked or min(saved or limit, limit))
+    return replace(
+        deps,
+        evaluation_concurrency=asked or min(saved or limit, limit),
+        scored_on=ScoredOn.SERVER,
+    )
 
 
 async def _runner_written(
@@ -294,14 +305,12 @@ async def create_experiment(
         )
     providers = stores.providers
     judge = body.judge or await providers.default_judge()
-    if judge is None:
-        raise HTTPException(status_code=400, detail=f"{NO_DEFAULT_JUDGE}, or pass a judge")
     api_key: str | None = None
     warnings: list[str] = []
     run_deps = stores.deps
     if server_driven:
-        await require_registered_judge(providers, judge.base_url)
-        keys, warnings = await server_keys(stores, cfg, agent, judge.base_url)
+        provider = await require_provider_judge(providers, judge) if judge is not None else None
+        keys, warnings = await server_keys(stores, cfg, agent, provider)
         api_key = keys.key_for("agent", agent.ref)
         run_deps = _scoring(request, with_keys(stores.deps, keys), body.evaluation_concurrency)
     holder = task_holder(pod) if server_driven else str(body.holder)
@@ -322,7 +331,7 @@ async def create_experiment(
             if body.cases is not None
             else await _last_git_revision(session, stores.tenant_id, body.dataset),
         )
-    except (InvalidCaseInputs, NothingRunnable) as exc:
+    except (InvalidCaseInputs, NothingRunnable, NoJudge) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx2.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"could not start experiment: {exc}") from exc
@@ -483,6 +492,48 @@ async def publish_evaluations(
     return {"ok": True}
 
 
+@runs_router.post("/{run_id}/server-evaluations/{name}")
+async def score_on_server(
+    run_id: int,
+    name: str,
+    body: ServerEvaluationRequest,
+    stores: StoresDep,
+    session: SessionDep,
+    actor: ActorDep,
+) -> dict:
+    exp_id = await db_experiments.experiment_of_run(session, run_id)
+    if exp_id is None:
+        raise HTTPException(status_code=404, detail=f"unknown experiment run: {run_id}")
+    exp = await _changeable(stores, session, actor, exp_id)
+    agent = await _runner_written(session, stores.tenant_id, exp)
+    await session.close()
+    evaluator = BUILTIN_EVALUATORS.get(name)
+    if evaluator is None:
+        raise HTTPException(status_code=404, detail=f"unknown built-in evaluator: {name}")
+    if evaluator.local_only:
+        raise HTTPException(status_code=400, detail=f"{name} runs on your machine, not the server")
+    judge = exp.config.judge
+    if judge is None or judge.provider is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"experiment {exp_id} has no provider judge; its built-ins run on your machine",
+        )
+    provider = await require_provider_judge(stores.providers, judge)
+    keys = StoredKeys({}, await stores.keys.provider_judges(provider))
+    base_url, api_key = keys.provider_judge(provider)
+    run = await stores.store.run_to_score(exp_id, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id} has nothing to score")
+    deps = replace(with_keys(stores.deps, keys), scored_on=ScoredOn.SERVER)
+    resolved = judge.model_copy(update={"provider": None, "base_url": base_url})
+    ctx, _ = await build_context(
+        deps, agent, load_cost_map(deps.cfg.cost_map), run, resolved, api_key
+    )
+    caps = Capabilities.model_validate(exp.config.snapshot.capabilities)
+    rows, _ = await score_builtin(deps, exp, ctx, caps, run_id, name, body.config)
+    return ServerScore(rows=rows, judge_usage=ctx.judge_usage).model_dump(mode="json")
+
+
 @router.patch("/{exp_id}")
 async def patch_experiment(
     exp_id: int,
@@ -531,8 +582,12 @@ async def evaluate(
     exp = await _changeable(stores, session, actor, exp_id)
     agent = await _server_driven(stores.deps, exp, "evaluate")
     asked = body.evaluation_concurrency if body is not None else None
-    await require_registered_judge(stores.providers, exp.config.judge.base_url)
-    keys, warnings = await server_keys(stores, cfg, agent, exp.config.judge.base_url)
+    provider = (
+        await require_provider_judge(stores.providers, exp.config.judge)
+        if exp.config.judge is not None
+        else None
+    )
+    keys, warnings = await server_keys(stores, cfg, agent, provider)
     holder = task_holder(pod)
     exp = await stores.store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
     _track(
@@ -568,8 +623,12 @@ async def resume(
     exp = await _changeable(stores, session, actor, exp_id)
     agent = await _server_driven(stores.deps, exp, "resume")
     asked = body.evaluation_concurrency if body is not None else None
-    await require_registered_judge(stores.providers, exp.config.judge.base_url)
-    keys, warnings = await server_keys(stores, cfg, agent, exp.config.judge.base_url)
+    provider = (
+        await require_provider_judge(stores.providers, exp.config.judge)
+        if exp.config.judge is not None
+        else None
+    )
+    keys, warnings = await server_keys(stores, cfg, agent, provider)
     holder = task_holder(pod)
     exp = await stores.store.transition(exp_id, ExperimentStatus.RUNNING, holder)
     _track(

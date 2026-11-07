@@ -260,7 +260,9 @@ export function ExperimentPage() {
             className="chip muted font-mono"
             title={[
               `judge ${config.judge.model}`,
-              config.judge.base_url,
+              config.judge.provider
+                ? `provider ${config.judge.provider} (scored on the server)`
+                : `${config.judge.base_url} (own key, scored locally)`,
               config.judge.reasoning_effort &&
                 `effort ${config.judge.reasoning_effort}`,
               config.judge.max_tokens != null &&
