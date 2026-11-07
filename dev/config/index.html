@@ -936,8 +936,6 @@
 <span class="w">    </span><span class="nt">myagent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">env:MYAGENT_KEY</span><span class="w"> </span><span class="c1"># a bare name means your own workspace</span>
 <span class="w">  </span><span class="nt">evaluators</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">citation_check</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">env:EVALUATOR_KEY</span>
-<span class="w">  </span><span class="nt">llm_providers</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">https://litellm.example.com</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">env:LITELLM_API_KEY</span><span class="w"> </span><span class="c1"># keyed by the judge's base URL</span>
 </code></pre></div>
 <p>Only your personal Harness API agents use <code>credentials.agents</code> here. The server drives shared agents (<code>ouragent@dev</code>) with the keys stored in its database, so an entry for one in <code>evalkit.yaml</code> is never read. The same holds for shared remote evaluators.</p>
 <p>Put the values in a <code>.env</code> file next to <code>evalkit.yaml</code> (and keep it out of git), or in your shell. A variable set in the shell wins over <code>.env</code>.</p>
@@ -945,14 +943,16 @@
 <ul>
 <li><strong>Agents</strong> are created once on the server with <code>evalkit agents create</code> (or on the Agents page). A personal agent runs from your machine; a shared one is driven by the server. An agent without a harness URL is code-driven: only <code>run_experiment</code> can run it. See <a href="../sdk-runs/">SDK runs</a>.</li>
 <li><strong>Remote evaluators</strong> are created with <code>evalkit evaluators create</code>. A run uses the evaluators in its agent's workspace.</li>
-<li><strong>The judge</strong> of an experiment is the server's default judge (an admin sets it with <code>evalkit judge-default set</code>) unless you pick one: <code>evalkit run … --judge-model M --judge-base-url URL --judge-effort E</code>, the run dialog's "Judge provider" picker, or <code>run_experiment(judge=Judge(...))</code>. Re-evaluating an experiment always reuses its judge.</li>
+<li><strong>The judge</strong> of an experiment is the server's default judge (an admin sets it with <code>evalkit judge-default set</code>) unless you pick one. Re-evaluating an experiment always reuses its judge. You pick it in one of two ways:</li>
+<li><strong>An LLM provider configured on the server:</strong> <code>evalkit run … --judge-provider NAME --judge-model M</code>, or <code>run_experiment(judge=Judge(provider=..., model=...))</code>. The default judge is one too. The evaluators that use a judge (<code>answer_rubrics</code>, <code>presentation_judge</code>, <code>trajectory_rubrics</code>) then run on the evalkit server with its stored key, so you need no judge key on your machine.</li>
+<li><strong>Your own judge:</strong> <code>evalkit run … --judge-base-url URL --judge-model M --judge-api-key-env NAME</code>, where <code>NAME</code> is the env var (or <code>.env</code> entry) holding the key; or <code>run_experiment(judge=Judge(base_url=..., model=..., api_key=...))</code>. Those evaluators then run on your machine. The key goes only to your judge and is never stored on the evalkit server, so re-scoring and resuming ask for it again: <code>evalkit evaluate &lt;id&gt; --judge-api-key-env NAME</code>, <code>evalkit run … --resume &lt;id&gt; --judge-api-key-env NAME</code>, or <code>evaluate_experiment(..., judge=Judge(base_url=..., model=..., api_key=...))</code>, the same judge again. A different judge is refused.</li>
+<li><code>--judge-provider</code> and <code>--judge-base-url</code> together are refused, and so is <code>--judge-base-url</code> without <code>--judge-api-key-env</code>.</li>
 </ul>
 <p>Rules:</p>
 <ul>
 <li><code>env:NAME</code> values are read only when a command needs them. A missing variable is an error that names it.</li>
-<li>An agent or evaluator with no <code>credentials</code> entry is called without a key, and the run prints one line saying so. A judge with no entry stops the run before its first case: <code>no credentials.llm_providers entry for &lt;url&gt;</code>.</li>
-<li><code>credentials.judges</code> is now <code>credentials.llm_providers</code>. A file that still uses the old name fails to load.</li>
-<li>An <code>llm_providers</code> key may itself be <code>env:NAME</code> (<code>env:LLM_BASE_URL: env:LLM_API_KEY</code>), so the judge's base URL can come from the environment too. A key whose variable is unset is skipped.</li>
+<li>An agent or evaluator with no <code>credentials</code> entry is called without a key, and the run prints one line saying so.</li>
+<li><code>credentials</code> holds agent and evaluator keys only. A file with <code>credentials.llm_providers</code> (or the older <code>credentials.judges</code>) fails to load: pass your own judge's key with the run instead.</li>
 <li><code>cases</code> and <code>fixtures</code> are optional. Leave them out when you only run shared datasets, for example from <code>run_experiment</code>. Commands that need them say so:</li>
 <li><code>evalkit sync &lt;name&gt;</code> and <code>evalkit run &lt;name&gt;</code> on a dataset in your workspace need <code>cases</code> to find <code>&lt;cases&gt;/&lt;name&gt;</code>. Passing the dataset's directory instead (<code>evalkit sync eval/cases/finance</code>) works without it.</li>
 <li>A sync uploads fixture bytes from <code>fixtures</code>. Without it, a case whose fixture the server does not already hold fails the sync with <code>E-FIXTURE-MISSING</code>.</li>

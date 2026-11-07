@@ -1547,9 +1547,11 @@ trajectory. Defaults to the agent's setting.</p>
 )
           –
           <div class="doc-md-description">
-            <p>The judge for LLM-graded evaluators. Defaults to the server's default
-judge. Its API key comes from <code>credentials.judges</code> in <code>evalkit.yaml</code>, keyed
-by <code>base_url</code>.</p>
+            <p>The judge for LLM-graded built-in evaluators. Defaults to the server's
+default judge. <code>Judge(provider=...)</code> names an LLM provider configured on
+the server: they run on the server with its stored key.
+<code>Judge(base_url=..., api_key=...)</code> brings your own judge: they run on this
+machine. The key is never stored.</p>
           </div>
         </li>
         <li class="doc-section-item field-body">
@@ -1656,6 +1658,7 @@ there instead.</p>
     <span class="n">evaluators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PythonEvaluator</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">refetch_trajectories</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">EVALUATION_CONCURRENCY</span><span class="p">,</span>
+    <span class="n">judge</span><span class="p">:</span> <span class="n">JudgeSettings</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span>
 </code></pre></div>
 
@@ -1708,6 +1711,19 @@ part of the experiment.</p>
             <p>How many runs are scored at once.</p>
           </div>
         </li>
+        <li class="doc-section-item field-body">
+            <b><code>judge</code></b>
+              (<code><a class="autorefs autorefs-internal" title="Judge (evalkit.contracts.settings.JudgeSettings)" href="#evalkit.sdk.Judge">JudgeSettings</a> | None</code>, default:
+                  <code>None</code>
+)
+          –
+          <div class="doc-md-description">
+            <p>The experiment's judge again, for an experiment that brought its own
+(<code>Judge(base_url=..., api_key=...)</code>): keys are never stored, so re-scoring
+asks for it again. It must be the judge the experiment recorded; a
+different judge is refused.</p>
+          </div>
+        </li>
     </ul>
 
 
@@ -1758,6 +1774,7 @@ part of the experiment.</p>
     <span class="n">evaluators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PythonEvaluator</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">refetch_trajectories</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">EVALUATION_CONCURRENCY</span><span class="p">,</span>
+    <span class="n">judge</span><span class="p">:</span> <span class="n">JudgeSettings</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">api_transport</span><span class="p">:</span> <span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">custom_eval_transport</span><span class="p">:</span> <span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">progress</span><span class="p">:</span> <span class="n">Progress</span> <span class="o">=</span> <span class="nb">print</span><span class="p">,</span>
@@ -1768,7 +1785,7 @@ part of the experiment.</p>
 
         <p>The async form of <code>evaluate_experiment</code>, for code already in an event loop.</p>
 <p>Same arguments and result as <code>evaluate_experiment</code>. The arguments after
-<code>evaluation_concurrency</code> exist for tests.</p>
+<code>judge</code> exist for tests.</p>
 
 
     </div>
@@ -2261,17 +2278,37 @@ one from spans.</p>
 
 
         <p>The LLM judge an experiment uses; exported from <code>evalkit.sdk</code> as <code>Judge</code>.</p>
-<p>Its API key comes from <code>credentials.judges</code> in <code>evalkit.yaml</code>, keyed by <code>base_url</code>.</p>
+<p>Set exactly one of <code>provider</code> or <code>base_url</code>. With <code>provider</code>, the judge is served
+by an LLM provider configured on the evalkit server: judge-using built-in
+evaluators run on the server with its stored key. With <code>base_url</code>, you bring your
+own judge: those evaluators run on your machine, with <code>api_key</code>.</p>
 
 
 <p><span class="doc-section-title">Attributes:</span></p>
     <ul>
         <li class="doc-section-item field-body">
+          <b><code><span title="evalkit.sdk.Judge.provider">provider</span></code></b>
+              (<code><span title="str">str</span> | None</code>)
+          –
+          <div class="doc-md-description">
+            <p>The name of an LLM provider configured on the server.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
           <b><code><span title="evalkit.sdk.Judge.base_url">base_url</span></code></b>
-              (<code><span title="str">str</span></code>)
+              (<code><span title="str">str</span> | None</code>)
           –
           <div class="doc-md-description">
             <p>An OpenAI-compatible endpoint that supports structured output.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="evalkit.sdk.Judge.api_key">api_key</span></code></b>
+              (<code><span title="str">str</span> | None</code>)
+          –
+          <div class="doc-md-description">
+            <p>The key for <code>base_url</code>. Sent only to <code>base_url</code>; never stored on the
+evalkit server or shown.</p>
           </div>
         </li>
         <li class="doc-section-item field-body">
