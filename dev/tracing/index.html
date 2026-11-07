@@ -848,6 +848,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="From any OpenTelemetry SDK">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-behind-an-http-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent behind an HTTP server
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1137,6 +1154,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="From any OpenTelemetry SDK">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agent-behind-an-http-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agent behind an HTTP server
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1284,7 +1318,7 @@
 <p>The task passes its <code>metadata</code> argument along with the job (see <a href="../sdk-runs/">SDK runs</a>). <code>eval_run</code> stamps <code>session.id</code> (the SDK's session id), <code>evalkit.case_id</code>, <code>evalkit.experiment_id</code> and <code>evalkit.repetition</code> on every span started inside it, so the worker's spans join the run's session and the task returns only the answer. <code>is_eval_span</code> is true for a span that carries <code>evalkit.case_id</code>. The stamp lives in a context variable: spans started in another thread need that thread to run inside <code>eval_run</code> too.</p>
 <p>A harness agent learns that a run is an eval run from the <code>metadata</code> of <code>POST /runs</code>: <code>experiment_id</code>, <code>case_id</code> and <code>repetition</code>. That is what it passes to <code>eval_run</code>, with the <code>run_id</code> it returns as the session id: <code>tracing.eval_run({**metadata, "session_id": run_id})</code>.</p>
 <p><code>only</code> decides by trace, not by span. It is any function that takes a span and returns a bool, and it runs on each span as the span starts and again as it ends. Once it is true for one span, the processor keeps every span of that span's trace that reaches it: spans started inside <code>eval_run</code>, the job's own spans started before <code>eval_run</code> in the same trace, and finished spans a bridge hands straight to the processor. Spans of other traces are dropped. A custom <code>only</code> picks whole traces the same way.</p>
-<p>The rule for order: a span is kept when its trace is already marked by the time the span ends. The first span started inside <code>eval_run</code> marks its trace as it starts, before anything under it ends, so spans that end before it and spans a bridge hands over later are both kept. A span that ends before any span of its trace was marked is dropped. A bridge that may hand spans over that early can copy the <code>evalkit.*</code> attributes onto them, so each one marks its own trace. A bridge should copy <code>session.id</code> either way: the server takes a trace's session from its root span when the root reaches it, and from each span's own <code>session.id</code> otherwise.</p>
+<p>The rule for order: a span is kept when its trace is already marked by the time the span ends. The first span started inside <code>eval_run</code> marks its trace as it starts, before anything under it ends, so spans that end before it and spans a bridge hands over later are both kept. A span that ends before any span of its trace was marked is dropped. A bridge that may hand spans over that early can copy the <code>evalkit.*</code> attributes onto them, so each one marks its own trace. A bridge should copy <code>session.id</code> either way: the server gives each span the session of its outermost ancestor that carries one, and the span's own <code>session.id</code> when no ancestor does.</p>
 <p>The processor remembers the 10,000 most recently used eval traces and forgets the oldest. Each kept span refreshes its trace, so a trace is only forgotten once 10,000 other eval traces have been used since its last span.</p>
 <p>Spans from another process in the same trace, such as an MCP gateway pod the agent calls, never reach this processor. They go through that process's own exporter, so that process makes its own choice: either it continues the trace, wraps its work in <code>eval_run</code> with the run's metadata sent along with the request, and filters with <code>only=tracing.is_eval_span</code> too, or it exports everything.</p>
 <p>Do not use a sampler for this: a sampler drops spans for every exporter, your own backend included.</p>
@@ -1296,7 +1330,28 @@
 <span class="nb">export</span><span class="w"> </span><span class="nv">OTEL_RESOURCE_ATTRIBUTES</span><span class="o">=</span><span class="s2">"evalkit.agent=myagent"</span><span class="w">   </span><span class="c1"># alternative to the header</span>
 </code></pre></div>
 <p>The collector picks the agent per span: the span's <code>evalkit.agent</code> attribute first, then the resource's, then the <code>X-Evalkit-Agent</code> header. One process that serves several agents can therefore share one exporter and set <code>evalkit.agent</code> on each agent's spans. The value is an agent reference (<code>myagent</code> or <code>myagent@workspace</code>). Every agent a batch names is checked as if it came in the header: an agent token writes only its own agent, a login token only agents in workspaces you can write to (your own, or a shared one where you are a writer). If any span names an agent the token may not write, the whole batch is refused.</p>
-<p>Put the session id on the root span of each trace, in the attribute your mapping's <code>session_id</code> rule names (<code>session.id</code> in <code>openinference.json</code>, <code>gen_ai.conversation.id</code> in <code>gen_ai.json</code>). Every span in a trace belongs to the session of the trace's root, even one that carries a session attribute of its own. Only when the root has no session do child spans keep theirs.</p>
+<p>Put the session id on the outermost span of each turn, in the attribute your mapping's <code>session_id</code> rule names (<code>session.id</code> in <code>openinference.json</code>, <code>gen_ai.conversation.id</code> in <code>gen_ai.json</code>). Each span belongs to the session of its outermost ancestor that carries one, even when the span carries a session attribute of its own. A span with no such ancestor keeps its own session. So a root span with a session sets the session for the whole trace, and a root span without one (an HTTP server's request span) does not matter.</p>
+<h3 id="agent-behind-an-http-server">Agent behind an HTTP server<a class="headerlink" href="#agent-behind-an-http-server" title="Permanent link">&para;</a></h3>
+<p>When the agent runs behind FastAPI, Express or any other instrumented HTTP server, the server's request span (<code>POST /chat</code>) is the root of the trace and carries no session id. Pick one:</p>
+<ul>
+<li>Start a span of your own around each turn and put the session id on it. The agent's spans underneath join that session:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">"turn"</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="p">{</span><span class="s2">"session.id"</span><span class="p">:</span> <span class="n">session_id</span><span class="p">}):</span>
+    <span class="n">answer</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">question</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li>With OpenInference, wrap the turn in <code>using_session(session_id)</code>; it stamps <code>session.id</code> onto every span started inside it:</li>
+</ul>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">openinference.instrumentation</span><span class="w"> </span><span class="kn">import</span> <span class="n">using_session</span>
+
+<span class="k">with</span> <span class="n">using_session</span><span class="p">(</span><span class="n">session_id</span><span class="p">):</span>
+    <span class="n">answer</span> <span class="o">=</span> <span class="k">await</span> <span class="n">agent</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">question</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li>Turn off the server framework's tracing, so the agent's own spans are the roots.</li>
+</ul>
+<p>Pydantic AI sets its own <code>gen_ai.conversation.id</code> on its spans. Your turn span's id already wins over it in evalkit. Passing yours anyway, <code>agent.run(question, conversation_id=session_id)</code>, is optional: it keeps the ids the same in other trace tools.</p>
+<p><code>evalkit traces check</code> warns when a session's trace root is outside the session and names the top span the session starts from.</p>
 <h2 id="deployed-agents">Deployed agents<a class="headerlink" href="#deployed-agents" title="Permanent link">&para;</a></h2>
 <p>A service cannot carry a person's token. Mint an agent token, bound to one agent and valid only for the collector:</p>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>tokens<span class="w"> </span>create<span class="w"> </span>--agent<span class="w"> </span>ouragent@dev<span class="w">     </span><span class="c1"># needs writer on dev</span>
