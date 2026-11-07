@@ -16,6 +16,7 @@ import type {
 import { Tabs } from "../lib/ui";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
+import { BuiltinEvaluatorsNote } from "./BuiltinEvaluatorsNote";
 
 type WorkspaceTab = "evaluators" | "members";
 const TABS: { id: WorkspaceTab; label: string }[] = [
@@ -80,6 +81,7 @@ function EvaluatorsTab({
           </button>
         )}
       </div>
+      <BuiltinEvaluatorsNote />
       {error && <div className="pane-status error">{error}</div>}
       <div className="card rows">
         {rows?.map((row) => (

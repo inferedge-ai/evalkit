@@ -48,7 +48,7 @@ sequenceDiagram
   UI->>S: GET experiment, pinned cases, runs
   S-->>UI: run for the chosen repetition
   V->>UI: tab Case | Scores
-  UI-->>V: pinned input + expected, answer/output, per-evaluator scores, explanations, gauges
+  UI-->>V: pinned input + expected, answer/output, per-evaluator scores with where each ran (server or local), explanations, gauges
   V->>UI: tab Trajectory | Cost | Timing
   UI->>S: GET run trajectory (ATIF, step costs priced)
   V->>UI: tab Workspace

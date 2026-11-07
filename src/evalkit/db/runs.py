@@ -2,11 +2,17 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
-from sqlalchemy import ColumnElement, Select, delete, func, select
+from sqlalchemy import ColumnElement, Select, delete, func, select, true
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from evalkit.contracts.enums import EvaluationSource, EvaluatorKind, ExperimentStatus, RunStatus
+from evalkit.contracts.enums import (
+    EvaluationSource,
+    EvaluatorKind,
+    ExperimentStatus,
+    RunStatus,
+    ScoredOn,
+)
 from evalkit.core.runner import ACTIVE
 from evalkit.core.scorecard import EXCLUDED_FROM_BUCKETS, bucket_for
 from evalkit.db import models
@@ -195,7 +201,9 @@ def _record(row: models.AgentRun) -> AgentRunRecord:
     return AgentRunRecord.model_validate(row, from_attributes=True)
 
 
-async def runs_to_score(session: AsyncSession, exp_id: int, *, force: bool) -> list[RunForScoring]:
+async def runs_to_score(
+    session: AsyncSession, exp_id: int, *, force: bool, only_run: int | None = None
+) -> list[RunForScoring]:
     exp = await _experiment(session, exp_id)
     rows = (
         await session.execute(
@@ -209,6 +217,7 @@ async def runs_to_score(session: AsyncSession, exp_id: int, *, force: bool) -> l
             .where(
                 models.ExperimentRun.experiment_id == exp_id,
                 models.AgentRun.error.is_(None) | models.AgentRun.output.is_not(None),
+                true() if only_run is None else models.ExperimentRun.id == only_run,
             )
             .order_by(models.ExperimentRun.id)
         )
@@ -309,6 +318,7 @@ def _evaluation(row: models.Evaluation) -> EvaluationRow:
         name=row.name,
         kind=EvaluatorKind(row.kind),
         source=EvaluationSource(row.source),
+        scored_on=ScoredOn(row.scored_on),
         value=row.value,
         label=row.label,
         explanation=row.explanation,

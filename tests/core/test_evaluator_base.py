@@ -1,3 +1,4 @@
+import evalkit.core.evaluators  # noqa: F401
 from evalkit.contracts.harness import Capabilities
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.evaluators.base import (
@@ -82,3 +83,15 @@ async def fake_multi(context, config):
 
 def test_emits_declared():
     assert BUILTIN_EVALUATORS["fake_multi"].emits == ("fake_multi", "fake_multi_extra")
+
+
+def test_local_only_flags_match_the_spec():
+    expected = {
+        "answer_rubrics": False,
+        "presentation_judge": False,
+        "trajectory_rubrics": False,
+        "tool_trajectory_match": True,
+        "required_tools_called": True,
+        "max_response_time": True,
+    }
+    assert {name: BUILTIN_EVALUATORS[name].local_only for name in expected} == expected

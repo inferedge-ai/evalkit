@@ -33,6 +33,7 @@ from evalkit.contracts.enums import (
     ExperimentStatus,
     MappingStatus,
     RunStatus,
+    ScoredOn,
     SyncSource,
     TokenKind,
     TraceImportStatus,
@@ -591,6 +592,7 @@ class Evaluation(AuditMixin, Base):
         UniqueConstraint("experiment_run_id", "name", name="uq_evaluations_run_name"),
         check_in("kind", EvaluatorKind, "ck_evaluations_kind"),
         check_in("source", EvaluationSource, "ck_evaluations_source"),
+        check_in("scored_on", ScoredOn, "ck_evaluations_scored_on"),
         CheckConstraint(
             f"bucket IS NULL OR bucket IN ({', '.join(repr(b.value) for b in Bucket)})",
             name="ck_evaluations_bucket",
@@ -603,6 +605,7 @@ class Evaluation(AuditMixin, Base):
     name: Mapped[str] = mapped_column(String(150))
     kind: Mapped[str] = mapped_column(String(8))
     source: Mapped[str] = mapped_column(String(8))
+    scored_on: Mapped[str] = mapped_column(String(8))
     bucket: Mapped[str | None] = mapped_column(String(32), default=None)
     value: Mapped[float | None] = mapped_column(Float, default=None)
     label: Mapped[str | None] = mapped_column(String(150), default=None)

@@ -54,7 +54,7 @@ def test_flow_06_shared_run_lives_in_the_shared_workspace(cli):
         )
         assert exp["status"] == "completed" and exp["repetitions"] == 2
         assert exp["created_by"] == "alice"
-        assert exp["config"]["judge"]["base_url"] == "http://judge.test"
+        assert exp["config"]["judge"]["provider"] == "judge"
         assert exp["config"]["judge"]["model"] == "judge-model"
         assert exp["config"]["model"] == "fake/model-1"
         assert exp["config"]["revision"]["sha"] == "abc123"
@@ -205,10 +205,15 @@ def test_flow_06_start_errors(cli):
 
         no_judge = alice.post(
             "/api/experiments",
-            json={**body, "judge": {"base_url": "http://unknown-judge", "model": "j"}},
+            json={**body, "judge": {"provider": "unknown-judge", "model": "j"}},
         )
         assert no_judge.status_code == 400
-        assert "http://unknown-judge is not a registered LLM provider" in no_judge.json()["detail"]
+        assert "unknown-judge is not a registered LLM provider" in no_judge.json()["detail"]
+        by_url = alice.post(
+            "/api/experiments",
+            json={**body, "judge": {"base_url": "http://judge.test", "model": "j"}},
+        )
+        assert by_url.status_code == 400 and "not a base_url" in by_url.json()["detail"]
         zero = alice.post(
             "/api/experiments",
             json={

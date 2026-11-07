@@ -13,7 +13,7 @@ function DefaultJudge({
   providers: LlmProviderInfo[];
   editable: boolean;
 }) {
-  const [baseUrl, setBaseUrl] = useState("");
+  const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("high");
   const [status, setStatus] = useState<string | null>(null);
@@ -22,7 +22,7 @@ function DefaultJudge({
   useEffect(() => {
     api<JudgeSettings>("/judge-default")
       .then((current) => {
-        setBaseUrl(current.base_url);
+        setProvider(current.provider ?? "");
         setModel(current.model);
         setEffort(current.reasoning_effort);
       })
@@ -39,7 +39,7 @@ function DefaultJudge({
     setStatus(null);
     try {
       const saved = await apiJson<JudgeSettings>("/judge-default", "PATCH", {
-        base_url: baseUrl,
+        provider,
         model: model.trim(),
         reasoning_effort: effort.trim(),
       });
@@ -52,12 +52,9 @@ function DefaultJudge({
 
   if (!loaded) return null;
   if (!editable) {
-    const provider = providers.find((p) => p.base_url === baseUrl);
     return (
       <p className="row-meta mb-3 whitespace-normal">
-        Default judge:{" "}
-        {status ??
-          `${model} on ${provider?.name ?? baseUrl} (effort ${effort})`}
+        Default judge: {status ?? `${model} on ${provider} (effort ${effort})`}
       </p>
     );
   }
@@ -66,10 +63,10 @@ function DefaultJudge({
       <span className="form-label">Default judge</span>
       <Select
         ariaLabel="default judge provider"
-        value={baseUrl}
-        onChange={setBaseUrl}
+        value={provider}
+        onChange={setProvider}
         placeholder="provider"
-        options={providers.map((p) => ({ value: p.base_url, label: p.name }))}
+        options={providers.map((p) => ({ value: p.name, label: p.name }))}
       />
       <input
         className="input"
@@ -84,7 +81,7 @@ function DefaultJudge({
         value={effort}
         onChange={(e) => setEffort(e.target.value)}
       />
-      <button className="btn btn-primary" disabled={!baseUrl}>
+      <button className="btn btn-primary" disabled={!provider}>
         Save
       </button>
       {status && <span className="row-meta">{status}</span>}
@@ -133,8 +130,10 @@ export function LlmProvidersPage() {
         )}
       </div>
       <p className="row-meta mb-3 whitespace-normal">
-        OpenAI-compatible endpoints the server judges with. Server runs only use
-        a judge from this list. Keys are stored encrypted and never shown again.
+        OpenAI-compatible endpoints the server judges with. Judge-using
+        evaluators run on the server with a provider from this list, unless a
+        run brings its own judge key. Keys are stored encrypted and never shown
+        again.
       </p>
       {rows && <DefaultJudge providers={active} editable={me.is_admin} />}
       {error && <div className="pane-status error">{error}</div>}

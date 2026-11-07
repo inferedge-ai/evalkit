@@ -32,7 +32,6 @@ FLOW_CREDENTIALS = CredentialsConfig(
         **TEST_CREDENTIALS_CONFIG.evaluators,
         "required_tool_calls@dev": "env:CUSTOM_EVAL_KEY",
     },
-    llm_providers=TEST_CREDENTIALS_CONFIG.llm_providers,
 )
 cli = CliRunner()
 

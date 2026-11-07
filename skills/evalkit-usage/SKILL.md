@@ -167,8 +167,6 @@ credentials:                 # env:NAME references only, never the key itself
     myagent: env:MYAGENT_API_KEY             # bare name = your workspace
   evaluators:
     citation_check: env:CITATION_API_KEY
-  llm_providers:
-    https://litellm.example.com: env:LITELLM_API_KEY   # keyed by judge base URL
 ```
 
 - `credentials.agents` here is only for your personal Harness API agents.
@@ -180,20 +178,35 @@ credentials:                 # env:NAME references only, never the key itself
   `evalkit.yaml`. A variable set in the environment wins over `.env`.
 - An agent or evaluator with no `credentials` entry gets no auth header, and
   the run prints one line saying so.
-- A judge with no entry for its base URL fails the run before it starts:
-  `no credentials.llm_providers entry for <url>`.
-- `credentials.judges` was renamed to `credentials.llm_providers`; the old
-  name fails to load.
+- `credentials` holds agent and evaluator keys only; a file with
+  `credentials.llm_providers` (or `credentials.judges`) fails to load. Your own
+  judge's key goes with the run (below).
 - `cases` and `fixtures` are only needed to sync your own datasets by name.
 
 ### The judge
 
 The judge is chosen per experiment. By default it is the server's
 default judge, which an admin sets with `evalkit judge-default set`
-(`evalkit judge-default show` prints it); `evalkit run` takes `--judge-model`, `--judge-base-url` and
-`--judge-effort` to change it for one experiment. `evalkit evaluate` reuses
-the experiment's judge. A server run may only use a judge whose base URL is a
-registered LLM provider (`evalkit llm-providers list`).
+(`evalkit judge-default show` prints it). A judge names either an LLM
+provider configured on the server or a base URL, never both:
+
+- **Served by an LLM provider on the server (the default):** the evaluators that use a judge
+  (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) run on the
+  evalkit server with its stored key, also in local and SDK runs. No judge
+  key is needed on your machine. `evalkit run --judge-provider NAME`
+  (`evalkit llm-providers list`) picks another one.
+- **Your own judge:** `evalkit run --judge-base-url URL --judge-model M
+  --judge-api-key-env NAME` (the env var or `.env` entry holding the key), or
+  `Judge(base_url=..., model=..., api_key=...)` in the SDK. Those evaluators
+  run on your machine. The key is never stored: `evalkit evaluate <id>` and
+  `evalkit run … --resume <id>` need `--judge-api-key-env NAME` again; in the SDK, pass the same
+  `Judge(..., api_key=...)` to `evaluate_experiment(..., judge=...)`. A
+  different judge is refused. Server runs refuse `--judge-base-url`.
+
+`--judge-model` and `--judge-effort` change the rest for one experiment.
+`evalkit evaluate` reuses the experiment's judge. `tool_trajectory_match`,
+`required_tools_called` and `max_response_time` always run on your machine.
+Each score records where it ran (`scored_on`: `local` or `server`).
 
 Inside a dataset directory, subfolders become tags (`finance/statement-analysis/x.yaml`
 gets the tag `statement-analysis`). `evalkit run finance --tag statement-analysis`

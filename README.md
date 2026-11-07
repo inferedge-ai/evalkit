@@ -116,8 +116,9 @@ print(result.url)  # the scorecard in the web UI
   Any harness, any model.
 - **See your app runs too.** Browse your agent's real runs with their
   latency, tokens, cost and tool calls, not just eval runs.
-- **Graders you choose.** Any OpenAI-compatible model as the judge, and your
-  own evaluators in Python or over HTTP.
+- **Graders you choose.** Any OpenAI-compatible model as the judge, run by
+  the server or with your own key, and your own evaluators in Python or over
+  HTTP.
 - **Cases are code.** They live in your repository and sync from CI, like
   the rest of your code.
 

@@ -362,7 +362,7 @@ async def _judge_verdicts(
     gaps: str | None = None
     for attempt in (1, 2):
         parsed, usage = await call_judge(
-            ctx.judge_cfg,
+            ctx.require_judge(),
             api_key=ctx.judge_api_key,
             system_prompt=PREAMBLE,
             user_prompt=current,

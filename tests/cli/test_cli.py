@@ -16,6 +16,7 @@ import httpx2
 import pytest
 import sqlalchemy as sa
 import uvicorn
+from sqlalchemy import create_engine, text
 from typer.testing import CliRunner
 
 from evalkit.api import experiments as experiments_api
@@ -879,7 +880,6 @@ def write_local_config(tmp_path, harness_url: str) -> Path:
         "cases: eval/cases\nfixtures: eval/fixtures\n"
         f"cost_map:\n  source: {cost_map}\n"
         "credentials:\n  agents:\n    fake: env:CLI_AGENT_KEY\n"
-        "  llm_providers:\n    http://judge.test: env:CLI_JUDGE_KEY\n"
     )
     (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
     return tmp_path
@@ -999,8 +999,14 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 0, result.output
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
+    assert result.exit_code == 0, result.output
+    own_judge = ["--judge-base-url", "http://judge.test", "--judge-api-key-env", "CLI_JUDGE_KEY"]
+    result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake", *own_judge])
     assert result.exit_code == 1, result.output
-    assert "CLI_JUDGE_KEY" in result.output
+    assert "CLI_JUDGE_KEY is not set" in result.output
+    dotenv.write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
+    result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake", *own_judge])
+    assert result.exit_code == 0, result.output
 
 
 def test_canonical_sync_reuses_bytes_already_uploaded(env, tmp_path, monkeypatch, harness_url):
@@ -1364,18 +1370,101 @@ def test_agents_commands(env, tmp_path):
     assert bad.exit_code == 1 and "key=true" in bad.output
 
 
-def test_run_judge_flags_start_from_the_server_default(env, tmp_path, monkeypatch, harness_url):
+def test_run_judge_flags_start_from_the_server_default(
+    env, tmp_path, monkeypatch, harness_url, module_db_url
+):
     default = api_get("/api/judge-default")
     assert default["model"] == "judge-model"
     write_local_config(tmp_path, harness_url)
     monkeypatch.chdir(tmp_path)
     _local_run("finance", "--agent", "fake", "--judge-model", "x", "--judge-effort", "low")
     judge = latest_experiment("finance@admin").config.judge
-    assert (judge.model, judge.reasoning_effort, judge.base_url) == (
-        "x",
-        "low",
-        default["base_url"],
+    assert (judge.model, judge.reasoning_effort, judge.provider) == ("x", "low", "judge")
+    no_key = runner.invoke(
+        cli_app, ["run", "finance", "--agent", "fake", "--judge-base-url", "http://judge.test"]
     )
+    assert no_key.exit_code == 1 and "--judge-api-key-env" in no_key.output
+    stray = runner.invoke(
+        cli_app, ["run", "finance", "--agent", "fake", "--judge-api-key-env", "CLI_JUDGE_KEY"]
+    )
+    assert stray.exit_code == 1 and "goes with --judge-base-url" in stray.output
+    _local_run(
+        "finance",
+        "--agent",
+        "fake",
+        "--judge-base-url",
+        "http://judge.test",
+        "--judge-api-key-env",
+        "CLI_JUDGE_KEY",
+    )
+    byok = latest_experiment("finance@admin")
+    judge = byok.config.judge
+    assert judge is not None and judge.api_key is None
+    rescore = runner.invoke(cli_app, ["evaluate", str(byok.id)])
+    assert rescore.exit_code == 1 and "--judge-api-key-env" in rescore.output
+    assert api_get(f"/api/experiments/{byok.id}")["status"] == "completed"
+    rescore = runner.invoke(
+        cli_app, ["evaluate", str(byok.id), "--judge-api-key-env", "CLI_JUDGE_KEY"]
+    )
+    assert rescore.exit_code == 0, rescore.output
+    engine = create_engine(module_db_url, isolation_level="AUTOCOMMIT")
+    with engine.connect() as conn:
+        run_id = conn.execute(
+            text("SELECT min(id) FROM experiment_runs WHERE experiment_id = :e"),
+            {"e": byok.id},
+        ).scalar()
+        conn.execute(text("DELETE FROM evaluations WHERE experiment_run_id = :r"), {"r": run_id})
+        conn.execute(text("DELETE FROM experiment_runs WHERE id = :r"), {"r": run_id})
+        conn.execute(text("UPDATE experiments SET status = 'failed' WHERE id = :e"), {"e": byok.id})
+    engine.dispose()
+    resume = ["run", "finance", "--agent", "fake", "--resume", str(byok.id)]
+    refused = runner.invoke(cli_app, resume)
+    assert refused.exit_code == 1 and "--judge-api-key-env" in refused.output
+    assert api_get(f"/api/experiments/{byok.id}")["status"] == "failed"
+    resumed = runner.invoke(cli_app, [*resume, "--judge-api-key-env", "CLI_JUDGE_KEY"])
+    assert resumed.exit_code == 0, resumed.output
+    assert (judge.base_url, judge.provider, judge.model) == (
+        "http://judge.test",
+        None,
+        "judge-model",
+    )
+    both = runner.invoke(
+        cli_app,
+        ["run", "finance", "--agent", "fake", "--judge-provider", "judge", "--judge-base-url", "u"],
+    )
+    assert both.exit_code == 1 and "not both" in both.output
+
+
+def test_a_full_base_url_judge_runs_without_a_default_judge(
+    env, tmp_path, monkeypatch, harness_url, module_db_url
+):
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    engine = create_engine(module_db_url, isolation_level="AUTOCOMMIT")
+    with engine.connect() as conn:
+        saved = conn.execute(text("SELECT default_judge FROM tenant_settings")).scalar()
+        conn.execute(text("UPDATE tenant_settings SET default_judge = NULL"))
+    try:
+        _local_run(
+            "finance",
+            "--agent",
+            "fake",
+            "--judge-base-url",
+            "http://judge.test",
+            "--judge-model",
+            "m",
+            "--judge-api-key-env",
+            "CLI_JUDGE_KEY",
+        )
+        judge = latest_experiment("finance@admin").config.judge
+        assert (judge.base_url, judge.model) == ("http://judge.test", "m")
+    finally:
+        with engine.connect() as conn:
+            conn.execute(
+                text("UPDATE tenant_settings SET default_judge = CAST(:j AS jsonb)"),
+                {"j": json.dumps(saved)},
+            )
+        engine.dispose()
 
 
 def test_runs_pull_app_runs_of_a_personal_harness_agent(

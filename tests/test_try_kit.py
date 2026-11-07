@@ -19,7 +19,6 @@ from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.convert import to_atif
 from evalkit.core.traces.mapping import to_esf
 from evalkit.core.traces.raw import RawSpan
-from evalkit.credentials import CredentialRegistry
 
 ROOT = Path(__file__).parent.parent
 KIT = ROOT / "skills" / "evalkit-deployment" / "try"
@@ -123,22 +122,21 @@ def test_kit_setup_registers_the_llm_as_the_default_judge(monkeypatch):
     monkeypatch.setenv("EVALKIT_ENCRYPTION_KEY", "k")
     compose = (KIT / "docker-compose.yml").read_text()
     assert (
-        'evalkit llm-providers create try --base-url "$$LLM_BASE_URL" --api-key-env LLM_API_KEY'
-        in compose
+        'evalkit llm-providers create test-llm --base-url "$$LLM_BASE_URL" '
+        "--api-key-env LLM_API_KEY" in compose
     )
-    assert 'evalkit judge-default set --provider try --model "$$LLM_MODEL"' in compose
+    assert 'evalkit judge-default set --provider test-llm --model "$$LLM_MODEL"' in compose
     cfg = load_config(KIT / "config.yaml")
     assert cfg.allow_private_endpoints is True and cfg.encryption_key
 
 
-def test_kit_local_config_reads_the_same_llm(monkeypatch):
+def test_kit_local_config_needs_no_judge_key(monkeypatch):
     for name, value in LLM_ENV.items():
         monkeypatch.setenv(name, value)
     cfg = LocalConfig.find(KIT)
     assert cfg is not None
     assert cfg.cases == KIT / "cases"
-    registry = CredentialRegistry(cfg.credentials, cfg.environ(), home="admin")
-    assert registry.require_judge_key(LLM_ENV["LLM_BASE_URL"]) == "k"
+    assert not cfg.credentials.agents and not cfg.credentials.evaluators
 
 
 def test_kit_env_example_names_every_variable_compose_needs():
