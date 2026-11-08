@@ -1,8 +1,19 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiJson } from "../lib/api";
 import { ApiKeyField } from "../lib/ApiKeyField";
 import type { ApiKeyValue } from "../lib/ApiKeyField";
 import { ENDPOINT_NOTE, PERSONAL_KEY_NOTE } from "../lib/endpoint";
+import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { Select } from "../lib/Select";
 import type { RemoteEvaluatorInfo, WorkspaceInfo } from "../lib/types";
 
@@ -72,14 +83,6 @@ export function EvaluatorForm({
     value: EvaluatorFormValues[K],
   ) => setValues((v) => ({ ...v, [key]: value }));
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const shared = ws.type === "shared";
   const urlClearsKey =
     !!evaluator?.has_api_key &&
@@ -106,29 +109,17 @@ export function EvaluatorForm({
   };
 
   return (
-    <div className="dialog-backdrop" onMouseDown={onClose}>
-      <div
-        className="dialog w-160"
-        role="dialog"
-        aria-label={evaluator ? "Edit evaluator" : "New evaluator"}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="dialog-head">
-          <span className="font-semibold">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className={FORM_DIALOG}>
+        <DialogHeader>
+          <DialogTitle>
             {evaluator ? "Edit evaluator" : "New evaluator"}
-          </span>
-          <span className="row-meta font-mono">
+          </DialogTitle>
+          <DialogDescription className="font-mono">
             {evaluator ? evaluator.ref : `@${ws.name}`}
-          </span>
-          <button
-            className="btn btn-quiet btn-sm ml-auto"
-            aria-label="close"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-        <div className="dialog-body">
+          </DialogDescription>
+        </DialogHeader>
+        <div className={FORM_DIALOG_BODY}>
           {!evaluator && (
             <>
               <div className="form-row">
@@ -200,19 +191,15 @@ export function EvaluatorForm({
           ))}
           {error && <div className="text-meta text-err-text">{error}</div>}
         </div>
-        <div className="dialog-foot">
-          <button className="btn" onClick={onClose}>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>
             Cancel
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={busy || errors.length > 0}
-            onClick={save}
-          >
+          </DialogClose>
+          <Button disabled={busy || errors.length > 0} onClick={save}>
             {evaluator ? "Save" : "Create evaluator"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

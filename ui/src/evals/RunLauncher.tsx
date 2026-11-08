@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiJson, isNotFound } from "../lib/api";
+import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { questionText } from "../lib/format";
 import { useApi } from "../lib/query";
 import { stateClass, stateLabel } from "../lib/review";
@@ -92,14 +103,6 @@ export function RunLauncher({
     casesQuery.error;
   const error = actionError ?? (loadError ? String(loadError) : null);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const files = useMemo(() => sourceFiles(examples ?? []), [examples]);
   useEffect(() => {
     if (!choice.file && files.length)
@@ -158,25 +161,13 @@ export function RunLauncher({
   );
 
   return (
-    <div className="dialog-backdrop" onMouseDown={onClose}>
-      <div
-        className="dialog w-160"
-        role="dialog"
-        aria-label="Run experiment"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="dialog-head">
-          <span className="font-semibold">Run experiment</span>
-          <span className="row-meta font-mono">{dataset}</span>
-          <button
-            className="btn btn-quiet btn-sm ml-auto"
-            aria-label="close"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-        <div className="dialog-body">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className={FORM_DIALOG}>
+        <DialogHeader>
+          <DialogTitle>Run experiment</DialogTitle>
+          <DialogDescription className="font-mono">{dataset}</DialogDescription>
+        </DialogHeader>
+        <div className={FORM_DIALOG_BODY}>
           <div className="form-row">
             <span className="form-label">Agent</span>
             <Select
@@ -423,42 +414,44 @@ export function RunLauncher({
             </div>
           )}
         </div>
-        <div className="dialog-foot">
-          {error && <span className="text-meta text-err-text">{error}</span>}
+        <DialogFooter>
+          {error && (
+            <span className="text-meta text-err-text sm:mr-auto sm:self-center">
+              {error}
+            </span>
+          )}
           {!serverRuns && !error && (
-            <span className="text-meta text-ink-3">
+            <span className="text-meta text-ink-3 sm:mr-auto sm:self-center">
               Datasets in a personal workspace run from your terminal.
             </span>
           )}
-          <button className="btn btn-quiet ml-auto" onClick={onClose}>
+          <DialogClose render={<Button variant="outline" />}>
             Cancel
-          </button>
+          </DialogClose>
           {serverRuns ? (
-            <button
-              className="btn btn-primary"
+            <Button
               disabled={busy || !request || inScope.length === 0}
               onClick={launch}
             >
               {busy
                 ? "Starting…"
                 : `Start ${inScope.length * runs} run${inScope.length * runs === 1 ? "" : "s"}`}
-            </button>
+            </Button>
           ) : (
             <CopyCommandButton
               text={request && inScope.length ? cliCommand(request) : null}
             />
           )}
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function CopyCommandButton({ text }: { text: string | null }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button
-      className="btn btn-primary"
+    <Button
       disabled={!text}
       onClick={() => {
         if (!text) return;
@@ -469,6 +462,6 @@ function CopyCommandButton({ text }: { text: string | null }) {
       }}
     >
       {copied ? "Copied" : "Copy CLI command"}
-    </button>
+    </Button>
   );
 }

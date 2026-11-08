@@ -1,8 +1,19 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiJson } from "../lib/api";
 import { ApiKeyField } from "../lib/ApiKeyField";
 import type { ApiKeyValue } from "../lib/ApiKeyField";
 import { ENDPOINT_NOTE } from "../lib/endpoint";
+import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import type { LlmProviderInfo } from "../lib/types";
 
 export function providerBody(
@@ -36,14 +47,6 @@ export function LlmProviderForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const urlClearsKey =
     !!provider?.has_api_key &&
     baseUrl.trim() !== provider.base_url &&
@@ -70,29 +73,19 @@ export function LlmProviderForm({
   };
 
   return (
-    <div className="dialog-backdrop" onMouseDown={onClose}>
-      <div
-        className="dialog w-160"
-        role="dialog"
-        aria-label={provider ? "Edit LLM provider" : "New LLM provider"}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="dialog-head">
-          <span className="font-semibold">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className={FORM_DIALOG}>
+        <DialogHeader>
+          <DialogTitle>
             {provider ? "Edit LLM provider" : "New LLM provider"}
-          </span>
+          </DialogTitle>
           {provider && (
-            <span className="row-meta font-mono">{provider.name}</span>
+            <DialogDescription className="font-mono">
+              {provider.name}
+            </DialogDescription>
           )}
-          <button
-            className="btn btn-quiet btn-sm ml-auto"
-            aria-label="close"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-        <div className="dialog-body">
+        </DialogHeader>
+        <div className={FORM_DIALOG_BODY}>
           {!provider && (
             <div className="form-row">
               <span className="form-label">Name</span>
@@ -130,19 +123,15 @@ export function LlmProviderForm({
           )}
           {error && <div className="text-meta text-err-text">{error}</div>}
         </div>
-        <div className="dialog-foot">
-          <button className="btn" onClick={onClose}>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>
             Cancel
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={busy || missing}
-            onClick={save}
-          >
+          </DialogClose>
+          <Button disabled={busy || missing} onClick={save}>
             {provider ? "Save" : "Create provider"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

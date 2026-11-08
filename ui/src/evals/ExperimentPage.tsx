@@ -1,6 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { api, apiJson, isExperimentId, isMissing, qs } from "../lib/api";
 import { refreshQueries, useApi } from "../lib/query";
 import { CASE_STATE_LABEL, CASE_STATE_TONE, caseList } from "../lib/caseStates";
@@ -82,6 +92,7 @@ export function ExperimentPage() {
   const [evaluator, setEvaluator] = useState("");
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [confirmingReevaluate, setConfirmingReevaluate] = useState(false);
 
   const validId = isExperimentId(experimentId);
   const base = `/experiments/${encodeURIComponent(experimentId)}`;
@@ -116,15 +127,6 @@ export function ExperimentPage() {
     ).data?.driver ?? null;
 
   const action = async (verb: "evaluate" | "resume") => {
-    if (
-      verb === "evaluate" &&
-      status &&
-      reevaluateStrandsCases(status) &&
-      !window.confirm(
-        "Some runs of this experiment have not completed. Resume first to run them; re-evaluating now scores only the runs that finished. Re-evaluate anyway?",
-      )
-    )
-      return;
     setBusyAction(verb);
     setActionError(null);
     try {
@@ -293,7 +295,11 @@ export function ExperimentPage() {
             <button
               className="btn"
               disabled={busyAction !== null || isActive(status.status)}
-              onClick={() => action("evaluate")}
+              onClick={() =>
+                reevaluateStrandsCases(status)
+                  ? setConfirmingReevaluate(true)
+                  : action("evaluate")
+              }
               title="re-run the evaluate phase on recorded runs"
             >
               {busyAction === "evaluate" ? "Evaluating…" : "Re-evaluate"}
@@ -455,6 +461,31 @@ export function ExperimentPage() {
       {report && listed.length === 0 && (
         <div className="pane-status">This experiment pinned no cases.</div>
       )}
+      <AlertDialog
+        open={confirmingReevaluate}
+        onOpenChange={setConfirmingReevaluate}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Re-evaluate anyway?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Some runs of this experiment have not completed. Resume first to
+              run them; re-evaluating now scores only the runs that finished.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmingReevaluate(false);
+                void action("evaluate");
+              }}
+            >
+              Re-evaluate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -29,6 +29,14 @@
   and pause while the browser tab is in the background. Failed loads are not
   retried. Signing in clears everything loaded earlier in the tab, so the next
   user never sees the previous user's pages.
+- The web UI's forms for launching a run, creating or editing an agent, a
+  remote evaluator or an LLM provider open in a shadcn dialog: focus stays
+  inside it, and Esc or a click outside closes it without saving. Archiving an
+  agent and re-evaluating an experiment whose runs have not all completed ask
+  in a confirmation dialog instead of the browser's `confirm()` box. The UI
+  gains shadcn's components under `ui/src/components/ui/` and the
+  `@base-ui/react`, `class-variance-authority` and `lucide-react`
+  dependencies.
 
 ## 0.4.0
 

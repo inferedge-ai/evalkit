@@ -1,4 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiJson } from "../lib/api";
 import {
   agentFormErrors,
@@ -11,6 +21,7 @@ import {
 } from "../lib/agentForm";
 import { ApiKeyField } from "../lib/ApiKeyField";
 import { ENDPOINT_NOTE, PERSONAL_KEY_NOTE } from "../lib/endpoint";
+import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import type { AgentFormValues } from "../lib/agentForm";
 import { Select } from "../lib/Select";
 import type { AgentInfo } from "../lib/types";
@@ -36,14 +47,6 @@ export function AgentForm({
   const [error, setError] = useState<string | null>(null);
   const errors = agentFormErrors(values, mode);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const set = <K extends keyof AgentFormValues>(
     key: K,
     value: AgentFormValues[K],
@@ -68,29 +71,15 @@ export function AgentForm({
   };
 
   return (
-    <div className="dialog-backdrop" onMouseDown={onClose}>
-      <div
-        className="dialog w-160"
-        role="dialog"
-        aria-label={agent ? "Edit agent" : "New agent"}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="dialog-head">
-          <span className="font-semibold">
-            {agent ? "Edit agent" : "New agent"}
-          </span>
-          <span className="row-meta font-mono">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className={FORM_DIALOG}>
+        <DialogHeader>
+          <DialogTitle>{agent ? "Edit agent" : "New agent"}</DialogTitle>
+          <DialogDescription className="font-mono">
             {agent ? agent.ref : `@${values.workspace}`}
-          </span>
-          <button
-            className="btn btn-quiet btn-sm ml-auto"
-            aria-label="close"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-        <div className="dialog-body">
+          </DialogDescription>
+        </DialogHeader>
+        <div className={FORM_DIALOG_BODY}>
           {!agent && (
             <div className="form-row">
               <span className="form-label">Name</span>
@@ -194,19 +183,15 @@ export function AgentForm({
           ))}
           {error && <div className="text-meta text-err-text">{error}</div>}
         </div>
-        <div className="dialog-foot">
-          <button className="btn" onClick={onClose}>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>
             Cancel
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={busy || errors.length > 0}
-            onClick={save}
-          >
+          </DialogClose>
+          <Button disabled={busy || errors.length > 0} onClick={save}>
             {agent ? "Save" : "Create agent"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
