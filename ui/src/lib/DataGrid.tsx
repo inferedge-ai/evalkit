@@ -8,6 +8,7 @@ import type {
 } from "ag-grid-react";
 import {
   CellStyleModule,
+  ClientSideRowModelApiModule,
   ClientSideRowModelModule,
   ColumnApiModule,
   ColumnAutoSizeModule,
@@ -38,6 +39,7 @@ import { gridTheme } from "./aggrid/theme";
 
 ModuleRegistry.registerModules([
   CellStyleModule,
+  ClientSideRowModelApiModule,
   ClientSideRowModelModule,
   ColumnApiModule,
   ColumnAutoSizeModule,
@@ -82,11 +84,14 @@ type ColumnEvents<T> = Required<
     | "onColumnVisible"
     | "onColumnResized"
     | "onColumnPinned"
+    | "onModelUpdated"
   >
 >;
 
 export interface DataGridHandle<T> {
   api: GridApi<T> | null;
+  // The rows the column filters leave, or null while no column filter is set.
+  filteredRows: T[] | null;
   reset: () => void;
   events: ColumnEvents<T>;
 }
@@ -101,6 +106,7 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
   const [api, setApi] = useState<GridApi<T> | null>(null);
   // Re-renders the caller's column toggles when the layout changes.
   const [, setLayout] = useState("");
+  const [filteredRows, setFilteredRows] = useState<T[] | null>(null);
   const saved = useRef<ColumnState[] | null>(null);
   const restoredColumns = useRef("");
 
@@ -134,11 +140,25 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
     }) => {
       track(grid);
       if (finished === false) return;
+      // New columns resize the others before they are restored; saving then
+      // would store the grid's placement of them (last) over the default one.
+      if (JSON.stringify(columnIds(grid)) !== restoredColumns.current) return;
       saved.current = mergeColumnState(load(), grid.getColumnState());
       saveColumnState(tableId, saved.current);
     };
+    const collectFiltered = ({ api: grid }: { api: GridApi<T> }) => {
+      if (!grid.isAnyFilterPresent()) return setFilteredRows(null);
+      const rows: T[] = [];
+      grid.forEachNodeAfterFilter(({ data }) => data && rows.push(data));
+      setFilteredRows((prev) =>
+        prev?.length === rows.length && prev.every((r, i) => r === rows[i])
+          ? prev
+          : rows,
+      );
+    };
     return {
       api,
+      filteredRows,
       reset: () => {
         saved.current = [];
         api?.resetColumnState();
@@ -148,6 +168,7 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
         onGridPreDestroyed: () => {
           restoredColumns.current = "";
           setApi(null);
+          setFilteredRows(null);
         },
         onNewColumnsLoaded: restore,
         onSortChanged: save,
@@ -155,9 +176,10 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
         onColumnVisible: save,
         onColumnResized: save,
         onColumnPinned: save,
+        onModelUpdated: collectFiltered,
       },
     };
-  }, [tableId, api]);
+  }, [tableId, api, filteredRows]);
 }
 
 function EmptyRows({
@@ -178,6 +200,7 @@ export function DataGrid<T>({
   height,
   pinnedBottomRowData,
   getRowHeight,
+  autoSizeStrategy,
 }: {
   grid: DataGridHandle<T>;
   rows: T[];
@@ -188,7 +211,10 @@ export function DataGrid<T>({
   // A fixed height scrolls the rows under a pinned header; without one the
   // grid grows with its rows.
   height?: string;
-} & Pick<AgGridReactProps<T>, "pinnedBottomRowData" | "getRowHeight">) {
+} & Pick<
+  AgGridReactProps<T>,
+  "pinnedBottomRowData" | "getRowHeight" | "autoSizeStrategy"
+>) {
   // AG Grid reads getRowId once: pass a function that doesn't change.
   const rowId = useCallback(
     ({ data }: GetRowIdParams<T>) => getRowId(data),
@@ -212,6 +238,7 @@ export function DataGrid<T>({
         suppressOverlays={empty === undefined ? NO_ROWS_OVERLAY : undefined}
         pinnedBottomRowData={pinnedBottomRowData}
         getRowHeight={getRowHeight}
+        autoSizeStrategy={autoSizeStrategy}
       />
     </div>
   );
@@ -249,6 +276,7 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
           <ul className="select-list">
             {movable.map((column, i) => {
               const id = column.getColId();
+              const name = api.getDisplayNameForColumn(column, "header");
               return (
                 <li key={id} className="columns-menu-row">
                   <label className="flex flex-1 items-center gap-2">
@@ -259,12 +287,12 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                         api.setColumnsVisible([column], e.target.checked)
                       }
                     />
-                    {api.getDisplayNameForColumn(column, "header")}
+                    {name}
                   </label>
                   <button
                     type="button"
                     className="btn btn-sm btn-quiet"
-                    aria-label={`move ${id} up`}
+                    aria-label={`move ${name} up`}
                     disabled={i === 0}
                     onClick={() =>
                       api.moveColumns([column], all.indexOf(movable[i - 1]))
@@ -275,7 +303,7 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                   <button
                     type="button"
                     className="btn btn-sm btn-quiet"
-                    aria-label={`move ${id} down`}
+                    aria-label={`move ${name} down`}
                     disabled={i === movable.length - 1}
                     onClick={() =>
                       api.moveColumns([column], all.indexOf(movable[i + 1]))

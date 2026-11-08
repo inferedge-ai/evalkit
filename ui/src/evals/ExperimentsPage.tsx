@@ -128,7 +128,7 @@ export function ExperimentsPage() {
         >
           {loading
             ? "Loading…"
-            : `${visible.length} experiments${listCapNote(rows?.length ?? 0) ? ` (of the latest ${EXPERIMENT_LIST_LIMIT})` : ""}`}
+            : `${(grid.filteredRows ?? visible).length} experiments${listCapNote(rows?.length ?? 0) ? ` (of the latest ${EXPERIMENT_LIST_LIMIT})` : ""}`}
         </span>
         <ColumnsMenu grid={grid} />
       </div>

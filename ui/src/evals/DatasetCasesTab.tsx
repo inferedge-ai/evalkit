@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiJson, qs } from "../lib/api";
 import { questionText } from "../lib/format";
@@ -36,6 +36,25 @@ const NO_CASES: CaseView[] = [];
 const NO_SCORES: Record<string, CaseScorePoint[]> = {};
 
 const caseId = (ex: CaseView) => ex.case_id;
+
+// The grid keeps the header component it first rendered, so the header reads
+// its state from context rather than from a closure or params.
+const SelectAll = createContext({
+  checked: false,
+  onToggle: (_on: boolean) => {},
+});
+
+function SelectAllHeader() {
+  const { checked, onToggle } = useContext(SelectAll);
+  return (
+    <input
+      type="checkbox"
+      aria-label="select all shown"
+      checked={checked}
+      onChange={(e) => onToggle(e.target.checked)}
+    />
+  );
+}
 
 export function DatasetCasesTab({
   dataset,
@@ -111,6 +130,8 @@ export function DatasetCasesTab({
       : (examples ?? NO_CASES);
     return state ? matched.filter((ex) => ex.review?.state === state) : matched;
   }, [examples, needle, state]);
+  const grid = useDataGrid<CaseView>("dataset-cases");
+  const shown = grid.filteredRows ?? rows;
 
   const columns = useMemo<ColDef<CaseView>[]>(
     () => [
@@ -123,22 +144,7 @@ export function DatasetCasesTab({
         initialFlex: 0,
         initialWidth: 44,
         minWidth: 44,
-        headerComponent: () => (
-          <input
-            type="checkbox"
-            aria-label="select all shown"
-            checked={
-              rows.length > 0 && rows.every((ex) => selected.has(ex.case_id))
-            }
-            onChange={(e) =>
-              setSelected(
-                e.target.checked
-                  ? new Set([...selected, ...rows.map((ex) => ex.case_id)])
-                  : new Set(),
-              )
-            }
-          />
-        ),
+        headerComponent: SelectAllHeader,
         cellRenderer: renderCell<CaseView>((ex) => (
           <input
             type="checkbox"
@@ -153,7 +159,8 @@ export function DatasetCasesTab({
         headerName: "id",
         type: "text",
         field: "case_id",
-        minWidth: 160,
+        initialFlex: 0,
+        initialWidth: 288,
         cellRenderer: renderCell<CaseView>((ex) => (
           <Link
             className="font-mono font-medium text-brand hover:underline"
@@ -266,7 +273,6 @@ export function DatasetCasesTab({
     ],
     [
       buckets,
-      rows,
       selected,
       scores,
       dataset,
@@ -276,7 +282,6 @@ export function DatasetCasesTab({
       otherWorkspace,
     ],
   );
-  const grid = useDataGrid<CaseView>("dataset-cases");
 
   const requestReview = async () => {
     setBusy(true);
@@ -339,7 +344,7 @@ export function DatasetCasesTab({
           />
         )}
         <span className="row-meta num ml-auto">
-          {loading ? "Loading…" : `${rows.length} cases`}
+          {loading ? "Loading…" : `${shown.length} cases`}
         </span>
         <ColumnsMenu grid={grid} />
       </div>
@@ -379,14 +384,27 @@ export function DatasetCasesTab({
           </button>
         </div>
       )}
-      <DataGrid
-        grid={grid}
-        rows={rows}
-        columns={columns}
-        getRowId={caseId}
-        loading={loading}
-        empty="No cases match this filter."
-      />
+      <SelectAll.Provider
+        value={{
+          checked:
+            shown.length > 0 && shown.every((ex) => selected.has(ex.case_id)),
+          onToggle: (on) =>
+            setSelected(
+              on
+                ? new Set([...selected, ...shown.map((ex) => ex.case_id)])
+                : new Set(),
+            ),
+        }}
+      >
+        <DataGrid
+          grid={grid}
+          rows={rows}
+          columns={columns}
+          getRowId={caseId}
+          loading={loading}
+          empty="No cases match this filter."
+        />
+      </SelectAll.Provider>
     </>
   );
 }

@@ -1242,6 +1242,12 @@ button {
   }
 }
 
+/* Outside the layers, where AG Grid's own styles are: a grid that grows with
+   its rows keeps AG Grid's 150px floor only while empty, for the message. */
+.ag-layout-auto-height .ag-center-cols-viewport:has(.ag-row) {
+  min-height: 0;
+}
+
 .ws-switched {
   outline: 2px solid var(--color-brand);
   outline-offset: 3px;

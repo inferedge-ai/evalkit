@@ -5,6 +5,7 @@ import type {
   ColDef,
   ColGroupDef,
   RowHeightParams,
+  SizeColumnsToContentStrategy,
 } from "ag-grid-community";
 import type { CustomCellRendererProps } from "ag-grid-react";
 import {
@@ -51,6 +52,11 @@ const meanRowHeight = ({ node }: RowHeightParams<MatrixRow>) =>
 // Past this many cases the matrix scrolls inside a screen-tall grid, so the
 // header and the means stay in view.
 const SCROLL_AFTER_ROWS = 20;
+
+const FIT_CASE_COLUMN: SizeColumnsToContentStrategy = {
+  type: "fitCellContents",
+  colIds: ["case"],
+};
 
 const shortLabel = (name: string) =>
   name.replace(/^(answer_rubric_|gauge_)/, "").replaceAll("_", " ");
@@ -259,12 +265,11 @@ export function ScoreMatrix({
         lockPinned: true,
         lockVisible: true,
         initialFlex: 0,
-        initialWidth: 300,
         valueGetter: readValue((r) => r.case_id),
         cellClass: "font-mono",
         cellRenderer: ({ data, node }: CustomCellRendererProps<MatrixRow>) =>
           node.rowPinned ? (
-            <span className="text-micro font-semibold tracking-wide text-ink-3 uppercase">
+            <span className="flex h-full items-center text-micro font-semibold tracking-wide text-ink-3 uppercase">
               mean
             </span>
           ) : data ? (
@@ -336,6 +341,7 @@ export function ScoreMatrix({
             rows.length > SCROLL_AFTER_ROWS ? "calc(100dvh - 15rem)" : undefined
           }
           pinnedBottomRowData={MEAN_ROWS}
+          autoSizeStrategy={FIT_CASE_COLUMN}
           getRowHeight={meanRowHeight}
         />
       </div>

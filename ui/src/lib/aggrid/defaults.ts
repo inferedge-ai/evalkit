@@ -22,6 +22,8 @@ export const defaultGridOptions: GridOptions = {
   maintainColumnOrder: true,
   // Header titles show as the browser's own tooltip, like the rest of the UI.
   enableBrowserTooltips: true,
+  // A grid with a row or two would clip a filter popup opened inside it.
+  popupParent: document.body,
   columnTypes: {
     text: { filter: "agTextColumnFilter" },
     number: {

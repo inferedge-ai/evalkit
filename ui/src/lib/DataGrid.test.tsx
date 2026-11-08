@@ -148,6 +148,25 @@ test("columns that arrive with the data take the place and visibility saved for 
   expect(sortOf("agent")).toBe("descending");
 });
 
+test("columns that arrive with the data take their default place, also after a reload", async () => {
+  const score = { ...SCORE, initialHide: false };
+  const first = render(<RunsTable columns={[AGENT, STATUS]} />);
+  await waitFor(() => expect(shownColumns()).toEqual(["agent", "status"]));
+  // In a browser the flex columns narrow to make room for the new ones.
+  first.rerender(
+    <RunsTable columns={[{ ...AGENT, flex: 0, width: 120 }, score, STATUS]} />,
+  );
+  await waitFor(() =>
+    expect(shownColumns()).toEqual(["agent", "score", "status"]),
+  );
+  first.unmount();
+
+  render(<RunsTable columns={[AGENT, score, STATUS]} />);
+  await waitFor(() =>
+    expect(shownColumns()).toEqual(["agent", "score", "status"]),
+  );
+});
+
 test("a change made while some columns are absent keeps their saved layout", async () => {
   saveEarlierLayout([
     { colId: "status", hide: true },
