@@ -154,9 +154,9 @@ export function MappingsPanel({ agent }: { agent: string }) {
   const hasDraft = versions?.some((v) => v.status === "draft") ?? false;
   const listedRuns = useApi<RunList>(`${base}/runs?limit=10`);
   const sessions = listedRuns.data?.runs.map((r) => r.run_id) ?? [];
-  // Pin the newest session once, so a refetch after Activate keeps comparing
-  // the session the user was looking at.
-  const newest = sessions[0];
+  // Pin the newest session from this visit's list once, so a refetch after
+  // Activate keeps comparing the session the user was looking at.
+  const newest = listedRuns.isFetchedAfterMount ? sessions[0] : undefined;
   useEffect(() => {
     if (!selected && newest) setSelected(newest);
   }, [selected, newest]);
