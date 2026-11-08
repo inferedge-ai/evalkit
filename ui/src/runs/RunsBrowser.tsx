@@ -187,7 +187,9 @@ export function RunsBrowser() {
         )}
         <span className="row-meta num ml-auto">
           {runs
-            ? `${grid.filteredCount !== null ? `${grid.filteredCount} of ` : ""}${runs.total} runs`
+            ? grid.filteredCount !== null
+              ? `${grid.filteredCount} of the ${runs.runs.length} loaded`
+              : `${runs.total} runs`
             : ""}
         </span>
         {agent && !error && <ColumnsMenu grid={grid} />}

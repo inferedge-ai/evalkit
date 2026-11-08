@@ -64,10 +64,12 @@ function Matrix({
   sortBy,
   rows = CASES,
   defaultHidden,
+  caseCell = (r) => r.case_id,
 }: {
   sortBy: string;
   rows?: CaseRow[];
   defaultHidden?: string[];
+  caseCell?: (r: MatrixRow) => string;
 }) {
   return (
     <ScoreMatrix
@@ -76,7 +78,7 @@ function Matrix({
       groups={GROUPS}
       rows={rows.map((row): MatrixRow => ({ case_id: row.case_id, row }))}
       filtered={rows.length !== CASES.length}
-      caseCell={(r) => r.case_id}
+      caseCell={caseCell}
       defaultHidden={defaultHidden}
       sortBy={sortBy}
     />
@@ -146,4 +148,42 @@ test("focusing a hidden evaluator shows its column, and clearing the focus drops
   view.rerender(<Matrix sortBy="" defaultHidden={["coverage"]} />);
   await waitFor(() => expect(sortOf("coverage")).toBe("none"));
   expect(caseOrder()).toEqual(["refund-policy", "late-fee", "card-limit"]);
+});
+
+test("each refresh shows the rows' new data even where the sorted value stays the same", async () => {
+  const withRunErrors = (r: MatrixRow) =>
+    r.row?.run_errors.length ? `${r.case_id} · run error` : r.case_id;
+  const judged = (error: string): CaseRow => ({
+    ...caseRow("late-fee", 0.1, 0.8),
+    scores: { coverage: 0.8 },
+    errors: { accuracy: error },
+  });
+  const view = render(
+    <Matrix
+      sortBy=""
+      rows={[CASES[0], judged("judge timed out")]}
+      caseCell={withRunErrors}
+    />,
+  );
+  await waitFor(() => expect(caseOrder()).toHaveLength(2));
+
+  view.rerender(
+    <Matrix
+      sortBy=""
+      rows={[
+        { ...CASES[0], run_errors: ["harness unreachable"] },
+        judged("judge rate limited"),
+      ]}
+      caseCell={withRunErrors}
+    />,
+  );
+
+  await waitFor(() =>
+    expect(caseOrder()).toEqual(["refund-policy · run error", "late-fee"]),
+  );
+  expect(
+    document
+      .querySelector('.ag-row[row-id="late-fee"] [col-id="accuracy"] span')
+      ?.getAttribute("title"),
+  ).toBe("judge rate limited");
 });

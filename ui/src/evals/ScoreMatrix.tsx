@@ -248,6 +248,11 @@ function MatrixCaseCell({ data, node }: CustomCellRendererProps<MatrixRow>) {
   return data ? caseCell(data) : null;
 }
 
+// The cells render more of a row than the value they sort by (errors, changes,
+// run errors), so AG Grid hands them each refresh's row, not only on a new
+// value.
+const alwaysRefresh = () => false;
+
 function buildValueColumn(
   kind: ColumnKind,
   col: string,
@@ -273,6 +278,7 @@ function buildValueColumn(
     comparator: compareNullsLast,
     cellClass: cellClass(kind, col),
     cellRenderer: MatrixValueCell,
+    equals: alwaysRefresh,
     cellRendererParams: { kind, col },
   };
 }
@@ -293,6 +299,7 @@ function buildMatrixColumns(
       valueGetter: readValue((r) => r.case_id),
       cellClass: "font-mono",
       cellRenderer: MatrixCaseCell,
+      equals: alwaysRefresh,
     },
     buildValueColumn("avg", "", defaultHidden, withBase),
     ...groups.map((g): ColGroupDef<MatrixRow> => ({
