@@ -61,9 +61,10 @@ const FIT_CASE_COLUMN: SizeColumnsToContentStrategy = {
 const shortLabel = (name: string) =>
   name.replace(/^(answer_rubric_|gauge_)/, "").replaceAll("_", " ");
 
-// Wide enough for the label in the small uppercase header font.
-const estimateLabelWidth = (label: string) =>
-  Math.max(72, label.length * 8 + 40);
+// Wide enough for the label in the small uppercase header font, and for a
+// value with its change or the visible rows' mean and count.
+const estimateColumnWidth = (label: string, withBase: boolean) =>
+  Math.max(withBase ? 120 : 96, label.length * 8 + 40);
 
 const NO_COLUMNS: string[] = [];
 
@@ -176,7 +177,7 @@ function Footer({
       )}
       {filtered && (
         <div className="text-micro text-ink-3" title="mean over the rows shown">
-          visible {fmt(kind, col, visible.mean)} · n={visible.n}
+          {fmt(kind, col, visible.mean)} · n={visible.n}
           {meanDelta !== null && (
             <span
               className={
@@ -236,11 +237,12 @@ function MatrixValueCell({
 }
 
 function MatrixCaseCell({ data, node }: CustomCellRendererProps<MatrixRow>) {
-  const { caseCell } = useContext(MatrixState)!;
+  const { caseCell, filtered } = useContext(MatrixState)!;
   if (node.rowPinned)
     return (
-      <span className="flex h-full items-center text-micro font-semibold tracking-wide text-ink-3 uppercase">
-        mean
+      <span className="flex h-full flex-col justify-center text-micro leading-4 text-ink-3">
+        <span className="font-semibold tracking-wide uppercase">mean</span>
+        {filtered && <span>visible rows</span>}
       </span>
     );
   return data ? caseCell(data) : null;
@@ -250,6 +252,7 @@ function buildValueColumn(
   kind: ColumnKind,
   col: string,
   defaultHidden: string[],
+  withBase: boolean,
 ): ColDef<MatrixRow> {
   const colId = kind === "avg" ? "avg" : col;
   const label = kind === "avg" ? "mean" : shortLabel(col);
@@ -265,7 +268,7 @@ function buildValueColumn(
           : col,
     initialHide: defaultHidden.includes(colId),
     type: "number",
-    initialWidth: estimateLabelWidth(label),
+    initialWidth: estimateColumnWidth(label, withBase),
     valueGetter: readValue((r) => sortValue(r, kind, col)),
     comparator: compareNullsLast,
     cellClass: cellClass(kind, col),
@@ -277,6 +280,7 @@ function buildValueColumn(
 function buildMatrixColumns(
   groups: ColumnGroup[],
   defaultHidden: string[],
+  withBase: boolean,
 ): GridColumn<MatrixRow>[] {
   return [
     {
@@ -290,13 +294,13 @@ function buildMatrixColumns(
       cellClass: "font-mono",
       cellRenderer: MatrixCaseCell,
     },
-    buildValueColumn("avg", "", defaultHidden),
+    buildValueColumn("avg", "", defaultHidden, withBase),
     ...groups.map((g): ColGroupDef<MatrixRow> => ({
       groupId: `group:${g.label}`,
       headerName: g.label,
       marryChildren: true,
       children: g.cols.map((col) =>
-        buildValueColumn(g.kind, col, defaultHidden),
+        buildValueColumn(g.kind, col, defaultHidden, withBase),
       ),
     })),
   ];
@@ -329,9 +333,9 @@ export function ScoreMatrix({
 }) {
   // Callers rebuild the groups from each poll's report; the columns change
   // only when the set of columns does.
-  const structure = JSON.stringify([groups, defaultHidden]);
+  const structure = JSON.stringify([groups, defaultHidden, withBase]);
   const columns = useMemo(
-    () => buildMatrixColumns(groups, defaultHidden),
+    () => buildMatrixColumns(groups, defaultHidden, withBase),
     [structure],
   );
 
