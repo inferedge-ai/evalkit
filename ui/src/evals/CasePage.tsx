@@ -8,7 +8,7 @@ import { BUCKET_COLUMNS, scoreValue } from "../lib/bucketColumns";
 import {
   ColumnsMenu,
   DataGrid,
-  missingLast,
+  compareNullsLast,
   readValue,
   renderCell,
   useDataGrid,
@@ -40,7 +40,7 @@ const PAGE = 10;
 
 const NO_POINTS: CaseScorePoint[] = [];
 
-const experimentId = (p: CaseScorePoint) => String(p.experiment_id);
+const getExperimentId = (p: CaseScorePoint) => String(p.experiment_id);
 
 const SCORE_HISTORY_COLUMNS: ColDef<CaseScorePoint>[] = [
   {
@@ -67,7 +67,9 @@ const SCORE_HISTORY_COLUMNS: ColDef<CaseScorePoint>[] = [
     type: "text",
     field: "agent",
     cellRenderer: renderCell<CaseScorePoint>((p) => (
-      <span className="row-meta">{p.agent}</span>
+      <span className="row-meta" title={p.agent}>
+        {p.agent}
+      </span>
     )),
   },
   {
@@ -76,7 +78,9 @@ const SCORE_HISTORY_COLUMNS: ColDef<CaseScorePoint>[] = [
     type: "text",
     valueGetter: readValue((p) => p.model ?? ""),
     cellRenderer: renderCell<CaseScorePoint>((p) => (
-      <span className="row-meta">{p.model ?? "—"}</span>
+      <span className="row-meta" title={p.model ?? undefined}>
+        {p.model ?? "—"}
+      </span>
     )),
   },
   ...BUCKET_COLUMNS.map((column): ColDef<CaseScorePoint> => ({
@@ -85,7 +89,7 @@ const SCORE_HISTORY_COLUMNS: ColDef<CaseScorePoint>[] = [
     headerTooltip: `${column.bucket} bucket`,
     type: "number",
     valueGetter: readValue((p) => scoreValue(p.scores, column.bucket)),
-    comparator: missingLast,
+    comparator: compareNullsLast,
     cellRenderer: renderCell<CaseScorePoint>((p) => (
       <ScoreCell score={p.scores[column.bucket]} />
     )),
@@ -95,7 +99,7 @@ const SCORE_HISTORY_COLUMNS: ColDef<CaseScorePoint>[] = [
     headerName: "cost",
     type: "number",
     valueGetter: readValue((p) => p.cost_usd),
-    comparator: missingLast,
+    comparator: compareNullsLast,
     cellRenderer: renderCell<CaseScorePoint>((p) => (
       <CostCell cost={p.cost_usd} />
     )),
@@ -125,7 +129,7 @@ function ScoreHistory({
     <>
       <div className="eyebrow">
         Score history
-        <span className="ml-auto tracking-normal normal-case">
+        <span className="ml-auto font-normal tracking-normal normal-case">
           <ColumnsMenu grid={grid} />
         </span>
       </div>
@@ -134,7 +138,7 @@ function ScoreHistory({
         grid={grid}
         rows={points ?? NO_POINTS}
         columns={SCORE_HISTORY_COLUMNS}
-        getRowId={experimentId}
+        getRowId={getExperimentId}
         loading={!points && !error}
         empty={offset === 0 ? "This case has never been run." : undefined}
       />

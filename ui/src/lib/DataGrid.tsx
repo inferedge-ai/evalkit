@@ -22,6 +22,7 @@ import {
 import type {
   ColDef,
   ColGroupDef,
+  Column,
   ColumnState,
   GetRowIdParams,
   GridApi,
@@ -61,7 +62,7 @@ export function readValue<T, V>(read: (row: T) => V) {
 }
 
 // Rows without a value sort after the rest in either direction.
-export function missingLast(
+export function compareNullsLast(
   a: number | null | undefined,
   b: number | null | undefined,
   _nodeA: unknown,
@@ -96,7 +97,7 @@ export interface DataGridHandle<T> {
   events: ColumnEvents<T>;
 }
 
-function columnIds<T>(api: GridApi<T>): string[] {
+function getColumnIds<T>(api: GridApi<T>): string[] {
   return (api.getColumns() ?? []).map((c) => c.getColId());
 }
 
@@ -111,42 +112,43 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
   const restoredColumns = useRef("");
 
   return useMemo(() => {
-    const load = () => (saved.current ??= loadColumnState(tableId));
-    const track = (grid: GridApi<T>) =>
+    const loadLayout = () => (saved.current ??= loadColumnState(tableId));
+    const trackLayout = (grid: GridApi<T>) =>
       setLayout(
         grid
           .getAllGridColumns()
           .map((c) => `${c.isVisible() ? "" : "-"}${c.getColId()}`)
           .join(),
       );
-    const restore = ({ api: grid }: { api: GridApi<T> }) => {
-      const ids = columnIds(grid);
+    const restoreLayout = ({ api: grid }: { api: GridApi<T> }) => {
+      const ids = getColumnIds(grid);
       // Rebuilt definitions of the same columns change nothing; restoring
       // then would undo a change the page made since the last save.
       if (JSON.stringify(ids) === restoredColumns.current) return;
       restoredColumns.current = JSON.stringify(ids);
       grid.applyColumnState({
-        state: orderColumnState(load(), ids),
+        state: orderColumnState(loadLayout(), ids),
         applyOrder: true,
       });
-      track(grid);
+      trackLayout(grid);
     };
-    const save = ({
+    const saveLayout = ({
       api: grid,
       finished,
     }: {
       api: GridApi<T>;
       finished?: boolean;
     }) => {
-      track(grid);
+      trackLayout(grid);
       if (finished === false) return;
       // New columns resize the others before they are restored; saving then
       // would store the grid's placement of them (last) over the default one.
-      if (JSON.stringify(columnIds(grid)) !== restoredColumns.current) return;
-      saved.current = mergeColumnState(load(), grid.getColumnState());
+      if (JSON.stringify(getColumnIds(grid)) !== restoredColumns.current)
+        return;
+      saved.current = mergeColumnState(loadLayout(), grid.getColumnState());
       saveColumnState(tableId, saved.current);
     };
-    const collectFiltered = ({ api: grid }: { api: GridApi<T> }) => {
+    const collectFilteredRows = ({ api: grid }: { api: GridApi<T> }) => {
       if (!grid.isAnyFilterPresent()) return setFilteredRows(null);
       const rows: T[] = [];
       grid.forEachNodeAfterFilter(({ data }) => data && rows.push(data));
@@ -161,6 +163,7 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
       filteredRows,
       reset: () => {
         saved.current = [];
+        saveColumnState(tableId, []);
         api?.resetColumnState();
       },
       events: {
@@ -170,13 +173,13 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
           setApi(null);
           setFilteredRows(null);
         },
-        onNewColumnsLoaded: restore,
-        onSortChanged: save,
-        onColumnMoved: save,
-        onColumnVisible: save,
-        onColumnResized: save,
-        onColumnPinned: save,
-        onModelUpdated: collectFiltered,
+        onNewColumnsLoaded: restoreLayout,
+        onSortChanged: saveLayout,
+        onColumnMoved: saveLayout,
+        onColumnVisible: saveLayout,
+        onColumnResized: saveLayout,
+        onColumnPinned: saveLayout,
+        onModelUpdated: collectFilteredRows,
       },
     };
   }, [tableId, api, filteredRows]);
@@ -244,6 +247,17 @@ export function DataGrid<T>({
   );
 }
 
+// The group a column must stay inside: the grid refuses a move that would split
+// a group it keeps together.
+function getMarriedGroup(column: Column) {
+  const parent = column.getParent();
+  return parent?.getColGroupDef()?.marryChildren ? parent : null;
+}
+
+function canSwapColumns(column: Column, other: Column | undefined) {
+  return !!other && getMarriedGroup(column) === getMarriedGroup(other);
+}
+
 export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -293,7 +307,7 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                     type="button"
                     className="btn btn-sm btn-quiet"
                     aria-label={`move ${name} up`}
-                    disabled={i === 0}
+                    disabled={!canSwapColumns(column, movable[i - 1])}
                     onClick={() =>
                       api.moveColumns([column], all.indexOf(movable[i - 1]))
                     }
@@ -304,7 +318,7 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                     type="button"
                     className="btn btn-sm btn-quiet"
                     aria-label={`move ${name} down`}
-                    disabled={i === movable.length - 1}
+                    disabled={!canSwapColumns(column, movable[i + 1])}
                     onClick={() =>
                       api.moveColumns([column], all.indexOf(movable[i + 1]))
                     }

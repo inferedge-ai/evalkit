@@ -4,6 +4,7 @@ import { apiJson, qs } from "../lib/api";
 import { questionText } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
 import type { ColDef } from "ag-grid-community";
+import type { CustomCellRendererProps } from "ag-grid-react";
 import { BUCKET_COLUMNS } from "../lib/bucketColumns";
 import {
   ColumnsMenu,
@@ -35,23 +36,41 @@ const RECENT = 4;
 const NO_CASES: CaseView[] = [];
 const NO_SCORES: Record<string, CaseScorePoint[]> = {};
 
-const caseId = (ex: CaseView) => ex.case_id;
+const getCaseId = (ex: CaseView) => ex.case_id;
 
-// The grid keeps the header component it first rendered, so the header reads
-// its state from context rather than from a closure or params.
-const SelectAll = createContext({
-  checked: false,
-  onToggle: (_on: boolean) => {},
-});
+interface Selection {
+  selected: Set<string>;
+  allShown: boolean;
+  toggle: (caseId: string, on: boolean) => void;
+  toggleShown: (on: boolean) => void;
+}
+
+// The checkboxes read the selection from context: the grid keeps the header
+// it first rendered, and rebuilding the columns on every click would remount
+// every cell.
+const Selection = createContext<Selection | null>(null);
 
 function SelectAllHeader() {
-  const { checked, onToggle } = useContext(SelectAll);
+  const { allShown, toggleShown } = useContext(Selection)!;
   return (
     <input
       type="checkbox"
       aria-label="select all shown"
-      checked={checked}
-      onChange={(e) => onToggle(e.target.checked)}
+      checked={allShown}
+      onChange={(e) => toggleShown(e.target.checked)}
+    />
+  );
+}
+
+function SelectCaseCell({ data }: CustomCellRendererProps<CaseView>) {
+  const { selected, toggle } = useContext(Selection)!;
+  if (!data) return null;
+  return (
+    <input
+      type="checkbox"
+      aria-label={`select ${data.case_id}`}
+      checked={selected.has(data.case_id)}
+      onChange={(e) => toggle(data.case_id, e.target.checked)}
     />
   );
 }
@@ -145,14 +164,7 @@ export function DatasetCasesTab({
         initialWidth: 44,
         minWidth: 44,
         headerComponent: SelectAllHeader,
-        cellRenderer: renderCell<CaseView>((ex) => (
-          <input
-            type="checkbox"
-            aria-label={`select ${ex.case_id}`}
-            checked={selected.has(ex.case_id)}
-            onChange={(e) => toggle(ex.case_id, e.target.checked)}
-          />
-        )),
+        cellRenderer: SelectCaseCell,
       },
       {
         colId: "id",
@@ -217,7 +229,7 @@ export function DatasetCasesTab({
         type: "text",
         valueGetter: readValue((ex) => ex.split_tags.join(" ")),
         cellRenderer: renderCell<CaseView>((ex) => (
-          <span className="inline-flex gap-1">
+          <span className="inline-flex gap-1" title={ex.split_tags.join(", ")}>
             {ex.split_tags.map((t) => (
               <span key={t} className="chip muted">
                 {t}
@@ -250,8 +262,11 @@ export function DatasetCasesTab({
               colId: "state",
               headerName: "state",
               type: "text",
-              valueGetter: readValue<CaseView, string>(
-                (ex) => ex.review?.state ?? "",
+              valueGetter: readValue<CaseView, string>((ex) =>
+                ex.review &&
+                !promotedImpliesApproved(ex.twin, side, ex.review.state)
+                  ? stateLabel(ex.review.state)
+                  : "",
               ),
               cellRenderer: renderCell<CaseView>((ex) => (
                 <span className="inline-flex items-center gap-1">
@@ -271,16 +286,7 @@ export function DatasetCasesTab({
           ]
         : []),
     ],
-    [
-      buckets,
-      selected,
-      scores,
-      dataset,
-      twinColumn,
-      reviewable,
-      side,
-      otherWorkspace,
-    ],
+    [buckets, scores, dataset, twinColumn, reviewable, side, otherWorkspace],
   );
 
   const requestReview = async () => {
@@ -300,11 +306,21 @@ export function DatasetCasesTab({
     }
   };
 
-  const toggle = (caseId: string, on: boolean) => {
-    const next = new Set(selected);
-    if (on) next.add(caseId);
-    else next.delete(caseId);
-    setSelected(next);
+  const selection: Selection = {
+    selected,
+    allShown: shown.length > 0 && shown.every((ex) => selected.has(ex.case_id)),
+    toggle: (caseId, on) => {
+      const next = new Set(selected);
+      if (on) next.add(caseId);
+      else next.delete(caseId);
+      setSelected(next);
+    },
+    toggleShown: (on) =>
+      setSelected(
+        on
+          ? new Set([...selected, ...shown.map((ex) => ex.case_id)])
+          : new Set(),
+      ),
   };
 
   if (error) return <div className="pane-status error">{error}</div>;
@@ -384,27 +400,16 @@ export function DatasetCasesTab({
           </button>
         </div>
       )}
-      <SelectAll.Provider
-        value={{
-          checked:
-            shown.length > 0 && shown.every((ex) => selected.has(ex.case_id)),
-          onToggle: (on) =>
-            setSelected(
-              on
-                ? new Set([...selected, ...shown.map((ex) => ex.case_id)])
-                : new Set(),
-            ),
-        }}
-      >
+      <Selection.Provider value={selection}>
         <DataGrid
           grid={grid}
           rows={rows}
           columns={columns}
-          getRowId={caseId}
+          getRowId={getCaseId}
           loading={loading}
           empty="No cases match this filter."
         />
-      </SelectAll.Provider>
+      </Selection.Provider>
     </>
   );
 }

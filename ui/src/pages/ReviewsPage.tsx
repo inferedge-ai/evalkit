@@ -26,7 +26,7 @@ const VIEWS: { id: View; label: string }[] = [
 
 const NO_ITEMS: QueueItem[] = [];
 
-const itemId = (i: QueueItem) => `${i.dataset}/${i.case_id}`;
+const getItemId = (i: QueueItem) => `${i.dataset}/${i.case_id}`;
 
 function queueColumns(
   changes: boolean,
@@ -153,7 +153,7 @@ export function ReviewsPage() {
           grid={grid}
           rows={items ?? NO_ITEMS}
           columns={columns}
-          getRowId={itemId}
+          getRowId={getItemId}
           loading={!items}
           empty={
             changes

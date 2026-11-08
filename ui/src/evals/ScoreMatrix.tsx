@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import type {
   CellClassParams,
@@ -11,7 +11,7 @@ import type { CustomCellRendererProps } from "ag-grid-react";
 import {
   ColumnsMenu,
   DataGrid,
-  missingLast,
+  compareNullsLast,
   readValue,
   useDataGrid,
 } from "../lib/DataGrid";
@@ -41,12 +41,12 @@ export interface MatrixRow {
   base?: CaseRow | null;
 }
 
-const matrixRowId = (r: MatrixRow) => r.case_id;
+const getMatrixRowId = (r: MatrixRow) => r.case_id;
 
 // Pinned under the cases: each column's mean.
 const MEAN_ROWS: MatrixRow[] = [{ case_id: "mean", row: null }];
 
-const meanRowHeight = ({ node }: RowHeightParams<MatrixRow>) =>
+const getMeanRowHeight = ({ node }: RowHeightParams<MatrixRow>) =>
   node.rowPinned ? 40 : undefined;
 
 // Past this many cases the matrix scrolls inside a screen-tall grid, so the
@@ -62,7 +62,10 @@ const shortLabel = (name: string) =>
   name.replace(/^(answer_rubric_|gauge_)/, "").replaceAll("_", " ");
 
 // Wide enough for the label in the small uppercase header font.
-const labelWidth = (label: string) => Math.max(72, label.length * 8 + 40);
+const estimateLabelWidth = (label: string) =>
+  Math.max(72, label.length * 8 + 40);
+
+const NO_COLUMNS: string[] = [];
 
 function fmt(kind: ColumnKind, col: string, value: number | null): string {
   return kind === "gauge" ? fmtGauge(col, value) : fmtScore(value);
@@ -197,6 +200,108 @@ function sortValue(r: MatrixRow, kind: ColumnKind, col: string) {
   return kind === "score" && col in r.row.errors ? -1 : undefined;
 }
 
+interface MatrixState {
+  report: Report;
+  rows: MatrixRow[];
+  filtered: boolean;
+  withBase: boolean;
+  caseCell: (r: MatrixRow) => ReactNode;
+}
+
+// Cells read what changes on every poll from here, so the column definitions,
+// and the cells AG Grid mounts for them, stay put while an experiment runs.
+const MatrixState = createContext<MatrixState | null>(null);
+
+function MatrixValueCell({
+  data,
+  node,
+  kind,
+  col,
+}: CustomCellRendererProps<MatrixRow> & { kind: ColumnKind; col: string }) {
+  const { report, rows, filtered, withBase } = useContext(MatrixState)!;
+  if (node.rowPinned)
+    return (
+      <Footer
+        report={report}
+        kind={kind}
+        col={col}
+        rows={rows}
+        filtered={filtered}
+        withBase={withBase}
+      />
+    );
+  return data ? (
+    <Value r={data} kind={kind} col={col} withBase={withBase} />
+  ) : null;
+}
+
+function MatrixCaseCell({ data, node }: CustomCellRendererProps<MatrixRow>) {
+  const { caseCell } = useContext(MatrixState)!;
+  if (node.rowPinned)
+    return (
+      <span className="flex h-full items-center text-micro font-semibold tracking-wide text-ink-3 uppercase">
+        mean
+      </span>
+    );
+  return data ? caseCell(data) : null;
+}
+
+function buildValueColumn(
+  kind: ColumnKind,
+  col: string,
+  defaultHidden: string[],
+): ColDef<MatrixRow> {
+  const colId = kind === "avg" ? "avg" : col;
+  const label = kind === "avg" ? "mean" : shortLabel(col);
+  const term = describeTerm(col);
+  return {
+    colId,
+    headerName: label,
+    headerTooltip:
+      kind === "avg"
+        ? "mean of the case's bucketed scores"
+        : term
+          ? `${col}: ${term}`
+          : col,
+    initialHide: defaultHidden.includes(colId),
+    type: "number",
+    initialWidth: estimateLabelWidth(label),
+    valueGetter: readValue((r) => sortValue(r, kind, col)),
+    comparator: compareNullsLast,
+    cellClass: cellClass(kind, col),
+    cellRenderer: MatrixValueCell,
+    cellRendererParams: { kind, col },
+  };
+}
+
+function buildMatrixColumns(
+  groups: ColumnGroup[],
+  defaultHidden: string[],
+): GridColumn<MatrixRow>[] {
+  return [
+    {
+      colId: "case",
+      headerName: "case",
+      pinned: "left",
+      lockPinned: true,
+      lockVisible: true,
+      initialFlex: 0,
+      valueGetter: readValue((r) => r.case_id),
+      cellClass: "font-mono",
+      cellRenderer: MatrixCaseCell,
+    },
+    buildValueColumn("avg", "", defaultHidden),
+    ...groups.map((g): ColGroupDef<MatrixRow> => ({
+      groupId: `group:${g.label}`,
+      headerName: g.label,
+      marryChildren: true,
+      children: g.cols.map((col) =>
+        buildValueColumn(g.kind, col, defaultHidden),
+      ),
+    })),
+  ];
+}
+
 export function ScoreMatrix({
   id,
   report,
@@ -204,7 +309,7 @@ export function ScoreMatrix({
   rows,
   filtered,
   caseCell,
-  defaultHidden = [],
+  defaultHidden = NO_COLUMNS,
   sortBy = "",
   toolbar,
   toggles = [],
@@ -222,69 +327,13 @@ export function ScoreMatrix({
   toggles?: ColumnToggle[];
   withBase?: boolean;
 }) {
-  const columns = useMemo((): GridColumn<MatrixRow>[] => {
-    const leaf = (kind: ColumnKind, col: string): ColDef<MatrixRow> => {
-      const colId = kind === "avg" ? "avg" : col;
-      const label = kind === "avg" ? "mean" : shortLabel(col);
-      const term = describeTerm(col);
-      return {
-        colId,
-        headerName: label,
-        headerTooltip:
-          kind === "avg"
-            ? "mean of the case's bucketed scores"
-            : term
-              ? `${col}: ${term}`
-              : col,
-        initialHide: defaultHidden.includes(colId),
-        type: "number",
-        initialWidth: labelWidth(label),
-        valueGetter: readValue((r) => sortValue(r, kind, col)),
-        comparator: missingLast,
-        cellClass: cellClass(kind, col),
-        cellRenderer: ({ data, node }: CustomCellRendererProps<MatrixRow>) =>
-          node.rowPinned ? (
-            <Footer
-              report={report}
-              kind={kind}
-              col={col}
-              rows={rows}
-              filtered={filtered}
-              withBase={withBase}
-            />
-          ) : data ? (
-            <Value r={data} kind={kind} col={col} withBase={withBase} />
-          ) : null,
-      };
-    };
-    return [
-      {
-        colId: "case",
-        headerName: "case",
-        pinned: "left",
-        lockPinned: true,
-        lockVisible: true,
-        initialFlex: 0,
-        valueGetter: readValue((r) => r.case_id),
-        cellClass: "font-mono",
-        cellRenderer: ({ data, node }: CustomCellRendererProps<MatrixRow>) =>
-          node.rowPinned ? (
-            <span className="flex h-full items-center text-micro font-semibold tracking-wide text-ink-3 uppercase">
-              mean
-            </span>
-          ) : data ? (
-            caseCell(data)
-          ) : null,
-      },
-      leaf("avg", ""),
-      ...groups.map((g): ColGroupDef<MatrixRow> => ({
-        groupId: `group:${g.label}`,
-        headerName: g.label,
-        marryChildren: true,
-        children: g.cols.map((col) => leaf(g.kind, col)),
-      })),
-    ];
-  }, [report, groups, rows, filtered, caseCell, withBase, defaultHidden]);
+  // Callers rebuild the groups from each poll's report; the columns change
+  // only when the set of columns does.
+  const structure = JSON.stringify([groups, defaultHidden]);
+  const columns = useMemo(
+    () => buildMatrixColumns(groups, defaultHidden),
+    [structure],
+  );
 
   const grid = useDataGrid<MatrixRow>(id);
   const api = grid.api;
@@ -332,18 +381,24 @@ export function ScoreMatrix({
         </span>
       </div>
       <div className="mt-2">
-        <DataGrid
-          grid={grid}
-          rows={rows}
-          columns={columns}
-          getRowId={matrixRowId}
-          height={
-            rows.length > SCROLL_AFTER_ROWS ? "calc(100dvh - 15rem)" : undefined
-          }
-          pinnedBottomRowData={MEAN_ROWS}
-          autoSizeStrategy={FIT_CASE_COLUMN}
-          getRowHeight={meanRowHeight}
-        />
+        <MatrixState.Provider
+          value={{ report, rows, filtered, withBase, caseCell }}
+        >
+          <DataGrid
+            grid={grid}
+            rows={rows}
+            columns={columns}
+            getRowId={getMatrixRowId}
+            height={
+              rows.length > SCROLL_AFTER_ROWS
+                ? "calc(100dvh - 15rem)"
+                : undefined
+            }
+            pinnedBottomRowData={MEAN_ROWS}
+            autoSizeStrategy={FIT_CASE_COLUMN}
+            getRowHeight={getMeanRowHeight}
+          />
+        </MatrixState.Provider>
       </div>
     </>
   );

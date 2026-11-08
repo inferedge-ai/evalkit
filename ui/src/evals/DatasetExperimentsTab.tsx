@@ -13,7 +13,7 @@ import { useApi } from "../lib/query";
 import type { ExperimentListItem } from "../lib/types";
 import { experimentTailColumns } from "./experimentRow";
 
-const experimentId = (exp: ExperimentListItem) => String(exp.id);
+const getExperimentId = (exp: ExperimentListItem) => String(exp.id);
 
 export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
   const listed = useApi<ExperimentListItem[]>(
@@ -89,7 +89,7 @@ export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
         grid={grid}
         rows={experiments}
         columns={columns}
-        getRowId={experimentId}
+        getRowId={getExperimentId}
       />
     </>
   );

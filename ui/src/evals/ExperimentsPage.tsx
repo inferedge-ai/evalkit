@@ -22,7 +22,7 @@ import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
 import { useWorkspace } from "../shell/workspace";
 
-const experimentId = (exp: ExperimentListItem) => String(exp.id);
+const getExperimentId = (exp: ExperimentListItem) => String(exp.id);
 
 export function ExperimentsPage() {
   const { workspace } = useWorkspace();
@@ -137,7 +137,7 @@ export function ExperimentsPage() {
         grid={grid}
         rows={visible}
         columns={columns}
-        getRowId={experimentId}
+        getRowId={getExperimentId}
         loading={loading}
         empty={
           rows && rows.length === 0

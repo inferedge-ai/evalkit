@@ -35,13 +35,18 @@ export function orderColumnState(
 
 // The grid's current state, keeping what was saved for columns it doesn't
 // show now (another experiment's evaluators) next to the column they followed.
+// A sort on the current columns replaces one saved on an absent column.
 export function mergeColumnState(
   saved: ColumnState[],
   current: ColumnState[],
 ): ColumnState[] {
   const currentIds = current.map((s) => s.colId);
   const savedIds = saved.map((s) => s.colId);
-  const byId = new Map([...saved, ...current].map((s) => [s.colId, s]));
+  const sorted = current.some((s) => s.sort);
+  const absent = saved.map((s) =>
+    sorted ? { ...s, sort: null, sortIndex: null } : s,
+  );
+  const byId = new Map([...absent, ...current].map((s) => [s.colId, s]));
   return mergeOrder(currentIds, [
     ...savedIds,
     ...currentIds.filter((colId) => !savedIds.includes(colId)),

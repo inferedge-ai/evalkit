@@ -12,7 +12,7 @@ import {
   formatMs,
   selectionLabel,
 } from "../lib/format";
-import { missingLast, readValue, renderCell } from "../lib/DataGrid";
+import { compareNullsLast, readValue, renderCell } from "../lib/DataGrid";
 import { describeTerm } from "../lib/glossary";
 import { agentCommitUrl } from "../lib/meta";
 import { splitRef } from "../lib/workspace";
@@ -56,7 +56,7 @@ export function experimentTailColumns(
       headerTooltip: describeTerm(`bucket:${column.bucket}`) ?? column.label,
       type: "number",
       valueGetter: readValue((exp) => scoreValue(exp.scores, column.bucket)),
-      comparator: missingLast,
+      comparator: compareNullsLast,
       cellRenderer: renderCell<ExperimentListItem>((exp) => (
         <ScoreCell score={scoreValue(exp.scores, column.bucket)} />
       )),
@@ -67,7 +67,7 @@ export function experimentTailColumns(
       headerTooltip: "mean agent cost per run (gauge_agent_cost_usd)",
       type: "number",
       valueGetter: readValue((exp) => exp.cost_usd),
-      comparator: missingLast,
+      comparator: compareNullsLast,
       cellRenderer: renderCell<ExperimentListItem>((exp) => (
         <CostCell cost={exp.cost_usd} />
       )),
@@ -78,7 +78,7 @@ export function experimentTailColumns(
       initialHide: true,
       type: "number",
       valueGetter: readValue((exp) => exp.avg_latency_ms),
-      comparator: missingLast,
+      comparator: compareNullsLast,
       cellRenderer: renderCell<ExperimentListItem>((exp) => (
         <span className="row-meta num">
           {exp.avg_latency_ms ? formatMs(exp.avg_latency_ms) : ""}
@@ -150,17 +150,20 @@ export function experimentTailColumns(
     },
     {
       colId: "selection",
-      headerName: "cases",
+      headerName: "selection",
       headerTooltip: "the cases this experiment ran on",
       type: "text",
       valueGetter: readValue(
         (exp) => selectionLabel({ selection: exp.config.selection }) ?? "",
       ),
-      cellRenderer: renderCell<ExperimentListItem>((exp) => (
-        <span className="row-meta">
-          {selectionLabel({ selection: exp.config.selection })}
-        </span>
-      )),
+      cellRenderer: renderCell<ExperimentListItem>((exp) => {
+        const label = selectionLabel({ selection: exp.config.selection });
+        return (
+          <span className="row-meta" title={label ?? undefined}>
+            {label}
+          </span>
+        );
+      }),
     },
     {
       colId: "rev",
@@ -208,7 +211,7 @@ export function experimentTailColumns(
       initialHide: true,
       type: "number",
       valueGetter: readValue((exp) => elapsedMs(exp.started_at, exp.ended_at)),
-      comparator: missingLast,
+      comparator: compareNullsLast,
       cellRenderer: renderCell<ExperimentListItem>((exp) => {
         const took = elapsedMs(exp.started_at, exp.ended_at);
         return (
@@ -226,7 +229,7 @@ export function experimentTailColumns(
       initialWidth: 140,
       field: "started_at",
       cellRenderer: renderCell<ExperimentListItem>((exp) => (
-        <span className="row-meta">
+        <span className="row-meta" title={exp.started_at ?? undefined}>
           {fmtWhen(exp.started_at) ?? ""}
           {exp.repetitions > 1 ? ` ×${exp.repetitions}` : ""}
         </span>

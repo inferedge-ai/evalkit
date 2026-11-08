@@ -5,7 +5,7 @@ import { qs } from "../lib/api";
 import {
   ColumnsMenu,
   DataGrid,
-  missingLast,
+  compareNullsLast,
   readValue,
   renderCell,
   useDataGrid,
@@ -19,7 +19,7 @@ import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 
 const NO_RUNS: RunListItem[] = [];
 
-const runId = (run: RunListItem) => run.run_id;
+const getRunId = (run: RunListItem) => run.run_id;
 
 function runColumns(agent: string): ColDef<RunListItem>[] {
   const href = (run: RunListItem) =>
@@ -56,7 +56,7 @@ function runColumns(agent: string): ColDef<RunListItem>[] {
       type: "number",
       initialWidth: 110,
       valueGetter: readValue((run) => run.experiment_number),
-      comparator: missingLast,
+      comparator: compareNullsLast,
       cellRenderer: renderCell<RunListItem>((run) => (
         <span className="row-meta font-mono">
           {run.experiment_id != null ? `#${run.experiment_number ?? "?"}` : ""}
@@ -186,7 +186,9 @@ export function RunsBrowser() {
           </Link>
         )}
         <span className="row-meta num ml-auto">
-          {runs ? `${runs.total} runs` : ""}
+          {runs
+            ? `${grid.filteredRows ? `${grid.filteredRows.length} of ` : ""}${runs.total} runs`
+            : ""}
         </span>
         {agent && !error && <ColumnsMenu grid={grid} />}
       </div>
@@ -206,7 +208,7 @@ export function RunsBrowser() {
           grid={grid}
           rows={runs?.runs ?? NO_RUNS}
           columns={columns}
-          getRowId={runId}
+          getRowId={getRunId}
           loading={!runs}
           empty="No runs match."
         />

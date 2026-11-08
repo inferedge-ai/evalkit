@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { fireEvent, render, waitFor } from "@testing-library/react";
-import { afterEach, expect, test } from "vitest";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vitest";
 import type { ColumnGroup } from "../lib/scoreSummary";
 import type { CaseRow, Report } from "../lib/types";
 import { ScoreMatrix, type MatrixRow } from "./ScoreMatrix";
@@ -60,7 +60,15 @@ const GROUPS: ColumnGroup[] = [
   { label: "content", kind: "score", cols: ["accuracy", "coverage"] },
 ];
 
-function Matrix({ sortBy, rows }: { sortBy: string; rows: CaseRow[] }) {
+function Matrix({
+  sortBy,
+  rows = CASES,
+  defaultHidden,
+}: {
+  sortBy: string;
+  rows?: CaseRow[];
+  defaultHidden?: string[];
+}) {
   return (
     <ScoreMatrix
       id="experiment-cases"
@@ -69,9 +77,22 @@ function Matrix({ sortBy, rows }: { sortBy: string; rows: CaseRow[] }) {
       rows={rows.map((row): MatrixRow => ({ case_id: row.case_id, row }))}
       filtered={rows.length !== CASES.length}
       caseCell={(r) => r.case_id}
+      defaultHidden={defaultHidden}
       sortBy={sortBy}
     />
   );
+}
+
+function sortOf(colId: string): string | null | undefined {
+  return document
+    .querySelector(`.ag-header-cell[col-id="${colId}"]`)
+    ?.getAttribute("aria-sort");
+}
+
+// AG Grid hands its events over on timers; run them all before asserting that
+// something did not happen.
+async function settle() {
+  await act(() => vi.runAllTimersAsync());
 }
 
 function caseOrder(): string[] {
@@ -86,10 +107,14 @@ function caseOrder(): string[] {
     .map((row) => row.textContent ?? "");
 }
 
-afterEach(() => localStorage.clear());
+afterEach(() => {
+  localStorage.clear();
+  vi.useRealTimers();
+});
 
 test("focusing an evaluator sorts the cases by it, worst first, while the rows change", async () => {
-  const view = render(<Matrix sortBy="" rows={CASES} />);
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const view = render(<Matrix sortBy="" />);
   await waitFor(() => expect(caseOrder()).toHaveLength(3));
   fireEvent.click(
     document.querySelector(
@@ -99,13 +124,26 @@ test("focusing an evaluator sorts the cases by it, worst first, while the rows c
   await waitFor(() =>
     expect(caseOrder()).toEqual(["refund-policy", "card-limit", "late-fee"]),
   );
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await settle();
 
   view.rerender(<Matrix sortBy="accuracy" rows={CASES.slice(0, 2)} />);
 
   await waitFor(() =>
     expect(caseOrder()).toEqual(["late-fee", "refund-policy"]),
   );
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await settle();
   expect(caseOrder()).toEqual(["late-fee", "refund-policy"]);
+});
+
+test("focusing a hidden evaluator shows its column, and clearing the focus drops its sort", async () => {
+  const view = render(<Matrix sortBy="" defaultHidden={["coverage"]} />);
+  await waitFor(() => expect(caseOrder()).toHaveLength(3));
+  expect(sortOf("coverage")).toBeUndefined();
+
+  view.rerender(<Matrix sortBy="coverage" defaultHidden={["coverage"]} />);
+  await waitFor(() => expect(sortOf("coverage")).toBe("ascending"));
+
+  view.rerender(<Matrix sortBy="" defaultHidden={["coverage"]} />);
+  await waitFor(() => expect(sortOf("coverage")).toBe("none"));
+  expect(caseOrder()).toEqual(["refund-policy", "late-fee", "card-limit"]);
 });
