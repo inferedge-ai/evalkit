@@ -3,9 +3,15 @@ import { Link, useSearchParams } from "react-router-dom";
 import { apiJson, qs } from "../lib/api";
 import { questionText } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
+import type { ColDef } from "ag-grid-community";
 import { BUCKET_COLUMNS } from "../lib/bucketColumns";
-import { ColumnsMenu, DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import {
+  ColumnsMenu,
+  DataGrid,
+  readValue,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
 import { REVIEW_STATES, stateClass, stateLabel } from "../lib/review";
 import type {
   CaseScorePoint,
@@ -28,7 +34,8 @@ const RECENT = 4;
 
 const NO_CASES: CaseView[] = [];
 const NO_SCORES: Record<string, CaseScorePoint[]> = {};
-const HIDDEN = ["source"];
+
+const caseId = (ex: CaseView) => ex.case_id;
 
 export function DatasetCasesTab({
   dataset,
@@ -105,14 +112,18 @@ export function DatasetCasesTab({
     return state ? matched.filter((ex) => ex.review?.state === state) : matched;
   }, [examples, needle, state]);
 
-  const columns = useMemo<Column<CaseView>[]>(
+  const columns = useMemo<ColDef<CaseView>[]>(
     () => [
       {
-        id: "select",
-        enableSorting: false,
-        enableHiding: false,
-        enableResizing: false,
-        header: () => (
+        colId: "select",
+        lockPosition: "left",
+        lockVisible: true,
+        sortable: false,
+        resizable: false,
+        initialFlex: 0,
+        initialWidth: 44,
+        minWidth: 44,
+        headerComponent: () => (
           <input
             type="checkbox"
             aria-label="select all shown"
@@ -128,124 +139,128 @@ export function DatasetCasesTab({
             }
           />
         ),
-        cell: (c) => (
+        cellRenderer: renderCell<CaseView>((ex) => (
           <input
             type="checkbox"
-            aria-label={`select ${c.row.original.case_id}`}
-            checked={selected.has(c.row.original.case_id)}
-            onChange={(e) => toggle(c.row.original.case_id, e.target.checked)}
+            aria-label={`select ${ex.case_id}`}
+            checked={selected.has(ex.case_id)}
+            onChange={(e) => toggle(ex.case_id, e.target.checked)}
           />
-        ),
+        )),
       },
       {
-        id: "id",
-        header: "id",
-        accessorKey: "case_id",
-        meta: { wrap: true, className: "min-w-44 max-w-72" },
-        cell: (c) => (
+        colId: "id",
+        headerName: "id",
+        type: "text",
+        field: "case_id",
+        minWidth: 160,
+        cellRenderer: renderCell<CaseView>((ex) => (
           <Link
             className="font-mono font-medium text-brand hover:underline"
-            to={`/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(c.row.original.case_id)}`}
+            to={`/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(ex.case_id)}`}
+            title={ex.case_id}
           >
-            {c.row.original.case_id}
+            {ex.case_id}
           </Link>
-        ),
+        )),
       },
       {
-        id: "source",
-        header: "source",
-        accessorFn: (ex) => ex.source ?? "",
-        cell: (c) =>
-          c.row.original.source ? (
-            <span className="row-meta font-mono">{c.row.original.source}</span>
+        colId: "source",
+        headerName: "source",
+        initialHide: true,
+        type: "text",
+        valueGetter: readValue((ex) => ex.source ?? ""),
+        cellRenderer: renderCell<CaseView>((ex) =>
+          ex.source ? (
+            <span className="row-meta font-mono">{ex.source}</span>
           ) : (
             <span className="row-meta text-ink-4">—</span>
           ),
-      },
-      {
-        id: "question",
-        header: "question",
-        accessorFn: (ex) => questionText(ex.input),
-        meta: { wrap: true, className: "min-w-40" },
-        cell: (c) => (
-          <span
-            className="line-clamp-2 text-ink-3"
-            title={questionText(c.row.original.input)}
-          >
-            {questionText(c.row.original.input)}
-          </span>
         ),
       },
-      ...buckets.map((column): Column<CaseView> => ({
-        id: `score:${column.bucket}`,
-        header: column.label,
-        enableSorting: false,
-        meta: {
-          title: `${column.bucket} bucket, last ${RECENT} experiments (newest first)`,
-        },
-        cell: (c) => (
+      {
+        colId: "question",
+        headerName: "question",
+        type: "text",
+        initialFlex: 2,
+        valueGetter: readValue((ex) => questionText(ex.input)),
+        cellRenderer: renderCell<CaseView>((ex) => (
+          <span className="text-ink-3" title={questionText(ex.input)}>
+            {questionText(ex.input)}
+          </span>
+        )),
+      },
+      ...buckets.map((column): ColDef<CaseView> => ({
+        colId: `score:${column.bucket}`,
+        headerName: column.label,
+        headerTooltip: `${column.bucket} bucket, last ${RECENT} experiments (newest first)`,
+        sortable: false,
+        initialFlex: 0,
+        initialWidth: 148,
+        cellRenderer: renderCell<CaseView>((ex) => (
           <ScoreBlockStrip
-            points={(scores[c.row.original.case_id] ?? []).slice(0, RECENT)}
+            points={(scores[ex.case_id] ?? []).slice(0, RECENT)}
             bucket={column.bucket}
           />
-        ),
+        )),
       })),
       {
-        id: "tags",
-        header: "tags",
-        accessorFn: (ex) => ex.split_tags.join(" "),
-        meta: { wrap: true },
-        cell: (c) => (
-          <span className="flex gap-1">
-            {c.row.original.split_tags.map((t) => (
+        colId: "tags",
+        headerName: "tags",
+        type: "text",
+        valueGetter: readValue((ex) => ex.split_tags.join(" ")),
+        cellRenderer: renderCell<CaseView>((ex) => (
+          <span className="inline-flex gap-1">
+            {ex.split_tags.map((t) => (
               <span key={t} className="chip muted">
                 {t}
               </span>
             ))}
           </span>
-        ),
+        )),
       },
       ...(twinColumn
         ? [
             {
-              id: "twin",
-              header: otherWorkspace ?? "",
-              accessorFn: (ex) => twinCell(ex.twin, side)?.label ?? "",
-              cell: (c) => {
-                const cell = twinCell(c.row.original.twin, side);
+              colId: "twin",
+              headerName: otherWorkspace ?? "",
+              type: "text",
+              valueGetter: readValue<CaseView, string>(
+                (ex) => twinCell(ex.twin, side)?.label ?? "",
+              ),
+              cellRenderer: renderCell<CaseView>((ex) => {
+                const cell = twinCell(ex.twin, side);
                 return cell ? (
                   <span className={`chip ${cell.cls}`}>{cell.label}</span>
                 ) : null;
-              },
-            } satisfies Column<CaseView>,
+              }),
+            } satisfies ColDef<CaseView>,
           ]
         : []),
       ...(reviewable
         ? [
             {
-              id: "state",
-              header: "state",
-              accessorFn: (ex) => ex.review?.state ?? "",
-              cell: (c) => {
-                const ex = c.row.original;
-                return (
-                  <span className="flex flex-col items-start gap-0.5">
-                    {ex.review &&
-                    !promotedImpliesApproved(ex.twin, side, ex.review.state) ? (
-                      <span className={`chip ${stateClass(ex.review.state)}`}>
-                        {stateLabel(ex.review.state)}
-                      </span>
-                    ) : null}
-                    {ex.review?.state === "review_requested" &&
-                    ex.review.requested_to ? (
-                      <span className="row-meta">
-                        → {ex.review.requested_to}
-                      </span>
-                    ) : null}
-                  </span>
-                );
-              },
-            } satisfies Column<CaseView>,
+              colId: "state",
+              headerName: "state",
+              type: "text",
+              valueGetter: readValue<CaseView, string>(
+                (ex) => ex.review?.state ?? "",
+              ),
+              cellRenderer: renderCell<CaseView>((ex) => (
+                <span className="inline-flex items-center gap-1">
+                  {ex.review &&
+                  !promotedImpliesApproved(ex.twin, side, ex.review.state) ? (
+                    <span className={`chip ${stateClass(ex.review.state)}`}>
+                      {stateLabel(ex.review.state)}
+                    </span>
+                  ) : null}
+                  {ex.review?.state === "review_requested" &&
+                  ex.review.requested_to ? (
+                    <span className="row-meta">→ {ex.review.requested_to}</span>
+                  ) : null}
+                </span>
+              )),
+            } satisfies ColDef<CaseView>,
           ]
         : []),
     ],
@@ -261,13 +276,7 @@ export function DatasetCasesTab({
       otherWorkspace,
     ],
   );
-  const table = useDataTable({
-    id: "dataset-cases",
-    data: rows,
-    columns,
-    getRowId: (ex) => ex.case_id,
-    defaultHidden: HIDDEN,
-  });
+  const grid = useDataGrid<CaseView>("dataset-cases");
 
   const requestReview = async () => {
     setBusy(true);
@@ -332,7 +341,7 @@ export function DatasetCasesTab({
         <span className="row-meta num ml-auto">
           {loading ? "Loading…" : `${rows.length} cases`}
         </span>
-        <ColumnsMenu table={table} defaultHidden={HIDDEN} />
+        <ColumnsMenu grid={grid} />
       </div>
       {selected.size > 0 && (
         <div className="toolbar mb-2 rounded-md border border-brand bg-info-bg px-3 py-2">
@@ -370,8 +379,11 @@ export function DatasetCasesTab({
           </button>
         </div>
       )}
-      <DataTable
-        table={table}
+      <DataGrid
+        grid={grid}
+        rows={rows}
+        columns={columns}
+        getRowId={caseId}
         loading={loading}
         empty="No cases match this filter."
       />

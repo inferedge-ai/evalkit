@@ -1,16 +1,19 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
+import type { ColDef } from "ag-grid-community";
 import { scoredBucketColumns } from "../lib/bucketColumns";
-import { ColumnsMenu, DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import {
+  ColumnsMenu,
+  DataGrid,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
 import { EXPERIMENT_LIST_LIMIT, listCapNote } from "../lib/experimentStatus";
 import { useApi } from "../lib/query";
 import type { ExperimentListItem } from "../lib/types";
 import { experimentTailColumns } from "./experimentRow";
 
-const HIDDEN = ["latency", "took", "rev", "judge"];
-
-const NONE: ExperimentListItem[] = [];
+const experimentId = (exp: ExperimentListItem) => String(exp.id);
 
 export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
   const listed = useApi<ExperimentListItem[]>(
@@ -22,34 +25,30 @@ export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
     () => scoredBucketColumns(experiments ?? []),
     [experiments],
   );
-  const columns = useMemo<Column<ExperimentListItem>[]>(
+  const columns = useMemo<ColDef<ExperimentListItem>[]>(
     () => [
       {
-        id: "number",
-        header: "#",
-        accessorKey: "number",
-        meta: { align: "right", title: "number in its dataset" },
-        cell: (c) => (
+        colId: "number",
+        headerName: "#",
+        headerTooltip: "number in its dataset",
+        type: "number",
+        initialWidth: 72,
+        field: "number",
+        cellRenderer: renderCell<ExperimentListItem>((exp) => (
           <Link
             className="font-mono font-medium text-brand hover:underline"
-            to={`/experiments/${c.row.original.id}`}
-            title={`experiment ${c.row.original.id}`}
+            to={`/experiments/${exp.id}`}
+            title={`experiment ${exp.id}`}
           >
-            #{c.row.original.number}
+            #{exp.number}
           </Link>
-        ),
+        )),
       },
       ...experimentTailColumns(buckets),
     ],
     [buckets],
   );
-  const table = useDataTable({
-    id: "dataset-experiments",
-    data: experiments ?? NONE,
-    columns,
-    getRowId: (exp) => String(exp.id),
-    defaultHidden: HIDDEN,
-  });
+  const grid = useDataGrid<ExperimentListItem>("dataset-experiments");
 
   if (error) return <div className="pane-status error">{error}</div>;
   if (!experiments)
@@ -83,10 +82,15 @@ export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
       <div className="toolbar mb-2">
         {capNote && <p className="row-meta">{capNote}</p>}
         <span className="ml-auto">
-          <ColumnsMenu table={table} defaultHidden={HIDDEN} />
+          <ColumnsMenu grid={grid} />
         </span>
       </div>
-      <DataTable table={table} />
+      <DataGrid
+        grid={grid}
+        rows={experiments}
+        columns={columns}
+        getRowId={experimentId}
+      />
     </>
   );
 }

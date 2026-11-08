@@ -1000,68 +1000,6 @@ button {
     text-align: right;
   }
 
-  /* ── List tables (DataTable) ────────────────────────────────────────── */
-  /* Columns size to their content and nothing is cut off: short values stay
-     on one line, long text and chip lists wrap inside their column. */
-  .grid-table {
-    font-size: var(--text-lede);
-  }
-  .grid-table th {
-    position: relative;
-    white-space: nowrap;
-    padding: 6px 10px;
-    user-select: none;
-  }
-  .grid-table td {
-    padding: 6px 10px;
-    vertical-align: top;
-    white-space: nowrap;
-  }
-  .grid-table td.cell-wrap {
-    white-space: normal;
-    min-width: 8rem;
-    max-width: 28rem;
-  }
-  .grid-table td.cell-wrap > .flex {
-    flex-wrap: wrap;
-  }
-  .grid-table td.cell-wrap .row-meta {
-    white-space: normal;
-  }
-  /* A column the user narrowed wraps everything inside it, chips included. */
-  .grid-table td.cell-sized,
-  .grid-table td.cell-sized * {
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
-  .grid-table td.cell-sized .flex {
-    flex-wrap: wrap;
-  }
-  .grid-table tbody tr:last-child td {
-    border-bottom: none;
-  }
-  .grid-table .col-num > * {
-    justify-content: flex-end;
-  }
-  .th-sortable {
-    cursor: pointer;
-  }
-  .th-sortable:hover {
-    color: var(--color-ink);
-  }
-  .th-resizer {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 6px;
-    height: 100%;
-    cursor: col-resize;
-    touch-action: none;
-  }
-  .th-resizer:hover,
-  .th-resizer.active {
-    background: var(--color-brand);
-  }
   .columns-menu {
     min-width: 14rem;
   }
@@ -1076,58 +1014,13 @@ button {
     font-size: var(--text-meta);
     color: var(--color-ink-2);
   }
+  /* Grid headings read like the other tables' headings. */
+  .ag-header-cell-text,
+  .ag-header-group-text {
+    text-transform: uppercase;
+    letter-spacing: 0.045em;
+  }
 
-  /* ── Score matrix ───────────────────────────────────────────────────── */
-  /* The case column is the row's identity; it stays put while the evaluator
-     columns scroll sideways. */
-  .matrix .col-case {
-    position: sticky;
-    left: 0;
-    z-index: 1;
-    background: var(--color-surface);
-    border-right: 1px solid var(--color-line);
-  }
-  /* Every column hugs its content and this last one eats the leftover width,
-     so scores sit next to the case that earned them instead of being flung
-     to the far edge of a wide screen. */
-  .matrix .col-slack {
-    width: 100%;
-    padding: 0;
-  }
-  /* Two-row header: `.data-table thead th` pins every header cell at top 0,
-     which stacks the column row on top of the group row. Pin the group row
-     there and offset the column row by its height. */
-  .matrix {
-    --matrix-group-h: 24px;
-  }
-  .matrix thead tr:first-child th {
-    height: var(--matrix-group-h);
-    line-height: var(--text-micro--line-height);
-  }
-  .matrix thead tr:nth-child(2) th {
-    top: var(--matrix-group-h);
-  }
-  .matrix thead .col-case {
-    z-index: 3;
-  }
-  .matrix tbody tr:hover .col-case {
-    background: var(--color-hover);
-  }
-  .matrix td.score {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-    padding: 3px 10px;
-  }
-  .matrix tfoot td {
-    position: sticky;
-    bottom: 0;
-    background: var(--color-surface);
-    border-top: 1px solid var(--color-line);
-    vertical-align: top;
-  }
-  .matrix tfoot .col-case {
-    z-index: 3;
-  }
   .heat-pass {
     background: color-mix(in srgb, var(--color-ok) 12%, transparent);
   }

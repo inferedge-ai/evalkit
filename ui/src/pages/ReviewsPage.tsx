@@ -1,9 +1,15 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import type { ColDef } from "ag-grid-community";
 import { qs } from "../lib/api";
 import { useApi } from "../lib/query";
-import { DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import {
+  ColumnsMenu,
+  DataGrid,
+  readValue,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
 import { fmtWhen } from "../lib/format";
 import type { QueueItem } from "../lib/types";
 import { splitRef } from "../lib/workspace";
@@ -20,60 +26,73 @@ const VIEWS: { id: View; label: string }[] = [
 
 const NO_ITEMS: QueueItem[] = [];
 
+const itemId = (i: QueueItem) => `${i.dataset}/${i.case_id}`;
+
 function queueColumns(
   changes: boolean,
   everyWorkspace: boolean,
-): Column<QueueItem>[] {
+): ColDef<QueueItem>[] {
   return [
     {
-      id: "dataset",
-      header: "dataset",
-      accessorFn: (i) =>
+      colId: "dataset",
+      headerName: "dataset",
+      type: "text",
+      valueGetter: readValue((i) =>
         everyWorkspace ? i.dataset : splitRef(i.dataset).name,
-    },
-    {
-      id: "case",
-      header: "case",
-      accessorKey: "case_id",
-      cell: (c) => (
-        <Link
-          className="font-mono text-brand hover:underline"
-          to={`/datasets/${encodeURIComponent(c.row.original.dataset)}/cases/${encodeURIComponent(c.row.original.case_id)}`}
-        >
-          {c.row.original.case_id}
-        </Link>
       ),
     },
     {
-      id: "requested_by",
-      header: changes ? "reviewer" : "requested by",
-      accessorKey: "requested_by",
+      colId: "case",
+      headerName: "case",
+      type: "text",
+      field: "case_id",
+      cellRenderer: renderCell<QueueItem>((i) => (
+        <Link
+          className="font-mono text-brand hover:underline"
+          to={`/datasets/${encodeURIComponent(i.dataset)}/cases/${encodeURIComponent(i.case_id)}`}
+          title={i.case_id}
+        >
+          {i.case_id}
+        </Link>
+      )),
+    },
+    {
+      colId: "requested_by",
+      headerName: changes ? "reviewer" : "requested by",
+      type: "text",
+      field: "requested_by",
     },
     ...(changes
       ? []
       : [
           {
-            id: "requested_to",
-            header: "to",
-            accessorFn: (i) => i.requested_to ?? "—",
-          } satisfies Column<QueueItem>,
+            colId: "requested_to",
+            headerName: "to",
+            type: "text",
+            valueGetter: readValue<QueueItem, string>(
+              (i) => i.requested_to ?? "—",
+            ),
+          } satisfies ColDef<QueueItem>,
         ]),
     {
-      id: "requested_at",
-      header: changes ? "sent back" : "requested",
-      accessorFn: (i) => i.requested_at ?? "",
-      cell: (c) => (
-        <span className="row-meta">{fmtWhen(c.row.original.requested_at)}</span>
-      ),
+      colId: "requested_at",
+      headerName: changes ? "sent back" : "requested",
+      valueGetter: readValue((i) => i.requested_at ?? ""),
+      cellRenderer: renderCell<QueueItem>((i) => (
+        <span className="row-meta">{fmtWhen(i.requested_at)}</span>
+      )),
     },
     {
-      id: "question",
-      header: "question",
-      accessorKey: "input",
-      meta: { wrap: true },
-      cell: (c) => (
-        <span className="line-clamp-3 text-ink-3">{c.row.original.input}</span>
-      ),
+      colId: "question",
+      headerName: "question",
+      type: "text",
+      initialFlex: 2,
+      field: "input",
+      cellRenderer: renderCell<QueueItem>((i) => (
+        <span className="text-ink-3" title={i.input}>
+          {i.input}
+        </span>
+      )),
     },
   ];
 }
@@ -98,12 +117,7 @@ export function ReviewsPage() {
     () => queueColumns(changes, everyWorkspace),
     [changes, everyWorkspace],
   );
-  const table = useDataTable({
-    id: "review-queue",
-    data: items ?? NO_ITEMS,
-    columns,
-    getRowId: (i) => `${i.dataset}/${i.case_id}`,
-  });
+  const grid = useDataGrid<QueueItem>("review-queue");
 
   return (
     <div className="page">
@@ -131,11 +145,15 @@ export function ReviewsPage() {
               ? `${items.length} ${changes ? "awaiting an edit" : "waiting"}`
               : "Loading…"}
         </span>
+        <ColumnsMenu grid={grid} />
       </div>
       {error && <div className="pane-status error">{error}</div>}
       {!error && (
-        <DataTable
-          table={table}
+        <DataGrid
+          grid={grid}
+          rows={items ?? NO_ITEMS}
+          columns={columns}
+          getRowId={itemId}
           loading={!items}
           empty={
             changes

@@ -229,7 +229,7 @@ export function ScoreBlockStrip({
   if (!points || points.length === 0)
     return <span className="text-ink-4">—</span>;
   return (
-    <span className="flex gap-0.5">
+    <span className="inline-flex gap-0.5 align-middle">
       {points.map((p) => (
         <ScoreBlock
           key={p.experiment_id}

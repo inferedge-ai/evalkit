@@ -29,6 +29,18 @@
   and pause while the browser tab is in the background. Failed loads are not
   retried. Signing in clears everything loaded earlier in the tab, so the next
   user never sees the previous user's pages.
+- The web UI's tables (experiments, a dataset's cases and experiments, an
+  experiment's and a comparison's case matrix, a case's score history, reviews,
+  runs) are AG Grid Community grids (`ag-grid-community`, `ag-grid-react`) in
+  place of `@tanstack/react-table`. Rows are 28px and a cell's content stays on
+  one line, cut off with its full text on hover where it was wrapped before.
+  Columns can be resized, dragged to a new order, sorted, hidden, and filtered
+  where they hold text. The Reviews, Runs and score history tables gain the
+  Columns menu. Each table still remembers its sort, column order, widths and
+  hidden columns in the browser, in a new format, so layouts saved before this
+  release are dropped once. The matrix's evaluator descriptions are in the
+  header's tooltip instead of an ⓘ, and picking a score card scrolls the
+  matrix to that evaluator's column.
 
 ## 0.4.0
 

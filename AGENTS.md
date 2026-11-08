@@ -175,6 +175,16 @@ then add plain FastAPI routes with `app.include_router(...)`.
 - Keep the folder path, the `extensions` export, `UiExtensions` and
   `SIGNED_IN` stable: other packages build against them.
 
+**AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
+(`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,
+whose licence is commercial. A package that extends evalkit can turn
+Enterprise on from its extensions folder: in the clone, install
+`ag-grid-enterprise` at exactly the `ag-grid-community` version evalkit
+installs (`npm ls ag-grid-community`), then in `ui/src/extensions/index.tsx`
+register `AllEnterpriseModule` with `ModuleRegistry.registerModules` and set
+the licence key with `LicenseManager.setLicenseKey`. Features that need
+per-table grid options, such as the side bar or pivoting, aren't exposed yet.
+
 ## CI
 
 - **Open pull requests as drafts** (`gh pr create --draft`). CI skips drafts, so run the tests locally and mark the PR ready (`gh pr ready <number>`) when it should be reviewed and run CI.
