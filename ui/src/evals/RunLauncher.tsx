@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, apiJson, NotFoundError } from "../lib/api";
+import { apiJson, isNotFound } from "../lib/api";
 import { questionText } from "../lib/format";
+import { useApi } from "../lib/query";
 import { stateClass, stateLabel } from "../lib/review";
 import {
   casesInScope,
@@ -31,6 +32,8 @@ const SCOPES: { id: Scope; label: string }[] = [
   { id: "cases", label: "Pick cases" },
 ];
 
+const NO_JUDGE: JudgeChoice = { model: "", provider: "", reasoning_effort: "" };
+
 export function RunLauncher({
   dataset,
   tags,
@@ -45,10 +48,24 @@ export function RunLauncher({
   onClose: () => void;
 }) {
   const navigate = useNavigate();
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [agent, setAgent] = useState("");
-  const [examples, setExamples] = useState<CaseView[] | null>(null);
-  const [isSuite, setIsSuite] = useState(false);
+  const agentsQuery = useApi<AgentInfo[]>("/agents", {
+    select: (all) =>
+      serverRuns
+        ? all.filter((a) => a.driver === "server")
+        : [
+            ...all.filter((a) => a.driver === "cli"),
+            ...all.filter((a) => a.driver === "server"),
+          ],
+  });
+  const agents = agentsQuery.data ?? [];
+  const [pickedAgent, setAgent] = useState("");
+  const agent = pickedAgent || agents[0]?.ref || "";
+  const casesQuery = useApi<CaseView[]>(
+    `/datasets/${encodeURIComponent(dataset)}/cases`,
+  );
+  const examples = casesQuery.data ?? null;
+  const ds = useApi<Dataset>(`/datasets/${encodeURIComponent(dataset)}`).data;
+  const isSuite = !!ds && ds.kind === "suite" && ds.workspace_is_shared;
   const [choice, setChoice] = useState<ScopeChoice>({
     scope: initialCaseIds?.length ? "cases" : "all",
     tags: [],
@@ -58,49 +75,22 @@ export function RunLauncher({
   const [runs, setRuns] = useState(1);
   const [model, setModel] = useState("");
   const [scoring, setScoring] = useState("");
-  const [judgeDefault, setJudgeDefault] = useState<JudgeSettings | null>(null);
-  const [providers, setProviders] = useState<LlmProviderInfo[]>([]);
-  const [judge, setJudge] = useState<JudgeChoice>({
-    model: "",
-    provider: "",
-    reasoning_effort: "",
-  });
+  const judgeQuery = useApi<JudgeSettings>("/judge-default");
+  const judgeDefault = judgeQuery.data ?? null;
+  const providersQuery = useApi<LlmProviderInfo[]>("/llm-providers");
+  const providers = providersQuery.data ?? [];
+  const [editedJudge, setJudge] = useState<JudgeChoice | null>(null);
+  const judge =
+    editedJudge ?? (judgeDefault ? judgeChoice(judgeDefault) : NO_JUDGE);
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<AgentInfo[]>("/agents")
-      .then((all) => {
-        const list = serverRuns
-          ? all.filter((a) => a.driver === "server")
-          : [
-              ...all.filter((a) => a.driver === "cli"),
-              ...all.filter((a) => a.driver === "server"),
-            ];
-        setAgents(list);
-        setAgent((a) => a || list[0]?.ref || "");
-      })
-      .catch((e) => setError(String(e)));
-    api<LlmProviderInfo[]>("/llm-providers")
-      .then(setProviders)
-      .catch((e) => setError(String(e)));
-    api<JudgeSettings>("/judge-default")
-      .then((settings) => {
-        setJudgeDefault(settings);
-        setJudge(judgeChoice(settings));
-      })
-      .catch((e) => {
-        setJudgeDefault(null);
-        if (!(e instanceof NotFoundError)) setError(String(e));
-      });
-    api<CaseView[]>(`/datasets/${encodeURIComponent(dataset)}/cases`)
-      .then(setExamples)
-      .catch((e) => setError(String(e)));
-    api<Dataset>(`/datasets/${encodeURIComponent(dataset)}`)
-      .then((d) => setIsSuite(d.kind === "suite" && d.workspace_is_shared))
-      .catch(() => setIsSuite(false));
-  }, [dataset, serverRuns]);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const loadError =
+    agentsQuery.error ??
+    providersQuery.error ??
+    (isNotFound(judgeQuery.error) ? null : judgeQuery.error) ??
+    casesQuery.error;
+  const error = actionError ?? (loadError ? String(loadError) : null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -136,7 +126,7 @@ export function RunLauncher({
   const launch = async () => {
     if (!request) return;
     setBusy(true);
-    setError(null);
+    setActionError(null);
     try {
       const resp = await apiJson<{ id: number }>(
         "/experiments",
@@ -145,7 +135,7 @@ export function RunLauncher({
       );
       navigate(`/experiments/${resp.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
       setBusy(false);
     }
   };
@@ -390,7 +380,7 @@ export function RunLauncher({
             <Select
               ariaLabel="judge provider"
               value={judge.provider}
-              onChange={(provider) => setJudge((j) => ({ ...j, provider }))}
+              onChange={(provider) => setJudge({ ...judge, provider })}
               options={[
                 ...(judgeDefault
                   ? [{ value: "", label: "server default" }]
@@ -418,9 +408,7 @@ export function RunLauncher({
                 className="input w-72"
                 placeholder={judgeDefault?.[key] ?? ""}
                 value={judge[key]}
-                onChange={(e) =>
-                  setJudge((j) => ({ ...j, [key]: e.target.value }))
-                }
+                onChange={(e) => setJudge({ ...judge, [key]: e.target.value })}
                 title="Defaults to the server's judge; the experiment records the judge it used"
               />
             </div>

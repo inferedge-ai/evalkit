@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, apiJson, qs } from "../lib/api";
+import { apiJson, qs } from "../lib/api";
 import { questionText } from "../lib/format";
+import { refreshQueries, useApi } from "../lib/query";
 import { BUCKET_COLUMNS } from "../lib/bucketColumns";
 import { ColumnsMenu, DataTable, useDataTable } from "../lib/DataTable";
 import type { Column } from "../lib/DataTable";
@@ -26,6 +27,7 @@ import { useWorkspace } from "../shell/workspace";
 const RECENT = 4;
 
 const NO_CASES: CaseView[] = [];
+const NO_SCORES: Record<string, CaseScorePoint[]> = {};
 const HIDDEN = ["source"];
 
 export function DatasetCasesTab({
@@ -41,8 +43,6 @@ export function DatasetCasesTab({
   const tag = params.get("tag") ?? "";
   const [q, setQ] = useState("");
   const [state, setState] = useState<ReviewState | "">("");
-  const [examples, setExamples] = useState<CaseView[] | null>(null);
-  const [scores, setScores] = useState<Record<string, CaseScorePoint[]>>({});
   const reviewable = reviewed;
   const { workspaces } = useWorkspace();
   const linked = workspaces.find((w) => w.name === splitRef(dataset).workspace);
@@ -50,53 +50,41 @@ export function DatasetCasesTab({
   const requestable = reviewable && side !== "target";
   const otherWorkspace = linked?.promotes_to ?? linked?.promoted_from ?? null;
   const twinColumn = reviewable && side !== null && otherWorkspace !== null;
-  const [reviewers, setReviewers] = useState<string[]>([]);
-  const [reviewer, setReviewer] = useState("");
+  const [pickedReviewer, setReviewer] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const examplesPath = `/datasets/${encodeURIComponent(dataset)}/cases${qs({
-    tag: tag || undefined,
-  })}`;
-
-  useEffect(() => {
-    setExamples(null);
-    api<CaseView[]>(examplesPath)
-      .then(setExamples)
-      .catch((e) => setError(String(e)));
-  }, [dataset, tag, examplesPath]);
+  const cases = useApi<CaseView[]>(
+    `/datasets/${encodeURIComponent(dataset)}/cases${qs({
+      tag: tag || undefined,
+    })}`,
+  );
+  const examples = cases.data ?? null;
+  const error = actionError ?? (cases.error ? String(cases.error) : null);
 
   useEffect(() => {
     setSelected(new Set());
   }, [dataset]);
 
-  useEffect(() => {
-    if (!requestable) return;
-    const workspace = splitRef(dataset).workspace;
-    api<MemberRow[]>(
-      `/workspaces/${encodeURIComponent(workspace)}/members?role=reviewer`,
-    )
-      .then((rows) => {
-        const names = rows.map((r) => r.username);
-        setReviewers(names);
-        setReviewer(names[0] ?? "");
-      })
-      .catch(() => setReviewers([]));
-  }, [requestable, dataset]);
+  const reviewers =
+    useApi<MemberRow[]>(
+      requestable
+        ? `/workspaces/${encodeURIComponent(splitRef(dataset).workspace)}/members?role=reviewer`
+        : null,
+    ).data?.map((r) => r.username) ?? [];
+  const reviewer = reviewers.includes(pickedReviewer)
+    ? pickedReviewer
+    : (reviewers[0] ?? "");
 
   // Recent scores are dataset-wide and tag-independent, so they load once and
   // are keyed by case id.
-  useEffect(() => {
-    setScores({});
-    api<Record<string, CaseScorePoint[]>>(
+  const scores =
+    useApi<Record<string, CaseScorePoint[]>>(
       `/datasets/${encodeURIComponent(dataset)}/case-scores${qs({
         experiments: String(RECENT),
       })}`,
-    )
-      .then(setScores)
-      .catch(() => setScores({}));
-  }, [dataset]);
+    ).data ?? NO_SCORES;
 
   const allTags = useMemo(
     () => [...new Set((examples ?? []).flatMap((ex) => ex.split_tags))].sort(),
@@ -290,9 +278,9 @@ export function DatasetCasesTab({
         { selection: { case_ids: [...selected] }, reviewer },
       );
       setSelected(new Set());
-      setExamples(await api<CaseView[]>(examplesPath));
+      await refreshQueries();
     } catch (e) {
-      setError(String(e));
+      setActionError(String(e));
     } finally {
       setBusy(false);
     }

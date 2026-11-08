@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, qs } from "../lib/api";
+import { qs } from "../lib/api";
+import { useApi } from "../lib/query";
 import type { AgentInfo, Dataset } from "../lib/types";
 import { useWorkspace } from "../shell/workspace";
 
@@ -46,38 +46,23 @@ function AgentRow({ agent }: { agent: AgentInfo }) {
   );
 }
 
+function sortByName<T extends { name: string }>(list: T[]): T[] {
+  return [...list].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function Home() {
   const { workspace } = useWorkspace();
-  const [datasets, setDatasets] = useState<Dataset[] | null>(null);
-  const [datasetsError, setDatasetsError] = useState<string | null>(null);
-  const [agents, setAgents] = useState<AgentInfo[] | null>(null);
-  const [agentsError, setAgentsError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let stale = false;
-    const scope = qs({ workspace: workspace.name });
-    const message = (e: unknown) =>
-      e instanceof Error ? e.message : String(e);
-    setDatasets(null);
-    setAgents(null);
-    setDatasetsError(null);
-    setAgentsError(null);
-    api<Dataset[]>(`/datasets${scope}`)
-      .then((list) => {
-        if (!stale)
-          setDatasets([...list].sort((a, b) => a.name.localeCompare(b.name)));
-      })
-      .catch((e) => !stale && setDatasetsError(message(e)));
-    api<AgentInfo[]>(`/agents${scope}`)
-      .then((list) => {
-        if (!stale)
-          setAgents([...list].sort((a, b) => a.name.localeCompare(b.name)));
-      })
-      .catch((e) => !stale && setAgentsError(message(e)));
-    return () => {
-      stale = true;
-    };
-  }, [workspace.name]);
+  const scope = qs({ workspace: workspace.name });
+  const datasetsQuery = useApi<Dataset[]>(`/datasets${scope}`, {
+    select: sortByName,
+  });
+  const agentsQuery = useApi<AgentInfo[]>(`/agents${scope}`, {
+    select: sortByName,
+  });
+  const datasets = datasetsQuery.data ?? null;
+  const agents = agentsQuery.data ?? null;
+  const datasetsError = datasetsQuery.error?.message ?? null;
+  const agentsError = agentsQuery.error?.message ?? null;
 
   const loading = (!datasets && !datasetsError) || (!agents && !agentsError);
   const empty = !datasets?.length && !agents?.length;

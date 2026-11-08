@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { canManageMembers, canWrite, groupMembers } from "../lib/access";
-import { api, apiJson } from "../lib/api";
+import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { PERSONAL_KEY_NOTE } from "../lib/endpoint";
+import { refreshQueries, useApi } from "../lib/query";
 import { EvaluatorForm } from "./EvaluatorForm";
 import { Select } from "../lib/Select";
 import type {
@@ -35,30 +36,26 @@ function EvaluatorsTab({
   ws: WorkspaceInfo;
   writable: boolean;
 }) {
-  const [rows, setRows] = useState<RemoteEvaluatorInfo[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const listed = useApi<RemoteEvaluatorInfo[]>(
+    `/evaluators?workspace=${encodeURIComponent(ws.name)}&include_archived=true`,
+  );
+  const rows = listed.data ?? null;
+  const [actionError, setActionError] = useState<string | null>(null);
+  const error = actionError ?? listed.error?.message ?? null;
   const [editing, setEditing] = useState<RemoteEvaluatorInfo | "new" | null>(
     null,
   );
-  const load = useCallback(() => {
-    api<RemoteEvaluatorInfo[]>(
-      `/evaluators?workspace=${encodeURIComponent(ws.name)}&include_archived=true`,
-    )
-      .then(setRows)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [ws.name]);
-  useEffect(load, [load]);
 
   const toggleArchive = async (row: RemoteEvaluatorInfo) => {
-    setError(null);
+    setActionError(null);
     try {
       await apiJson(
         `/evaluators/${encodeURIComponent(row.ref)}/${row.archived ? "restore" : "archive"}`,
         "POST",
       );
-      load();
+      void refreshQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -137,7 +134,7 @@ function EvaluatorsTab({
           evaluator={editing === "new" ? undefined : editing}
           onSaved={() => {
             setEditing(null);
-            load();
+            void refreshQueries();
           }}
           onClose={() => setEditing(null)}
         />
@@ -149,25 +146,21 @@ function EvaluatorsTab({
 function MembersTab({ ws }: { ws: WorkspaceInfo }) {
   const me = useMe();
   const manage = canManageMembers(me, ws);
-  const [rows, setRows] = useState<MemberRow[] | null>(null);
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<WorkspaceRole>("reviewer");
-  const [error, setError] = useState<string | null>(null);
   const base = `/workspaces/${encodeURIComponent(ws.name)}/members`;
-  const load = useCallback(() => {
-    api<MemberRow[]>(base)
-      .then(setRows)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [base]);
-  useEffect(load, [load]);
+  const listed = useApi<MemberRow[]>(base);
+  const rows = listed.data ?? null;
+  const [actionError, setActionError] = useState<string | null>(null);
+  const error = actionError ?? listed.error?.message ?? null;
 
   const run = async (call: () => Promise<unknown>) => {
-    setError(null);
+    setActionError(null);
     try {
       await call();
-      load();
+      void refreshQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -265,7 +258,7 @@ export function WorkspacePage() {
   const { tab } = useParams();
   const navigate = useNavigate();
   const me = useMe();
-  const { workspace: ws, workspaces, reload, select } = useWorkspace();
+  const { workspace: ws, workspaces, select } = useWorkspace();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -287,7 +280,7 @@ export function WorkspacePage() {
         `/workspaces/${encodeURIComponent(ws.name)}/${ws.archived ? "restore" : "archive"}`,
         "POST",
       );
-      await reload();
+      await refreshQueries();
     });
   const create = (e: FormEvent) => {
     e.preventDefault();
@@ -296,7 +289,7 @@ export function WorkspacePage() {
         name: name.trim(),
       });
       setName("");
-      await reload();
+      await refreshQueries();
       select(created.name);
     });
   };
@@ -305,7 +298,7 @@ export function WorkspacePage() {
       await apiJson(`/workspaces/${encodeURIComponent(ws.name)}`, "PATCH", {
         promotes_to: target || null,
       });
-      await reload();
+      await refreshQueries();
     });
   const targets = workspaces.filter(
     (w) =>

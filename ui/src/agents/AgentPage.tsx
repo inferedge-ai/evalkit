@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { AgentForm } from "./AgentForm";
 import { HarnessCheckPanel } from "./HarnessCheckPanel";
@@ -8,7 +8,8 @@ import { agentKind, agentTabs, isAgentTab } from "../lib/agents";
 import type { AgentTab } from "../lib/agents";
 import { canUseAgent, canWrite } from "../lib/access";
 import { SETTING_FIELDS } from "../lib/agentForm";
-import { api, apiJson, isNotFound } from "../lib/api";
+import { apiJson, isNotFound } from "../lib/api";
+import { setApiData, useApi } from "../lib/query";
 import { httpUrl } from "../lib/safeUrl";
 import type { AgentInfo } from "../lib/types";
 import { CopyText, Tabs } from "../lib/ui";
@@ -89,18 +90,16 @@ export function AgentPage() {
   useFollowWorkspace(splitRef(slug).workspace);
   const navigate = useNavigate();
   const me = useMe();
-  const [agent, setAgent] = useState<AgentInfo | null | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
 
-  useEffect(() => {
-    api<AgentInfo>(`/agents/${encodeURIComponent(slug)}`)
-      .then(setAgent)
-      .catch((e) => {
-        if (isNotFound(e)) setAgent(null);
-        else setError(e instanceof Error ? e.message : String(e));
-      });
-  }, [slug]);
+  const path = `/agents/${encodeURIComponent(slug)}`;
+  const loaded = useApi<AgentInfo>(path);
+  const agent = isNotFound(loaded.error) ? null : loaded.data;
+  const error =
+    actionError ??
+    (loaded.error && !isNotFound(loaded.error) ? loaded.error.message : null);
+  const setAgent = (saved: AgentInfo) => void setApiData(path, saved);
 
   if (!isAgentTab(tab))
     return (
@@ -131,7 +130,7 @@ export function AgentPage() {
       )
     )
       return;
-    setError(null);
+    setActionError(null);
     try {
       setAgent(
         await apiJson<AgentInfo>(
@@ -140,12 +139,12 @@ export function AgentPage() {
         ),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
     }
   };
   const restore = async () => {
     if (!agent) return;
-    setError(null);
+    setActionError(null);
     try {
       setAgent(
         await apiJson<AgentInfo>(
@@ -154,10 +153,10 @@ export function AgentPage() {
         ),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
     }
   };
-  if (agent && !tabs.some((t) => t.id === tab))
+  if (agent && loaded.isFetchedAfterMount && !tabs.some((t) => t.id === tab))
     return (
       <Navigate to={`/agents/${encodeURIComponent(slug)}/overview`} replace />
     );

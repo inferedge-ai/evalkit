@@ -21,6 +21,14 @@
   bring in (0.16.47) with the UI's own KaTeX (0.19.1), which fixes
   GHSA-238p-pmpm-9mq7 (KaTeX below 0.18.2 can read polluted object
   prototypes).
+- The web UI loads its data with TanStack Query (`ui/src/lib/query.ts`). A
+  page you come back to shows its last data at once and refreshes it in the
+  background. After a save, archive, comment or other change, every page on
+  screen refetches, so the change shows without a reload. A running
+  experiment's page and the trace import panel still poll until they finish,
+  and pause while the browser tab is in the background. Failed loads are not
+  retried. Signing in clears everything loaded earlier in the tab, so the next
+  user never sees the previous user's pages.
 
 ## 0.4.0
 

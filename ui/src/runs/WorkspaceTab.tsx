@@ -1,9 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Editor } from "../lib/Editor";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { api, apiBlobUrl, apiFetch, downloadFile, qs } from "../lib/api";
+import { ApiError, apiBlobUrl, apiFetch, downloadFile, qs } from "../lib/api";
 import { formatBytes } from "../lib/format";
+import { useApi } from "../lib/query";
 import { monacoTheme, useTheme } from "../shell/theme";
 import type { FileEntry } from "../lib/types";
 import { CopyButton } from "../lib/ui";
@@ -233,8 +235,7 @@ function useBlobUrl(path: string | null): {
 
 function FileViewer({ base, node }: { base: string; node: FileNode }) {
   const { theme } = useTheme();
-  const [text, setText] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const extension = ext(node.name);
   const hasPreview = PREVIEW_EXTS.has(extension);
   const [view, setView] = useState<"preview" | "source">(
@@ -255,37 +256,41 @@ function FileViewer({ base, node }: { base: string; node: FileNode }) {
       !tooLarge);
   const blob = useBlobUrl(wantsBlob ? path : null);
 
-  useEffect(() => {
-    setText(null);
-    setError(null);
-    setView(PREVIEW_EXTS.has(ext(node.name)) ? "preview" : "source");
-    if (isImage || isPdf || tooLarge) return;
-    apiFetch(path)
-      .then(async (resp) => {
-        if (resp.status === 404) {
-          const body = await resp.json().catch(() => ({}));
-          throw new Error(
-            body.detail ===
-              "not found on the harness: wrong path, or the harness no longer has it"
-              ? "The harness doesn't have this file: the path is wrong, or the harness has dropped the session. Only stored deliverables outlive the session."
-              : "No such file.",
-          );
+  const loaded = useQuery({
+    queryKey: [path, "text"],
+    queryFn: async () => {
+      const resp = await apiFetch(path);
+      if (resp.status === 404) {
+        const body = await resp.json().catch(() => ({}));
+        throw new ApiError(
+          404,
+          body.detail ===
+            "not found on the harness: wrong path, or the harness no longer has it"
+            ? "The harness doesn't have this file: the path is wrong, or the harness has dropped the session. Only stored deliverables outlive the session."
+            : "No such file.",
+        );
+      }
+      if (!resp.ok)
+        throw new ApiError(
+          resp.status,
+          `Failed to load file: ${resp.statusText}`,
+        );
+      const raw = await resp.text();
+      if (extension === "json") {
+        try {
+          return JSON.stringify(JSON.parse(raw), null, 2);
+        } catch {
+          // fall through to raw text
         }
-        if (!resp.ok)
-          throw new Error(`Failed to load file: ${resp.statusText}`);
-        const raw = await resp.text();
-        if (ext(node.name) === "json") {
-          try {
-            setText(JSON.stringify(JSON.parse(raw), null, 2));
-            return;
-          } catch {
-            // fall through to raw text
-          }
-        }
-        setText(raw);
-      })
-      .catch((e) => setError(e.message));
-  }, [path, isImage, isPdf, tooLarge, node.name]);
+      }
+      return raw;
+    },
+    enabled: !isImage && !isPdf && !tooLarge,
+    // File text can run to megabytes; drop it once the viewer closes.
+    gcTime: 0,
+  });
+  const text = loaded.data ?? null;
+  const error = downloadError ?? loaded.error?.message ?? null;
 
   const showSource = !isImage && !isPdf && (!hasPreview || view === "source");
   const showPreview = !isImage && hasPreview && view === "preview" && !tooLarge;
@@ -316,7 +321,7 @@ function FileViewer({ base, node }: { base: string; node: FileNode }) {
             className="btn btn-sm"
             onClick={() =>
               downloadFile(`${path}${qs({ download: "1" })}`).catch((e) =>
-                setError(describeDownloadError(e)),
+                setDownloadError(describeDownloadError(e)),
               )
             }
           >
@@ -400,8 +405,6 @@ export function WorkspaceTab({
   agent: string;
   runId: string;
 }) {
-  const [files, setFiles] = useState<FileEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<FileNode | null>(null);
   const [filter, setFilter] = useState("");
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -425,17 +428,12 @@ export function WorkspaceTab({
 
   const base = `/agents/${encodeURIComponent(agent)}/runs/${encodeURIComponent(runId)}`;
 
-  useEffect(() => {
-    setFiles(null);
-    setSelected(null);
-    api<{ files: FileEntry[] }>(`${base}/files`)
-      .then((r) => setFiles(r.files))
-      .catch((e) =>
-        setError(
-          `${e instanceof Error ? e.message : e} — the harness may have pruned this session's workspace`,
-        ),
-      );
-  }, [base]);
+  const listed = useApi<{ files: FileEntry[] }>(`${base}/files`);
+  const files = listed.data?.files ?? null;
+  const error = listed.error
+    ? `${listed.error.message} — the harness may have pruned this session's workspace`
+    : null;
+  useEffect(() => setSelected(null), [base]);
 
   const tree = useMemo(() => buildTree(files ?? []), [files]);
 

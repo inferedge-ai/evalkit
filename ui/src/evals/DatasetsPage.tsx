@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { canWrite } from "../lib/access";
-import { api, qs } from "../lib/api";
+import { qs } from "../lib/api";
+import { useApi } from "../lib/query";
 import { fmtWhen } from "../lib/format";
 import type { Dataset } from "../lib/types";
 import { useMe } from "../shell/capabilities";
@@ -43,24 +44,15 @@ export function DatasetsPage() {
   const me = useMe();
   const { workspace } = useWorkspace();
   const writable = canWrite(me, workspace);
-  const [datasets, setDatasets] = useState<Dataset[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    let stale = false;
-    setDatasets(null);
-    setError(null);
-    api<Dataset[]>(`/datasets${qs({ workspace: workspace.name })}`)
-      .then((list) => {
-        if (!stale)
-          setDatasets([...list].sort((a, b) => a.name.localeCompare(b.name)));
-      })
-      .catch((e) => !stale && setError(String(e)));
-    return () => {
-      stale = true;
-    };
-  }, [workspace.name]);
+  const listed = useApi<Dataset[]>(
+    `/datasets${qs({ workspace: workspace.name })}`,
+    {
+      select: (list) => [...list].sort((a, b) => a.name.localeCompare(b.name)),
+    },
+  );
+  const datasets = listed.data ?? null;
+  const error = listed.error ? String(listed.error) : null;
 
   const loading = !datasets && !error;
   const visible = (datasets ?? []).filter((d) =>

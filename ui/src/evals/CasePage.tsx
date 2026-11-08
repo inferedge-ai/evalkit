@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, isNotFound, qs } from "../lib/api";
+import { isNotFound, qs } from "../lib/api";
 import { fmtWhen, questionText, toYaml } from "../lib/format";
+import { refreshQueries, useApi } from "../lib/query";
 import { BUCKET_COLUMNS, scoreValue } from "../lib/bucketColumns";
 import { DataTable, useDataTable } from "../lib/DataTable";
 import type { Column } from "../lib/DataTable";
@@ -39,21 +40,14 @@ function ScoreHistory({
   dataset: string;
   caseId: string;
 }) {
-  const [points, setPoints] = useState<CaseScorePoint[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-
-  useEffect(() => {
-    setPoints(null);
-    setError(null);
-    api<CaseScoresResponse>(
-      `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/scores${qs(
-        { limit: String(PAGE), offset: String(offset) },
-      )}`,
-    )
-      .then((r) => setPoints(r.points))
-      .catch((e) => setError(String(e)));
-  }, [dataset, caseId, offset]);
+  const scores = useApi<CaseScoresResponse>(
+    `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/scores${qs(
+      { limit: String(PAGE), offset: String(offset) },
+    )}`,
+  );
+  const points = scores.data?.points ?? null;
+  const error = scores.error ? String(scores.error) : null;
 
   const hasMore = (points?.length ?? 0) === PAGE;
   const buckets = BUCKET_COLUMNS;
@@ -163,24 +157,17 @@ export function CasePage() {
   useFollowWorkspace(workspaceName);
   const { workspaces } = useWorkspace();
   const side = promotionSide(workspaces.find((w) => w.name === workspaceName));
-  const [example, setExample] = useState<CaseView | null>(null);
-  const [missing, setMissing] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    setMissing(null);
-    api<CaseView>(
-      `/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(exampleId)}`,
-    )
-      .then(setExample)
-      .catch((e) => {
-        if (!isNotFound(e)) return setError(String(e));
-        setMissing(String(e).includes("unknown case") ? "case" : "dataset");
-      });
-  }, [datasetId, exampleId, version]);
-
-  const reload = () => setVersion((v) => v + 1);
+  const loaded = useApi<CaseView>(
+    `/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(exampleId)}`,
+  );
+  const example = loaded.data ?? null;
+  const notFound = isNotFound(loaded.error);
+  const missing = notFound
+    ? String(loaded.error).includes("unknown case")
+      ? "case"
+      : "dataset"
+    : null;
+  const error = loaded.error && !notFound ? String(loaded.error) : null;
 
   if (missing === "dataset")
     return (
@@ -280,19 +267,17 @@ export function CasePage() {
               caseId={example.case_id}
               review={example.review}
               twin={twinPanel}
-              onChanged={reload}
+              onChanged={() => void refreshQueries()}
             />
             <CaseChangelog
               dataset={datasetId}
               caseId={example.case_id}
               currentHash={example.content_hash}
-              version={version}
             />
             <CaseComments
               dataset={datasetId}
               caseId={example.case_id}
               currentHash={example.content_hash}
-              version={version}
             />
           </div>
         ) : null}

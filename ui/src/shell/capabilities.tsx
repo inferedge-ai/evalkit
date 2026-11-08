@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { loadMeta } from "../lib/meta";
+import { queryClient } from "../lib/query";
 import type { Me } from "../lib/types";
 
 export const MeContext = createContext<Me | null>(null);
@@ -37,6 +38,9 @@ export function AuthGate() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // The gate mounts once per session (sign-in returns here), so nothing a
+    // previous user loaded in this tab is shown to the next one.
+    queryClient.clear();
     api<Me>("/auth/me")
       // Meta is auth-walled too, so it loads behind the same gate; pages then
       // read the agent list synchronously.

@@ -1,6 +1,8 @@
+import { QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { queryClient } from "../lib/query";
 import type { Me } from "../lib/types";
 import { MeContext, RequireMe } from "./capabilities";
 import { ShellOrBare, WorkspaceOrPublic } from "./layout";
@@ -16,20 +18,22 @@ const me: Me = {
 
 function render(signedIn: Me | null, path: string): string {
   return renderToStaticMarkup(
-    <MeContext.Provider value={signedIn}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route element={<WorkspaceOrPublic />}>
-            <Route element={<ShellOrBare />}>
-              <Route path="/docs/:tab" element={<div>docs body</div>} />
-              <Route element={<RequireMe />}>
-                <Route path="/datasets" element={<div>datasets body</div>} />
+    <QueryClientProvider client={queryClient}>
+      <MeContext.Provider value={signedIn}>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route element={<WorkspaceOrPublic />}>
+              <Route element={<ShellOrBare />}>
+                <Route path="/docs/:tab" element={<div>docs body</div>} />
+                <Route element={<RequireMe />}>
+                  <Route path="/datasets" element={<div>datasets body</div>} />
+                </Route>
               </Route>
             </Route>
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    </MeContext.Provider>,
+          </Routes>
+        </MemoryRouter>
+      </MeContext.Provider>
+    </QueryClientProvider>,
   );
 }
 

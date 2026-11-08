@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
-import { api, apiJson, NotFoundError } from "../lib/api";
+import { apiJson, NotFoundError } from "../lib/api";
+import { refreshQueries, setApiData, useApi } from "../lib/query";
 import { useMe } from "../shell/capabilities";
 import { LlmProviderForm } from "./LlmProviderForm";
 import { Select } from "../lib/Select";
@@ -13,26 +14,28 @@ function DefaultJudge({
   providers: LlmProviderInfo[];
   editable: boolean;
 }) {
+  const current = useApi<JudgeSettings>("/judge-default");
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("high");
   const [status, setStatus] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    api<JudgeSettings>("/judge-default")
-      .then((current) => {
-        setProvider(current.provider ?? "");
-        setModel(current.model);
-        setEffort(current.reasoning_effort);
-      })
-      .catch((e) =>
-        setStatus(
-          e instanceof NotFoundError ? "No default judge yet." : String(e),
-        ),
-      )
-      .finally(() => setLoaded(true));
-  }, []);
+  // Fill the form once, from this visit's answer rather than a cached one; a
+  // later refetch must not overwrite what the admin types.
+  if (!loaded && current.isFetchedAfterMount) {
+    setLoaded(true);
+    if (current.data) {
+      setProvider(current.data.provider ?? "");
+      setModel(current.data.model);
+      setEffort(current.data.reasoning_effort);
+    } else
+      setStatus(
+        current.error instanceof NotFoundError
+          ? "No default judge yet."
+          : String(current.error),
+      );
+  }
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -44,6 +47,7 @@ function DefaultJudge({
         reasoning_effort: effort.trim(),
       });
       setModel(saved.model);
+      await setApiData("/judge-default", saved);
       setStatus("Saved.");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));
@@ -91,27 +95,24 @@ function DefaultJudge({
 
 export function LlmProvidersPage() {
   const me = useMe();
-  const [rows, setRows] = useState<LlmProviderInfo[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const listed = useApi<LlmProviderInfo[]>(
+    "/llm-providers?include_archived=true",
+  );
+  const rows = listed.data ?? null;
+  const [actionError, setActionError] = useState<string | null>(null);
+  const error = actionError ?? (listed.error ? String(listed.error) : null);
   const [editing, setEditing] = useState<LlmProviderInfo | "new" | null>(null);
 
-  const load = () => {
-    api<LlmProviderInfo[]>("/llm-providers?include_archived=true")
-      .then(setRows)
-      .catch((e) => setError(String(e)));
-  };
-  useEffect(load, []);
-
   const toggleArchive = async (row: LlmProviderInfo) => {
-    setError(null);
+    setActionError(null);
     try {
       await apiJson(
         `/llm-providers/${encodeURIComponent(row.name)}/${row.archived ? "restore" : "archive"}`,
         "POST",
       );
-      load();
+      void refreshQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -185,7 +186,7 @@ export function LlmProvidersPage() {
           provider={editing === "new" ? undefined : editing}
           onSaved={() => {
             setEditing(null);
-            load();
+            void refreshQueries();
           }}
           onClose={() => setEditing(null)}
         />

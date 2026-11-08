@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Highlight, themes } from "prism-react-renderer";
-import { api, ApiError } from "../lib/api";
+import { ApiError } from "../lib/api";
+import { useApi } from "../lib/query";
 import {
   DOC_GROUPS,
   DOC_TABS,
@@ -65,19 +65,18 @@ function Pre({ children }: { children?: ReactNode }) {
 
 export function DocsPage() {
   const { tab } = useParams();
-  const [info, setInfo] = useState<CliInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<CliInfo>("/cli")
-      .then(setInfo)
-      .catch((e) => setError(e instanceof ApiError ? e.message : String(e)));
-  }, []);
+  const cli = useApi<CliInfo>("/cli");
+  const error =
+    cli.error instanceof ApiError
+      ? cli.error.message
+      : cli.error
+        ? String(cli.error)
+        : null;
 
   if (!isDocTab(tab)) return <Navigate to="/docs/quickstart" replace />;
   const values = {
     origin: window.location.origin,
-    version: info?.version ?? "<version>",
+    version: cli.data?.version ?? "<version>",
   };
   const body = DOC_TABS.find((t) => t.id === tab)?.body ?? "";
   return (

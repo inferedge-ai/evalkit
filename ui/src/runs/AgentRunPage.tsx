@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api } from "../lib/api";
 import { trajectoryBounds } from "../lib/atif";
+import { useApi } from "../lib/query";
 import { TimeSpan } from "../evals/bits";
 import { experimentCaseLink, runTitle } from "../lib/runs";
 import type { AtifTrajectory, RunList } from "../lib/types";
@@ -13,36 +13,22 @@ import { useFollowWorkspace } from "../shell/workspace";
 export function AgentRunPage() {
   const { agent = "", runId = "" } = useParams();
   useFollowWorkspace(splitRef(agent).workspace);
-  const [title, setTitle] = useState<string | null>(null);
-  const [caseLink, setCaseLink] = useState<string | null>(null);
   const [tab, setTab] = useState<RunTab>("trajectory");
-  const [trajectory, setTrajectory] = useState<AtifTrajectory | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setTrajectory(null);
-    setError(null);
-    api<AtifTrajectory>(
-      `/agents/${encodeURIComponent(agent)}/runs/${encodeURIComponent(runId)}/trajectory`,
-    )
-      .then(setTrajectory)
-      .catch((e) => setError(String(e)));
-  }, [agent, runId]);
+  // Trajectories are the largest payloads; drop them when the page closes.
+  const loaded = useApi<AtifTrajectory>(
+    `/agents/${encodeURIComponent(agent)}/runs/${encodeURIComponent(runId)}/trajectory`,
+    { gcTime: 0 },
+  );
+  const trajectory = loaded.data ?? null;
+  const error = loaded.error ? String(loaded.error) : null;
 
   // The trajectory carries no title; it lives on the run listing, so look it
   // up there (the same query the runs browser uses).
-  useEffect(() => {
-    setTitle(null);
-    setCaseLink(null);
-    api<RunList>(
-      `/agents/${encodeURIComponent(agent)}/runs?query=${encodeURIComponent(runId)}&limit=20`,
-    )
-      .then((list) => {
-        setTitle(runTitle(list.runs, runId));
-        setCaseLink(experimentCaseLink(list.runs, runId));
-      })
-      .catch(() => setTitle(null));
-  }, [agent, runId]);
+  const runs = useApi<RunList>(
+    `/agents/${encodeURIComponent(agent)}/runs?query=${encodeURIComponent(runId)}&limit=20`,
+  ).data?.runs;
+  const title = runs ? runTitle(runs, runId) : null;
+  const caseLink = runs ? experimentCaseLink(runs, runId) : null;
 
   return (
     <div className="page flex h-full flex-col">

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, isExperimentId, isMissing } from "../lib/api";
+import { isExperimentId, isMissing } from "../lib/api";
 import { progressLabel } from "../lib/experimentStatus";
+import { useApi } from "../lib/query";
 import { NotFound } from "../shell/NotFound";
 import { fmtDelta, fmtScore, severity } from "../lib/format";
 import {
@@ -106,32 +107,31 @@ export function ComparePage() {
   const [params] = useSearchParams();
   const base = params.get("base") ?? "";
   const compare = params.get("compare") ?? "";
-  const [data, setData] = useState<CompareResponse | null>(null);
-  const [info, setInfo] = useState<{
-    base: ExperimentInfo;
-    compare: ExperimentInfo;
-  } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [missing, setMissing] = useState(false);
   const [view, setView] = useState<"list" | "grid">("list");
   const [only, setOnly] = useState<CaseChange | null>(null);
   const [open, setOpen] = useState<Set<string>>(new Set());
 
   const validIds = isExperimentId(base) && isExperimentId(compare);
-  useEffect(() => {
-    if (!base || !compare || !validIds) return;
-    api<CompareResponse>(
-      `/experiments/compare?base=${encodeURIComponent(base)}&compare=${encodeURIComponent(compare)}`,
-    )
-      .then(setData)
-      .catch((e) => (isMissing(e) ? setMissing(true) : setError(String(e))));
-    Promise.all([
-      api<ExperimentInfo>(`/experiments/${encodeURIComponent(base)}`),
-      api<ExperimentInfo>(`/experiments/${encodeURIComponent(compare)}`),
-    ])
-      .then(([b, c]) => setInfo({ base: b, compare: c }))
-      .catch((e) => setError(String(e)));
-  }, [base, compare, validIds]);
+  const compared = useApi<CompareResponse>(
+    validIds
+      ? `/experiments/compare?base=${encodeURIComponent(base)}&compare=${encodeURIComponent(compare)}`
+      : null,
+  );
+  const baseInfo = useApi<ExperimentInfo>(
+    validIds ? `/experiments/${encodeURIComponent(base)}` : null,
+  );
+  const compareInfo = useApi<ExperimentInfo>(
+    validIds ? `/experiments/${encodeURIComponent(compare)}` : null,
+  );
+  const data = compared.data ?? null;
+  const info =
+    baseInfo.data && compareInfo.data
+      ? { base: baseInfo.data, compare: compareInfo.data }
+      : null;
+  const missing = isMissing(compared.error);
+  const loadError =
+    (missing ? null : compared.error) ?? baseInfo.error ?? compareInfo.error;
+  const error = loadError ? String(loadError) : null;
 
   if (missing || (base && compare && !validIds))
     return (

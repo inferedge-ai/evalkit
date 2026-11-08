@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api, apiJson } from "../lib/api";
+import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
+import { refreshQueries, useApi } from "../lib/query";
 import { Select } from "../lib/Select";
 import {
   importAction,
@@ -18,16 +19,12 @@ const POLL_MS = 2000;
 type Mode = "session" | "range";
 
 function SessionCheck({ agent, session }: { agent: string; session: string }) {
-  const [trajectory, setTrajectory] = useState<SessionTrajectory | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    setTrajectory(null);
-    api<SessionTrajectory>(
-      `/agents/${encodeURIComponent(agent)}/sessions/${encodeURIComponent(session)}/trajectory?esf=true`,
-    )
-      .then(setTrajectory)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [agent, session]);
+  const loaded = useApi<SessionTrajectory>(
+    `/agents/${encodeURIComponent(agent)}/sessions/${encodeURIComponent(session)}/trajectory?esf=true`,
+    { gcTime: 0 },
+  );
+  const trajectory = loaded.data;
+  const error = loaded.error?.message;
   return (
     <div className="flex flex-col gap-2">
       <div className="toolbar">
@@ -130,56 +127,40 @@ function ImportRow({
 
 export function ImportPanel({ agent }: { agent: string }) {
   const base = `/agents/${encodeURIComponent(agent)}`;
-  const [sources, setSources] = useState<TraceSourceInfo[]>([]);
-  const [source, setSource] = useState("");
+  const [pickedSource, setPickedSource] = useState("");
   const [project, setProject] = useState("");
   const [mode, setMode] = useState<Mode>("range");
   const [sessionId, setSessionId] = useState("");
   const [since, setSince] = useState("");
   const [until, setUntil] = useState("");
-  const [imports, setImports] = useState<TraceImport[] | null>(null);
   const [imported, setImported] = useState<{
     session: string;
     spans: number;
   } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  useEffect(() => {
-    api<TraceSourceInfo[]>("/trace-sources")
-      .then((list) => {
-        setSources(list);
-        if (list.length) setSource((s) => s || list[0].name);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
-
-  const load = useCallback(
-    () =>
-      api<TraceImport[]>(`${base}/imports`)
-        .then(setImports)
-        .catch((e) => setError(e instanceof Error ? e.message : String(e))),
-    [base],
-  );
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const active = imports?.some((i) => isActiveImport(i.status)) ?? false;
-  useEffect(() => {
-    if (!active) return;
-    const timer = window.setInterval(load, POLL_MS);
-    return () => window.clearInterval(timer);
-  }, [active, load]);
+  const listedSources = useApi<TraceSourceInfo[]>("/trace-sources");
+  const sources = listedSources.data ?? [];
+  const source = pickedSource || (sources[0]?.name ?? "");
+  const listedImports = useApi<TraceImport[]>(`${base}/imports`, {
+    refetchInterval: (q) =>
+      q.state.data?.some((i) => isActiveImport(i.status)) ? POLL_MS : false,
+  });
+  const imports = listedImports.data ?? null;
+  const error =
+    actionError ??
+    listedSources.error?.message ??
+    listedImports.error?.message ??
+    null;
 
   const run = async (work: () => Promise<void>) => {
     setBusy(true);
-    setError(null);
+    setActionError(null);
     try {
       await work();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -203,7 +184,7 @@ export function ImportPanel({ agent }: { agent: string }) {
         since: localToIso(since),
         until: until ? localToIso(until) : new Date().toISOString(),
       });
-      await load();
+      await refreshQueries();
     });
 
   const act = (item: TraceImport, action: "stop" | "continue") =>
@@ -212,7 +193,7 @@ export function ImportPanel({ agent }: { agent: string }) {
         `${base}/imports/${item.id}/${action}`,
         "POST",
       );
-      await load();
+      await refreshQueries();
     });
 
   const ready =
@@ -238,7 +219,7 @@ export function ImportPanel({ agent }: { agent: string }) {
               <Select
                 ariaLabel="trace source"
                 value={source}
-                onChange={setSource}
+                onChange={setPickedSource}
                 options={sources.map((s) => ({ value: s.name, label: s.name }))}
               />
             </div>

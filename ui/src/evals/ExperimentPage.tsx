@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, apiJson, isExperimentId, isMissing, qs } from "../lib/api";
+import { refreshQueries, useApi } from "../lib/query";
 import { CASE_STATE_LABEL, CASE_STATE_TONE, caseList } from "../lib/caseStates";
 import {
   STATUS_TONE,
@@ -75,65 +77,43 @@ export function ExperimentPage() {
   const [params] = useSearchParams();
   const baselineId = params.get("baseline");
 
-  const [report, setReport] = useState<Report | null>(null);
-  const [status, setStatus] = useState<ExperimentInfo | null>(null);
-  useFollowWorkspace(status?.workspace);
-  const [pinned, setPinned] = useState<CaseView[] | null>(null);
-  const [missing, setMissing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [failingOnly, setFailingOnly] = useState(false);
   const [evaluator, setEvaluator] = useState("");
   const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [busyAction, setBusyAction] = useState<string | null>(null);
 
   const validId = isExperimentId(experimentId);
-  const refresh = () => {
-    if (!validId) return;
-    api<ExperimentInfo>(`/experiments/${encodeURIComponent(experimentId)}`)
-      .then(setStatus)
-      .catch((e) => (isMissing(e) ? setMissing(true) : setError(String(e))));
-    api<Report>(
-      `/experiments/${encodeURIComponent(experimentId)}/scorecard${qs({
-        baseline_id: baselineId ?? undefined,
-      })}`,
-    )
-      .then(setReport)
-      .catch((e) => (isMissing(e) ? setMissing(true) : setError(String(e))));
-  };
-
-  useEffect(() => {
-    setReport(null);
-    setStatus(null);
-    setMissing(false);
-    setError(null);
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [experimentId, baselineId]);
-
-  useEffect(() => {
-    setPinned(null);
-    if (!validId) return;
-    api<CaseView[]>(`/experiments/${encodeURIComponent(experimentId)}/cases`)
-      .then(setPinned)
-      .catch(() => {});
-  }, [experimentId]);
-
-  const [driver, setDriver] = useState<AgentInfo["driver"] | null>(null);
+  const base = `/experiments/${encodeURIComponent(experimentId)}`;
+  // Status and scorecard load together, and an active experiment reloads
+  // both every 3 s until it settles, so the last scorecard is the final one.
+  const live = useQuery({
+    queryKey: [base, "live", baselineId],
+    queryFn: async () => {
+      const [status, report] = await Promise.all([
+        api<ExperimentInfo>(base),
+        api<Report>(
+          `${base}/scorecard${qs({ baseline_id: baselineId ?? undefined })}`,
+        ),
+      ]);
+      return { status, report };
+    },
+    enabled: validId,
+    refetchInterval: (q) =>
+      q.state.data && isActive(q.state.data.status.status) ? 3000 : false,
+  });
+  const status = live.data?.status ?? null;
+  const report = live.data?.report ?? null;
+  useFollowWorkspace(status?.workspace);
+  const missing = isMissing(live.error);
+  const error =
+    actionError ?? (live.error && !missing ? String(live.error) : null);
+  const pinned = useApi<CaseView[]>(validId ? `${base}/cases` : null).data;
   const agentRef = status?.agent;
-  useEffect(() => {
-    if (!agentRef) return;
-    api<AgentInfo>(`/agents/${encodeURIComponent(agentRef)}`)
-      .then((a) => setDriver(a.driver))
-      .catch(() => setDriver(null));
-  }, [agentRef]);
-
-  // An active experiment refreshes itself until it settles.
-  useEffect(() => {
-    if (!status || !isActive(status.status)) return;
-    const timer = setInterval(refresh, 3000);
-    return () => clearInterval(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status?.status]);
+  const driver =
+    useApi<AgentInfo>(
+      agentRef ? `/agents/${encodeURIComponent(agentRef)}` : null,
+    ).data?.driver ?? null;
 
   const action = async (verb: "evaluate" | "resume") => {
     if (
@@ -146,17 +126,14 @@ export function ExperimentPage() {
     )
       return;
     setBusyAction(verb);
-    setError(null);
+    setActionError(null);
     try {
-      await apiJson(
-        `/experiments/${encodeURIComponent(experimentId)}/${verb}`,
-        "POST",
-      );
+      await apiJson(`${base}/${verb}`, "POST");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusyAction(null);
-      refresh();
+      void refreshQueries();
     }
   };
 
