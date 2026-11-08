@@ -1,5 +1,15 @@
 import { Fragment, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AgentForm } from "./AgentForm";
 import { HarnessCheckPanel } from "./HarnessCheckPanel";
 import { ImportPanel } from "./ImportPanel";
@@ -85,13 +95,21 @@ const DRIVERS: Record<AgentInfo["driver"], string> = {
   sdk: "the SDK (evalkit.sdk.run_experiment)",
 };
 
+// A fresh page per agent, so a form or confirmation left open on one can't
+// act on the next after Back or Forward.
 export function AgentPage() {
+  const { agent } = useParams();
+  return <AgentView key={agent} />;
+}
+
+function AgentView() {
   const { agent: slug = "", tab } = useParams();
   useFollowWorkspace(splitRef(slug).workspace);
   const navigate = useNavigate();
   const me = useMe();
   const [actionError, setActionError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
 
   const path = `/agents/${encodeURIComponent(slug)}`;
   const loaded = useApi<AgentInfo>(path);
@@ -124,12 +142,6 @@ export function AgentPage() {
     : [];
   const archive = async () => {
     if (!agent) return;
-    if (
-      !window.confirm(
-        `Archive ${agent.ref}? Nobody can run it until it's restored. Its runs and results stay.`,
-      )
-    )
-      return;
     setActionError(null);
     try {
       setAgent(
@@ -175,7 +187,10 @@ export function AgentPage() {
             >
               Edit
             </button>
-            <button className="btn btn-sm" onClick={archive}>
+            <button
+              className="btn btn-sm"
+              onClick={() => setConfirmingArchive(true)}
+            >
               Archive
             </button>
           </>
@@ -223,6 +238,33 @@ export function AgentPage() {
               onClose={() => setEditing(false)}
             />
           )}
+          <AlertDialog
+            open={confirmingArchive}
+            onOpenChange={setConfirmingArchive}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Archive {agent.ref}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Nobody can run it until it&apos;s restored. Its runs and
+                  results stay.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    // The closing dialog stays clickable; a double click acts once.
+                    if (!confirmingArchive) return;
+                    setConfirmingArchive(false);
+                    void archive();
+                  }}
+                >
+                  Archive
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </div>

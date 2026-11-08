@@ -40,7 +40,14 @@ export function syncLabel(ds: Dataset): string[] {
   return parts;
 }
 
+// A fresh page per dataset, so the run launcher left open on one can't start
+// runs on the next after Back or Forward.
 export function DatasetPage() {
+  const { ref } = useParams();
+  return <DatasetView key={ref} />;
+}
+
+function DatasetView() {
   const { ref = "", tab = "experiments" } = useParams();
   useFollowWorkspace(splitRef(ref).workspace);
   const navigate = useNavigate();

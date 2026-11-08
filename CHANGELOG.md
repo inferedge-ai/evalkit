@@ -29,6 +29,16 @@
   and pause while the browser tab is in the background. Failed loads are not
   retried. Signing in clears everything loaded earlier in the tab, so the next
   user never sees the previous user's pages.
+- The web UI's forms for launching a run, creating or editing an agent, a
+  remote evaluator or an LLM provider open in a shadcn dialog: focus stays
+  inside it, and Esc or a click outside closes it without saving. Archiving an
+  agent and re-evaluating an experiment whose runs have not all completed ask
+  in a confirmation dialog instead of the browser's `confirm()` box. Going
+  Back or Forward to another experiment, agent or dataset closes any dialog
+  left open on the previous one. The UI gains shadcn's components under
+  `ui/src/components/ui/` and the
+  `@base-ui/react`, `class-variance-authority` and `lucide-react`
+  dependencies.
 - The web UI's tables (experiments, a dataset's cases and experiments, an
   experiment's and a comparison's case matrix, a case's score history, reviews,
   runs) are AG Grid Community grids (`ag-grid-community`, `ag-grid-react`) in

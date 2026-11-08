@@ -156,7 +156,9 @@ function SelectMenu<T extends string | number>({
       if (hi === moreAt) setExpanded(true);
       else pick(shown[hi]);
     } else if (e.key === "Escape") {
+      // A dialog around the select would close on this Escape too.
       e.preventDefault();
+      e.stopPropagation();
       close();
     } else if (e.key === "Tab") {
       setOpen(false);
