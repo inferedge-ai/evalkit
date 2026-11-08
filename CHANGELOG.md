@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- The web UI uses the InferEdge design tokens shared with nextapp: Roboto at
+  14px (was the system font at 13px), nextapp's colours in light and dark
+  mode, and shadcn's setup (`ui/components.json`, the `@/` import alias). Dark
+  mode is the `dark` class on `<html>` instead of `data-theme="dark"`. A
+  deploy's `server.accent_color` now sets the primary colour through the
+  `--deploy-accent` CSS variable instead of `--accent`, which shadcn uses.
+  UI tests can render components with jsdom and Testing Library.
+
 ## 0.4.0
 
 - evalkit is now licensed under Apache-2.0 instead of AGPL-3.0 (`LICENSE`).

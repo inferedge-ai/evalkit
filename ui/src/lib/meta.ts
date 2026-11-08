@@ -20,16 +20,16 @@ export async function loadMeta(): Promise<void> {
   applyAccent(meta.accent_color);
 }
 
-// The deploy's accent colour becomes --accent on <html>; theme.css derives
-// the brand, hover, ring and tint shades from it under [data-accent].
+// The deploy's accent colour becomes --deploy-accent on <html>; theme.css
+// makes it the primary colour under [data-accent].
 export function applyAccent(color: string | null): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   if (color) {
-    root.style.setProperty("--accent", color);
+    root.style.setProperty("--deploy-accent", color);
     root.dataset.accent = "";
   } else {
-    root.style.removeProperty("--accent");
+    root.style.removeProperty("--deploy-accent");
     delete root.dataset.accent;
   }
 }

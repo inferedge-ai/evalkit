@@ -1,21 +1,23 @@
+@import "./styles/tokens/semantic.css";
+@import "./styles/tokens/brand.css";
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/shadcn.css";
+@import "@fontsource-variable/roboto/wght.css";
 @import "@fontsource-variable/jetbrains-mono/wght.css";
 
 @theme {
-  --color-brand: rgb(46 103 200);
-  --color-brand-hover: rgb(32 72 140);
-  --color-brand-ring: rgb(46 103 200 / 0.24);
-
-  --color-n-0: rgb(255 255 255);
-  --color-n-25: rgb(249 250 251);
-  --color-n-50: rgb(243 244 246);
-  --color-n-100: rgb(229 231 235);
-  --color-n-200: rgb(209 213 219);
-  --color-n-300: rgb(156 163 175);
-  --color-n-400: rgb(107 114 128);
-  --color-n-500: rgb(75 85 99);
-  --color-n-700: rgb(31 41 55);
-  --color-n-800: rgb(17 24 39);
+  /* The grey steps sit on Tailwind's gray, as nextapp's tokens do; .dark flips them. */
+  --color-n-0: var(--color-white);
+  --color-n-25: var(--color-gray-50);
+  --color-n-50: var(--color-gray-100);
+  --color-n-100: var(--color-gray-200);
+  --color-n-200: var(--color-gray-300);
+  --color-n-300: var(--color-gray-400);
+  --color-n-400: var(--color-gray-500);
+  --color-n-500: var(--color-gray-600);
+  --color-n-700: var(--color-gray-800);
+  --color-n-800: var(--color-gray-900);
 
   --color-ok: rgb(21 128 61);
   --color-ok-bg: rgb(22 163 74 / 0.1);
@@ -24,7 +26,7 @@
   --color-err-bg: rgb(220 38 38 / 0.1);
   --color-warn: rgb(180 83 9);
   --color-warn-bg: rgb(245 158 11 / 0.1);
-  --color-info-bg: rgb(46 103 200 / 0.1);
+  --color-info-bg: color-mix(in oklab, var(--primary) 10%, transparent);
 
   --color-kind-system: rgb(100 116 139);
   --color-kind-user: rgb(21 128 61);
@@ -32,11 +34,7 @@
   --color-kind-tool: rgb(124 58 237);
   --color-kind-subagent: rgb(13 148 136);
 
-  /* Chrome runs on the platform UI face; the data face is the one we ship.
-     Ids, paths, case ids, scores and durations are most of the content here,
-     so that is where a real typeface earns its download. */
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-sans: "Roboto Variable", system-ui, sans-serif;
   --font-mono:
     "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, monospace;
 
@@ -46,57 +44,65 @@
   --text-micro--line-height: 15px;
   --text-meta: 12px;
   --text-meta--line-height: 17px;
-  --text-body: 13px;
-  --text-body--line-height: 19px;
-  --text-lede: 14px;
-  --text-lede--line-height: 21px;
+  --text-body: 14px;
+  --text-body--line-height: 20px;
+  --text-lede: 15px;
+  --text-lede--line-height: 22px;
   --text-head: 16px;
   --text-head--line-height: 22px;
   --text-title: 19px;
   --text-title--line-height: 26px;
 
-  /* Roles, not ramp steps. Components name what a colour is for; the ramp
-     above (and the dark/prod overrides below) decide what it looks like. */
-  --color-canvas: var(--color-n-25);
-  --color-surface: var(--color-n-0);
-  --color-fill: var(--color-n-50);
+  /* Roles, not ramp steps. Components name what a colour is for; nextapp's
+     tokens (styles/tokens) decide what it looks like. */
+  --color-canvas: var(--background);
+  --color-surface: var(--card);
+  --color-fill: var(--muted);
   --color-hover: var(--color-n-25);
-  --color-line: var(--color-n-100);
-  --color-line-soft: var(--color-n-50);
-  --color-line-strong: var(--color-n-200);
-  --color-ink: var(--color-n-800);
+  --color-line: var(--border);
+  --color-line-soft: color-mix(in oklab, var(--border) 50%, var(--background));
+  --color-line-strong: color-mix(
+    in oklab,
+    var(--border),
+    var(--foreground) 20%
+  );
+  --color-ink: var(--foreground);
   --color-ink-2: var(--color-n-500);
   --color-ink-3: var(--color-n-400);
   --color-ink-4: var(--color-n-300);
+  --color-brand: var(--primary);
+  --color-brand-hover: color-mix(
+    in oklab,
+    var(--primary) 80%,
+    var(--foreground)
+  );
+  --color-brand-ring: color-mix(in oklab, var(--ring) 24%, transparent);
 }
 
-/* A deploy can pick its own accent (server.accent_color, applied as --accent
-   by loadMeta) so prod, staging and dev are told apart at a glance. Every
-   brand shade derives from that one colour. */
+/* A deploy can pick its own accent (server.accent_color, applied as
+   --deploy-accent by loadMeta) so prod, staging and dev are told apart at a
+   glance. It replaces the brand blue. */
 [data-accent] {
-  --color-brand: var(--accent);
-  --color-brand-hover: color-mix(in srgb, var(--accent) 72%, black);
-  --color-brand-ring: color-mix(in srgb, var(--accent) 24%, transparent);
-  --color-info-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+  --primary: var(--deploy-accent);
+  --ring: var(--deploy-accent);
 }
 
-/* Dark theme: the neutral ramp inverts, accents lighten for contrast. All
-   component styles read these variables, so this block is the whole theme. */
-[data-theme="dark"] {
-  --color-brand: rgb(107 154 232);
-  --color-brand-hover: rgb(144 181 243);
-  --color-brand-ring: rgb(107 154 232 / 0.3);
+.dark[data-accent] {
+  --primary: color-mix(in oklab, var(--deploy-accent) 70%, white);
+  --ring: color-mix(in oklab, var(--deploy-accent) 70%, white);
+}
 
-  --color-n-0: rgb(23 30 44);
-  --color-n-25: rgb(15 21 33);
-  --color-n-50: rgb(33 42 58);
-  --color-n-100: rgb(50 61 80);
-  --color-n-200: rgb(71 83 104);
-  --color-n-300: rgb(112 125 148);
-  --color-n-400: rgb(148 161 182);
-  --color-n-500: rgb(190 200 215);
-  --color-n-700: rgb(226 232 240);
-  --color-n-800: rgb(241 245 249);
+.dark {
+  --color-n-0: var(--color-gray-900);
+  --color-n-25: var(--color-gray-950);
+  --color-n-50: var(--color-gray-800);
+  --color-n-100: var(--color-gray-700);
+  --color-n-200: var(--color-gray-600);
+  --color-n-300: var(--color-gray-500);
+  --color-n-400: var(--color-gray-400);
+  --color-n-500: var(--color-gray-300);
+  --color-n-700: var(--color-gray-200);
+  --color-n-800: var(--color-gray-50);
 
   --color-ok: rgb(74 210 130);
   --color-ok-bg: rgb(34 197 94 / 0.14);
@@ -105,20 +111,13 @@
   --color-err-bg: rgb(239 68 68 / 0.16);
   --color-warn: rgb(240 176 76);
   --color-warn-bg: rgb(245 158 11 / 0.14);
-  --color-info-bg: rgb(107 154 232 / 0.15);
+  --color-info-bg: color-mix(in oklab, var(--primary) 15%, transparent);
 
   --color-kind-system: rgb(148 163 184);
   --color-kind-user: rgb(74 210 130);
   --color-kind-agent: rgb(96 165 250);
   --color-kind-tool: rgb(167 139 250);
   --color-kind-subagent: rgb(45 212 191);
-}
-
-[data-theme="dark"][data-accent] {
-  --color-brand: color-mix(in srgb, var(--accent) 70%, white);
-  --color-brand-hover: color-mix(in srgb, var(--accent) 55%, white);
-  --color-brand-ring: color-mix(in srgb, var(--accent) 30%, transparent);
-  --color-info-bg: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 body {
