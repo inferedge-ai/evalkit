@@ -39,7 +39,7 @@ export function AuthGate() {
   useEffect(() => {
     api<Me>("/auth/me")
       // Meta is auth-walled too, so it loads behind the same gate; pages then
-      // read the accent / agent list synchronously.
+      // read the agent list synchronously.
       .then(async (m) => {
         await loadMeta();
         setMe(m);

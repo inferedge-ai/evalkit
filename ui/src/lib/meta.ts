@@ -1,13 +1,12 @@
-// One fetch per session: /api/meta carries deploy-wide facts (accent
-// colour, configured agents). The AuthGate loads it before the
-// app renders, so every page can read it synchronously.
+// One fetch per session: /api/meta carries deploy-wide facts (configured
+// agents, trace sources). The AuthGate loads it before the app renders, so
+// every page can read it synchronously.
 
 import { api } from "./api";
 import { httpUrl } from "./safeUrl";
 import type { Meta } from "./types";
 
 const EMPTY: Meta = {
-  accent_color: null,
   agents: [],
   agent_repos: {},
 };
@@ -17,13 +16,19 @@ let meta: Meta | null = null;
 export async function loadMeta(): Promise<void> {
   if (meta) return;
   meta = await api<Meta>("/meta").catch(() => EMPTY);
-  applyAccent(meta.accent_color);
+}
+
+// /api/appearance needs no sign-in, so the login page shows the accent too.
+export async function loadAccent(): Promise<void> {
+  const { accent_color } = await api<{ accent_color: string | null }>(
+    "/appearance",
+  ).catch(() => ({ accent_color: null }));
+  applyAccent(accent_color);
 }
 
 // The deploy's accent colour becomes --deploy-accent on <html>; theme.css
-// makes it the primary colour under [data-accent].
-export function applyAccent(color: string | null): void {
-  if (typeof document === "undefined") return;
+// draws it as a strip along the top of the page.
+function applyAccent(color: string | null): void {
   const root = document.documentElement;
   if (color) {
     root.style.setProperty("--deploy-accent", color);

@@ -7,10 +7,14 @@
   system font at 13px), new light and dark colours with a white page in light
   mode and slightly darker borders, and a larger corner radius (`rounded-md`
   is 8px, was 6px). Dark mode is the `dark` class on `<html>` instead of
-  `data-theme="dark"`. A deploy's `server.accent_color` now sets the primary
-  colour through the `--deploy-accent` CSS variable instead of `--accent`,
-  which shadcn uses. UI tests can render components with jsdom and Testing
+  `data-theme="dark"`. UI tests can render components with jsdom and Testing
   Library.
+- A deploy's `server.accent_color` no longer recolours the web UI's buttons and
+  links, which stay the brand blue. It draws a 3px strip along the top of
+  every page, the login page included. The colour comes from the new public
+  `GET /api/appearance` (`{"accent_color": ...}`), and `GET /api/meta` no
+  longer returns `accent_color`. Before, the colour loaded only after sign-in,
+  so the login page was blue and signed-in pages took the accent.
 - The web UI header shows only "Evalkit"; the InferEdge lockup beside it is
   gone.
 - `ui/package.json` overrides the KaTeX that `rehype-katex` and `remark-math`

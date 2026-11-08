@@ -55,7 +55,7 @@
 
   /* Roles, not ramp steps. Components name what a colour is for; the tokens
      in styles/tokens decide what it looks like. Roles resolve on <html>, so
-     .dark and [data-accent] only work there. */
+     .dark only works there. */
   --color-canvas: var(--background);
   --color-surface: var(--card);
   --color-fill: var(--muted);
@@ -81,16 +81,16 @@
 }
 
 /* A deploy can pick its own accent (server.accent_color, applied as
-   --deploy-accent by loadMeta) so prod, staging and dev are told apart at a
-   glance. It replaces the brand blue. */
-[data-accent] {
-  --primary: var(--deploy-accent);
-  --ring: var(--deploy-accent);
-}
-
-.dark[data-accent] {
-  --primary: color-mix(in oklab, var(--deploy-accent) 70%, white);
-  --ring: color-mix(in oklab, var(--deploy-accent) 70%, white);
+   --deploy-accent by loadAccent) so prod, staging and dev are told apart at a
+   glance: a strip along the top of every page. */
+[data-accent]::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 1000;
+  height: 3px;
+  background: var(--deploy-accent);
+  pointer-events: none;
 }
 
 .dark {

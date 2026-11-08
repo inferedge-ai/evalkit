@@ -25,7 +25,7 @@ Any value can be `env:NAME` (required) or `env:NAME:<default>`. Unknown keys fai
 | Key | Default | What it does |
 | -- | -- | -- |
 | `server.base_url` | required | The URL in links the CLI prints. `evalkit serve` binds its port (`8020` when it has none) unless `--port` is given. |
-| `server.accent_color` | none | A CSS color for the web UI's accent. |
+| `server.accent_color` | none | A CSS color for a strip along the top of every web UI page, so each environment is told apart at a glance. |
 | `db.url` | required | Postgres URL, e.g. `postgresql+psycopg://localhost/evalkit`. |
 | `db.migrate_on_start` | `false` | Run `evalkit db upgrade` at startup. |
 | `db.pool_size`, `db.max_overflow`, `db.pool_timeout_seconds` | `20`, `10`, `5` | See [Database pool and scoring](#database-pool-and-scoring). |
