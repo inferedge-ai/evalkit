@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
@@ -144,7 +144,7 @@ function Preview({
 
 export function MappingsPanel({ agent }: { agent: string }) {
   const [viewing, setViewing] = useState<string | null>(null);
-  const [picked, setSelected] = useState("");
+  const [selected, setSelected] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const base = `/agents/${encodeURIComponent(agent)}`;
@@ -154,13 +154,20 @@ export function MappingsPanel({ agent }: { agent: string }) {
   const hasDraft = versions?.some((v) => v.status === "draft") ?? false;
   const listedRuns = useApi<RunList>(`${base}/runs?limit=10`);
   const sessions = listedRuns.data?.runs.map((r) => r.run_id) ?? [];
-  const selected = picked || (sessions[0] ?? "");
+  // Pin the newest session once, so a refetch after Activate keeps comparing
+  // the session the user was looking at.
+  const newest = sessions[0];
+  useEffect(() => {
+    if (!selected && newest) setSelected(newest);
+  }, [selected, newest]);
   const path = `${base}/sessions/${encodeURIComponent(selected)}/trajectory`;
   const activePreview = useApi<SessionTrajectory>(
     selected && versions ? `${path}?mapping=active&esf=true` : null,
+    { gcTime: 0 },
   );
   const draftPreview = useApi<SessionTrajectory>(
     selected && hasDraft ? `${path}?mapping=draft&esf=true` : null,
+    { gcTime: 0 },
   );
   const active = activePreview.data ?? null;
   const draft = draftPreview.data ?? null;

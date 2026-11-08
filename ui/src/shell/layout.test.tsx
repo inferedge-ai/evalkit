@@ -1,7 +1,8 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { queryClient } from "../lib/query";
 import type { Me } from "../lib/types";
 import { MeContext, RequireMe } from "./capabilities";
 import { ShellOrBare, WorkspaceOrPublic } from "./layout";
@@ -17,7 +18,7 @@ const me: Me = {
 
 function render(signedIn: Me | null, path: string): string {
   return renderToStaticMarkup(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <MeContext.Provider value={signedIn}>
         <MemoryRouter initialEntries={[path]}>
           <Routes>

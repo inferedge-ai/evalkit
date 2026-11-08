@@ -7,8 +7,9 @@
   background. After a save, archive, comment or other change, every page on
   screen refetches, so the change shows without a reload. A running
   experiment's page and the trace import panel still poll until they finish,
-  and pause while the browser tab is in the background. Server errors and
-  dropped connections are retried twice; 4xx answers are not.
+  and pause while the browser tab is in the background. Failed loads are not
+  retried. Signing in clears everything loaded earlier in the tab, so the next
+  user never sees the previous user's pages.
 
 ## 0.4.0
 

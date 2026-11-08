@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { apiJson, NotFoundError } from "../lib/api";
-import { refreshQueries, useApi } from "../lib/query";
+import { refreshQueries, setApiData, useApi } from "../lib/query";
 import { useMe } from "../shell/capabilities";
 import { LlmProviderForm } from "./LlmProviderForm";
 import { Select } from "../lib/Select";
@@ -21,8 +21,9 @@ function DefaultJudge({
   const [status, setStatus] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
 
-  // Fill the form once: a later refetch must not overwrite what the admin types.
-  if (!loaded && !current.isPending) {
+  // Fill the form once, from this visit's answer rather than a cached one; a
+  // later refetch must not overwrite what the admin types.
+  if (!loaded && current.isFetchedAfterMount) {
     setLoaded(true);
     if (current.data) {
       setProvider(current.data.provider ?? "");
@@ -46,6 +47,7 @@ function DefaultJudge({
         reasoning_effort: effort.trim(),
       });
       setModel(saved.model);
+      await setApiData("/judge-default", saved);
       setStatus("Saved.");
     } catch (err) {
       setStatus(err instanceof Error ? err.message : String(err));

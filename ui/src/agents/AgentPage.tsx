@@ -99,7 +99,7 @@ export function AgentPage() {
   const error =
     actionError ??
     (loaded.error && !isNotFound(loaded.error) ? loaded.error.message : null);
-  const setAgent = (saved: AgentInfo) => setApiData(path, saved);
+  const setAgent = (saved: AgentInfo) => void setApiData(path, saved);
 
   if (!isAgentTab(tab))
     return (
@@ -156,7 +156,7 @@ export function AgentPage() {
       setActionError(e instanceof Error ? e.message : String(e));
     }
   };
-  if (agent && !tabs.some((t) => t.id === tab))
+  if (agent && loaded.isFetchedAfterMount && !tabs.some((t) => t.id === tab))
     return (
       <Navigate to={`/agents/${encodeURIComponent(slug)}/overview`} replace />
     );

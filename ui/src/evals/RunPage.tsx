@@ -1,7 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { api, isExperimentId, isMissing } from "../lib/api";
+import { isExperimentId, isMissing } from "../lib/api";
 import { answerText, fmtGauge, outputText, questionText } from "../lib/format";
 import { useApi } from "../lib/query";
 import { trajectoryAvailable, trajectoryBadge } from "../lib/runs";
@@ -72,18 +71,16 @@ export function RunPage() {
   const run =
     runs?.find((r) => r.repetition === repetition) ?? runs?.[0] ?? null;
 
-  // Not useApi: the trajectory loads only once a trajectory tab opens, and a
-  // disabled query keeps its data, so the toolbar badge stays after leaving.
-  const trajectoryPath = run
-    ? `${base}/runs/${run.experiment_run_id}/trajectory`
-    : null;
-  const trajectoryQuery = useQuery({
-    queryKey: [trajectoryPath],
-    queryFn: () => api<AtifTrajectory>(trajectoryPath as string),
-    enabled:
-      trajectoryPath !== null &&
-      (TRAJECTORY_TABS as readonly string[]).includes(tab),
-  });
+  // Loads once a trajectory tab opens, and once per run: a disabled query keeps
+  // its data, so the toolbar badge stays on the other tabs. Dropped on close.
+  const trajectoryQuery = useApi<AtifTrajectory>(
+    run ? `${base}/runs/${run.experiment_run_id}/trajectory` : null,
+    {
+      enabled: (TRAJECTORY_TABS as readonly string[]).includes(tab),
+      staleTime: Infinity,
+      gcTime: 0,
+    },
+  );
   const trajectory = trajectoryQuery.data ?? null;
   const trajectoryError = trajectoryQuery.error
     ? String(trajectoryQuery.error)

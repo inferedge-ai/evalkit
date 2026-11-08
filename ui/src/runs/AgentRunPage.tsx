@@ -14,8 +14,10 @@ export function AgentRunPage() {
   const { agent = "", runId = "" } = useParams();
   useFollowWorkspace(splitRef(agent).workspace);
   const [tab, setTab] = useState<RunTab>("trajectory");
+  // Trajectories are the largest payloads; drop them when the page closes.
   const loaded = useApi<AtifTrajectory>(
     `/agents/${encodeURIComponent(agent)}/runs/${encodeURIComponent(runId)}/trajectory`,
+    { gcTime: 0 },
   );
   const trajectory = loaded.data ?? null;
   const error = loaded.error ? String(loaded.error) : null;

@@ -1,27 +1,25 @@
 import {
   QueryClient,
+  skipToken,
   useQuery,
   type UseQueryOptions,
   type UseQueryResult,
 } from "@tanstack/react-query";
-import { api, ApiError } from "./api";
+import { api } from "./api";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       gcTime: 5 * 60_000,
       refetchOnWindowFocus: false,
-      // A 4xx answer won't change on retry; a 5xx or a dropped connection may.
-      retry: (failures, error) =>
-        !(error instanceof ApiError && error.status < 500) && failures < 2,
+      // Many reads reach a client's harness through the server; a retry would
+      // put more load on a harness that is already failing.
+      retry: false,
     },
   },
 });
 
-type ApiQueryOptions<T> = Omit<
-  UseQueryOptions<T>,
-  "queryKey" | "queryFn" | "enabled"
->;
+type ApiQueryOptions<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn">;
 
 // One query per API path, so components that ask for the same path share it.
 // A null path waits until the caller knows what to ask for.
@@ -31,8 +29,7 @@ export function useApi<T>(
 ): UseQueryResult<T> {
   return useQuery<T>({
     queryKey: [path],
-    queryFn: () => api<T>(path as string),
-    enabled: path !== null,
+    queryFn: path === null ? skipToken : () => api<T>(path),
     ...options,
   });
 }
@@ -41,8 +38,10 @@ export function getApiData<T>(path: string): T | undefined {
   return queryClient.getQueryData<T>([path]);
 }
 
-// For a write whose response is the new state of what `path` returns.
-export function setApiData<T>(path: string, data: T): void {
+// For a write whose response is the new state of what `path` returns. A
+// refetch already in flight is cancelled so it can't land on top of it.
+export async function setApiData<T>(path: string, data: T): Promise<void> {
+  await queryClient.cancelQueries({ queryKey: [path] });
   queryClient.setQueryData([path], data);
 }
 

@@ -127,14 +127,16 @@ export function RunsBrowser() {
   const otel =
     agents.find((a) => a.ref === agent)?.trajectory_source === "otel";
 
+  // Decide on this visit's list, not a cached one that may predate a new agent.
+  const settled = listedAgents.isFetchedAfterMount && !listedAgents.isFetching;
   useEffect(() => {
     const ordered = listedAgents.data;
-    if (ordered && !ordered.some((a) => a.ref === agent))
+    if (settled && ordered && !ordered.some((a) => a.ref === agent))
       setParams(ordered.length ? { agent: ordered[0].ref } : {}, {
         replace: true,
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [listedAgents.data]);
+  }, [settled, listedAgents.data]);
 
   return (
     <div className="page">

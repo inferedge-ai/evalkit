@@ -21,6 +21,7 @@ type Mode = "session" | "range";
 function SessionCheck({ agent, session }: { agent: string; session: string }) {
   const loaded = useApi<SessionTrajectory>(
     `/agents/${encodeURIComponent(agent)}/sessions/${encodeURIComponent(session)}/trajectory?esf=true`,
+    { gcTime: 0 },
   );
   const trajectory = loaded.data;
   const error = loaded.error?.message;
@@ -126,7 +127,7 @@ function ImportRow({
 
 export function ImportPanel({ agent }: { agent: string }) {
   const base = `/agents/${encodeURIComponent(agent)}`;
-  const [picked, setSource] = useState("");
+  const [pickedSource, setPickedSource] = useState("");
   const [project, setProject] = useState("");
   const [mode, setMode] = useState<Mode>("range");
   const [sessionId, setSessionId] = useState("");
@@ -141,7 +142,7 @@ export function ImportPanel({ agent }: { agent: string }) {
 
   const listedSources = useApi<TraceSourceInfo[]>("/trace-sources");
   const sources = listedSources.data ?? [];
-  const source = picked || (sources[0]?.name ?? "");
+  const source = pickedSource || (sources[0]?.name ?? "");
   const listedImports = useApi<TraceImport[]>(`${base}/imports`, {
     refetchInterval: (q) =>
       q.state.data?.some((i) => isActiveImport(i.status)) ? POLL_MS : false,
@@ -218,7 +219,7 @@ export function ImportPanel({ agent }: { agent: string }) {
               <Select
                 ariaLabel="trace source"
                 value={source}
-                onChange={setSource}
+                onChange={setPickedSource}
                 options={sources.map((s) => ({ value: s.name, label: s.name }))}
               />
             </div>
