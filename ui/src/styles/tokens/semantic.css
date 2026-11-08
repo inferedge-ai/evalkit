@@ -1,20 +1,11 @@
-/* semantic.css — shadcn "Vega" 24-token contract + kept structural tokens.
- * Brand identity (--primary/--ring) lives in brand.css.
- * Only the 24 Vega color tokens, --radius, and non-theme structural tokens
- * (durations, z-scale, heights, widths, gap) are defined here. */
+/* shadcn's colour tokens plus structural tokens. The brand colour (--primary,
+ * --ring) lives in brand.css. */
 
 :root {
   --radius: 0.625rem;
-  /* Neutral roles reference Tailwind's own `gray` palette primitives
-   * (var(--color-gray-N)) — OKLCH, blue-tinted, single source of truth.
-   * Tailwind tree-shakes unused theme vars, so referencing them here is what
-   * emits them. Building semantics from primitives mirrors PR #6's structure;
-   * gray-N matches the website palette and keeps light + dark one hue family.
-   * Pure-white surfaces use --color-white. Brand (--primary/--ring), semantic
-   * (--destructive/--success), chart, viz, and panel tokens are NOT neutral
-   * grays and stay as-is.
-   * NOTE: the sidebar ACTIVE nav item is styled by --sidebar-accent (same as
-   * hover) in shadcn's stock SidebarMenuButton — NOT --sidebar-primary. */
+  /* Neutrals use Tailwind's gray palette; referencing it here is what makes
+   * Tailwind emit those variables. The sidebar's active item is styled by
+   * --sidebar-accent, not --sidebar-primary. */
   --background: var(--color-white);
   --foreground: var(--color-gray-900);
   --card: var(--color-white);
@@ -36,7 +27,6 @@
     0.577 0.245 27.325
   ); /* shadcn destructive red (#e7000b) — intentional, not Tailwind red-600 */
   --destructive-foreground: var(--color-white);
-  /* --success: website's success green (successShades[40]) — intentional, not a Tailwind named color */
   --success: rgb(0 204 102);
   --success-foreground: var(--color-gray-900);
   --border: var(--color-gray-300);
@@ -49,23 +39,19 @@
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: var(--color-gray-50);
   --sidebar-foreground: var(--color-gray-900);
-  --sidebar-primary: var(--color-gray-800); /* not consumed by the active state */
+  --sidebar-primary: var(--color-gray-800);
   --sidebar-primary-foreground: var(--color-gray-50);
-  --sidebar-accent: var(--color-gray-100); /* drives hover AND active item bg */
+  --sidebar-accent: var(--color-gray-100);
   --sidebar-accent-foreground: var(--color-gray-900);
   --sidebar-border: var(--color-gray-200);
   --sidebar-ring: var(--color-gray-400);
 
-  /* ── Always-dark brand panel (auth split-screen) ──────────────────
-   * Fixed, mode-independent: this surface is dark in BOTH themes.
-   * Replaces raw oklch() literals; consumed via Box bg="panel" +
-   * Text color="on-dark"/"on-dark-muted". */
+  /* A panel that is dark in both themes. */
   --panel: var(--color-gray-900);
   --panel-foreground: var(--color-gray-50);
-  --panel-foreground-muted: oklch(1 0 0 / 0.7); /* 70% white — no Tailwind alpha var */
+  --panel-foreground-muted: oklch(1 0 0 / 0.7);
 
-  /* ── KEPT structural (non-theme) tokens — only those with live
-   *    consumers (dead height/width/z tiers swept in the props refactor). */
+  /* Structural tokens, the same in both themes. */
   --duration-medium: 200ms;
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --z-sticky-container: 10;
@@ -83,9 +69,9 @@
 }
 
 .dark {
-  /* Dark neutrals = the dark end of Tailwind's gray ramp (matches the website
-   * surface scale): bg=950, card/popover/sidebar=900, muted/secondary/accent/
-   * border/input=800, muted-fg=400, fg=50. Same primitives as light. */
+  /* Dark neutrals are the dark end of Tailwind's gray: background 950,
+   * card/popover/sidebar 900, muted/secondary/accent/border/input 800,
+   * muted foreground 400, foreground 50. */
   --background: var(--color-gray-950);
   --foreground: var(--color-gray-50);
   --card: var(--color-gray-900);

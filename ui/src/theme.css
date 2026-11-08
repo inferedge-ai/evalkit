@@ -7,7 +7,7 @@
 @import "@fontsource-variable/jetbrains-mono/wght.css";
 
 @theme {
-  /* The grey steps sit on Tailwind's gray, as nextapp's tokens do; .dark flips them. */
+  /* The grey steps sit on Tailwind's gray, like the tokens; .dark flips them. */
   --color-n-0: var(--color-white);
   --color-n-25: var(--color-gray-50);
   --color-n-50: var(--color-gray-100);

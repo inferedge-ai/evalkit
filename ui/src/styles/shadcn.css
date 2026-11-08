@@ -1,5 +1,3 @@
-/* nextapp's shadcn setup (app/globals.css): keep it in step with nextapp. */
-
 /* Tell Tailwind to flip dark utilities on `<html class="dark">` (shell/theme.tsx). */
 @custom-variant dark (&:where(.dark, .dark *));
 

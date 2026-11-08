@@ -11,6 +11,12 @@
   colour through the `--deploy-accent` CSS variable instead of `--accent`,
   which shadcn uses. UI tests can render components with jsdom and Testing
   Library.
+- The web UI header shows only "Evalkit"; the InferEdge lockup beside it is
+  gone.
+- `ui/package.json` overrides the KaTeX that `rehype-katex` and `remark-math`
+  bring in (0.16.47) with the UI's own KaTeX (0.19.1), which fixes
+  GHSA-238p-pmpm-9mq7 (KaTeX below 0.18.2 can read polluted object
+  prototypes).
 
 ## 0.4.0
 
