@@ -53,14 +53,15 @@
   --text-title: 19px;
   --text-title--line-height: 26px;
 
-  /* Roles, not ramp steps. Components name what a colour is for; nextapp's
-     tokens (styles/tokens) decide what it looks like. */
+  /* Roles, not ramp steps. Components name what a colour is for; the tokens
+     in styles/tokens decide what it looks like. Roles resolve on <html>, so
+     .dark and [data-accent] only work there. */
   --color-canvas: var(--background);
   --color-surface: var(--card);
   --color-fill: var(--muted);
   --color-hover: var(--color-n-25);
   --color-line: var(--border);
-  --color-line-soft: color-mix(in oklab, var(--border) 50%, var(--background));
+  --color-line-soft: color-mix(in oklab, var(--border) 50%, var(--card));
   --color-line-strong: color-mix(
     in oklab,
     var(--border),

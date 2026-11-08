@@ -2,13 +2,15 @@
 
 ## Unreleased
 
-- The web UI uses the InferEdge design tokens shared with nextapp: Roboto at
-  14px (was the system font at 13px), nextapp's colours in light and dark
-  mode, and shadcn's setup (`ui/components.json`, the `@/` import alias). Dark
-  mode is the `dark` class on `<html>` instead of `data-theme="dark"`. A
-  deploy's `server.accent_color` now sets the primary colour through the
-  `--deploy-accent` CSS variable instead of `--accent`, which shadcn uses.
-  UI tests can render components with jsdom and Testing Library.
+- The web UI uses InferEdge's design tokens and shadcn's setup
+  (`ui/components.json`, the `@/` import alias): Roboto at 14px (was the
+  system font at 13px), new light and dark colours with a white page in light
+  mode and slightly darker borders, and a larger corner radius (`rounded-md`
+  is 8px, was 6px). Dark mode is the `dark` class on `<html>` instead of
+  `data-theme="dark"`. A deploy's `server.accent_color` now sets the primary
+  colour through the `--deploy-accent` CSS variable instead of `--accent`,
+  which shadcn uses. UI tests can render components with jsdom and Testing
+  Library.
 
 ## 0.4.0
 
