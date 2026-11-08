@@ -1,10 +1,13 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiJson, qs } from "../lib/api";
 import { questionText } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
-import type { ColDef } from "ag-grid-community";
-import type { CustomCellRendererProps } from "ag-grid-react";
+import type {
+  ColDef,
+  RowSelectionOptions,
+  SelectionColumnDef,
+} from "ag-grid-community";
 import { BUCKET_COLUMNS } from "../lib/bucketColumns";
 import {
   ColumnsMenu,
@@ -38,42 +41,17 @@ const NO_SCORES: Record<string, CaseScorePoint[]> = {};
 
 const getCaseId = (ex: CaseView) => ex.case_id;
 
-interface Selection {
-  selected: Set<string>;
-  allShown: boolean;
-  toggle: (caseId: string, on: boolean) => void;
-  toggleShown: (on: boolean) => void;
-}
+// Select all ticks the cases the column filters leave.
+const CASE_SELECTION: RowSelectionOptions<CaseView> = {
+  mode: "multiRow",
+  selectAll: "filtered",
+  enableClickSelection: false,
+};
 
-// The checkboxes read the selection from context: the grid keeps the header
-// it first rendered, and rebuilding the columns on every click would remount
-// every cell.
-const Selection = createContext<Selection | null>(null);
-
-function SelectAllHeader() {
-  const { allShown, toggleShown } = useContext(Selection)!;
-  return (
-    <input
-      type="checkbox"
-      aria-label="select all shown"
-      checked={allShown}
-      onChange={(e) => toggleShown(e.target.checked)}
-    />
-  );
-}
-
-function SelectCaseCell({ data }: CustomCellRendererProps<CaseView>) {
-  const { selected, toggle } = useContext(Selection)!;
-  if (!data) return null;
-  return (
-    <input
-      type="checkbox"
-      aria-label={`select ${data.case_id}`}
-      checked={selected.has(data.case_id)}
-      onChange={(e) => toggle(data.case_id, e.target.checked)}
-    />
-  );
-}
+const SELECTION_COLUMN: SelectionColumnDef = {
+  lockPosition: "left",
+  resizable: false,
+};
 
 export function DatasetCasesTab({
   dataset,
@@ -96,7 +74,7 @@ export function DatasetCasesTab({
   const otherWorkspace = linked?.promotes_to ?? linked?.promoted_from ?? null;
   const twinColumn = reviewable && side !== null && otherWorkspace !== null;
   const [pickedReviewer, setReviewer] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -107,10 +85,6 @@ export function DatasetCasesTab({
   );
   const examples = cases.data ?? null;
   const error = actionError ?? (cases.error ? String(cases.error) : null);
-
-  useEffect(() => {
-    setSelected(new Set());
-  }, [dataset]);
 
   const reviewers =
     useApi<MemberRow[]>(
@@ -150,22 +124,9 @@ export function DatasetCasesTab({
     return state ? matched.filter((ex) => ex.review?.state === state) : matched;
   }, [examples, needle, state]);
   const grid = useDataGrid<CaseView>("dataset-cases");
-  const shown = grid.filteredRows ?? rows;
 
   const columns = useMemo<ColDef<CaseView>[]>(
     () => [
-      {
-        colId: "select",
-        lockPosition: "left",
-        lockVisible: true,
-        sortable: false,
-        resizable: false,
-        initialFlex: 0,
-        initialWidth: 44,
-        minWidth: 44,
-        headerComponent: SelectAllHeader,
-        cellRenderer: SelectCaseCell,
-      },
       {
         colId: "id",
         headerName: "id",
@@ -295,32 +256,15 @@ export function DatasetCasesTab({
       await apiJson(
         `/datasets/${encodeURIComponent(dataset)}/review-requests`,
         "POST",
-        { selection: { case_ids: [...selected] }, reviewer },
+        { selection: { case_ids: selected }, reviewer },
       );
-      setSelected(new Set());
+      grid.api?.deselectAll();
       await refreshQueries();
     } catch (e) {
       setActionError(String(e));
     } finally {
       setBusy(false);
     }
-  };
-
-  const selection: Selection = {
-    selected,
-    allShown: shown.length > 0 && shown.every((ex) => selected.has(ex.case_id)),
-    toggle: (caseId, on) => {
-      const next = new Set(selected);
-      if (on) next.add(caseId);
-      else next.delete(caseId);
-      setSelected(next);
-    },
-    toggleShown: (on) =>
-      setSelected(
-        on
-          ? new Set([...selected, ...shown.map((ex) => ex.case_id)])
-          : new Set(),
-      ),
   };
 
   if (error) return <div className="pane-status error">{error}</div>;
@@ -360,16 +304,16 @@ export function DatasetCasesTab({
           />
         )}
         <span className="row-meta num ml-auto">
-          {loading ? "Loading…" : `${shown.length} cases`}
+          {loading ? "Loading…" : `${grid.filteredCount ?? rows.length} cases`}
         </span>
         <ColumnsMenu grid={grid} />
       </div>
-      {selected.size > 0 && (
+      {selected.length > 0 && (
         <div className="toolbar mb-2 rounded-md border border-brand bg-info-bg px-3 py-2">
-          <span className="font-medium">{selected.size} selected</span>
+          <span className="font-medium">{selected.length} selected</span>
           <button
             className="btn btn-sm btn-primary"
-            onClick={() => onRun([...selected])}
+            onClick={() => onRun(selected)}
           >
             Run selected
           </button>
@@ -394,22 +338,25 @@ export function DatasetCasesTab({
           )}
           <button
             className="btn btn-sm ml-auto"
-            onClick={() => setSelected(new Set())}
+            onClick={() => grid.api?.deselectAll()}
           >
             ✕
           </button>
         </div>
       )}
-      <Selection.Provider value={selection}>
-        <DataGrid
-          grid={grid}
-          rows={rows}
-          columns={columns}
-          getRowId={getCaseId}
-          loading={loading}
-          empty="No cases match this filter."
-        />
-      </Selection.Provider>
+      <DataGrid
+        grid={grid}
+        rows={rows}
+        columns={columns}
+        getRowId={getCaseId}
+        loading={loading}
+        empty="No cases match this filter."
+        rowSelection={CASE_SELECTION}
+        selectionColumnDef={SELECTION_COLUMN}
+        onSelectionChanged={({ api }) =>
+          setSelected(api.getSelectedRows().map(getCaseId))
+        }
+      />
     </>
   );
 }

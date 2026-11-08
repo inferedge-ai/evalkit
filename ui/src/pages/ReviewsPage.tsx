@@ -142,7 +142,7 @@ export function ReviewsPage() {
           {error
             ? ""
             : items
-              ? `${(grid.filteredRows ?? items).length} ${changes ? "awaiting an edit" : "waiting"}`
+              ? `${grid.filteredCount ?? items.length} ${changes ? "awaiting an edit" : "waiting"}`
               : "Loading…"}
         </span>
         <ColumnsMenu grid={grid} />

@@ -107,8 +107,14 @@ test("with a column filter set, select all and Run selected take only the cases 
   fireEvent.click(screen.getByRole("button", { name: "Apply" }));
   await screen.findByText("2 cases");
 
-  fireEvent.click(screen.getByRole("checkbox", { name: "select all shown" }));
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Column with Header Selection" }),
+  );
   fireEvent.click(await screen.findByRole("button", { name: "Run selected" }));
 
-  expect(onRun).toHaveBeenCalledWith(["refund-window", "refund-partial"]);
+  expect(onRun).toHaveBeenCalledTimes(1);
+  expect(onRun.mock.calls[0][0].toSorted()).toEqual([
+    "refund-partial",
+    "refund-window",
+  ]);
 });

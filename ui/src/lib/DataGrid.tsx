@@ -8,12 +8,14 @@ import type {
 } from "ag-grid-react";
 import {
   CellStyleModule,
-  ClientSideRowModelApiModule,
   ClientSideRowModelModule,
   ColumnApiModule,
   ColumnAutoSizeModule,
   ModuleRegistry,
   PinnedRowModule,
+  RowApiModule,
+  RowSelectionModule,
+  SELECTION_COLUMN_ID,
   ScrollApiModule,
   TextFilterModule,
   TooltipModule,
@@ -40,11 +42,12 @@ import { gridTheme } from "./aggrid/theme";
 
 ModuleRegistry.registerModules([
   CellStyleModule,
-  ClientSideRowModelApiModule,
   ClientSideRowModelModule,
   ColumnApiModule,
   ColumnAutoSizeModule,
   PinnedRowModule,
+  RowApiModule,
+  RowSelectionModule,
   ScrollApiModule,
   TextFilterModule,
   TooltipModule,
@@ -91,8 +94,8 @@ type ColumnEvents<T> = Required<
 
 export interface DataGridHandle<T> {
   api: GridApi<T> | null;
-  // The rows the column filters leave, or null while no column filter is set.
-  filteredRows: T[] | null;
+  // How many rows the column filters leave, or null with no column filter set.
+  filteredCount: number | null;
   reset: () => void;
   events: ColumnEvents<T>;
 }
@@ -107,7 +110,7 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
   const [api, setApi] = useState<GridApi<T> | null>(null);
   // Re-renders the caller's column toggles when the layout changes.
   const [, setLayout] = useState("");
-  const [filteredRows, setFilteredRows] = useState<T[] | null>(null);
+  const [filteredCount, setFilteredCount] = useState<number | null>(null);
   const saved = useRef<ColumnState[] | null>(null);
   const restoredColumns = useRef("");
 
@@ -148,19 +151,13 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
       saved.current = mergeColumnState(loadLayout(), grid.getColumnState());
       saveColumnState(tableId, saved.current);
     };
-    const collectFilteredRows = ({ api: grid }: { api: GridApi<T> }) => {
-      if (!grid.isAnyFilterPresent()) return setFilteredRows(null);
-      const rows: T[] = [];
-      grid.forEachNodeAfterFilter(({ data }) => data && rows.push(data));
-      setFilteredRows((prev) =>
-        prev?.length === rows.length && prev.every((r, i) => r === rows[i])
-          ? prev
-          : rows,
+    const countFilteredRows = ({ api: grid }: { api: GridApi<T> }) =>
+      setFilteredCount(
+        grid.isAnyFilterPresent() ? grid.getDisplayedRowCount() : null,
       );
-    };
     return {
       api,
-      filteredRows,
+      filteredCount,
       reset: () => {
         saved.current = [];
         saveColumnState(tableId, []);
@@ -171,7 +168,7 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
         onGridPreDestroyed: () => {
           restoredColumns.current = "";
           setApi(null);
-          setFilteredRows(null);
+          setFilteredCount(null);
         },
         onNewColumnsLoaded: restoreLayout,
         onSortChanged: saveLayout,
@@ -179,10 +176,10 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
         onColumnVisible: saveLayout,
         onColumnResized: saveLayout,
         onColumnPinned: saveLayout,
-        onModelUpdated: collectFilteredRows,
+        onModelUpdated: countFilteredRows,
       },
     };
-  }, [tableId, api, filteredRows]);
+  }, [tableId, api, filteredCount]);
 }
 
 function EmptyRows({
@@ -204,6 +201,9 @@ export function DataGrid<T>({
   pinnedBottomRowData,
   getRowHeight,
   autoSizeStrategy,
+  rowSelection,
+  selectionColumnDef,
+  onSelectionChanged,
 }: {
   grid: DataGridHandle<T>;
   rows: T[];
@@ -216,7 +216,12 @@ export function DataGrid<T>({
   height?: string;
 } & Pick<
   AgGridReactProps<T>,
-  "pinnedBottomRowData" | "getRowHeight" | "autoSizeStrategy"
+  | "pinnedBottomRowData"
+  | "getRowHeight"
+  | "autoSizeStrategy"
+  | "rowSelection"
+  | "selectionColumnDef"
+  | "onSelectionChanged"
 >) {
   // AG Grid reads getRowId once: pass a function that doesn't change.
   const rowId = useCallback(
@@ -242,6 +247,9 @@ export function DataGrid<T>({
         pinnedBottomRowData={pinnedBottomRowData}
         getRowHeight={getRowHeight}
         autoSizeStrategy={autoSizeStrategy}
+        rowSelection={rowSelection}
+        selectionColumnDef={selectionColumnDef}
+        onSelectionChanged={onSelectionChanged}
       />
     </div>
   );
@@ -273,7 +281,9 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
 
   const api = grid.api;
   const all = api?.getAllGridColumns() ?? [];
-  const movable = all.filter((c) => !c.getColDef().lockVisible);
+  const movable = all.filter(
+    (c) => !c.getColDef().lockVisible && c.getColId() !== SELECTION_COLUMN_ID,
+  );
 
   return (
     <div className="relative" ref={rootRef}>

@@ -45,12 +45,16 @@
   place of `@tanstack/react-table`. Rows are 28px and a cell's content stays on
   one line, cut off with its full text on hover where it was wrapped before.
   Columns can be resized, dragged to a new order, sorted, hidden, and filtered
-  where they hold text. The Reviews, Runs and score history tables gain the
-  Columns menu. Each table still remembers its sort, column order, widths and
-  hidden columns in the browser, in a new format, so layouts saved before this
-  release are dropped once. The matrix's evaluator descriptions are in the
-  header's tooltip instead of an ⓘ, and picking a score card scrolls the
-  matrix to that evaluator's column.
+  where they hold text; a page's row count follows those filters. The Reviews,
+  Runs and score history tables gain the Columns menu. Each table still
+  remembers its sort, column order, widths and hidden columns in the browser,
+  in a new format, so layouts saved before this release are dropped once. On a
+  dataset's Cases tab, select all ticks the cases the column filters leave, and
+  the search box and review-state filter drop the cases they hide from the
+  selection. The experiments list's second `cases` column (which cases ran) is
+  headed `selection`. In the case matrix, the case column fits its content on
+  every load, the evaluator descriptions are in the header's tooltip instead of
+  an ⓘ, and picking a score card scrolls the matrix to that evaluator's column.
 
 ## 0.4.0
 
