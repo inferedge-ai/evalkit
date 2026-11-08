@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- The web UI loads its data with TanStack Query (`ui/src/lib/query.ts`). A
+  page you come back to shows its last data at once and refreshes it in the
+  background. After a save, archive, comment or other change, every page on
+  screen refetches, so the change shows without a reload. A running
+  experiment's page and the trace import panel still poll until they finish,
+  and pause while the browser tab is in the background. Server errors and
+  dropped connections are retried twice; 4xx answers are not.
+
 ## 0.4.0
 
 - evalkit is now licensed under Apache-2.0 instead of AGPL-3.0 (`LICENSE`).

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, qs } from "../lib/api";
+import { qs } from "../lib/api";
 import { DataTable, useDataTable } from "../lib/DataTable";
 import type { Column } from "../lib/DataTable";
 import { fmtWhen } from "../lib/format";
+import { useApi } from "../lib/query";
 import type { AgentInfo, RunList, RunListItem } from "../lib/types";
 import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
@@ -88,15 +89,34 @@ function runColumns(agent: string): Column<RunListItem>[] {
 export function RunsBrowser() {
   const { workspace, workspaces } = useWorkspace();
   const [params, setParams] = useSearchParams();
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
   const agent = params.get("agent") ?? "";
   const agentWorkspace = splitRef(agent).workspace;
   useFollowWorkspace(agentWorkspace);
   const [query, setQuery] = useState("");
   const [userId, setUserId] = useState("");
-  const [runs, setRuns] = useState<RunList | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [noSession, setNoSession] = useState(false);
+  const following =
+    agentWorkspace !== workspace.name &&
+    workspaces.some((w) => w.name === agentWorkspace);
+  const listedAgents = useApi<AgentInfo[]>(
+    following ? null : `/agents${qs({ workspace: workspace.name })}`,
+    {
+      select: (list) => [...list].sort((a, b) => a.name.localeCompare(b.name)),
+    },
+  );
+  const agents = listedAgents.data ?? [];
+  const listedRuns = useApi<RunList>(
+    agent
+      ? `/agents/${encodeURIComponent(agent)}/runs${qs({
+          query: query || undefined,
+          user_id: userId || undefined,
+          no_session: noSession ? "true" : undefined,
+        })}`
+      : null,
+  );
+  const runs = listedRuns.data ?? null;
+  const loadError = listedAgents.error ?? listedRuns.error;
+  const error = loadError ? String(loadError) : null;
   const columns = useMemo(() => runColumns(agent), [agent]);
   const table = useDataTable({
     id: "runs",
@@ -108,48 +128,13 @@ export function RunsBrowser() {
     agents.find((a) => a.ref === agent)?.trajectory_source === "otel";
 
   useEffect(() => {
-    if (
-      agentWorkspace !== workspace.name &&
-      workspaces.some((w) => w.name === agentWorkspace)
-    )
-      return;
-    let stale = false;
-    setError(null);
-    api<AgentInfo[]>(`/agents${qs({ workspace: workspace.name })}`)
-      .then((list) => {
-        if (stale) return;
-        const ordered = [...list].sort((a, b) => a.name.localeCompare(b.name));
-        setAgents(ordered);
-        if (!ordered.some((a) => a.ref === agent))
-          setParams(ordered.length ? { agent: ordered[0].ref } : {}, {
-            replace: true,
-          });
-      })
-      .catch((e) => !stale && setError(String(e)));
-    return () => {
-      stale = true;
-    };
+    const ordered = listedAgents.data;
+    if (ordered && !ordered.some((a) => a.ref === agent))
+      setParams(ordered.length ? { agent: ordered[0].ref } : {}, {
+        replace: true,
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace.name]);
-
-  useEffect(() => {
-    let stale = false;
-    setRuns(null);
-    setError(null);
-    if (!agent) return;
-    api<RunList>(
-      `/agents/${encodeURIComponent(agent)}/runs${qs({
-        query: query || undefined,
-        user_id: userId || undefined,
-        no_session: noSession ? "true" : undefined,
-      })}`,
-    )
-      .then((list) => !stale && setRuns(list))
-      .catch((e) => !stale && setError(String(e)));
-    return () => {
-      stale = true;
-    };
-  }, [agent, query, userId, noSession]);
+  }, [listedAgents.data]);
 
   return (
     <div className="page">

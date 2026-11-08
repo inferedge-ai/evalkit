@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { api, apiJson } from "../lib/api";
+import { useState } from "react";
+import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
+import { refreshQueries, useApi } from "../lib/query";
 import { isStale } from "../lib/review";
 import type { CaseComment, CommentThread } from "../lib/types";
 import { isReviewerOf } from "../lib/access";
@@ -11,38 +12,30 @@ export function CaseComments({
   dataset,
   caseId,
   currentHash,
-  version,
 }: {
   dataset: string;
   caseId: string;
   currentHash: string | undefined;
-  version: number;
 }) {
   const me = useMe();
   const base = `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/comments`;
-  const [threads, setThreads] = useState<CommentThread[] | null>(null);
+  const threads =
+    useApi<{ threads: CommentThread[] }>(base).data?.threads ?? null;
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<number | null>(null);
   const [showResolved, setShowResolved] = useState(false);
-
-  useEffect(() => {
-    api<{ threads: CommentThread[] }>(base).then((r) => setThreads(r.threads));
-  }, [base, version]);
-
-  const reload = () =>
-    api<{ threads: CommentThread[] }>(base).then((r) => setThreads(r.threads));
 
   const post = async () => {
     if (!draft.trim()) return;
     await apiJson(base, "POST", { body: draft, parent_id: replyTo });
     setDraft("");
     setReplyTo(null);
-    await reload();
+    await refreshQueries();
   };
 
   const toggle = async (c: CaseComment) => {
     await apiJson(`${base}/${c.id}`, "PATCH", { resolved: !c.resolved });
-    await reload();
+    await refreshQueries();
   };
 
   const canResolve = (c: CaseComment) =>

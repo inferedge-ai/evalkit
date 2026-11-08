@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, qs } from "../lib/api";
@@ -117,8 +118,7 @@ export function JumpPalette() {
   const [kind, setKind] = useState<SearchKind | null>(null);
   const [value, setValue] = useState("");
   const [hi, setHi] = useState(0);
-  const [local, setLocal] = useState<Loaded | null>(null);
-  const [runs, setRuns] = useState<PaletteItem[] | null>(null);
+  const [runSearch, setRunSearch] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const navigate = useNavigate();
@@ -151,22 +151,31 @@ export function JumpPalette() {
       return;
     }
     inputRef.current?.focus();
-    setLocal(null);
-    loadLocal(workspace.name)
-      .then(setLocal)
-      .catch(() => {});
-  }, [open, workspace.name]);
+  }, [open]);
+
+  const local =
+    useQuery({
+      queryKey: ["palette-local", workspace.name],
+      queryFn: () => loadLocal(workspace.name),
+      enabled: open,
+    }).data ?? null;
 
   useEffect(() => {
+    setRunSearch(null);
     if (!open || kind !== "run") return;
-    setRuns(null);
-    const handle = setTimeout(() => {
-      searchRuns(workspace.name, value.trim())
-        .then(setRuns)
-        .catch(() => setRuns([]));
-    }, 250);
+    const handle = setTimeout(() => setRunSearch(value.trim()), 250);
     return () => clearTimeout(handle);
-  }, [open, kind, value, workspace.name]);
+  }, [open, kind, value]);
+
+  const runs =
+    useQuery({
+      queryKey: ["palette-runs", workspace.name, runSearch],
+      queryFn: () =>
+        searchRuns(workspace.name, runSearch ?? "").catch(
+          (): PaletteItem[] => [],
+        ),
+      enabled: runSearch !== null,
+    }).data ?? null;
 
   useEffect(() => setHi(0), [value, open, kind]);
 

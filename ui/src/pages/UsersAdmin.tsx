@@ -1,45 +1,40 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
-import { api, apiJson } from "../lib/api";
+import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
+import { refreshQueries, useApi } from "../lib/query";
 import type { UserRow } from "../lib/types";
 
 type UserAction = "archive" | "restore" | "promote" | "demote";
 
 export function UsersAdminPage() {
-  const [users, setUsers] = useState<UserRow[] | null>(null);
+  const listed = useApi<UserRow[]>("/users");
+  const users = listed.data ?? null;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = () => {
-    api<UserRow[]>("/users")
-      .then(setUsers)
-      .catch((e) => setError(String(e)));
-  };
-
-  useEffect(refresh, []);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const error = actionError ?? (listed.error ? String(listed.error) : null);
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setActionError(null);
     try {
       await apiJson("/users", "POST", { username, password });
       setUsername("");
       setPassword("");
-      refresh();
+      void refreshQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     }
   };
 
   const act = async (name: string, action: UserAction) => {
-    setError(null);
+    setActionError(null);
     try {
       await apiJson(`/users/${encodeURIComponent(name)}/${action}`, "POST");
-      refresh();
+      void refreshQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     }
   };
 

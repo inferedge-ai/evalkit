@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { AgentForm } from "./AgentForm";
 import { canWrite } from "../lib/access";
 import { agentKind } from "../lib/agents";
-import { api, qs } from "../lib/api";
+import { qs } from "../lib/api";
+import { useApi } from "../lib/query";
 import type { AgentInfo } from "../lib/types";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
@@ -26,34 +27,21 @@ function AgentRow({ agent }: { agent: AgentInfo }) {
 
 export function AgentsPage() {
   const me = useMe();
-  const [agents, setAgents] = useState<AgentInfo[] | null>(null);
-  const [archived, setArchived] = useState<AgentInfo[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
 
   const { workspace } = useWorkspace();
   const writable = canWrite(me, workspace) && !workspace.archived;
 
-  useEffect(() => {
-    let stale = false;
-    setAgents(null);
-    setArchived([]);
-    setError(null);
-    api<AgentInfo[]>(
-      `/agents${qs({ workspace: workspace.name, include_archived: "true" })}`,
-    )
-      .then((list) => {
-        if (stale) return;
-        const sorted = [...list].sort((a, b) => a.name.localeCompare(b.name));
-        setAgents(sorted.filter((a) => !a.archived));
-        setArchived(sorted.filter((a) => a.archived));
-      })
-      .catch((e) => !stale && setError(String(e)));
-    return () => {
-      stale = true;
-    };
-  }, [workspace.name]);
+  const listed = useApi<AgentInfo[]>(
+    `/agents${qs({ workspace: workspace.name, include_archived: "true" })}`,
+    {
+      select: (list) => [...list].sort((a, b) => a.name.localeCompare(b.name)),
+    },
+  );
+  const agents = listed.data?.filter((a) => !a.archived) ?? null;
+  const archived = listed.data?.filter((a) => a.archived) ?? [];
+  const error = listed.error ? String(listed.error) : null;
 
   return (
     <div className="page">

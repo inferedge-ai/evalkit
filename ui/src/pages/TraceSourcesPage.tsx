@@ -1,26 +1,22 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
-import { api, apiJson } from "../lib/api";
+import { apiJson } from "../lib/api";
 import { ENDPOINT_NOTE } from "../lib/endpoint";
+import { refreshQueries, useApi } from "../lib/query";
 import type { TraceSourceInfo } from "../lib/types";
 
 export function TraceSourcesPage() {
-  const [rows, setRows] = useState<TraceSourceInfo[] | null>(null);
+  const listed = useApi<TraceSourceInfo[]>("/trace-sources");
+  const rows = listed.data ?? null;
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const load = () => {
-    api<TraceSourceInfo[]>("/trace-sources")
-      .then(setRows)
-      .catch((e) => setError(String(e)));
-  };
-  useEffect(load, []);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const error = actionError ?? (listed.error ? String(listed.error) : null);
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setActionError(null);
     try {
       await apiJson("/trace-sources", "POST", {
         name: name.trim(),
@@ -31,21 +27,21 @@ export function TraceSourcesPage() {
       setName("");
       setUrl("");
       setApiKey("");
-      load();
+      void refreshQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     }
   };
   const archive = async (source: string) => {
-    setError(null);
+    setActionError(null);
     try {
       await apiJson(
         `/trace-sources/${encodeURIComponent(source)}/archive`,
         "POST",
       );
-      load();
+      void refreshQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     }
   };
 

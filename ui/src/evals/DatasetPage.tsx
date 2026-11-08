@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { api, isMissing } from "../lib/api";
+import { isMissing } from "../lib/api";
 import { fmtWhen } from "../lib/format";
+import { useApi } from "../lib/query";
 import type { Dataset, TagInfo } from "../lib/types";
 import { Tabs } from "../lib/ui";
 import { NotFound } from "../shell/NotFound";
@@ -19,6 +20,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "cases", label: "Cases" },
   { id: "tags", label: "Tags" },
 ];
+
+const NO_TAGS: TagInfo[] = [];
 
 export function syncLabel(ds: Dataset): string[] {
   const parts = [
@@ -41,23 +44,15 @@ export function DatasetPage() {
   const { ref = "", tab = "experiments" } = useParams();
   useFollowWorkspace(splitRef(ref).workspace);
   const navigate = useNavigate();
-  const [tags, setTags] = useState<TagInfo[]>([]);
-  const [info, setInfo] = useState<Dataset | null>(null);
-  const [missing, setMissing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [launch, setLaunch] = useState<{ caseIds?: string[] } | null>(null);
 
   const fullRef = ref.includes("@");
-  useEffect(() => {
-    setMissing(false);
-    if (!fullRef) return;
-    api<Dataset>(`/datasets/${encodeURIComponent(ref)}`)
-      .then(setInfo)
-      .catch((e) => (isMissing(e) ? setMissing(true) : setError(String(e))));
-    api<TagInfo[]>(`/datasets/${encodeURIComponent(ref)}/tags`)
-      .then(setTags)
-      .catch(() => setTags([]));
-  }, [ref, fullRef]);
+  const base = fullRef ? `/datasets/${encodeURIComponent(ref)}` : null;
+  const loaded = useApi<Dataset>(base);
+  const tags = useApi<TagInfo[]>(base ? `${base}/tags` : null).data ?? NO_TAGS;
+  const info = loaded.data ?? null;
+  const missing = isMissing(loaded.error);
+  const error = loaded.error && !missing ? String(loaded.error) : null;
 
   if (missing || !fullRef)
     return (

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../lib/api";
 import { scoredBucketColumns } from "../lib/bucketColumns";
 import { ColumnsMenu, DataTable, useDataTable } from "../lib/DataTable";
 import type { Column } from "../lib/DataTable";
 import { EXPERIMENT_LIST_LIMIT, listCapNote } from "../lib/experimentStatus";
+import { useApi } from "../lib/query";
 import type { ExperimentListItem } from "../lib/types";
 import { experimentTailColumns } from "./experimentRow";
 
@@ -13,10 +13,11 @@ const HIDDEN = ["latency", "took", "rev", "judge"];
 const NONE: ExperimentListItem[] = [];
 
 export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
-  const [experiments, setExperiments] = useState<ExperimentListItem[] | null>(
-    null,
+  const listed = useApi<ExperimentListItem[]>(
+    `/datasets/${encodeURIComponent(dataset)}/experiments?limit=${EXPERIMENT_LIST_LIMIT}`,
   );
-  const [error, setError] = useState<string | null>(null);
+  const experiments = listed.data ?? null;
+  const error = listed.error ? String(listed.error) : null;
   const buckets = useMemo(
     () => scoredBucketColumns(experiments ?? []),
     [experiments],
@@ -49,14 +50,6 @@ export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
     getRowId: (exp) => String(exp.id),
     defaultHidden: HIDDEN,
   });
-
-  useEffect(() => {
-    api<ExperimentListItem[]>(
-      `/datasets/${encodeURIComponent(dataset)}/experiments?limit=${EXPERIMENT_LIST_LIMIT}`,
-    )
-      .then(setExperiments)
-      .catch((e) => setError(String(e)));
-  }, [dataset]);
 
   if (error) return <div className="pane-status error">{error}</div>;
   if (!experiments)

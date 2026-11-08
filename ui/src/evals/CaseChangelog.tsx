@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { useState } from "react";
 import { fmtWhen } from "../lib/format";
+import { useApi } from "../lib/query";
 import type { CaseEvent } from "../lib/types";
 
 const KIND_LABEL: Record<CaseEvent["kind"], string> = {
@@ -16,21 +16,16 @@ export function CaseChangelog({
   dataset,
   caseId,
   currentHash,
-  version,
 }: {
   dataset: string;
   caseId: string;
   currentHash: string | undefined;
-  version: number;
 }) {
-  const [events, setEvents] = useState<CaseEvent[] | null>(null);
-  const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    api<{ events: CaseEvent[] }>(
+  const events =
+    useApi<{ events: CaseEvent[] }>(
       `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/events`,
-    ).then((r) => setEvents(r.events));
-  }, [dataset, caseId, version]);
+    ).data?.events ?? null;
+  const [expanded, setExpanded] = useState(false);
 
   const all = events ?? [];
   const shown = expanded ? all : all.slice(0, SHOWN_BY_DEFAULT);

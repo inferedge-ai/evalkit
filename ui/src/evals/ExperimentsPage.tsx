@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, qs } from "../lib/api";
+import { qs } from "../lib/api";
 import { scoredBucketColumns } from "../lib/bucketColumns";
 import { ColumnsMenu, DataTable, useDataTable } from "../lib/DataTable";
 import type { Column } from "../lib/DataTable";
@@ -9,6 +9,7 @@ import {
   STATUSES,
   listCapNote,
 } from "../lib/experimentStatus";
+import { useApi } from "../lib/query";
 import type { ExperimentListItem } from "../lib/types";
 import { experimentTailColumns } from "./experimentRow";
 import { Select } from "../lib/Select";
@@ -19,25 +20,17 @@ const HIDDEN = ["latency", "took", "rev", "judge"];
 
 export function ExperimentsPage() {
   const { workspace } = useWorkspace();
-  const [rows, setRows] = useState<ExperimentListItem[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [agent, setAgent] = useState("");
+  const listed = useApi<ExperimentListItem[]>(
+    `/experiments${qs({ workspace: workspace.name, limit: String(EXPERIMENT_LIST_LIMIT) })}`,
+  );
+  const rows = listed.data ?? null;
+  const error = listed.error ? String(listed.error) : null;
 
   useEffect(() => {
-    let stale = false;
-    setRows(null);
-    setError(null);
     setAgent("");
-    api<ExperimentListItem[]>(
-      `/experiments${qs({ workspace: workspace.name, limit: String(EXPERIMENT_LIST_LIMIT) })}`,
-    )
-      .then((list) => !stale && setRows(list))
-      .catch((e) => !stale && setError(String(e)));
-    return () => {
-      stale = true;
-    };
   }, [workspace.name]);
 
   const buckets = useMemo(() => scoredBucketColumns(rows ?? []), [rows]);

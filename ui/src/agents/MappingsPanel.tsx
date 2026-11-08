@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
-import { api, apiJson } from "../lib/api";
+import { useState } from "react";
+import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
+import { refreshQueries, useApi } from "../lib/query";
 import { Select } from "../lib/Select";
 import { messageCounts } from "../lib/esfSummary";
 import { mappingRows, ruleNotes, sameRule } from "../lib/mappingRules";
@@ -142,49 +143,31 @@ function Preview({
 }
 
 export function MappingsPanel({ agent }: { agent: string }) {
-  const [versions, setVersions] = useState<MappingRecord[] | null>(null);
   const [viewing, setViewing] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<string[]>([]);
-  const [selected, setSelected] = useState("");
-  const [active, setActive] = useState<SessionTrajectory | null>(null);
-  const [draft, setDraft] = useState<SessionTrajectory | null>(null);
+  const [picked, setSelected] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const base = `/agents/${encodeURIComponent(agent)}`;
+
+  const listedVersions = useApi<MappingRecord[]>(`${base}/mappings`);
+  const versions = listedVersions.data ?? null;
   const hasDraft = versions?.some((v) => v.status === "draft") ?? false;
-
-  const loadVersions = useCallback(
-    () =>
-      api<MappingRecord[]>(`${base}/mappings`)
-        .then(setVersions)
-        .catch((e) => setError(String(e))),
-    [base],
+  const listedRuns = useApi<RunList>(`${base}/runs?limit=10`);
+  const sessions = listedRuns.data?.runs.map((r) => r.run_id) ?? [];
+  const selected = picked || (sessions[0] ?? "");
+  const path = `${base}/sessions/${encodeURIComponent(selected)}/trajectory`;
+  const activePreview = useApi<SessionTrajectory>(
+    selected && versions ? `${path}?mapping=active&esf=true` : null,
   );
-
-  useEffect(() => {
-    loadVersions();
-    api<RunList>(`${base}/runs?limit=10`)
-      .then((list) => {
-        const ids = list.runs.map((r) => r.run_id);
-        setSessions(ids);
-        setSelected((current) => current || ids[0] || "");
-      })
-      .catch((e) => setError(String(e)));
-  }, [base, loadVersions]);
-
-  useEffect(() => {
-    if (!selected || versions === null) return;
-    setActive(null);
-    setDraft(null);
-    const path = `${base}/sessions/${encodeURIComponent(selected)}/trajectory`;
-    api<SessionTrajectory>(`${path}?mapping=active&esf=true`)
-      .then(setActive)
-      .catch((e) => setError(String(e)));
-    if (hasDraft)
-      api<SessionTrajectory>(`${path}?mapping=draft&esf=true`)
-        .then(setDraft)
-        .catch((e) => setError(String(e)));
-  }, [base, selected, versions, hasDraft]);
+  const draftPreview = useApi<SessionTrajectory>(
+    selected && hasDraft ? `${path}?mapping=draft&esf=true` : null,
+  );
+  const active = activePreview.data ?? null;
+  const draft = draftPreview.data ?? null;
+  const loadError = [listedVersions, listedRuns, activePreview, draftPreview]
+    .map((q) => q.error)
+    .find(Boolean);
+  const error = actionError ?? (loadError ? String(loadError) : null);
 
   const activeRecord = versions?.find((v) => v.status === "active") ?? null;
   const shown = viewing ?? (activeRecord ? `v${activeRecord.version}` : null);
@@ -205,12 +188,12 @@ export function MappingsPanel({ agent }: { agent: string }) {
 
   const activate = async (version: number) => {
     setBusy(true);
-    setError(null);
+    setActionError(null);
     try {
       await apiJson(`${base}/mappings/${version}/activate`, "POST");
-      await loadVersions();
+      await refreshQueries();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }

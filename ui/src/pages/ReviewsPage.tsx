@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, qs } from "../lib/api";
+import { qs } from "../lib/api";
+import { useApi } from "../lib/query";
 import { DataTable, useDataTable } from "../lib/DataTable";
 import type { Column } from "../lib/DataTable";
 import { fmtWhen } from "../lib/format";
@@ -81,28 +82,16 @@ export function ReviewsPage() {
   const me = useMe();
   const { workspace } = useWorkspace();
   const [view, setView] = useState<View>("mine");
-  const [items, setItems] = useState<QueueItem[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const everyWorkspace = workspace.type === "personal";
-  const queueWorkspace = everyWorkspace ? undefined : workspace.name;
-
-  useEffect(() => {
-    let stale = false;
-    setItems(null);
-    setError(null);
-    api<{ items: QueueItem[] }>(
-      `/review/queue${qs({
-        reviewer: view === "mine" ? me.username : undefined,
-        state: view === "changes" ? "changes_requested" : undefined,
-        workspace: queueWorkspace,
-      })}`,
-    )
-      .then((r) => !stale && setItems(r.items))
-      .catch((e) => !stale && setError(String(e)));
-    return () => {
-      stale = true;
-    };
-  }, [view, me.username, queueWorkspace]);
+  const queue = useApi<{ items: QueueItem[] }>(
+    `/review/queue${qs({
+      reviewer: view === "mine" ? me.username : undefined,
+      state: view === "changes" ? "changes_requested" : undefined,
+      workspace: everyWorkspace ? undefined : workspace.name,
+    })}`,
+  );
+  const items = queue.data?.items ?? null;
+  const error = queue.error ? String(queue.error) : null;
 
   const changes = view === "changes";
   const columns = useMemo(

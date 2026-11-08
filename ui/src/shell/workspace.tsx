@@ -3,22 +3,21 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { api } from "../lib/api";
+import { getApiData, useApi } from "../lib/query";
 import type { WorkspaceInfo } from "../lib/types";
 import { orderWorkspaces, sectionRoot } from "../lib/workspace";
 import { useMe } from "./capabilities";
 
 const KEY = "evalkit.workspace";
+const WORKSPACES = "/workspaces?include_archived=true";
 
 interface WorkspaceCtx {
   workspace: WorkspaceInfo;
   workspaces: WorkspaceInfo[];
   select: (name: string) => void;
-  reload: () => Promise<WorkspaceInfo[]>;
   // Set when select() moved to a different workspace; the switcher flashes
   // for SWITCH_FLASH_MS after it so a followed link makes the change visible.
   switchedAt: number | null;
@@ -55,31 +54,20 @@ export function useSwitchWorkspace(): (name: string) => void {
 
 export function WorkspaceGate() {
   const me = useMe();
-  const [workspaces, setWorkspaces] = useState<WorkspaceInfo[] | null>(null);
+  const listed = useApi<WorkspaceInfo[]>(WORKSPACES, {
+    select: (all) => orderWorkspaces(all, me.personal_workspace),
+  });
+  const workspaces = listed.data ?? null;
   const [current, setCurrent] = useState<string | null>(() =>
     localStorage.getItem(KEY),
   );
-  const [error, setError] = useState<string | null>(null);
-  const latest = useRef<WorkspaceInfo[]>([]);
-
-  const reload = useCallback(
-    () =>
-      api<WorkspaceInfo[]>("/workspaces?include_archived=true").then((all) => {
-        const ordered = orderWorkspaces(all, me.personal_workspace);
-        latest.current = ordered;
-        setWorkspaces(ordered);
-        return ordered;
-      }),
-    [me.personal_workspace],
-  );
-
-  useEffect(() => {
-    reload().catch((e) => setError(String(e)));
-  }, [reload]);
 
   const [switchedAt, setSwitchedAt] = useState<number | null>(null);
   const select = useCallback((name: string) => {
-    if (!latest.current.some((w) => w.name === name)) return;
+    // The cache, not this render's list: a caller may select a workspace
+    // right after the refetch that added it.
+    const known = getApiData<WorkspaceInfo[]>(WORKSPACES);
+    if (!known?.some((w) => w.name === name)) return;
     localStorage.setItem(KEY, name);
     setCurrent((previous) => {
       if (previous !== null && previous !== name) setSwitchedAt(Date.now());
@@ -87,7 +75,8 @@ export function WorkspaceGate() {
     });
   }, []);
 
-  if (error) return <div className="pane-status error">{error}</div>;
+  if (listed.error && !workspaces)
+    return <div className="pane-status error">{String(listed.error)}</div>;
   if (!workspaces) return <div className="pane-status">Loading…</div>;
   const workspace =
     workspaces.find((w) => w.name === current) ??
@@ -104,7 +93,7 @@ export function WorkspaceGate() {
       </div>
     );
   return (
-    <Ctx.Provider value={{ workspace, workspaces, select, reload, switchedAt }}>
+    <Ctx.Provider value={{ workspace, workspaces, select, switchedAt }}>
       <Outlet />
     </Ctx.Provider>
   );

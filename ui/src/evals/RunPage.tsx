@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api, isExperimentId, isMissing } from "../lib/api";
 import { answerText, fmtGauge, outputText, questionText } from "../lib/format";
+import { useApi } from "../lib/query";
 import { trajectoryAvailable, trajectoryBadge } from "../lib/runs";
 import { gaugeRows, toEvalScores } from "../lib/scores";
 import type {
@@ -37,11 +39,24 @@ type Tab = (typeof TABS)[number];
 
 export function RunPage() {
   const { experimentId = "", exampleId: caseId = "" } = useParams();
-  const [status, setStatus] = useState<ExperimentInfo | null>(null);
+  const validId = isExperimentId(experimentId);
+  const base = `/experiments/${encodeURIComponent(experimentId)}`;
+  const statusQuery = useApi<ExperimentInfo>(validId ? base : null);
+  const status = statusQuery.data ?? null;
   useFollowWorkspace(status?.workspace);
-  const [runs, setRuns] = useState<RunDetail[] | null>(null);
-  const [example, setExample] = useState<CaseView | null>(null);
-  const [missing, setMissing] = useState(false);
+  const runsQuery = useApi<RunDetail[]>(validId ? `${base}/runs` : null, {
+    select: (all) => all.filter((r) => r.case_id === caseId),
+  });
+  const runs = runsQuery.data ?? null;
+  // The case version PINNED to this experiment — a later case edit or
+  // overlay sync must not change what this page shows beside old scores.
+  const example =
+    useApi<CaseView[]>(validId ? `${base}/cases` : null).data?.find(
+      (ex) => ex.case_id === caseId,
+    ) ?? null;
+  const missing = isMissing(statusQuery.error) || isMissing(runsQuery.error);
+  const loadError = statusQuery.error ?? runsQuery.error;
+  const error = loadError && !missing ? String(loadError) : null;
   const [repetition, setRepetition] = useState(1);
   const [params, setParams] = useSearchParams();
   const rawTab = params.get("tab") ?? "";
@@ -54,51 +69,25 @@ export function RunPage() {
     else nextParams.set("tab", next);
     setParams(nextParams, { replace: true });
   };
-  const [trajectory, setTrajectory] = useState<AtifTrajectory | null>(null);
-  const [trajectoryError, setTrajectoryError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const validId = isExperimentId(experimentId);
-  useEffect(() => {
-    setMissing(false);
-    if (!validId) return;
-    api<ExperimentInfo>(`/experiments/${encodeURIComponent(experimentId)}`)
-      .then(setStatus)
-      .catch((e) => (isMissing(e) ? setMissing(true) : setError(String(e))));
-    // The case version PINNED to this experiment — a later case edit or
-    // overlay sync must not change what this page shows beside old scores.
-    api<CaseView[]>(`/experiments/${encodeURIComponent(experimentId)}/cases`)
-      .then((examples) =>
-        setExample(examples.find((ex) => ex.case_id === caseId) ?? null),
-      )
-      .catch(() => {});
-    api<RunDetail[]>(`/experiments/${encodeURIComponent(experimentId)}/runs`)
-      .then((all) => setRuns(all.filter((r) => r.case_id === caseId)))
-      .catch((e) => (isMissing(e) ? setMissing(true) : setError(String(e))));
-  }, [experimentId, caseId, validId]);
-
   const run =
     runs?.find((r) => r.repetition === repetition) ?? runs?.[0] ?? null;
 
-  useEffect(() => {
-    setTrajectory(null);
-    setTrajectoryError(null);
-  }, [run]);
-
-  useEffect(() => {
-    if (
-      !(TRAJECTORY_TABS as readonly string[]).includes(tab) ||
-      !run ||
-      trajectory ||
-      trajectoryError
-    )
-      return;
-    api<AtifTrajectory>(
-      `/experiments/${encodeURIComponent(experimentId)}/runs/${run.experiment_run_id}/trajectory`,
-    )
-      .then(setTrajectory)
-      .catch((e) => setTrajectoryError(String(e)));
-  }, [tab, run, experimentId, trajectory, trajectoryError]);
+  // Not useApi: the trajectory loads only once a trajectory tab opens, and a
+  // disabled query keeps its data, so the toolbar badge stays after leaving.
+  const trajectoryPath = run
+    ? `${base}/runs/${run.experiment_run_id}/trajectory`
+    : null;
+  const trajectoryQuery = useQuery({
+    queryKey: [trajectoryPath],
+    queryFn: () => api<AtifTrajectory>(trajectoryPath as string),
+    enabled:
+      trajectoryPath !== null &&
+      (TRAJECTORY_TABS as readonly string[]).includes(tab),
+  });
+  const trajectory = trajectoryQuery.data ?? null;
+  const trajectoryError = trajectoryQuery.error
+    ? String(trajectoryQuery.error)
+    : null;
 
   if (missing || !validId)
     return (
