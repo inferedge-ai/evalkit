@@ -82,7 +82,14 @@ function ScorecardSkeleton() {
   );
 }
 
+// A fresh page per experiment, so a confirmation left open on one can't act on
+// the next after Back or Forward.
 export function ExperimentPage() {
+  const { experimentId } = useParams();
+  return <ExperimentView key={experimentId} />;
+}
+
+function ExperimentView() {
   const { experimentId = "" } = useParams();
   const [params] = useSearchParams();
   const baselineId = params.get("baseline");
@@ -477,6 +484,8 @@ export function ExperimentPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
+                // The closing dialog stays clickable; a double click acts once.
+                if (!confirmingReevaluate) return;
                 setConfirmingReevaluate(false);
                 void action("evaluate");
               }}

@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import {
+  MemoryRouter,
+  Route,
+  Routes,
+  useNavigate,
+  type NavigateFunction,
+} from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import { queryClient } from "../lib/query";
 import type { ExperimentInfo, Me, Report, WorkspaceInfo } from "../lib/types";
@@ -146,4 +152,62 @@ test("re-evaluating an experiment with unfinished runs asks first, and only re-e
     }),
   );
   await waitFor(() => expect(reevaluations).toEqual(["POST"]));
+});
+
+// Stands in for the browser's Back button, which works while a dialog is open.
+let navigateTo: NavigateFunction = () => {};
+function History() {
+  navigateTo = useNavigate();
+  return null;
+}
+
+test("a confirmation left open on one experiment is gone after moving to another", async () => {
+  const reevaluations: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => {
+      if (url.endsWith("/api/auth/providers"))
+        return Response.json({ password: "all", oidc: null });
+      if (url.endsWith("/api/workspaces?include_archived=true"))
+        return Response.json([workspace]);
+      if (url.endsWith("/evaluate")) {
+        reevaluations.push(url);
+        return Response.json({});
+      }
+      const id = url.match(/\/api\/experiments\/(\d+)/)?.[1];
+      if (id && url.endsWith(`/api/experiments/${id}`))
+        return Response.json({ ...failedWithPendingRuns, id: Number(id) });
+      if (id && url.endsWith("/scorecard"))
+        return Response.json({ ...report, experiment_id: id });
+      return Response.json([]);
+    }),
+  );
+  const user = userEvent.setup();
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MeContext.Provider value={me}>
+        <MemoryRouter initialEntries={["/experiments/12"]}>
+          <History />
+          <Routes>
+            <Route element={<WorkspaceGate />}>
+              <Route
+                path="/experiments/:experimentId"
+                element={<ExperimentPage />}
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </MeContext.Provider>
+    </QueryClientProvider>,
+  );
+
+  await user.click(await screen.findByRole("button", { name: "Re-evaluate" }));
+  await screen.findByRole("alertdialog");
+  act(() => navigateTo("/experiments/11"));
+
+  await screen.findByRole("button", { name: "Re-evaluate" });
+  await waitFor(() =>
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+  );
+  expect(reevaluations).toEqual([]);
 });

@@ -413,18 +413,14 @@ export function RunLauncher({
               </div>
             </div>
           )}
+          {error && <div className="text-meta text-err-text">{error}</div>}
+          {!serverRuns && !error && (
+            <div className="text-meta text-ink-3">
+              Datasets in a personal workspace run from your terminal.
+            </div>
+          )}
         </div>
         <DialogFooter>
-          {error && (
-            <span className="text-meta text-err-text sm:mr-auto sm:self-center">
-              {error}
-            </span>
-          )}
-          {!serverRuns && !error && (
-            <span className="text-meta text-ink-3 sm:mr-auto sm:self-center">
-              Datasets in a personal workspace run from your terminal.
-            </span>
-          )}
           <DialogClose render={<Button variant="outline" />}>
             Cancel
           </DialogClose>

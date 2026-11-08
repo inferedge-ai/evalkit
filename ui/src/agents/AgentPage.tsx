@@ -95,7 +95,14 @@ const DRIVERS: Record<AgentInfo["driver"], string> = {
   sdk: "the SDK (evalkit.sdk.run_experiment)",
 };
 
+// A fresh page per agent, so a form or confirmation left open on one can't
+// act on the next after Back or Forward.
 export function AgentPage() {
+  const { agent } = useParams();
+  return <AgentView key={agent} />;
+}
+
+function AgentView() {
   const { agent: slug = "", tab } = useParams();
   useFollowWorkspace(splitRef(slug).workspace);
   const navigate = useNavigate();
@@ -247,6 +254,8 @@ export function AgentPage() {
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={() => {
+                    // The closing dialog stays clickable; a double click acts once.
+                    if (!confirmingArchive) return;
                     setConfirmingArchive(false);
                     void archive();
                   }}
