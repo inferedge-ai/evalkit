@@ -367,6 +367,7 @@ def create_app(
         return {"ok": True}
 
     app.include_router(auth_router)
+    app.include_router(meta.appearance_router)
     app.include_router(datasets.router, dependencies=SIGNED_IN)
     app.include_router(meta.router, dependencies=SIGNED_IN)
     app.include_router(experiments.router, dependencies=SIGNED_IN)

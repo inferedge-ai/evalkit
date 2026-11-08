@@ -10,25 +10,9 @@ import { ADMIN_NAV, MORE_NAV, NAV } from "./nav";
 import { useTheme } from "./theme";
 import { SWITCH_FLASH_MS, useSwitchWorkspace, useWorkspace } from "./workspace";
 
-export function InferEdgeLockup() {
-  return (
-    <span
-      aria-label="InferEdge"
-      className="num inline-flex items-baseline font-mono text-meta tracking-[0.08em] whitespace-nowrap uppercase select-none"
-    >
-      <span className="font-normal text-n-400">Infer</span>
-      <span className="font-normal text-brand" aria-hidden>
-        /
-      </span>
-      <span className="font-bold text-n-700">Edge</span>
-    </span>
-  );
-}
-
 export function BrandLink({ to = "/" }: { to?: string }) {
   return (
-    <NavLink to={to} className="flex items-baseline gap-2">
-      <InferEdgeLockup />
+    <NavLink to={to} className="flex items-baseline">
       <span className="font-mono text-head font-semibold tracking-tight text-brand">
         Evalkit
       </span>

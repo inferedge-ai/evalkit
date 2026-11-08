@@ -134,7 +134,7 @@ indirection, resolved at load time — keep secrets out of the file.
 
 | Section | What it holds |
 |---|---|
-| `server` | `base_url` (used in links the CLI prints), optional `accent_color` (any CSS colour, e.g. `'#dc2626'`; tints the web UI so each environment is told apart at a glance) |
+| `server` | `base_url` (used in links the CLI prints), optional `accent_color` (any CSS colour, e.g. `'#dc2626'`; a strip along the top of every web UI page, so each environment is told apart at a glance) |
 | `db` | Postgres URL (`postgresql+psycopg://…`); optional `migrate_on_start` (default `false`, see below) |
 | `blob` | one blob URL: `fixtures/sha256/<sha256>` (case input files), `trajectories/`, `artifacts/` |
 | `encryption_key` | Fernet key that encrypts the stored API keys of agents, remote evaluators, LLM providers and trace sources. The server refuses to start without it once any exist. `evalkit db rekey --config config.yaml --old-key-env OLD --new-key-env NEW` re-encrypts all of them after a change. |
