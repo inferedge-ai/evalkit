@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import { queryClient, useApi } from "../lib/query";
 import { AuthGate } from "./capabilities";
 
 afterEach(() => {
-  cleanup();
   queryClient.clear();
   vi.unstubAllGlobals();
 });

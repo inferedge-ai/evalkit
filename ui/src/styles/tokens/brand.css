@@ -1,0 +1,11 @@
+/* brand.css — brand identity overrides (primary / ring), by theme. */
+:root {
+  --primary: oklch(0.5299 0.1627 260.34); /* #2E67C8 brand blue */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.5299 0.1627 260.34);
+}
+.dark {
+  --primary: oklch(0.7526 0.1278 258.16); /* #7BB0FF on-dark */
+  --primary-foreground: oklch(0.205 0 0);
+  --ring: oklch(0.7526 0.1278 258.16);
+}

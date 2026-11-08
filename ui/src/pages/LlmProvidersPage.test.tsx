@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { queryClient } from "../lib/query";
 import type { Me } from "../lib/types";
@@ -26,7 +26,6 @@ const judge = (model: string) => ({
 });
 
 afterEach(() => {
-  cleanup();
   queryClient.clear();
   vi.unstubAllGlobals();
 });

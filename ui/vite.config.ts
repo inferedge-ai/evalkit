@@ -1,3 +1,5 @@
+/// <reference types="vitest/config" />
+import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv, searchForWorkspaceRoot } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -6,6 +8,12 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
     plugins: [react(), tailwindcss()],
+    resolve: {
+      alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    },
+    test: {
+      setupFiles: ["./src/testSetup.ts"],
+    },
     server: {
       // IPv4 explicitly — a reverse proxy dialing 127.0.0.1 misses vite's
       // default localhost bind when it ends up v6-only ([::1]).

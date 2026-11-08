@@ -86,10 +86,23 @@ async def test_datasets_and_cases(api):
     assert tags == [{"name": "finance", "count": 2}]
 
 
-async def test_meta_reports_accent_color(api):
+async def test_appearance_reports_the_accent_color_signed_out(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path, FakeHarness())
+    env.deps.cfg.server.accent_color = "#c62828"
+    async with serve(env, tmp_path) as client:
+        bare = httpx2.AsyncClient(transport=client._transport, base_url="http://test")
+        resp = await bare.get("/api/appearance")
+        await bare.aclose()
+    assert resp.status_code == 200
+    assert resp.json() == {"accent_color": "#c62828"}
+
+
+async def test_meta_reports_agents_and_repos(api):
     client, *_ = api
     meta = (await client.get("/api/meta")).json()
-    assert meta["accent_color"] is None
+    assert "accent_color" not in meta
     assert "timezone" not in meta
     assert meta["agents"] == [AGENT]
     await client.patch(f"/api/agents/{AGENT}", json={"repo_url": "https://git/shared"})

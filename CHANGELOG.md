@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- The web UI uses InferEdge's design tokens and shadcn's setup
+  (`ui/components.json`, the `@/` import alias): Roboto at 14px (was the
+  system font at 13px), new light and dark colours with a white page in light
+  mode and slightly darker borders, and a larger corner radius (`rounded-md`
+  is 8px, was 6px). Dark mode is the `dark` class on `<html>` instead of
+  `data-theme="dark"`. UI tests can render components with jsdom and Testing
+  Library.
+- A deploy's `server.accent_color` no longer recolours the web UI's buttons and
+  links, which stay the brand blue. It draws a 3px strip along the top of
+  every page, the login page included. The colour comes from the new public
+  `GET /api/appearance` (`{"accent_color": ...}`), and `GET /api/meta` no
+  longer returns `accent_color`. Before, the colour loaded only after sign-in,
+  so the login page was blue and signed-in pages took the accent.
+- The web UI header shows only "Evalkit"; the InferEdge lockup beside it is
+  gone.
+- `ui/package.json` overrides the KaTeX that `rehype-katex` and `remark-math`
+  bring in (0.16.47) with the UI's own KaTeX (0.19.1), which fixes
+  GHSA-238p-pmpm-9mq7 (KaTeX below 0.18.2 can read polluted object
+  prototypes).
 - The web UI loads its data with TanStack Query (`ui/src/lib/query.ts`). A
   page you come back to shows its last data at once and refreshes it in the
   background. After a save, archive, comment or other change, every page on
