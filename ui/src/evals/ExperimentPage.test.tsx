@@ -154,6 +154,57 @@ test("re-evaluating an experiment with unfinished runs asks first, and only re-e
   await waitFor(() => expect(reevaluations).toEqual(["POST"]));
 });
 
+test("double-clicking the confirmation re-evaluates once", async () => {
+  // jsdom has no animations, so Base UI would unmount the closing dialog at
+  // once; a browser keeps it on screen, and clickable, for its exit animation.
+  Element.prototype.getAnimations = () => [];
+  const reevaluations: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/api/auth/providers"))
+        return Response.json({ password: "all", oidc: null });
+      if (url.endsWith("/api/workspaces?include_archived=true"))
+        return Response.json([workspace]);
+      if (url.endsWith("/api/experiments/12/evaluate")) {
+        reevaluations.push(init?.method ?? "GET");
+        return Response.json({});
+      }
+      if (url.endsWith("/api/experiments/12"))
+        return Response.json(failedWithPendingRuns);
+      if (url.endsWith("/api/experiments/12/scorecard"))
+        return Response.json(report);
+      return Response.json([]);
+    }),
+  );
+  const user = userEvent.setup();
+  render(
+    <QueryClientProvider client={queryClient}>
+      <MeContext.Provider value={me}>
+        <MemoryRouter initialEntries={["/experiments/12"]}>
+          <Routes>
+            <Route element={<WorkspaceGate />}>
+              <Route
+                path="/experiments/:experimentId"
+                element={<ExperimentPage />}
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </MeContext.Provider>
+    </QueryClientProvider>,
+  );
+
+  await user.click(await screen.findByRole("button", { name: "Re-evaluate" }));
+  await user.dblClick(
+    within(await screen.findByRole("alertdialog")).getByRole("button", {
+      name: "Re-evaluate",
+    }),
+  );
+  await waitFor(() => expect(reevaluations).toEqual(["POST"]));
+  delete (Element.prototype as { getAnimations?: unknown }).getAnimations;
+});
+
 // Stands in for the browser's Back button, which works while a dialog is open.
 let navigateTo: NavigateFunction = () => {};
 function History() {

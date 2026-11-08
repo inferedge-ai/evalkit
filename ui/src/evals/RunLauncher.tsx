@@ -413,12 +413,6 @@ export function RunLauncher({
               </div>
             </div>
           )}
-          {error && <div className="text-meta text-err-text">{error}</div>}
-          {!serverRuns && !error && (
-            <div className="text-meta text-ink-3">
-              Datasets in a personal workspace run from your terminal.
-            </div>
-          )}
         </div>
         <DialogFooter>
           <DialogClose render={<Button variant="outline" />}>
@@ -437,6 +431,18 @@ export function RunLauncher({
             <CopyCommandButton
               text={request && inScope.length ? cliCommand(request) : null}
             />
+          )}
+          {/* Last in the DOM: the footer stacks in reverse on a phone, so this
+              lands above the buttons there, and left of them from sm up. */}
+          {error && (
+            <span className="text-meta text-err-text sm:order-first sm:mr-auto sm:self-center">
+              {error}
+            </span>
+          )}
+          {!serverRuns && !error && (
+            <span className="text-meta text-ink-3 sm:order-first sm:mr-auto sm:self-center">
+              Datasets in a personal workspace run from your terminal.
+            </span>
           )}
         </DialogFooter>
       </DialogContent>
