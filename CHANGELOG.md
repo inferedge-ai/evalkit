@@ -6,6 +6,8 @@
   example `x-shared`) and ignores them, so they can hold YAML anchors that cases
   reuse. In 0.4.0, `evalkit lint` and `evalkit sync` refused such files with
   `E-SCHEMA ... x-shared: Extra inputs are not permitted`; 0.3.0 accepted them.
+  The server parses synced and linted files itself, so `evalkit sync` and online
+  `evalkit lint` accept them once the server runs this release.
 - The web UI uses InferEdge's design tokens and shadcn's setup
   (`ui/components.json`, the `@/` import alias): Roboto at 14px (was the
   system font at 13px), new light and dark colours with a white page in light

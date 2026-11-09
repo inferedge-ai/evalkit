@@ -376,6 +376,13 @@ class SuiteFile(BaseModel):
     cases: list[Case | Overlay] = Field(default_factory=list)
     overlays: list[Overlay] = Field(default_factory=list)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_anchor_keys(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if not str(k).startswith("x-")}
+        return data
+
     @field_validator("defaults", "cases", "overlays", mode="before")
     @classmethod
     def _none_is_empty(cls, value: Any, info: ValidationInfo) -> Any:
@@ -539,11 +546,7 @@ def load_cases_from_yaml(path: Path) -> tuple[list[Case], list[Overlay]]:
     defaults = SuiteDefaults()
     overlay_items: Any = []
     if isinstance(raw, dict) and ("cases" in raw or "overlays" in raw):
-        shell = {
-            k: v
-            for k, v in raw.items()
-            if k not in ("cases", "overlays") and not str(k).startswith("x-")
-        }
+        shell = {k: v for k, v in raw.items() if k not in ("cases", "overlays")}
         suite = _check(SuiteFile, shell, None, problems)
         if suite is None:
             raise CaseSchemaError(path, problems)
