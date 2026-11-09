@@ -8,7 +8,12 @@ import { queryClient } from "../lib/query";
 import type { Me, WorkspaceInfo, WorkspaceRole } from "../lib/types";
 import { MeContext } from "../shell/capabilities";
 import { WorkspaceGate } from "../shell/workspace";
-import { devWorkspace, renderPage, stubServer } from "../testFixtures";
+import {
+  closePage,
+  devWorkspace,
+  renderPage,
+  stubServer,
+} from "../testFixtures";
 import { WorkspacePage } from "./WorkspacePage";
 
 // endpoint.ts reads a file outside ui/ that jsdom runs can't load.
@@ -38,10 +43,7 @@ const workspace: WorkspaceInfo = {
 // jsdom has no layout; the select scrolls its highlighted option into view.
 Element.prototype.scrollIntoView = () => {};
 
-afterEach(() => {
-  queryClient.clear();
-  vi.unstubAllGlobals();
-});
+afterEach(closePage);
 
 test("Esc closes the open kind list, then the new evaluator form, without saving", async () => {
   const writes: string[] = [];
@@ -97,13 +99,14 @@ function openSettings(
   tab: "evaluators" | "members",
   roles: WorkspaceRole[] = ["writer"],
   ws: WorkspaceInfo = devWorkspace,
+  isAdmin = false,
 ) {
   stubServer((url) => {
     if (url.endsWith("/api/workspaces?include_archived=true"))
       return Response.json([ws]);
   });
   renderPage(
-    { ...me, roles: { [ws.name]: roles } },
+    { ...me, is_admin: isAdmin, roles: { [ws.name]: roles } },
     `/settings/workspace/${tab}`,
     <Route path="/settings/workspace/:tab" element={<WorkspacePage />} />,
   );
@@ -151,5 +154,40 @@ test("a personal workspace's Members tab says only its owner writes to it", asyn
     screen.getByText(
       "A personal workspace has no members: only @akshat writes to it.",
     ),
+  ).toBeInTheDocument();
+});
+
+test("an admin on an archived workspace is told it is archived and cannot add evaluators", async () => {
+  openSettings("evaluators", [], { ...devWorkspace, archived: true }, true);
+  expect(
+    await screen.findByText("This workspace is archived."),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "New evaluator" })).toBeNull();
+});
+
+test("a workspace an admin cannot create says why next to its form", async () => {
+  stubServer((url, init) =>
+    url.endsWith("/api/workspaces") && init?.method === "POST"
+      ? Response.json(
+          { detail: "workspace dev already exists" },
+          { status: 409 },
+        )
+      : undefined,
+  );
+  renderPage(
+    { ...me, is_admin: true },
+    "/settings/workspace/members",
+    <Route path="/settings/workspace/:tab" element={<WorkspacePage />} />,
+  );
+  const user = userEvent.setup();
+  const form = await screen.findByRole("region", {
+    name: "New shared workspace",
+  });
+  await user.type(within(form).getByRole("textbox"), "dev");
+  await user.click(
+    within(form).getByRole("button", { name: "Create workspace" }),
+  );
+  expect(
+    await within(form).findByText("workspace dev already exists"),
   ).toBeInTheDocument();
 });

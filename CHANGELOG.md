@@ -187,7 +187,8 @@
     or personal, archived, and where it promotes to or from. An admin's
     "Promotes to" picker sits above the tabs, and the "Create workspace"
     form moves below them, under "New shared workspace", since it makes
-    another workspace. Without remote evaluators, the Evaluators tab says how
+    another workspace; a name it refuses shows its error under that form.
+    Without remote evaluators, the Evaluators tab says how
     to add one (`evalkit evaluators create`), or why you can't: the
     workspace is archived or read-only for you. A workspace without members,
     or a personal one, says so on the Members tab.
@@ -202,12 +203,16 @@
     on its own line on a phone. Lists show placeholder rows while they load.
   - Docs: on a phone the page list folds under a button naming the current
     page, above the page, and folds again after you pick one; wide tables
-    scroll sideways inside their own box. Code blocks, inline code, tables
-    and quotes take the design system's colours.
+    scroll sideways inside their own box.
+  - Markdown everywhere in the UI (docs, run answers, explanations, case
+    text and workspace file previews) takes the design system's colours for
+    code blocks, inline code, tables and quotes.
   - Sign-in: the sign-in card is 384px wide (was 336px) with labelled
-    fields, and a failed provider sign-in (`/login/callback`) shows the same
-    header bar as `/login`.
+    fields that password managers fill, and a failed provider sign-in
+    (`/login/callback`) shows the same header bar as `/login`.
   - A missing page shows an icon, what is missing and a button back.
+- A failed request whose response carries no error message, such as a
+  proxy's 502 page, shows `HTTP <status>` instead of an empty error.
 
 ## 0.4.0
 

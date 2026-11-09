@@ -95,8 +95,8 @@ function EvaluatorsTab({ ws }: { ws: WorkspaceInfo }) {
     }
   };
 
-  const readOnly = getReadOnlyReason(me, ws);
-  const canEdit = readOnly === null;
+  const readOnlyReason = getReadOnlyReason(me, ws);
+  const canEdit = readOnlyReason === null;
   return (
     <>
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
@@ -123,7 +123,7 @@ function EvaluatorsTab({ ws }: { ws: WorkspaceInfo }) {
             icon={Gauge}
             title={`No remote evaluators in @${ws.name}`}
             description={
-              readOnly ?? (
+              readOnlyReason ?? (
                 <>
                   Add one with New evaluator, or run{" "}
                   <span className="font-mono">evalkit evaluators create</span>.
@@ -332,19 +332,61 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
   );
 }
 
+function NewWorkspaceForm() {
+  const { select } = useWorkspace();
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const create = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      const created = await apiJson<WorkspaceInfo>("/workspaces", "POST", {
+        name: name.trim(),
+      });
+      setName("");
+      await refreshQueries();
+      select(created.name);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  return (
+    <section
+      className="mt-8 border-t pt-4"
+      aria-labelledby="new-workspace-title"
+    >
+      <div id="new-workspace-title" className="eyebrow">
+        New shared workspace
+      </div>
+      <form className="flex flex-wrap items-center gap-2" onSubmit={create}>
+        <Input
+          className="w-full sm:w-64"
+          placeholder="shared workspace name, e.g. dev"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+        <Button type="submit">Create workspace</Button>
+      </form>
+      {error && <p className="mt-2 text-xs text-err-text">{error}</p>}
+    </section>
+  );
+}
+
 export function WorkspacePage() {
   const { tab } = useParams();
   const navigate = useNavigate();
   const me = useMe();
-  const { workspace: ws, workspaces, select } = useWorkspace();
-  const [name, setName] = useState("");
+  const { workspace: ws, workspaces } = useWorkspace();
   const [error, setError] = useState<string | null>(null);
 
   if (!isTab(tab))
     return <Navigate to="/settings/workspace/evaluators" replace />;
   const mayArchive =
     ws.type === "shared" ? me.is_admin : ws.name === me.personal_workspace;
-  const editPromotion =
+  const mayEditPromotion =
     me.is_admin && ws.type === "shared" && !ws.promoted_from;
   const run = async (call: () => Promise<unknown>) => {
     setError(null);
@@ -362,17 +404,6 @@ export function WorkspacePage() {
       );
       await refreshQueries();
     });
-  const create = (e: FormEvent) => {
-    e.preventDefault();
-    run(async () => {
-      const created = await apiJson<WorkspaceInfo>("/workspaces", "POST", {
-        name: name.trim(),
-      });
-      setName("");
-      await refreshQueries();
-      select(created.name);
-    });
-  };
   const setPromotesTo = (target: string) =>
     run(async () => {
       await apiJson(`/workspaces/${encodeURIComponent(ws.name)}`, "PATCH", {
@@ -404,7 +435,7 @@ export function WorkspacePage() {
       />
       <div className="page">
         {error && <div className="pane-status error">{error}</div>}
-        {editPromotion && (
+        {mayEditPromotion && (
           <label className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
             Promotes to
             <Select
@@ -427,24 +458,7 @@ export function WorkspacePage() {
           {tab === "evaluators" && <EvaluatorsTab ws={ws} />}
           {tab === "members" && <MembersTab ws={ws} />}
         </div>
-        {me.is_admin && (
-          <section className="mt-8 border-t pt-4">
-            <div className="eyebrow">New shared workspace</div>
-            <form
-              className="flex flex-wrap items-center gap-2"
-              onSubmit={create}
-            >
-              <Input
-                className="w-full sm:w-64"
-                placeholder="shared workspace name, e.g. dev"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
-              <Button type="submit">Create workspace</Button>
-            </form>
-          </section>
-        )}
+        {me.is_admin && <NewWorkspaceForm />}
       </div>
     </>
   );

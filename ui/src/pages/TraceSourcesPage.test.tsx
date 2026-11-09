@@ -49,6 +49,20 @@ test("without trace sources, an admin is told how to add one", async () => {
   expect(screen.getByText(/Add a Phoenix server above/)).toBeInTheDocument();
 });
 
+test("a trace source list that fails without a message still says which error came back", async () => {
+  stubServer((url) =>
+    url.endsWith("/api/trace-sources")
+      ? new Response("<html>Bad Gateway</html>", { status: 502 })
+      : undefined,
+  );
+  renderPage(
+    member({ dev: ["writer"] }),
+    "/settings/trace-sources",
+    <Route path="/settings/trace-sources" element={<TraceSourcesPage />} />,
+  );
+  expect(await screen.findByText("HTTP 502")).toBeInTheDocument();
+});
+
 test("without trace sources, a member is told an admin adds them", async () => {
   openTraceSources(member({ dev: ["writer"] }), []);
   expect(await screen.findByText("No trace sources")).toBeInTheDocument();

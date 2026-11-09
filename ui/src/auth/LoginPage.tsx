@@ -67,6 +67,7 @@ function LoginForm({ next }: { next: string }) {
         <FieldLabel htmlFor={`${id}-username`}>Username</FieldLabel>
         <Input
           id={`${id}-username`}
+          autoComplete="username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoFocus
@@ -78,6 +79,7 @@ function LoginForm({ next }: { next: string }) {
         <Input
           id={`${id}-password`}
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required

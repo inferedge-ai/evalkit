@@ -126,6 +126,7 @@ function DocsMenu({ tab }: { tab: string }) {
                 <li key={t.id}>
                   <Link
                     to={`/docs/${t.id}`}
+                    onClick={() => setOpenOn(null)}
                     aria-current={t.id === tab ? "page" : undefined}
                     className={cn(
                       "block rounded-md px-2 py-1.5 text-sm transition-colors",

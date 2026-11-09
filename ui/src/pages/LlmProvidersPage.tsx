@@ -17,6 +17,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 const ROW_COLUMNS = "grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto_auto]";
 
+function JudgeSkeleton() {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Skeleton className="h-8 w-32" />
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-8 w-28" />
+    </div>
+  );
+}
+
 function DefaultJudge({
   providers,
   editable,
@@ -64,14 +74,7 @@ function DefaultJudge({
     }
   };
 
-  if (!loaded)
-    return (
-      <div className="flex flex-wrap items-center gap-2">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-8 w-28" />
-      </div>
-    );
+  if (!loaded) return <JudgeSkeleton />;
   if (!editable) {
     return (
       <p className="text-sm">
@@ -151,14 +154,18 @@ export function LlmProvidersPage() {
         }
       />
       <div className="page">
-        {rows && (
+        {(rows || !listed.error) && (
           <section className="mb-4">
             <div className="eyebrow">Default judge</div>
             <p className="mb-2 max-w-3xl text-xs text-muted-foreground">
               Judge-using evaluators run on the server with a provider from this
               list, unless a run brings its own judge key.
             </p>
-            <DefaultJudge providers={active} editable={me.is_admin} />
+            {rows ? (
+              <DefaultJudge providers={active} editable={me.is_admin} />
+            ) : (
+              <JudgeSkeleton />
+            )}
           </section>
         )}
         <div className="eyebrow">Providers</div>

@@ -6,7 +6,7 @@ import { afterEach, expect, test, vi } from "vitest";
 import { queryClient } from "../lib/query";
 import type { Me } from "../lib/types";
 import { MeContext } from "../shell/capabilities";
-import { renderPage, stubServer } from "../testFixtures";
+import { closePage, renderPage, stubServer } from "../testFixtures";
 import { LlmProvidersPage } from "./LlmProvidersPage";
 
 // The provider form imports a file outside ui/ that jsdom runs can't load.
@@ -27,10 +27,7 @@ const judge = (model: string) => ({
   reasoning_effort: "high",
 });
 
-afterEach(() => {
-  queryClient.clear();
-  vi.unstubAllGlobals();
-});
+afterEach(closePage);
 
 test("reopening the page shows the server's current default judge", async () => {
   queryClient.setQueryData(["/judge-default"], judge("old-model"));
