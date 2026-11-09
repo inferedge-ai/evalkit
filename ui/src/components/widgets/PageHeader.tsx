@@ -8,10 +8,12 @@ interface Crumb {
 
 export function PageHeader({
   title,
+  description,
   breadcrumbs,
   actions,
 }: {
   title: ReactNode;
+  description?: string;
   breadcrumbs?: Crumb[];
   actions?: ReactNode;
 }) {
@@ -40,6 +42,14 @@ export function PageHeader({
           </nav>
         )}
         <h1 className="truncate text-base font-semibold">{title}</h1>
+        {description && (
+          <p
+            className="w-0 min-w-full truncate text-xs text-muted-foreground"
+            title={description}
+          >
+            {description}
+          </p>
+        )}
       </div>
       {actions && (
         <div className="flex flex-wrap items-center gap-2 p-2">{actions}</div>

@@ -77,25 +77,17 @@ function DatasetView() {
         replace
       />
     );
-  const metaParts = info ? syncLabel(info) : [];
-
   return (
     <>
       <PageHeader
         breadcrumbs={[{ label: "Datasets", to: "/datasets" }]}
         title={<span className="font-mono">{ref}</span>}
+        description={info ? syncLabel(info).join(" · ") : undefined}
         actions={
           info && <Button onClick={() => setLaunch({})}>Run experiment</Button>
         }
       />
       <div className="page">
-        <div className="toolbar mb-2">
-          {metaParts.length > 0 && (
-            <span className="row-meta truncate" title={metaParts.join(" · ")}>
-              {metaParts.join(" · ")}
-            </span>
-          )}
-        </div>
         {error && <div className="pane-status error">{error}</div>}
         <Tabs<Tab>
           tabs={TABS}

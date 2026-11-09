@@ -116,6 +116,20 @@
   control, with its hint underneath. Table checkboxes are square with 4px
   corners instead of round. Secondary text uses the components' muted grey,
   one shade darker than before in light mode.
+- The web UI's home, datasets, dataset, case and reviews pages are laid out
+  on the design system:
+  - Empty pages, tabs and lists show an icon, a title and the command to run.
+  - Loading placeholders have the shape of what loads. A case's page keeps its
+    header and breadcrumbs while it loads.
+  - A dataset's sync line (workspace, branch, commit, who synced it and when)
+    sits under its name in the page header.
+  - The reviews page switches between its three queues with tabs instead of
+    radio buttons.
+  - A case's page offers "Full evaluator config" once instead of twice.
+  - Every page's content has 16px of padding (was 18 to 28px).
+  - For a package extending the UI, `PageHeader` takes an optional
+    `description` line, and `Empty` (`@/components/widgets/Empty`) draws an
+    empty state.
 
 ## 0.4.0
 

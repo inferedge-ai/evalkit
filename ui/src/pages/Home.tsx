@@ -1,6 +1,8 @@
+import type { ReactNode } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Database } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { qs } from "../lib/api";
 import { useApi } from "../lib/query";
@@ -10,20 +12,22 @@ import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
-function SkeletonRows({ n }: { n: number }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rows">
-      {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="row grid-cols-[1fr_auto]">
-          <Skeleton
-            className="h-4"
-            style={{ width: `${40 + ((i * 13) % 45)}%` }}
-          />
-          <Skeleton className="h-3 w-28" />
-        </div>
-      ))}
-    </div>
+    <section className="min-w-0">
+      <div className="eyebrow">{title}</div>
+      <Card className="rows gap-0 py-0">{children}</Card>
+    </section>
   );
+}
+
+function SkeletonRows() {
+  return Array.from({ length: 3 }, (_, i) => (
+    <div key={i} className="row grid-cols-[1fr_auto]">
+      <Skeleton className="h-4" style={{ width: `${40 + ((i * 13) % 45)}%` }} />
+      <Skeleton className="h-3 w-28" />
+    </div>
+  ));
 }
 
 function DatasetRow({ ds }: { ds: Dataset }) {
@@ -103,58 +107,65 @@ export function Home() {
           <div className="pane-status error">{datasetsError}</div>
         )}
         {agentsError && <div className="pane-status error">{agentsError}</div>}
-        {loading && (
-          <Card className="gap-0 py-0">
-            <SkeletonRows n={8} />
-          </Card>
-        )}
-        {!loading && (
-          <div className="grid gap-x-5 gap-y-2 lg:grid-cols-2">
-            {!!datasets?.length && (
-              <section className="min-w-0">
-                <div className="eyebrow">Datasets</div>
-                <Card className="rows gap-0 py-0">
-                  {datasets.map((ds) => (
-                    <DatasetRow key={ds.ref} ds={ds} />
-                  ))}
-                </Card>
-              </section>
-            )}
-            {!!agents?.length && (
-              <section className="min-w-0">
-                <div className="eyebrow">Agents</div>
-                <Card className="rows gap-0 py-0">
-                  {agents.map((a) => (
-                    <AgentRow key={a.ref} agent={a} />
-                  ))}
-                </Card>
-              </section>
-            )}
-            {empty && (
-              <Card className="gap-0 py-0 lg:col-span-2">
-                <div className="pane-status">
-                  {workspace.type === "shared" ? (
+        <div className="grid gap-x-4 gap-y-2 lg:grid-cols-2">
+          {loading && (
+            <>
+              <Section title="Datasets">
+                <SkeletonRows />
+              </Section>
+              <Section title="Agents">
+                <SkeletonRows />
+              </Section>
+            </>
+          )}
+          {!loading && !!datasets?.length && (
+            <Section title="Datasets">
+              {datasets.map((ds) => (
+                <DatasetRow key={ds.ref} ds={ds} />
+              ))}
+            </Section>
+          )}
+          {!loading && !!agents?.length && (
+            <Section title="Agents">
+              {agents.map((a) => (
+                <AgentRow key={a.ref} agent={a} />
+              ))}
+            </Section>
+          )}
+          {!loading && empty && (
+            <Card className="py-8 lg:col-span-2">
+              {workspace.type === "shared" ? (
+                <Empty
+                  icon={Database}
+                  title={`No datasets or agents in @${workspace.name} yet`}
+                  description={
                     <>
-                      No datasets or agents yet — run{" "}
+                      Run{" "}
                       <span className="font-mono">
                         evalkit sync &lt;dir&gt; --workspace {workspace.name}
                       </span>{" "}
                       or add an agent.
                     </>
-                  ) : (
+                  }
+                />
+              ) : (
+                <Empty
+                  icon={Database}
+                  title="Nothing here yet"
+                  description={
                     <>
-                      Nothing here yet — run{" "}
+                      Run{" "}
                       <span className="font-mono">
                         evalkit run &lt;dataset&gt; --agent &lt;agent&gt;
                       </span>{" "}
                       from a repo with an evalkit.yaml.
                     </>
-                  )}
-                </div>
-              </Card>
-            )}
-          </div>
-        )}
+                  }
+                />
+              )}
+            </Card>
+          )}
+        </div>
       </div>
     </>
   );

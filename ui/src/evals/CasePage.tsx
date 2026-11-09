@@ -39,6 +39,7 @@ import { promotionSide, twinLine } from "../lib/promotion";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const PAGE = 10;
 
@@ -175,6 +176,22 @@ function ScoreHistory({
   );
 }
 
+function CaseSkeleton() {
+  return (
+    <div className="lg:w-3/4">
+      <div className="eyebrow">Question</div>
+      <Card>
+        <CardContent className="flex flex-col gap-2">
+          <Skeleton className="h-4 w-4/5" />
+          <Skeleton className="h-4 w-2/5" />
+        </CardContent>
+      </Card>
+      <div className="eyebrow">Evaluators</div>
+      <Skeleton className="h-24 w-full rounded-xl" />
+    </div>
+  );
+}
+
 export function CasePage() {
   const { ref: datasetId = "", caseId: exampleId = "" } = useParams();
   const workspaceName = splitRef(datasetId).workspace;
@@ -210,8 +227,35 @@ export function CasePage() {
         }}
       />
     );
-  if (error) return <div className="pane-status error">{error}</div>;
-  if (!example) return <div className="pane-status">Loading case…</div>;
+  const header = (
+    <PageHeader
+      breadcrumbs={[
+        { label: "Datasets", to: "/datasets" },
+        {
+          label: datasetId,
+          to: `/datasets/${encodeURIComponent(datasetId)}/cases`,
+        },
+      ]}
+      title={
+        <span className="font-mono">
+          <CopyText value={exampleId} />
+        </span>
+      }
+    />
+  );
+  if (error || !example)
+    return (
+      <>
+        {header}
+        <div className="page">
+          {error ? (
+            <div className="pane-status error">{error}</div>
+          ) : (
+            <CaseSkeleton />
+          )}
+        </div>
+      </>
+    );
 
   const tags = example.split_tags;
   const twin = example.twin && side ? example.twin : null;
@@ -229,20 +273,7 @@ export function CasePage() {
 
   return (
     <>
-      <PageHeader
-        breadcrumbs={[
-          { label: "Datasets", to: "/datasets" },
-          {
-            label: datasetId,
-            to: `/datasets/${encodeURIComponent(datasetId)}/cases`,
-          },
-        ]}
-        title={
-          <span className="font-mono">
-            <CopyText value={example.case_id} />
-          </span>
-        }
-      />
+      {header}
       <div className="page">
         {tags.length > 0 ? (
           <div className="mb-3 flex flex-wrap items-center gap-1">
@@ -277,12 +308,6 @@ export function CasePage() {
 
             <div className="eyebrow">Evaluators</div>
             <EvaluatorScores evaluators={example.evaluators} scores={{}} />
-            <details className="mt-2 text-micro">
-              <summary className="cursor-pointer text-muted-foreground">
-                Full evaluator config
-              </summary>
-              <PreBlock text={toYaml(example.evaluators)} language="yaml" />
-            </details>
 
             <ScoreHistory dataset={datasetId} caseId={example.case_id} />
           </div>
