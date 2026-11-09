@@ -271,7 +271,7 @@ button {
   color: var(--color-n-500);
 }
 
-/* ── Shared component classes (transcript rows, badges, data tables) ────── */
+/* ── Shared component classes (list rows, trajectory steps, data tables) ── */
 @layer components {
   /* ── Page frame ─────────────────────────────────────────────────────── */
   .page {
@@ -298,97 +298,7 @@ button {
   }
 
   /* ── Controls ───────────────────────────────────────────────────────── */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    height: 28px;
-    padding: 0 9px;
-    border: 1px solid var(--color-line-strong);
-    border-radius: 6px;
-    background: var(--color-surface);
-    color: var(--color-ink-2);
-    font-size: var(--text-meta);
-    line-height: 1;
-    white-space: nowrap;
-    transition:
-      color 120ms,
-      background-color 120ms,
-      border-color 120ms;
-  }
-  .btn:hover:not(:disabled) {
-    color: var(--color-brand);
-    border-color: var(--color-brand);
-  }
-  .btn:disabled {
-    opacity: 0.45;
-    cursor: default;
-  }
-  .btn-primary {
-    background: var(--color-brand);
-    border-color: var(--color-brand);
-    color: var(--color-n-0);
-    font-weight: 500;
-  }
-  .btn-primary:hover:not(:disabled) {
-    background: var(--color-brand-hover);
-    border-color: var(--color-brand-hover);
-    color: var(--color-n-0);
-  }
-  .btn-quiet {
-    border-color: transparent;
-    background: transparent;
-  }
-  .btn-quiet:hover:not(:disabled) {
-    background: var(--color-fill);
-    border-color: transparent;
-  }
-  .btn-sm {
-    height: 22px;
-    padding: 0 6px;
-    font-size: var(--text-micro);
-    border-radius: 4px;
-  }
-  .btn-lg {
-    height: 36px;
-    padding: 0 16px;
-    font-size: var(--text-body);
-    font-weight: 500;
-  }
-  .btn-approve {
-    background: var(--color-ok-bg);
-    border-color: var(--color-ok);
-    color: var(--color-ok);
-  }
-  .btn-approve:hover:not(:disabled) {
-    background: var(--color-ok);
-    border-color: var(--color-ok);
-    color: var(--color-n-0);
-  }
-  .btn-reject {
-    background: var(--color-err-bg);
-    border-color: var(--color-err);
-    color: var(--color-err-text);
-  }
-  .btn-reject:hover:not(:disabled) {
-    background: var(--color-err);
-    border-color: var(--color-err);
-    color: var(--color-n-0);
-  }
 
-  .input {
-    height: 30px;
-    padding: 0 9px;
-    border: 1px solid var(--color-line-strong);
-    border-radius: 6px;
-    background: var(--color-surface);
-    color: var(--color-ink);
-    font-family: inherit;
-    font-size: var(--text-body);
-  }
-  .input::placeholder {
-    color: var(--color-ink-4);
-  }
   .select {
     position: relative;
     display: inline-flex;
@@ -904,6 +814,7 @@ button {
   .pane-status {
     padding: 20px;
     font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
     color: var(--color-ink-3);
   }
   .pane-status.error {
@@ -924,25 +835,6 @@ button {
     text-align: center;
   }
 
-  .chip {
-    display: inline-block;
-    border-radius: 999px;
-    background: var(--color-info-bg);
-    color: var(--color-brand);
-    font-size: var(--text-micro);
-    line-height: 16px;
-    padding: 0 7px;
-    white-space: nowrap;
-  }
-  .chip.muted {
-    background: var(--color-fill);
-    color: var(--color-ink-3);
-  }
-  .chip-info {
-    background: var(--color-info-bg);
-    color: var(--color-brand);
-  }
-
   .sev-fg-pass {
     color: var(--color-ok);
   }
@@ -955,23 +847,6 @@ button {
   }
   .sev-fg-none {
     color: var(--color-n-300);
-  }
-
-  .chip-pass {
-    background: var(--color-ok-bg);
-    color: var(--color-ok);
-  }
-  .chip-partial {
-    background: var(--color-warn-bg);
-    color: var(--color-warn);
-  }
-  .chip-fail {
-    background: var(--color-err-bg);
-    color: var(--color-err-text);
-  }
-  .chip-none {
-    background: var(--color-n-50);
-    color: var(--color-n-400);
   }
 
   .iv-satisfied {
@@ -994,19 +869,6 @@ button {
     color: var(--color-n-400);
   }
 
-  .sev-bg-pass {
-    background: var(--color-ok);
-  }
-  .sev-bg-partial {
-    background: var(--color-warn);
-  }
-  .sev-bg-fail {
-    background: var(--color-err);
-  }
-  .sev-bg-none {
-    background: var(--color-n-200);
-  }
-
   /* Section label. Earns its place by naming a real section of the record —
      never used as decoration. */
   .eyebrow {
@@ -1022,14 +884,6 @@ button {
   }
   .eyebrow:first-child {
     margin-top: 0;
-  }
-  /* A rule that runs to the end of the line, so the label reads as the head
-     of a section rather than a floating caption. */
-  .eyebrow-rule::after {
-    content: "";
-    flex: 1;
-    height: 1px;
-    background: var(--color-line);
   }
 }
 
