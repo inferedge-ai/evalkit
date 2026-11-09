@@ -16,6 +16,7 @@ from evalkit.api.access import (
     require,
     workspace_ref,
 )
+from evalkit.api.deps import ConfigDep
 from evalkit.api.experiments import slug_or_400
 from evalkit.config import Config
 from evalkit.contracts.esf import MappingDocument
@@ -169,19 +170,19 @@ class ImportRequest(BaseModel):
 async def import_session(
     agent: str,
     body: ImportRequest,
-    request: Request,
     stores: StoresDep,
     actor: ActorDep,
+    cfg: ConfigDep,
 ) -> dict:
     _, record = await agent_or_404(stores.agents, agent)
     await require_write(stores, actor, record)
     require_otel(record)
-    source = await resolve_import_source(stores, request.app.state.cfg, body.source)
+    source = await resolve_import_source(stores, cfg, body.source)
     client = client_for(
         source.provider,
         source.url,
         source.api_key.get_secret_value() if source.api_key else None,
-        request.app.state.cfg.otel.import_page_traces,
+        cfg.otel.import_page_traces,
     )
     try:
         fetched = await client.session_spans(body.project, body.session_id)
