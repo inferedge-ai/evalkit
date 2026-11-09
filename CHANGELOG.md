@@ -204,14 +204,14 @@
   - Docs: on a phone the page list folds under a button naming the current
     page, above the page, and folds again after you pick one; wide tables
     scroll sideways inside their own box.
-  - Markdown everywhere in the UI (docs, run answers, explanations, case
-    text and workspace file previews) takes the design system's colours for
-    code blocks, inline code, tables and quotes.
+  - Markdown everywhere in the UI (docs, case questions, run answers, agent
+    messages in trajectories and workspace file previews) takes the design
+    system's colours for code blocks, inline code, tables and quotes.
   - Sign-in: the sign-in card is 384px wide (was 336px) with labelled
     fields that password managers fill, and a failed provider sign-in
     (`/login/callback`) shows the same header bar as `/login`.
   - A missing page shows an icon, what is missing and a button back.
-- A failed request whose response carries no error message, such as a
+- A failed API request whose response carries no error message, such as a
   proxy's 502 page, shows `HTTP <status>` instead of an empty error.
 
 ## 0.4.0

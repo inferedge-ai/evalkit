@@ -381,6 +381,11 @@ export function WorkspacePage() {
   const me = useMe();
   const { workspace: ws, workspaces } = useWorkspace();
   const [error, setError] = useState<string | null>(null);
+  const [errorWorkspace, setErrorWorkspace] = useState(ws.name);
+  if (errorWorkspace !== ws.name) {
+    setErrorWorkspace(ws.name);
+    setError(null);
+  }
 
   if (!isTab(tab))
     return <Navigate to="/settings/workspace/evaluators" replace />;
