@@ -90,6 +90,20 @@
   extending the UI, a `NavItem` takes an optional lucide `icon`; `nav` items
   get a sidebar section of their own after Observe, `moreNav` items join
   Workspace and `adminNav` items join Admin, and all of them stay in ⌘K.
+- The web UI draws its buttons, badges, inputs, cards, tabs, form fields,
+  checkboxes and loading placeholders with the shadcn components, and
+  evalkit's own CSS classes for them are removed: `btn` and its variants,
+  `chip` and its variants, `input`, `card`, `card-head`, `tab-button`,
+  `form-row`, `form-label`, `check` and `skeleton`. A page in a package that
+  extends the UI and uses one of them must move to the component. Buttons come
+  in three heights (28, 32 and 36px) and line up with the 32px inputs and
+  selects beside them; badges gain pass, partial, fail and info colours. List
+  rows are 36px, with names at 14px and details at 12px, and on a phone a
+  row's details wrap under its name instead of squeezing it to nothing.
+  Toolbars wrap on a narrow screen instead of running off it, and tab bars
+  scroll sideways. Cards have 14px corners. Forms put each label above its
+  control, with its hint underneath. Table checkboxes are square with 4px
+  corners instead of round.
 
 ## 0.4.0
 
