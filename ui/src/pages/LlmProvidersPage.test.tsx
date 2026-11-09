@@ -2,7 +2,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
-import { SidebarProvider } from "@/components/ui/sidebar";
 import { queryClient } from "../lib/query";
 import type { Me } from "../lib/types";
 import { MeContext } from "../shell/capabilities";
@@ -47,9 +46,7 @@ test("reopening the page shows the server's current default judge", async () => 
   render(
     <QueryClientProvider client={queryClient}>
       <MeContext.Provider value={admin}>
-        <SidebarProvider>
-          <LlmProvidersPage />
-        </SidebarProvider>
+        <LlmProvidersPage />
       </MeContext.Provider>
     </QueryClientProvider>,
   );

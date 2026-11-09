@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 
 interface Crumb {
   label: string;
@@ -11,19 +10,13 @@ export function PageHeader({
   title,
   breadcrumbs,
   actions,
-  showSidebarTrigger = true,
 }: {
   title: ReactNode;
   breadcrumbs?: Crumb[];
   actions?: ReactNode;
-  // The trigger needs the signed-in shell's SidebarProvider.
-  showSidebarTrigger?: boolean;
 }) {
   return (
     <header className="flex min-h-12 w-full shrink-0 flex-wrap items-center border-b bg-card px-3">
-      {showSidebarTrigger && (
-        <SidebarTrigger className="-ml-2 shrink-0 md:hidden" />
-      )}
       <div className="flex min-w-0 grow flex-col justify-center gap-0.5 overflow-hidden p-2">
         {breadcrumbs && (
           <nav

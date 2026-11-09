@@ -80,9 +80,10 @@
   Agents), Workspace (Settings) and, for admins, Admin (Users, Trace sources,
   LLM providers); its footer has Docs and a menu with your name, the light or
   dark mode switch and Sign out. The sidebar collapses to icons (its button,
-  or ⌘B) and stays collapsed across reloads through the `sidebar_state`
-  cookie; on a phone it opens as a sheet from the button at the left of the
-  page header. Each page starts with a header holding its title, the pages
+  or ⌘B), and the `sidebar_state` cookie keeps it collapsed across reloads
+  for a week after the last toggle. Collapsed, it shows the workspace's
+  initials, which expand it again. On a phone it opens as a sheet from the
+  button in a slim bar at the top of the screen. Each page starts with a header holding its title, the pages
   above it as links, and its main actions. The ⌘K search opens in a shadcn
   dialog. Signed-out pages (sign-in, docs) keep a top bar with the wordmark,
   Docs, the theme switch and Sign in. For a package extending the UI, a

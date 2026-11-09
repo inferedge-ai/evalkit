@@ -183,40 +183,38 @@ function AgentView() {
             <CopyText value={slug} />
           </span>
         }
+        actions={
+          <>
+            {writable && !agent.archived && (
+              <>
+                <button className="btn btn-sm" onClick={() => setEditing(true)}>
+                  Edit
+                </button>
+                <button
+                  className="btn btn-sm"
+                  onClick={() => setConfirmingArchive(true)}
+                >
+                  Archive
+                </button>
+              </>
+            )}
+            {writable && agent.archived && (
+              <button className="btn btn-sm" onClick={restore}>
+                Restore
+              </button>
+            )}
+            <Link
+              className="btn btn-quiet text-brand"
+              to={`/runs?agent=${encodeURIComponent(slug)}`}
+            >
+              Runs <ArrowUpRight size={12} />
+            </Link>
+          </>
+        }
       />
       <div className="page">
         <div className="toolbar mb-2">
           {agent && <span className="chip muted">{agentKind(agent)}</span>}
-          {writable && !agent.archived && (
-            <>
-              <button
-                className="btn btn-sm ml-auto"
-                onClick={() => setEditing(true)}
-              >
-                Edit
-              </button>
-              <button
-                className="btn btn-sm"
-                onClick={() => setConfirmingArchive(true)}
-              >
-                Archive
-              </button>
-            </>
-          )}
-          {writable && agent.archived && (
-            <button className="btn btn-sm ml-auto" onClick={restore}>
-              Restore
-            </button>
-          )}
-          <Link
-            className={`btn btn-quiet text-brand ${writable ? "" : "ml-auto"}`}
-            to={`/runs?agent=${encodeURIComponent(slug)}`}
-          >
-            Runs <ArrowUpRight size={12} />
-          </Link>
-          <Link className="btn btn-quiet text-brand" to="/agents">
-            All agents <ArrowUpRight size={12} />
-          </Link>
         </div>
         {error && <div className="pane-status error">{error}</div>}
         {agent && (

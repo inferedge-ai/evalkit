@@ -246,7 +246,7 @@ function ExperimentView() {
       />
       <div className="page">
         <div className="toolbar mb-3 flex-wrap">
-          <span className="row-meta">
+          <span className="row-meta" title="experiment id">
             <CopyText value={experimentId} />
           </span>
           {tag && <span className="chip muted">{tag}</span>}

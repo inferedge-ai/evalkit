@@ -72,10 +72,16 @@ export function Home() {
   return (
     <>
       <PageHeader
-        title={`@${workspace.name}`}
+        title={
+          <>
+            @{workspace.name}{" "}
+            <span className="chip muted align-middle font-normal">
+              {workspace.type}
+            </span>
+          </>
+        }
         actions={
           <>
-            <span className="chip muted">{workspace.type}</span>
             <Link to="/datasets" className="btn btn-quiet text-brand">
               All datasets <ArrowRight size={14} />
             </Link>

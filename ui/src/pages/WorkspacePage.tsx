@@ -316,6 +316,13 @@ export function WorkspacePage() {
       <PageHeader
         breadcrumbs={[{ label: "Settings", to: "/workspace" }]}
         title={`@${ws.name}`}
+        actions={
+          mayArchive && (
+            <button className="btn btn-sm" onClick={toggleArchive}>
+              {ws.archived ? "Restore" : "Archive"}
+            </button>
+          )
+        }
       />
       <div className="page">
         <div className="toolbar mb-2">
@@ -350,11 +357,6 @@ export function WorkspacePage() {
                 ]}
               />
             </label>
-          )}
-          {mayArchive && (
-            <button className="btn btn-sm ml-auto" onClick={toggleArchive}>
-              {ws.archived ? "Restore" : "Archive"}
-            </button>
           )}
         </div>
         {me.is_admin && (

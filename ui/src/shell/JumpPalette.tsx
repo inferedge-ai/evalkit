@@ -147,12 +147,6 @@ export function JumpPalette() {
     };
   }, []);
 
-  useEffect(() => {
-    if (open) return;
-    setKind(null);
-    setValue("");
-  }, [open]);
-
   const local =
     useQuery({
       queryKey: ["palette-local", workspace.name],
@@ -245,7 +239,15 @@ export function JumpPalette() {
     (kind === "run" ? runs === null : local === null);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={setOpen}
+      onOpenChangeComplete={(isOpen) => {
+        if (isOpen) return;
+        setKind(null);
+        setValue("");
+      }}
+    >
       <DialogContent
         aria-label="Search"
         showCloseButton={false}

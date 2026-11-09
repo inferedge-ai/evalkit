@@ -84,7 +84,7 @@ export function DocsPage() {
   const body = DOC_TABS.find((t) => t.id === tab)?.body ?? "";
   return (
     <>
-      <PageHeader title="Docs" showSidebarTrigger={me !== null} />
+      {me && <PageHeader title="Docs" />}
       <div className="page">
         <div className="mx-auto flex max-w-6xl gap-10">
           <nav

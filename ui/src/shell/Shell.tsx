@@ -1,23 +1,7 @@
 import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
-import {
-  Link,
-  NavLink,
-  Outlet,
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
-import {
-  ChevronRight,
-  LogOut,
-  Moon,
-  PanelLeft,
-  Puzzle,
-  Search,
-  Sun,
-} from "lucide-react";
+import { NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
+import { ChevronRight, LogOut, Moon, Puzzle, Search, Sun } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +21,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
+  SidebarTrigger,
+  SIDEBAR_COOKIE_NAME,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
@@ -51,11 +37,6 @@ import { DOCS_NAV, getNavSections } from "./nav";
 import { useTheme } from "./theme";
 import { SWITCH_FLASH_MS, useSwitchWorkspace, useWorkspace } from "./workspace";
 
-const SIDEBAR_WIDTHS = {
-  "--sidebar-width": "220px",
-  "--sidebar-width-icon": "53px",
-} as CSSProperties;
-
 export function BrandLink({ to = "/" }: { to?: string }) {
   return (
     <NavLink to={to} className="flex items-baseline">
@@ -67,19 +48,22 @@ export function BrandLink({ to = "/" }: { to?: string }) {
 }
 
 // SidebarProvider writes this cookie whenever the sidebar is toggled.
-function readSidebarOpen(): boolean {
-  return !document.cookie.split("; ").includes("sidebar_state=false");
+function readSidebarCookie(): boolean {
+  return !document.cookie.split("; ").includes(`${SIDEBAR_COOKIE_NAME}=false`);
 }
 
 export function Shell() {
   return (
     <SidebarProvider
-      defaultOpen={readSidebarOpen()}
+      defaultOpen={readSidebarCookie()}
       className="h-dvh overflow-hidden"
-      style={SIDEBAR_WIDTHS}
     >
       <SideNav />
       <SidebarInset>
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-card px-2 md:hidden">
+          <SidebarTrigger aria-label="Open navigation" />
+          <BrandLink />
+        </header>
         <div className="min-h-0 flex-1 overflow-auto">
           <Outlet />
         </div>
@@ -125,16 +109,13 @@ function SideNav() {
 }
 
 function NavRow({ item }: { item: NavItem }) {
-  const { pathname } = useLocation();
+  const active = useMatch({ path: item.to, end: false }) !== null;
   const { isMobile, setOpenMobile } = useSidebar();
   const Icon = item.icon ?? Puzzle;
-  const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        render={
-          <Link to={item.to} aria-current={active ? "page" : undefined} />
-        }
+        render={<NavLink to={item.to} />}
         isActive={active}
         tooltip={item.label}
         onClick={() => {
@@ -142,16 +123,14 @@ function NavRow({ item }: { item: NavItem }) {
         }}
       >
         <Icon />
-        <span className="group-data-[collapsible=icon]:hidden">
-          {item.label}
-        </span>
+        <span>{item.label}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
 }
 
 function SideNavHeader() {
-  const { state, isMobile, toggleSidebar } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed" && !isMobile;
   return (
     <>
@@ -161,27 +140,26 @@ function SideNavHeader() {
             <BrandLink />
           </span>
         )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={toggleSidebar}
+        <SidebarTrigger
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           title={collapsed ? "Expand sidebar (⌘B)" : "Collapse sidebar (⌘B)"}
           className="shrink-0"
-        >
-          <PanelLeft />
-        </Button>
+        />
       </div>
       <SidebarMenu className="gap-2 px-2 pb-2">
         <WorkspaceSwitcher />
+        <WorkspaceBadge />
         <SidebarMenuItem>
           <SidebarMenuButton
             variant="outline"
             tooltip="Search (⌘K)"
-            onClick={() => window.dispatchEvent(new Event("jump-palette:open"))}
+            onClick={() => {
+              setOpenMobile(false);
+              window.dispatchEvent(new Event("jump-palette:open"));
+            }}
           >
             <Search />
-            <span className="group-data-[collapsible=icon]:hidden">Search</span>
+            <span>Search</span>
             <kbd className="ml-auto font-mono text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
               ⌘K
             </kbd>
@@ -189,6 +167,24 @@ function SideNavHeader() {
         </SidebarMenuItem>
       </SidebarMenu>
     </>
+  );
+}
+
+function WorkspaceBadge() {
+  const { workspace } = useWorkspace();
+  const { setOpen } = useSidebar();
+  return (
+    <SidebarMenuItem className="hidden group-data-[collapsible=icon]:block">
+      <SidebarMenuButton
+        tooltip={`@${workspace.name}`}
+        aria-label={`Workspace @${workspace.name}`}
+        onClick={() => setOpen(true)}
+      >
+        <span className="text-xs font-semibold">
+          {workspace.name.slice(0, 2).toUpperCase()}
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 

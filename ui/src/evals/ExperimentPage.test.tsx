@@ -10,7 +10,6 @@ import {
   type NavigateFunction,
 } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
-import { SidebarProvider } from "@/components/ui/sidebar";
 import { queryClient } from "../lib/query";
 import type { ExperimentInfo, Me, Report, WorkspaceInfo } from "../lib/types";
 import { MeContext } from "../shell/capabilities";
@@ -119,18 +118,16 @@ test("re-evaluating an experiment with unfinished runs asks first, and only re-e
   render(
     <QueryClientProvider client={queryClient}>
       <MeContext.Provider value={me}>
-        <SidebarProvider>
-          <MemoryRouter initialEntries={["/experiments/12"]}>
-            <Routes>
-              <Route element={<WorkspaceGate />}>
-                <Route
-                  path="/experiments/:experimentId"
-                  element={<ExperimentPage />}
-                />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </SidebarProvider>
+        <MemoryRouter initialEntries={["/experiments/12"]}>
+          <Routes>
+            <Route element={<WorkspaceGate />}>
+              <Route
+                path="/experiments/:experimentId"
+                element={<ExperimentPage />}
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>
       </MeContext.Provider>
     </QueryClientProvider>,
   );
@@ -184,18 +181,16 @@ test("double-clicking the confirmation re-evaluates once", async () => {
   render(
     <QueryClientProvider client={queryClient}>
       <MeContext.Provider value={me}>
-        <SidebarProvider>
-          <MemoryRouter initialEntries={["/experiments/12"]}>
-            <Routes>
-              <Route element={<WorkspaceGate />}>
-                <Route
-                  path="/experiments/:experimentId"
-                  element={<ExperimentPage />}
-                />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </SidebarProvider>
+        <MemoryRouter initialEntries={["/experiments/12"]}>
+          <Routes>
+            <Route element={<WorkspaceGate />}>
+              <Route
+                path="/experiments/:experimentId"
+                element={<ExperimentPage />}
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>
       </MeContext.Provider>
     </QueryClientProvider>,
   );
@@ -242,19 +237,17 @@ test("a confirmation left open on one experiment is gone after moving to another
   render(
     <QueryClientProvider client={queryClient}>
       <MeContext.Provider value={me}>
-        <SidebarProvider>
-          <MemoryRouter initialEntries={["/experiments/12"]}>
-            <History />
-            <Routes>
-              <Route element={<WorkspaceGate />}>
-                <Route
-                  path="/experiments/:experimentId"
-                  element={<ExperimentPage />}
-                />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </SidebarProvider>
+        <MemoryRouter initialEntries={["/experiments/12"]}>
+          <History />
+          <Routes>
+            <Route element={<WorkspaceGate />}>
+              <Route
+                path="/experiments/:experimentId"
+                element={<ExperimentPage />}
+              />
+            </Route>
+          </Routes>
+        </MemoryRouter>
       </MeContext.Provider>
     </QueryClientProvider>,
   );

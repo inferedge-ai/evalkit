@@ -4,7 +4,6 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
-import { SidebarProvider } from "@/components/ui/sidebar";
 import { queryClient } from "../lib/query";
 import type { AgentInfo, Me, WorkspaceInfo } from "../lib/types";
 import { MeContext } from "../shell/capabilities";
@@ -84,15 +83,13 @@ function renderAgentPage() {
   render(
     <QueryClientProvider client={queryClient}>
       <MeContext.Provider value={me}>
-        <SidebarProvider>
-          <MemoryRouter initialEntries={["/agents/bot@akshat/overview"]}>
-            <Routes>
-              <Route element={<WorkspaceGate />}>
-                <Route path="/agents/:agent/:tab" element={<AgentPage />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </SidebarProvider>
+        <MemoryRouter initialEntries={["/agents/bot@akshat/overview"]}>
+          <Routes>
+            <Route element={<WorkspaceGate />}>
+              <Route path="/agents/:agent/:tab" element={<AgentPage />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
       </MeContext.Provider>
     </QueryClientProvider>,
   );

@@ -4,7 +4,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
-import { SidebarProvider } from "@/components/ui/sidebar";
 import { queryClient } from "../lib/query";
 import type { Me, WorkspaceInfo } from "../lib/types";
 import { MeContext } from "../shell/capabilities";
@@ -60,15 +59,13 @@ test("Esc closes the open kind list, then the new evaluator form, without saving
   render(
     <QueryClientProvider client={queryClient}>
       <MeContext.Provider value={me}>
-        <SidebarProvider>
-          <MemoryRouter initialEntries={["/workspace/evaluators"]}>
-            <Routes>
-              <Route element={<WorkspaceGate />}>
-                <Route path="/workspace/:tab" element={<WorkspacePage />} />
-              </Route>
-            </Routes>
-          </MemoryRouter>
-        </SidebarProvider>
+        <MemoryRouter initialEntries={["/workspace/evaluators"]}>
+          <Routes>
+            <Route element={<WorkspaceGate />}>
+              <Route path="/workspace/:tab" element={<WorkspacePage />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
       </MeContext.Provider>
     </QueryClientProvider>,
   );

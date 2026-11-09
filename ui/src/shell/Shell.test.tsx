@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { SIDEBAR_COOKIE_NAME } from "../components/ui/sidebar";
 import { PageHeader } from "../components/widgets/PageHeader";
 import { queryClient } from "../lib/query";
 import { DocsPage } from "../pages/DocsPage";
@@ -65,7 +66,7 @@ afterEach(() => {
   queryClient.clear();
   vi.unstubAllGlobals();
   localStorage.clear();
-  document.cookie = "sidebar_state=; path=/; max-age=0";
+  document.cookie = `${SIDEBAR_COOKIE_NAME}=; path=/; max-age=0`;
 });
 
 function page(name: string) {
@@ -90,7 +91,9 @@ function renderApp(me: Me | null, path: string) {
                   <Route path="/docs/:tab" element={<DocsPage />} />
                   <Route path="/datasets" element={page("Datasets")} />
                   <Route path="/experiments" element={page("Experiments")} />
+                  <Route path="/experiments/:id" element={page("Experiment")} />
                   <Route path="/billing" element={page("Billing")} />
+                  <Route path="/bare" element={<p>Bare page</p>} />
                 </Route>
               </Route>
             </Routes>
@@ -171,8 +174,9 @@ test("a signed-out page shows the public top bar, not the sidebar", () => {
   renderApp(null, "/docs/install");
 
   expect(
-    screen.getByRole("heading", { level: 1, name: "Docs" }),
+    screen.getByRole("heading", { level: 1, name: "Install" }),
   ).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Docs" })).toBeNull();
   expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
     "href",
     "/login?next=%2Fdocs%2Finstall",
@@ -206,28 +210,89 @@ test("the profile menu shows who is signed in, switches the theme and signs out"
   const user = userEvent.setup();
   renderApp(member, "/datasets");
 
-  await user.click(await screen.findByRole("button", { name: /akshat/ }));
+  await user.click(await screen.findByRole("button", { name: "akshat" }));
   const menu = await screen.findByRole("menu");
   expect(within(menu).getByText("akshat@example.com")).toBeInTheDocument();
   await user.click(within(menu).getByRole("menuitem", { name: "Dark mode" }));
   expect(document.documentElement).toHaveClass("dark");
 
-  await user.click(screen.getByRole("button", { name: /akshat/ }));
+  await user.click(screen.getByRole("button", { name: "akshat" }));
   await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
   expect(await screen.findByText("login page")).toBeInTheDocument();
 });
 
-test("on a phone the page header opens the navigation, and picking a page closes it", async () => {
+test("on a phone the top bar opens the navigation on any page, and picking a page closes it", async () => {
   stubBrowser(390);
   const user = userEvent.setup();
-  renderApp(member, "/datasets");
-  await screen.findByText("Datasets page");
+  renderApp(member, "/bare");
+  await screen.findByText("Bare page");
   expect(screen.queryByRole("link", { name: "Experiments" })).toBeNull();
 
-  await user.click(screen.getByRole("button", { name: "Toggle Sidebar" }));
+  await user.click(screen.getByRole("button", { name: "Open navigation" }));
   const sheet = await screen.findByRole("dialog");
   await user.click(within(sheet).getByRole("link", { name: "Experiments" }));
 
   expect(await screen.findByText("Experiments page")).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Experiments" })).toBeNull();
+});
+
+test("on a phone, Search in the navigation closes it and opens the search", async () => {
+  stubBrowser(390);
+  const user = userEvent.setup();
+  renderApp(member, "/datasets");
+  await screen.findByText("Datasets page");
+
+  await user.click(screen.getByRole("button", { name: "Open navigation" }));
+  const sheet = await screen.findByRole("dialog");
+  await user.click(within(sheet).getByRole("button", { name: /Search/ }));
+
+  expect(
+    await screen.findByRole("dialog", { name: "Search" }),
+  ).toBeInTheDocument();
+  await waitFor(() => expect(sheet).not.toBeInTheDocument());
+});
+
+test("Escape closes the ⌘K search", async () => {
+  const user = userEvent.setup();
+  renderApp(member, "/datasets");
+  await screen.findByText("Datasets page");
+
+  await user.keyboard("{Meta>}k{/Meta}");
+  const search = await screen.findByRole("dialog", { name: "Search" });
+  await user.keyboard("{Escape}");
+
+  await waitFor(() => expect(search).not.toBeInTheDocument());
+});
+
+test("the sidebar marks the section of a nested page as the current one", async () => {
+  renderApp(member, "/experiments/12");
+  await screen.findByText("Experiment page");
+
+  expect(screen.getByRole("link", { name: "Experiments" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(screen.getByRole("link", { name: "Experiments" })).toHaveAttribute(
+    "data-active",
+  );
+  expect(screen.getByRole("link", { name: "Datasets" })).not.toHaveAttribute(
+    "aria-current",
+  );
+  expect(screen.getByRole("link", { name: "Datasets" })).not.toHaveAttribute(
+    "data-active",
+  );
+});
+
+test("the collapsed sidebar names the workspace, and clicking it expands the sidebar", async () => {
+  const user = userEvent.setup();
+  renderApp(member, "/datasets");
+  await user.click(
+    await screen.findByRole("button", { name: "Collapse sidebar" }),
+  );
+
+  await user.click(screen.getByRole("button", { name: "Workspace @akshat" }));
+
+  expect(
+    screen.getByRole("button", { name: "Collapse sidebar" }),
+  ).toBeInTheDocument();
 });
