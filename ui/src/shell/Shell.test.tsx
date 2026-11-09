@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { PageHeader } from "../components/widgets/PageHeader";
 import { queryClient } from "../lib/query";
+import { DocsPage } from "../pages/DocsPage";
 import type { Me, WorkspaceInfo } from "../lib/types";
 import { MeContext } from "./capabilities";
 import { ShellOrBare, WorkspaceOrPublic } from "./layout";
@@ -86,7 +87,7 @@ function renderApp(me: Me | null, path: string) {
               <Route path="/login" element={<p>login page</p>} />
               <Route element={<WorkspaceOrPublic />}>
                 <Route element={<ShellOrBare />}>
-                  <Route path="/docs/:tab" element={<p>docs body</p>} />
+                  <Route path="/docs/:tab" element={<DocsPage />} />
                   <Route path="/datasets" element={page("Datasets")} />
                   <Route path="/experiments" element={page("Experiments")} />
                   <Route path="/billing" element={page("Billing")} />
@@ -169,7 +170,9 @@ test("⌘K finds an extension page and opens it", async () => {
 test("a signed-out page shows the public top bar, not the sidebar", () => {
   renderApp(null, "/docs/install");
 
-  expect(screen.getByText("docs body")).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { level: 1, name: "Docs" }),
+  ).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
     "href",
     "/login?next=%2Fdocs%2Finstall",
