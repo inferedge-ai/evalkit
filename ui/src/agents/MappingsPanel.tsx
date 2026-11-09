@@ -3,6 +3,7 @@ import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
 import { Select } from "../lib/Select";
+import { ToArrow } from "../lib/ui";
 import { messageCounts } from "../lib/esfSummary";
 import { mappingRows, ruleNotes, sameRule } from "../lib/mappingRules";
 import type { MappingRecord, RunList, SessionTrajectory } from "../lib/types";
@@ -100,7 +101,7 @@ function MappingRules({
                   {row.rule?.values &&
                     Object.entries(row.rule.values).map(([from, to]) => (
                       <span key={from} className="chip muted font-mono">
-                        {from} → {to}
+                        {from} <ToArrow /> {to}
                       </span>
                     ))}
                 </div>

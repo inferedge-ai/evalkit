@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { Check, ChevronDown } from "lucide-react";
 import { filterOptions, nextIndex, typeaheadIndex } from "./selectModel";
 import type { SelectOption } from "./selectModel";
 
@@ -191,7 +191,7 @@ function SelectMenu<T extends string | number>({
         <span className={`truncate ${label ? "" : "text-ink-4"}`}>
           {label ?? placeholder}
         </span>
-        <Chevron />
+        <ChevronDown size={12} className="select-chevron" />
       </button>
       {open && (
         <div className="select-menu" onKeyDown={onListKey}>
@@ -229,7 +229,7 @@ function SelectMenu<T extends string | number>({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(option)}
               >
-                <Check on={isSelected(option.value)} />
+                <SelectCheck on={isSelected(option.value)} />
                 <span className="truncate">{option.label}</span>
                 {option.hint != null && (
                   <span className="select-hint">{option.hint}</span>
@@ -247,7 +247,7 @@ function SelectMenu<T extends string | number>({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setExpanded(true)}
               >
-                <Check on={false} />
+                <SelectCheck on={false} />
                 <span className="truncate">{more?.label}</span>
               </li>
             )}
@@ -261,44 +261,12 @@ function SelectMenu<T extends string | number>({
   );
 }
 
-function Chevron() {
+function SelectCheck({ on }: { on: boolean }) {
   return (
-    <svg
-      className="select-chevron"
-      width="10"
-      height="10"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M4 6l4 4 4-4"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function Check({ on }: { on: boolean }): ReactNode {
-  return (
-    <svg
+    <Check
+      size={11}
+      strokeWidth={2.5}
       className={`select-check ${on ? "" : "invisible"}`}
-      width="11"
-      height="11"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M3 8.5l3.2 3L13 5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    />
   );
 }

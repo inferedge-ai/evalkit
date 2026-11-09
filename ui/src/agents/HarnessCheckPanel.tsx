@@ -1,8 +1,14 @@
 import { useState } from "react";
+import { Check, Minus, TriangleAlert, X } from "lucide-react";
 import { apiJson } from "../lib/api";
 import type { HarnessCheckReport } from "../lib/types";
 
-const GLYPH = { pass: "✓", warn: "!", fail: "✗", skipped: "—" } as const;
+const STATUS_ICON = {
+  pass: Check,
+  warn: TriangleAlert,
+  fail: X,
+  skipped: Minus,
+} as const;
 const CLS = {
   pass: "chip-pass",
   warn: "chip-partial",
@@ -50,20 +56,25 @@ export function HarnessCheckPanel({ agent }: { agent: string }) {
       {report && (
         <div className="card">
           <div className="rows">
-            {Object.entries(report.checks).map(([capability, entry]) => (
-              <div
-                key={capability}
-                className="row grid-cols-[8rem_auto_minmax(0,1fr)]"
-              >
-                <span className="font-mono">{capability}</span>
-                <span className={`chip ${CLS[entry.status]}`}>
-                  {GLYPH[entry.status]} {entry.status}
-                </span>
-                <span className="truncate text-ink-3" title={entry.detail}>
-                  {entry.detail}
-                </span>
-              </div>
-            ))}
+            {Object.entries(report.checks).map(([capability, entry]) => {
+              const Icon = STATUS_ICON[entry.status];
+              return (
+                <div
+                  key={capability}
+                  className="row grid-cols-[8rem_auto_minmax(0,1fr)]"
+                >
+                  <span className="font-mono">{capability}</span>
+                  <span
+                    className={`chip inline-flex items-center gap-1 ${CLS[entry.status]}`}
+                  >
+                    <Icon size={11} /> {entry.status}
+                  </span>
+                  <span className="truncate text-ink-3" title={entry.detail}>
+                    {entry.detail}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

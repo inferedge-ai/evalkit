@@ -53,8 +53,27 @@
   the search box and review-state filter drop the cases they hide from the
   selection. The experiments list's second `cases` column (which cases ran) is
   headed `selection`. In the case matrix, the case column fits its content on
-  every load, the evaluator descriptions are in the header's tooltip instead of
-  an ⓘ, and picking a score card scrolls the matrix to that evaluator's column.
+  every load, and picking a score card scrolls the matrix to that evaluator's
+  column.
+- The web UI's icons come from `lucide-react` instead of hand-drawn SVGs and
+  text characters: the ⓘ beside a score, gauge or evaluator name, the select
+  menus' chevron and check mark, the copy and user icons, the arrow on links
+  to another page, the buttons that clear a selection or remove a tag or role,
+  the Columns menu's move up and down buttons, the download and Approve
+  icons, the arrows that open a folder or section, the rubric verdict marks
+  (satisfied, partial, absent, incorrect), the agent check's pass, warn, fail
+  and skipped marks, the up and down marks on a case's score change, and the
+  arrows in links and between two values ("0.50 → 0.75", "→ alice"). A screen
+  reader reads each rubric verdict mark by its verdict, a score change mark as
+  "up" or "down", and an arrow between two values as "to". The ⓘ shows its
+  description in a tooltip drawn above the page, so a table no longer cuts it
+  off: on hover, on keyboard focus, or on a tap, which also hides it again. A
+  screen reader reads it as "definition" with the description. Each case
+  matrix column whose evaluator has a description shows the ⓘ in its header,
+  with the evaluator's full name on the label's hover text: Tab from the
+  header moves to it, and clicking, tapping or pressing Enter on it does not
+  sort the column. A score named like a JavaScript object property (such as
+  `constructor`) no longer breaks the page that shows its ⓘ.
 
 ## 0.4.0
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { AgGridReact } from "ag-grid-react";
 import type {
   AgGridReactProps,
@@ -322,7 +323,7 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                       api.moveColumns([column], all.indexOf(movable[i - 1]))
                     }
                   >
-                    ↑
+                    <ArrowUp size={12} />
                   </button>
                   <button
                     type="button"
@@ -333,7 +334,7 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                       api.moveColumns([column], all.indexOf(movable[i + 1]))
                     }
                   >
-                    ↓
+                    <ArrowDown size={12} />
                   </button>
                 </li>
               );

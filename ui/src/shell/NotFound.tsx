@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export function NotFound({
@@ -15,7 +16,7 @@ export function NotFound({
           There is no <span className="font-mono">{what}</span>.
         </p>
         <Link className="btn btn-quiet mt-3 text-brand" to={up.to}>
-          ← {up.label}
+          <ArrowLeft size={14} /> {up.label}
         </Link>
       </div>
     </div>

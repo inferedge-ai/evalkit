@@ -1,3 +1,4 @@
+import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { qs } from "../lib/api";
 import { useApi } from "../lib/query";
@@ -73,10 +74,10 @@ export function Home() {
         <h1 className="page-title">@{workspace.name}</h1>
         <span className="chip muted">{workspace.type}</span>
         <Link to="/datasets" className="btn btn-quiet ml-auto text-brand">
-          All datasets →
+          All datasets <ArrowRight size={14} />
         </Link>
         <Link to="/agents" className="btn btn-quiet text-brand">
-          All agents →
+          All agents <ArrowRight size={14} />
         </Link>
       </div>
       {datasetsError && (
