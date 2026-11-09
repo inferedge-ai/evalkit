@@ -315,7 +315,7 @@ export function RunPage() {
                     </CardContent>
                   </Card>
                   <details className="mt-1 text-micro">
-                    <summary className="cursor-pointer text-n-400">
+                    <summary className="cursor-pointer text-muted-foreground">
                       raw answer
                     </summary>
                     <PreBlock

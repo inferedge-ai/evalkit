@@ -385,7 +385,7 @@ function HeadCell({
 }) {
   return (
     <th
-      className={`border-b border-line-soft py-1 pr-2 text-left font-medium tracking-wide text-n-400 uppercase ${className}`}
+      className={`border-b border-line-soft py-1 pr-2 text-left font-medium tracking-wide text-muted-foreground uppercase ${className}`}
     >
       {children}
     </th>
@@ -461,7 +461,7 @@ function ItemTable({ items }: { items: Record<string, unknown>[] }) {
           const kind = verdictKind(verdictRaw);
           return (
             <tr key={i} className={`iv-${kind} border-b border-n-50 align-top`}>
-              <td className="num py-1 text-n-400">{i + 1}</td>
+              <td className="num py-1 text-muted-foreground">{i + 1}</td>
               <td className="py-1">
                 <VerdictIcon kind={kind} />
               </td>
@@ -500,7 +500,7 @@ function StatValue({ label, value }: { label: string; value: unknown }) {
 function Stat({ label, value }: { label: string; value: unknown }) {
   return (
     <span className="inline-flex items-baseline gap-1">
-      <span className="text-n-400">{label}</span>
+      <span className="text-muted-foreground">{label}</span>
       <StatValue label={label} value={value} />
     </span>
   );
@@ -623,7 +623,7 @@ function KeyedBlocks({ entries }: { entries: [string, unknown][] }) {
       {flat.length ? <StatRow entries={flat} /> : null}
       {nested.map(([k, v]) => (
         <div key={k}>
-          <div className="mb-0.5 font-mono text-n-400">{k}</div>
+          <div className="mb-0.5 font-mono text-muted-foreground">{k}</div>
           <DetailValue value={v} />
         </div>
       ))}
@@ -888,7 +888,9 @@ function EvaluatorGroupCard({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-n-50 px-3 py-1.5 text-meta">
         <span className="font-mono font-medium">{group.title}</span>
         <InfoTip term={group.title} />
-        {label ? <span className="text-n-400">· {label}</span> : null}
+        {label ? (
+          <span className="text-muted-foreground">· {label}</span>
+        ) : null}
         <SummaryChip summary={summary} />
         {scoredOn ? (
           <Badge
@@ -904,7 +906,7 @@ function EvaluatorGroupCard({
         ) : null}
         <span className="flex-1" />
         {members.length === 0 ? (
-          <span className="text-micro text-n-400">not scored</span>
+          <span className="text-micro text-muted-foreground">not scored</span>
         ) : single ? (
           <span className={`num sev-fg-${severity(single.score)}`}>
             {fmtScore(single.score)}
@@ -925,7 +927,7 @@ function EvaluatorGroupCard({
           <div key={block.key}>
             {blocks.length > 1 ||
             (members.length > 1 && block.names.length < members.length) ? (
-              <div className="mb-1 font-mono text-n-400">
+              <div className="mb-1 font-mono text-muted-foreground">
                 {block.names.map((n) => shortName(n, group.title)).join(", ")}
               </div>
             ) : null}
@@ -935,7 +937,9 @@ function EvaluatorGroupCard({
         {hasCfg ? (
           blocks.length ? (
             <details>
-              <summary className="cursor-pointer text-n-400">config</summary>
+              <summary className="cursor-pointer text-muted-foreground">
+                config
+              </summary>
               <ConfigBlock cfg={cfg} />
             </details>
           ) : (
@@ -1028,7 +1032,7 @@ export function EvaluatorScores({
           </div>
         ))}
       <details className="mt-1 text-micro">
-        <summary className="cursor-pointer text-n-400">
+        <summary className="cursor-pointer text-muted-foreground">
           Full evaluator config
         </summary>
         <PreBlock text={toYaml(evaluators)} language="yaml" />

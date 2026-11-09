@@ -109,7 +109,8 @@
   Toolbars wrap on a narrow screen instead of running off it, and tab bars
   scroll sideways. Cards have 14px corners. Forms put each label above its
   control, with its hint underneath. Table checkboxes are square with 4px
-  corners instead of round.
+  corners instead of round. Secondary text uses the components' muted grey,
+  one shade darker than before in light mode.
 
 ## 0.4.0
 

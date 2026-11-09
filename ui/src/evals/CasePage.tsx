@@ -262,7 +262,9 @@ export function CasePage() {
             </Card>
             <FixtureList files={example.files} />
             <details className="mt-2 text-micro">
-              <summary className="cursor-pointer text-n-400">Raw input</summary>
+              <summary className="cursor-pointer text-muted-foreground">
+                Raw input
+              </summary>
               <PreBlock text={toYaml(example.input)} language="yaml" />
             </details>
 
@@ -276,7 +278,7 @@ export function CasePage() {
             <div className="eyebrow">Evaluators</div>
             <EvaluatorScores evaluators={example.evaluators} scores={{}} />
             <details className="mt-2 text-micro">
-              <summary className="cursor-pointer text-n-400">
+              <summary className="cursor-pointer text-muted-foreground">
                 Full evaluator config
               </summary>
               <PreBlock text={toYaml(example.evaluators)} language="yaml" />

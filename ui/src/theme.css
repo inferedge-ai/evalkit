@@ -69,7 +69,7 @@
   );
   --color-ink: var(--foreground);
   --color-ink-2: var(--color-n-500);
-  --color-ink-3: var(--color-n-400);
+  --color-ink-3: var(--muted-foreground);
   --color-ink-4: var(--color-n-300);
   --color-brand: var(--primary);
   --color-brand-hover: color-mix(
@@ -684,7 +684,7 @@ button {
   }
   .badge-sidechain {
     background: var(--color-n-50);
-    color: var(--color-n-400);
+    color: var(--color-ink-3);
   }
 
   /* Closed rows read as one continuous stream; opening one lifts it into a
@@ -860,7 +860,7 @@ button {
     color: var(--color-err-text);
   }
   .iv-other {
-    color: var(--color-n-400);
+    color: var(--color-ink-3);
   }
 
   /* Section label. Earns its place by naming a real section of the record —
