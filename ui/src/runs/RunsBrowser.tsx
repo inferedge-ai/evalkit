@@ -16,6 +16,7 @@ import type { AgentInfo, RunList, RunListItem } from "../lib/types";
 import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 const NO_RUNS: RunListItem[] = [];
 
@@ -143,78 +144,82 @@ export function RunsBrowser() {
   }, [settled, listedAgents.data]);
 
   return (
-    <div className="page">
-      <div className="toolbar mb-3">
-        <h1 className="page-title">Runs</h1>
-        <Select
-          ariaLabel="agent"
-          value={agent}
-          onChange={(a) => setParams({ agent: a })}
-          placeholder="No agents"
-          options={agents.map((a) => ({ value: a.ref, label: a.name }))}
-        />
-        <input
-          className="input w-72"
-          placeholder={otel ? "Session id prefix" : "Search id prefix or title"}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        {!otel && (
+    <>
+      <PageHeader title="Runs" />
+      <div className="page">
+        <div className="toolbar mb-3">
+          <Select
+            ariaLabel="agent"
+            value={agent}
+            onChange={(a) => setParams({ agent: a })}
+            placeholder="No agents"
+            options={agents.map((a) => ({ value: a.ref, label: a.name }))}
+          />
           <input
-            className="input w-44"
-            placeholder="User id"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
+            className="input w-72"
+            placeholder={
+              otel ? "Session id prefix" : "Search id prefix or title"
+            }
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {!otel && (
+            <input
+              className="input w-44"
+              placeholder="User id"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+            />
+          )}
+          {otel && (
+            <label className="flex items-center gap-1 text-meta text-ink-2">
+              <input
+                type="checkbox"
+                checked={noSession}
+                onChange={(e) => setNoSession(e.target.checked)}
+              />
+              no session
+            </label>
+          )}
+          {otel && (
+            <Link
+              className="btn btn-quiet text-brand"
+              to={`/agents/${encodeURIComponent(agent)}/mappings`}
+            >
+              Agent ↗
+            </Link>
+          )}
+          <span className="row-meta num ml-auto">
+            {runs
+              ? grid.filteredCount !== null
+                ? `${grid.filteredCount} of the ${runs.runs.length} loaded`
+                : `${runs.total} runs`
+              : ""}
+          </span>
+          {agent && !error && <ColumnsMenu grid={grid} />}
+        </div>
+        {error && (
+          <div className="pane-status error">
+            {error}
+            {!otel && " — the harness may not implement run listing."}
+          </div>
+        )}
+        {runs?.harness_note && (
+          <div className="pane-status">
+            {runs.harness_note} — showing the runs evalkit stored.
+          </div>
+        )}
+        {agent && !error && (
+          <DataGrid
+            grid={grid}
+            rows={runs?.runs ?? NO_RUNS}
+            columns={columns}
+            getRowId={getRunId}
+            loading={!runs}
+            empty="No runs match."
           />
         )}
-        {otel && (
-          <label className="flex items-center gap-1 text-meta text-ink-2">
-            <input
-              type="checkbox"
-              checked={noSession}
-              onChange={(e) => setNoSession(e.target.checked)}
-            />
-            no session
-          </label>
-        )}
-        {otel && (
-          <Link
-            className="btn btn-quiet text-brand"
-            to={`/agents/${encodeURIComponent(agent)}/mappings`}
-          >
-            Agent ↗
-          </Link>
-        )}
-        <span className="row-meta num ml-auto">
-          {runs
-            ? grid.filteredCount !== null
-              ? `${grid.filteredCount} of the ${runs.runs.length} loaded`
-              : `${runs.total} runs`
-            : ""}
-        </span>
-        {agent && !error && <ColumnsMenu grid={grid} />}
       </div>
-      {error && (
-        <div className="pane-status error">
-          {error}
-          {!otel && " — the harness may not implement run listing."}
-        </div>
-      )}
-      {runs?.harness_note && (
-        <div className="pane-status">
-          {runs.harness_note} — showing the runs evalkit stored.
-        </div>
-      )}
-      {agent && !error && (
-        <DataGrid
-          grid={grid}
-          rows={runs?.runs ?? NO_RUNS}
-          columns={columns}
-          getRowId={getRunId}
-          loading={!runs}
-          empty="No runs match."
-        />
-      )}
-    </div>
+    </>
   );
 }

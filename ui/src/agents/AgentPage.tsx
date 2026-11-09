@@ -27,6 +27,7 @@ import { useMe } from "../shell/capabilities";
 import { NotFound } from "../shell/NotFound";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 function Overview({ agent }: { agent: AgentInfo }) {
   const repoHref = httpUrl(agent.repo_url);
@@ -173,100 +174,107 @@ function AgentView() {
       <Navigate to={`/agents/${encodeURIComponent(slug)}/overview`} replace />
     );
   return (
-    <div className="page">
-      <div className="toolbar mb-2">
-        <h1 className="max-w-160 truncate font-mono text-head font-semibold">
-          <CopyText value={slug} />
-        </h1>
-        {agent && <span className="chip muted">{agentKind(agent)}</span>}
-        {writable && !agent.archived && (
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: "Agents", to: "/agents" }]}
+        title={
+          <span className="font-mono">
+            <CopyText value={slug} />
+          </span>
+        }
+      />
+      <div className="page">
+        <div className="toolbar mb-2">
+          {agent && <span className="chip muted">{agentKind(agent)}</span>}
+          {writable && !agent.archived && (
+            <>
+              <button
+                className="btn btn-sm ml-auto"
+                onClick={() => setEditing(true)}
+              >
+                Edit
+              </button>
+              <button
+                className="btn btn-sm"
+                onClick={() => setConfirmingArchive(true)}
+              >
+                Archive
+              </button>
+            </>
+          )}
+          {writable && agent.archived && (
+            <button className="btn btn-sm ml-auto" onClick={restore}>
+              Restore
+            </button>
+          )}
+          <Link
+            className={`btn btn-quiet text-brand ${writable ? "" : "ml-auto"}`}
+            to={`/runs?agent=${encodeURIComponent(slug)}`}
+          >
+            Runs ↗
+          </Link>
+          <Link className="btn btn-quiet text-brand" to="/agents">
+            All agents ↗
+          </Link>
+        </div>
+        {error && <div className="pane-status error">{error}</div>}
+        {agent && (
           <>
-            <button
-              className="btn btn-sm ml-auto"
-              onClick={() => setEditing(true)}
+            <Tabs<AgentTab>
+              tabs={tabs}
+              active={tab}
+              onSelect={(next) =>
+                navigate(`/agents/${encodeURIComponent(slug)}/${next}`)
+              }
+            />
+            <div className="mt-4">
+              {tab === "overview" && <Overview agent={agent} />}
+              {tab === "mappings" && <MappingsPanel agent={slug} />}
+              {tab === "import" && <ImportPanel agent={slug} />}
+              {tab === "check" && <HarnessCheckPanel agent={agent.ref} />}
+            </div>
+            {editing && (
+              <AgentForm
+                workspace={agent.workspace}
+                shared={agent.workspace_type === "shared"}
+                agent={agent}
+                onSaved={(saved) => {
+                  setAgent(saved);
+                  setEditing(false);
+                }}
+                onClose={() => setEditing(false)}
+              />
+            )}
+            <AlertDialog
+              open={confirmingArchive}
+              onOpenChange={setConfirmingArchive}
             >
-              Edit
-            </button>
-            <button
-              className="btn btn-sm"
-              onClick={() => setConfirmingArchive(true)}
-            >
-              Archive
-            </button>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Archive {agent.ref}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Nobody can run it until it&apos;s restored. Its runs and
+                    results stay.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      // The closing dialog stays clickable; a double click acts once.
+                      if (!confirmingArchive) return;
+                      setConfirmingArchive(false);
+                      void archive();
+                    }}
+                  >
+                    Archive
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </>
         )}
-        {writable && agent.archived && (
-          <button className="btn btn-sm ml-auto" onClick={restore}>
-            Restore
-          </button>
-        )}
-        <Link
-          className={`btn btn-quiet text-brand ${writable ? "" : "ml-auto"}`}
-          to={`/runs?agent=${encodeURIComponent(slug)}`}
-        >
-          Runs ↗
-        </Link>
-        <Link className="btn btn-quiet text-brand" to="/agents">
-          All agents ↗
-        </Link>
       </div>
-      {error && <div className="pane-status error">{error}</div>}
-      {agent && (
-        <>
-          <Tabs<AgentTab>
-            tabs={tabs}
-            active={tab}
-            onSelect={(next) =>
-              navigate(`/agents/${encodeURIComponent(slug)}/${next}`)
-            }
-          />
-          <div className="mt-4">
-            {tab === "overview" && <Overview agent={agent} />}
-            {tab === "mappings" && <MappingsPanel agent={slug} />}
-            {tab === "import" && <ImportPanel agent={slug} />}
-            {tab === "check" && <HarnessCheckPanel agent={agent.ref} />}
-          </div>
-          {editing && (
-            <AgentForm
-              workspace={agent.workspace}
-              shared={agent.workspace_type === "shared"}
-              agent={agent}
-              onSaved={(saved) => {
-                setAgent(saved);
-                setEditing(false);
-              }}
-              onClose={() => setEditing(false)}
-            />
-          )}
-          <AlertDialog
-            open={confirmingArchive}
-            onOpenChange={setConfirmingArchive}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Archive {agent.ref}?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Nobody can run it until it&apos;s restored. Its runs and
-                  results stay.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    // The closing dialog stays clickable; a double click acts once.
-                    if (!confirmingArchive) return;
-                    setConfirmingArchive(false);
-                    void archive();
-                  }}
-                >
-                  Archive
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </>
-      )}
-    </div>
+    </>
   );
 }

@@ -15,6 +15,7 @@ import type { QueueItem } from "../lib/types";
 import { splitRef } from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 type View = "mine" | "all" | "changes";
 
@@ -120,48 +121,50 @@ export function ReviewsPage() {
   const grid = useDataGrid<QueueItem>("review-queue");
 
   return (
-    <div className="page">
-      <div className="toolbar mb-2">
-        <h1 className="page-title">Reviews</h1>
-        <div className="ml-4 flex flex-wrap items-center gap-3">
-          {VIEWS.map((v) => (
-            <label key={v.id} className="row-meta flex items-center gap-1">
-              <input
-                type="radio"
-                checked={view === v.id}
-                onChange={() => setView(v.id)}
-              />
-              {v.label}
-            </label>
-          ))}
+    <>
+      <PageHeader title="Reviews" />
+      <div className="page">
+        <div className="toolbar mb-2">
+          <div className="flex flex-wrap items-center gap-3">
+            {VIEWS.map((v) => (
+              <label key={v.id} className="row-meta flex items-center gap-1">
+                <input
+                  type="radio"
+                  checked={view === v.id}
+                  onChange={() => setView(v.id)}
+                />
+                {v.label}
+              </label>
+            ))}
+          </div>
+          {everyWorkspace && (
+            <span className="row-meta">across every workspace</span>
+          )}
+          <span className="row-meta num ml-auto">
+            {error
+              ? ""
+              : items
+                ? `${grid.filteredCount ?? items.length} ${changes ? "awaiting an edit" : "waiting"}`
+                : "Loading…"}
+          </span>
+          <ColumnsMenu grid={grid} />
         </div>
-        {everyWorkspace && (
-          <span className="row-meta">across every workspace</span>
+        {error && <div className="pane-status error">{error}</div>}
+        {!error && (
+          <DataGrid
+            grid={grid}
+            rows={items ?? NO_ITEMS}
+            columns={columns}
+            getRowId={getItemId}
+            loading={!items}
+            empty={
+              changes
+                ? "No cases are waiting on their author."
+                : "Nothing waiting for review."
+            }
+          />
         )}
-        <span className="row-meta num ml-auto">
-          {error
-            ? ""
-            : items
-              ? `${grid.filteredCount ?? items.length} ${changes ? "awaiting an edit" : "waiting"}`
-              : "Loading…"}
-        </span>
-        <ColumnsMenu grid={grid} />
       </div>
-      {error && <div className="pane-status error">{error}</div>}
-      {!error && (
-        <DataGrid
-          grid={grid}
-          rows={items ?? NO_ITEMS}
-          columns={columns}
-          getRowId={getItemId}
-          loading={!items}
-          empty={
-            changes
-              ? "No cases are waiting on their author."
-              : "Nothing waiting for review."
-          }
-        />
-      )}
-    </div>
+    </>
   );
 }

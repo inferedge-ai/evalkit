@@ -37,6 +37,7 @@ import { BucketCards, CostSpeedLine } from "./ScoreSummary";
 import { MultiSelect, Select } from "../lib/Select";
 import { hasAnyTag, sortedTags, tagCounts } from "../lib/tags";
 import { useFollowWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 function ScorecardSkeleton() {
   return (
@@ -185,308 +186,315 @@ function ExperimentView() {
   });
 
   return (
-    <div className="page">
-      <div className="toolbar mb-3 flex-wrap">
-        <nav className="flex shrink-0 items-baseline gap-1.5">
-          {status && (
-            <>
-              <Link
-                className="shrink-0 text-meta text-ink-3 transition-colors hover:text-brand"
-                to={`/datasets/${encodeURIComponent(status.dataset)}`}
-              >
-                {status.dataset}
-              </Link>
-              <span className="text-ink-4" aria-hidden>
-                ›
-              </span>
-            </>
-          )}
-          <h1
-            className="max-w-160 truncate font-mono text-head font-semibold"
-            title={`experiment ${experimentId}`}
-          >
+    <>
+      <PageHeader
+        breadcrumbs={[
+          { label: "Experiments", to: "/experiments" },
+          ...(status
+            ? [
+                {
+                  label: status.dataset,
+                  to: `/datasets/${encodeURIComponent(status.dataset)}`,
+                },
+              ]
+            : []),
+        ]}
+        title={
+          <span className="font-mono">
             {status ? `#${status.number}` : experimentId}
-          </h1>
+          </span>
+        }
+        actions={
+          status && (
+            <>
+              <ComparePicker
+                dataset={status.dataset}
+                experimentId={status.id}
+              />
+              {drives && (
+                <button
+                  className="btn"
+                  disabled={busyAction !== null || isActive(status.status)}
+                  onClick={() =>
+                    reevaluateStrandsCases(status)
+                      ? setConfirmingReevaluate(true)
+                      : action("evaluate")
+                  }
+                  title="re-run the evaluate phase on recorded runs"
+                >
+                  {busyAction === "evaluate" ? "Evaluating…" : "Re-evaluate"}
+                </button>
+              )}
+              {drives && canResume(status) && (
+                <button
+                  className="btn"
+                  disabled={busyAction !== null}
+                  onClick={() => action("resume")}
+                >
+                  {busyAction === "resume" ? "Resuming…" : "Resume"}
+                </button>
+              )}
+              {!drives && status.can_change && canResume(status) && (
+                <span className="row-meta font-mono">
+                  <CopyText value={resumeHint(status, driver ?? "cli")} />
+                </span>
+              )}
+            </>
+          )
+        }
+      />
+      <div className="page">
+        <div className="toolbar mb-3 flex-wrap">
           <span className="row-meta">
             <CopyText value={experimentId} />
           </span>
-        </nav>
-        {tag && <span className="chip muted">{tag}</span>}
-        {config?.snapshot.trajectory_source === "otel" && (
-          <span
-            className="chip muted"
-            title="trajectories come from collected traces"
-          >
-            traces
-          </span>
-        )}
-        <WorkspaceChip workspace={status?.workspace} />
-        {selection && (
-          <span className="chip muted" title="the cases this experiment ran on">
-            cases: {selection}
-          </span>
-        )}
-        <RevisionChip
-          sha={rev.sha}
-          branch={rev.branch}
-          url={agentCommitUrl(status?.agent, rev.sha)}
-        />
-        {cases?.sha && (
-          <span
-            className="chip muted font-mono"
-            title={`cases ${cases.branch ? `${cases.branch} @ ` : ""}${cases.sha}${cases.dirty ? " (dirty)" : ""}`}
-          >
-            cases {cases.sha.slice(0, 8)}
-            {cases.dirty ? "*" : ""}
-          </span>
-        )}
-        {config?.judge?.model && (
-          <span
-            id="judge"
-            className="chip muted font-mono"
-            title={[
-              `judge ${config.judge.model}`,
-              config.judge.provider
-                ? `provider ${config.judge.provider} (scored on the server)`
-                : `${config.judge.base_url} (own key, scored locally)`,
-              config.judge.reasoning_effort &&
-                `effort ${config.judge.reasoning_effort}`,
-              config.judge.max_tokens != null &&
-                `max tokens ${config.judge.max_tokens}`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          >
-            judge {config.judge.model}
-            {config.judge.reasoning_effort
-              ? ` · ${config.judge.reasoning_effort}`
-              : ""}
-          </span>
-        )}
-        {config?.snapshot.evalkit_version && (
-          <span
-            className="row-meta font-mono"
-            title="evalkit version that ran this experiment"
-          >
-            evalkit {config.snapshot.evalkit_version}
-          </span>
-        )}
-        {status && (
-          <span className={`chip ${STATUS_TONE[status.status] ?? "muted"}`}>
-            {status.status}
-          </span>
-        )}
-        {status && <ProgressBar progress={status.progress} />}
-        {status && (
-          <TimeSpan
-            start={status.started_at}
-            end={status.ended_at}
-            running={isActive(status.status)}
-          />
-        )}
-        {status && isActive(status.status) && status.lease_holder && (
-          <span className="row-meta" title="who is running this experiment">
-            held by <span className="font-mono">{status.lease_holder}</span>
-          </span>
-        )}
-        {baselineId && (
-          <span className="row-meta">
-            vs baseline <span className="font-mono">{baselineId}</span>
-          </span>
-        )}
-        <span className="ml-auto flex items-center gap-2">
-          {status && (
-            <ComparePicker dataset={status.dataset} experimentId={status.id} />
-          )}
-          {status && drives && (
-            <button
-              className="btn"
-              disabled={busyAction !== null || isActive(status.status)}
-              onClick={() =>
-                reevaluateStrandsCases(status)
-                  ? setConfirmingReevaluate(true)
-                  : action("evaluate")
-              }
-              title="re-run the evaluate phase on recorded runs"
+          {tag && <span className="chip muted">{tag}</span>}
+          {config?.snapshot.trajectory_source === "otel" && (
+            <span
+              className="chip muted"
+              title="trajectories come from collected traces"
             >
-              {busyAction === "evaluate" ? "Evaluating…" : "Re-evaluate"}
-            </button>
-          )}
-          {status && drives && canResume(status) && (
-            <button
-              className="btn"
-              disabled={busyAction !== null}
-              onClick={() => action("resume")}
-            >
-              {busyAction === "resume" ? "Resuming…" : "Resume"}
-            </button>
-          )}
-          {status && !drives && status.can_change && canResume(status) && (
-            <span className="row-meta font-mono">
-              <CopyText value={resumeHint(status, driver ?? "cli")} />
+              traces
             </span>
           )}
-        </span>
-      </div>
-
-      {status?.status_error && (
-        <div className="pane-status error">{status.status_error}</div>
-      )}
-      {error && <div className="pane-status error">{error}</div>}
-      {!report && !error && <ScorecardSkeleton />}
-
-      {report && (
-        <>
-          <div className="eyebrow">Scores</div>
-          <BucketCards report={report} onPick={setEvaluator} />
-          <CostSpeedLine report={report} />
-          <div className="eyebrow">Cases</div>
-          <ScoreMatrix
-            id="experiment-cases"
-            report={report}
-            groups={groups}
-            defaultHidden={hiddenByDefault}
-            toggles={[
-              {
-                label: "by type",
-                title:
-                  "show the answer-rubric rates broken down by rubric type",
-                cols: allGroups.find((g) => g.label === BY_TYPE)?.cols ?? [],
-              },
-              {
-                label: "gauges",
-                title: "show per-case gauges: cost, time, tokens, tool calls",
-                cols: gauges?.cols ?? [],
-              },
-            ]}
-            sortBy={evaluator}
-            toolbar={
-              <>
-                <Select
-                  ariaLabel="evaluator"
-                  value={evaluator}
-                  onChange={setEvaluator}
-                  title="focus one evaluator: sorts by it, worst first, and drops cases it never scored"
-                  options={[
-                    { value: "", label: "All evaluators" },
-                    ...report.evaluator_columns.map((c) => ({
-                      value: c,
-                      label: c,
-                    })),
-                  ]}
-                />
-                {tags.length > 0 && (
-                  <MultiSelect
-                    ariaLabel="tags"
-                    placeholder="All tags"
-                    title="show only cases carrying any of these tags"
-                    values={tagFilter}
-                    onChange={(picked) => setTagFilter(sortedTags(picked))}
-                    options={tags.map((t) => ({
-                      value: t.name,
-                      label: t.name,
-                      hint: t.count,
-                    }))}
-                  />
-                )}
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={failingOnly}
-                    onChange={(e) => setFailingOnly(e.target.checked)}
-                  />
-                  failing only
-                </label>
-              </>
-            }
-            rows={rows.map(({ case_id, row }) => ({
-              case_id,
-              row: row ?? null,
-            }))}
-            filtered={rows.length !== listed.length}
-            caseCell={({ case_id, row }) => {
-              const state = stateOf.get(case_id)!;
-              return (
-                <>
-                  {state === "pending" ? (
-                    <span title="this case has not run yet">{case_id}</span>
-                  ) : (
-                    <Link
-                      to={`/experiments/${encodeURIComponent(experimentId)}/${encodeURIComponent(case_id)}`}
-                      target="_blank"
-                      rel="noopener"
-                      className="text-inherit"
-                      title="open this case's run in a new tab"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {case_id}
-                    </Link>
-                  )}
-                  <span className={`chip ${CASE_STATE_TONE[state]} ml-2`}>
-                    {CASE_STATE_LABEL[state]}
-                  </span>
-                  {status && (
-                    <Link
-                      to={`/datasets/${encodeURIComponent(status.dataset)}/cases/${encodeURIComponent(case_id)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ml-2 text-micro text-ink-3 hover:text-brand hover:underline"
-                      title="open the case definition in its dataset (new tab)"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      def ↗
-                    </Link>
-                  )}
-                  {row && row.run_errors.length > 0 && (
-                    <span
-                      className="chip chip-fail ml-2"
-                      title={row.run_errors.join("\n")}
-                    >
-                      run error
-                    </span>
-                  )}
-                </>
-              );
-            }}
-          />
-          <div className="num mt-2 text-micro text-ink-3">
-            {rows.length === listed.length
-              ? `${listed.length} cases`
-              : `${rows.length}/${listed.length} cases`}
-            {report.baseline_id ? ` · vs ${report.baseline_id}` : ""}
-          </div>
-        </>
-      )}
-      {report && listed.length === 0 && (
-        <div className="pane-status">This experiment pinned no cases.</div>
-      )}
-      <AlertDialog
-        open={confirmingReevaluate}
-        onOpenChange={setConfirmingReevaluate}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Re-evaluate anyway?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Some runs of this experiment have not completed. Resume first to
-              run them; re-evaluating now scores only the runs that finished.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                // The closing dialog stays clickable; a double click acts once.
-                if (!confirmingReevaluate) return;
-                setConfirmingReevaluate(false);
-                void action("evaluate");
-              }}
+          <WorkspaceChip workspace={status?.workspace} />
+          {selection && (
+            <span
+              className="chip muted"
+              title="the cases this experiment ran on"
             >
-              Re-evaluate
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+              cases: {selection}
+            </span>
+          )}
+          <RevisionChip
+            sha={rev.sha}
+            branch={rev.branch}
+            url={agentCommitUrl(status?.agent, rev.sha)}
+          />
+          {cases?.sha && (
+            <span
+              className="chip muted font-mono"
+              title={`cases ${cases.branch ? `${cases.branch} @ ` : ""}${cases.sha}${cases.dirty ? " (dirty)" : ""}`}
+            >
+              cases {cases.sha.slice(0, 8)}
+              {cases.dirty ? "*" : ""}
+            </span>
+          )}
+          {config?.judge?.model && (
+            <span
+              id="judge"
+              className="chip muted font-mono"
+              title={[
+                `judge ${config.judge.model}`,
+                config.judge.provider
+                  ? `provider ${config.judge.provider} (scored on the server)`
+                  : `${config.judge.base_url} (own key, scored locally)`,
+                config.judge.reasoning_effort &&
+                  `effort ${config.judge.reasoning_effort}`,
+                config.judge.max_tokens != null &&
+                  `max tokens ${config.judge.max_tokens}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              judge {config.judge.model}
+              {config.judge.reasoning_effort
+                ? ` · ${config.judge.reasoning_effort}`
+                : ""}
+            </span>
+          )}
+          {config?.snapshot.evalkit_version && (
+            <span
+              className="row-meta font-mono"
+              title="evalkit version that ran this experiment"
+            >
+              evalkit {config.snapshot.evalkit_version}
+            </span>
+          )}
+          {status && (
+            <span className={`chip ${STATUS_TONE[status.status] ?? "muted"}`}>
+              {status.status}
+            </span>
+          )}
+          {status && <ProgressBar progress={status.progress} />}
+          {status && (
+            <TimeSpan
+              start={status.started_at}
+              end={status.ended_at}
+              running={isActive(status.status)}
+            />
+          )}
+          {status && isActive(status.status) && status.lease_holder && (
+            <span className="row-meta" title="who is running this experiment">
+              held by <span className="font-mono">{status.lease_holder}</span>
+            </span>
+          )}
+          {baselineId && (
+            <span className="row-meta">
+              vs baseline <span className="font-mono">{baselineId}</span>
+            </span>
+          )}
+        </div>
+
+        {status?.status_error && (
+          <div className="pane-status error">{status.status_error}</div>
+        )}
+        {error && <div className="pane-status error">{error}</div>}
+        {!report && !error && <ScorecardSkeleton />}
+
+        {report && (
+          <>
+            <div className="eyebrow">Scores</div>
+            <BucketCards report={report} onPick={setEvaluator} />
+            <CostSpeedLine report={report} />
+            <div className="eyebrow">Cases</div>
+            <ScoreMatrix
+              id="experiment-cases"
+              report={report}
+              groups={groups}
+              defaultHidden={hiddenByDefault}
+              toggles={[
+                {
+                  label: "by type",
+                  title:
+                    "show the answer-rubric rates broken down by rubric type",
+                  cols: allGroups.find((g) => g.label === BY_TYPE)?.cols ?? [],
+                },
+                {
+                  label: "gauges",
+                  title: "show per-case gauges: cost, time, tokens, tool calls",
+                  cols: gauges?.cols ?? [],
+                },
+              ]}
+              sortBy={evaluator}
+              toolbar={
+                <>
+                  <Select
+                    ariaLabel="evaluator"
+                    value={evaluator}
+                    onChange={setEvaluator}
+                    title="focus one evaluator: sorts by it, worst first, and drops cases it never scored"
+                    options={[
+                      { value: "", label: "All evaluators" },
+                      ...report.evaluator_columns.map((c) => ({
+                        value: c,
+                        label: c,
+                      })),
+                    ]}
+                  />
+                  {tags.length > 0 && (
+                    <MultiSelect
+                      ariaLabel="tags"
+                      placeholder="All tags"
+                      title="show only cases carrying any of these tags"
+                      values={tagFilter}
+                      onChange={(picked) => setTagFilter(sortedTags(picked))}
+                      options={tags.map((t) => ({
+                        value: t.name,
+                        label: t.name,
+                        hint: t.count,
+                      }))}
+                    />
+                  )}
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={failingOnly}
+                      onChange={(e) => setFailingOnly(e.target.checked)}
+                    />
+                    failing only
+                  </label>
+                </>
+              }
+              rows={rows.map(({ case_id, row }) => ({
+                case_id,
+                row: row ?? null,
+              }))}
+              filtered={rows.length !== listed.length}
+              caseCell={({ case_id, row }) => {
+                const state = stateOf.get(case_id)!;
+                return (
+                  <>
+                    {state === "pending" ? (
+                      <span title="this case has not run yet">{case_id}</span>
+                    ) : (
+                      <Link
+                        to={`/experiments/${encodeURIComponent(experimentId)}/${encodeURIComponent(case_id)}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="text-inherit"
+                        title="open this case's run in a new tab"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {case_id}
+                      </Link>
+                    )}
+                    <span className={`chip ${CASE_STATE_TONE[state]} ml-2`}>
+                      {CASE_STATE_LABEL[state]}
+                    </span>
+                    {status && (
+                      <Link
+                        to={`/datasets/${encodeURIComponent(status.dataset)}/cases/${encodeURIComponent(case_id)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="ml-2 text-micro text-ink-3 hover:text-brand hover:underline"
+                        title="open the case definition in its dataset (new tab)"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        def ↗
+                      </Link>
+                    )}
+                    {row && row.run_errors.length > 0 && (
+                      <span
+                        className="chip chip-fail ml-2"
+                        title={row.run_errors.join("\n")}
+                      >
+                        run error
+                      </span>
+                    )}
+                  </>
+                );
+              }}
+            />
+            <div className="num mt-2 text-micro text-ink-3">
+              {rows.length === listed.length
+                ? `${listed.length} cases`
+                : `${rows.length}/${listed.length} cases`}
+              {report.baseline_id ? ` · vs ${report.baseline_id}` : ""}
+            </div>
+          </>
+        )}
+        {report && listed.length === 0 && (
+          <div className="pane-status">This experiment pinned no cases.</div>
+        )}
+        <AlertDialog
+          open={confirmingReevaluate}
+          onOpenChange={setConfirmingReevaluate}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Re-evaluate anyway?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Some runs of this experiment have not completed. Resume first to
+                run them; re-evaluating now scores only the runs that finished.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  // The closing dialog stays clickable; a double click acts once.
+                  if (!confirmingReevaluate) return;
+                  setConfirmingReevaluate(false);
+                  void action("evaluate");
+                }}
+              >
+                Re-evaluate
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </>
   );
 }

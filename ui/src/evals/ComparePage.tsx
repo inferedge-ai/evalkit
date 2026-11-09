@@ -19,6 +19,7 @@ import {
 import type { ExperimentInfo, Report } from "../lib/types";
 import { ScoreMatrix } from "./ScoreMatrix";
 import { CompareBucketCards, CostSpeedLine } from "./ScoreSummary";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 interface CompareResponse {
   base: Report;
@@ -163,146 +164,153 @@ export function ComparePage() {
     });
 
   return (
-    <div className="page">
-      <div className="toolbar mb-3">
-        <h1 className="page-title">Compare</h1>
-        <Link className="chip muted font-mono" to={`/experiments/${base}`}>
-          base: {data.base.dataset} {data.base.name}
-        </Link>
-        <span className="text-ink-4">→</span>
-        <Link className="chip muted font-mono" to={`/experiments/${compare}`}>
-          {data.compare.dataset} {data.compare.name}
-        </Link>
-      </div>
-
-      {(["base", "compare"] as const).map((side) =>
-        hasScores(data[side]) ? null : (
-          <div key={side} className="pane-status">
-            {side} {data[side].name} has no scores
-            {info && (
-              <>
-                : {info[side].status}, {progressLabel(info[side].progress)}
-                {info[side].status_error ? ` (${info[side].status_error})` : ""}
-              </>
-            )}
-          </div>
-        ),
-      )}
-
-      <div className="eyebrow">Scores</div>
-      <CompareBucketCards base={data.base} compare={data.compare} />
-      <CostSpeedLine report={data.compare} base={data.base} />
-
-      <div className="eyebrow">Cases</div>
-      <div className="toolbar mb-1">
-        {CHANGE_ORDER.filter((c) => counts.get(c)).map((c) => (
-          <button
-            key={c}
-            type="button"
-            className={`chip ${only === c ? "" : "muted"}`}
-            onClick={() => setOnly(only === c ? null : c)}
-            title={
-              only === c
-                ? "show all cases"
-                : `show only ${CHANGE_LABEL[c]} cases`
-            }
-          >
-            {counts.get(c)} {CHANGE_LABEL[c]}
-          </button>
-        ))}
-        <span className="ml-auto flex gap-1">
-          <button
-            type="button"
-            className={`btn btn-sm ${view === "list" ? "btn-primary" : ""}`}
-            onClick={() => setView("list")}
-          >
-            List
-          </button>
-          <button
-            type="button"
-            className={`btn btn-sm ${view === "grid" ? "btn-primary" : ""}`}
-            onClick={() => setView("grid")}
-          >
-            All evaluators
-          </button>
-        </span>
-      </div>
-
-      {view === "list" && (
-        <div className="card">
-          <div className="rows">
-            {shown.map((r) => (
-              <div key={r.case_id}>
-                <button
-                  type="button"
-                  className="row w-full grid-cols-[minmax(0,1fr)_auto_auto_auto_7rem] text-left hover:bg-fill"
-                  onClick={() => toggle(r.case_id)}
-                  aria-expanded={open.has(r.case_id)}
-                >
-                  <span className="truncate font-mono">{r.case_id}</span>
-                  <span
-                    className={`num sev-fg-${severity(r.base?.overall ?? null)}`}
-                    title="base mean"
-                  >
-                    {fmtScore(r.base?.overall ?? null)}
-                  </span>
-                  <span
-                    className={`num sev-fg-${severity(r.compare?.overall ?? null)}`}
-                    title="compare mean"
-                  >
-                    {fmtScore(r.compare?.overall ?? null)}
-                  </span>
-                  <span className={`num ${deltaTone(r.delta)}`}>
-                    {fmtDelta(r.delta) ?? "—"}
-                  </span>
-                  <span className="chip muted justify-self-end">
-                    {CHANGE_LABEL[r.change]}
-                  </span>
-                </button>
-                {open.has(r.case_id) && (
-                  <CaseDetail
-                    row={r}
-                    data={data}
-                    base={base}
-                    compare={compare}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: "Experiments", to: "/experiments" }]}
+        title="Compare"
+      />
+      <div className="page">
+        <div className="toolbar mb-3">
+          <Link className="chip muted font-mono" to={`/experiments/${base}`}>
+            base: {data.base.dataset} {data.base.name}
+          </Link>
+          <span className="text-ink-4">→</span>
+          <Link className="chip muted font-mono" to={`/experiments/${compare}`}>
+            {data.compare.dataset} {data.compare.name}
+          </Link>
         </div>
-      )}
 
-      {view === "grid" && (
-        <>
-          <ScoreMatrix
-            id="compare-cases"
-            report={data.compare}
-            groups={scoreGroups(data.compare)}
-            rows={shown.map((r) => ({
-              case_id: r.case_id,
-              row: r.compare,
-              base: r.base,
-            }))}
-            filtered={only !== null}
-            withBase
-            caseCell={({ case_id, row }) =>
-              row ? (
-                <Link
-                  className="text-inherit"
-                  to={`/experiments/${encodeURIComponent(compare)}/${encodeURIComponent(case_id)}`}
-                  target="_blank"
-                  rel="noopener"
-                >
-                  {case_id}
-                </Link>
-              ) : (
-                case_id
-              )
-            }
-          />
-        </>
-      )}
-    </div>
+        {(["base", "compare"] as const).map((side) =>
+          hasScores(data[side]) ? null : (
+            <div key={side} className="pane-status">
+              {side} {data[side].name} has no scores
+              {info && (
+                <>
+                  : {info[side].status}, {progressLabel(info[side].progress)}
+                  {info[side].status_error
+                    ? ` (${info[side].status_error})`
+                    : ""}
+                </>
+              )}
+            </div>
+          ),
+        )}
+
+        <div className="eyebrow">Scores</div>
+        <CompareBucketCards base={data.base} compare={data.compare} />
+        <CostSpeedLine report={data.compare} base={data.base} />
+
+        <div className="eyebrow">Cases</div>
+        <div className="toolbar mb-1">
+          {CHANGE_ORDER.filter((c) => counts.get(c)).map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`chip ${only === c ? "" : "muted"}`}
+              onClick={() => setOnly(only === c ? null : c)}
+              title={
+                only === c
+                  ? "show all cases"
+                  : `show only ${CHANGE_LABEL[c]} cases`
+              }
+            >
+              {counts.get(c)} {CHANGE_LABEL[c]}
+            </button>
+          ))}
+          <span className="ml-auto flex gap-1">
+            <button
+              type="button"
+              className={`btn btn-sm ${view === "list" ? "btn-primary" : ""}`}
+              onClick={() => setView("list")}
+            >
+              List
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${view === "grid" ? "btn-primary" : ""}`}
+              onClick={() => setView("grid")}
+            >
+              All evaluators
+            </button>
+          </span>
+        </div>
+
+        {view === "list" && (
+          <div className="card">
+            <div className="rows">
+              {shown.map((r) => (
+                <div key={r.case_id}>
+                  <button
+                    type="button"
+                    className="row w-full grid-cols-[minmax(0,1fr)_auto_auto_auto_7rem] text-left hover:bg-fill"
+                    onClick={() => toggle(r.case_id)}
+                    aria-expanded={open.has(r.case_id)}
+                  >
+                    <span className="truncate font-mono">{r.case_id}</span>
+                    <span
+                      className={`num sev-fg-${severity(r.base?.overall ?? null)}`}
+                      title="base mean"
+                    >
+                      {fmtScore(r.base?.overall ?? null)}
+                    </span>
+                    <span
+                      className={`num sev-fg-${severity(r.compare?.overall ?? null)}`}
+                      title="compare mean"
+                    >
+                      {fmtScore(r.compare?.overall ?? null)}
+                    </span>
+                    <span className={`num ${deltaTone(r.delta)}`}>
+                      {fmtDelta(r.delta) ?? "—"}
+                    </span>
+                    <span className="chip muted justify-self-end">
+                      {CHANGE_LABEL[r.change]}
+                    </span>
+                  </button>
+                  {open.has(r.case_id) && (
+                    <CaseDetail
+                      row={r}
+                      data={data}
+                      base={base}
+                      compare={compare}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {view === "grid" && (
+          <>
+            <ScoreMatrix
+              id="compare-cases"
+              report={data.compare}
+              groups={scoreGroups(data.compare)}
+              rows={shown.map((r) => ({
+                case_id: r.case_id,
+                row: r.compare,
+                base: r.base,
+              }))}
+              filtered={only !== null}
+              withBase
+              caseCell={({ case_id, row }) =>
+                row ? (
+                  <Link
+                    className="text-inherit"
+                    to={`/experiments/${encodeURIComponent(compare)}/${encodeURIComponent(case_id)}`}
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    {case_id}
+                  </Link>
+                ) : (
+                  case_id
+                )
+              }
+            />
+          </>
+        )}
+      </div>
+    </>
   );
 }

@@ -12,6 +12,7 @@ import { DatasetTagsTab } from "./DatasetTagsTab";
 import { RunLauncher } from "./RunLauncher";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 type Tab = "experiments" | "cases" | "tags";
 
@@ -78,48 +79,55 @@ function DatasetView() {
   const metaParts = info ? syncLabel(info) : [];
 
   return (
-    <div className="page">
-      <div className="toolbar mb-2">
-        <h1 className="page-title font-mono">{ref}</h1>
-        {metaParts.length > 0 && (
-          <span className="row-meta truncate" title={metaParts.join(" · ")}>
-            {metaParts.join(" · ")}
-          </span>
-        )}
-        <span className="ml-auto">
-          {info && (
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: "Datasets", to: "/datasets" }]}
+        title={<span className="font-mono">{ref}</span>}
+        actions={
+          info && (
             <button className="btn btn-primary" onClick={() => setLaunch({})}>
               Run experiment
             </button>
-          )}
-        </span>
-      </div>
-      {error && <div className="pane-status error">{error}</div>}
-      <Tabs<Tab>
-        tabs={TABS}
-        active={tab as Tab}
-        onSelect={(t) => navigate(`/datasets/${encodeURIComponent(ref)}/${t}`)}
+          )
+        }
       />
-      <div className="mt-3">
-        {tab === "cases" && (
-          <DatasetCasesTab
+      <div className="page">
+        <div className="toolbar mb-2">
+          {metaParts.length > 0 && (
+            <span className="row-meta truncate" title={metaParts.join(" · ")}>
+              {metaParts.join(" · ")}
+            </span>
+          )}
+        </div>
+        {error && <div className="pane-status error">{error}</div>}
+        <Tabs<Tab>
+          tabs={TABS}
+          active={tab as Tab}
+          onSelect={(t) =>
+            navigate(`/datasets/${encodeURIComponent(ref)}/${t}`)
+          }
+        />
+        <div className="mt-3">
+          {tab === "cases" && (
+            <DatasetCasesTab
+              dataset={ref}
+              reviewed={!!info?.workspace_is_shared && info.kind === "suite"}
+              onRun={(caseIds) => setLaunch({ caseIds })}
+            />
+          )}
+          {tab === "experiments" && <DatasetExperimentsTab dataset={ref} />}
+          {tab === "tags" && <DatasetTagsTab tags={tags} dataset={ref} />}
+        </div>
+        {launch && (
+          <RunLauncher
             dataset={ref}
-            reviewed={!!info?.workspace_is_shared && info.kind === "suite"}
-            onRun={(caseIds) => setLaunch({ caseIds })}
+            tags={tags}
+            initialCaseIds={launch.caseIds}
+            serverRuns={!!info?.workspace_is_shared}
+            onClose={() => setLaunch(null)}
           />
         )}
-        {tab === "experiments" && <DatasetExperimentsTab dataset={ref} />}
-        {tab === "tags" && <DatasetTagsTab tags={tags} dataset={ref} />}
       </div>
-      {launch && (
-        <RunLauncher
-          dataset={ref}
-          tags={tags}
-          initialCaseIds={launch.caseIds}
-          serverRuns={!!info?.workspace_is_shared}
-          onClose={() => setLaunch(null)}
-        />
-      )}
-    </div>
+    </>
   );
 }

@@ -7,6 +7,7 @@ import { fmtWhen } from "../lib/format";
 import type { Dataset } from "../lib/types";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 function datasetMeta(ds: Dataset): string {
   const parts: string[] = [];
@@ -60,66 +61,68 @@ export function DatasetsPage() {
   );
 
   return (
-    <div className="page">
-      <div className="toolbar mb-3">
-        <h1 className="page-title">Datasets</h1>
-        <input
-          className="input w-64"
-          placeholder="Filter datasets"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <span className="row-meta ml-auto">
-          {loading ? "Loading…" : `${visible.length} datasets`}
-        </span>
-      </div>
-      {error && <div className="pane-status error">{error}</div>}
-      {loading && (
-        <div className="card rows">
-          {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="row grid-cols-[1fr_auto]">
-              <span
-                className="skeleton h-4"
-                style={{ width: `${30 + i * 6}%` }}
-              />
-              <span className="skeleton h-3 w-40" />
-            </div>
-          ))}
+    <>
+      <PageHeader title="Datasets" />
+      <div className="page">
+        <div className="toolbar mb-3">
+          <input
+            className="input w-64"
+            placeholder="Filter datasets"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <span className="row-meta ml-auto">
+            {loading ? "Loading…" : `${visible.length} datasets`}
+          </span>
         </div>
-      )}
-      {!loading && (
-        <>
-          {datasets && datasets.length === 0 && !writable && (
-            <div className="card pane-status">
-              No datasets in @{workspace.name}. This workspace is read-only for
-              you.
-            </div>
-          )}
-          {datasets && datasets.length === 0 && writable && (
-            <div className="card pane-status">
-              No datasets in @{workspace.name} — run{" "}
-              <span className="font-mono">
-                {workspace.type === "shared"
-                  ? `evalkit sync <dir> --workspace ${workspace.name}`
-                  : "evalkit run finance --agent <your-agent>"}
-              </span>{" "}
-              from a repo with an evalkit.yaml.
-            </div>
-          )}
-          {datasets && datasets.length > 0 && visible.length === 0 && (
-            <div className="card pane-status">
-              No datasets match this filter.
-            </div>
-          )}
-          {visible.length > 0 && (
-            <div className="card rows">
-              {visible.map((ds) => (
-                <DatasetRow key={ds.ref} ds={ds} />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
+        {error && <div className="pane-status error">{error}</div>}
+        {loading && (
+          <div className="card rows">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="row grid-cols-[1fr_auto]">
+                <span
+                  className="skeleton h-4"
+                  style={{ width: `${30 + i * 6}%` }}
+                />
+                <span className="skeleton h-3 w-40" />
+              </div>
+            ))}
+          </div>
+        )}
+        {!loading && (
+          <>
+            {datasets && datasets.length === 0 && !writable && (
+              <div className="card pane-status">
+                No datasets in @{workspace.name}. This workspace is read-only
+                for you.
+              </div>
+            )}
+            {datasets && datasets.length === 0 && writable && (
+              <div className="card pane-status">
+                No datasets in @{workspace.name} — run{" "}
+                <span className="font-mono">
+                  {workspace.type === "shared"
+                    ? `evalkit sync <dir> --workspace ${workspace.name}`
+                    : "evalkit run finance --agent <your-agent>"}
+                </span>{" "}
+                from a repo with an evalkit.yaml.
+              </div>
+            )}
+            {datasets && datasets.length > 0 && visible.length === 0 && (
+              <div className="card pane-status">
+                No datasets match this filter.
+              </div>
+            )}
+            {visible.length > 0 && (
+              <div className="card rows">
+                {visible.map((ds) => (
+                  <DatasetRow key={ds.ref} ds={ds} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </>
   );
 }

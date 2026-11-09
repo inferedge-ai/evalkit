@@ -25,6 +25,7 @@ import {
 import { RunTabs, TRAJECTORY_TABS } from "../runs/RunTabs";
 import { Select } from "../lib/Select";
 import { useFollowWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 const TABS = [
   "case",
@@ -138,181 +139,194 @@ export function RunPage() {
   const workspaceRunId = harnessRunId;
 
   return (
-    <div className="page flex h-full flex-col">
-      <div className="toolbar mb-2">
-        <h1 className="max-w-160 truncate font-mono text-head font-semibold">
-          {caseId}
-        </h1>
-        {harnessRunId && (
-          <span className="row-meta font-mono" title="harness run id">
-            <CopyText value={harnessRunId} />
-          </span>
-        )}
-        {tag && (
-          <span className="chip muted" title="agent · model">
-            {tag}
-          </span>
-        )}
-        {badge && (
-          <span className="chip muted" title="trajectory source and mapping">
-            {badge}
-          </span>
-        )}
-        {record && <TimeSpan start={record.started_at} end={record.ended_at} />}
-        {(example?.split_tags ?? []).map((t) => (
-          <Tag key={t}>{t}</Tag>
-        ))}
-        {runs.length > 1 && (
-          <Select
-            ariaLabel="repetition"
-            value={repetition}
-            onChange={setRepetition}
-            options={runs.map((r) => ({
-              value: r.repetition,
-              label: `repetition ${r.repetition}`,
-            }))}
-          />
-        )}
-        {status?.config.judge?.model && (
+    <div className="flex h-full flex-col">
+      <PageHeader
+        breadcrumbs={[
+          { label: "Experiments", to: "/experiments" },
+          {
+            label: status
+              ? `${status.dataset} #${status.number}`
+              : experimentId,
+            to: `/experiments/${encodeURIComponent(experimentId)}`,
+          },
+        ]}
+        title={<span className="font-mono">{caseId}</span>}
+      />
+      <div className="page flex min-h-0 flex-1 flex-col">
+        <div className="toolbar mb-2">
+          {harnessRunId && (
+            <span className="row-meta font-mono" title="harness run id">
+              <CopyText value={harnessRunId} />
+            </span>
+          )}
+          {tag && (
+            <span className="chip muted" title="agent · model">
+              {tag}
+            </span>
+          )}
+          {badge && (
+            <span className="chip muted" title="trajectory source and mapping">
+              {badge}
+            </span>
+          )}
+          {record && (
+            <TimeSpan start={record.started_at} end={record.ended_at} />
+          )}
+          {(example?.split_tags ?? []).map((t) => (
+            <Tag key={t}>{t}</Tag>
+          ))}
+          {runs.length > 1 && (
+            <Select
+              ariaLabel="repetition"
+              value={repetition}
+              onChange={setRepetition}
+              options={runs.map((r) => ({
+                value: r.repetition,
+                label: `repetition ${r.repetition}`,
+              }))}
+            />
+          )}
+          {status?.config.judge?.model && (
+            <Link
+              className="row-meta ml-auto font-mono hover:underline"
+              to={`/experiments/${encodeURIComponent(experimentId)}#judge`}
+              title="one judge scores the whole experiment; its settings are on the experiment page"
+            >
+              judge {status.config.judge.model}
+            </Link>
+          )}
           <Link
-            className="row-meta ml-auto font-mono hover:underline"
-            to={`/experiments/${encodeURIComponent(experimentId)}#judge`}
-            title="one judge scores the whole experiment; its settings are on the experiment page"
+            className={`btn btn-quiet text-brand ${status?.config.judge?.model ? "" : "ml-auto"}`}
+            to={`/experiments/${encodeURIComponent(experimentId)}`}
           >
-            judge {status.config.judge.model}
+            Experiment ↗
           </Link>
-        )}
-        <Link
-          className={`btn btn-quiet text-brand ${status?.config.judge?.model ? "" : "ml-auto"}`}
-          to={`/experiments/${encodeURIComponent(experimentId)}`}
-        >
-          Experiment ↗
-        </Link>
-      </div>
-
-      {record?.error && (
-        <div className="pane-status error">run error: {record.error}</div>
-      )}
-
-      {gauges.length > 0 && (
-        <div className="num mt-1 flex flex-wrap gap-3 text-micro text-ink-3">
-          {gauges
-            .filter((g) => g.value !== null)
-            .map((g) => (
-              <span
-                key={g.name}
-                className="inline-flex items-center gap-1"
-                title={g.explanation ?? g.name}
-              >
-                {g.name.replace(/^gauge_/, "").replaceAll("_", " ")}{" "}
-                {fmtGauge(g.name, g.value)}
-                <InfoTip term={g.name} />
-              </span>
-            ))}
         </div>
-      )}
 
-      <div className="mt-3">
-        <Tabs<Tab>
-          tabs={[
-            { id: "case", label: "Case" },
-            { id: "scores", label: "Scores" },
-            {
-              id: "trajectory",
-              label: "Trajectory",
-              disabled: !trajectoryAvailable(trajectoryStatus),
-              title: trajectoryAvailable(trajectoryStatus)
-                ? undefined
-                : `trajectory ${trajectoryStatus ?? "not recorded"}`,
-            },
-            {
-              id: "workspace",
-              label: "Workspace",
-              disabled: !agent || !workspaceRunId,
-              title: workspaceRunId
-                ? undefined
-                : "no run id recorded for this run",
-            },
-            {
-              id: "cost",
-              label: "Cost",
-              disabled: !trajectoryAvailable(trajectoryStatus),
-              title: trajectoryAvailable(trajectoryStatus)
-                ? undefined
-                : `trajectory ${trajectoryStatus ?? "not recorded"}`,
-            },
-            {
-              id: "timing",
-              label: "Timing",
-              disabled: !trajectoryAvailable(trajectoryStatus),
-              title: trajectoryAvailable(trajectoryStatus)
-                ? undefined
-                : `trajectory ${trajectoryStatus ?? "not recorded"}`,
-            },
-          ]}
-          active={tab}
-          onSelect={setTab}
-        />
-      </div>
+        {record?.error && (
+          <div className="pane-status error">run error: {record.error}</div>
+        )}
 
-      <div className="mt-3 flex min-h-96 flex-1 flex-col">
-        {tab === "case" ? (
-          <div className="shrink-0">
-            {example && (
-              <div className="grid gap-x-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
-                <div className="min-w-0">
-                  <div className="eyebrow">Question</div>
-                  <div className="card p-4">
-                    <Markdown text={questionText(example.input)} />
+        {gauges.length > 0 && (
+          <div className="num mt-1 flex flex-wrap gap-3 text-micro text-ink-3">
+            {gauges
+              .filter((g) => g.value !== null)
+              .map((g) => (
+                <span
+                  key={g.name}
+                  className="inline-flex items-center gap-1"
+                  title={g.explanation ?? g.name}
+                >
+                  {g.name.replace(/^gauge_/, "").replaceAll("_", " ")}{" "}
+                  {fmtGauge(g.name, g.value)}
+                  <InfoTip term={g.name} />
+                </span>
+              ))}
+          </div>
+        )}
+
+        <div className="mt-3">
+          <Tabs<Tab>
+            tabs={[
+              { id: "case", label: "Case" },
+              { id: "scores", label: "Scores" },
+              {
+                id: "trajectory",
+                label: "Trajectory",
+                disabled: !trajectoryAvailable(trajectoryStatus),
+                title: trajectoryAvailable(trajectoryStatus)
+                  ? undefined
+                  : `trajectory ${trajectoryStatus ?? "not recorded"}`,
+              },
+              {
+                id: "workspace",
+                label: "Workspace",
+                disabled: !agent || !workspaceRunId,
+                title: workspaceRunId
+                  ? undefined
+                  : "no run id recorded for this run",
+              },
+              {
+                id: "cost",
+                label: "Cost",
+                disabled: !trajectoryAvailable(trajectoryStatus),
+                title: trajectoryAvailable(trajectoryStatus)
+                  ? undefined
+                  : `trajectory ${trajectoryStatus ?? "not recorded"}`,
+              },
+              {
+                id: "timing",
+                label: "Timing",
+                disabled: !trajectoryAvailable(trajectoryStatus),
+                title: trajectoryAvailable(trajectoryStatus)
+                  ? undefined
+                  : `trajectory ${trajectoryStatus ?? "not recorded"}`,
+              },
+            ]}
+            active={tab}
+            onSelect={setTab}
+          />
+        </div>
+
+        <div className="mt-3 flex min-h-96 flex-1 flex-col">
+          {tab === "case" ? (
+            <div className="shrink-0">
+              {example && (
+                <div className="grid gap-x-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+                  <div className="min-w-0">
+                    <div className="eyebrow">Question</div>
+                    <div className="card p-4">
+                      <Markdown text={questionText(example.input)} />
+                    </div>
+                  </div>
+                  <div className="min-w-0">
+                    <FixtureList files={example.files} />
                   </div>
                 </div>
-                <div className="min-w-0">
-                  <FixtureList files={example.files} />
-                </div>
-              </div>
-            )}
+              )}
 
-            {structured && (
-              <>
-                <div className="eyebrow">Output</div>
-                <div className="card p-4">
-                  <PreBlock text={structured} />
-                </div>
-              </>
-            )}
+              {structured && (
+                <>
+                  <div className="eyebrow">Output</div>
+                  <div className="card p-4">
+                    <PreBlock text={structured} />
+                  </div>
+                </>
+              )}
 
-            {(hasAnswer || !structured) && (
-              <>
-                <div className="eyebrow">Answer</div>
-                <div className="card p-4 lg:px-8 lg:py-6">
-                  <Markdown text={answerText(record?.answer)} />
-                </div>
-                <details className="mt-1 text-micro">
-                  <summary className="cursor-pointer text-n-400">
-                    raw answer
-                  </summary>
-                  <PreBlock
-                    text={answerText(record?.answer)}
-                    language="markdown"
-                  />
-                </details>
-              </>
-            )}
-          </div>
-        ) : tab === "scores" ? (
-          <EvaluatorScores
-            evaluators={example?.effective_evaluators ?? {}}
-            scores={scores}
-          />
-        ) : (
-          <RunTabs
-            tab={tab}
-            trajectory={trajectory}
-            error={trajectoryError}
-            agent={agent}
-            runId={workspaceRunId}
-          />
-        )}
+              {(hasAnswer || !structured) && (
+                <>
+                  <div className="eyebrow">Answer</div>
+                  <div className="card p-4 lg:px-8 lg:py-6">
+                    <Markdown text={answerText(record?.answer)} />
+                  </div>
+                  <details className="mt-1 text-micro">
+                    <summary className="cursor-pointer text-n-400">
+                      raw answer
+                    </summary>
+                    <PreBlock
+                      text={answerText(record?.answer)}
+                      language="markdown"
+                    />
+                  </details>
+                </>
+              )}
+            </div>
+          ) : tab === "scores" ? (
+            <EvaluatorScores
+              evaluators={example?.effective_evaluators ?? {}}
+              scores={scores}
+            />
+          ) : (
+            <RunTabs
+              tab={tab}
+              trajectory={trajectory}
+              error={trajectoryError}
+              agent={agent}
+              runId={workspaceRunId}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

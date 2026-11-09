@@ -9,6 +9,7 @@ import { CopyText, Tabs } from "../lib/ui";
 import { RunTabs, type RunTab } from "./RunTabs";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 export function AgentRunPage() {
   const { agent = "", runId = "" } = useParams();
@@ -31,54 +32,63 @@ export function AgentRunPage() {
   const caseLink = runs ? experimentCaseLink(runs, runId) : null;
 
   return (
-    <div className="page flex h-full flex-col">
-      <div className="toolbar mb-2">
-        <h1 className="max-w-160 truncate font-mono text-head font-semibold">
-          {title || <CopyText value={runId} />}
-        </h1>
-        {title && (
-          <span className="row-meta font-mono">
-            <CopyText value={runId} />
-          </span>
-        )}
-        <span className="chip muted">{agent}</span>
-        {trajectory && (
-          <TimeSpan
-            {...trajectoryBounds(trajectory)}
-            doneLabel="steps span"
-            doneTitle="first to last step start; the last step's own time is not recorded"
-          />
-        )}
-        {caseLink && (
-          <Link className="btn btn-quiet ml-auto text-brand" to={caseLink}>
-            Experiment run ↗
-          </Link>
-        )}
-        <Link
-          className={`btn btn-quiet text-brand${caseLink ? "" : " ml-auto"}`}
-          to={`/runs?agent=${agent}`}
-        >
-          Runs ↗
-        </Link>
-      </div>
-      <Tabs<RunTab>
-        tabs={[
-          { id: "trajectory", label: "Trajectory" },
-          { id: "workspace", label: "Workspace" },
-          { id: "cost", label: "Cost" },
-          { id: "timing", label: "Timing" },
+    <div className="flex h-full flex-col">
+      <PageHeader
+        breadcrumbs={[
+          { label: "Runs", to: "/runs" },
+          { label: agent, to: `/runs?agent=${encodeURIComponent(agent)}` },
         ]}
-        active={tab}
-        onSelect={setTab}
+        title={
+          <span className="font-mono">
+            {title || <CopyText value={runId} />}
+          </span>
+        }
       />
-      <div className="mt-3 flex min-h-0 flex-1 flex-col">
-        <RunTabs
-          tab={tab}
-          trajectory={trajectory}
-          error={error}
-          agent={agent}
-          runId={runId}
+      <div className="page flex min-h-0 flex-1 flex-col">
+        <div className="toolbar mb-2">
+          {title && (
+            <span className="row-meta font-mono">
+              <CopyText value={runId} />
+            </span>
+          )}
+          {trajectory && (
+            <TimeSpan
+              {...trajectoryBounds(trajectory)}
+              doneLabel="steps span"
+              doneTitle="first to last step start; the last step's own time is not recorded"
+            />
+          )}
+          {caseLink && (
+            <Link className="btn btn-quiet ml-auto text-brand" to={caseLink}>
+              Experiment run ↗
+            </Link>
+          )}
+          <Link
+            className={`btn btn-quiet text-brand${caseLink ? "" : " ml-auto"}`}
+            to={`/runs?agent=${agent}`}
+          >
+            Runs ↗
+          </Link>
+        </div>
+        <Tabs<RunTab>
+          tabs={[
+            { id: "trajectory", label: "Trajectory" },
+            { id: "workspace", label: "Workspace" },
+            { id: "cost", label: "Cost" },
+            { id: "timing", label: "Timing" },
+          ]}
+          active={tab}
+          onSelect={setTab}
         />
+        <div className="mt-3 flex min-h-0 flex-1 flex-col">
+          <RunTabs
+            tab={tab}
+            trajectory={trajectory}
+            error={error}
+            agent={agent}
+            runId={runId}
+          />
+        </div>
       </div>
     </div>
   );

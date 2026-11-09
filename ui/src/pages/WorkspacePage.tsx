@@ -18,6 +18,7 @@ import { Tabs } from "../lib/ui";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { BuiltinEvaluatorsNote } from "./BuiltinEvaluatorsNote";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 type WorkspaceTab = "evaluators" | "members";
 const TABS: { id: WorkspaceTab; label: string }[] = [
@@ -310,63 +311,70 @@ export function WorkspacePage() {
   );
 
   return (
-    <div className="page">
-      <div className="toolbar mb-2">
-        <h1 className="page-title">@{ws.name}</h1>
-        <span className="chip muted">{ws.type}</span>
-        {ws.archived && <span className="chip muted">archived</span>}
-        {ws.promotes_to && (
-          <span className="chip chip-info" title="promotion target">
-            → {ws.promotes_to}
-          </span>
-        )}
-        {ws.promoted_from && (
-          <span className="chip chip-info" title="promotion source">
-            ← {ws.promoted_from}
-          </span>
-        )}
-        {me.is_admin && ws.type === "shared" && !ws.promoted_from && (
-          <label className="row-meta flex items-center gap-1">
-            promotes to
-            <Select
-              ariaLabel="promotion target"
-              value={ws.promotes_to ?? ""}
-              onChange={setPromotesTo}
-              options={[
-                { value: "", label: "none" },
-                ...targets.map((w) => ({ value: w.name, label: w.name })),
-              ]}
-            />
-          </label>
-        )}
-        {mayArchive && (
-          <button className="btn btn-sm ml-auto" onClick={toggleArchive}>
-            {ws.archived ? "Restore" : "Archive"}
-          </button>
-        )}
-      </div>
-      {me.is_admin && (
-        <form className="toolbar mb-3" onSubmit={create}>
-          <input
-            className="input"
-            placeholder="shared workspace name, e.g. dev"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <button className="btn btn-primary">Create workspace</button>
-        </form>
-      )}
-      {error && <div className="pane-status error">{error}</div>}
-      <Tabs<WorkspaceTab>
-        tabs={TABS}
-        active={tab}
-        onSelect={(next) => navigate(`/workspace/${next}`)}
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: "Settings", to: "/workspace" }]}
+        title={`@${ws.name}`}
       />
-      <div className="mt-4">
-        {tab === "evaluators" && <EvaluatorsTab ws={ws} writable={writable} />}
-        {tab === "members" && <MembersTab ws={ws} />}
+      <div className="page">
+        <div className="toolbar mb-2">
+          <span className="chip muted">{ws.type}</span>
+          {ws.archived && <span className="chip muted">archived</span>}
+          {ws.promotes_to && (
+            <span className="chip chip-info" title="promotion target">
+              → {ws.promotes_to}
+            </span>
+          )}
+          {ws.promoted_from && (
+            <span className="chip chip-info" title="promotion source">
+              ← {ws.promoted_from}
+            </span>
+          )}
+          {me.is_admin && ws.type === "shared" && !ws.promoted_from && (
+            <label className="row-meta flex items-center gap-1">
+              promotes to
+              <Select
+                ariaLabel="promotion target"
+                value={ws.promotes_to ?? ""}
+                onChange={setPromotesTo}
+                options={[
+                  { value: "", label: "none" },
+                  ...targets.map((w) => ({ value: w.name, label: w.name })),
+                ]}
+              />
+            </label>
+          )}
+          {mayArchive && (
+            <button className="btn btn-sm ml-auto" onClick={toggleArchive}>
+              {ws.archived ? "Restore" : "Archive"}
+            </button>
+          )}
+        </div>
+        {me.is_admin && (
+          <form className="toolbar mb-3" onSubmit={create}>
+            <input
+              className="input"
+              placeholder="shared workspace name, e.g. dev"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+            <button className="btn btn-primary">Create workspace</button>
+          </form>
+        )}
+        {error && <div className="pane-status error">{error}</div>}
+        <Tabs<WorkspaceTab>
+          tabs={TABS}
+          active={tab}
+          onSelect={(next) => navigate(`/workspace/${next}`)}
+        />
+        <div className="mt-4">
+          {tab === "evaluators" && (
+            <EvaluatorsTab ws={ws} writable={writable} />
+          )}
+          {tab === "members" && <MembersTab ws={ws} />}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

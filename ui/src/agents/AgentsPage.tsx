@@ -8,6 +8,7 @@ import { useApi } from "../lib/query";
 import type { AgentInfo } from "../lib/types";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 function AgentRow({ agent }: { agent: AgentInfo }) {
   return (
@@ -44,60 +45,66 @@ export function AgentsPage() {
   const error = listed.error ? String(listed.error) : null;
 
   return (
-    <div className="page">
-      <div className="toolbar mb-3">
-        <h1 className="page-title">Agents</h1>
-        {agents && (
-          <span className="row-meta num ml-auto">{agents.length} agents</span>
-        )}
-        {writable && (
-          <button className="btn btn-sm" onClick={() => setCreating(true)}>
-            New agent
-          </button>
-        )}
-      </div>
-      {error && <div className="pane-status error">{error}</div>}
-      {agents && agents.length === 0 && (
-        <div className="pane-status">
-          No agents in @{workspace.name}.
-          {writable && (
-            <>
-              {" "}
-              Create one here or with{" "}
-              <span className="font-mono">evalkit agents create</span>.
-            </>
+    <>
+      <PageHeader
+        title="Agents"
+        actions={
+          writable && (
+            <button className="btn btn-sm" onClick={() => setCreating(true)}>
+              New agent
+            </button>
+          )
+        }
+      />
+      <div className="page">
+        <div className="toolbar mb-3">
+          {agents && (
+            <span className="row-meta num ml-auto">{agents.length} agents</span>
           )}
         </div>
-      )}
-      {agents && agents.length > 0 && (
-        <div className="card rows">
-          {agents.map((agent) => (
-            <AgentRow key={agent.ref} agent={agent} />
-          ))}
-        </div>
-      )}
-      {archived.length > 0 && (
-        <details className="mt-4">
-          <summary className="row-meta cursor-pointer">
-            Archived ({archived.length})
-          </summary>
-          <div className="card rows mt-2">
-            {archived.map((agent) => (
+        {error && <div className="pane-status error">{error}</div>}
+        {agents && agents.length === 0 && (
+          <div className="pane-status">
+            No agents in @{workspace.name}.
+            {writable && (
+              <>
+                {" "}
+                Create one here or with{" "}
+                <span className="font-mono">evalkit agents create</span>.
+              </>
+            )}
+          </div>
+        )}
+        {agents && agents.length > 0 && (
+          <div className="card rows">
+            {agents.map((agent) => (
               <AgentRow key={agent.ref} agent={agent} />
             ))}
           </div>
-        </details>
-      )}
-      {creating && (
-        <AgentForm
-          workspace={workspace.name}
-          shared={workspace.type === "shared"}
-          onSaved={(agent) =>
-            navigate(`/agents/${encodeURIComponent(agent.ref)}/overview`)
-          }
-          onClose={() => setCreating(false)}
-        />
-      )}
-    </div>
+        )}
+        {archived.length > 0 && (
+          <details className="mt-4">
+            <summary className="row-meta cursor-pointer">
+              Archived ({archived.length})
+            </summary>
+            <div className="card rows mt-2">
+              {archived.map((agent) => (
+                <AgentRow key={agent.ref} agent={agent} />
+              ))}
+            </div>
+          </details>
+        )}
+        {creating && (
+          <AgentForm
+            workspace={workspace.name}
+            shared={workspace.type === "shared"}
+            onSaved={(agent) =>
+              navigate(`/agents/${encodeURIComponent(agent.ref)}/overview`)
+            }
+            onClose={() => setCreating(false)}
+          />
+        )}
+      </div>
+    </>
   );
 }
