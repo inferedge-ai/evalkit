@@ -56,15 +56,19 @@
   every load, and picking a score card scrolls the matrix to that evaluator's
   column.
 - The web UI's icons come from `lucide-react` instead of hand-drawn SVGs and
-  text characters: the ⓘ beside a score, gauge or evaluator name, the
-  dropdown chevron and check mark, the copy and user icons, the arrow on links
+  text characters: the ⓘ beside a score, gauge or evaluator name, the select
+  menus' chevron and check mark, the copy and user icons, the arrow on links
   to another page, the buttons that clear a selection or remove a tag or role,
-  the Columns menu's move up and down buttons, and the arrows that open a
-  folder or section. The ⓘ shows its description in a tooltip drawn above the
-  page, so a table no longer cuts it off, on hover or when it has keyboard
-  focus. Each case matrix column whose evaluator has a description shows the
-  ⓘ in its header: Tab from the header moves to it, and clicking it does not
-  sort the column.
+  the Columns menu's move up and down buttons, the download and Approve
+  icons, and the arrows that open a folder or section. The ⓘ shows its
+  description in a tooltip drawn above the page, so a table no longer cuts it
+  off: on hover, on keyboard focus, or on a tap, which also hides it again. A
+  screen reader reads it as "definition" with the description. Each case
+  matrix column whose evaluator has a description shows the ⓘ in its header,
+  with the evaluator's full name on the label's hover text: Tab from the
+  header moves to it, and clicking, tapping or pressing Enter on it does not
+  sort the column. A score named like a JavaScript object property (such as
+  `constructor`) no longer breaks the page that shows its ⓘ.
 
 ## 0.4.0
 

@@ -264,18 +264,21 @@ function MatrixHeaderLabel({
 }: CustomInnerHeaderProps<MatrixRow> & { term: string }) {
   return (
     <span className="inline-flex max-w-full items-center gap-1">
-      <span className="truncate">{displayName}</span>
+      <span className="truncate" title={term}>
+        {displayName}
+      </span>
       <InfoTip term={term} />
     </span>
   );
 }
 
-// AG Grid moves Tab from header cell to header cell; this lets the browser
-// take it from the cell to the ⓘ inside first.
-const tabIntoInfoTip = ({ event }: SuppressHeaderKeyboardEventParams) =>
-  event.key === "Tab" &&
-  !event.shiftKey &&
-  event.target === event.currentTarget;
+// AG Grid moves Tab from header cell to header cell, and sorts on Enter or
+// Space anywhere inside one. The browser takes Tab from the cell to the ⓘ
+// inside, and Enter or Space on the ⓘ press it instead of sorting.
+const passKeysToInfoTip = ({ event }: SuppressHeaderKeyboardEventParams) =>
+  event.target === event.currentTarget
+    ? event.key === "Tab" && !event.shiftKey
+    : event.key === "Enter" || event.key === " ";
 
 function buildValueColumn(
   kind: ColumnKind,
@@ -294,7 +297,7 @@ function buildValueColumn(
             innerHeaderComponent: MatrixHeaderLabel,
             innerHeaderComponentParams: { term: col },
           },
-          suppressHeaderKeyboardEvent: tabIntoInfoTip,
+          suppressHeaderKeyboardEvent: passKeysToInfoTip,
         }
       : {
           headerTooltip:

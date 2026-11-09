@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { Editor } from "../lib/Editor";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -168,7 +168,7 @@ function TreeNode({
               );
             }}
           >
-            ⇩ zip
+            <Download size={11} /> zip
           </button>
         </div>
         {open &&
@@ -486,7 +486,7 @@ export function WorkspaceTab({
               )
             }
           >
-            ⇩ zip all
+            <Download size={11} /> zip all
           </button>
         </div>
         {downloadError && (

@@ -3,7 +3,6 @@ import {
   act,
   fireEvent,
   render,
-  screen,
   waitFor,
   within,
 } from "@testing-library/react";
@@ -199,16 +198,26 @@ test("each refresh shows the rows' new data even where the sorted value stays th
 
 const COVERAGE = "answer_rubric_coverage";
 const COVERAGE_TEXT = describeTerm(COVERAGE)!;
+// A client's evaluator: no description, so no ⓘ.
+const CUSTOM = "tone_check";
+
+// The tooltip popup, drawn in a portal while it is open.
+function shownTooltip(): HTMLElement | null {
+  return document.querySelector('[data-slot="tooltip-content"]');
+}
 
 function GlossaryMatrix() {
   return (
     <ScoreMatrix
       id="experiment-cases"
       report={REPORT}
-      groups={[{ label: "content", kind: "score", cols: [COVERAGE] }]}
+      groups={[{ label: "content", kind: "score", cols: [COVERAGE, CUSTOM] }]}
       rows={CASES.map((row): MatrixRow => ({
         case_id: row.case_id,
-        row: { ...row, scores: { [COVERAGE]: row.scores.coverage } },
+        row: {
+          ...row,
+          scores: { [COVERAGE]: row.scores.coverage, [CUSTOM]: 1 },
+        },
       }))}
       filtered={false}
       caseCell={(r) => r.case_id}
@@ -226,14 +235,23 @@ async function findHeader(colId: string): Promise<HTMLElement> {
   });
 }
 
+async function findInfoTip(header: HTMLElement) {
+  return within(header).findByRole("button", { name: "definition" });
+}
+
 test("an evaluator's header ⓘ shows its description without sorting, and its label still sorts", async () => {
   const user = userEvent.setup();
   render(<GlossaryMatrix />);
   const header = await findHeader(COVERAGE);
-  const tip = await within(header).findByLabelText(COVERAGE_TEXT);
+  const tip = await findInfoTip(header);
+  expect(tip).toHaveAccessibleDescription(COVERAGE_TEXT);
+  expect(within(header).getByText("coverage")).toHaveAttribute(
+    "title",
+    COVERAGE,
+  );
 
   await user.hover(tip);
-  expect(await screen.findByText(COVERAGE_TEXT)).toBeVisible();
+  await waitFor(() => expect(shownTooltip()).toHaveTextContent(COVERAGE_TEXT));
   await user.click(tip);
   expect(sortOf(COVERAGE)).toBe("none");
 
@@ -242,18 +260,43 @@ test("an evaluator's header ⓘ shows its description without sorting, and its l
   expect(caseOrder()).toEqual(["refund-policy", "card-limit", "late-fee"]);
 });
 
-test("a keyboard user tabbing across the header stops on an evaluator's ⓘ and reads its description", async () => {
+test("tapping an evaluator's header ⓘ on a touch screen doesn't sort the column", async () => {
+  render(<GlossaryMatrix />);
+  const header = await findHeader(COVERAGE);
+  const tip = await findInfoTip(header);
+  const touch = { identifier: 1, target: tip, clientX: 5, clientY: 5 };
+
+  fireEvent.touchStart(tip, { touches: [touch], changedTouches: [touch] });
+  fireEvent.touchEnd(tip, { touches: [], changedTouches: [touch] });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  expect(sortOf(COVERAGE)).toBe("none");
+});
+
+test("a keyboard user tabs from an evaluator's header to its ⓘ and on, and Enter on the ⓘ doesn't sort", async () => {
   const user = userEvent.setup();
   render(<GlossaryMatrix />);
   const header = await findHeader(COVERAGE);
-  const tip = await within(header).findByLabelText(COVERAGE_TEXT);
+  const next = await findHeader(CUSTOM);
+  const tip = await findInfoTip(header);
 
   for (let i = 0; i < 10 && document.activeElement !== header; i++)
     await user.tab();
   expect(header).toHaveFocus();
-  expect(screen.queryByText(COVERAGE_TEXT)).not.toBeInTheDocument();
+  expect(shownTooltip()).toBeNull();
 
   await user.tab();
   expect(tip).toHaveFocus();
-  expect(await screen.findByText(COVERAGE_TEXT)).toBeVisible();
+  await waitFor(() => expect(shownTooltip()).toHaveTextContent(COVERAGE_TEXT));
+
+  await user.keyboard("{Enter}");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(sortOf(COVERAGE)).toBe("none");
+
+  await user.tab();
+  expect(next).toHaveFocus();
+  await user.tab({ shift: true });
+  expect(header).toHaveFocus();
+  await user.tab({ shift: true });
+  expect(await findHeader("avg")).toHaveFocus();
 });

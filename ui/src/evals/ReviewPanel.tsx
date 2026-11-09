@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
@@ -120,7 +121,13 @@ export function ReviewPanel({
                 onClick={submit}
                 disabled={busy || needsComment}
               >
-                {action === "approve" ? "Approve ✓" : "Request changes"}
+                {action === "approve" ? (
+                  <>
+                    Approve <Check size={14} />
+                  </>
+                ) : (
+                  "Request changes"
+                )}
               </button>
             </div>
           </div>

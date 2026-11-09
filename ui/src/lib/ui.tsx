@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { ReactNode } from "react";
 import { Check, ChevronDown, ChevronRight, Copy, Info } from "lucide-react";
 import {
@@ -14,19 +14,31 @@ import { describeTerm } from "./glossary";
 // sites can attach it unconditionally.
 export function InfoTip({ term }: { term: string }) {
   const text = describeTerm(term);
+  const [open, setOpen] = useState(false);
+  const descriptionId = useId();
   if (!text) return null;
   return (
-    <Tooltip>
+    <Tooltip open={open} onOpenChange={setOpen}>
       <TooltipTrigger
         type="button"
         delay={0}
-        aria-label={text}
-        className="inline-flex shrink-0 cursor-help items-center rounded-full text-ink-4 outline-none hover:text-brand focus-visible:text-brand focus-visible:ring-2 focus-visible:ring-ring/50"
-        // In a sortable table header the click would also sort the column.
-        onClick={(e) => e.stopPropagation()}
+        closeOnClick={false}
+        aria-label="definition"
+        aria-describedby={descriptionId}
+        className="inline-flex shrink-0 cursor-help! items-center rounded-full text-ink-4 outline-none hover:text-brand focus-visible:text-brand focus-visible:ring-2 focus-visible:ring-ring/50"
+        // A tap toggles it (touch has no hover); in a sortable table header the
+        // tap or click would also sort the column.
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(!open);
+        }}
+        onTouchStart={(e) => e.stopPropagation()}
       >
         <Info size={12} />
       </TooltipTrigger>
+      <span id={descriptionId} hidden>
+        {text}
+      </span>
       <TooltipContent>{text}</TooltipContent>
     </Tooltip>
   );
