@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Bot } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
+import { canWrite } from "../lib/access";
 import { qs } from "../lib/api";
 import {
   ColumnsMenu,
@@ -16,11 +17,14 @@ import { useApi } from "../lib/query";
 import type { AgentInfo, RunList, RunListItem } from "../lib/types";
 import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
+import { useMe } from "../shell/capabilities";
 import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
+import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card } from "@/components/ui/card";
 
 const NO_RUNS: RunListItem[] = [];
 
@@ -101,6 +105,7 @@ function runColumns(agent: string): ColDef<RunListItem>[] {
 }
 
 export function RunsBrowser() {
+  const me = useMe();
   const { workspace, workspaces } = useWorkspace();
   const [params, setParams] = useSearchParams();
   const agent = params.get("agent") ?? "";
@@ -129,12 +134,18 @@ export function RunsBrowser() {
       : null,
   );
   const runs = listedRuns.data ?? null;
-  const loadError = listedAgents.error ?? listedRuns.error;
-  const error = loadError ? String(loadError) : null;
+  const error = listedAgents.error
+    ? String(listedAgents.error)
+    : listedRuns.error
+      ? String(listedRuns.error)
+      : null;
+  const noAgents = listedAgents.data?.length === 0;
+  const showGrid = (agent || !listedAgents.data) && (runs || !error);
   const columns = useMemo(() => runColumns(agent), [agent]);
   const grid = useDataGrid<RunListItem>("runs");
   const otel =
     agents.find((a) => a.ref === agent)?.trajectory_source === "otel";
+  const filtered = !!(query || userId || noSession);
 
   // Decide on this visit's list, not a cached one that may predate a new agent.
   const settled = listedAgents.isFetchedAfterMount && !listedAgents.isFetching;
@@ -151,57 +162,81 @@ export function RunsBrowser() {
     <>
       <PageHeader title="Runs" />
       <div className="page">
-        <div className="toolbar mb-3">
-          <Select
-            ariaLabel="agent"
-            value={agent}
-            onChange={(a) => setParams({ agent: a })}
-            placeholder="No agents"
-            options={agents.map((a) => ({ value: a.ref, label: a.name }))}
-          />
-          <Input
-            className="w-72"
-            placeholder={
-              otel ? "Session id prefix" : "Search id prefix or title"
-            }
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          {!otel && (
-            <Input
-              className="w-44"
-              placeholder="User id"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
+        {noAgents ? (
+          <Card className="py-8">
+            <Empty
+              icon={Bot}
+              title={`No agents in @${workspace.name}`}
+              description={
+                canWrite(me, workspace) && !workspace.archived ? (
+                  <>
+                    Runs are listed per agent. Add one on the{" "}
+                    <Link className="text-brand hover:underline" to="/agents">
+                      Agents
+                    </Link>{" "}
+                    page.
+                  </>
+                ) : (
+                  "Runs are listed per agent."
+                )
+              }
             />
-          )}
-          {otel && (
-            <label className="flex cursor-pointer items-center gap-1.5 text-meta text-muted-foreground select-none">
-              <Checkbox checked={noSession} onCheckedChange={setNoSession} />
-              no session
-            </label>
-          )}
-          {otel && (
-            <Link
-              className={buttonVariants({ variant: "link" })}
-              to={`/agents/${encodeURIComponent(agent)}/mappings`}
-            >
-              Agent <ArrowUpRight size={12} />
-            </Link>
-          )}
-          <span className="row-meta num ml-auto">
-            {runs
-              ? grid.filteredCount !== null
-                ? `${grid.filteredCount} of the ${runs.runs.length} loaded`
-                : `${runs.total} runs`
-              : ""}
-          </span>
-          {agent && !error && <ColumnsMenu grid={grid} />}
-        </div>
+          </Card>
+        ) : (
+          <div className="toolbar mb-3">
+            <Select
+              ariaLabel="agent"
+              value={agent}
+              onChange={(a) => setParams({ agent: a })}
+              placeholder="No agents"
+              options={agents.map((a) => ({ value: a.ref, label: a.name }))}
+            />
+            <Input
+              className="w-72"
+              placeholder={
+                otel ? "Session id prefix" : "Search id prefix or title"
+              }
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {!otel && (
+              <Input
+                className="w-44"
+                placeholder="User id"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+              />
+            )}
+            {otel && (
+              <label className="flex cursor-pointer items-center gap-1.5 text-meta text-muted-foreground select-none">
+                <Checkbox checked={noSession} onCheckedChange={setNoSession} />
+                no session
+              </label>
+            )}
+            {otel && (
+              <Link
+                className={buttonVariants({ variant: "link" })}
+                to={`/agents/${encodeURIComponent(agent)}/mappings`}
+              >
+                Agent <ArrowUpRight size={12} />
+              </Link>
+            )}
+            <span className="row-meta num ml-auto">
+              {runs
+                ? grid.filteredCount !== null
+                  ? `${grid.filteredCount} of the ${runs.runs.length} loaded`
+                  : `${runs.total} runs`
+                : ""}
+            </span>
+            {agent && showGrid && <ColumnsMenu grid={grid} />}
+          </div>
+        )}
         {error && (
           <div className="pane-status error">
             {error}
-            {!otel && " — the harness may not implement run listing."}
+            {!listedAgents.error &&
+              !otel &&
+              " — the harness may not implement run listing."}
           </div>
         )}
         {runs?.harness_note && (
@@ -209,14 +244,14 @@ export function RunsBrowser() {
             {runs.harness_note} — showing the runs evalkit stored.
           </div>
         )}
-        {agent && !error && (
+        {showGrid && (
           <DataGrid
             grid={grid}
             rows={runs?.runs ?? NO_RUNS}
             columns={columns}
             getRowId={getRunId}
             loading={!runs}
-            empty="No runs match."
+            empty={filtered ? "No runs match." : "No runs yet."}
           />
         )}
       </div>

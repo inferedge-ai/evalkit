@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { MessagesSquare, Waypoints } from "lucide-react";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
@@ -11,6 +12,10 @@ import { TrajectoryViewer } from "../runs/TrajectoryViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Empty } from "@/components/widgets/Empty";
+
+const VERSION_COLUMNS = "grid-cols-[auto_auto_1fr_auto_auto_auto]";
 
 export function Summary({ session }: { session: SessionTrajectory }) {
   const esf = session.esf ?? [];
@@ -66,60 +71,62 @@ function MappingRules({
 }) {
   const before = baseline ? mappingRows(baseline) : null;
   return (
-    <table className="data-table">
-      <thead>
-        <tr>
-          <th>Field</th>
-          <th>Span attribute</th>
-          <th>How it is read</th>
-        </tr>
-      </thead>
-      <tbody>
-        {mappingRows(doc).map((row, i) => {
-          const changed =
-            before !== null && !sameRule(row.rule, before[i].rule);
-          return (
-            <tr key={row.field}>
-              <td className="whitespace-nowrap">
-                {row.label}
-                {changed && (
-                  <Badge variant="info" className="ml-2">
-                    changed
-                  </Badge>
-                )}
-              </td>
-              <td className="font-mono">
-                {row.rule ? (
-                  row.rule.attribute
-                ) : (
-                  <span className="text-ink-3">not read</span>
-                )}
-              </td>
-              <td>
-                <div className="flex flex-wrap gap-1">
-                  {row.rule &&
-                    ruleNotes(row.rule).map((note) => (
-                      <Badge key={note} variant="secondary">
-                        {note}
-                      </Badge>
-                    ))}
-                  {row.rule?.values &&
-                    Object.entries(row.rule.values).map(([from, to]) => (
-                      <Badge
-                        key={from}
-                        variant="secondary"
-                        className="font-mono"
-                      >
-                        {from} <ToArrow /> {to}
-                      </Badge>
-                    ))}
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className="overflow-x-auto">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Span attribute</th>
+            <th>How it is read</th>
+          </tr>
+        </thead>
+        <tbody>
+          {mappingRows(doc).map((row, i) => {
+            const changed =
+              before !== null && !sameRule(row.rule, before[i].rule);
+            return (
+              <tr key={row.field}>
+                <td className="whitespace-nowrap">
+                  {row.label}
+                  {changed && (
+                    <Badge variant="info" className="ml-2">
+                      changed
+                    </Badge>
+                  )}
+                </td>
+                <td className="font-mono">
+                  {row.rule ? (
+                    row.rule.attribute
+                  ) : (
+                    <span className="text-ink-3">not read</span>
+                  )}
+                </td>
+                <td>
+                  <div className="flex flex-wrap gap-1">
+                    {row.rule &&
+                      ruleNotes(row.rule).map((note) => (
+                        <Badge key={note} variant="secondary">
+                          {note}
+                        </Badge>
+                      ))}
+                    {row.rule?.values &&
+                      Object.entries(row.rule.values).map(([from, to]) => (
+                        <Badge
+                          key={from}
+                          variant="secondary"
+                          className="font-mono"
+                        >
+                          {from} <ToArrow /> {to}
+                        </Badge>
+                      ))}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -133,7 +140,12 @@ function Preview({
   return (
     <section className="flex min-w-0 flex-col gap-2">
       <h2 className="font-medium">{label}</h2>
-      {!session && <div className="pane-status">Loading…</div>}
+      {!session && (
+        <>
+          <Skeleton className="h-36 rounded-xl" />
+          <Skeleton className="h-96 rounded-xl" />
+        </>
+      )}
       {session && (
         <>
           <Card size="sm">
@@ -226,66 +238,87 @@ export function MappingsPanel({ agent }: { agent: string }) {
       {error && <div className="pane-status error">{error}</div>}
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Versions</h2>
-        <Card className="rows gap-0 py-0">
-          {versions?.map((v) => (
-            <div
-              key={v.id}
-              className="row grid-cols-[auto_auto_1fr_auto_auto_auto]"
-            >
-              <span className="row-strong font-mono">v{v.version}</span>
-              <Badge variant={v.status === "active" ? "pass" : "secondary"}>
-                {v.status}
-              </Badge>
-              <span className="row-meta">by {v.created_by ?? "-"}</span>
-              <span className="row-meta">{fmtWhen(v.created_at) ?? ""}</span>
-              {v.status === "draft" ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => activate(v.version)}
-                >
-                  Activate
-                </Button>
-              ) : (
-                <span />
-              )}
-              {viewButton(`v${v.version}`)}
-            </div>
-          ))}
-        </Card>
-        {versions && versions.length === 0 && (
-          <p className="text-meta text-ink-3">
-            No mapping yet, so this agent's spans are stored without a session
-            id. Push one with <code>evalkit traces mapping push</code>, starting
-            from the connect-traces skill's <code>gen_ai.json</code> or{" "}
-            <code>openinference.json</code>.
-          </p>
+        {versions?.length === 0 ? (
+          <Card className="py-8">
+            <Empty
+              icon={Waypoints}
+              title="No mapping yet"
+              description={
+                <>
+                  This agent&apos;s spans are stored without a session id. Push
+                  a mapping with{" "}
+                  <span className="font-mono">evalkit traces mapping push</span>
+                  , starting from the connect-traces skill&apos;s{" "}
+                  <span className="font-mono">gen_ai.json</span> or{" "}
+                  <span className="font-mono">openinference.json</span>.
+                </>
+              }
+            />
+          </Card>
+        ) : (
+          <Card className="rows gap-0 py-0">
+            {versions === null &&
+              Array.from({ length: 2 }, (_, i) => (
+                <div key={i} className={`row ${VERSION_COLUMNS}`}>
+                  <Skeleton className="h-4 w-8" />
+                  <Skeleton className="h-4 w-14" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              ))}
+            {versions?.map((v) => (
+              <div key={v.id} className={`row ${VERSION_COLUMNS}`}>
+                <span className="row-strong font-mono">v{v.version}</span>
+                <Badge variant={v.status === "active" ? "pass" : "secondary"}>
+                  {v.status}
+                </Badge>
+                <span className="row-meta">by {v.created_by ?? "-"}</span>
+                <span className="row-meta">{fmtWhen(v.created_at) ?? ""}</span>
+                {v.status === "draft" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => activate(v.version)}
+                  >
+                    Activate
+                  </Button>
+                ) : (
+                  <span />
+                )}
+                {viewButton(`v${v.version}`)}
+              </div>
+            ))}
+          </Card>
         )}
       </section>
-      <section className="flex flex-col gap-2">
-        <h2 className="font-medium">
-          Rules:{" "}
-          {shownRecord
-            ? `v${shownRecord.version} (${shownRecord.status})`
-            : "no mapping"}
-        </h2>
-        <p className="text-meta text-ink-3">
-          Which span attribute fills each field of a converted span.
-          {baseline &&
-            " Rows marked changed differ from the active mapping."}{" "}
-          The session id comes from the mapping's <code>session_id</code> rule.
-        </p>
-        <Card className="gap-0 py-0">
-          {shownDoc ? (
-            <MappingRules doc={shownDoc} baseline={baseline} />
+      {versions?.length !== 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="font-medium">
+            Rules:{" "}
+            {shownRecord
+              ? `v${shownRecord.version} (${shownRecord.status})`
+              : "no mapping"}
+          </h2>
+          <p className="text-meta text-ink-3">
+            Which span attribute fills each field of a converted span.
+            {baseline &&
+              " Rows marked changed differ from the active mapping."}{" "}
+            The session id comes from the mapping's <code>session_id</code>{" "}
+            rule.
+          </p>
+          {versions === null ? (
+            <Skeleton className="h-64 rounded-xl" />
           ) : (
-            <div className="pane-status">
-              {versions === null ? "Loading…" : "No mapping to show."}
-            </div>
+            <Card className="gap-0 py-0">
+              {shownDoc ? (
+                <MappingRules doc={shownDoc} baseline={baseline} />
+              ) : (
+                <div className="pane-status">No mapping to show.</div>
+              )}
+            </Card>
           )}
-        </Card>
-      </section>
+        </section>
+      )}
       <section className="flex flex-col gap-2">
         <div className="toolbar">
           <h2 className="font-medium">Preview over recent sessions</h2>
@@ -297,6 +330,11 @@ export function MappingsPanel({ agent }: { agent: string }) {
             options={sessions.map((id) => ({ value: id, label: id }))}
           />
         </div>
+        {listedRuns.data?.runs.length === 0 && (
+          <Card className="py-8">
+            <Empty icon={MessagesSquare} title="No sessions to preview yet" />
+          </Card>
+        )}
         {selected && (
           <div
             className={`grid gap-4 ${hasDraft ? "lg:grid-cols-2" : "grid-cols-1"}`}

@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { useId, useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, Cable, History } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
@@ -19,6 +19,8 @@ import { Summary } from "./MappingsPanel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Empty } from "@/components/widgets/Empty";
 import {
   Field,
   FieldDescription,
@@ -72,7 +74,7 @@ function ImportRow({
   const pct = Math.round(100 * importFraction(item));
   return (
     <div className="row gap-2">
-      <div className="grid grid-cols-[auto_auto_1fr_auto_auto_auto] items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 md:grid md:grid-cols-[auto_auto_1fr_auto_auto_auto]">
         <span className="row-strong font-mono">#{item.id}</span>
         <Badge
           variant={
@@ -225,11 +227,24 @@ export function ImportPanel({ agent }: { agent: string }) {
       {error && <div className="pane-status error">{error}</div>}
       <section className="flex max-w-3xl flex-col gap-2">
         <h2 className="font-medium">Import from a trace source</h2>
-        {sources.length === 0 ? (
-          <p className="text-meta text-ink-3">
-            No trace sources yet. An admin adds one on the Trace sources page or
-            with <code>evalkit trace-sources create</code>.
-          </p>
+        {!listedSources.data ? (
+          !listedSources.error && <Skeleton className="h-96 rounded-xl" />
+        ) : listedSources.data.length === 0 ? (
+          <Card className="py-8">
+            <Empty
+              icon={Cable}
+              title="No trace sources yet"
+              description={
+                <>
+                  An admin adds one on the Trace sources page or with{" "}
+                  <span className="font-mono">
+                    evalkit trace-sources create
+                  </span>
+                  .
+                </>
+              }
+            />
+          </Card>
         ) : (
           <Card size="sm">
             <CardContent className="flex flex-col gap-3">
@@ -344,9 +359,21 @@ export function ImportPanel({ agent }: { agent: string }) {
             />
           ))}
           {imports && imports.length === 0 && (
-            <div className="pane-status">No range imports yet.</div>
+            <Empty
+              size="sm"
+              icon={History}
+              title="No range imports yet"
+              className="py-6"
+            />
           )}
-          {imports === null && <div className="pane-status">Loading…</div>}
+          {imports === null &&
+            Array.from({ length: 2 }, (_, i) => (
+              <div key={i} className="row grid-cols-[auto_auto_1fr]">
+                <Skeleton className="h-4 w-10" />
+                <Skeleton className="h-4 w-14" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            ))}
         </Card>
       </section>
     </div>

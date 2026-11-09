@@ -35,43 +35,45 @@ function CostTable({ title, rows }: { title: string; rows: CostRollupRow[] }) {
     <section>
       <div className="eyebrow">{title}</div>
       <Card className="gap-0 py-0">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>key</th>
-              <th className="col-num">calls</th>
-              <th className="col-num">input</th>
-              <th className="col-num">output</th>
-              <th className="col-num">cache read</th>
-              <th className="col-num">cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.key}>
-                <td className="font-mono">{r.key}</td>
-                <td className="num col-num">{r.calls}</td>
-                <td className="num col-num">{formatTokensFull(r.input)}</td>
-                <td className="num col-num">{formatTokensFull(r.output)}</td>
-                <td className="num col-num">
-                  {formatTokensFull(r.cache_read)}
-                </td>
-                {/* Share of the biggest row, drawn behind the figure: which
-                    line dominates the bill is the question this table answers. */}
-                <td
-                  className="num col-num bar"
-                  style={
-                    {
-                      "--bar": max > 0 ? r.cost / max : 0,
-                    } as React.CSSProperties
-                  }
-                >
-                  {r.unpriced ? "—" : formatUsd(r.cost)}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>key</th>
+                <th className="col-num">calls</th>
+                <th className="col-num">input</th>
+                <th className="col-num">output</th>
+                <th className="col-num">cache read</th>
+                <th className="col-num">cost</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key}>
+                  <td className="font-mono">{r.key}</td>
+                  <td className="num col-num">{r.calls}</td>
+                  <td className="num col-num">{formatTokensFull(r.input)}</td>
+                  <td className="num col-num">{formatTokensFull(r.output)}</td>
+                  <td className="num col-num">
+                    {formatTokensFull(r.cache_read)}
+                  </td>
+                  {/* Share of the biggest row, drawn behind the figure: which
+                    line dominates the bill is the question this table answers. */}
+                  <td
+                    className="num col-num bar"
+                    style={
+                      {
+                        "--bar": max > 0 ? r.cost / max : 0,
+                      } as React.CSSProperties
+                    }
+                  >
+                    {r.unpriced ? "—" : formatUsd(r.cost)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </section>
   );
@@ -122,28 +124,30 @@ export function CostView({ doc }: { doc: AtifTrajectory }) {
         <section>
           <div className="eyebrow">Tool calls</div>
           <Card className="gap-0 py-0">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>tool</th>
-                  <th className="col-num">calls</th>
-                  <th className="col-num">errors</th>
-                </tr>
-              </thead>
-              <tbody>
-                {analysis.tool_calls.map((r) => (
-                  <tr key={r.key}>
-                    <td className="font-mono">{r.key}</td>
-                    <td className="num col-num">{r.calls}</td>
-                    <td
-                      className={`num col-num ${r.errors ? "text-err-text" : ""}`}
-                    >
-                      {r.errors || ""}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>tool</th>
+                    <th className="col-num">calls</th>
+                    <th className="col-num">errors</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {analysis.tool_calls.map((r) => (
+                    <tr key={r.key}>
+                      <td className="font-mono">{r.key}</td>
+                      <td className="num col-num">{r.calls}</td>
+                      <td
+                        className={`num col-num ${r.errors ? "text-err-text" : ""}`}
+                      >
+                        {r.errors || ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Card>
         </section>
       )}

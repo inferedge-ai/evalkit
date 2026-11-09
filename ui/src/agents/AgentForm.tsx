@@ -141,7 +141,7 @@ export function AgentForm({
             />
           </Field>
           {agent && values.trajectory_source !== agent.trajectory_source && (
-            <p className="row-meta">
+            <p className="row-meta whitespace-normal">
               Experiments that already ran keep the source they ran with. The
               change is refused while one of this agent&apos;s experiments is
               running.

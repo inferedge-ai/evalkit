@@ -1,0 +1,116 @@
+// @vitest-environment jsdom
+import { act, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { Route } from "react-router-dom";
+import { afterEach, expect, test } from "vitest";
+import { refreshQueries } from "../lib/query";
+import type { AgentInfo, RunList } from "../lib/types";
+import { closePage, member, renderPage, stubServer } from "../testFixtures";
+import { RunsBrowser } from "./RunsBrowser";
+
+const bot: AgentInfo = {
+  id: 7,
+  name: "bot",
+  workspace: "dev",
+  ref: "bot@dev",
+  slug: "bot@dev",
+  workspace_type: "shared",
+  harness_url: "https://bot.example.com",
+  trajectory_source: "atif",
+  repo_url: null,
+  settings: {
+    max_concurrent_runs: 4,
+    trajectory_wait_seconds: 30,
+    run_timeout_seconds: 600,
+    poll_interval_seconds: 2,
+    stop_grace_seconds: 10,
+    provides: null,
+  },
+  driver: "server",
+  archived: false,
+  has_api_key: true,
+};
+
+const refundRun: RunList = {
+  runs: [
+    {
+      run_id: "run-1",
+      title: "Refund question",
+      user_id: "u-1",
+      created_at: "2026-11-09T10:00:00Z",
+    },
+  ],
+  total: 1,
+};
+
+const failure = (detail: string) => Response.json({ detail }, { status: 500 });
+
+afterEach(closePage);
+
+function openRuns(path = "/runs?agent=bot@dev") {
+  renderPage(
+    member({ dev: ["writer"] }),
+    path,
+    <Route path="/runs" element={<RunsBrowser />} />,
+  );
+}
+
+test("a workspace without agents says so and points to the Agents page", async () => {
+  stubServer((url) => {
+    if (url.includes("/api/agents?")) return Response.json([]);
+  });
+  openRuns("/runs");
+  expect(await screen.findByText("No agents in @dev")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Agents" })).toHaveAttribute(
+    "href",
+    "/agents",
+  );
+  expect(screen.queryByPlaceholderText("Search id prefix or title")).toBeNull();
+});
+
+test("while the agents load, the runs table already shows it is loading", async () => {
+  stubServer((url) =>
+    url.includes("/api/agents?") ? new Promise(() => {}) : undefined,
+  );
+  openRuns("/runs");
+  expect(await screen.findByText("Loading...")).toBeInTheDocument();
+});
+
+test("an agent without runs says it has none yet, and a search that matches nothing says so", async () => {
+  stubServer((url) => {
+    if (url.includes("/api/agents?")) return Response.json([bot]);
+    if (url.includes("/api/agents/bot%40dev/runs"))
+      return Response.json({ runs: [], total: 0 });
+  });
+  openRuns();
+  expect(await screen.findByText("No runs yet.")).toBeInTheDocument();
+  await userEvent.type(
+    screen.getByPlaceholderText("Search id prefix or title"),
+    "zz",
+  );
+  expect(await screen.findByText("No runs match.")).toBeInTheDocument();
+});
+
+test("when the agents cannot load, the error does not blame the harness's run listing", async () => {
+  stubServer((url) => {
+    if (url.includes("/api/agents?")) return failure("store unavailable");
+  });
+  openRuns("/runs");
+  expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
+  expect(screen.queryByText(/may not implement run listing/)).toBeNull();
+});
+
+test("a refresh that fails keeps the runs on screen with the error above them", async () => {
+  let down = false;
+  stubServer((url) => {
+    if (url.includes("/api/agents?")) return Response.json([bot]);
+    if (url.includes("/api/agents/bot%40dev/runs"))
+      return down ? failure("harness unreachable") : Response.json(refundRun);
+  });
+  openRuns();
+  expect(await screen.findByText("Refund question")).toBeInTheDocument();
+  down = true;
+  await act(() => refreshQueries());
+  expect(await screen.findByText(/harness unreachable/)).toBeInTheDocument();
+  expect(screen.getByText("Refund question")).toBeInTheDocument();
+});
