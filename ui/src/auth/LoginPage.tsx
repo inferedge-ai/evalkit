@@ -86,7 +86,7 @@ function ProviderSignIn({
 }: {
   oidc: OidcProviders | null;
   signedOut: boolean;
-  onSso: () => Promise<void>;
+  onSso: (replace?: boolean) => Promise<void>;
 }) {
   const handOver = oidc !== null && !signedOut;
   const [busy, setBusy] = useState(handOver);
@@ -97,7 +97,7 @@ function ProviderSignIn({
   useEffect(() => {
     if (!handOver || started.current) return;
     started.current = true;
-    runSso(onSso, setBusy, setError);
+    runSso(() => onSso(true), setBusy, setError);
   }, [handOver, onSso]);
 
   return (
@@ -145,7 +145,7 @@ export function LoginChoices({
   providers: Providers;
   next: string;
   signedOut: boolean;
-  onSso: () => Promise<void>;
+  onSso: (replace?: boolean) => Promise<void>;
 }) {
   const [adminOpen, setAdminOpen] = useState(false);
   const [ssoBusy, setSsoBusy] = useState(false);
@@ -209,10 +209,13 @@ export function LoginPage() {
     });
   }, []);
 
-  const startSso = async () => {
+  const startSso = async (replace = false) => {
     const s = await session();
     if (s === null) throw new Error("Single sign-on is not configured.");
-    await s.signinRedirect({ state: next, redirectMethod: "replace" });
+    await s.signinRedirect({
+      state: next,
+      redirectMethod: replace ? "replace" : "assign",
+    });
   };
 
   const fallback: Providers = { password: fallbackPassword, oidc: null };

@@ -188,7 +188,8 @@ login page to see: evalkit sends you straight to the provider, and back to the
 page you opened. The profile button at the bottom of the sidebar shows your
 email under your username. Sign out clears the session in this browser only;
 your identity provider session stays. With `none`, signing out shows a
-**Sign in again** button rather than sending you back to the provider at once.
+**Sign in again** button rather than sending you back to the provider at once,
+in every tab of that browser, until you next sign in.
 
 ## Admin runbook
 
