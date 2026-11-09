@@ -36,7 +36,10 @@ export function BuiltinEvaluatorsNote() {
   if (!builtins.data) return null;
   const { server, local } = splitBuiltins(builtins.data);
   return (
-    <p className="row-meta mb-2 whitespace-normal" data-testid="builtin-note">
+    <p
+      className="mb-3 max-w-3xl text-xs text-muted-foreground"
+      data-testid="builtin-note"
+    >
       Built-in evaluators are also available in this workspace:{" "}
       <Names names={server} /> (run on the evalkit server with its judge, or on
       your machine when you bring your own judge key), <Names names={local} />{" "}

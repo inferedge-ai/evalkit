@@ -1,9 +1,12 @@
+import { useId, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Highlight, themes } from "prism-react-renderer";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { cn } from "@/lib/utils";
 import { ApiError } from "../lib/api";
 import { useApi } from "../lib/query";
 import {
@@ -20,6 +23,7 @@ import { useTheme } from "../shell/theme";
 
 function Snippet({ code, language }: { code: string; language: string }) {
   const { theme } = useTheme();
+  const base = theme === "dark" ? themes.nightOwl : themes.github;
   return (
     <div className="relative my-2">
       <div className="absolute top-1 right-1">
@@ -28,7 +32,10 @@ function Snippet({ code, language }: { code: string; language: string }) {
       <Highlight
         code={code}
         language={language}
-        theme={theme === "dark" ? themes.nightOwl : themes.github}
+        theme={{
+          ...base,
+          plain: { ...base.plain, backgroundColor: "var(--muted)" },
+        }}
       >
         {({ className, style, tokens, getLineProps, getTokenProps }) => (
           <pre
@@ -65,6 +72,80 @@ function Pre({ children }: { children?: ReactNode }) {
   return <Snippet code={code} language={language} />;
 }
 
+function ScrollingTable({ children }: { children?: ReactNode }) {
+  return (
+    <div className="overflow-x-auto">
+      <table>{children}</table>
+    </div>
+  );
+}
+
+function DocsMenu({ tab }: { tab: string }) {
+  const [openOn, setOpenOn] = useState<string | null>(null);
+  const open = openOn === tab;
+  const listId = useId();
+  const current = DOC_TABS.find((t) => t.id === tab);
+  return (
+    <nav
+      className="md:sticky md:top-4 md:w-44 md:shrink-0 md:self-start"
+      aria-label="Docs"
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpenOn(open ? null : tab)}
+        className="flex w-full items-center gap-2 rounded-md border bg-card px-3 py-2 text-left text-sm md:hidden"
+      >
+        <span className="text-muted-foreground">{current?.group}</span>
+        <span aria-hidden className="text-muted-foreground">
+          /
+        </span>
+        <span className="min-w-0 flex-1 truncate font-medium">
+          {current?.label}
+        </span>
+        <ChevronDown
+          aria-hidden
+          className={cn("size-4 transition-transform", open && "rotate-180")}
+        />
+      </button>
+      <div
+        id={listId}
+        className={cn(
+          "mt-2 rounded-md border bg-card p-2 md:mt-0 md:block md:border-0 md:bg-transparent md:p-0",
+          !open && "hidden",
+        )}
+      >
+        {DOC_GROUPS.map((group) => (
+          <div key={group} className="mb-4 last:mb-0">
+            <div className="px-2 pb-1 text-xs font-medium text-muted-foreground">
+              {group}
+            </div>
+            <ul className="flex flex-col gap-px">
+              {DOC_TABS.filter((t) => t.group === group).map((t) => (
+                <li key={t.id}>
+                  <Link
+                    to={`/docs/${t.id}`}
+                    aria-current={t.id === tab ? "page" : undefined}
+                    className={cn(
+                      "block rounded-md px-2 py-1.5 text-sm transition-colors",
+                      t.id === tab
+                        ? "bg-muted font-medium text-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    {t.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 export function DocsPage() {
   const { tab } = useParams();
   const me = useOptionalMe();
@@ -86,42 +167,14 @@ export function DocsPage() {
     <>
       {me && <PageHeader title="Docs" />}
       <div className="page">
-        <div className="mx-auto flex max-w-6xl gap-10">
-          <nav
-            className="sticky top-4 w-44 shrink-0 self-start"
-            aria-label="Docs"
-          >
-            {DOC_GROUPS.map((group) => (
-              <div key={group} className="mb-4">
-                <div className="mb-1 text-micro font-semibold tracking-wide text-ink-3 uppercase">
-                  {group}
-                </div>
-                <ul className="flex flex-col">
-                  {DOC_TABS.filter((t) => t.group === group).map((t) => (
-                    <li key={t.id}>
-                      <Link
-                        to={`/docs/${t.id}`}
-                        aria-current={t.id === tab ? "page" : undefined}
-                        className={`block rounded px-2 py-1 text-lede ${
-                          t.id === tab
-                            ? "bg-n-50 font-medium text-ink"
-                            : "text-ink-2 hover:bg-hover"
-                        }`}
-                      >
-                        {t.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </nav>
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 md:flex-row md:gap-10">
+          <DocsMenu tab={tab} />
           <article className="min-w-0 flex-1">
             {error && <p className="text-ink-2">{error}</p>}
             <div className="md-body docs-body mx-auto max-w-3xl text-lede">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
-                components={{ pre: Pre, a: DocLink }}
+                components={{ pre: Pre, a: DocLink, table: ScrollingTable }}
               >
                 {fillTemplate(body, values)}
               </ReactMarkdown>

@@ -120,7 +120,7 @@ export function LlmProviderForm({
             />
           </Field>
           {urlClearsKey && (
-            <p className="row-meta whitespace-normal text-err-text">
+            <p className="text-xs text-err-text">
               Saving a new base URL removes the stored API key. Enter the key
               for the new URL above.
             </p>

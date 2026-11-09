@@ -16,9 +16,9 @@ const phoenix: TraceSourceInfo = {
 
 afterEach(closePage);
 
-function openTraceSources(me: Me) {
+function openTraceSources(me: Me, sources = [phoenix]) {
   stubServer((url) =>
-    url.endsWith("/api/trace-sources") ? Response.json([phoenix]) : undefined,
+    url.endsWith("/api/trace-sources") ? Response.json(sources) : undefined,
   );
   renderPage(
     me,
@@ -41,4 +41,17 @@ test("an admin sees the add form and archive buttons", async () => {
     screen.getByRole("button", { name: "Add trace source" }),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "archive" })).toBeInTheDocument();
+});
+
+test("without trace sources, an admin is told how to add one", async () => {
+  openTraceSources({ ...member({}), is_admin: true }, []);
+  expect(await screen.findByText("No trace sources")).toBeInTheDocument();
+  expect(screen.getByText(/Add a Phoenix server above/)).toBeInTheDocument();
+});
+
+test("without trace sources, a member is told an admin adds them", async () => {
+  openTraceSources(member({ dev: ["writer"] }), []);
+  expect(await screen.findByText("No trace sources")).toBeInTheDocument();
+  expect(screen.getByText(/An admin adds them with/)).toBeInTheDocument();
+  expect(screen.getByText("evalkit trace-sources create")).toBeInTheDocument();
 });

@@ -1,23 +1,23 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { clearSignOut, register, signOutLocally } from "../lib/api";
+import { PublicShell } from "../shell/PublicShell";
 import { completeSignIn } from "./completeSignIn";
+import { SignInCard } from "./LoginPage";
 import { session } from "./oidc";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
 
 export function CallbackStatus({ error }: { error: string | null }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-canvas">
-      <Card className="w-84">
-        <CardContent>
-          <h1 className="page-title">Evalkit</h1>
+    <PublicShell>
+      <div className="flex min-h-full items-center justify-center p-4">
+        <SignInCard>
           {error === null ? (
-            <p className="mt-1 text-meta text-ink-3">Completing sign-in…</p>
+            <p className="text-sm text-muted-foreground">Completing sign-in…</p>
           ) : (
             <>
-              <p className="mt-1 mb-4 text-meta text-err-text">{error}</p>
+              <p className="text-sm text-err-text">{error}</p>
               <Link
                 className={cn(buttonVariants({ variant: "outline" }), "w-full")}
                 to="/login"
@@ -26,9 +26,9 @@ export function CallbackStatus({ error }: { error: string | null }) {
               </Link>
             </>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </SignInCard>
+      </div>
+    </PublicShell>
   );
 }
 

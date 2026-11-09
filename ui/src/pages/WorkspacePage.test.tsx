@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import { queryClient } from "../lib/query";
-import type { Me, WorkspaceInfo } from "../lib/types";
+import type { Me, WorkspaceInfo, WorkspaceRole } from "../lib/types";
 import { MeContext } from "../shell/capabilities";
 import { WorkspaceGate } from "../shell/workspace";
+import { devWorkspace, renderPage, stubServer } from "../testFixtures";
 import { WorkspacePage } from "./WorkspacePage";
 
 // endpoint.ts reads a file outside ui/ that jsdom runs can't load.
@@ -90,4 +91,65 @@ test("Esc closes the open kind list, then the new evaluator form, without saving
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
   );
   expect(writes).toEqual([]);
+});
+
+function openSettings(
+  tab: "evaluators" | "members",
+  roles: WorkspaceRole[] = ["writer"],
+  ws: WorkspaceInfo = devWorkspace,
+) {
+  stubServer((url) => {
+    if (url.endsWith("/api/workspaces?include_archived=true"))
+      return Response.json([ws]);
+  });
+  renderPage(
+    { ...me, roles: { [ws.name]: roles } },
+    `/settings/workspace/${tab}`,
+    <Route path="/settings/workspace/:tab" element={<WorkspacePage />} />,
+  );
+}
+
+test("the page header says the workspace is shared and where it promotes to", async () => {
+  openSettings("evaluators", ["writer"], {
+    ...devWorkspace,
+    promotes_to: "prod",
+  });
+  const header = await screen.findByRole("banner");
+  expect(
+    within(header).getByText("Shared workspace · promotes to @prod"),
+  ).toBeInTheDocument();
+});
+
+test("a workspace without remote evaluators says so and how to add one", async () => {
+  openSettings("evaluators");
+  expect(
+    await screen.findByText("No remote evaluators in @dev"),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/evalkit evaluators create/)).toBeInTheDocument();
+});
+
+test("a reader of a workspace without remote evaluators is told it is read-only for them", async () => {
+  openSettings("evaluators", ["reviewer"]);
+  expect(
+    await screen.findByText("No remote evaluators in @dev"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("This workspace is read-only for you."),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/evalkit evaluators create/)).toBeNull();
+});
+
+test("a shared workspace without members says so", async () => {
+  openSettings("members");
+  expect(await screen.findByText("No members in @dev")).toBeInTheDocument();
+});
+
+test("a personal workspace's Members tab says only its owner writes to it", async () => {
+  openSettings("members", [], workspace);
+  expect(await screen.findByText("No members in @akshat")).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "A personal workspace has no members: only @akshat writes to it.",
+    ),
+  ).toBeInTheDocument();
 });

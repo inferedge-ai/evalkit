@@ -181,10 +181,10 @@ export function EvaluatorForm({
               />
             </Field>
           ) : (
-            <p className="row-meta whitespace-normal">{PERSONAL_KEY_NOTE}</p>
+            <p className="text-xs text-muted-foreground">{PERSONAL_KEY_NOTE}</p>
           )}
           {urlClearsKey && (
-            <p className="row-meta whitespace-normal text-err-text">
+            <p className="text-xs text-err-text">
               Saving a new endpoint removes the stored API key. Enter the key
               for the new endpoint above.
             </p>

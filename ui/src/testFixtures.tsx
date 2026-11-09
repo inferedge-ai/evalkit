@@ -17,6 +17,9 @@ export const devWorkspace: WorkspaceInfo = {
   promoted_from: null,
 };
 
+export const failure = (detail: string) =>
+  Response.json({ detail }, { status: 500 });
+
 export function member(roles: Me["roles"]): Me {
   return {
     username: "akshat",

@@ -181,6 +181,33 @@
     move those pages. A page's name is lowercase letters, digits and dashes;
     evalkit drops a page whose name isn't, or is one it uses itself:
     `workspace`, `users`, `trace-sources` and `llm-providers`.
+- The web UI's settings, docs, sign-in and not-found pages are laid out on
+  the design system:
+  - Workspace settings: the page header says whether the workspace is shared
+    or personal, archived, and where it promotes to or from. An admin's
+    "Promotes to" picker sits above the tabs, and the "Create workspace"
+    form moves below them, under "New shared workspace", since it makes
+    another workspace. Without remote evaluators, the Evaluators tab says how
+    to add one (`evalkit evaluators create`), or why you can't: the
+    workspace is archived or read-only for you. A workspace without members,
+    or a personal one, says so on the Members tab.
+  - Users, Trace sources and LLM providers: the page's description sits
+    under its title in the page header, and wraps on a phone instead of
+    running off the screen. LLM providers splits into Default judge and
+    Providers sections. Without trace sources or LLM providers, the page
+    says how to add one (`evalkit trace-sources create`,
+    `evalkit llm-providers create`), or that an admin does. A user list that
+    fails to load shows the error instead of placeholder rows.
+  - The add forms on Users, Trace sources and the Members tab put each field
+    on its own line on a phone. Lists show placeholder rows while they load.
+  - Docs: on a phone the page list folds under a button naming the current
+    page, above the page, and folds again after you pick one; wide tables
+    scroll sideways inside their own box. Code blocks, inline code, tables
+    and quotes take the design system's colours.
+  - Sign-in: the sign-in card is 384px wide (was 336px) with labelled
+    fields, and a failed provider sign-in (`/login/callback`) shows the same
+    header bar as `/login`.
+  - A missing page shows an icon, what is missing and a button back.
 
 ## 0.4.0
 
