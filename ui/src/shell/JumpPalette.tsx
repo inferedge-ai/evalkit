@@ -131,10 +131,7 @@ export function JumpPalette() {
       ...getSettingsSections(me.is_admin, workspace.name).flatMap((section) =>
         section.items.map((item) => ({
           ...item,
-          label:
-            section.label === "Workspace"
-              ? `Settings › Workspace ${item.label}`
-              : `Settings › ${item.label}`,
+          label: `Settings › ${section.label} › ${item.label}`,
         })),
       ),
       DOCS_NAV,

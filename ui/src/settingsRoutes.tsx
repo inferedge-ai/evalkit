@@ -5,7 +5,7 @@ import { TraceSourcesPage } from "./pages/TraceSourcesPage";
 import { UsersAdminPage } from "./pages/UsersAdmin";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { useMe } from "./shell/capabilities";
-import { getSettingsSections, wrapperSettingsPages } from "./shell/nav";
+import { filterWrapperSettings, getSettingsSections } from "./shell/nav";
 import { useWorkspace } from "./shell/workspace";
 
 function FirstSettingsPage() {
@@ -20,10 +20,10 @@ function MovedWorkspaceTab() {
   return <Navigate to={`/settings/workspace/${tab}`} replace />;
 }
 
-export function settingsRoutes() {
+export function renderSettingsRoutes() {
   const wrapperPages = [
-    ...wrapperSettingsPages(extensions.accountSettings),
-    ...wrapperSettingsPages(extensions.organizationSettings),
+    ...filterWrapperSettings(extensions.accountSettings),
+    ...filterWrapperSettings(extensions.organizationSettings),
   ];
   return (
     <>
@@ -43,6 +43,13 @@ export function settingsRoutes() {
           element={page.element}
         />
       ))}
+    </>
+  );
+}
+
+export function renderMovedSettingsRoutes() {
+  return (
+    <>
       <Route
         path="/workspace"
         element={<Navigate to="/settings/workspace" replace />}

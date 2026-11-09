@@ -326,7 +326,6 @@ export function WorkspacePage() {
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: "Settings", to: "/settings" }]}
         title={`@${ws.name}`}
         actions={
           mayArchive && (

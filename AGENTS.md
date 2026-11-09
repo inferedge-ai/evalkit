@@ -183,9 +183,9 @@ then add plain FastAPI routes with `app.include_router(...)`.
   `organizationSettings` (admins only). Each is a `SettingsPage`: `name`,
   `label`, optional `icon` and `element`. The page renders at
   `/settings/<name>` inside the Settings area, with its sidebar, after
-  evalkit's own items in that section. evalkit reserves the names
-  `workspace`, `users`, `trace-sources` and `llm-providers`, and drops a
-  wrapper's page that takes one. `organizationSettings` only hides the item
+  evalkit's own items in that section. A name is lowercase letters, digits
+  and dashes. evalkit drops a page whose name isn't, or is one of its own:
+  `workspace`, `users`, `trace-sources` and `llm-providers`. `organizationSettings` only hides the item
   from non-admins; the page and its endpoints must check admin themselves.
 - Every `nav` item and every Settings page the person can see is a page in
   ⌘K search.

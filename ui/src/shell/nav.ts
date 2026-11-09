@@ -46,18 +46,31 @@ export function getNavSections(): NavSection[] {
   return sections.filter((section) => section.items.length > 0);
 }
 
-export const RESERVED_SETTINGS = [
-  "workspace",
-  "users",
-  "trace-sources",
-  "llm-providers",
+const WORKSPACE_SETTINGS: NavItem = {
+  to: "/settings/workspace",
+  label: "Workspace",
+  icon: Boxes,
+};
+
+const ORGANIZATION_SETTINGS: NavItem[] = [
+  { to: "/settings/users", label: "Users", icon: Users },
+  { to: "/settings/trace-sources", label: "Trace sources", icon: Waypoints },
+  { to: "/settings/llm-providers", label: "LLM providers", icon: BrainCircuit },
 ];
 
-export function wrapperSettingsPages(pages: SettingsPage[]): SettingsPage[] {
-  return pages.filter((page) => !RESERVED_SETTINGS.includes(page.name));
+const EVALKIT_SETTINGS = [WORKSPACE_SETTINGS, ...ORGANIZATION_SETTINGS].map(
+  (item) => item.to,
+);
+
+export function filterWrapperSettings(pages: SettingsPage[]): SettingsPage[] {
+  return pages.filter(
+    (page) =>
+      /^[a-z0-9-]+$/.test(page.name) &&
+      !EVALKIT_SETTINGS.includes(`/settings/${page.name}`),
+  );
 }
 
-function settingsItem(page: SettingsPage): NavItem {
+function toSettingsItem(page: SettingsPage): NavItem {
   return { to: `/settings/${page.name}`, label: page.label, icon: page.icon };
 }
 
@@ -68,32 +81,22 @@ export function getSettingsSections(
   const sections: NavSection[] = [
     {
       label: "Account",
-      items: wrapperSettingsPages(extensions.accountSettings).map(settingsItem),
+      items: filterWrapperSettings(extensions.accountSettings).map(
+        toSettingsItem,
+      ),
     },
     {
       label: "Workspace",
-      items: [
-        { to: "/settings/workspace", label: `@${workspace}`, icon: Boxes },
-      ],
+      items: [{ ...WORKSPACE_SETTINGS, label: `@${workspace}` }],
     },
   ];
   if (isAdmin)
     sections.push({
       label: "Organization",
       items: [
-        { to: "/settings/users", label: "Users", icon: Users },
-        {
-          to: "/settings/trace-sources",
-          label: "Trace sources",
-          icon: Waypoints,
-        },
-        {
-          to: "/settings/llm-providers",
-          label: "LLM providers",
-          icon: BrainCircuit,
-        },
-        ...wrapperSettingsPages(extensions.organizationSettings).map(
-          settingsItem,
+        ...ORGANIZATION_SETTINGS,
+        ...filterWrapperSettings(extensions.organizationSettings).map(
+          toSettingsItem,
         ),
       ],
     });

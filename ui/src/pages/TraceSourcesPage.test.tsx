@@ -34,7 +34,7 @@ test("a member reads the trace sources without controls the server would refuse"
   expect(screen.queryByRole("button", { name: "archive" })).toBeNull();
 });
 
-test("an admin adds and archives trace sources", async () => {
+test("an admin sees the add form and archive buttons", async () => {
   openTraceSources({ ...member({}), is_admin: true });
   expect(await screen.findByText("phoenix-prod")).toBeInTheDocument();
   expect(

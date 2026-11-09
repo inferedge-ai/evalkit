@@ -8,8 +8,11 @@ import { SIDEBAR_COOKIE_NAME } from "../components/ui/sidebar";
 import type { SettingsPage } from "../lib/extensions";
 import { queryClient } from "../lib/query";
 import type { Me } from "../lib/types";
-import { settingsRoutes } from "../settingsRoutes";
-import { closePage, member, stubServer } from "../testFixtures";
+import {
+  renderMovedSettingsRoutes,
+  renderSettingsRoutes,
+} from "../settingsRoutes";
+import { closePage, devWorkspace, member, stubServer } from "../testFixtures";
 import { MeContext } from "./capabilities";
 import { ShellOrBare, WorkspaceOrPublic } from "./layout";
 import { ThemeProvider } from "./theme";
@@ -28,7 +31,8 @@ const writer = member({ dev: ["writer"] });
 const admin: Me = { ...writer, is_admin: true };
 
 function Where() {
-  return <output aria-label="location">{useLocation().pathname}</output>;
+  const { pathname, search } = useLocation();
+  return <output aria-label="location">{pathname + search}</output>;
 }
 
 const where = () => screen.getByLabelText("location").textContent;
@@ -40,13 +44,14 @@ function openApp(me: Me, path: string) {
         <MeContext.Provider value={me}>
           <MemoryRouter initialEntries={[path]}>
             <Routes>
+              {renderMovedSettingsRoutes()}
               <Route element={<WorkspaceOrPublic />}>
                 <Route element={<ShellOrBare />}>
                   <Route
                     path="/experiments/:id"
                     element={<p>Experiment page</p>}
                   />
-                  {settingsRoutes()}
+                  {renderSettingsRoutes()}
                 </Route>
               </Route>
             </Routes>
@@ -80,6 +85,11 @@ beforeEach(() => {
   wrapper.organizationSettings = [
     { name: "team", label: "Team", element: <p>Team page</p> },
     { name: "users", label: "People", element: <p>Wrapper people page</p> },
+    {
+      name: "workspace/members",
+      label: "Hijack",
+      element: <p>Hijack page</p>,
+    },
   ];
 });
 
@@ -133,14 +143,47 @@ test("a wrapper's page can't take a name evalkit uses", async () => {
   expect(screen.queryByRole("link", { name: "People" })).toBeNull();
 });
 
+test("a wrapper's page name can't reach into evalkit's pages", async () => {
+  openApp(admin, "/settings/workspace/members");
+  await vi.waitFor(() => expect(where()).toBe("/settings/workspace/members"));
+  expect(screen.queryByText("Hijack page")).toBeNull();
+  expect(screen.queryByRole("link", { name: "Hijack" })).toBeNull();
+});
+
 test("Back to evalkit returns to the page Settings was opened from", async () => {
-  openApp(writer, "/experiments/7");
+  openApp(writer, "/experiments/7?tab=runs");
   await screen.findByText("Experiment page");
   const user = await openSettingsFromMenu();
   await screen.findByText("Profile page");
   await user.click(screen.getByRole("link", { name: "Back to evalkit" }));
   expect(await screen.findByText("Experiment page")).toBeInTheDocument();
-  expect(where()).toBe("/experiments/7");
+  expect(where()).toBe("/experiments/7?tab=runs");
+});
+
+test("after switching workspace in Settings, Back to evalkit opens the section, not the old workspace's page", async () => {
+  stubServer((url) =>
+    url.endsWith("/api/workspaces?include_archived=true")
+      ? Response.json([devWorkspace, { ...devWorkspace, id: 3, name: "prod" }])
+      : undefined,
+  );
+  openApp(writer, "/experiments/7");
+  await screen.findByText("Experiment page");
+  const user = await openSettingsFromMenu();
+  await screen.findByText("Profile page");
+  await user.click(screen.getByRole("button", { name: "workspace" }));
+  await user.click(await screen.findByRole("option", { name: /@prod/ }));
+  await user.click(screen.getByRole("link", { name: "Back to evalkit" }));
+  await vi.waitFor(() => expect(where()).toBe("/experiments"));
+});
+
+test("a writer switches workspace settings tabs inside Settings", async () => {
+  const user = userEvent.setup();
+  openApp(writer, "/settings/workspace/evaluators");
+  await user.click(await screen.findByRole("tab", { name: "Members" }));
+  await vi.waitFor(() => expect(where()).toBe("/settings/workspace/members"));
+  expect(
+    screen.getByRole("link", { name: "Back to evalkit" }),
+  ).toBeInTheDocument();
 });
 
 test.each([
@@ -149,10 +192,16 @@ test.each([
   ["/users", "/settings/users"],
   ["/workspace", "/settings/workspace/evaluators"],
   ["/workspace/members", "/settings/workspace/members"],
-])("an old link to %s opens %s", async (old, moved) => {
-  openApp(admin, old);
-  await vi.waitFor(() => expect(where()).toBe(moved));
-});
+])(
+  "an old link to %s opens %s, with Back to evalkit going home",
+  async (old, moved) => {
+    openApp(admin, old);
+    await vi.waitFor(() => expect(where()).toBe(moved));
+    expect(
+      await screen.findByRole("link", { name: "Back to evalkit" }),
+    ).toHaveAttribute("href", "/");
+  },
+);
 
 test("⌘K finds an admin's Settings pages and opens them in the Settings shell", async () => {
   const user = userEvent.setup();
@@ -167,7 +216,7 @@ test("⌘K finds an admin's Settings pages and opens them in the Settings shell"
     "LLM",
   );
   expect(
-    within(search).getByText("Go to Settings › LLM providers"),
+    within(search).getByText("Go to Settings › Organization › LLM providers"),
   ).toBeInTheDocument();
   await user.keyboard("{Enter}");
   await vi.waitFor(() => expect(where()).toBe("/settings/llm-providers"));
@@ -189,9 +238,9 @@ test("⌘K offers a member no admin Settings pages", async () => {
     "Settings",
   );
   expect(
-    within(search).getByText("Go to Settings › Profile"),
+    within(search).getByText("Go to Settings › Account › Profile"),
   ).toBeInTheDocument();
   expect(
-    within(search).queryByText("Go to Settings › LLM providers"),
+    within(search).queryByText("Go to Settings › Organization › LLM providers"),
   ).toBeNull();
 });

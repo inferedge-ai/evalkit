@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 import { logout } from "../lib/api";
 import type { NavItem } from "../lib/extensions";
 import { Select } from "../lib/Select";
-import { othersPersonal, workspaceHint } from "../lib/workspace";
+import { othersPersonal, sectionRoot, workspaceHint } from "../lib/workspace";
 import type { Me, WorkspaceInfo } from "../lib/types";
 import { useMe } from "./capabilities";
 import { JumpPalette } from "./JumpPalette";
@@ -80,18 +80,23 @@ function readSidebarCookie(): boolean {
 
 export function Shell() {
   const { pathname, search } = useLocation();
-  const inSettings =
-    pathname === "/settings" || pathname.startsWith("/settings/");
-  const [appPage, setAppPage] = useState("/");
+  const inSettings = useMatch({ path: "/settings", end: false }) !== null;
+  const { workspace } = useWorkspace();
+  const [appPage, setAppPage] = useState({ path: "/", workspace: "" });
   useEffect(() => {
-    if (!inSettings) setAppPage(pathname + search);
-  }, [inSettings, pathname, search]);
+    if (!inSettings)
+      setAppPage({ path: pathname + search, workspace: workspace.name });
+  }, [inSettings, pathname, search, workspace.name]);
+  const backTo =
+    appPage.workspace === workspace.name
+      ? appPage.path
+      : (sectionRoot(appPage.path) ?? appPage.path);
   return (
     <SidebarProvider
       defaultOpen={readSidebarCookie()}
       className="h-dvh overflow-hidden"
     >
-      {inSettings ? <SettingsNav backTo={appPage} /> : <SideNav />}
+      {inSettings ? <SettingsNav backTo={backTo} /> : <SideNav />}
       <SidebarInset>
         <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-card px-2 md:hidden">
           <SidebarTrigger aria-label="Open navigation" />

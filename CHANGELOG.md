@@ -169,7 +169,8 @@
     redirect to the new ones. Back to evalkit, at the top of the Settings
     sidebar, returns to the page Settings was opened from.
   - The main sidebar no longer has Workspace and Admin sections. Settings
-    pages the person can see are in ⌘K search, as "Settings › LLM providers".
+    pages the person can see are in ⌘K search, as "Settings › Organization ›
+    LLM providers".
   - Members who open Trace sources see the list without the add form and
     archive buttons, which only admins can use; LLM providers already worked
     this way.
@@ -177,8 +178,9 @@
     `adminNav` and gains `accountSettings` (everyone) and
     `organizationSettings` (admins): pages rendered at `/settings/<name>`
     inside the Settings area. A package that set `moreNav` or `adminNav` must
-    move those pages. evalkit reserves the names `workspace`, `users`,
-    `trace-sources` and `llm-providers`.
+    move those pages. A page's name is lowercase letters, digits and dashes;
+    evalkit drops a page whose name isn't, or is one it uses itself:
+    `workspace`, `users`, `trace-sources` and `llm-providers`.
 
 ## 0.4.0
 
