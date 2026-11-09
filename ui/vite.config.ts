@@ -21,12 +21,14 @@ export default defineConfig(({ mode }) => {
       port: 5180,
       allowedHosts: ["evalkit.local"],
       // The docs pages (../docs/user/*.md) and the shared UI/CLI notes
-      // (../src/evalkit/contracts/notes.json) live outside the UI root.
+      // (../src/evalkit/contracts/notes.json) live outside the UI root. A
+      // `?raw` import is checked with its query too, which only a folder
+      // entry allows.
       fs: {
         allow: [
           searchForWorkspaceRoot(process.cwd()),
           "../docs/user",
-          "../src/evalkit/contracts/notes.json",
+          "../src/evalkit/contracts",
         ],
       },
       proxy: {
