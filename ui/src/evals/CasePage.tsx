@@ -38,6 +38,7 @@ import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 import { promotionSide, twinLine } from "../lib/promotion";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 const PAGE = 10;
 
@@ -254,9 +255,11 @@ export function CasePage() {
         <div className="grid gap-x-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
           <div className="min-w-0">
             <div className="eyebrow">Question</div>
-            <div className="card p-4">
-              <Markdown text={questionText(example.input)} />
-            </div>
+            <Card>
+              <CardContent>
+                <Markdown text={questionText(example.input)} />
+              </CardContent>
+            </Card>
             <FixtureList files={example.files} />
             <details className="mt-2 text-micro">
               <summary className="cursor-pointer text-n-400">Raw input</summary>

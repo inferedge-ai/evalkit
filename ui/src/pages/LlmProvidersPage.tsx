@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 function DefaultJudge({
   providers,
@@ -146,7 +147,7 @@ export function LlmProvidersPage() {
         </p>
         {rows && <DefaultJudge providers={active} editable={me.is_admin} />}
         {error && <div className="pane-status error">{error}</div>}
-        <div className="card rows">
+        <Card className="rows gap-0 py-0">
           {rows?.map((row) => (
             <div
               key={row.name}
@@ -192,7 +193,7 @@ export function LlmProvidersPage() {
           {rows && !rows.length && (
             <div className="pane-status">No LLM providers.</div>
           )}
-        </div>
+        </Card>
         {editing && (
           <LlmProviderForm
             provider={editing === "new" ? undefined : editing}

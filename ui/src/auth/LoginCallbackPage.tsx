@@ -5,26 +5,29 @@ import { completeSignIn } from "./completeSignIn";
 import { session } from "./oidc";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function CallbackStatus({ error }: { error: string | null }) {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-canvas">
-      <div className="card w-84 p-6">
-        <h1 className="page-title">Evalkit</h1>
-        {error === null ? (
-          <p className="mt-1 text-meta text-ink-3">Completing sign-in…</p>
-        ) : (
-          <>
-            <p className="mt-1 mb-4 text-meta text-err-text">{error}</p>
-            <Link
-              className={cn(buttonVariants({ variant: "outline" }), "w-full")}
-              to="/login"
-            >
-              Back to sign-in
-            </Link>
-          </>
-        )}
-      </div>
+      <Card className="w-84">
+        <CardContent>
+          <h1 className="page-title">Evalkit</h1>
+          {error === null ? (
+            <p className="mt-1 text-meta text-ink-3">Completing sign-in…</p>
+          ) : (
+            <>
+              <p className="mt-1 mb-4 text-meta text-err-text">{error}</p>
+              <Link
+                className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+                to="/login"
+              >
+                Back to sign-in
+              </Link>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

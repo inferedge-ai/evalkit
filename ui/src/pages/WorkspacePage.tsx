@@ -23,6 +23,7 @@ import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 type WorkspaceTab = "evaluators" | "members";
 const TABS: { id: WorkspaceTab; label: string }[] = [
@@ -87,7 +88,7 @@ function EvaluatorsTab({
       </div>
       <BuiltinEvaluatorsNote />
       {error && <div className="pane-status error">{error}</div>}
-      <div className="card rows">
+      <Card className="rows gap-0 py-0">
         {rows?.map((row) => (
           <div
             key={row.ref}
@@ -136,7 +137,7 @@ function EvaluatorsTab({
         {rows && !rows.length && (
           <div className="pane-status">No remote evaluators.</div>
         )}
-      </div>
+      </Card>
       {editing && (
         <EvaluatorForm
           ws={ws}
@@ -217,7 +218,7 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
         hold both roles.
       </p>
       {error && <div className="pane-status error">{error}</div>}
-      <div className="card rows">
+      <Card className="rows gap-0 py-0">
         {rows &&
           groupMembers(rows).map((member) => (
             <div
@@ -259,7 +260,7 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
             </div>
           ))}
         {rows && !rows.length && <div className="pane-status">No members.</div>}
-      </div>
+      </Card>
     </>
   );
 }

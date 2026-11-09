@@ -25,6 +25,7 @@ import { CompareBucketCards, CostSpeedLine } from "./ScoreSummary";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
 
 interface CompareResponse {
   base: Report;
@@ -251,7 +252,7 @@ export function ComparePage() {
         </div>
 
         {view === "list" && (
-          <div className="card">
+          <Card className="gap-0 py-0">
             <div className="rows">
               {shown.map((r) => (
                 <div key={r.case_id}>
@@ -292,7 +293,7 @@ export function ComparePage() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
         {view === "grid" && (

@@ -4,6 +4,7 @@ import { Check, Minus, TriangleAlert, X } from "lucide-react";
 import { apiJson } from "../lib/api";
 import type { HarnessCheckReport } from "../lib/types";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 const STATUS_ICON = {
   pass: Check,
@@ -56,7 +57,7 @@ export function HarnessCheckPanel({ agent }: { agent: string }) {
       </div>
       {error && <div className="pane-status error">{error}</div>}
       {report && (
-        <div className="card">
+        <Card className="gap-0 py-0">
           <div className="rows">
             {Object.entries(report.checks).map(([capability, entry]) => {
               const Icon = STATUS_ICON[entry.status];
@@ -76,7 +77,7 @@ export function HarnessCheckPanel({ agent }: { agent: string }) {
               );
             })}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

@@ -10,6 +10,7 @@ import type { MappingRecord, RunList, SessionTrajectory } from "../lib/types";
 import { TrajectoryViewer } from "../runs/TrajectoryViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function Summary({ session }: { session: SessionTrajectory }) {
   const esf = session.esf ?? [];
@@ -135,16 +136,20 @@ function Preview({
       {!session && <div className="pane-status">Loading…</div>}
       {session && (
         <>
-          <div className="card p-3">
-            <Summary session={session} />
-          </div>
-          <div className="card flex min-h-96 flex-col p-3">
-            {session.trajectory ? (
-              <TrajectoryViewer doc={session.trajectory} />
-            ) : (
-              <div className="pane-status">No spans in this session.</div>
-            )}
-          </div>
+          <Card size="sm">
+            <CardContent>
+              <Summary session={session} />
+            </CardContent>
+          </Card>
+          <Card size="sm" className="min-h-96">
+            <CardContent className="flex flex-1 flex-col">
+              {session.trajectory ? (
+                <TrajectoryViewer doc={session.trajectory} />
+              ) : (
+                <div className="pane-status">No spans in this session.</div>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
     </section>
@@ -220,7 +225,7 @@ export function MappingsPanel({ agent }: { agent: string }) {
       {error && <div className="pane-status error">{error}</div>}
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Versions</h2>
-        <div className="card rows">
+        <Card className="rows gap-0 py-0">
           {versions?.map((v) => (
             <div
               key={v.id}
@@ -246,7 +251,7 @@ export function MappingsPanel({ agent }: { agent: string }) {
               {viewButton(`v${v.version}`)}
             </div>
           ))}
-        </div>
+        </Card>
         {versions && versions.length === 0 && (
           <p className="text-meta text-ink-3">
             No mapping yet, so this agent's spans are stored without a session
@@ -269,7 +274,7 @@ export function MappingsPanel({ agent }: { agent: string }) {
             " Rows marked changed differ from the active mapping."}{" "}
           The session id comes from the mapping's <code>session_id</code> rule.
         </p>
-        <div className="card">
+        <Card className="gap-0 py-0">
           {shownDoc ? (
             <MappingRules doc={shownDoc} baseline={baseline} />
           ) : (
@@ -277,7 +282,7 @@ export function MappingsPanel({ agent }: { agent: string }) {
               {versions === null ? "Loading…" : "No mapping to show."}
             </div>
           )}
-        </div>
+        </Card>
       </section>
       <section className="flex flex-col gap-2">
         <div className="toolbar">

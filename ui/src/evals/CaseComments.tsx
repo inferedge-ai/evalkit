@@ -10,6 +10,7 @@ import { useMe } from "../shell/capabilities";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function CaseComments({
   dataset,
@@ -81,72 +82,76 @@ export function CaseComments({
   return (
     <>
       <div className="eyebrow">Comments</div>
-      <div className="card p-3">
-        {threads === null ? <div className="pane-status">Loading…</div> : null}
-        {open.map((t) => (
-          <div
-            key={t.id}
-            className="mb-3 border-b border-line pb-3 last:border-0"
-          >
-            <Comment c={t} />
-            {t.replies.map((r) => (
-              <Comment key={r.id} c={r} reply />
-            ))}
-          </div>
-        ))}
-        {resolved.length > 0 ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="mb-2"
-            onClick={() => setShowResolved(!showResolved)}
-          >
-            {showResolved ? "Hide" : "Show"} {resolved.length} resolved thread
-            {resolved.length === 1 ? "" : "s"}
-          </Button>
-        ) : null}
-        {showResolved
-          ? resolved.map((t) => (
-              <div
-                key={t.id}
-                className="mb-3 border-b border-line pb-3 opacity-70 last:border-0"
-              >
-                <Comment c={t} />
-                {t.replies.map((r) => (
-                  <Comment key={r.id} c={r} reply />
-                ))}
-              </div>
-            ))
-          : null}
-        <Textarea
-          className="mt-2 w-full"
-          rows={3}
-          placeholder={
-            replyTo === null ? "Write a comment…" : `Reply to #${replyTo}…`
-          }
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-        />
-        <div className="toolbar mt-2 justify-end">
-          {replyTo !== null ? (
+      <Card size="sm">
+        <CardContent>
+          {threads === null ? (
+            <div className="pane-status">Loading…</div>
+          ) : null}
+          {open.map((t) => (
+            <div
+              key={t.id}
+              className="mb-3 border-b border-line pb-3 last:border-0"
+            >
+              <Comment c={t} />
+              {t.replies.map((r) => (
+                <Comment key={r.id} c={r} reply />
+              ))}
+            </div>
+          ))}
+          {resolved.length > 0 ? (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setReplyTo(null)}
+              className="mb-2"
+              onClick={() => setShowResolved(!showResolved)}
             >
-              Cancel reply
+              {showResolved ? "Hide" : "Show"} {resolved.length} resolved thread
+              {resolved.length === 1 ? "" : "s"}
             </Button>
           ) : null}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={post}
-            disabled={!draft.trim()}
-          >
-            {replyTo === null ? "Comment" : "Reply"}
-          </Button>
-        </div>
-      </div>
+          {showResolved
+            ? resolved.map((t) => (
+                <div
+                  key={t.id}
+                  className="mb-3 border-b border-line pb-3 opacity-70 last:border-0"
+                >
+                  <Comment c={t} />
+                  {t.replies.map((r) => (
+                    <Comment key={r.id} c={r} reply />
+                  ))}
+                </div>
+              ))
+            : null}
+          <Textarea
+            className="mt-2 w-full"
+            rows={3}
+            placeholder={
+              replyTo === null ? "Write a comment…" : `Reply to #${replyTo}…`
+            }
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <div className="toolbar mt-2 justify-end">
+            {replyTo !== null ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setReplyTo(null)}
+              >
+                Cancel reply
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={post}
+              disabled={!draft.trim()}
+            >
+              {replyTo === null ? "Comment" : "Reply"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </>
   );
 }

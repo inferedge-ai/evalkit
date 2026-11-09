@@ -58,6 +58,7 @@ import { fixtureEntries } from "../lib/fixtures";
 import { httpUrl } from "../lib/safeUrl";
 import { Button } from "@/components/ui/button";
 import { Badge, badgeVariants } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 export function Markdown({ text }: { text: string }) {
   const normalized = useMemo(() => normalizeMathDelimiters(text), [text]);
@@ -113,7 +114,7 @@ export function FixtureList({
       {entries.length === 0 ? (
         <div className="text-micro text-ink-4">No files attached.</div>
       ) : (
-        <div className="card rows">
+        <Card className="rows gap-0 py-0">
           {entries.map((entry) => (
             <button
               key={entry.key}
@@ -136,7 +137,7 @@ export function FixtureList({
               </span>
             </button>
           ))}
-        </div>
+        </Card>
       )}
     </>
   );
@@ -880,8 +881,8 @@ function EvaluatorGroupCard({
   const scoredOn = members.find((m) => m.score.scored_on)?.score.scored_on;
 
   return (
-    <div
-      className="mb-2 rounded-lg border border-n-100 bg-n-0"
+    <Card
+      className="mb-2 gap-0 py-0"
       data-eval={group.names.join(" ") || group.title}
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-n-50 px-3 py-1.5 text-meta">
@@ -942,7 +943,7 @@ function EvaluatorGroupCard({
           )
         ) : null}
       </div>
-    </div>
+    </Card>
   );
 }
 

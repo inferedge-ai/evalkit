@@ -30,6 +30,7 @@ import { Select } from "../lib/Select";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 const TABS = [
   "case",
@@ -283,9 +284,11 @@ export function RunPage() {
                 <div className="grid gap-x-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
                   <div className="min-w-0">
                     <div className="eyebrow">Question</div>
-                    <div className="card p-4">
-                      <Markdown text={questionText(example.input)} />
-                    </div>
+                    <Card>
+                      <CardContent>
+                        <Markdown text={questionText(example.input)} />
+                      </CardContent>
+                    </Card>
                   </div>
                   <div className="min-w-0">
                     <FixtureList files={example.files} />
@@ -296,18 +299,22 @@ export function RunPage() {
               {structured && (
                 <>
                   <div className="eyebrow">Output</div>
-                  <div className="card p-4">
-                    <PreBlock text={structured} />
-                  </div>
+                  <Card>
+                    <CardContent>
+                      <PreBlock text={structured} />
+                    </CardContent>
+                  </Card>
                 </>
               )}
 
               {(hasAnswer || !structured) && (
                 <>
                   <div className="eyebrow">Answer</div>
-                  <div className="card p-4 lg:px-8 lg:py-6">
-                    <Markdown text={answerText(record?.answer)} />
-                  </div>
+                  <Card className="lg:py-6">
+                    <CardContent className="lg:px-8">
+                      <Markdown text={answerText(record?.answer)} />
+                    </CardContent>
+                  </Card>
                   <details className="mt-1 text-micro">
                     <summary className="cursor-pointer text-n-400">
                       raw answer

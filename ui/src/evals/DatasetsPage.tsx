@@ -11,6 +11,7 @@ import { useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 function datasetMeta(ds: Dataset): string {
   const parts: string[] = [];
@@ -80,45 +81,51 @@ export function DatasetsPage() {
         </div>
         {error && <div className="pane-status error">{error}</div>}
         {loading && (
-          <div className="card rows">
+          <Card className="rows gap-0 py-0">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="row grid-cols-[1fr_auto]">
                 <Skeleton className="h-4" style={{ width: `${30 + i * 6}%` }} />
                 <Skeleton className="h-3 w-40" />
               </div>
             ))}
-          </div>
+          </Card>
         )}
         {!loading && (
           <>
             {datasets && datasets.length === 0 && !writable && (
-              <div className="card pane-status">
-                No datasets in @{workspace.name}. This workspace is read-only
-                for you.
-              </div>
+              <Card className="gap-0 py-0">
+                <div className="pane-status">
+                  No datasets in @{workspace.name}. This workspace is read-only
+                  for you.
+                </div>
+              </Card>
             )}
             {datasets && datasets.length === 0 && writable && (
-              <div className="card pane-status">
-                No datasets in @{workspace.name} — run{" "}
-                <span className="font-mono">
-                  {workspace.type === "shared"
-                    ? `evalkit sync <dir> --workspace ${workspace.name}`
-                    : "evalkit run finance --agent <your-agent>"}
-                </span>{" "}
-                from a repo with an evalkit.yaml.
-              </div>
+              <Card className="gap-0 py-0">
+                <div className="pane-status">
+                  No datasets in @{workspace.name} — run{" "}
+                  <span className="font-mono">
+                    {workspace.type === "shared"
+                      ? `evalkit sync <dir> --workspace ${workspace.name}`
+                      : "evalkit run finance --agent <your-agent>"}
+                  </span>{" "}
+                  from a repo with an evalkit.yaml.
+                </div>
+              </Card>
             )}
             {datasets && datasets.length > 0 && visible.length === 0 && (
-              <div className="card pane-status">
-                No datasets match this filter.
-              </div>
+              <Card className="gap-0 py-0">
+                <div className="pane-status">
+                  No datasets match this filter.
+                </div>
+              </Card>
             )}
             {visible.length > 0 && (
-              <div className="card rows">
+              <Card className="rows gap-0 py-0">
                 {visible.map((ds) => (
                   <DatasetRow key={ds.ref} ds={ds} />
                 ))}
-              </div>
+              </Card>
             )}
           </>
         )}

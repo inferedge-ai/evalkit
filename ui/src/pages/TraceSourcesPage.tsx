@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 export function TraceSourcesPage() {
   const listed = useApi<TraceSourceInfo[]>("/trace-sources");
@@ -83,7 +84,7 @@ export function TraceSourcesPage() {
         </form>
         <p className="row-meta mb-3 whitespace-normal">{ENDPOINT_NOTE}</p>
         {error && <div className="pane-status error">{error}</div>}
-        <div className="card rows">
+        <Card className="rows gap-0 py-0">
           {rows?.map((row) => (
             <div
               key={row.id}
@@ -104,7 +105,7 @@ export function TraceSourcesPage() {
           {rows && !rows.length && (
             <div className="pane-status">No trace sources.</div>
           )}
-        </div>
+        </Card>
       </div>
     </>
   );

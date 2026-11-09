@@ -5,6 +5,7 @@ import type { TimingRow } from "../lib/analysis";
 import { toModel } from "../lib/atif";
 import { formatMs } from "../lib/format";
 import type { AtifTrajectory } from "../lib/types";
+import { Card } from "@/components/ui/card";
 
 function StepCells({ row, max }: { row: TimingRow; max: number }) {
   return (
@@ -38,7 +39,7 @@ function StepTable({ title, rows }: { title: string; rows: TimingRow[] }) {
   return (
     <section>
       <div className="eyebrow">{title}</div>
-      <div className="card">
+      <Card className="gap-0 py-0">
         <table className="data-table">
           <thead>
             <tr>
@@ -58,7 +59,7 @@ function StepTable({ title, rows }: { title: string; rows: TimingRow[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
     </section>
   );
 }

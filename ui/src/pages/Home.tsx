@@ -9,6 +9,7 @@ import { useWorkspace } from "../shell/workspace";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 function SkeletonRows({ n }: { n: number }) {
   return (
@@ -107,52 +108,54 @@ export function Home() {
         )}
         {agentsError && <div className="pane-status error">{agentsError}</div>}
         {loading && (
-          <div className="card">
+          <Card className="gap-0 py-0">
             <SkeletonRows n={8} />
-          </div>
+          </Card>
         )}
         {!loading && (
           <div className="grid gap-x-5 gap-y-2 lg:grid-cols-2">
             {!!datasets?.length && (
               <section className="min-w-0">
                 <div className="eyebrow">Datasets</div>
-                <div className="card rows">
+                <Card className="rows gap-0 py-0">
                   {datasets.map((ds) => (
                     <DatasetRow key={ds.ref} ds={ds} />
                   ))}
-                </div>
+                </Card>
               </section>
             )}
             {!!agents?.length && (
               <section className="min-w-0">
                 <div className="eyebrow">Agents</div>
-                <div className="card rows">
+                <Card className="rows gap-0 py-0">
                   {agents.map((a) => (
                     <AgentRow key={a.ref} agent={a} />
                   ))}
-                </div>
+                </Card>
               </section>
             )}
             {empty && (
-              <div className="card pane-status lg:col-span-2">
-                {workspace.type === "shared" ? (
-                  <>
-                    No datasets or agents yet — run{" "}
-                    <span className="font-mono">
-                      evalkit sync &lt;dir&gt; --workspace {workspace.name}
-                    </span>{" "}
-                    or add an agent.
-                  </>
-                ) : (
-                  <>
-                    Nothing here yet — run{" "}
-                    <span className="font-mono">
-                      evalkit run &lt;dataset&gt; --agent &lt;agent&gt;
-                    </span>{" "}
-                    from a repo with an evalkit.yaml.
-                  </>
-                )}
-              </div>
+              <Card className="gap-0 py-0 lg:col-span-2">
+                <div className="pane-status">
+                  {workspace.type === "shared" ? (
+                    <>
+                      No datasets or agents yet — run{" "}
+                      <span className="font-mono">
+                        evalkit sync &lt;dir&gt; --workspace {workspace.name}
+                      </span>{" "}
+                      or add an agent.
+                    </>
+                  ) : (
+                    <>
+                      Nothing here yet — run{" "}
+                      <span className="font-mono">
+                        evalkit run &lt;dataset&gt; --agent &lt;agent&gt;
+                      </span>{" "}
+                      from a repo with an evalkit.yaml.
+                    </>
+                  )}
+                </div>
+              </Card>
             )}
           </div>
         )}

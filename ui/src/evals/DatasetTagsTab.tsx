@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { TagInfo } from "../lib/types";
+import { Card } from "@/components/ui/card";
 
 export function DatasetTagsTab({
   tags,
@@ -13,7 +14,7 @@ export function DatasetTagsTab({
       <div className="pane-status">No tags on this dataset's cases yet.</div>
     );
   return (
-    <div className="card">
+    <Card className="gap-0 py-0">
       <div className="rows">
         {tags.map((tag) => (
           <Link
@@ -26,6 +27,6 @@ export function DatasetTagsTab({
           </Link>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

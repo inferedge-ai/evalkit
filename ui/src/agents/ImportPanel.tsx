@@ -19,6 +19,7 @@ import { Summary } from "./MappingsPanel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 
 const POLL_MS = 2000;
 
@@ -224,96 +225,103 @@ export function ImportPanel({ agent }: { agent: string }) {
             with <code>evalkit trace-sources create</code>.
           </p>
         ) : (
-          <div className="card flex flex-col gap-2 p-3">
-            <div className="form-row">
-              <span className="form-label">Source</span>
-              <Select
-                ariaLabel="trace source"
-                value={source}
-                onChange={setPickedSource}
-                options={sources.map((s) => ({ value: s.name, label: s.name }))}
-              />
-            </div>
-            <div className="form-row">
-              <span className="form-label">Project</span>
-              <Input
-                className="w-72"
-                value={project}
-                onChange={(e) => setProject(e.target.value)}
-              />
-            </div>
-            <div className="form-row">
-              <span className="form-label">What</span>
-              <div className="segment self-start">
-                <button
-                  aria-pressed={mode === "range"}
-                  onClick={() => setMode("range")}
-                >
-                  Time range
-                </button>
-                <button
-                  aria-pressed={mode === "session"}
-                  onClick={() => setMode("session")}
-                >
-                  One session
-                </button>
-              </div>
-            </div>
-            {mode === "session" ? (
+          <Card size="sm">
+            <CardContent className="flex flex-col gap-2">
               <div className="form-row">
-                <span className="form-label">Session id</span>
-                <Input
-                  className="w-72 font-mono"
-                  value={sessionId}
-                  onChange={(e) => setSessionId(e.target.value)}
+                <span className="form-label">Source</span>
+                <Select
+                  ariaLabel="trace source"
+                  value={source}
+                  onChange={setPickedSource}
+                  options={sources.map((s) => ({
+                    value: s.name,
+                    label: s.name,
+                  }))}
                 />
               </div>
-            ) : (
-              <>
+              <div className="form-row">
+                <span className="form-label">Project</span>
+                <Input
+                  className="w-72"
+                  value={project}
+                  onChange={(e) => setProject(e.target.value)}
+                />
+              </div>
+              <div className="form-row">
+                <span className="form-label">What</span>
+                <div className="segment self-start">
+                  <button
+                    aria-pressed={mode === "range"}
+                    onClick={() => setMode("range")}
+                  >
+                    Time range
+                  </button>
+                  <button
+                    aria-pressed={mode === "session"}
+                    onClick={() => setMode("session")}
+                  >
+                    One session
+                  </button>
+                </div>
+              </div>
+              {mode === "session" ? (
                 <div className="form-row">
-                  <span className="form-label">Since</span>
+                  <span className="form-label">Session id</span>
                   <Input
-                    type="datetime-local"
-                    className="w-auto"
-                    value={since}
-                    onChange={(e) => setSince(e.target.value)}
+                    className="w-72 font-mono"
+                    value={sessionId}
+                    onChange={(e) => setSessionId(e.target.value)}
                   />
                 </div>
-                <div className="form-row">
-                  <span className="form-label">Until</span>
-                  <Input
-                    type="datetime-local"
-                    className="w-auto"
-                    value={until}
-                    onChange={(e) => setUntil(e.target.value)}
-                  />
-                  <span className="row-meta">empty means now</span>
-                </div>
-                <p className="text-meta text-ink-3">
-                  Imports every trace that started in this range, oldest first,
-                  as a job on the server. Sessions come from the active
-                  mapping's <code>session_id</code> rule. Leaving this page does
-                  not stop it.
-                </p>
-              </>
-            )}
-            <div>
-              <Button disabled={!ready} onClick={submit}>
-                {mode === "session" ? "Import session" : "Start import"}
-              </Button>
-            </div>
-          </div>
+              ) : (
+                <>
+                  <div className="form-row">
+                    <span className="form-label">Since</span>
+                    <Input
+                      type="datetime-local"
+                      className="w-auto"
+                      value={since}
+                      onChange={(e) => setSince(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-row">
+                    <span className="form-label">Until</span>
+                    <Input
+                      type="datetime-local"
+                      className="w-auto"
+                      value={until}
+                      onChange={(e) => setUntil(e.target.value)}
+                    />
+                    <span className="row-meta">empty means now</span>
+                  </div>
+                  <p className="text-meta text-ink-3">
+                    Imports every trace that started in this range, oldest
+                    first, as a job on the server. Sessions come from the active
+                    mapping's <code>session_id</code> rule. Leaving this page
+                    does not stop it.
+                  </p>
+                </>
+              )}
+              <div>
+                <Button disabled={!ready} onClick={submit}>
+                  {mode === "session" ? "Import session" : "Start import"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
         {imported && (
-          <div className="card flex flex-col gap-2 p-3">
-            <span>Imported {imported.spans} spans.</span>
-            <SessionCheck agent={agent} session={imported.session} />
-          </div>
+          <Card size="sm">
+            <CardContent className="flex flex-col gap-2">
+              <span>Imported {imported.spans} spans.</span>
+              <SessionCheck agent={agent} session={imported.session} />
+            </CardContent>
+          </Card>
         )}
       </section>
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Range imports</h2>
-        <div className="card rows">
+        <Card className="rows gap-0 py-0">
           {imports?.map((item) => (
             <ImportRow
               key={item.id}
@@ -327,7 +335,7 @@ export function ImportPanel({ agent }: { agent: string }) {
             <div className="pane-status">No range imports yet.</div>
           )}
           {imports === null && <div className="pane-status">Loading…</div>}
-        </div>
+        </Card>
       </section>
     </div>
   );

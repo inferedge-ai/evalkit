@@ -11,6 +11,7 @@ import { useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 function AgentRow({ agent }: { agent: AgentInfo }) {
   return (
@@ -82,22 +83,22 @@ export function AgentsPage() {
           </div>
         )}
         {agents && agents.length > 0 && (
-          <div className="card rows">
+          <Card className="rows gap-0 py-0">
             {agents.map((agent) => (
               <AgentRow key={agent.ref} agent={agent} />
             ))}
-          </div>
+          </Card>
         )}
         {archived.length > 0 && (
           <details className="mt-4">
             <summary className="row-meta cursor-pointer">
               Archived ({archived.length})
             </summary>
-            <div className="card rows mt-2">
+            <Card className="rows gap-0 py-0 mt-2">
               {archived.map((agent) => (
                 <AgentRow key={agent.ref} agent={agent} />
               ))}
-            </div>
+            </Card>
           </details>
         )}
         {creating && (

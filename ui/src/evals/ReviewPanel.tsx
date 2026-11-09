@@ -12,6 +12,7 @@ import { useMe } from "../shell/capabilities";
 import { ToArrow } from "../lib/ui";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent } from "@/components/ui/card";
 
 type Action = "approve" | "request_changes";
 
@@ -60,84 +61,86 @@ export function ReviewPanel({
   return (
     <>
       <div className="eyebrow">Review</div>
-      <div className="card p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={getStateVariant(review.state)}>
-            {stateLabel(review.state)}
-          </Badge>
-          {review.state === "review_requested" && review.requested_to ? (
-            <span className="row-meta">
-              <ToArrow /> {review.requested_to}
-            </span>
-          ) : null}
-          {review.updated_at ? (
-            <span className="row-meta">{fmtWhen(review.updated_at)}</span>
-          ) : null}
-        </div>
-        {twin ? (
-          <div className="mt-3 text-meta text-ink-3 whitespace-normal break-words">
-            {twin.locked ? "This dataset is fed by promotion. " : null}
-            <Link className="text-brand hover:underline" to={twin.href}>
-              {twin.text}
-            </Link>
+      <Card size="sm">
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={getStateVariant(review.state)}>
+              {stateLabel(review.state)}
+            </Badge>
+            {review.state === "review_requested" && review.requested_to ? (
+              <span className="row-meta">
+                <ToArrow /> {review.requested_to}
+              </span>
+            ) : null}
+            {review.updated_at ? (
+              <span className="row-meta">{fmtWhen(review.updated_at)}</span>
+            ) : null}
           </div>
-        ) : null}
-        {!twin?.locked &&
-        isReviewerOf(me, splitRef(dataset).workspace) &&
-        action === null ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="lg" onClick={() => setAction("approve")}>
-              Approve
-            </Button>
-            <Button
-              variant="destructive"
-              size="lg"
-              onClick={() => setAction("request_changes")}
-            >
-              Request changes
-            </Button>
-          </div>
-        ) : null}
-        {action ? (
-          <div className="mt-3">
-            <Textarea
-              className="w-full"
-              rows={3}
-              placeholder={
-                action === "approve"
-                  ? "Comment (optional)"
-                  : "What needs to change?"
-              }
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-            />
-            {error ? <div className="pane-status error">{error}</div> : null}
-            <div className="mt-2 flex flex-wrap justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setAction(null)}
-                disabled={busy}
-              >
-                Cancel
+          {twin ? (
+            <div className="mt-3 text-meta text-ink-3 whitespace-normal break-words">
+              {twin.locked ? "This dataset is fed by promotion. " : null}
+              <Link className="text-brand hover:underline" to={twin.href}>
+                {twin.text}
+              </Link>
+            </div>
+          ) : null}
+          {!twin?.locked &&
+          isReviewerOf(me, splitRef(dataset).workspace) &&
+          action === null ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="lg" onClick={() => setAction("approve")}>
+                Approve
               </Button>
               <Button
+                variant="destructive"
                 size="lg"
-                variant={actionVariant}
-                onClick={submit}
-                disabled={busy || needsComment}
+                onClick={() => setAction("request_changes")}
               >
-                {action === "approve" ? (
-                  <>
-                    Approve <Check size={14} />
-                  </>
-                ) : (
-                  "Request changes"
-                )}
+                Request changes
               </Button>
             </div>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+          {action ? (
+            <div className="mt-3">
+              <Textarea
+                className="w-full"
+                rows={3}
+                placeholder={
+                  action === "approve"
+                    ? "Comment (optional)"
+                    : "What needs to change?"
+                }
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+              />
+              {error ? <div className="pane-status error">{error}</div> : null}
+              <div className="mt-2 flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setAction(null)}
+                  disabled={busy}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="lg"
+                  variant={actionVariant}
+                  onClick={submit}
+                  disabled={busy || needsComment}
+                >
+                  {action === "approve" ? (
+                    <>
+                      Approve <Check size={14} />
+                    </>
+                  ) : (
+                    "Request changes"
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
     </>
   );
 }

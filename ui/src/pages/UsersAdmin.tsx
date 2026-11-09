@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 type UserAction = "archive" | "restore" | "promote" | "demote";
 
@@ -71,16 +72,16 @@ export function UsersAdminPage() {
           {error && <span className="text-meta text-err-text">{error}</span>}
         </form>
         {!users ? (
-          <div className="card rows">
+          <Card className="rows gap-0 py-0">
             {Array.from({ length: 4 }, (_, i) => (
               <div key={i} className="row grid-cols-[1fr_auto]">
                 <Skeleton className="h-4" style={{ width: `${20 + i * 8}%` }} />
                 <Skeleton className="h-3 w-24" />
               </div>
             ))}
-          </div>
+          </Card>
         ) : (
-          <div className="card">
+          <Card className="gap-0 py-0">
             <div className="rows">
               {users.map((user) => (
                 <div
@@ -118,7 +119,7 @@ export function UsersAdminPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         )}
       </div>
     </>

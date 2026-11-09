@@ -43,6 +43,7 @@ import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 function ScorecardSkeleton() {
   return (
@@ -66,7 +67,7 @@ function ScorecardSkeleton() {
         ))}
       </div>
       <div className="eyebrow">Cases</div>
-      <div className="card">
+      <Card className="gap-0 py-0">
         <div className="rows">
           {Array.from({ length: 12 }, (_, i) => (
             <div
@@ -80,7 +81,7 @@ function ScorecardSkeleton() {
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </>
   );
 }
