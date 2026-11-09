@@ -240,7 +240,8 @@ def login(
     username: str = typer.Option(
         None,
         "--username",
-        help="Password login; with SSO configured, admins only unless password_login is all.",
+        help="Password login; with SSO configured, admins only unless password_login is all, "
+        "and refused when it is none.",
     ),
     password: str = typer.Option(None, "--password"),
     no_browser: bool = typer.Option(
@@ -1157,7 +1158,8 @@ def users_add(
 
     With --subject the user is a machine user bound to that subject at the identity
     provider: no password, no browser login. Without it, a password user; with SSO
-    configured and password_login admin, that user can only sign in once made admin.
+    configured and password_login admin, that user can only sign in once made admin,
+    and with password_login none, never.
 
     Examples: evalkit users add alice · evalkit users add ci-bot --subject 0oa...
     """

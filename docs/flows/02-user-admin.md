@@ -4,7 +4,7 @@ How an admin creates, lists, archives and restores users, and grants or removes 
 
 ## Actors
 
-- **Admin**: any user with the stored admin flag. On first start, when no admin exists, the server creates a user named `admin` from `EVALKIT_ADMIN_PASSWORD`. A server with no admin and no `EVALKIT_ADMIN_PASSWORD` refuses to start.
+- **Admin**: any user with the stored admin flag. On first start, when no admin exists, the server creates a user named `admin` from `EVALKIT_ADMIN_PASSWORD`. A server with no admin and no `EVALKIT_ADMIN_PASSWORD` refuses to start, unless `auth.password_login` is `none`: then the identity provider names the admins and no `admin` user is made.
 - **CLI**: `evalkit users …` (`src/evalkit/cli/main.py`).
 - **Web UI**: the `/users` page (`ui/src/pages/UsersAdmin.tsx`).
 - **evalkit server**: `src/evalkit/api/users.py`, `src/evalkit/db/users.py`.
@@ -58,7 +58,7 @@ sequenceDiagram
 
 ## Error cases
 
-- Server start with no admin user and no `EVALKIT_ADMIN_PASSWORD`: the server refuses to start, "no admin user exists and EVALKIT_ADMIN_PASSWORD is not set; set it and start the server again to create the admin user".
+- Server start with no admin user and no `EVALKIT_ADMIN_PASSWORD` (and `auth.password_login` is not `none`): the server refuses to start, "no admin user exists and EVALKIT_ADMIN_PASSWORD is not set; set it and start the server again to create the admin user".
 - Not admin: 403 "admin only".
 - Name already a user or workspace (e.g. `dev`): 409 "name 'X' is already a user or workspace".
 - Bad name: 400 "invalid name 'X': use lowercase letters, digits, '.', '_' or '-', starting with a letter or digit".

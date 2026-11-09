@@ -116,6 +116,28 @@
   control, with its hint underneath. Table checkboxes are square with 4px
   corners instead of round. Secondary text uses the components' muted grey,
   one shade darker than before in light mode.
+- `auth.password_login` takes `none`, for servers where everyone signs in
+  through the identity provider:
+  - Config: `none` needs `auth.oidc.admin_claim`, so the identity provider
+    says who is an admin. The server makes no password-only `admin` account
+    and starts without `EVALKIT_ADMIN_PASSWORD`. Because `none` requires
+    `admin_claim`, an admin promoted by hand loses it at their next sign-in
+    unless the claim names them.
+  - Sign-in: a signed-out visitor goes straight to the provider instead of
+    evalkit's login page and comes back to the page they opened.
+    `POST /api/auth/login` refuses every password with 403 `password login
+    is off on this server`, `evalkit login --username` included. While the
+    provider is unreachable, the 503 from `GET /api/auth/providers` also
+    carries `password`, so the login page offers Retry and no password form.
+  - Sign-out: every open tab stops at a **Sign in again** button until the
+    next sign-in, rather than restarting the provider sign-in, so a live
+    provider session does not sign the person straight back in.
+- In every `password_login` mode, a signed-out visitor who opens a page
+  while the identity provider is unreachable reaches the login page, and so
+  does someone whose password session expires mid-visit, so with `admin` an
+  admin can still use the password form. Before, they saw an error. A
+  provider session that needs refreshing while the provider is unreachable
+  still shows the error.
 - The web UI's home, datasets, dataset, case and reviews pages are laid out
   on the design system:
   - An empty home page, datasets list, dataset tab or changelog shows an

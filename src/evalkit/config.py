@@ -103,10 +103,19 @@ class OidcConfig(ConfigModel):
 
 class AuthConfig(ConfigModel):
     token_ttl_hours: int = 720
-    password_login: Literal["admin", "all"] = "admin"
+    password_login: Literal["admin", "all", "none"] = "admin"
     oidc: OidcConfig | None = None
 
-    def resolve_password_login(self) -> Literal["admin", "all"]:
+    @model_validator(mode="after")
+    def _require_admin_claim(self) -> AuthConfig:
+        if self.password_login == "none" and (self.oidc is None or self.oidc.admin_claim is None):
+            raise ValueError(
+                "password_login: none needs auth.oidc with admin_claim, so the identity "
+                "provider says who is an admin"
+            )
+        return self
+
+    def resolve_password_login(self) -> Literal["admin", "all", "none"]:
         return "all" if self.oidc is None else self.password_login
 
 

@@ -178,15 +178,15 @@ async def test_archived_placeholder_user_gets_401_not_500(client, session_factor
 async def test_bootstrap_admin_only_when_empty(session_factory):
     factory = session_factory
     with pytest.raises(RuntimeError, match="EVALKIT_ADMIN_PASSWORD is not set"):
-        await bootstrap_admin(factory, None)
+        await bootstrap_admin(factory, None, "admin")
     async with factory() as session:
         assert (await session.execute(select(User))).scalars().all() == []
-    await bootstrap_admin(factory, "secret-password")
+    await bootstrap_admin(factory, "secret-password", "admin")
     async with factory() as session:
         users = (await session.execute(select(User))).scalars().all()
         assert [u.username for u in users] == ["admin"]
-    await bootstrap_admin(factory, "another-password")
-    await bootstrap_admin(factory, None)
+    await bootstrap_admin(factory, "another-password", "admin")
+    await bootstrap_admin(factory, None, "admin")
     async with factory() as session:
         assert len((await session.execute(select(User))).scalars().all()) == 1
 
@@ -232,7 +232,7 @@ async def test_login_accepts_short_passwords(client, session_factory):
 @pytest.mark.parametrize("password", ["short", "x" * 73])
 async def test_bootstrap_admin_refuses_a_bad_password(session_factory, password):
     with pytest.raises(InvalidPassword):
-        await bootstrap_admin(session_factory, password)
+        await bootstrap_admin(session_factory, password, "admin")
 
 
 async def test_login_with_the_same_username_in_two_tenants(client, raw_session_factory):

@@ -8,11 +8,13 @@ from evalkit.api.app import TenantResolver, content_security_policy, create_app
 from evalkit.api.oidc import Discovery, OidcState
 from evalkit.client.connection import MachineLogin
 from evalkit.client.oidc import ClientCredentials
-from evalkit.config import OidcConfig
+from evalkit.config import AdminClaimConfig, OidcConfig
 from evalkit.core.tenant import resolve_tenant as default_resolve_tenant
 from evalkit.db.users import UserStore
 from tests.identity import FakeIdp
 from tests.native import HOLDER, USERS, Env, seed_env, serve
+
+ADMINS = AdminClaimConfig(name="roles", value="evalkit-admin")
 
 
 @asynccontextmanager
@@ -51,10 +53,11 @@ async def sso_app(
             transport=httpx2.ASGITransport(app=app), base_url="http://test"
         ) as client:
             client.app = app  # type: ignore[attr-defined]
-            login = await client.post(
-                "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
-            )
-            client.headers["Authorization"] = f"Bearer {login.json()['token']}"
+            if password_login != "none":
+                login = await client.post(
+                    "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
+                )
+                client.headers["Authorization"] = f"Bearer {login.json()['token']}"
             yield client
 
 
@@ -132,7 +135,31 @@ async def test_providers_is_503_while_discovery_is_down(env, idp):
     async with sso_app(env, idp, transport=httpx2.MockTransport(down)) as client:
         resp = await client.get("/api/auth/providers")
         assert resp.status_code == 503
+        assert resp.json() == {"detail": "identity provider unreachable", "password": "admin"}
         assert client.app.state.oidc_retry is not None and not client.app.state.oidc_retry.done()
+
+
+async def test_password_sign_in_is_refused_when_passwords_are_off(env, idp):
+    async with sso_app(env, idp, password_login="none", admin_claim=ADMINS) as client:
+        resp = await client.post(
+            "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
+        )
+        providers = (await client.get("/api/auth/providers")).json()
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "password login is off on this server; sign in with Fake"
+    assert providers["password"] == "none"
+
+
+async def test_providers_says_passwords_are_off_while_discovery_is_down(env, idp):
+    def down(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("down")
+
+    async with sso_app(
+        env, idp, password_login="none", admin_claim=ADMINS, transport=httpx2.MockTransport(down)
+    ) as client:
+        resp = await client.get("/api/auth/providers")
+    assert resp.status_code == 503
+    assert resp.json() == {"detail": "identity provider unreachable", "password": "none"}
 
 
 def bearer(token: str) -> dict[str, str]:

@@ -1,10 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { login } from "../lib/api";
+import { isSignedOut, login } from "../lib/api";
 import { PublicShell } from "../shell/PublicShell";
 import { safeNext } from "./next";
-import { loadProviders, session, type Providers } from "./oidc";
+import {
+  loadProviders,
+  ProvidersUnavailable,
+  session,
+  type OidcProviders,
+  type Providers,
+} from "./oidc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -73,19 +79,80 @@ export function runSso(
   });
 }
 
+function ProviderSignIn({
+  oidc,
+  signedOut,
+  onSso,
+}: {
+  oidc: OidcProviders | null;
+  signedOut: boolean;
+  onSso: (replace?: boolean) => Promise<void>;
+}) {
+  const handOver = oidc !== null && !signedOut;
+  const [busy, setBusy] = useState(handOver);
+  const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
+  const start = () => runSso(onSso, setBusy, setError);
+
+  useEffect(() => {
+    if (!handOver || started.current) return;
+    started.current = true;
+    runSso(() => onSso(true), setBusy, setError);
+  }, [handOver, onSso]);
+
+  return (
+    <Card className="w-84">
+      <CardContent className="flex flex-col gap-4">
+        <h1 className="page-title">Evalkit</h1>
+        {oidc === null ? (
+          <Button
+            type="button"
+            className="w-full"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </Button>
+        ) : busy ? (
+          <p className="text-meta text-ink-3">Taking you to {oidc.name}…</p>
+        ) : error !== null ? (
+          <>
+            <p className="text-meta text-err-text">{error}</p>
+            <Button type="button" className="w-full" onClick={start}>
+              Try again
+            </Button>
+          </>
+        ) : (
+          <>
+            <p className="text-meta text-ink-3">
+              You're signed out of evalkit.
+            </p>
+            <Button type="button" className="w-full" onClick={start}>
+              Sign in again
+            </Button>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function LoginChoices({
   providers,
   next,
+  signedOut,
   onSso,
 }: {
   providers: Providers;
   next: string;
-  onSso: () => Promise<void>;
+  signedOut: boolean;
+  onSso: (replace?: boolean) => Promise<void>;
 }) {
   const [adminOpen, setAdminOpen] = useState(false);
   const [ssoBusy, setSsoBusy] = useState(false);
   const [ssoError, setSsoError] = useState<string | null>(null);
   const oidc = providers.oidc;
+  if (providers.password === "none")
+    return <ProviderSignIn oidc={oidc} signedOut={signedOut} onSso={onSso} />;
   const formOpen = oidc === null || providers.password === "all" || adminOpen;
   return (
     <Card className="w-84">
@@ -129,22 +196,29 @@ export function LoginPage() {
   const [params] = useSearchParams();
   const [providers, setProviders] = useState<Providers | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [fallbackPassword, setFallbackPassword] =
+    useState<Providers["password"]>("all");
 
   const next = safeNext(params.get("next"));
 
   useEffect(() => {
-    loadProviders().then(setProviders, (e) =>
-      setError(e instanceof Error ? e.message : String(e)),
-    );
+    loadProviders().then(setProviders, (e) => {
+      if (e instanceof ProvidersUnavailable && e.password !== null)
+        setFallbackPassword(e.password);
+      setError(e instanceof Error ? e.message : String(e));
+    });
   }, []);
 
-  const startSso = async () => {
+  const startSso = async (replace = false) => {
     const s = await session();
     if (s === null) throw new Error("Single sign-on is not configured.");
-    await s.signinRedirect({ state: next });
+    await s.signinRedirect({
+      state: next,
+      redirectMethod: replace ? "replace" : "assign",
+    });
   };
 
-  const fallback: Providers = { password: "all", oidc: null };
+  const fallback: Providers = { password: fallbackPassword, oidc: null };
 
   return (
     <PublicShell>
@@ -161,6 +235,7 @@ export function LoginPage() {
             <LoginChoices
               providers={providers ?? fallback}
               next={next}
+              signedOut={isSignedOut()}
               onSso={startSso}
             />
           </div>

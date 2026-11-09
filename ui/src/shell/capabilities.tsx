@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { ProvidersUnavailable } from "../auth/oidc";
 import { api, ApiError } from "../lib/api";
 import { loadMeta } from "../lib/meta";
 import { queryClient } from "../lib/query";
@@ -50,7 +51,10 @@ export function AuthGate() {
         setStatus("ok");
       })
       .catch((e) => {
-        if (e instanceof ApiError && e.status === 401) {
+        if (
+          (e instanceof ApiError && e.status === 401) ||
+          e instanceof ProvidersUnavailable
+        ) {
           setStatus("unauthorized");
         } else {
           setError(String(e));
