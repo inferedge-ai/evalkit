@@ -173,7 +173,9 @@ then add plain FastAPI routes with `app.include_router(...)`.
   resolve.
 - `routes` render for signed-in users inside the app shell, beside the left
   sidebar. Start each page with `PageHeader` from
-  `@/components/widgets/PageHeader` (title, breadcrumbs, actions).
+  `@/components/widgets/PageHeader` (title, description, breadcrumbs,
+  actions), and show an empty state with `Empty` from
+  `@/components/widgets/Empty`.
 - A `NavItem` may set `icon`, a `lucide-react` icon; the collapsed sidebar
   shows a puzzle piece for one without. `nav` items get a sidebar section of
   their own after Observe, `moreNav` items join Workspace, and `adminNav`

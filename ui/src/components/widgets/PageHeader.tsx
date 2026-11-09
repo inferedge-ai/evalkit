@@ -44,7 +44,7 @@ export function PageHeader({
         <h1 className="truncate text-base font-semibold">{title}</h1>
         {description && (
           <p
-            className="w-0 min-w-full truncate text-xs text-muted-foreground"
+            className="line-clamp-2 w-0 min-w-full text-xs text-muted-foreground sm:line-clamp-1"
             title={description}
           >
             {description}

@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
 import { qs } from "../lib/api";
 import { useApi } from "../lib/query";
@@ -102,7 +102,10 @@ function queueColumns(
 export function ReviewsPage() {
   const me = useMe();
   const { workspace } = useWorkspace();
-  const [view, setView] = useState<View>("mine");
+  const [params, setParams] = useSearchParams();
+  const view = VIEWS.find((v) => v.id === params.get("view"))?.id ?? "mine";
+  const setView = (v: View) =>
+    setParams(v === "mine" ? {} : { view: v }, { replace: true });
   const everyWorkspace = workspace.type === "personal";
   const queue = useApi<{ items: QueueItem[] }>(
     `/review/queue${qs({

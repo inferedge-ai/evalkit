@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, ListChecks } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
 import { isNotFound, qs } from "../lib/api";
@@ -36,6 +36,7 @@ import {
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 import { promotionSide, twinLine } from "../lib/promotion";
+import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -243,7 +244,7 @@ export function CasePage() {
       }
     />
   );
-  if (error || !example)
+  if (!example)
     return (
       <>
         {header}
@@ -275,6 +276,7 @@ export function CasePage() {
     <>
       {header}
       <div className="page">
+        {error && <div className="pane-status error">{error}</div>}
         {tags.length > 0 ? (
           <div className="mb-3 flex flex-wrap items-center gap-1">
             {tags.map((tag) => (
@@ -307,7 +309,17 @@ export function CasePage() {
             ) : null}
 
             <div className="eyebrow">Evaluators</div>
-            <EvaluatorScores evaluators={example.evaluators} scores={{}} />
+            {Object.keys(example.evaluators).length > 0 ? (
+              <EvaluatorScores evaluators={example.evaluators} scores={{}} />
+            ) : (
+              <Card className="py-4">
+                <Empty
+                  size="sm"
+                  icon={ListChecks}
+                  title="No evaluators on this case"
+                />
+              </Card>
+            )}
 
             <ScoreHistory dataset={datasetId} caseId={example.case_id} />
           </div>

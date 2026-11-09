@@ -107,7 +107,7 @@ export function Home() {
           <div className="pane-status error">{datasetsError}</div>
         )}
         {agentsError && <div className="pane-status error">{agentsError}</div>}
-        <div className="grid gap-x-4 gap-y-2 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2">
           {loading && (
             <>
               <Section title="Datasets">

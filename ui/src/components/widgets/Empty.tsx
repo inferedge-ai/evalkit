@@ -1,24 +1,22 @@
-import type { HTMLAttributes, ReactNode } from "react";
-import { Info, type LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ICON_SIZE = { sm: "size-4", md: "size-5" };
 const ICON_PADDING = { sm: "p-2", md: "p-3" };
 
 export function Empty({
-  icon: Icon = Info,
+  icon: Icon,
   title,
   description,
-  action,
   size = "md",
   className,
-  ...rest
-}: Omit<HTMLAttributes<HTMLDivElement>, "title"> & {
-  icon?: LucideIcon;
+}: {
+  icon: LucideIcon;
   title: ReactNode;
   description?: ReactNode;
-  action?: ReactNode;
   size?: "sm" | "md";
+  className?: string;
 }) {
   return (
     <div
@@ -27,7 +25,6 @@ export function Empty({
         "flex grow flex-col items-center justify-center gap-3",
         className,
       )}
-      {...rest}
     >
       <div
         aria-hidden
@@ -44,7 +41,6 @@ export function Empty({
           <p className="text-xs text-muted-foreground">{description}</p>
         )}
       </div>
-      {action}
     </div>
   );
 }

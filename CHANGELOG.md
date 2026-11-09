@@ -118,14 +118,20 @@
   one shade darker than before in light mode.
 - The web UI's home, datasets, dataset, case and reviews pages are laid out
   on the design system:
-  - Empty pages, tabs and lists show an icon, a title and the command to run.
+  - An empty home page, datasets list, dataset tab or changelog shows an
+    icon, a title and, where there is one, the command to run. Empty tables
+    keep their one-line message.
   - Loading placeholders have the shape of what loads. A case's page keeps its
-    header and breadcrumbs while it loads.
+    header and breadcrumbs while it loads, keeps the case on screen when a
+    refresh fails, and its changelog and comments show their error instead of
+    loading forever.
   - A dataset's sync line (workspace, branch, commit, who synced it and when)
-    sits under its name in the page header.
+    sits under its name in the page header, on up to two lines on a phone.
   - The reviews page switches between its three queues with tabs instead of
-    radio buttons.
-  - A case's page offers "Full evaluator config" once instead of twice.
+    radio buttons, and the queue is in the URL (`/reviews?view=all`,
+    `?view=changes`), so Back from a case returns to it.
+  - A case's page offers "Full evaluator config" once instead of twice, and
+    says when the case has no evaluators.
   - Every page's content has 16px of padding (was 18 to 28px).
   - For a package extending the UI, `PageHeader` takes an optional
     `description` line, and `Empty` (`@/components/widgets/Empty`) draws an

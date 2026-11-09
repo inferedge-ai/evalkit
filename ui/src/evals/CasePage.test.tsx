@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
@@ -49,15 +49,25 @@ const revenue: CaseView = {
 };
 
 afterEach(() => {
+  cleanup();
   queryClient.clear();
   vi.unstubAllGlobals();
 });
 
-function stubServer(caseView: Promise<CaseView>) {
+const CASE_URL = "/api/datasets/acme%40dev/cases/acme-revenue";
+
+const failure = (detail: string) => Response.json({ detail }, { status: 500 });
+
+function stubServer(
+  route: (url: string) => Promise<Response> | Response | undefined = () =>
+    undefined,
+) {
   const reviews: unknown[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
+      const answer = await route(url);
+      if (answer) return answer;
       if (url.endsWith("/api/auth/providers"))
         return Response.json({ password: "all", oidc: null });
       if (url.endsWith("/api/workspaces?include_archived=true"))
@@ -66,8 +76,7 @@ function stubServer(caseView: Promise<CaseView>) {
         reviews.push(JSON.parse(String(init?.body)));
         return Response.json({});
       }
-      if (url.endsWith("/api/datasets/acme%40dev/cases/acme-revenue"))
-        return Response.json(await caseView);
+      if (url.endsWith(CASE_URL)) return Response.json(revenue);
       if (url.endsWith("/events")) return Response.json({ events: [] });
       if (url.endsWith("/comments")) return Response.json({ threads: [] });
       if (url.includes("/scores")) return Response.json({ points: [] });
@@ -99,7 +108,9 @@ function openCase() {
 }
 
 test("while the case loads, its page already shows where it is", async () => {
-  stubServer(new Promise(() => {}));
+  stubServer((url) =>
+    url.endsWith(CASE_URL) ? new Promise(() => {}) : undefined,
+  );
   openCase();
   expect(
     await screen.findByRole("heading", { name: "acme-revenue" }),
@@ -111,7 +122,7 @@ test("while the case loads, its page already shows where it is", async () => {
 });
 
 test("a reviewer approves a case with a note", async () => {
-  const reviews = stubServer(Promise.resolve(revenue));
+  const reviews = stubServer();
   openCase();
   const user = userEvent.setup();
   await user.click(await screen.findByRole("button", { name: "Approve" }));
@@ -128,7 +139,7 @@ test("a reviewer approves a case with a note", async () => {
 });
 
 test("a reviewer can only request changes with a comment", async () => {
-  const reviews = stubServer(Promise.resolve(revenue));
+  const reviews = stubServer();
   openCase();
   const user = userEvent.setup();
   await user.click(
@@ -149,8 +160,61 @@ test("a reviewer can only request changes with a comment", async () => {
 });
 
 test("the case's full evaluator config is offered once", async () => {
-  stubServer(Promise.resolve(revenue));
+  stubServer();
   openCase();
   await screen.findByRole("button", { name: "Approve" });
   expect(screen.getAllByText("Full evaluator config")).toHaveLength(1);
+});
+
+test("a case without evaluators says it has none", async () => {
+  stubServer((url) =>
+    url.endsWith(CASE_URL)
+      ? Response.json({ ...revenue, evaluators: {} })
+      : undefined,
+  );
+  openCase();
+  expect(
+    await screen.findByText("No evaluators on this case"),
+  ).toBeInTheDocument();
+});
+
+test("a case that fails to load shows the error under its header", async () => {
+  stubServer((url) =>
+    url.endsWith(CASE_URL) ? failure("store unavailable") : undefined,
+  );
+  openCase();
+  expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "acme-revenue" }),
+  ).toBeInTheDocument();
+});
+
+test("a refresh that fails keeps the case on screen and says why", async () => {
+  let loads = 0;
+  stubServer((url) =>
+    url.endsWith(CASE_URL) && ++loads > 1
+      ? failure("store unavailable")
+      : undefined,
+  );
+  openCase();
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Approve" }));
+  await user.click(screen.getByRole("button", { name: "Approve" }));
+  expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
+  expect(
+    screen.getByText("What was Acme's revenue in FY2025?"),
+  ).toBeInTheDocument();
+});
+
+test("when its changelog and comments cannot load, the case page says so", async () => {
+  stubServer((url) =>
+    url.endsWith("/events")
+      ? failure("events unavailable")
+      : url.endsWith("/comments")
+        ? failure("comments unavailable")
+        : undefined,
+  );
+  openCase();
+  expect(await screen.findByText(/events unavailable/)).toBeInTheDocument();
+  expect(await screen.findByText(/comments unavailable/)).toBeInTheDocument();
 });

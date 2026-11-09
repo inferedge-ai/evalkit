@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import { queryClient } from "../lib/query";
 import type { Me, QueueItem, WorkspaceInfo } from "../lib/types";
@@ -41,11 +41,12 @@ function queued(caseId: string): QueueItem {
 }
 
 afterEach(() => {
+  cleanup();
   queryClient.clear();
   vi.unstubAllGlobals();
 });
 
-test("a reviewer switches from their queue to the cases sent back to authors", async () => {
+function openReviews() {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
@@ -70,12 +71,25 @@ test("a reviewer switches from their queue to the cases sent back to authors", a
           <Routes>
             <Route element={<WorkspaceGate />}>
               <Route path="/reviews" element={<ReviewsPage />} />
+              <Route
+                path="/datasets/:ref/cases/:caseId"
+                element={<BackButton />}
+              />
             </Route>
           </Routes>
         </MemoryRouter>
       </MeContext.Provider>
     </QueryClientProvider>,
   );
+}
+
+function BackButton() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate(-1)}>Back</button>;
+}
+
+test("a reviewer switches from their queue to the cases sent back to authors", async () => {
+  openReviews();
   expect(
     await screen.findByRole("link", { name: "acme-revenue" }),
   ).toBeInTheDocument();
@@ -86,4 +100,21 @@ test("a reviewer switches from their queue to the cases sent back to authors", a
     await screen.findByRole("link", { name: "acme-gross-margin" }),
   ).toBeInTheDocument();
   expect(screen.getByText("1 awaiting an edit")).toBeInTheDocument();
+});
+
+test("Back from a case returns to the queue the reviewer was on", async () => {
+  openReviews();
+  const user = userEvent.setup();
+  await screen.findByRole("link", { name: "acme-revenue" });
+  await user.click(screen.getByRole("tab", { name: "Changes requested" }));
+  await user.click(
+    await screen.findByRole("link", { name: "acme-gross-margin" }),
+  );
+  await user.click(await screen.findByRole("button", { name: "Back" }));
+  expect(
+    await screen.findByRole("link", { name: "acme-gross-margin" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("tab", { name: "Changes requested" }),
+  ).toHaveAttribute("aria-selected", "true");
 });
