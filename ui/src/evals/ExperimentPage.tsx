@@ -39,6 +39,7 @@ import { MultiSelect, Select } from "../lib/Select";
 import { hasAnyTag, sortedTags, tagCounts } from "../lib/tags";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
 
 function ScorecardSkeleton() {
   return (
@@ -213,8 +214,8 @@ function ExperimentView() {
                 experimentId={status.id}
               />
               {drives && (
-                <button
-                  className="btn"
+                <Button
+                  variant="outline"
                   disabled={busyAction !== null || isActive(status.status)}
                   onClick={() =>
                     reevaluateStrandsCases(status)
@@ -224,16 +225,16 @@ function ExperimentView() {
                   title="re-run the evaluate phase on recorded runs"
                 >
                   {busyAction === "evaluate" ? "Evaluating…" : "Re-evaluate"}
-                </button>
+                </Button>
               )}
               {drives && canResume(status) && (
-                <button
-                  className="btn"
+                <Button
+                  variant="outline"
                   disabled={busyAction !== null}
                   onClick={() => action("resume")}
                 >
                   {busyAction === "resume" ? "Resuming…" : "Resume"}
-                </button>
+                </Button>
               )}
               {!drives && status.can_change && canResume(status) && (
                 <span className="row-meta font-mono">

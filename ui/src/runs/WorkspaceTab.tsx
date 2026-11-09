@@ -10,6 +10,7 @@ import { useApi } from "../lib/query";
 import { monacoTheme, useTheme } from "../shell/theme";
 import type { FileEntry } from "../lib/types";
 import { CopyButton } from "../lib/ui";
+import { Button } from "@/components/ui/button";
 
 interface FileNode {
   name: string;
@@ -322,8 +323,9 @@ function FileViewer({ base, node }: { base: string; node: FileNode }) {
             </div>
           )}
           {text !== null && <CopyButton text={text} />}
-          <button
-            className="btn btn-sm"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() =>
               downloadFile(`${path}${qs({ download: "1" })}`).catch((e) =>
                 setDownloadError(describeDownloadError(e)),
@@ -331,7 +333,7 @@ function FileViewer({ base, node }: { base: string; node: FileNode }) {
             }
           >
             Download
-          </button>
+          </Button>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
@@ -477,8 +479,10 @@ export function WorkspaceTab({
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
-          <button
-            className="btn btn-sm btn-quiet shrink-0"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0"
             title="download the whole workspace as zip"
             onClick={() =>
               downloadFile(`${base}/zip`).catch((e) =>
@@ -487,7 +491,7 @@ export function WorkspaceTab({
             }
           >
             <Download size={11} /> zip all
-          </button>
+          </Button>
         </div>
         {downloadError && (
           <div

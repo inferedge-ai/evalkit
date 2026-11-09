@@ -16,6 +16,7 @@ import {
 import { Editor } from "./Editor";
 import { monacoTheme, useTheme } from "../shell/theme";
 import { describeTerm } from "./glossary";
+import { Button } from "@/components/ui/button";
 
 // Renders nothing for names outside the glossary (custom evaluators), so call
 // sites can attach it unconditionally.
@@ -106,8 +107,10 @@ export function CopyText({
 export function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button
-      className="btn btn-sm shrink-0"
+    <Button
+      variant="outline"
+      size="sm"
+      className="shrink-0"
       onClick={(e) => {
         e.stopPropagation();
         navigator.clipboard.writeText(text).then(() => {
@@ -117,7 +120,7 @@ export function CopyButton({ text }: { text: string }) {
       }}
     >
       {copied ? <Check size={12} role="img" aria-label="copied" /> : "copy"}
-    </button>
+    </Button>
   );
 }
 

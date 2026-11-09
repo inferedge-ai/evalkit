@@ -15,6 +15,8 @@ import {
 import type { TraceImport } from "../lib/traceImports";
 import type { SessionTrajectory, TraceSourceInfo } from "../lib/types";
 import { Summary } from "./MappingsPanel";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const POLL_MS = 2000;
 
@@ -34,7 +36,7 @@ function SessionCheck({ agent, session }: { agent: string; session: string }) {
           Session <span className="font-mono">{session}</span>
         </span>
         <Link
-          className="btn btn-quiet text-brand"
+          className={cn(buttonVariants({ variant: "ghost" }), "text-brand")}
           to={`/runs/${encodeURIComponent(agent)}/${encodeURIComponent(session)}`}
         >
           Trajectory <ArrowUpRight size={12} />
@@ -97,20 +99,25 @@ function ImportRow({
           </span>
         </span>
         {action ? (
-          <button
-            className="btn btn-sm"
+          <Button
+            variant="outline"
+            size="sm"
             disabled={busy}
             onClick={() => act(item, action)}
           >
             {action === "stop" ? "Stop" : "Continue"}
-          </button>
+          </Button>
         ) : (
           <span />
         )}
         {item.status === "done" && item.sample_session ? (
-          <button className="btn btn-sm" onClick={() => setChecking((v) => !v)}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setChecking((v) => !v)}
+          >
             {checking ? "Hide check" : "Check a session"}
-          </button>
+          </Button>
         ) : (
           <span />
         )}
@@ -289,13 +296,9 @@ export function ImportPanel({ agent }: { agent: string }) {
               </>
             )}
             <div>
-              <button
-                className="btn btn-primary"
-                disabled={!ready}
-                onClick={submit}
-              >
+              <Button disabled={!ready} onClick={submit}>
                 {mode === "session" ? "Import session" : "Start import"}
-              </button>
+              </Button>
             </div>
           </div>
         )}

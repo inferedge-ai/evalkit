@@ -8,6 +8,7 @@ import { messageCounts } from "../lib/esfSummary";
 import { mappingRows, ruleNotes, sameRule } from "../lib/mappingRules";
 import type { MappingRecord, RunList, SessionTrajectory } from "../lib/types";
 import { TrajectoryViewer } from "../runs/TrajectoryViewer";
+import { Button } from "@/components/ui/button";
 
 export function Summary({ session }: { session: SessionTrajectory }) {
   const esf = session.esf ?? [];
@@ -186,12 +187,12 @@ export function MappingsPanel({ agent }: { agent: string }) {
       ? activeRecord.document
       : null;
   const viewButton = (key: string) => (
-    <button
-      className={`btn ${shown === key ? "btn-primary" : ""}`}
+    <Button
+      variant={shown === key ? "default" : "outline"}
       onClick={() => setViewing(key)}
     >
       {shown === key ? "Showing" : "View"}
-    </button>
+    </Button>
   );
 
   const activate = async (version: number) => {
@@ -227,13 +228,13 @@ export function MappingsPanel({ agent }: { agent: string }) {
               <span className="row-meta">by {v.created_by ?? "-"}</span>
               <span className="row-meta">{fmtWhen(v.created_at) ?? ""}</span>
               {v.status === "draft" ? (
-                <button
-                  className="btn"
+                <Button
+                  variant="outline"
                   disabled={busy}
                   onClick={() => activate(v.version)}
                 >
                   Activate
-                </button>
+                </Button>
               ) : (
                 <span />
               )}

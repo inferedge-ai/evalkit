@@ -9,6 +9,7 @@ import { isReviewerOf } from "../lib/access";
 import { splitRef } from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
 import { ToArrow } from "../lib/ui";
+import { Button } from "@/components/ui/button";
 
 type Action = "approve" | "request_changes";
 
@@ -52,7 +53,7 @@ export function ReviewPanel({
   };
 
   const needsComment = action === "request_changes" && !comment.trim();
-  const actionClass = action === "approve" ? "btn-approve" : "btn-reject";
+  const actionVariant = action === "approve" ? "default" : "destructive";
 
   return (
     <>
@@ -83,18 +84,16 @@ export function ReviewPanel({
         isReviewerOf(me, splitRef(dataset).workspace) &&
         action === null ? (
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              className="btn btn-lg btn-approve"
-              onClick={() => setAction("approve")}
-            >
+            <Button size="lg" onClick={() => setAction("approve")}>
               Approve
-            </button>
-            <button
-              className="btn btn-lg btn-reject"
+            </Button>
+            <Button
+              variant="destructive"
+              size="lg"
               onClick={() => setAction("request_changes")}
             >
               Request changes
-            </button>
+            </Button>
           </div>
         ) : null}
         {action ? (
@@ -112,15 +111,16 @@ export function ReviewPanel({
             />
             {error ? <div className="pane-status error">{error}</div> : null}
             <div className="mt-2 flex flex-wrap justify-end gap-2">
-              <button
-                className="btn"
+              <Button
+                variant="outline"
                 onClick={() => setAction(null)}
                 disabled={busy}
               >
                 Cancel
-              </button>
-              <button
-                className={`btn btn-lg ${actionClass}`}
+              </Button>
+              <Button
+                size="lg"
+                variant={actionVariant}
                 onClick={submit}
                 disabled={busy || needsComment}
               >
@@ -131,7 +131,7 @@ export function ReviewPanel({
                 ) : (
                   "Request changes"
                 )}
-              </button>
+              </Button>
             </div>
           </div>
         ) : null}

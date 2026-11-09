@@ -5,6 +5,8 @@ import { qs } from "../lib/api";
 import { useApi } from "../lib/query";
 import type { AgentInfo, Dataset } from "../lib/types";
 import { useWorkspace } from "../shell/workspace";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function SkeletonRows({ n }: { n: number }) {
   return (
@@ -82,10 +84,16 @@ export function Home() {
         }
         actions={
           <>
-            <Link to="/datasets" className="btn btn-quiet text-brand">
+            <Link
+              to="/datasets"
+              className={cn(buttonVariants({ variant: "ghost" }), "text-brand")}
+            >
               All datasets <ArrowRight size={14} />
             </Link>
-            <Link to="/agents" className="btn btn-quiet text-brand">
+            <Link
+              to="/agents"
+              className={cn(buttonVariants({ variant: "ghost" }), "text-brand")}
+            >
               All agents <ArrowRight size={14} />
             </Link>
           </>

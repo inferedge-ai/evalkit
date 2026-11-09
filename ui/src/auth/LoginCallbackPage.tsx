@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { register, signOutLocally } from "../lib/api";
 import { completeSignIn } from "./completeSignIn";
 import { session } from "./oidc";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function CallbackStatus({ error }: { error: string | null }) {
   return (
@@ -14,7 +16,10 @@ export function CallbackStatus({ error }: { error: string | null }) {
         ) : (
           <>
             <p className="mt-1 mb-4 text-meta text-err-text">{error}</p>
-            <Link className="btn w-full justify-center" to="/login">
+            <Link
+              className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+              to="/login"
+            >
               Back to sign-in
             </Link>
           </>

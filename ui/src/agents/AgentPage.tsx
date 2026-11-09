@@ -29,6 +29,8 @@ import { NotFound } from "../shell/NotFound";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function Overview({ agent }: { agent: AgentInfo }) {
   const repoHref = httpUrl(agent.repo_url);
@@ -187,24 +189,29 @@ function AgentView() {
           <>
             {writable && !agent.archived && (
               <>
-                <button className="btn btn-sm" onClick={() => setEditing(true)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditing(true)}
+                >
                   Edit
-                </button>
-                <button
-                  className="btn btn-sm"
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setConfirmingArchive(true)}
                 >
                   Archive
-                </button>
+                </Button>
               </>
             )}
             {writable && agent.archived && (
-              <button className="btn btn-sm" onClick={restore}>
+              <Button variant="outline" size="sm" onClick={restore}>
                 Restore
-              </button>
+              </Button>
             )}
             <Link
-              className="btn btn-quiet text-brand"
+              className={cn(buttonVariants({ variant: "ghost" }), "text-brand")}
               to={`/runs?agent=${encodeURIComponent(slug)}`}
             >
               Runs <ArrowUpRight size={12} />

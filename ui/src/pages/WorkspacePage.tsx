@@ -20,6 +20,7 @@ import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { BuiltinEvaluatorsNote } from "./BuiltinEvaluatorsNote";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
 
 type WorkspaceTab = "evaluators" | "members";
 const TABS: { id: WorkspaceTab; label: string }[] = [
@@ -72,12 +73,14 @@ function EvaluatorsTab({
             : PERSONAL_KEY_NOTE}
         </p>
         {canEdit && (
-          <button
-            className="btn btn-sm ml-auto"
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto"
             onClick={() => setEditing("new")}
           >
             New evaluator
-          </button>
+          </Button>
         )}
       </div>
       <BuiltinEvaluatorsNote />
@@ -104,19 +107,21 @@ function EvaluatorsTab({
             </span>
             {canEdit ? (
               <>
-                <button
-                  className="btn btn-sm"
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled={row.archived}
                   onClick={() => setEditing(row)}
                 >
                   edit
-                </button>
-                <button
-                  className="btn btn-sm"
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => toggleArchive(row)}
                 >
                   {row.archived ? "restore" : "archive"}
-                </button>
+                </Button>
               </>
             ) : (
               <>
@@ -201,7 +206,7 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
               { value: "writer", label: "writer" },
             ]}
           />
-          <button className="btn btn-primary">Add member</button>
+          <Button type="submit">Add member</Button>
         </form>
       )}
       <p className="row-meta mb-2">
@@ -229,8 +234,9 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
                       by {grant.granted_by} {fmtWhen(grant.created_at) ?? ""}
                     </span>
                     {manage && (
-                      <button
-                        className="btn btn-sm btn-quiet"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         title={`remove the ${grant.role} role from ${member.username}`}
                         aria-label={`remove ${grant.role}`}
                         onClick={() =>
@@ -243,7 +249,7 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
                         }
                       >
                         <X size={12} />
-                      </button>
+                      </Button>
                     )}
                   </span>
                 ))}
@@ -318,9 +324,9 @@ export function WorkspacePage() {
         title={`@${ws.name}`}
         actions={
           mayArchive && (
-            <button className="btn btn-sm" onClick={toggleArchive}>
+            <Button variant="outline" size="sm" onClick={toggleArchive}>
               {ws.archived ? "Restore" : "Archive"}
-            </button>
+            </Button>
           )
         }
       />
@@ -368,7 +374,7 @@ export function WorkspacePage() {
               onChange={(e) => setName(e.target.value)}
               required
             />
-            <button className="btn btn-primary">Create workspace</button>
+            <Button type="submit">Create workspace</Button>
           </form>
         )}
         {error && <div className="pane-status error">{error}</div>}

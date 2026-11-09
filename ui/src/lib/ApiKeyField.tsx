@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 export interface ApiKeyValue {
   key: string;
   clear: boolean;
@@ -16,13 +17,14 @@ export function ApiKeyField({
     return (
       <div className="flex items-center gap-2">
         <span className="chip muted">Key set</span>
-        <button
+        <Button
           type="button"
-          className="btn btn-sm"
+          variant="outline"
+          size="sm"
           onClick={() => onChange({ key: "", clear: true })}
         >
           Replace or clear
-        </button>
+        </Button>
       </div>
     );
   return (

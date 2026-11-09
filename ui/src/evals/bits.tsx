@@ -55,6 +55,7 @@ import { toYaml } from "../lib/format";
 import { downloadFile, serverNow } from "../lib/api";
 import { fixtureEntries } from "../lib/fixtures";
 import { httpUrl } from "../lib/safeUrl";
+import { Button } from "@/components/ui/button";
 
 export function Markdown({ text }: { text: string }) {
   const normalized = useMemo(() => normalizeMathDelimiters(text), [text]);
@@ -668,9 +669,11 @@ function RubricSummaryTable({ detail }: { detail: Record<string, unknown> }) {
         {typeRows.length > 0 && (
           <tr className="border-b border-n-50">
             <td colSpan={RUBRIC_COLUMNS.length + 1} className="py-0.5">
-              <button
+              <Button
                 type="button"
-                className="btn btn-quiet btn-sm -ml-1.5 text-ink-3"
+                variant="ghost"
+                size="sm"
+                className="-ml-1.5 text-ink-3"
                 aria-expanded={showTypes}
                 onClick={() => setShowTypes((v) => !v)}
               >
@@ -680,7 +683,7 @@ function RubricSummaryTable({ detail }: { detail: Record<string, unknown> }) {
                   <ChevronRight size={12} />
                 )}
                 by type ({typeRows.length})
-              </button>
+              </Button>
             </td>
           </tr>
         )}

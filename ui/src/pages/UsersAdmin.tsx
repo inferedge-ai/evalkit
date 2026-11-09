@@ -5,6 +5,7 @@ import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
 import type { UserRow } from "../lib/types";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
 
 type UserAction = "archive" | "restore" | "promote" | "demote";
 
@@ -63,7 +64,7 @@ export function UsersAdminPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <button className="btn btn-primary">Add user</button>
+          <Button type="submit">Add user</Button>
           {error && <span className="text-meta text-err-text">{error}</span>}
         </form>
         {!users ? (
@@ -96,22 +97,24 @@ export function UsersAdminPage() {
                   <span className="row-meta num">
                     {fmtWhen(user.created_at)}
                   </span>
-                  <button
-                    className="btn btn-sm"
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() =>
                       act(user.username, user.is_admin ? "demote" : "promote")
                     }
                   >
                     {user.is_admin ? "demote" : "make admin"}
-                  </button>
-                  <button
-                    className="btn btn-sm"
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() =>
                       act(user.username, user.archived ? "restore" : "archive")
                     }
                   >
                     {user.archived ? "restore" : "archive"}
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>

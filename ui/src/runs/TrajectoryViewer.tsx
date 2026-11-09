@@ -12,6 +12,7 @@ import { formatElapsed, formatTokens, formatUsd, toYaml } from "../lib/format";
 import type { AtifTrajectory } from "../lib/types";
 import { Collapsible, Tabs } from "../lib/ui";
 import { Markdown, PreBlock } from "../evals/bits";
+import { Button } from "@/components/ui/button";
 
 function clock(iso: string | null): string | null {
   if (!iso) return null;
@@ -158,9 +159,10 @@ function StepCard({
                       {link.name} · not embedded
                     </span>
                   ) : (
-                    <button
+                    <Button
                       key={i}
-                      className="btn btn-sm btn-quiet"
+                      variant="ghost"
+                      size="sm"
                       title="open the subagent's trajectory"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -168,7 +170,7 @@ function StepCard({
                       }}
                     >
                       {link.name} ›
-                    </button>
+                    </Button>
                   ),
                 )}
                 copyText={toYaml(call.args)}

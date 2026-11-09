@@ -265,8 +265,9 @@ export function RunLauncher({
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
                     />
-                    <button
-                      className="btn btn-sm"
+                    <Button
+                      variant="outline"
+                      size="sm"
                       disabled={!pickable.length}
                       onClick={() =>
                         setChoice((c) => ({
@@ -281,14 +282,15 @@ export function RunLauncher({
                       }
                     >
                       Select shown
-                    </button>
-                    <button
-                      className="btn btn-sm"
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       disabled={!choice.caseIds.length}
                       onClick={() => setChoice((c) => ({ ...c, caseIds: [] }))}
                     >
                       Clear
-                    </button>
+                    </Button>
                   </div>
                   <div className="picker-list">
                     {!examples && <div className="pane-status">Loading…</div>}

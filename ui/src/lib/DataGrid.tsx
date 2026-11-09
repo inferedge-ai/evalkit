@@ -40,6 +40,7 @@ import {
 } from "./aggrid/columnState";
 import { defaultColDef, defaultGridOptions } from "./aggrid/defaults";
 import { gridTheme } from "./aggrid/theme";
+import { Button } from "@/components/ui/button";
 
 ModuleRegistry.registerModules([
   CellStyleModule,
@@ -288,14 +289,14 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
 
   return (
     <div className="relative" ref={rootRef}>
-      <button
+      <Button
         type="button"
-        className="btn"
+        variant="outline"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
       >
         Columns
-      </button>
+      </Button>
       {open && api && (
         <div className="select-menu columns-menu right-0 left-auto">
           <ul className="select-list">
@@ -314,9 +315,10 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                     />
                     {name}
                   </label>
-                  <button
+                  <Button
                     type="button"
-                    className="btn btn-sm btn-quiet"
+                    variant="ghost"
+                    size="sm"
                     aria-label={`move ${name} up`}
                     disabled={!canSwapColumns(column, movable[i - 1])}
                     onClick={() =>
@@ -324,10 +326,11 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                     }
                   >
                     <ArrowUp size={12} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="btn btn-sm btn-quiet"
+                    variant="ghost"
+                    size="sm"
                     aria-label={`move ${name} down`}
                     disabled={!canSwapColumns(column, movable[i + 1])}
                     onClick={() =>
@@ -335,15 +338,20 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                     }
                   >
                     <ArrowDown size={12} />
-                  </button>
+                  </Button>
                 </li>
               );
             })}
           </ul>
           <div className="flex justify-end border-t border-line p-1.5">
-            <button type="button" className="btn btn-sm" onClick={grid.reset}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={grid.reset}
+            >
               Reset
-            </button>
+            </Button>
           </div>
         </div>
       )}

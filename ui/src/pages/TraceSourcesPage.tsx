@@ -5,6 +5,7 @@ import { ENDPOINT_NOTE } from "../lib/endpoint";
 import { refreshQueries, useApi } from "../lib/query";
 import type { TraceSourceInfo } from "../lib/types";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
 
 export function TraceSourcesPage() {
   const listed = useApi<TraceSourceInfo[]>("/trace-sources");
@@ -76,7 +77,7 @@ export function TraceSourcesPage() {
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
-          <button className="btn btn-primary">Add trace source</button>
+          <Button type="submit">Add trace source</Button>
         </form>
         <p className="row-meta mb-3 whitespace-normal">{ENDPOINT_NOTE}</p>
         {error && <div className="pane-status error">{error}</div>}
@@ -89,9 +90,13 @@ export function TraceSourcesPage() {
               <span className="row-strong">{row.name}</span>
               <span className="chip muted">{row.provider}</span>
               <span className="row-meta truncate font-mono">{row.url}</span>
-              <button className="btn btn-sm" onClick={() => archive(row.name)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => archive(row.name)}
+              >
                 archive
-              </button>
+              </Button>
             </div>
           ))}
           {rows && !rows.length && (

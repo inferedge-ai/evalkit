@@ -7,6 +7,7 @@ import type { CaseComment, CommentThread } from "../lib/types";
 import { isReviewerOf } from "../lib/access";
 import { splitRef } from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
+import { Button } from "@/components/ui/button";
 
 export function CaseComments({
   dataset,
@@ -51,14 +52,19 @@ export function CaseComments({
         ) : null}
         {c.resolved ? <span className="chip muted">resolved</span> : null}
         {canResolve(c) ? (
-          <button className="btn btn-sm ml-auto" onClick={() => toggle(c)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto"
+            onClick={() => toggle(c)}
+          >
             {c.resolved ? "Unresolve" : "Resolve"}
-          </button>
+          </Button>
         ) : null}
         {!reply && !c.resolved ? (
-          <button className="btn btn-sm" onClick={() => setReplyTo(c.id)}>
+          <Button variant="outline" size="sm" onClick={() => setReplyTo(c.id)}>
             Reply
-          </button>
+          </Button>
         ) : null}
       </div>
       {c.resolved && reply ? null : (
@@ -87,13 +93,15 @@ export function CaseComments({
           </div>
         ))}
         {resolved.length > 0 ? (
-          <button
-            className="btn btn-sm mb-2"
+          <Button
+            variant="outline"
+            size="sm"
+            className="mb-2"
             onClick={() => setShowResolved(!showResolved)}
           >
             {showResolved ? "Hide" : "Show"} {resolved.length} resolved thread
             {resolved.length === 1 ? "" : "s"}
-          </button>
+          </Button>
         ) : null}
         {showResolved
           ? resolved.map((t) => (
@@ -119,17 +127,22 @@ export function CaseComments({
         />
         <div className="toolbar mt-2 justify-end">
           {replyTo !== null ? (
-            <button className="btn btn-sm" onClick={() => setReplyTo(null)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReplyTo(null)}
+            >
               Cancel reply
-            </button>
+            </Button>
           ) : null}
-          <button
-            className="btn btn-sm"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={post}
             disabled={!draft.trim()}
           >
             {replyTo === null ? "Comment" : "Reply"}
-          </button>
+          </Button>
         </div>
       </div>
     </>

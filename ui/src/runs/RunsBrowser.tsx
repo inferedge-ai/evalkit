@@ -18,6 +18,8 @@ import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const NO_RUNS: RunListItem[] = [];
 
@@ -184,7 +186,7 @@ export function RunsBrowser() {
           )}
           {otel && (
             <Link
-              className="btn btn-quiet text-brand"
+              className={cn(buttonVariants({ variant: "ghost" }), "text-brand")}
               to={`/agents/${encodeURIComponent(agent)}/mappings`}
             >
               Agent <ArrowUpRight size={12} />

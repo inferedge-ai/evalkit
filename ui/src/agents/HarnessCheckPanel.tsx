@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, Minus, TriangleAlert, X } from "lucide-react";
 import { apiJson } from "../lib/api";
 import type { HarnessCheckReport } from "../lib/types";
+import { Button } from "@/components/ui/button";
 
 const STATUS_ICON = {
   pass: Check,
@@ -42,9 +43,9 @@ export function HarnessCheckPanel({ agent }: { agent: string }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="toolbar">
-        <button className="btn btn-primary" disabled={busy} onClick={run}>
+        <Button disabled={busy} onClick={run}>
           {busy ? "Checking… (runs a live agent call)" : "Run check"}
-        </button>
+        </Button>
         <p className="text-meta text-ink-3">
           Exercises the agent's Harness API: capabilities, the probe input
           against its input schema, a trivial run to a terminal status, the

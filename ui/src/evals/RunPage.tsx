@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 import { ArrowUpRight } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
@@ -197,7 +199,11 @@ export function RunPage() {
             </Link>
           )}
           <Link
-            className={`btn btn-quiet text-brand ${status?.config.judge?.model ? "" : "ml-auto"}`}
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              "text-brand",
+              !status?.config.judge?.model && "ml-auto",
+            )}
             to={`/experiments/${encodeURIComponent(experimentId)}`}
           >
             Experiment <ArrowUpRight size={12} />

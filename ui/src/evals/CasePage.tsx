@@ -37,6 +37,7 @@ import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 import { promotionSide, twinLine } from "../lib/promotion";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
 
 const PAGE = 10;
 
@@ -146,25 +147,27 @@ function ScoreHistory({
       />
       {(offset > 0 || hasMore) && (
         <div className="toolbar mt-2">
-          <button
-            className="btn btn-sm"
+          <Button
+            variant="outline"
+            size="sm"
             disabled={offset === 0}
             onClick={() => setOffset(Math.max(0, offset - PAGE))}
           >
             <ArrowLeft size={12} /> Newer
-          </button>
+          </Button>
           <span className="row-meta">
             {points && points.length > 0
               ? `${offset + 1}–${offset + points.length}`
               : "—"}
           </span>
-          <button
-            className="btn btn-sm"
+          <Button
+            variant="outline"
+            size="sm"
             disabled={!hasMore}
             onClick={() => setOffset(offset + PAGE)}
           >
             Older <ArrowRight size={12} />
-          </button>
+          </Button>
         </div>
       )}
     </>

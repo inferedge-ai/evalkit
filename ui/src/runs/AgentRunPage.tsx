@@ -11,6 +11,8 @@ import { RunTabs, type RunTab } from "./RunTabs";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function AgentRunPage() {
   const { agent = "", runId = "" } = useParams();
@@ -60,12 +62,22 @@ export function AgentRunPage() {
             />
           )}
           {caseLink && (
-            <Link className="btn btn-quiet ml-auto text-brand" to={caseLink}>
+            <Link
+              className={cn(
+                buttonVariants({ variant: "ghost" }),
+                "ml-auto text-brand",
+              )}
+              to={caseLink}
+            >
               Experiment run <ArrowUpRight size={12} />
             </Link>
           )}
           <Link
-            className={`btn btn-quiet text-brand${caseLink ? "" : " ml-auto"}`}
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              "text-brand",
+              !caseLink && "ml-auto",
+            )}
             to={`/runs?agent=${agent}`}
           >
             Runs <ArrowUpRight size={12} />

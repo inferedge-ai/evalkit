@@ -9,6 +9,7 @@ import type { AgentInfo } from "../lib/types";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
 
 function AgentRow({ agent }: { agent: AgentInfo }) {
   return (
@@ -50,9 +51,13 @@ export function AgentsPage() {
         title="Agents"
         actions={
           writable && (
-            <button className="btn btn-sm" onClick={() => setCreating(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCreating(true)}
+            >
               New agent
-            </button>
+            </Button>
           )
         }
       />

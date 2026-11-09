@@ -1,6 +1,8 @@
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function NotFound({
   what,
@@ -17,7 +19,13 @@ export function NotFound({
           <p className="text-lede text-ink-3">
             There is no <span className="font-mono">{what}</span>.
           </p>
-          <Link className="btn btn-quiet mt-3 text-brand" to={up.to}>
+          <Link
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              "mt-3 text-brand",
+            )}
+            to={up.to}
+          >
             <ArrowLeft size={14} /> {up.label}
           </Link>
         </div>

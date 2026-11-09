@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { ArrowUpRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
@@ -222,20 +223,20 @@ export function ComparePage() {
             </button>
           ))}
           <span className="ml-auto flex gap-1">
-            <button
-              type="button"
-              className={`btn btn-sm ${view === "list" ? "btn-primary" : ""}`}
+            <Button
+              size="sm"
+              variant={view === "list" ? "default" : "outline"}
               onClick={() => setView("list")}
             >
               List
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${view === "grid" ? "btn-primary" : ""}`}
+            </Button>
+            <Button
+              size="sm"
+              variant={view === "grid" ? "default" : "outline"}
               onClick={() => setView("grid")}
             >
               All evaluators
-            </button>
+            </Button>
           </span>
         </div>
 

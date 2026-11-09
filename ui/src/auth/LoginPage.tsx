@@ -5,6 +5,7 @@ import { login } from "../lib/api";
 import { PublicShell } from "../shell/PublicShell";
 import { safeNext } from "./next";
 import { loadProviders, session, type Providers } from "./oidc";
+import { Button } from "@/components/ui/button";
 
 function LoginForm({ next }: { next: string }) {
   const navigate = useNavigate();
@@ -50,9 +51,9 @@ function LoginForm({ next }: { next: string }) {
         />
       </label>
       {error && <div className="mb-3 text-meta text-err-text">{error}</div>}
-      <button className="btn btn-primary w-full justify-center" disabled={busy}>
+      <Button type="submit" className="w-full" disabled={busy}>
         {busy ? "Signing in…" : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -93,14 +94,14 @@ export function LoginChoices({
           : `Sign in with your ${oidc.name} account.`}
       </p>
       {oidc !== null && (
-        <button
+        <Button
           type="button"
-          className="btn btn-primary mb-4 w-full justify-center"
+          className="mb-4 w-full"
           disabled={ssoBusy}
           onClick={() => runSso(onSso, setSsoBusy, setSsoError)}
         >
           Continue with {oidc.name}
-        </button>
+        </Button>
       )}
       {ssoError !== null && (
         <div className="mb-3 text-meta text-err-text">{ssoError}</div>

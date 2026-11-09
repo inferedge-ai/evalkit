@@ -7,6 +7,7 @@ import { LlmProviderForm } from "./LlmProviderForm";
 import { Select } from "../lib/Select";
 import type { JudgeSettings, LlmProviderInfo } from "../lib/types";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
 
 function DefaultJudge({
   providers,
@@ -86,9 +87,9 @@ function DefaultJudge({
         value={effort}
         onChange={(e) => setEffort(e.target.value)}
       />
-      <button className="btn btn-primary" disabled={!provider}>
+      <Button type="submit" disabled={!provider}>
         Save
-      </button>
+      </Button>
       {status && <span className="row-meta">{status}</span>}
     </form>
   );
@@ -124,9 +125,13 @@ export function LlmProvidersPage() {
         title="LLM providers"
         actions={
           me.is_admin && (
-            <button className="btn btn-sm" onClick={() => setEditing("new")}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditing("new")}
+            >
               New provider
-            </button>
+            </Button>
           )
         }
       />
@@ -158,19 +163,21 @@ export function LlmProvidersPage() {
               </span>
               {me.is_admin ? (
                 <>
-                  <button
-                    className="btn btn-sm"
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={row.archived}
                     onClick={() => setEditing(row)}
                   >
                     edit
-                  </button>
-                  <button
-                    className="btn btn-sm"
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => toggleArchive(row)}
                   >
                     {row.archived ? "restore" : "archive"}
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <>

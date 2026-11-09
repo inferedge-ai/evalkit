@@ -34,6 +34,7 @@ import {
 } from "../lib/promotion";
 import { useWorkspace } from "../shell/workspace";
 import { ToArrow } from "../lib/ui";
+import { Button } from "@/components/ui/button";
 
 // Last N experiments' bucket scores shown inline per case, newest first.
 const RECENT = 4;
@@ -315,12 +316,9 @@ export function DatasetCasesTab({
       {selected.length > 0 && (
         <div className="toolbar mb-2 rounded-md border border-brand bg-info-bg px-3 py-2">
           <span className="font-medium">{selected.length} selected</span>
-          <button
-            className="btn btn-sm btn-primary"
-            onClick={() => onRun(selected)}
-          >
+          <Button size="sm" onClick={() => onRun(selected)}>
             Run selected
-          </button>
+          </Button>
           {requestable && (
             <>
               <span className="row-meta ml-2">Request review from</span>
@@ -331,22 +329,25 @@ export function DatasetCasesTab({
                 placeholder="No reviewers"
                 options={reviewers.map((r) => ({ value: r, label: r }))}
               />
-              <button
-                className="btn btn-sm"
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={busy || !reviewer}
                 onClick={requestReview}
               >
                 Request
-              </button>
+              </Button>
             </>
           )}
-          <button
-            className="btn btn-sm ml-auto"
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto"
             aria-label="clear selection"
             onClick={() => grid.api?.deselectAll()}
           >
             <X size={12} />
-          </button>
+          </Button>
         </div>
       )}
       <DataGrid
