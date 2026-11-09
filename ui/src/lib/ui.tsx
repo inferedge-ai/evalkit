@@ -17,6 +17,7 @@ import { Editor } from "./Editor";
 import { monacoTheme, useTheme } from "../shell/theme";
 import { describeTerm } from "./glossary";
 import { Button } from "@/components/ui/button";
+import { Tabs as TabsRoot, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Renders nothing for names outside the glossary (custom evaluators), so call
 // sites can attach it unconditionally.
@@ -219,18 +220,23 @@ export function Tabs<T extends string>({
   onSelect: (id: T) => void;
 }) {
   return (
-    <div className="flex gap-1 border-b border-n-100">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          className={`tab-button ${active === t.id ? "active" : ""}`}
-          disabled={t.disabled}
-          title={t.title}
-          onClick={() => !t.disabled && onSelect(t.id)}
-        >
-          {t.label}
-        </button>
-      ))}
-    </div>
+    <TabsRoot
+      value={active}
+      onValueChange={(id) => onSelect(id as T)}
+      className="overflow-x-auto border-b pb-px"
+    >
+      <TabsList variant="line">
+        {tabs.map((t) => (
+          <TabsTrigger
+            key={t.id}
+            value={t.id}
+            disabled={t.disabled}
+            title={t.title}
+          >
+            {t.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </TabsRoot>
   );
 }
