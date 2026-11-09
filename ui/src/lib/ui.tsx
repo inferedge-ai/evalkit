@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Check, ChevronDown, ChevronRight, Copy, Info } from "lucide-react";
 import {
@@ -15,6 +15,7 @@ import { describeTerm } from "./glossary";
 export function InfoTip({ term }: { term: string }) {
   const text = describeTerm(term);
   const [open, setOpen] = useState(false);
+  const tapped = useRef(false);
   const descriptionId = useId();
   if (!text) return null;
   return (
@@ -26,11 +27,15 @@ export function InfoTip({ term }: { term: string }) {
         aria-label="definition"
         aria-describedby={descriptionId}
         className="inline-flex shrink-0 cursor-help! items-center rounded-full text-ink-4 outline-none hover:text-brand focus-visible:text-brand focus-visible:ring-2 focus-visible:ring-ring/50"
-        // A tap toggles it (touch has no hover); in a sortable table header the
-        // tap or click would also sort the column.
+        // Touch has no hover, so a tap toggles it; a mouse or keyboard press
+        // keeps it open. In a sortable table header the press would also sort.
+        onPointerDown={(e) => {
+          tapped.current = e.pointerType === "touch";
+        }}
         onClick={(e) => {
           e.stopPropagation();
-          setOpen(!open);
+          setOpen(tapped.current ? !open : true);
+          tapped.current = false;
         }}
         onTouchStart={(e) => e.stopPropagation()}
       >

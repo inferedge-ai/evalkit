@@ -272,13 +272,13 @@ function MatrixHeaderLabel({
   );
 }
 
-// AG Grid moves Tab from header cell to header cell, and sorts on Enter or
-// Space anywhere inside one. The browser takes Tab from the cell to the ⓘ
-// inside, and Enter or Space on the ⓘ press it instead of sorting.
+// AG Grid moves Tab from header cell to header cell, and sorts on Enter
+// anywhere inside one. The browser takes Tab from the cell to the ⓘ inside,
+// and Enter on the ⓘ presses it instead of sorting.
 const passKeysToInfoTip = ({ event }: SuppressHeaderKeyboardEventParams) =>
   event.target === event.currentTarget
     ? event.key === "Tab" && !event.shiftKey
-    : event.key === "Enter" || event.key === " ";
+    : event.key === "Enter";
 
 function buildValueColumn(
   kind: ColumnKind,

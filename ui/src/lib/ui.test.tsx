@@ -13,7 +13,7 @@ function shownTooltip(): HTMLElement | null {
   return document.querySelector('[data-slot="tooltip-content"]');
 }
 
-test("the ⓘ shows the term's description while the pointer rests on it", async () => {
+test("the ⓘ shows the term's description while the pointer rests on it, a click included", async () => {
   const user = userEvent.setup();
   render(
     <p>
@@ -24,6 +24,8 @@ test("the ⓘ shows the term's description while the pointer rests on it", async
 
   await user.hover(screen.getByRole("button", { name: "definition" }));
   await waitFor(() => expect(shownTooltip()).toHaveTextContent(DESCRIPTION));
+  await user.click(screen.getByRole("button", { name: "definition" }));
+  expect(shownTooltip()).toHaveTextContent(DESCRIPTION);
 
   await user.unhover(screen.getByRole("button", { name: "definition" }));
   await waitFor(() => expect(shownTooltip()).toBeNull());
@@ -57,9 +59,11 @@ test("a tap on the ⓘ shows the description, and another tap hides it", async (
   const tip = screen.getByRole("button", { name: "definition" });
   expect(tip).toHaveAccessibleDescription(DESCRIPTION);
 
+  fireEvent.pointerDown(tip, { pointerType: "touch" });
   fireEvent.click(tip);
   await waitFor(() => expect(shownTooltip()).toHaveTextContent(DESCRIPTION));
 
+  fireEvent.pointerDown(tip, { pointerType: "touch" });
   fireEvent.click(tip);
   await waitFor(() => expect(shownTooltip()).toBeNull());
 });
