@@ -316,7 +316,8 @@ export function CasePage() {
                 <Empty
                   size="sm"
                   icon={ListChecks}
-                  title="No evaluators on this case"
+                  title="No evaluators in this case's YAML"
+                  description="Overlays can add evaluators for the agents they name."
                 />
               </Card>
             )}

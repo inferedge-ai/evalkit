@@ -131,7 +131,7 @@
     radio buttons, and the queue is in the URL (`/reviews?view=all`,
     `?view=changes`), so Back from a case returns to it.
   - A case's page offers "Full evaluator config" once instead of twice, and
-    says when the case has no evaluators.
+    says when its YAML sets no evaluators (overlays can still add some).
   - Every page's content has 16px of padding (was 18 to 28px).
   - For a package extending the UI, `PageHeader` takes an optional
     `description` line, and `Empty` (`@/components/widgets/Empty`) draws an

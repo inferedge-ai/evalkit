@@ -1,32 +1,11 @@
 // @vitest-environment jsdom
-import { QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { Route } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
-import { queryClient } from "../lib/query";
-import type { CaseView, Me, WorkspaceInfo } from "../lib/types";
-import { MeContext } from "../shell/capabilities";
-import { WorkspaceGate } from "../shell/workspace";
+import type { CaseView } from "../lib/types";
+import { closePage, member, renderPage, stubServer } from "../testFixtures";
 import { CasePage } from "./CasePage";
-
-const me: Me = {
-  username: "akshat",
-  is_admin: false,
-  email: null,
-  kind: "human",
-  personal_workspace: "akshat",
-  roles: { dev: ["reviewer"] },
-};
-
-const workspace: WorkspaceInfo = {
-  id: 2,
-  name: "dev",
-  type: "shared",
-  archived: false,
-  promotes_to: null,
-  promoted_from: null,
-};
 
 const revenue: CaseView = {
   case_ref: 1,
@@ -48,67 +27,42 @@ const revenue: CaseView = {
   },
 };
 
-afterEach(() => {
-  cleanup();
-  queryClient.clear();
-  vi.unstubAllGlobals();
-});
+afterEach(closePage);
 
 const CASE_URL = "/api/datasets/acme%40dev/cases/acme-revenue";
 
 const failure = (detail: string) => Response.json({ detail }, { status: 500 });
 
-function stubServer(
+function serveCase(
   route: (url: string) => Promise<Response> | Response | undefined = () =>
     undefined,
 ) {
   const reviews: unknown[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string, init?: RequestInit) => {
-      const answer = await route(url);
-      if (answer) return answer;
-      if (url.endsWith("/api/auth/providers"))
-        return Response.json({ password: "all", oidc: null });
-      if (url.endsWith("/api/workspaces?include_archived=true"))
-        return Response.json([workspace]);
-      if (url.endsWith("/cases/acme-revenue/review")) {
-        reviews.push(JSON.parse(String(init?.body)));
-        return Response.json({});
-      }
-      if (url.endsWith(CASE_URL)) return Response.json(revenue);
-      if (url.endsWith("/events")) return Response.json({ events: [] });
-      if (url.endsWith("/comments")) return Response.json({ threads: [] });
-      if (url.includes("/scores")) return Response.json({ points: [] });
-      return Response.json([]);
-    }),
-  );
+  stubServer(async (url, init) => {
+    const answer = await route(url);
+    if (answer) return answer;
+    if (url.endsWith("/cases/acme-revenue/review")) {
+      reviews.push(JSON.parse(String(init?.body)));
+      return Response.json({});
+    }
+    if (url.endsWith(CASE_URL)) return Response.json(revenue);
+    if (url.endsWith("/events")) return Response.json({ events: [] });
+    if (url.endsWith("/comments")) return Response.json({ threads: [] });
+    if (url.includes("/scores")) return Response.json({ points: [] });
+  });
   return reviews;
 }
 
 function openCase() {
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MeContext.Provider value={me}>
-        <MemoryRouter
-          initialEntries={["/datasets/acme@dev/cases/acme-revenue"]}
-        >
-          <Routes>
-            <Route element={<WorkspaceGate />}>
-              <Route
-                path="/datasets/:ref/cases/:caseId"
-                element={<CasePage />}
-              />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </MeContext.Provider>
-    </QueryClientProvider>,
+  renderPage(
+    member({ dev: ["reviewer"] }),
+    "/datasets/acme@dev/cases/acme-revenue",
+    <Route path="/datasets/:ref/cases/:caseId" element={<CasePage />} />,
   );
 }
 
 test("while the case loads, its page already shows where it is", async () => {
-  stubServer((url) =>
+  serveCase((url) =>
     url.endsWith(CASE_URL) ? new Promise(() => {}) : undefined,
   );
   openCase();
@@ -122,7 +76,7 @@ test("while the case loads, its page already shows where it is", async () => {
 });
 
 test("a reviewer approves a case with a note", async () => {
-  const reviews = stubServer();
+  const reviews = serveCase();
   openCase();
   const user = userEvent.setup();
   await user.click(await screen.findByRole("button", { name: "Approve" }));
@@ -139,7 +93,7 @@ test("a reviewer approves a case with a note", async () => {
 });
 
 test("a reviewer can only request changes with a comment", async () => {
-  const reviews = stubServer();
+  const reviews = serveCase();
   openCase();
   const user = userEvent.setup();
   await user.click(
@@ -160,26 +114,29 @@ test("a reviewer can only request changes with a comment", async () => {
 });
 
 test("the case's full evaluator config is offered once", async () => {
-  stubServer();
+  serveCase();
   openCase();
   await screen.findByRole("button", { name: "Approve" });
   expect(screen.getAllByText("Full evaluator config")).toHaveLength(1);
 });
 
-test("a case without evaluators says it has none", async () => {
-  stubServer((url) =>
+test("a case whose YAML sets no evaluators says so, and that overlays can add some", async () => {
+  serveCase((url) =>
     url.endsWith(CASE_URL)
       ? Response.json({ ...revenue, evaluators: {} })
       : undefined,
   );
   openCase();
   expect(
-    await screen.findByText("No evaluators on this case"),
+    await screen.findByText("No evaluators in this case's YAML"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("Overlays can add evaluators for the agents they name."),
   ).toBeInTheDocument();
 });
 
 test("a case that fails to load shows the error under its header", async () => {
-  stubServer((url) =>
+  serveCase((url) =>
     url.endsWith(CASE_URL) ? failure("store unavailable") : undefined,
   );
   openCase();
@@ -191,7 +148,7 @@ test("a case that fails to load shows the error under its header", async () => {
 
 test("a refresh that fails keeps the case on screen and says why", async () => {
   let loads = 0;
-  stubServer((url) =>
+  serveCase((url) =>
     url.endsWith(CASE_URL) && ++loads > 1
       ? failure("store unavailable")
       : undefined,
@@ -207,7 +164,7 @@ test("a refresh that fails keeps the case on screen and says why", async () => {
 });
 
 test("when its changelog and comments cannot load, the case page says so", async () => {
-  stubServer((url) =>
+  serveCase((url) =>
     url.endsWith("/events")
       ? failure("events unavailable")
       : url.endsWith("/comments")

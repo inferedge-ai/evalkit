@@ -183,7 +183,8 @@ then add plain FastAPI routes with `app.include_router(...)`.
   hides the item from non-admins; the page's endpoints must check admin
   themselves.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
-  `PageHeader` and `SIGNED_IN` stable: other packages build against them.
+  `PageHeader`, `Empty` and `SIGNED_IN` stable: other packages build against
+  them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
 (`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,

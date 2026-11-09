@@ -132,7 +132,7 @@ export function Home() {
               ))}
             </Section>
           )}
-          {!loading && empty && (
+          {!loading && !datasetsError && !agentsError && empty && (
             <Card className="py-8 lg:col-span-2">
               {workspace.type === "shared" ? (
                 <Empty

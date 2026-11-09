@@ -1,32 +1,11 @@
 // @vitest-environment jsdom
-import { QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
-import { afterEach, expect, test, vi } from "vitest";
-import { queryClient } from "../lib/query";
-import type { Me, QueueItem, WorkspaceInfo } from "../lib/types";
-import { MeContext } from "../shell/capabilities";
-import { WorkspaceGate } from "../shell/workspace";
+import { Route, useNavigate } from "react-router-dom";
+import { afterEach, expect, test } from "vitest";
+import type { QueueItem } from "../lib/types";
+import { closePage, member, renderPage, stubServer } from "../testFixtures";
 import { ReviewsPage } from "./ReviewsPage";
-
-const me: Me = {
-  username: "akshat",
-  is_admin: false,
-  email: null,
-  kind: "human",
-  personal_workspace: "akshat",
-  roles: { dev: ["reviewer"] },
-};
-
-const workspace: WorkspaceInfo = {
-  id: 2,
-  name: "dev",
-  type: "shared",
-  archived: false,
-  promotes_to: null,
-  promoted_from: null,
-};
 
 function queued(caseId: string): QueueItem {
   return {
@@ -40,46 +19,24 @@ function queued(caseId: string): QueueItem {
   };
 }
 
-afterEach(() => {
-  cleanup();
-  queryClient.clear();
-  vi.unstubAllGlobals();
-});
+afterEach(closePage);
 
 function openReviews() {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string) => {
-      if (url.endsWith("/api/auth/providers"))
-        return Response.json({ password: "all", oidc: null });
-      if (url.endsWith("/api/workspaces?include_archived=true"))
-        return Response.json([workspace]);
-      if (
-        url.includes("/api/review/queue?") &&
-        url.includes("state=changes_requested")
-      )
-        return Response.json({ items: [queued("acme-gross-margin")] });
-      if (url.includes("/api/review/queue?") && url.includes("reviewer=akshat"))
-        return Response.json({ items: [queued("acme-revenue")] });
-      return Response.json({ items: [] });
-    }),
-  );
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MeContext.Provider value={me}>
-        <MemoryRouter initialEntries={["/reviews"]}>
-          <Routes>
-            <Route element={<WorkspaceGate />}>
-              <Route path="/reviews" element={<ReviewsPage />} />
-              <Route
-                path="/datasets/:ref/cases/:caseId"
-                element={<BackButton />}
-              />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </MeContext.Provider>
-    </QueryClientProvider>,
+  stubServer((url) => {
+    if (!url.includes("/api/review/queue?")) return undefined;
+    if (url.includes("state=changes_requested"))
+      return Response.json({ items: [queued("acme-gross-margin")] });
+    if (url.includes("reviewer=akshat"))
+      return Response.json({ items: [queued("acme-revenue")] });
+    return Response.json({ items: [] });
+  });
+  renderPage(
+    member({ dev: ["reviewer"] }),
+    "/reviews",
+    <>
+      <Route path="/reviews" element={<ReviewsPage />} />
+      <Route path="/datasets/:ref/cases/:caseId" element={<BackButton />} />
+    </>,
   );
 }
 
