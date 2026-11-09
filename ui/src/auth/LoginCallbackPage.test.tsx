@@ -11,7 +11,7 @@ describe("CallbackStatus", () => {
       </MemoryRouter>,
     );
     expect(html).toContain("Completing sign-in…");
-    expect(html).not.toContain("Back to sign-in");
+    expect(html).not.toContain("Try again");
   });
 
   it("shows the server's message and a way back on error", () => {
@@ -22,6 +22,6 @@ describe("CallbackStatus", () => {
     );
     expect(html).toContain("user is archived");
     expect(html).toContain('href="/login"');
-    expect(html).toContain("Back to sign-in");
+    expect(html).toContain("Try again");
   });
 });

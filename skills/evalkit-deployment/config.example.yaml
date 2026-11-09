@@ -17,7 +17,7 @@ cost_map:
 
 auth:
   token_ttl_hours: 720 # password login tokens
-  # password_login: admin # with oidc set: admin (default) or all; ignored without oidc
+  # password_login: admin # with oidc set: admin (default), all or none (needs admin_claim); ignored without oidc
   # oidc: # single sign-on through an OIDC identity provider; see evalkit-docs/sso.md
   #   issuer: https://id.example.com # discovery at <issuer>/.well-known/openid-configuration
   #   client_id: 0oa1b2c3d4e5f6g7h8 # the one public client the UI and CLI share; no secret

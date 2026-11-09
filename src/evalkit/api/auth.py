@@ -2,9 +2,9 @@ import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import cache
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -244,14 +244,15 @@ class LoginRequest(BaseModel):
 
 
 @router.get("/providers")
-async def providers(request: Request) -> dict:
+async def providers(request: Request, response: Response) -> dict:
     cfg = request.app.state.cfg
     oidc = request.app.state.oidc
     body: dict = {"password": cfg.auth.resolve_password_login(), "oidc": None}
     if oidc is None:
         return body
     if oidc.discovery is None:
-        raise IdpUnavailable()
+        response.status_code = 503
+        return {"detail": IdpUnavailable().detail, "password": body["password"]}
     body["oidc"] = {
         "name": oidc.cfg.name,
         "issuer": oidc.cfg.issuer,
@@ -269,6 +270,13 @@ async def providers(request: Request) -> dict:
 
 @router.post("/login")
 async def login(body: LoginRequest, request: Request) -> dict:
+    cfg = request.app.state.cfg
+    if cfg.auth.resolve_password_login() == "none":
+        assert cfg.auth.oidc is not None
+        raise HTTPException(
+            status_code=403,
+            detail=f"password sign-in is off on this server; sign in with {cfg.auth.oidc.name}",
+        )
     tenant_id = await require_tenant(request.app.state, request, None)
     if len(body.password.encode()) > PASSWORD_MAX_BYTES:
         raise HTTPException(
@@ -287,7 +295,6 @@ async def login(body: LoginRequest, request: Request) -> dict:
             raise HTTPException(status_code=401, detail="invalid username or password")
         if user.archived_at is not None:
             raise HTTPException(status_code=401, detail="user is archived")
-        cfg = request.app.state.cfg
         if cfg.auth.resolve_password_login() == "admin" and not user.is_admin:
             assert cfg.auth.oidc is not None
             name = cfg.auth.oidc.name
@@ -348,9 +355,11 @@ async def me(request: Request, user: CurrentUser) -> dict:
 
 
 async def bootstrap_admin(
-    session_factory: async_sessionmaker[AsyncSession], password: str | None
+    session_factory: async_sessionmaker[AsyncSession],
+    password: str | None,
+    password_login: Literal["admin", "all", "none"],
 ) -> None:
-    if await any_admin_exists(session_factory):
+    if password_login == "none" or await any_admin_exists(session_factory):
         return
     if not password:
         raise RuntimeError(

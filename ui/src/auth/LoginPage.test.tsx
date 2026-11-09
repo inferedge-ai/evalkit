@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LoginChoices, runSso } from "./LoginPage";
+import { LoginChoices, LoginPage, runSso } from "./LoginPage";
 import type { Providers } from "./oidc";
 
 const okta = {
@@ -24,6 +24,7 @@ function render(providers: Providers): string {
       <LoginChoices
         providers={providers}
         next="/"
+        signedOut={false}
         onSso={() => Promise.resolve()}
       />
     </MemoryRouter>,
@@ -51,6 +52,75 @@ describe("LoginChoices", () => {
     expect(html).toContain("Continue with Okta");
     expect(html).toContain("Username");
     expect(html).not.toContain("Admin sign-in");
+  });
+});
+
+describe("with passwords off", () => {
+  function showLogin(onSso: () => Promise<void>, signedOut = false) {
+    renderDom(
+      <MemoryRouter>
+        <LoginChoices
+          providers={{ password: "none", oidc: okta }}
+          next="/"
+          signedOut={signedOut}
+          onSso={onSso}
+        />
+      </MemoryRouter>,
+    );
+  }
+
+  it("hands over to the provider at once, with no password form", async () => {
+    const onSso = vi.fn(() => new Promise<void>(() => {}));
+    showLogin(onSso);
+    expect(await screen.findByText("Taking you to Okta…")).toBeTruthy();
+    expect(onSso).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("Username")).toBeNull();
+    expect(screen.queryByText("Admin sign-in")).toBeNull();
+  });
+
+  it("waits for Sign in again after signing out", async () => {
+    const onSso = vi.fn(() => new Promise<void>(() => {}));
+    showLogin(onSso, true);
+    expect(screen.getByText("You're signed out of evalkit.")).toBeTruthy();
+    expect(onSso).not.toHaveBeenCalled();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Sign in again" }));
+    expect(screen.getByText("Taking you to Okta…")).toBeTruthy();
+  });
+
+  it("stops on the provider's error with Try again instead of starting over", async () => {
+    const onSso = vi.fn(() => Promise.reject(new Error("Okta is down")));
+    showLogin(onSso);
+    expect(await screen.findByText("Okta is down")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(onSso).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("LoginPage", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("offers Retry, not a password form, when passwords are off and the provider is unreachable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json(
+          { detail: "identity provider unreachable", password: "none" },
+          { status: 503 },
+        ),
+      ),
+    );
+    renderDom(
+      <MemoryRouter initialEntries={["/login"]}>
+        <LoginPage />
+      </MemoryRouter>,
+    );
+    expect(
+      await screen.findByText("identity provider unreachable"),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+    expect(screen.queryByLabelText("Username")).toBeNull();
   });
 });
 
@@ -83,6 +153,7 @@ describe("password sign-in", () => {
               <LoginChoices
                 providers={{ password: "all", oidc: null }}
                 next="/datasets"
+                signedOut={false}
                 onSso={() => Promise.resolve()}
               />
             }

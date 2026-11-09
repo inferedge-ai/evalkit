@@ -22,7 +22,7 @@ export function CallbackStatus({ error }: { error: string | null }) {
                 className={cn(buttonVariants({ variant: "outline" }), "w-full")}
                 to="/login"
               >
-                Back to sign-in
+                Try again
               </Link>
             </>
           )}

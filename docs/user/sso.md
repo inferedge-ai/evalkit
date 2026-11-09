@@ -80,7 +80,7 @@ In the server's `config.yaml`:
 
     auth:
       token_ttl_hours: 720          # password login tokens
-      password_login: admin         # admin (default) or all; ignored without oidc
+      password_login: admin         # admin (default), all or none; ignored without oidc
       oidc:
         issuer: https://id.example.com
         client_id: 0oa1b2c3d4e5f6g7h8
@@ -98,6 +98,13 @@ SSO. `all` runs both side by side. Restart the server and check
 `GET /api/auth/providers`: it lists the IdP's name and endpoints, or answers
 503 while the IdP is unreachable (the server still starts, and admin password
 login keeps working).
+
+`none` turns password login off: everyone signs in through the identity
+provider. It needs `admin_claim` (see below), because the IdP then says who is
+an admin, and the server no longer makes the password-only `admin` account or
+needs `EVALKIT_ADMIN_PASSWORD`. A signed-out visitor goes straight to the
+provider instead of seeing evalkit's login page, and `POST /api/auth/login`
+refuses every password.
 
 ### Requiring a scope
 
@@ -176,9 +183,12 @@ In the web UI, the login page shows **Continue with <provider>** when single
 sign-on is configured. The first sign-in creates your evalkit user from the
 identity provider's account; later sign-ins find it. An admin can still use
 the username and password form behind **Admin sign-in** (or under the button
-when `auth.password_login` is `all`). The profile button at the bottom of the
-sidebar shows your email under your username. Sign out clears the session in
-this browser only; your identity provider session stays.
+when `auth.password_login` is `all`). With `password_login: none` there is no
+login page to see: evalkit sends you straight to the provider, and back to the
+page you opened. The profile button at the bottom of the sidebar shows your
+email under your username. Sign out clears the session in this browser only;
+your identity provider session stays. With `none`, signing out shows a
+**Sign in again** button rather than sending you back to the provider at once.
 
 ## Admin runbook
 
@@ -209,6 +219,7 @@ this browser only; your identity provider session stays.
 | 401 `SSO is not configured on this server` | A JWT reached a server without `auth.oidc` | Configure `auth.oidc` or use password login |
 | 401 `user is archived` | Archived in evalkit | `evalkit users restore <username>` |
 | 403 `password login is for admins on this server` | `password_login: admin` | Sign in with SSO, or set `password_login: all` |
+| 403 `password sign-in is off on this server` | `password_login: none` | Sign in with SSO; CI uses its machine client |
 | 403 `no tenant for this request` | A wrapper's `resolve_tenant` found no tenant for the token | Have the IdP put the organisation in the token, CI's client credentials tokens included |
 | 403 `access token lacks required scope <scope>` (on `/api` and register; `/mcp` says `insufficient_scope`) | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
 | 503 `identity provider unreachable` | Discovery or the JWKS could not be fetched | Check the issuer URL and network egress from the server; it retries every 30 s |

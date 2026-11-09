@@ -18,7 +18,7 @@ export type OidcProviders = {
 };
 
 export type Providers = {
-  password: "all" | "admin";
+  password: "all" | "admin" | "none";
   oidc: OidcProviders | null;
 };
 
@@ -40,6 +40,14 @@ export interface OidcSession {
 
 let providersPromise: Promise<Providers> | null = null;
 
+export class ProvidersUnavailable extends Error {
+  password: Providers["password"] | null;
+  constructor(message: string, password: Providers["password"] | null) {
+    super(message);
+    this.password = password;
+  }
+}
+
 export function loadProviders(): Promise<Providers> {
   if (providersPromise === null) {
     providersPromise = fetch(`${API}/api/auth/providers`).then(async (resp) => {
@@ -48,7 +56,10 @@ export function loadProviders(): Promise<Providers> {
         .catch(() => ({}) as Record<string, unknown>);
       if (!resp.ok) {
         providersPromise = null;
-        throw new Error(String(body.detail ?? "cannot load sign-in options"));
+        throw new ProvidersUnavailable(
+          String(body.detail ?? "cannot load sign-in options"),
+          (body.password as Providers["password"] | undefined) ?? null,
+        );
       }
       return body as Providers;
     });

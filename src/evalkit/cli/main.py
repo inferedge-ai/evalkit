@@ -240,7 +240,8 @@ def login(
     username: str = typer.Option(
         None,
         "--username",
-        help="Password login; with SSO configured, admins only unless password_login is all.",
+        help="Password login; with SSO configured, admins only unless password_login is all, "
+        "and refused when it is none.",
     ),
     password: str = typer.Option(None, "--password"),
     no_browser: bool = typer.Option(

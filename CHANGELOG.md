@@ -116,6 +116,21 @@
   control, with its hint underneath. Table checkboxes are square with 4px
   corners instead of round. Secondary text uses the components' muted grey,
   one shade darker than before in light mode.
+- `auth.password_login` takes `none`, for servers where everyone signs in
+  through the identity provider. It needs `auth.oidc.admin_claim`, so the
+  identity provider says who is an admin; the server then makes no
+  password-only `admin` account and starts without `EVALKIT_ADMIN_PASSWORD`.
+  A signed-out visitor goes straight to the provider instead of evalkit's
+  login page and comes back to the page they opened. `POST /api/auth/login`
+  refuses every password with 403 `password sign-in is off on this server`,
+  `evalkit login --username` included. Signing out shows a **Sign in again**
+  button rather than restarting the provider sign-in, so a live provider
+  session does not sign the person straight back in. When the provider is
+  unreachable, the 503 from `GET /api/auth/providers` now also carries
+  `password`, so the login page offers Retry and no password form. In every
+  mode, a signed-out visitor who opens a page while the provider is
+  unreachable now reaches the login page instead of an error, so with
+  `admin` an admin can still use the password form.
 
 ## 0.4.0
 

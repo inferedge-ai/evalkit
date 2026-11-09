@@ -243,7 +243,11 @@ def create_app(
                 "stored API keys exist but encryption_key is not configured; "
                 "set encryption_key: env:EVALKIT_ENCRYPTION_KEY in the server config"
             )
-        await bootstrap_admin(app.state.session_factory, os.environ.get("EVALKIT_ADMIN_PASSWORD"))
+        await bootstrap_admin(
+            app.state.session_factory,
+            os.environ.get("EVALKIT_ADMIN_PASSWORD"),
+            cfg.auth.resolve_password_login(),
+        )
         if app.state.oidc is not None and not await app.state.oidc.load():
             app.state.oidc_retry = asyncio.create_task(app.state.oidc.retry_forever())
             app.state.oidc_retry.add_done_callback(log_retry_failure)
