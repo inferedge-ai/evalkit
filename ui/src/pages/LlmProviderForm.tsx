@@ -111,8 +111,9 @@ export function LlmProviderForm({
             <FieldDescription>{ENDPOINT_NOTE}</FieldDescription>
           </Field>
           <Field>
-            <FieldLabel>API key</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-api-key`}>API key</FieldLabel>
             <ApiKeyField
+              id={`${formId}-api-key`}
               hasKey={provider?.has_api_key ?? false}
               value={apiKey}
               onChange={setApiKey}

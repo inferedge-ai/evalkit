@@ -135,8 +135,9 @@ export function EvaluatorForm({
                 />
               </Field>
               <Field>
-                <FieldLabel>Kind</FieldLabel>
+                <FieldLabel htmlFor={`${formId}-kind`}>Kind</FieldLabel>
                 <Select
+                  id={`${formId}-kind`}
                   ariaLabel="kind"
                   value={values.kind}
                   onChange={(kind) => set("kind", kind)}
@@ -171,8 +172,9 @@ export function EvaluatorForm({
           </Field>
           {shared ? (
             <Field>
-              <FieldLabel>API key</FieldLabel>
+              <FieldLabel htmlFor={`${formId}-api-key`}>API key</FieldLabel>
               <ApiKeyField
+                id={`${formId}-api-key`}
                 hasKey={evaluator?.has_api_key ?? false}
                 value={values.apiKey}
                 onChange={(apiKey) => set("apiKey", apiKey)}

@@ -39,7 +39,7 @@ import type {
 import { CopyButton } from "../lib/ui";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldLabel, FieldTitle } from "@/components/ui/field";
 
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "all", label: "All cases" },
@@ -175,8 +175,9 @@ export function RunLauncher({
         </DialogHeader>
         <div className={FORM_DIALOG_BODY}>
           <Field>
-            <FieldLabel>Agent</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-agent`}>Agent</FieldLabel>
             <Select
+              id={`${formId}-agent`}
               ariaLabel="agent"
               value={agent}
               onChange={setAgent}
@@ -185,7 +186,7 @@ export function RunLauncher({
             />
           </Field>
           <Field>
-            <FieldLabel>Cases</FieldLabel>
+            <FieldTitle>Cases</FieldTitle>
             <div className="flex flex-col gap-2">
               <div className="segment self-start">
                 {SCOPES.map((s) => (
@@ -383,8 +384,11 @@ export function RunLauncher({
             />
           </Field>
           <Field>
-            <FieldLabel>Judge provider</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-judge-provider`}>
+              Judge provider
+            </FieldLabel>
             <Select
+              id={`${formId}-judge-provider`}
               ariaLabel="judge provider"
               value={judge.provider}
               onChange={(provider) => setJudge({ ...judge, provider })}
@@ -422,7 +426,7 @@ export function RunLauncher({
           ))}
           {request && (
             <Field>
-              <FieldLabel>CLI</FieldLabel>
+              <FieldTitle>CLI</FieldTitle>
               <div className="cli-preview">
                 <code>{cliCommand(request)}</code>
                 <CopyButton text={cliCommand(request)} />

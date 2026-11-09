@@ -30,3 +30,18 @@ test("the thinking and tool calls filters hide and show those parts of the traje
   await user.click(screen.getByRole("checkbox", { name: "thinking" }));
   expect(thinkingBlock()).toBeDefined();
 });
+
+test("clicking the open tab closes the tool calls opened in it", async () => {
+  const user = userEvent.setup();
+  render(<TrajectoryViewer doc={doc} />);
+  const searchCall = screen
+    .getAllByText("web_search")
+    .find((el) => el.closest(".collapsible-header"))!;
+  const isOpen = () =>
+    searchCall.closest(".collapsible")!.classList.contains("is-open");
+  await user.click(searchCall);
+  expect(isOpen()).toBe(true);
+
+  await user.click(screen.getByRole("tab", { name: "myagent (3)" }));
+  expect(isOpen()).toBe(false);
+});

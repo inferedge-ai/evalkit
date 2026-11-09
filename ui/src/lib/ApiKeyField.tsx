@@ -7,10 +7,12 @@ export interface ApiKeyValue {
 }
 
 export function ApiKeyField({
+  id,
   hasKey,
   value,
   onChange,
 }: {
+  id?: string;
   hasKey: boolean;
   value: ApiKeyValue;
   onChange: (value: ApiKeyValue) => void;
@@ -20,6 +22,7 @@ export function ApiKeyField({
       <div className="flex items-center gap-2">
         <Badge variant="secondary">Key set</Badge>
         <Button
+          id={id}
           type="button"
           variant="outline"
           size="sm"
@@ -31,6 +34,7 @@ export function ApiKeyField({
     );
   return (
     <Input
+      id={id}
       className="min-w-0 flex-1"
       type="password"
       aria-label="API key"

@@ -233,6 +233,7 @@ export function Tabs<T extends string>({
             disabled={t.disabled}
             title={t.title}
             className="aria-disabled:pointer-events-auto aria-disabled:cursor-not-allowed"
+            onClick={() => t.id === active && onSelect(t.id)}
           >
             {t.label}
           </TabsTrigger>

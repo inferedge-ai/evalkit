@@ -19,7 +19,12 @@ import { Summary } from "./MappingsPanel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
 
 const POLL_MS = 2000;
 
@@ -229,8 +234,9 @@ export function ImportPanel({ agent }: { agent: string }) {
           <Card size="sm">
             <CardContent className="flex flex-col gap-3">
               <Field>
-                <FieldLabel>Source</FieldLabel>
+                <FieldLabel htmlFor={`${formId}-source`}>Source</FieldLabel>
                 <Select
+                  id={`${formId}-source`}
                   ariaLabel="trace source"
                   value={source}
                   onChange={setPickedSource}
@@ -249,7 +255,7 @@ export function ImportPanel({ agent }: { agent: string }) {
                 />
               </Field>
               <Field>
-                <FieldLabel>What</FieldLabel>
+                <FieldTitle>What</FieldTitle>
                 <div>
                   <div className="segment">
                     <button

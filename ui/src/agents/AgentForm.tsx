@@ -108,8 +108,9 @@ export function AgentForm({
           </Field>
           {shared ? (
             <Field>
-              <FieldLabel>API key</FieldLabel>
+              <FieldLabel htmlFor={`${formId}-api-key`}>API key</FieldLabel>
               <ApiKeyField
+                id={`${formId}-api-key`}
                 hasKey={agent?.has_api_key ?? false}
                 value={values.api_key}
                 onChange={(apiKey) => set("api_key", apiKey)}
@@ -125,8 +126,11 @@ export function AgentForm({
             </p>
           )}
           <Field>
-            <FieldLabel>Trajectories</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-trajectories`}>
+              Trajectories
+            </FieldLabel>
             <Select
+              id={`${formId}-trajectories`}
               ariaLabel="trajectory source"
               value={values.trajectory_source}
               onChange={(source) => set("trajectory_source", source)}
