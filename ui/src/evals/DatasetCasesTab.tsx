@@ -17,7 +17,7 @@ import {
   renderCell,
   useDataGrid,
 } from "../lib/DataGrid";
-import { REVIEW_STATES, stateClass, stateLabel } from "../lib/review";
+import { REVIEW_STATES, getStateVariant, stateLabel } from "../lib/review";
 import type {
   CaseScorePoint,
   CaseView,
@@ -34,6 +34,9 @@ import {
 } from "../lib/promotion";
 import { useWorkspace } from "../shell/workspace";
 import { ToArrow } from "../lib/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 // Last N experiments' bucket scores shown inline per case, newest first.
 const RECENT = 4;
@@ -194,9 +197,9 @@ export function DatasetCasesTab({
         cellRenderer: renderCell<CaseView>((ex) => (
           <span className="inline-flex gap-1" title={ex.split_tags.join(", ")}>
             {ex.split_tags.map((t) => (
-              <span key={t} className="chip muted">
+              <Badge key={t} variant="secondary">
                 {t}
-              </span>
+              </Badge>
             ))}
           </span>
         )),
@@ -213,7 +216,7 @@ export function DatasetCasesTab({
               cellRenderer: renderCell<CaseView>((ex) => {
                 const cell = twinCell(ex.twin, side);
                 return cell ? (
-                  <span className={`chip ${cell.cls}`}>{cell.label}</span>
+                  <Badge variant={cell.variant}>{cell.label}</Badge>
                 ) : null;
               }),
             } satisfies ColDef<CaseView>,
@@ -235,9 +238,9 @@ export function DatasetCasesTab({
                 <span className="inline-flex items-center gap-1">
                   {ex.review &&
                   !promotedImpliesApproved(ex.twin, side, ex.review.state) ? (
-                    <span className={`chip ${stateClass(ex.review.state)}`}>
+                    <Badge variant={getStateVariant(ex.review.state)}>
                       {stateLabel(ex.review.state)}
-                    </span>
+                    </Badge>
                   ) : null}
                   {ex.review?.state === "review_requested" &&
                   ex.review.requested_to ? (
@@ -278,8 +281,8 @@ export function DatasetCasesTab({
   return (
     <>
       <div className="toolbar mb-2">
-        <input
-          className="input w-72"
+        <Input
+          className="w-72"
           placeholder="Filter by id or question"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -315,12 +318,9 @@ export function DatasetCasesTab({
       {selected.length > 0 && (
         <div className="toolbar mb-2 rounded-md border border-brand bg-info-bg px-3 py-2">
           <span className="font-medium">{selected.length} selected</span>
-          <button
-            className="btn btn-sm btn-primary"
-            onClick={() => onRun(selected)}
-          >
+          <Button size="sm" onClick={() => onRun(selected)}>
             Run selected
-          </button>
+          </Button>
           {requestable && (
             <>
               <span className="row-meta ml-2">Request review from</span>
@@ -331,22 +331,25 @@ export function DatasetCasesTab({
                 placeholder="No reviewers"
                 options={reviewers.map((r) => ({ value: r, label: r }))}
               />
-              <button
-                className="btn btn-sm"
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={busy || !reviewer}
                 onClick={requestReview}
               >
                 Request
-              </button>
+              </Button>
             </>
           )}
-          <button
-            className="btn btn-sm ml-auto"
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="ml-auto"
             aria-label="clear selection"
             onClick={() => grid.api?.deselectAll()}
           >
             <X size={12} />
-          </button>
+          </Button>
         </div>
       )}
       <DataGrid

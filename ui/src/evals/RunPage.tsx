@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { cn } from "@/lib/utils";
+import { buttonVariants } from "@/components/ui/button";
 import { ArrowUpRight } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
@@ -27,6 +29,8 @@ import { RunTabs, TRAJECTORY_TABS } from "../runs/RunTabs";
 import { Select } from "../lib/Select";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 const TABS = [
   "case",
@@ -161,14 +165,14 @@ export function RunPage() {
             </span>
           )}
           {tag && (
-            <span className="chip muted" title="agent · model">
+            <Badge variant="secondary" title="agent · model">
               {tag}
-            </span>
+            </Badge>
           )}
           {badge && (
-            <span className="chip muted" title="trajectory source and mapping">
+            <Badge variant="secondary" title="trajectory source and mapping">
               {badge}
-            </span>
+            </Badge>
           )}
           {record && (
             <TimeSpan start={record.started_at} end={record.ended_at} />
@@ -197,7 +201,10 @@ export function RunPage() {
             </Link>
           )}
           <Link
-            className={`btn btn-quiet text-brand ${status?.config.judge?.model ? "" : "ml-auto"}`}
+            className={cn(
+              buttonVariants({ variant: "link" }),
+              !status?.config.judge?.model && "ml-auto",
+            )}
             to={`/experiments/${encodeURIComponent(experimentId)}`}
           >
             Experiment <ArrowUpRight size={12} />
@@ -276,9 +283,11 @@ export function RunPage() {
                 <div className="grid gap-x-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
                   <div className="min-w-0">
                     <div className="eyebrow">Question</div>
-                    <div className="card p-4">
-                      <Markdown text={questionText(example.input)} />
-                    </div>
+                    <Card>
+                      <CardContent>
+                        <Markdown text={questionText(example.input)} />
+                      </CardContent>
+                    </Card>
                   </div>
                   <div className="min-w-0">
                     <FixtureList files={example.files} />
@@ -289,20 +298,24 @@ export function RunPage() {
               {structured && (
                 <>
                   <div className="eyebrow">Output</div>
-                  <div className="card p-4">
-                    <PreBlock text={structured} />
-                  </div>
+                  <Card>
+                    <CardContent>
+                      <PreBlock text={structured} />
+                    </CardContent>
+                  </Card>
                 </>
               )}
 
               {(hasAnswer || !structured) && (
                 <>
                   <div className="eyebrow">Answer</div>
-                  <div className="card p-4 lg:px-8 lg:py-6">
-                    <Markdown text={answerText(record?.answer)} />
-                  </div>
+                  <Card className="lg:py-6">
+                    <CardContent className="lg:px-8">
+                      <Markdown text={answerText(record?.answer)} />
+                    </CardContent>
+                  </Card>
                   <details className="mt-1 text-micro">
-                    <summary className="cursor-pointer text-n-400">
+                    <summary className="cursor-pointer text-muted-foreground">
                       raw answer
                     </summary>
                     <PreBlock

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,6 +25,9 @@ import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import type { AgentFormValues } from "../lib/agentForm";
 import { Select } from "../lib/Select";
 import type { AgentInfo } from "../lib/types";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 
 export function AgentForm({
   workspace,
@@ -39,6 +42,7 @@ export function AgentForm({
   onSaved: (agent: AgentInfo) => void;
   onClose: () => void;
 }) {
+  const formId = useId();
   const mode = agent ? "edit" : "create";
   const [values, setValues] = useState<AgentFormValues>(
     agent ? agentFormFrom(agent) : emptyAgentForm(workspace),
@@ -81,34 +85,37 @@ export function AgentForm({
         </DialogHeader>
         <div className={FORM_DIALOG_BODY}>
           {!agent && (
-            <div className="form-row">
-              <span className="form-label">Name</span>
-              <input
-                className="input w-72"
+            <Field>
+              <FieldLabel htmlFor={`${formId}-name`}>Name</FieldLabel>
+              <Input
+                id={`${formId}-name`}
                 value={values.name}
                 onChange={(e) => set("name", e.target.value)}
               />
-            </div>
+            </Field>
           )}
-          <div className="form-row">
-            <span className="form-label">Harness URL</span>
-            <input
-              className="input min-w-0 flex-1"
+          <Field>
+            <FieldLabel htmlFor={`${formId}-harness-url`}>
+              Harness URL
+            </FieldLabel>
+            <Input
+              id={`${formId}-harness-url`}
               placeholder="empty for a code-driven agent (SDK runs only)"
               value={values.harness_url}
               onChange={(e) => set("harness_url", e.target.value)}
             />
-          </div>
-          <p className="row-meta whitespace-normal">{ENDPOINT_NOTE}</p>
+            <FieldDescription>{ENDPOINT_NOTE}</FieldDescription>
+          </Field>
           {shared ? (
-            <div className="form-row">
-              <span className="form-label">API key</span>
+            <Field>
+              <FieldLabel htmlFor={`${formId}-api-key`}>API key</FieldLabel>
               <ApiKeyField
+                id={`${formId}-api-key`}
                 hasKey={agent?.has_api_key ?? false}
                 value={values.api_key}
                 onChange={(apiKey) => set("api_key", apiKey)}
               />
-            </div>
+            </Field>
           ) : (
             <p className="row-meta whitespace-normal">{PERSONAL_KEY_NOTE}</p>
           )}
@@ -118,9 +125,12 @@ export function AgentForm({
               for the new URL above.
             </p>
           )}
-          <div className="form-row">
-            <span className="form-label">Trajectories</span>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-trajectories`}>
+              Trajectories
+            </FieldLabel>
             <Select
+              id={`${formId}-trajectories`}
               ariaLabel="trajectory source"
               value={values.trajectory_source}
               onChange={(source) => set("trajectory_source", source)}
@@ -129,7 +139,7 @@ export function AgentForm({
                 { value: "otel", label: "From traces (OTel spans)" },
               ]}
             />
-          </div>
+          </Field>
           {agent && values.trajectory_source !== agent.trajectory_source && (
             <p className="row-meta">
               Experiments that already ran keep the source they ran with. The
@@ -139,10 +149,13 @@ export function AgentForm({
           )}
           {values.trajectory_source === "otel" &&
             (!agent || agent.trajectory_source !== "otel") && (
-              <div className="form-row items-start">
-                <span className="form-label pt-1.5">Span mapping</span>
-                <textarea
-                  className="input min-w-0 flex-1 font-mono"
+              <Field>
+                <FieldLabel htmlFor={`${formId}-span-mapping`}>
+                  Span mapping
+                </FieldLabel>
+                <Textarea
+                  id={`${formId}-span-mapping`}
+                  className="max-h-80 font-mono"
                   rows={6}
                   placeholder={
                     agent
@@ -152,29 +165,29 @@ export function AgentForm({
                   value={values.mapping}
                   onChange={(e) => set("mapping", e.target.value)}
                 />
-              </div>
+              </Field>
             )}
-          <div className="form-row">
-            <span className="form-label">Repository</span>
-            <input
-              className="input min-w-0 flex-1"
+          <Field>
+            <FieldLabel htmlFor={`${formId}-repository`}>Repository</FieldLabel>
+            <Input
+              id={`${formId}-repository`}
               placeholder="https://github.com/org/repo (optional)"
               value={values.repo_url}
               onChange={(e) => set("repo_url", e.target.value)}
             />
-          </div>
+          </Field>
           {SETTING_FIELDS.map(({ key, label }) => (
-            <div key={key} className="form-row">
-              <span className="form-label">{label}</span>
-              <input
-                className="input w-28"
+            <Field key={key}>
+              <FieldLabel htmlFor={`${formId}-${key}`}>{label}</FieldLabel>
+              <Input
+                id={`${formId}-${key}`}
                 inputMode="numeric"
                 value={values.settings[key]}
                 onChange={(e) =>
                   set("settings", { ...values.settings, [key]: e.target.value })
                 }
               />
-            </div>
+            </Field>
           ))}
           {errors.map((message) => (
             <div key={message} className="text-meta text-err-text">

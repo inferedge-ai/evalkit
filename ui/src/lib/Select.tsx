@@ -10,6 +10,7 @@ interface CommonProps<T extends string | number> {
   placeholder?: string;
   title?: string;
   ariaLabel?: string;
+  id?: string;
   className?: string;
   searchable?: boolean;
   disabled?: boolean;
@@ -65,6 +66,7 @@ function SelectMenu<T extends string | number>({
   placeholder = "Select…",
   title,
   ariaLabel,
+  id,
   className = "",
   searchable,
   disabled = false,
@@ -172,8 +174,9 @@ function SelectMenu<T extends string | number>({
     <div ref={rootRef} className={`select ${className}`}>
       <button
         ref={triggerRef}
+        id={id}
         type="button"
-        className="input select-trigger"
+        className="flex h-8 w-full min-w-28 items-center gap-1.5 rounded-lg border border-input bg-transparent pr-2 pl-2.5 text-left text-sm transition-colors outline-none hover:border-ring/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-expanded:border-ring aria-expanded:ring-3 aria-expanded:ring-ring/50 dark:bg-input/30"
         title={title}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
@@ -188,7 +191,7 @@ function SelectMenu<T extends string | number>({
           }
         }}
       >
-        <span className={`truncate ${label ? "" : "text-ink-4"}`}>
+        <span className={`truncate ${label ? "" : "text-muted-foreground"}`}>
           {label ?? placeholder}
         </span>
         <ChevronDown size={12} className="select-chevron" />

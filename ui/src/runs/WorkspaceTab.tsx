@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
@@ -10,6 +11,8 @@ import { useApi } from "../lib/query";
 import { monacoTheme, useTheme } from "../shell/theme";
 import type { FileEntry } from "../lib/types";
 import { CopyButton } from "../lib/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface FileNode {
   name: string;
@@ -322,8 +325,9 @@ function FileViewer({ base, node }: { base: string; node: FileNode }) {
             </div>
           )}
           {text !== null && <CopyButton text={text} />}
-          <button
-            className="btn btn-sm"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() =>
               downloadFile(`${path}${qs({ download: "1" })}`).catch((e) =>
                 setDownloadError(describeDownloadError(e)),
@@ -331,7 +335,7 @@ function FileViewer({ base, node }: { base: string; node: FileNode }) {
             }
           >
             Download
-          </button>
+          </Button>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
@@ -447,9 +451,9 @@ export function WorkspaceTab({
     return (
       <div className="space-y-1.5 p-2">
         {Array.from({ length: 8 }, (_, i) => (
-          <div
+          <Skeleton
             key={i}
-            className="skeleton h-4"
+            className="h-4"
             style={{ width: `${20 + i * 7}%` }}
           />
         ))}
@@ -471,14 +475,16 @@ export function WorkspaceTab({
         style={{ width: treeWidth }}
       >
         <div className="flex items-center gap-2 border-b border-line-soft p-2">
-          <input
-            className="input btn-sm min-w-0 flex-1"
+          <Input
+            className="min-w-0 flex-1 h-7"
             placeholder="Filter files"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
-          <button
-            className="btn btn-sm btn-quiet shrink-0"
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0"
             title="download the whole workspace as zip"
             onClick={() =>
               downloadFile(`${base}/zip`).catch((e) =>
@@ -487,7 +493,7 @@ export function WorkspaceTab({
             }
           >
             <Download size={11} /> zip all
-          </button>
+          </Button>
         </div>
         {downloadError && (
           <div

@@ -22,6 +22,7 @@ import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
 import { useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Input } from "@/components/ui/input";
 
 const getExperimentId = (exp: ExperimentListItem) => String(exp.id);
 
@@ -100,8 +101,8 @@ export function ExperimentsPage() {
       <PageHeader title="Experiments" />
       <div className="page">
         <div className="toolbar mb-3">
-          <input
-            className="input w-64"
+          <Input
+            className="w-64"
             placeholder="Filter name or dataset"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

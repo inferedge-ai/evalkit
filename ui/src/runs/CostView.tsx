@@ -4,6 +4,7 @@ import type { CostRollupRow } from "../lib/analysis";
 import { toModel } from "../lib/atif";
 import { formatTokens, formatTokensFull, formatUsd } from "../lib/format";
 import type { AtifTrajectory } from "../lib/types";
+import { Card } from "@/components/ui/card";
 
 function Tile({
   value,
@@ -33,7 +34,7 @@ function CostTable({ title, rows }: { title: string; rows: CostRollupRow[] }) {
   return (
     <section>
       <div className="eyebrow">{title}</div>
-      <div className="card">
+      <Card className="gap-0 py-0">
         <table className="data-table">
           <thead>
             <tr>
@@ -71,7 +72,7 @@ function CostTable({ title, rows }: { title: string; rows: CostRollupRow[] }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </Card>
     </section>
   );
 }
@@ -120,7 +121,7 @@ export function CostView({ doc }: { doc: AtifTrajectory }) {
       {analysis.tool_calls.length > 0 && (
         <section>
           <div className="eyebrow">Tool calls</div>
-          <div className="card">
+          <Card className="gap-0 py-0">
             <table className="data-table">
               <thead>
                 <tr>
@@ -143,7 +144,7 @@ export function CostView({ doc }: { doc: AtifTrajectory }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </Card>
         </section>
       )}
     </div>

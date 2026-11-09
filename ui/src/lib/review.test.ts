@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { isStale, stateClass, stateLabel } from "./review";
+import { getStateVariant, isStale, stateLabel } from "./review";
 
-describe("stateLabel / stateClass", () => {
-  it("maps every state to copy and a chip class", () => {
+describe("stateLabel / getStateVariant", () => {
+  it("maps every state to a label and a badge variant", () => {
     expect(stateLabel("unreviewed")).toBe("Unreviewed");
     expect(stateLabel("review_requested")).toBe("Review requested");
     expect(stateLabel("changes_requested")).toBe("Changes requested");
     expect(stateLabel("approved")).toBe("Approved");
-    expect(stateClass("approved")).toBe("chip-pass");
-    expect(stateClass("changes_requested")).toBe("chip-partial");
-    expect(stateClass("review_requested")).toBe("chip-info");
-    expect(stateClass("unreviewed")).toBe("muted");
+    expect(getStateVariant("approved")).toBe("pass");
+    expect(getStateVariant("changes_requested")).toBe("partial");
+    expect(getStateVariant("review_requested")).toBe("info");
+    expect(getStateVariant("unreviewed")).toBe("secondary");
   });
 });
 

@@ -5,6 +5,9 @@ import { login } from "../lib/api";
 import { PublicShell } from "../shell/PublicShell";
 import { safeNext } from "./next";
 import { loadProviders, session, type Providers } from "./oidc";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 
 function LoginForm({ next }: { next: string }) {
   const navigate = useNavigate();
@@ -31,8 +34,8 @@ function LoginForm({ next }: { next: string }) {
     <form onSubmit={submit}>
       <label className="mb-3 block text-micro font-semibold tracking-wide text-ink-2 uppercase">
         Username
-        <input
-          className="input mt-1 block w-full"
+        <Input
+          className="mt-1 block w-full"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoFocus
@@ -41,8 +44,8 @@ function LoginForm({ next }: { next: string }) {
       </label>
       <label className="mb-5 block text-micro font-semibold tracking-wide text-ink-2 uppercase">
         Password
-        <input
-          className="input mt-1 block w-full"
+        <Input
+          className="mt-1 block w-full"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -50,9 +53,9 @@ function LoginForm({ next }: { next: string }) {
         />
       </label>
       {error && <div className="mb-3 text-meta text-err-text">{error}</div>}
-      <button className="btn btn-primary w-full justify-center" disabled={busy}>
+      <Button type="submit" className="w-full" disabled={busy}>
         {busy ? "Signing in…" : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -85,38 +88,40 @@ export function LoginChoices({
   const oidc = providers.oidc;
   const formOpen = oidc === null || providers.password === "all" || adminOpen;
   return (
-    <div className="card w-84 p-6">
-      <h1 className="page-title">Evalkit</h1>
-      <p className="mt-1 mb-5 text-meta text-ink-3">
-        {oidc === null
-          ? "Sign in with your evalkit account."
-          : `Sign in with your ${oidc.name} account.`}
-      </p>
-      {oidc !== null && (
-        <button
-          type="button"
-          className="btn btn-primary mb-4 w-full justify-center"
-          disabled={ssoBusy}
-          onClick={() => runSso(onSso, setSsoBusy, setSsoError)}
-        >
-          Continue with {oidc.name}
-        </button>
-      )}
-      {ssoError !== null && (
-        <div className="mb-3 text-meta text-err-text">{ssoError}</div>
-      )}
-      {formOpen ? (
-        <LoginForm next={next} />
-      ) : (
-        <button
-          type="button"
-          className="text-meta text-ink-3 underline"
-          onClick={() => setAdminOpen(true)}
-        >
-          Admin sign-in
-        </button>
-      )}
-    </div>
+    <Card className="w-84">
+      <CardContent>
+        <h1 className="page-title">Evalkit</h1>
+        <p className="mt-1 mb-5 text-meta text-ink-3">
+          {oidc === null
+            ? "Sign in with your evalkit account."
+            : `Sign in with your ${oidc.name} account.`}
+        </p>
+        {oidc !== null && (
+          <Button
+            type="button"
+            className="mb-4 w-full"
+            disabled={ssoBusy}
+            onClick={() => runSso(onSso, setSsoBusy, setSsoError)}
+          >
+            Continue with {oidc.name}
+          </Button>
+        )}
+        {ssoError !== null && (
+          <div className="mb-3 text-meta text-err-text">{ssoError}</div>
+        )}
+        {formOpen ? (
+          <LoginForm next={next} />
+        ) : (
+          <button
+            type="button"
+            className="text-meta text-ink-3 underline"
+            onClick={() => setAdminOpen(true)}
+          >
+            Admin sign-in
+          </button>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -149,9 +154,9 @@ export function LoginPage() {
         ) : (
           <div>
             {error !== null && (
-              <div className="card mb-3 w-84 p-3 text-meta text-err-text">
-                {error}
-              </div>
+              <Card size="sm" className="mb-3 w-84 text-meta text-err-text">
+                <CardContent>{error}</CardContent>
+              </Card>
             )}
             <LoginChoices
               providers={providers ?? fallback}

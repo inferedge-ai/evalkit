@@ -23,6 +23,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMe } from "./capabilities";
 import { DOCS_NAV, getNavSections } from "./nav";
 import { useSwitchWorkspace, useWorkspace } from "./workspace";
+import { badgeVariants } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface Loaded {
   dataset: PaletteItem[];
@@ -257,7 +259,7 @@ export function JumpPalette() {
         <div className="flex items-center gap-2 border-b px-3">
           {active && (
             <button
-              className="chip shrink-0"
+              className={cn(badgeVariants({ variant: "info" }), "shrink-0")}
               title="back to all types (Backspace)"
               onClick={() => {
                 setKind(null);

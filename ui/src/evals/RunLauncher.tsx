@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useEffect, useId, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import { apiJson, isNotFound } from "../lib/api";
 import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { questionText } from "../lib/format";
 import { useApi } from "../lib/query";
-import { stateClass, stateLabel } from "../lib/review";
+import { getStateVariant, stateLabel } from "../lib/review";
 import {
   casesInScope,
   cliCommand,
@@ -36,6 +37,9 @@ import type {
   CaseView,
 } from "../lib/types";
 import { CopyButton } from "../lib/ui";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Field, FieldLabel, FieldTitle } from "@/components/ui/field";
 
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "all", label: "All cases" },
@@ -59,6 +63,7 @@ export function RunLauncher({
   initialCaseIds?: string[];
   onClose: () => void;
 }) {
+  const formId = useId();
   const navigate = useNavigate();
   const agentsQuery = useApi<AgentInfo[]>("/agents", {
     select: (all) =>
@@ -169,19 +174,20 @@ export function RunLauncher({
           <DialogDescription className="font-mono">{dataset}</DialogDescription>
         </DialogHeader>
         <div className={FORM_DIALOG_BODY}>
-          <div className="form-row">
-            <span className="form-label">Agent</span>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-agent`}>Agent</FieldLabel>
             <Select
+              id={`${formId}-agent`}
               ariaLabel="agent"
               value={agent}
               onChange={setAgent}
               placeholder={serverRuns ? "No shared agents" : "No agents"}
               options={agents.map((a) => ({ value: a.ref, label: a.ref }))}
             />
-          </div>
-          <div className="form-row items-start">
-            <span className="form-label pt-1.5">Cases</span>
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
+          </Field>
+          <Field>
+            <FieldTitle>Cases</FieldTitle>
+            <div className="flex flex-col gap-2">
               <div className="segment self-start">
                 {SCOPES.map((s) => (
                   <button
@@ -219,9 +225,10 @@ export function RunLauncher({
                       aria-label="selected tags"
                     >
                       {choice.tags.map((tag) => (
-                        <span
+                        <Badge
                           key={tag}
-                          className="chip muted inline-flex items-center font-mono"
+                          variant="secondary"
+                          className="inline-flex items-center font-mono"
                         >
                           {tag}
                           <button
@@ -237,7 +244,7 @@ export function RunLauncher({
                           >
                             <X size={10} />
                           </button>
-                        </span>
+                        </Badge>
                       ))}
                     </div>
                   )}
@@ -259,14 +266,15 @@ export function RunLauncher({
               {choice.scope === "cases" && (
                 <div className="picker">
                   <div className="picker-toolbar">
-                    <input
-                      className="input h-7 min-w-0 flex-1"
+                    <Input
+                      className="h-7 min-w-0 flex-1"
                       placeholder="Filter by id or question"
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
                     />
-                    <button
-                      className="btn btn-sm"
+                    <Button
+                      variant="outline"
+                      size="sm"
                       disabled={!pickable.length}
                       onClick={() =>
                         setChoice((c) => ({
@@ -281,23 +289,23 @@ export function RunLauncher({
                       }
                     >
                       Select shown
-                    </button>
-                    <button
-                      className="btn btn-sm"
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       disabled={!choice.caseIds.length}
                       onClick={() => setChoice((c) => ({ ...c, caseIds: [] }))}
                     >
                       Clear
-                    </button>
+                    </Button>
                   </div>
                   <div className="picker-list">
                     {!examples && <div className="pane-status">Loading…</div>}
                     {pickable.map((ex) => (
-                      <label key={ex.case_id} className="picker-row check">
-                        <input
-                          type="checkbox"
+                      <label key={ex.case_id} className="picker-row">
+                        <Checkbox
                           checked={picked.has(ex.case_id)}
-                          onChange={() => togglePick(ex.case_id)}
+                          onCheckedChange={() => togglePick(ex.case_id)}
                         />
                         <span className="max-w-[60%] shrink-0 truncate font-mono text-ink">
                           {ex.case_id}
@@ -308,11 +316,12 @@ export function RunLauncher({
                         {isSuite &&
                           ex.review &&
                           ex.review.state !== "approved" && (
-                            <span
-                              className={`chip ml-auto shrink-0 ${stateClass(ex.review.state)}`}
+                            <Badge
+                              variant={getStateVariant(ex.review.state)}
+                              className="ml-auto shrink-0"
                             >
                               {stateLabel(ex.review.state)}
-                            </span>
+                            </Badge>
                           )}
                       </label>
                     ))}
@@ -328,11 +337,13 @@ export function RunLauncher({
                   : `${inScope.length} case${inScope.length === 1 ? "" : "s"}`}
               </span>
             </div>
-          </div>
-          <div className="form-row">
-            <span className="form-label">Repetitions</span>
-            <input
-              className="input w-20"
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-repetitions`}>
+              Repetitions
+            </FieldLabel>
+            <Input
+              id={`${formId}-repetitions`}
               type="number"
               min={1}
               max={10}
@@ -341,21 +352,23 @@ export function RunLauncher({
                 setRuns(Math.max(1, Math.min(10, Number(e.target.value) || 1)))
               }
             />
-          </div>
-          <div className="form-row">
-            <span className="form-label">Model</span>
-            <input
-              className="input w-72"
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-model`}>Model</FieldLabel>
+            <Input
+              id={`${formId}-model`}
               placeholder="harness default"
               value={model}
               onChange={(e) => setModel(e.target.value)}
               title="Used only if the harness accepts a model override"
             />
-          </div>
-          <div className="form-row">
-            <span className="form-label">Evaluation concurrency</span>
-            <input
-              className="input w-20"
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-evaluation-concurrency`}>
+              Evaluation concurrency
+            </FieldLabel>
+            <Input
+              id={`${formId}-evaluation-concurrency`}
               type="number"
               min={1}
               placeholder="default"
@@ -369,10 +382,13 @@ export function RunLauncher({
               }
               title="How many runs are scored at once. Server runs default to the server's limit and may not go above it"
             />
-          </div>
-          <div className="form-row">
-            <span className="form-label">Judge provider</span>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-judge-provider`}>
+              Judge provider
+            </FieldLabel>
             <Select
+              id={`${formId}-judge-provider`}
               ariaLabel="judge provider"
               value={judge.provider}
               onChange={(provider) => setJudge({ ...judge, provider })}
@@ -387,7 +403,7 @@ export function RunLauncher({
               ]}
               title="LLM providers an admin registered; judge-using evaluators run on the server with these"
             />
-          </div>
+          </Field>
           {!judgeDefault && (
             <p className="row-meta whitespace-normal">
               This server has no default judge yet. Pick a provider and a judge
@@ -395,27 +411,27 @@ export function RunLauncher({
             </p>
           )}
           {(["model", "reasoning_effort"] as const).map((key) => (
-            <div key={key} className="form-row">
-              <span className="form-label">
+            <Field key={key}>
+              <FieldLabel htmlFor={`${formId}-judge-${key}`}>
                 {key === "model" ? "Judge model" : "Judge effort"}
-              </span>
-              <input
-                className="input w-72"
+              </FieldLabel>
+              <Input
+                id={`${formId}-judge-${key}`}
                 placeholder={judgeDefault?.[key] ?? ""}
                 value={judge[key]}
                 onChange={(e) => setJudge({ ...judge, [key]: e.target.value })}
                 title="Defaults to the server's judge; the experiment records the judge it used"
               />
-            </div>
+            </Field>
           ))}
           {request && (
-            <div className="form-row items-start">
-              <span className="form-label pt-1">CLI</span>
+            <Field>
+              <FieldTitle>CLI</FieldTitle>
               <div className="cli-preview">
                 <code>{cliCommand(request)}</code>
                 <CopyButton text={cliCommand(request)} />
               </div>
-            </div>
+            </Field>
           )}
         </div>
         <DialogFooter>

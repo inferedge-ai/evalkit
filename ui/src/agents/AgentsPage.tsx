@@ -9,6 +9,9 @@ import type { AgentInfo } from "../lib/types";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 function AgentRow({ agent }: { agent: AgentInfo }) {
   return (
@@ -17,11 +20,11 @@ function AgentRow({ agent }: { agent: AgentInfo }) {
       to={`/agents/${encodeURIComponent(agent.ref)}/overview`}
     >
       <span className="row-strong">{agent.name}</span>
-      <span className="chip muted">{agentKind(agent)}</span>
+      <Badge variant="secondary">{agentKind(agent)}</Badge>
       <span className="row-meta truncate font-mono">
         {agent.harness_url ?? ""}
       </span>
-      <span className="chip muted">{agent.driver}</span>
+      <Badge variant="secondary">{agent.driver}</Badge>
     </Link>
   );
 }
@@ -50,9 +53,13 @@ export function AgentsPage() {
         title="Agents"
         actions={
           writable && (
-            <button className="btn btn-sm" onClick={() => setCreating(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCreating(true)}
+            >
               New agent
-            </button>
+            </Button>
           )
         }
       />
@@ -76,22 +83,22 @@ export function AgentsPage() {
           </div>
         )}
         {agents && agents.length > 0 && (
-          <div className="card rows">
+          <Card className="rows gap-0 py-0">
             {agents.map((agent) => (
               <AgentRow key={agent.ref} agent={agent} />
             ))}
-          </div>
+          </Card>
         )}
         {archived.length > 0 && (
           <details className="mt-4">
             <summary className="row-meta cursor-pointer">
               Archived ({archived.length})
             </summary>
-            <div className="card rows mt-2">
+            <Card className="rows gap-0 py-0 mt-2">
               {archived.map((agent) => (
                 <AgentRow key={agent.ref} agent={agent} />
               ))}
-            </div>
+            </Card>
           </details>
         )}
         {creating && (

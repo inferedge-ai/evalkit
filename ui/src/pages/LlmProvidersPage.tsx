@@ -7,6 +7,10 @@ import { LlmProviderForm } from "./LlmProviderForm";
 import { Select } from "../lib/Select";
 import type { JudgeSettings, LlmProviderInfo } from "../lib/types";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 function DefaultJudge({
   providers,
@@ -65,7 +69,7 @@ function DefaultJudge({
   }
   return (
     <form className="toolbar mb-3" onSubmit={save}>
-      <span className="form-label">Default judge</span>
+      <span className="row-meta">Default judge</span>
       <Select
         ariaLabel="default judge provider"
         value={provider}
@@ -73,22 +77,22 @@ function DefaultJudge({
         placeholder="provider"
         options={providers.map((p) => ({ value: p.name, label: p.name }))}
       />
-      <input
-        className="input"
+      <Input
+        className="w-auto"
         placeholder="model"
         value={model}
         onChange={(e) => setModel(e.target.value)}
         required
       />
-      <input
-        className="input w-28"
+      <Input
+        className="w-28"
         placeholder="effort"
         value={effort}
         onChange={(e) => setEffort(e.target.value)}
       />
-      <button className="btn btn-primary" disabled={!provider}>
+      <Button type="submit" disabled={!provider}>
         Save
-      </button>
+      </Button>
       {status && <span className="row-meta">{status}</span>}
     </form>
   );
@@ -124,9 +128,13 @@ export function LlmProvidersPage() {
         title="LLM providers"
         actions={
           me.is_admin && (
-            <button className="btn btn-sm" onClick={() => setEditing("new")}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditing("new")}
+            >
               New provider
-            </button>
+            </Button>
           )
         }
       />
@@ -139,7 +147,7 @@ export function LlmProvidersPage() {
         </p>
         {rows && <DefaultJudge providers={active} editable={me.is_admin} />}
         {error && <div className="pane-status error">{error}</div>}
-        <div className="card rows">
+        <Card className="rows gap-0 py-0">
           {rows?.map((row) => (
             <div
               key={row.name}
@@ -149,28 +157,30 @@ export function LlmProvidersPage() {
               <span className="row-meta truncate font-mono">
                 {row.base_url}
               </span>
-              <span className="chip muted">
+              <Badge variant="secondary">
                 {row.archived
                   ? "archived"
                   : row.has_api_key
                     ? "key set"
                     : "no key"}
-              </span>
+              </Badge>
               {me.is_admin ? (
                 <>
-                  <button
-                    className="btn btn-sm"
+                  <Button
+                    variant="outline"
+                    size="sm"
                     disabled={row.archived}
                     onClick={() => setEditing(row)}
                   >
                     edit
-                  </button>
-                  <button
-                    className="btn btn-sm"
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => toggleArchive(row)}
                   >
                     {row.archived ? "restore" : "archive"}
-                  </button>
+                  </Button>
                 </>
               ) : (
                 <>
@@ -183,7 +193,7 @@ export function LlmProvidersPage() {
           {rows && !rows.length && (
             <div className="pane-status">No LLM providers.</div>
           )}
-        </div>
+        </Card>
         {editing && (
           <LlmProviderForm
             provider={editing === "new" ? undefined : editing}

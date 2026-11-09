@@ -131,14 +131,13 @@ function menuOrder(): string[] {
 // The grid hands its events over on a timer; the menu shows a change only once
 // its handler, which also saves the layout, has run.
 async function toggleColumn(colId: string) {
+  const checked = () =>
+    screen.getByRole("checkbox", { name: colId }).getAttribute("aria-checked");
   const box = await screen.findByRole("checkbox", { name: colId });
-  const was = (box as HTMLInputElement).checked;
+  const was = checked();
   fireEvent.click(box);
   await waitFor(() =>
-    expect(screen.getByRole("checkbox", { name: colId })).toHaveProperty(
-      "checked",
-      !was,
-    ),
+    expect(checked()).toBe(was === "true" ? "false" : "true"),
   );
 }
 

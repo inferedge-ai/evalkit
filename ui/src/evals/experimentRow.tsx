@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import type { ColDef } from "ag-grid-community";
 import {
   STATUS_TONE,
@@ -91,9 +92,9 @@ export function experimentTailColumns(
       type: "text",
       field: "status",
       cellRenderer: renderCell<ExperimentListItem>((exp) => (
-        <span className={`chip ${STATUS_TONE[exp.status] ?? "muted"}`}>
+        <Badge variant={STATUS_TONE[exp.status] ?? "secondary"}>
           {exp.status}
-        </span>
+        </Badge>
       )),
     },
     {

@@ -13,6 +13,7 @@ import { RunLauncher } from "./RunLauncher";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
 
 type Tab = "experiments" | "cases" | "tags";
 
@@ -84,11 +85,7 @@ function DatasetView() {
         breadcrumbs={[{ label: "Datasets", to: "/datasets" }]}
         title={<span className="font-mono">{ref}</span>}
         actions={
-          info && (
-            <button className="btn btn-primary" onClick={() => setLaunch({})}>
-              Run experiment
-            </button>
-          )
+          info && <Button onClick={() => setLaunch({})}>Run experiment</Button>
         }
       />
       <div className="page">

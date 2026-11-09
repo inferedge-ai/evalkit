@@ -5,6 +5,10 @@ import { ENDPOINT_NOTE } from "../lib/endpoint";
 import { refreshQueries, useApi } from "../lib/query";
 import type { TraceSourceInfo } from "../lib/types";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 export function TraceSourcesPage() {
   const listed = useApi<TraceSourceInfo[]>("/trace-sources");
@@ -55,49 +59,53 @@ export function TraceSourcesPage() {
           encrypted and never shown again.
         </p>
         <form className="toolbar mt-3 mb-3" onSubmit={create}>
-          <input
-            className="input"
+          <Input
+            className="w-auto"
             placeholder="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
           />
-          <input
-            className="input min-w-0 flex-1"
+          <Input
+            className="min-w-0 flex-1"
             placeholder="Phoenix URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             required
           />
-          <input
-            className="input"
+          <Input
+            className="w-auto"
             type="password"
             placeholder="API key"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />
-          <button className="btn btn-primary">Add trace source</button>
+          <Button type="submit">Add trace source</Button>
         </form>
         <p className="row-meta mb-3 whitespace-normal">{ENDPOINT_NOTE}</p>
         {error && <div className="pane-status error">{error}</div>}
-        <div className="card rows">
+        <Card className="rows gap-0 py-0">
           {rows?.map((row) => (
             <div
               key={row.id}
               className="row grid-cols-[minmax(0,1fr)_auto_minmax(0,2fr)_auto]"
             >
               <span className="row-strong">{row.name}</span>
-              <span className="chip muted">{row.provider}</span>
+              <Badge variant="secondary">{row.provider}</Badge>
               <span className="row-meta truncate font-mono">{row.url}</span>
-              <button className="btn btn-sm" onClick={() => archive(row.name)}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => archive(row.name)}
+              >
                 archive
-              </button>
+              </Button>
             </div>
           ))}
           {rows && !rows.length && (
             <div className="pane-status">No trace sources.</div>
           )}
-        </div>
+        </Card>
       </div>
     </>
   );

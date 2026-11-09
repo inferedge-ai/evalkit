@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { canWrite } from "../lib/access";
@@ -8,6 +9,9 @@ import type { Dataset } from "../lib/types";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 function datasetMeta(ds: Dataset): string {
   const parts: string[] = [];
@@ -30,7 +34,7 @@ function DatasetRow({ ds }: { ds: Dataset }) {
       to={`/datasets/${encodeURIComponent(ds.ref)}`}
     >
       <span className="row-strong">{ds.name}</span>
-      <span className="chip muted">{ds.kind}</span>
+      <Badge variant="secondary">{ds.kind}</Badge>
       <span
         className="row-meta num truncate text-right"
         title={datasetMeta(ds)}
@@ -65,8 +69,8 @@ export function DatasetsPage() {
       <PageHeader title="Datasets" />
       <div className="page">
         <div className="toolbar mb-3">
-          <input
-            className="input w-64"
+          <Input
+            className="w-64"
             placeholder="Filter datasets"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -77,48 +81,51 @@ export function DatasetsPage() {
         </div>
         {error && <div className="pane-status error">{error}</div>}
         {loading && (
-          <div className="card rows">
+          <Card className="rows gap-0 py-0">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="row grid-cols-[1fr_auto]">
-                <span
-                  className="skeleton h-4"
-                  style={{ width: `${30 + i * 6}%` }}
-                />
-                <span className="skeleton h-3 w-40" />
+                <Skeleton className="h-4" style={{ width: `${30 + i * 6}%` }} />
+                <Skeleton className="h-3 w-40" />
               </div>
             ))}
-          </div>
+          </Card>
         )}
         {!loading && (
           <>
             {datasets && datasets.length === 0 && !writable && (
-              <div className="card pane-status">
-                No datasets in @{workspace.name}. This workspace is read-only
-                for you.
-              </div>
+              <Card className="gap-0 py-0">
+                <div className="pane-status">
+                  No datasets in @{workspace.name}. This workspace is read-only
+                  for you.
+                </div>
+              </Card>
             )}
             {datasets && datasets.length === 0 && writable && (
-              <div className="card pane-status">
-                No datasets in @{workspace.name} — run{" "}
-                <span className="font-mono">
-                  {workspace.type === "shared"
-                    ? `evalkit sync <dir> --workspace ${workspace.name}`
-                    : "evalkit run finance --agent <your-agent>"}
-                </span>{" "}
-                from a repo with an evalkit.yaml.
-              </div>
+              <Card className="gap-0 py-0">
+                <div className="pane-status">
+                  No datasets in @{workspace.name} — run{" "}
+                  <span className="font-mono">
+                    {workspace.type === "shared"
+                      ? `evalkit sync <dir> --workspace ${workspace.name}`
+                      : "evalkit run finance --agent <your-agent>"}
+                  </span>{" "}
+                  from a repo with an evalkit.yaml.
+                </div>
+              </Card>
             )}
             {datasets && datasets.length > 0 && visible.length === 0 && (
-              <div className="card pane-status">
-                No datasets match this filter.
-              </div>
+              <Card className="gap-0 py-0">
+                <div className="pane-status">
+                  No datasets match this filter.
+                </div>
+              </Card>
             )}
             {visible.length > 0 && (
-              <div className="card rows">
+              <Card className="rows gap-0 py-0">
                 {visible.map((ds) => (
                   <DatasetRow key={ds.ref} ds={ds} />
                 ))}
-              </div>
+              </Card>
             )}
           </>
         )}

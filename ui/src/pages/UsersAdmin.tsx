@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { apiJson } from "../lib/api";
@@ -5,6 +6,10 @@ import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
 import type { UserRow } from "../lib/types";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 type UserAction = "archive" | "restore" | "promote" | "demote";
 
@@ -48,38 +53,35 @@ export function UsersAdminPage() {
           blocks login and archives their personal workspace.
         </p>
         <form className="toolbar mt-3 mb-3" onSubmit={add}>
-          <input
-            className="input"
+          <Input
+            className="w-auto"
             placeholder="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
           />
-          <input
-            className="input"
+          <Input
+            className="w-auto"
             type="password"
             placeholder="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <button className="btn btn-primary">Add user</button>
+          <Button type="submit">Add user</Button>
           {error && <span className="text-meta text-err-text">{error}</span>}
         </form>
         {!users ? (
-          <div className="card rows">
+          <Card className="rows gap-0 py-0">
             {Array.from({ length: 4 }, (_, i) => (
               <div key={i} className="row grid-cols-[1fr_auto]">
-                <span
-                  className="skeleton h-4"
-                  style={{ width: `${20 + i * 8}%` }}
-                />
-                <span className="skeleton h-3 w-24" />
+                <Skeleton className="h-4" style={{ width: `${20 + i * 8}%` }} />
+                <Skeleton className="h-3 w-24" />
               </div>
             ))}
-          </div>
+          </Card>
         ) : (
-          <div className="card">
+          <Card className="gap-0 py-0">
             <div className="rows">
               {users.map((user) => (
                 <div
@@ -88,34 +90,36 @@ export function UsersAdminPage() {
                 >
                   <span className="font-mono">{user.username}</span>
                   <span className="flex gap-1">
-                    {user.is_admin && <span className="chip muted">admin</span>}
+                    {user.is_admin && <Badge variant="secondary">admin</Badge>}
                     {user.archived && (
-                      <span className="chip muted">archived</span>
+                      <Badge variant="secondary">archived</Badge>
                     )}
                   </span>
                   <span className="row-meta num">
                     {fmtWhen(user.created_at)}
                   </span>
-                  <button
-                    className="btn btn-sm"
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() =>
                       act(user.username, user.is_admin ? "demote" : "promote")
                     }
                   >
                     {user.is_admin ? "demote" : "make admin"}
-                  </button>
-                  <button
-                    className="btn btn-sm"
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() =>
                       act(user.username, user.archived ? "restore" : "archive")
                     }
                   >
                     {user.archived ? "restore" : "archive"}
-                  </button>
+                  </Button>
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         )}
       </div>
     </>

@@ -3,6 +3,7 @@ import { fmtWhen } from "../lib/format";
 import { useApi } from "../lib/query";
 import { ToArrow } from "../lib/ui";
 import type { CaseEvent } from "../lib/types";
+import { Card } from "@/components/ui/card";
 
 const KIND_LABEL: Record<CaseEvent["kind"], string> = {
   synced: "synced",
@@ -35,7 +36,7 @@ export function CaseChangelog({
   return (
     <>
       <div className="eyebrow">Changelog</div>
-      <div className="card">
+      <Card className="gap-0 py-0">
         <div className="rows">
           {shown.map((e) => {
             const previous =
@@ -89,7 +90,7 @@ export function CaseChangelog({
             </button>
           ) : null}
         </div>
-      </div>
+      </Card>
     </>
   );
 }

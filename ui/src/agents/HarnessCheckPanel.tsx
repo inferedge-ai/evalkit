@@ -1,7 +1,10 @@
+import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { Check, Minus, TriangleAlert, X } from "lucide-react";
 import { apiJson } from "../lib/api";
 import type { HarnessCheckReport } from "../lib/types";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 const STATUS_ICON = {
   pass: Check,
@@ -9,11 +12,11 @@ const STATUS_ICON = {
   fail: X,
   skipped: Minus,
 } as const;
-const CLS = {
-  pass: "chip-pass",
-  warn: "chip-partial",
-  fail: "chip-fail",
-  skipped: "chip-none",
+const VARIANT = {
+  pass: "pass",
+  warn: "partial",
+  fail: "fail",
+  skipped: "secondary",
 } as const;
 
 export function HarnessCheckPanel({ agent }: { agent: string }) {
@@ -42,9 +45,9 @@ export function HarnessCheckPanel({ agent }: { agent: string }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="toolbar">
-        <button className="btn btn-primary" disabled={busy} onClick={run}>
+        <Button disabled={busy} onClick={run}>
           {busy ? "Checking… (runs a live agent call)" : "Run check"}
-        </button>
+        </Button>
         <p className="text-meta text-ink-3">
           Exercises the agent's Harness API: capabilities, the probe input
           against its input schema, a trivial run to a terminal status, the
@@ -54,7 +57,7 @@ export function HarnessCheckPanel({ agent }: { agent: string }) {
       </div>
       {error && <div className="pane-status error">{error}</div>}
       {report && (
-        <div className="card">
+        <Card className="gap-0 py-0">
           <div className="rows">
             {Object.entries(report.checks).map(([capability, entry]) => {
               const Icon = STATUS_ICON[entry.status];
@@ -64,11 +67,9 @@ export function HarnessCheckPanel({ agent }: { agent: string }) {
                   className="row grid-cols-[8rem_auto_minmax(0,1fr)]"
                 >
                   <span className="font-mono">{capability}</span>
-                  <span
-                    className={`chip inline-flex items-center gap-1 ${CLS[entry.status]}`}
-                  >
+                  <Badge variant={VARIANT[entry.status]}>
                     <Icon size={11} /> {entry.status}
-                  </span>
+                  </Badge>
                   <span className="truncate text-ink-3" title={entry.detail}>
                     {entry.detail}
                   </span>
@@ -76,7 +77,7 @@ export function HarnessCheckPanel({ agent }: { agent: string }) {
               );
             })}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

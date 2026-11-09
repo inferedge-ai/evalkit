@@ -1,3 +1,5 @@
+import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
@@ -39,6 +41,9 @@ import { MultiSelect, Select } from "../lib/Select";
 import { hasAnyTag, sortedTags, tagCounts } from "../lib/tags";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 function ScorecardSkeleton() {
   return (
@@ -47,8 +52,8 @@ function ScorecardSkeleton() {
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
         {Array.from({ length: 5 }, (_, i) => (
           <div className="tile tile-hero" key={i}>
-            <div className="skeleton h-3 w-24" />
-            <div className="skeleton mt-2 h-7 w-16" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="mt-2 h-7 w-16" />
           </div>
         ))}
       </div>
@@ -56,30 +61,27 @@ function ScorecardSkeleton() {
       <div className="tile-grid">
         {Array.from({ length: 10 }, (_, i) => (
           <div className="tile" key={i}>
-            <div className="skeleton h-3 w-20" />
-            <div className="skeleton mt-2 h-4 w-10" />
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-4 w-10" />
           </div>
         ))}
       </div>
       <div className="eyebrow">Cases</div>
-      <div className="card">
+      <Card className="gap-0 py-0">
         <div className="rows">
           {Array.from({ length: 12 }, (_, i) => (
             <div
               key={i}
               className="row grid-cols-[minmax(0,1fr)_repeat(5,4rem)]"
             >
-              <span
-                className="skeleton h-3.5"
-                style={{ width: `${30 + i * 4}%` }}
-              />
+              <Skeleton className="h-3.5" style={{ width: `${30 + i * 4}%` }} />
               {Array.from({ length: 5 }, (_, j) => (
-                <span className="skeleton h-3.5" key={j} />
+                <Skeleton className="h-3.5" key={j} />
               ))}
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </>
   );
 }
@@ -213,8 +215,8 @@ function ExperimentView() {
                 experimentId={status.id}
               />
               {drives && (
-                <button
-                  className="btn"
+                <Button
+                  variant="outline"
                   disabled={busyAction !== null || isActive(status.status)}
                   onClick={() =>
                     reevaluateStrandsCases(status)
@@ -224,16 +226,16 @@ function ExperimentView() {
                   title="re-run the evaluate phase on recorded runs"
                 >
                   {busyAction === "evaluate" ? "Evaluating…" : "Re-evaluate"}
-                </button>
+                </Button>
               )}
               {drives && canResume(status) && (
-                <button
-                  className="btn"
+                <Button
+                  variant="outline"
                   disabled={busyAction !== null}
                   onClick={() => action("resume")}
                 >
                   {busyAction === "resume" ? "Resuming…" : "Resume"}
-                </button>
+                </Button>
               )}
               {!drives && status.can_change && canResume(status) && (
                 <span className="row-meta font-mono">
@@ -249,23 +251,20 @@ function ExperimentView() {
           <span className="row-meta" title="experiment id">
             <CopyText value={experimentId} />
           </span>
-          {tag && <span className="chip muted">{tag}</span>}
+          {tag && <Badge variant="secondary">{tag}</Badge>}
           {config?.snapshot.trajectory_source === "otel" && (
-            <span
-              className="chip muted"
+            <Badge
+              variant="secondary"
               title="trajectories come from collected traces"
             >
               traces
-            </span>
+            </Badge>
           )}
           <WorkspaceChip workspace={status?.workspace} />
           {selection && (
-            <span
-              className="chip muted"
-              title="the cases this experiment ran on"
-            >
+            <Badge variant="secondary" title="the cases this experiment ran on">
               cases: {selection}
-            </span>
+            </Badge>
           )}
           <RevisionChip
             sha={rev.sha}
@@ -273,18 +272,20 @@ function ExperimentView() {
             url={agentCommitUrl(status?.agent, rev.sha)}
           />
           {cases?.sha && (
-            <span
-              className="chip muted font-mono"
+            <Badge
+              variant="secondary"
+              className="font-mono"
               title={`cases ${cases.branch ? `${cases.branch} @ ` : ""}${cases.sha}${cases.dirty ? " (dirty)" : ""}`}
             >
               cases {cases.sha.slice(0, 8)}
               {cases.dirty ? "*" : ""}
-            </span>
+            </Badge>
           )}
           {config?.judge?.model && (
-            <span
+            <Badge
               id="judge"
-              className="chip muted font-mono"
+              variant="secondary"
+              className="font-mono"
               title={[
                 `judge ${config.judge.model}`,
                 config.judge.provider
@@ -302,7 +303,7 @@ function ExperimentView() {
               {config.judge.reasoning_effort
                 ? ` · ${config.judge.reasoning_effort}`
                 : ""}
-            </span>
+            </Badge>
           )}
           {config?.snapshot.evalkit_version && (
             <span
@@ -313,9 +314,9 @@ function ExperimentView() {
             </span>
           )}
           {status && (
-            <span className={`chip ${STATUS_TONE[status.status] ?? "muted"}`}>
+            <Badge variant={STATUS_TONE[status.status] ?? "secondary"}>
               {status.status}
-            </span>
+            </Badge>
           )}
           {status && <ProgressBar progress={status.progress} />}
           {status && (
@@ -397,11 +398,10 @@ function ExperimentView() {
                       }))}
                     />
                   )}
-                  <label className="check">
-                    <input
-                      type="checkbox"
+                  <label className="flex cursor-pointer items-center gap-1.5 text-meta text-muted-foreground select-none">
+                    <Checkbox
                       checked={failingOnly}
-                      onChange={(e) => setFailingOnly(e.target.checked)}
+                      onCheckedChange={(checked) => setFailingOnly(checked)}
                     />
                     failing only
                   </label>
@@ -430,9 +430,9 @@ function ExperimentView() {
                         {case_id}
                       </Link>
                     )}
-                    <span className={`chip ${CASE_STATE_TONE[state]} ml-2`}>
+                    <Badge variant={CASE_STATE_TONE[state]} className="ml-2">
                       {CASE_STATE_LABEL[state]}
-                    </span>
+                    </Badge>
                     {status && (
                       <Link
                         to={`/datasets/${encodeURIComponent(status.dataset)}/cases/${encodeURIComponent(case_id)}`}
@@ -446,12 +446,13 @@ function ExperimentView() {
                       </Link>
                     )}
                     {row && row.run_errors.length > 0 && (
-                      <span
-                        className="chip chip-fail ml-2"
+                      <Badge
+                        variant="fail"
+                        className="ml-2"
                         title={row.run_errors.join("\n")}
                       >
                         run error
-                      </span>
+                      </Badge>
                     )}
                   </>
                 );

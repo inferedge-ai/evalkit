@@ -1,3 +1,4 @@
+import type { BadgeVariant } from "@/components/ui/badge";
 import type { CaseRow, CaseRunState, Report } from "./types";
 
 export const CASE_STATE_LABEL: Record<CaseRunState, string> = {
@@ -6,10 +7,10 @@ export const CASE_STATE_LABEL: Record<CaseRunState, string> = {
   evaluated: "evaluated",
 };
 
-export const CASE_STATE_TONE: Record<CaseRunState, string> = {
-  pending: "muted",
-  ran: "chip-partial",
-  evaluated: "chip-pass",
+export const CASE_STATE_TONE: Record<CaseRunState, BadgeVariant> = {
+  pending: "secondary",
+  ran: "partial",
+  evaluated: "pass",
 };
 
 export interface CaseListRow {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,6 +16,8 @@ import { ENDPOINT_NOTE, PERSONAL_KEY_NOTE } from "../lib/endpoint";
 import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { Select } from "../lib/Select";
 import type { RemoteEvaluatorInfo, WorkspaceInfo } from "../lib/types";
+import { Input } from "@/components/ui/input";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 
 export interface EvaluatorFormValues {
   name: string;
@@ -68,6 +70,7 @@ export function EvaluatorForm({
   onSaved: () => void;
   onClose: () => void;
 }) {
+  const formId = useId();
   const [values, setValues] = useState<EvaluatorFormValues>({
     name: evaluator?.name ?? "",
     kind: evaluator?.kind ?? "score",
@@ -122,18 +125,19 @@ export function EvaluatorForm({
         <div className={FORM_DIALOG_BODY}>
           {!evaluator && (
             <>
-              <div className="form-row">
-                <span className="form-label">Name</span>
-                <input
-                  className="input w-72"
+              <Field>
+                <FieldLabel htmlFor={`${formId}-name`}>Name</FieldLabel>
+                <Input
+                  id={`${formId}-name`}
                   aria-label="name"
                   value={values.name}
                   onChange={(e) => set("name", e.target.value)}
                 />
-              </div>
-              <div className="form-row">
-                <span className="form-label">Kind</span>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`${formId}-kind`}>Kind</FieldLabel>
                 <Select
+                  id={`${formId}-kind`}
                   ariaLabel="kind"
                   value={values.kind}
                   onChange={(kind) => set("kind", kind)}
@@ -142,39 +146,40 @@ export function EvaluatorForm({
                     { value: "gauge", label: "gauge" },
                   ]}
                 />
-              </div>
+              </Field>
             </>
           )}
-          <div className="form-row">
-            <span className="form-label">Endpoint</span>
-            <input
-              className="input min-w-0 flex-1"
+          <Field>
+            <FieldLabel htmlFor={`${formId}-endpoint`}>Endpoint</FieldLabel>
+            <Input
+              id={`${formId}-endpoint`}
               aria-label="endpoint"
               placeholder="https://evaluators.example.com/evaluate"
               value={values.endpoint}
               onChange={(e) => set("endpoint", e.target.value)}
             />
-          </div>
-          <p className="row-meta whitespace-normal">{ENDPOINT_NOTE}</p>
-          <div className="form-row">
-            <span className="form-label">Timeout (s)</span>
-            <input
-              className="input w-28"
+            <FieldDescription>{ENDPOINT_NOTE}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-timeout-s`}>Timeout (s)</FieldLabel>
+            <Input
+              id={`${formId}-timeout-s`}
               aria-label="timeout"
               inputMode="numeric"
               value={values.timeout}
               onChange={(e) => set("timeout", e.target.value)}
             />
-          </div>
+          </Field>
           {shared ? (
-            <div className="form-row">
-              <span className="form-label">API key</span>
+            <Field>
+              <FieldLabel htmlFor={`${formId}-api-key`}>API key</FieldLabel>
               <ApiKeyField
+                id={`${formId}-api-key`}
                 hasKey={evaluator?.has_api_key ?? false}
                 value={values.apiKey}
                 onChange={(apiKey) => set("apiKey", apiKey)}
               />
-            </div>
+            </Field>
           ) : (
             <p className="row-meta whitespace-normal">{PERSONAL_KEY_NOTE}</p>
           )}

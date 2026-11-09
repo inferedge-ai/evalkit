@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { ArrowUpRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
@@ -22,6 +23,9 @@ import type { ExperimentInfo, Report } from "../lib/types";
 import { ScoreMatrix } from "./ScoreMatrix";
 import { CompareBucketCards, CostSpeedLine } from "./ScoreSummary";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Badge, badgeVariants } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
 
 interface CompareResponse {
   base: Report;
@@ -173,13 +177,19 @@ export function ComparePage() {
       />
       <div className="page">
         <div className="toolbar mb-3">
-          <Link className="chip muted font-mono" to={`/experiments/${base}`}>
+          <Link
+            className={cn(badgeVariants({ variant: "secondary" }), "font-mono")}
+            to={`/experiments/${base}`}
+          >
             base: {data.base.dataset} {data.base.name}
           </Link>
           <span className="text-ink-4">
             <ToArrow />
           </span>
-          <Link className="chip muted font-mono" to={`/experiments/${compare}`}>
+          <Link
+            className={cn(badgeVariants({ variant: "secondary" }), "font-mono")}
+            to={`/experiments/${compare}`}
+          >
             {data.compare.dataset} {data.compare.name}
           </Link>
         </div>
@@ -210,7 +220,9 @@ export function ComparePage() {
             <button
               key={c}
               type="button"
-              className={`chip ${only === c ? "" : "muted"}`}
+              className={badgeVariants({
+                variant: only === c ? "info" : "secondary",
+              })}
               onClick={() => setOnly(only === c ? null : c)}
               title={
                 only === c
@@ -222,25 +234,25 @@ export function ComparePage() {
             </button>
           ))}
           <span className="ml-auto flex gap-1">
-            <button
-              type="button"
-              className={`btn btn-sm ${view === "list" ? "btn-primary" : ""}`}
+            <Button
+              size="sm"
+              variant={view === "list" ? "default" : "outline"}
               onClick={() => setView("list")}
             >
               List
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${view === "grid" ? "btn-primary" : ""}`}
+            </Button>
+            <Button
+              size="sm"
+              variant={view === "grid" ? "default" : "outline"}
               onClick={() => setView("grid")}
             >
               All evaluators
-            </button>
+            </Button>
           </span>
         </div>
 
         {view === "list" && (
-          <div className="card">
+          <Card className="gap-0 py-0">
             <div className="rows">
               {shown.map((r) => (
                 <div key={r.case_id}>
@@ -266,9 +278,9 @@ export function ComparePage() {
                     <span className={`num ${deltaTone(r.delta)}`}>
                       {fmtDelta(r.delta) ?? "—"}
                     </span>
-                    <span className="chip muted justify-self-end">
+                    <Badge variant="secondary" className="justify-self-end">
                       {CHANGE_LABEL[r.change]}
-                    </span>
+                    </Badge>
                   </button>
                   {open.has(r.case_id) && (
                     <CaseDetail
@@ -281,7 +293,7 @@ export function ComparePage() {
                 </div>
               ))}
             </div>
-          </div>
+          </Card>
         )}
 
         {view === "grid" && (

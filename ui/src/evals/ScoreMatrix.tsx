@@ -1,3 +1,4 @@
+import { Checkbox } from "@/components/ui/checkbox";
 import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { ReactNode } from "react";
@@ -424,11 +425,16 @@ export function ScoreMatrix({
           const cols = t.cols.flatMap((c) => api?.getColumn(c) ?? []);
           if (!cols.length) return null;
           return (
-            <label className="check" title={t.title} key={t.label}>
-              <input
-                type="checkbox"
+            <label
+              className="flex cursor-pointer items-center gap-1.5 text-meta text-muted-foreground select-none"
+              title={t.title}
+              key={t.label}
+            >
+              <Checkbox
                 checked={cols.every((c) => c.isVisible())}
-                onChange={(e) => api?.setColumnsVisible(cols, e.target.checked)}
+                onCheckedChange={(checked) =>
+                  api?.setColumnsVisible(cols, checked)
+                }
               />
               {t.label}
             </label>

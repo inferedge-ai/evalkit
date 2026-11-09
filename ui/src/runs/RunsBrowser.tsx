@@ -18,6 +18,9 @@ import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const NO_RUNS: RunListItem[] = [];
 
@@ -156,8 +159,8 @@ export function RunsBrowser() {
             placeholder="No agents"
             options={agents.map((a) => ({ value: a.ref, label: a.name }))}
           />
-          <input
-            className="input w-72"
+          <Input
+            className="w-72"
             placeholder={
               otel ? "Session id prefix" : "Search id prefix or title"
             }
@@ -165,26 +168,22 @@ export function RunsBrowser() {
             onChange={(e) => setQuery(e.target.value)}
           />
           {!otel && (
-            <input
-              className="input w-44"
+            <Input
+              className="w-44"
               placeholder="User id"
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
             />
           )}
           {otel && (
-            <label className="flex items-center gap-1 text-meta text-ink-2">
-              <input
-                type="checkbox"
-                checked={noSession}
-                onChange={(e) => setNoSession(e.target.checked)}
-              />
+            <label className="flex cursor-pointer items-center gap-1.5 text-meta text-muted-foreground select-none">
+              <Checkbox checked={noSession} onCheckedChange={setNoSession} />
               no session
             </label>
           )}
           {otel && (
             <Link
-              className="btn btn-quiet text-brand"
+              className={buttonVariants({ variant: "link" })}
               to={`/agents/${encodeURIComponent(agent)}/mappings`}
             >
               Agent <ArrowUpRight size={12} />

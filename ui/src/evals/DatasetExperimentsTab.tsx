@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
@@ -12,6 +13,7 @@ import { EXPERIMENT_LIST_LIMIT, listCapNote } from "../lib/experimentStatus";
 import { useApi } from "../lib/query";
 import type { ExperimentListItem } from "../lib/types";
 import { experimentTailColumns } from "./experimentRow";
+import { Card } from "@/components/ui/card";
 
 const getExperimentId = (exp: ExperimentListItem) => String(exp.id);
 
@@ -53,17 +55,14 @@ export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
   if (error) return <div className="pane-status error">{error}</div>;
   if (!experiments)
     return (
-      <div className="card rows">
+      <Card className="rows gap-0 py-0">
         {Array.from({ length: 5 }, (_, i) => (
           <div key={i} className="row grid-cols-[1fr_auto]">
-            <span
-              className="skeleton h-4"
-              style={{ width: `${25 + i * 7}%` }}
-            />
-            <span className="skeleton h-3 w-40" />
+            <Skeleton className="h-4" style={{ width: `${25 + i * 7}%` }} />
+            <Skeleton className="h-3 w-40" />
           </div>
         ))}
-      </div>
+      </Card>
     );
   if (experiments.length === 0)
     return (

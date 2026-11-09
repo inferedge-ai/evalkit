@@ -8,6 +8,9 @@ import { messageCounts } from "../lib/esfSummary";
 import { mappingRows, ruleNotes, sameRule } from "../lib/mappingRules";
 import type { MappingRecord, RunList, SessionTrajectory } from "../lib/types";
 import { TrajectoryViewer } from "../runs/TrajectoryViewer";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function Summary({ session }: { session: SessionTrajectory }) {
   const esf = session.esf ?? [];
@@ -44,9 +47,9 @@ export function Summary({ session }: { session: SessionTrajectory }) {
       <dd className="flex flex-wrap gap-1">
         {session.unmapped_attributes.length
           ? session.unmapped_attributes.map((k) => (
-              <span key={k} className="chip muted font-mono">
+              <Badge key={k} variant="secondary" className="font-mono">
                 {k}
-              </span>
+              </Badge>
             ))
           : "none"}
       </dd>
@@ -80,7 +83,9 @@ function MappingRules({
               <td className="whitespace-nowrap">
                 {row.label}
                 {changed && (
-                  <span className="chip chip-info ml-2">changed</span>
+                  <Badge variant="info" className="ml-2">
+                    changed
+                  </Badge>
                 )}
               </td>
               <td className="font-mono">
@@ -94,15 +99,19 @@ function MappingRules({
                 <div className="flex flex-wrap gap-1">
                   {row.rule &&
                     ruleNotes(row.rule).map((note) => (
-                      <span key={note} className="chip muted">
+                      <Badge key={note} variant="secondary">
                         {note}
-                      </span>
+                      </Badge>
                     ))}
                   {row.rule?.values &&
                     Object.entries(row.rule.values).map(([from, to]) => (
-                      <span key={from} className="chip muted font-mono">
+                      <Badge
+                        key={from}
+                        variant="secondary"
+                        className="font-mono"
+                      >
                         {from} <ToArrow /> {to}
-                      </span>
+                      </Badge>
                     ))}
                 </div>
               </td>
@@ -127,16 +136,20 @@ function Preview({
       {!session && <div className="pane-status">Loading…</div>}
       {session && (
         <>
-          <div className="card p-3">
-            <Summary session={session} />
-          </div>
-          <div className="card flex min-h-96 flex-col p-3">
-            {session.trajectory ? (
-              <TrajectoryViewer doc={session.trajectory} />
-            ) : (
-              <div className="pane-status">No spans in this session.</div>
-            )}
-          </div>
+          <Card size="sm">
+            <CardContent>
+              <Summary session={session} />
+            </CardContent>
+          </Card>
+          <Card size="sm" className="min-h-96">
+            <CardContent className="flex flex-1 flex-col">
+              {session.trajectory ? (
+                <TrajectoryViewer doc={session.trajectory} />
+              ) : (
+                <div className="pane-status">No spans in this session.</div>
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
     </section>
@@ -186,12 +199,13 @@ export function MappingsPanel({ agent }: { agent: string }) {
       ? activeRecord.document
       : null;
   const viewButton = (key: string) => (
-    <button
-      className={`btn ${shown === key ? "btn-primary" : ""}`}
+    <Button
+      variant={shown === key ? "default" : "outline"}
+      size="sm"
       onClick={() => setViewing(key)}
     >
       {shown === key ? "Showing" : "View"}
-    </button>
+    </Button>
   );
 
   const activate = async (version: number) => {
@@ -212,35 +226,34 @@ export function MappingsPanel({ agent }: { agent: string }) {
       {error && <div className="pane-status error">{error}</div>}
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Versions</h2>
-        <div className="card rows">
+        <Card className="rows gap-0 py-0">
           {versions?.map((v) => (
             <div
               key={v.id}
               className="row grid-cols-[auto_auto_1fr_auto_auto_auto]"
             >
               <span className="row-strong font-mono">v{v.version}</span>
-              <span
-                className={`chip ${v.status === "active" ? "chip-pass" : "muted"}`}
-              >
+              <Badge variant={v.status === "active" ? "pass" : "secondary"}>
                 {v.status}
-              </span>
+              </Badge>
               <span className="row-meta">by {v.created_by ?? "-"}</span>
               <span className="row-meta">{fmtWhen(v.created_at) ?? ""}</span>
               {v.status === "draft" ? (
-                <button
-                  className="btn"
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled={busy}
                   onClick={() => activate(v.version)}
                 >
                   Activate
-                </button>
+                </Button>
               ) : (
                 <span />
               )}
               {viewButton(`v${v.version}`)}
             </div>
           ))}
-        </div>
+        </Card>
         {versions && versions.length === 0 && (
           <p className="text-meta text-ink-3">
             No mapping yet, so this agent's spans are stored without a session
@@ -263,7 +276,7 @@ export function MappingsPanel({ agent }: { agent: string }) {
             " Rows marked changed differ from the active mapping."}{" "}
           The session id comes from the mapping's <code>session_id</code> rule.
         </p>
-        <div className="card">
+        <Card className="gap-0 py-0">
           {shownDoc ? (
             <MappingRules doc={shownDoc} baseline={baseline} />
           ) : (
@@ -271,7 +284,7 @@ export function MappingsPanel({ agent }: { agent: string }) {
               {versions === null ? "Loading…" : "No mapping to show."}
             </div>
           )}
-        </div>
+        </Card>
       </section>
       <section className="flex flex-col gap-2">
         <div className="toolbar">
