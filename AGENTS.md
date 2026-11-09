@@ -178,10 +178,17 @@ then add plain FastAPI routes with `app.include_router(...)`.
   `@/components/widgets/Empty`.
 - A `NavItem` may set `icon`, a `lucide-react` icon; the collapsed sidebar
   shows a puzzle piece for one without. `nav` items get a sidebar section of
-  their own after Observe, `moreNav` items join Workspace, and `adminNav`
-  items join Admin. All of them are pages in ⌘K search. `adminNav` only
-  hides the item from non-admins; the page's endpoints must check admin
-  themselves.
+  their own after Observe.
+- Settings pages go in `accountSettings` (everyone) and
+  `organizationSettings` (admins only). Each is a `SettingsPage`: `name`,
+  `label`, optional `icon` and `element`. The page renders at
+  `/settings/<name>` inside the Settings area, with its sidebar, after
+  evalkit's own items in that section. evalkit reserves the names
+  `workspace`, `users`, `trace-sources` and `llm-providers`, and drops a
+  wrapper's page that takes one. `organizationSettings` only hides the item
+  from non-admins; the page and its endpoints must check admin themselves.
+- Every `nav` item and every Settings page the person can see is a page in
+  ⌘K search.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
   `PageHeader`, `Empty` and `SIGNED_IN` stable: other packages build against
   them.

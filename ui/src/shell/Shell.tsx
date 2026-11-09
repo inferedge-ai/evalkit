@@ -1,6 +1,21 @@
 import { useEffect, useState } from "react";
-import { NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
-import { ChevronRight, LogOut, Moon, Puzzle, Search, Sun } from "lucide-react";
+import {
+  NavLink,
+  Outlet,
+  useLocation,
+  useMatch,
+  useNavigate,
+} from "react-router-dom";
+import {
+  ArrowLeft,
+  ChevronRight,
+  LogOut,
+  Moon,
+  Puzzle,
+  Search,
+  Settings,
+  Sun,
+} from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -33,7 +48,12 @@ import { othersPersonal, workspaceHint } from "../lib/workspace";
 import type { Me, WorkspaceInfo } from "../lib/types";
 import { useMe } from "./capabilities";
 import { JumpPalette } from "./JumpPalette";
-import { DOCS_NAV, getNavSections } from "./nav";
+import {
+  DOCS_NAV,
+  getNavSections,
+  getSettingsSections,
+  type NavSection,
+} from "./nav";
 import { useTheme } from "./theme";
 import { SWITCH_FLASH_MS, useSwitchWorkspace, useWorkspace } from "./workspace";
 
@@ -59,12 +79,19 @@ function readSidebarCookie(): boolean {
 }
 
 export function Shell() {
+  const { pathname, search } = useLocation();
+  const inSettings =
+    pathname === "/settings" || pathname.startsWith("/settings/");
+  const [appPage, setAppPage] = useState("/");
+  useEffect(() => {
+    if (!inSettings) setAppPage(pathname + search);
+  }, [inSettings, pathname, search]);
   return (
     <SidebarProvider
       defaultOpen={readSidebarCookie()}
       className="h-dvh overflow-hidden"
     >
-      <SideNav />
+      {inSettings ? <SettingsNav backTo={appPage} /> : <SideNav />}
       <SidebarInset>
         <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-card px-2 md:hidden">
           <SidebarTrigger aria-label="Open navigation" />
@@ -80,37 +107,80 @@ export function Shell() {
 }
 
 function SideNav() {
-  const me = useMe();
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="gap-0 p-0">
         <SideNavHeader />
       </SidebarHeader>
       <SidebarContent>
-        {getNavSections(me.is_admin).map((section, i) => (
-          <SidebarGroup
-            key={section.label ?? i}
-            role="group"
-            aria-label={section.label}
-          >
-            {section.label && (
-              <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
-            )}
-            <SidebarMenu>
-              {section.items.map((item) => (
-                <NavRow key={item.to} item={item} />
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
-        ))}
+        <NavSections sections={getNavSections()} />
       </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu>
-          <NavRow item={DOCS_NAV} />
-          <ProfileMenu me={me} />
-        </SidebarMenu>
-      </SidebarFooter>
+      <NavFooter />
     </Sidebar>
+  );
+}
+
+function SettingsNav({ backTo }: { backTo: string }) {
+  const me = useMe();
+  const { workspace } = useWorkspace();
+  const { isMobile, setOpenMobile } = useSidebar();
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="gap-0 p-0">
+        <SideNavHeader />
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                render={<NavLink to={backTo} />}
+                tooltip="Back to evalkit"
+                onClick={() => {
+                  if (isMobile) setOpenMobile(false);
+                }}
+              >
+                <ArrowLeft />
+                <span>Back to evalkit</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+        <NavSections
+          sections={getSettingsSections(me.is_admin, workspace.name)}
+        />
+      </SidebarContent>
+      <NavFooter />
+    </Sidebar>
+  );
+}
+
+function NavSections({ sections }: { sections: NavSection[] }) {
+  return sections.map((section, i) => (
+    <SidebarGroup
+      key={section.label ?? i}
+      role="group"
+      aria-label={section.label}
+    >
+      {section.label && <SidebarGroupLabel>{section.label}</SidebarGroupLabel>}
+      <SidebarMenu>
+        {section.items.map((item) => (
+          <NavRow key={item.to} item={item} />
+        ))}
+      </SidebarMenu>
+    </SidebarGroup>
+  ));
+}
+
+function NavFooter() {
+  const me = useMe();
+  return (
+    <SidebarFooter>
+      <SidebarMenu>
+        <NavRow item={DOCS_NAV} />
+        <ProfileMenu me={me} />
+      </SidebarMenu>
+    </SidebarFooter>
   );
 }
 
@@ -294,6 +364,10 @@ function ProfileMenu({ me }: { me: Me }) {
             </div>
           </div>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => navigate("/settings")}>
+            <Settings />
+            Settings
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={toggle}>
             {theme === "dark" ? <Sun /> : <Moon />}
             {theme === "dark" ? "Light mode" : "Dark mode"}

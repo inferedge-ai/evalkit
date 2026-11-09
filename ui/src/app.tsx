@@ -6,10 +6,6 @@ import { DocsPage } from "./pages/DocsPage";
 import { AgentPage } from "./agents/AgentPage";
 import { AgentsPage } from "./agents/AgentsPage";
 import { ReviewsPage } from "./pages/ReviewsPage";
-import { UsersAdminPage } from "./pages/UsersAdmin";
-import { TraceSourcesPage } from "./pages/TraceSourcesPage";
-import { LlmProvidersPage } from "./pages/LlmProvidersPage";
-import { WorkspacePage } from "./pages/WorkspacePage";
 import { AuthGate, RequireMe } from "./shell/capabilities";
 import { ShellOrBare, WorkspaceOrPublic } from "./shell/layout";
 import { CasePage } from "./evals/CasePage";
@@ -23,6 +19,7 @@ import { RunPage } from "./evals/RunPage";
 import { RunsBrowser } from "./runs/RunsBrowser";
 import { AgentRunPage } from "./runs/AgentRunPage";
 import { extensions } from "./extensions";
+import { settingsRoutes } from "./settingsRoutes";
 
 export function App() {
   return (
@@ -76,20 +73,7 @@ export function App() {
                 path="/harness"
                 element={<Navigate to="/agents" replace />}
               />
-              <Route path="/users" element={<UsersAdminPage />} />
-              <Route
-                path="/workspace"
-                element={<Navigate to="evaluators" replace />}
-              />
-              <Route path="/workspace/:tab" element={<WorkspacePage />} />
-              <Route
-                path="/admin/trace-sources"
-                element={<TraceSourcesPage />}
-              />
-              <Route
-                path="/admin/llm-providers"
-                element={<LlmProvidersPage />}
-              />
+              {settingsRoutes()}
               {extensions.routes.map((r) => (
                 <Route key={r.path} path={r.path} element={r.element} />
               ))}

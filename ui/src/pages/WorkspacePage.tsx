@@ -275,7 +275,8 @@ export function WorkspacePage() {
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  if (!isTab(tab)) return <Navigate to="/workspace/evaluators" replace />;
+  if (!isTab(tab))
+    return <Navigate to="/settings/workspace/evaluators" replace />;
   const writable = canWrite(me, ws);
   const mayArchive =
     ws.type === "shared" ? me.is_admin : ws.name === me.personal_workspace;
@@ -325,7 +326,7 @@ export function WorkspacePage() {
   return (
     <>
       <PageHeader
-        breadcrumbs={[{ label: "Settings", to: "/workspace" }]}
+        breadcrumbs={[{ label: "Settings", to: "/settings" }]}
         title={`@${ws.name}`}
         actions={
           mayArchive && (
@@ -386,7 +387,7 @@ export function WorkspacePage() {
         <Tabs<WorkspaceTab>
           tabs={TABS}
           active={tab}
-          onSelect={(next) => navigate(`/workspace/${next}`)}
+          onSelect={(next) => navigate(`/settings/workspace/${next}`)}
         />
         <div className="mt-4">
           {tab === "evaluators" && (

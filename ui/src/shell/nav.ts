@@ -2,16 +2,16 @@ import {
   Activity,
   BookOpenText,
   Bot,
+  Boxes,
   BrainCircuit,
   ClipboardCheck,
   Database,
   FlaskConical,
-  Settings,
   Users,
   Waypoints,
 } from "lucide-react";
 import { extensions } from "../extensions";
-import type { NavItem } from "../lib/extensions";
+import type { NavItem, SettingsPage } from "../lib/extensions";
 
 export interface NavSection {
   label?: string;
@@ -24,7 +24,7 @@ export const DOCS_NAV: NavItem = {
   icon: BookOpenText,
 };
 
-export function getNavSections(isAdmin: boolean): NavSection[] {
+export function getNavSections(): NavSection[] {
   const sections: NavSection[] = [
     {
       label: "Evaluate",
@@ -42,26 +42,59 @@ export function getNavSections(isAdmin: boolean): NavSection[] {
       ],
     },
     { items: extensions.nav },
+  ];
+  return sections.filter((section) => section.items.length > 0);
+}
+
+export const RESERVED_SETTINGS = [
+  "workspace",
+  "users",
+  "trace-sources",
+  "llm-providers",
+];
+
+export function wrapperSettingsPages(pages: SettingsPage[]): SettingsPage[] {
+  return pages.filter((page) => !RESERVED_SETTINGS.includes(page.name));
+}
+
+function settingsItem(page: SettingsPage): NavItem {
+  return { to: `/settings/${page.name}`, label: page.label, icon: page.icon };
+}
+
+export function getSettingsSections(
+  isAdmin: boolean,
+  workspace: string,
+): NavSection[] {
+  const sections: NavSection[] = [
+    {
+      label: "Account",
+      items: wrapperSettingsPages(extensions.accountSettings).map(settingsItem),
+    },
     {
       label: "Workspace",
       items: [
-        { to: "/workspace", label: "Settings", icon: Settings },
-        ...extensions.moreNav,
+        { to: "/settings/workspace", label: `@${workspace}`, icon: Boxes },
       ],
     },
   ];
   if (isAdmin)
     sections.push({
-      label: "Admin",
+      label: "Organization",
       items: [
-        { to: "/users", label: "Users", icon: Users },
-        { to: "/admin/trace-sources", label: "Trace sources", icon: Waypoints },
+        { to: "/settings/users", label: "Users", icon: Users },
         {
-          to: "/admin/llm-providers",
+          to: "/settings/trace-sources",
+          label: "Trace sources",
+          icon: Waypoints,
+        },
+        {
+          to: "/settings/llm-providers",
           label: "LLM providers",
           icon: BrainCircuit,
         },
-        ...extensions.adminNav,
+        ...wrapperSettingsPages(extensions.organizationSettings).map(
+          settingsItem,
+        ),
       ],
     });
   return sections.filter((section) => section.items.length > 0);

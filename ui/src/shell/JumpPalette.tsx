@@ -21,7 +21,7 @@ import type {
 } from "../lib/types";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMe } from "./capabilities";
-import { DOCS_NAV, getNavSections } from "./nav";
+import { DOCS_NAV, getNavSections, getSettingsSections } from "./nav";
 import { useSwitchWorkspace, useWorkspace } from "./workspace";
 import { badgeVariants } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -127,10 +127,19 @@ export function JumpPalette() {
   const navigate = useNavigate();
   const pages = useMemo(
     () => [
-      ...getNavSections(me.is_admin).flatMap((section) => section.items),
+      ...getNavSections().flatMap((section) => section.items),
+      ...getSettingsSections(me.is_admin, workspace.name).flatMap((section) =>
+        section.items.map((item) => ({
+          ...item,
+          label:
+            section.label === "Workspace"
+              ? `Settings › Workspace ${item.label}`
+              : `Settings › ${item.label}`,
+        })),
+      ),
       DOCS_NAV,
     ],
-    [me.is_admin],
+    [me.is_admin, workspace.name],
   );
 
   useEffect(() => {
