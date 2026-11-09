@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { canWrite } from "../lib/access";
@@ -82,11 +83,8 @@ export function DatasetsPage() {
           <div className="card rows">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="row grid-cols-[1fr_auto]">
-                <span
-                  className="skeleton h-4"
-                  style={{ width: `${30 + i * 6}%` }}
-                />
-                <span className="skeleton h-3 w-40" />
+                <Skeleton className="h-4" style={{ width: `${30 + i * 6}%` }} />
+                <Skeleton className="h-3 w-40" />
               </div>
             ))}
           </div>

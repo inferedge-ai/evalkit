@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
@@ -56,11 +57,8 @@ export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
       <div className="card rows">
         {Array.from({ length: 5 }, (_, i) => (
           <div key={i} className="row grid-cols-[1fr_auto]">
-            <span
-              className="skeleton h-4"
-              style={{ width: `${25 + i * 7}%` }}
-            />
-            <span className="skeleton h-3 w-40" />
+            <Skeleton className="h-4" style={{ width: `${25 + i * 7}%` }} />
+            <Skeleton className="h-3 w-40" />
           </div>
         ))}
       </div>

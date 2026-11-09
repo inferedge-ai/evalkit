@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { apiJson } from "../lib/api";
@@ -73,11 +74,8 @@ export function UsersAdminPage() {
           <div className="card rows">
             {Array.from({ length: 4 }, (_, i) => (
               <div key={i} className="row grid-cols-[1fr_auto]">
-                <span
-                  className="skeleton h-4"
-                  style={{ width: `${20 + i * 8}%` }}
-                />
-                <span className="skeleton h-3 w-24" />
+                <Skeleton className="h-4" style={{ width: `${20 + i * 8}%` }} />
+                <Skeleton className="h-3 w-24" />
               </div>
             ))}
           </div>

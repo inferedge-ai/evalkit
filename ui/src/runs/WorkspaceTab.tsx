@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
@@ -450,9 +451,9 @@ export function WorkspaceTab({
     return (
       <div className="space-y-1.5 p-2">
         {Array.from({ length: 8 }, (_, i) => (
-          <div
+          <Skeleton
             key={i}
-            className="skeleton h-4"
+            className="h-4"
             style={{ width: `${20 + i * 7}%` }}
           />
         ))}

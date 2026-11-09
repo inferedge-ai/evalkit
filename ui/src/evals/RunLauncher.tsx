@@ -1,3 +1,4 @@
+import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -298,11 +299,10 @@ export function RunLauncher({
                   <div className="picker-list">
                     {!examples && <div className="pane-status">Loading…</div>}
                     {pickable.map((ex) => (
-                      <label key={ex.case_id} className="picker-row check">
-                        <input
-                          type="checkbox"
+                      <label key={ex.case_id} className="picker-row">
+                        <Checkbox
                           checked={picked.has(ex.case_id)}
-                          onChange={() => togglePick(ex.case_id)}
+                          onCheckedChange={() => togglePick(ex.case_id)}
                         />
                         <span className="max-w-[60%] shrink-0 truncate font-mono text-ink">
                           {ex.case_id}

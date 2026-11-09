@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import type { AtifTrajectory } from "../lib/types";
 import { CostView } from "./CostView";
 import { TimingView } from "./TimingView";
@@ -13,9 +14,9 @@ function TrajectorySkeleton() {
   return (
     <div className="space-y-2">
       {Array.from({ length: 5 }, (_, i) => (
-        <div
+        <Skeleton
           key={i}
-          className="skeleton h-10"
+          className="h-10"
           style={{ width: `${100 - i * 7}%` }}
         />
       ))}

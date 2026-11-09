@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/widgets/PageHeader";
@@ -14,11 +15,11 @@ function SkeletonRows({ n }: { n: number }) {
     <div className="rows">
       {Array.from({ length: n }, (_, i) => (
         <div key={i} className="row grid-cols-[1fr_auto]">
-          <span
-            className="skeleton h-4"
+          <Skeleton
+            className="h-4"
             style={{ width: `${40 + ((i * 13) % 45)}%` }}
           />
-          <span className="skeleton h-3 w-28" />
+          <Skeleton className="h-3 w-28" />
         </div>
       ))}
     </div>

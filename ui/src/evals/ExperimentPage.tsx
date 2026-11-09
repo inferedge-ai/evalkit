@@ -1,3 +1,5 @@
+import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
@@ -49,8 +51,8 @@ function ScorecardSkeleton() {
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
         {Array.from({ length: 5 }, (_, i) => (
           <div className="tile tile-hero" key={i}>
-            <div className="skeleton h-3 w-24" />
-            <div className="skeleton mt-2 h-7 w-16" />
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="mt-2 h-7 w-16" />
           </div>
         ))}
       </div>
@@ -58,8 +60,8 @@ function ScorecardSkeleton() {
       <div className="tile-grid">
         {Array.from({ length: 10 }, (_, i) => (
           <div className="tile" key={i}>
-            <div className="skeleton h-3 w-20" />
-            <div className="skeleton mt-2 h-4 w-10" />
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="mt-2 h-4 w-10" />
           </div>
         ))}
       </div>
@@ -71,12 +73,9 @@ function ScorecardSkeleton() {
               key={i}
               className="row grid-cols-[minmax(0,1fr)_repeat(5,4rem)]"
             >
-              <span
-                className="skeleton h-3.5"
-                style={{ width: `${30 + i * 4}%` }}
-              />
+              <Skeleton className="h-3.5" style={{ width: `${30 + i * 4}%` }} />
               {Array.from({ length: 5 }, (_, j) => (
-                <span className="skeleton h-3.5" key={j} />
+                <Skeleton className="h-3.5" key={j} />
               ))}
             </div>
           ))}
@@ -398,11 +397,10 @@ function ExperimentView() {
                       }))}
                     />
                   )}
-                  <label className="check">
-                    <input
-                      type="checkbox"
+                  <label className="flex cursor-pointer items-center gap-1.5 text-meta text-muted-foreground select-none">
+                    <Checkbox
                       checked={failingOnly}
-                      onChange={(e) => setFailingOnly(e.target.checked)}
+                      onCheckedChange={(checked) => setFailingOnly(checked)}
                     />
                     failing only
                   </label>

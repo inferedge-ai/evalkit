@@ -280,9 +280,10 @@ button {
   }
   .toolbar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    min-height: 30px;
+    min-height: 32px;
   }
   .page-title {
     font-size: var(--text-head);
@@ -574,48 +575,6 @@ button {
 
   /* Checkbox filters sit next to these controls, so they get the same
      border, radius and focus ring instead of the platform default. */
-  .check {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    color: var(--color-ink-2);
-    font-size: var(--text-meta);
-    user-select: none;
-    cursor: pointer;
-  }
-  .check > input {
-    flex-shrink: 0;
-    appearance: none;
-    width: 13px;
-    height: 13px;
-    margin: 0;
-    border: 1px solid var(--color-line-strong);
-    border-radius: 3px;
-    background: var(--color-surface);
-    transition:
-      background-color 120ms,
-      border-color 120ms;
-  }
-  .check > input:checked {
-    background: var(--color-brand);
-    border-color: var(--color-brand);
-  }
-  .check > input:checked::after {
-    content: "";
-    display: block;
-    width: 100%;
-    height: 100%;
-    background: var(--color-n-0);
-    clip-path: polygon(
-      21% 47%,
-      35% 47%,
-      45% 61%,
-      74% 25%,
-      86% 25%,
-      47% 76%,
-      36% 76%
-    );
-  }
 
   /* ── Surfaces & rows ────────────────────────────────────────────────── */
   .card {
@@ -639,18 +598,29 @@ button {
      with the length of each title. */
   .row {
     display: grid;
-    align-items: baseline;
+    align-items: center;
     column-gap: 12px;
-    row-gap: 1px;
-    padding: 6px 12px;
+    row-gap: 2px;
+    min-height: 36px;
+    padding: 4px 12px;
     transition: background-color 120ms;
+  }
+  /* On a phone a row's cells wrap under its name instead of squeezing it. */
+  @media (width < 48rem) {
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+    }
+    .row > .row-strong {
+      flex: 1 1 auto;
+    }
   }
   a.row:hover,
   button.row:hover {
     background: var(--color-hover);
   }
   .row-strong {
-    font-size: var(--text-lede);
+    font-size: var(--text-body);
     font-weight: 500;
     color: var(--color-ink);
     min-width: 0;
@@ -660,28 +630,10 @@ button {
   }
   .row-meta {
     font-size: var(--text-meta);
+    line-height: 16px;
     color: var(--color-ink-3);
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-  }
-  /* Column headings for the aligned list grids: shares each list's
-     grid-template-columns with its data rows so cells line up top to bottom. */
-  .row-head {
-    font-size: var(--text-micro);
-    line-height: var(--text-micro--line-height);
-    text-transform: uppercase;
-    letter-spacing: 0.045em;
-    font-weight: 600;
-    color: var(--color-ink-3);
-    background: var(--color-surface);
-    border-bottom: 1px solid var(--color-line);
-    position: sticky;
-    top: 0;
-    z-index: 1;
-  }
-  .row-head > .num,
-  .row-head > .text-right {
-    text-align: right;
   }
 
   /* ── Metric tiles ───────────────────────────────────────────────────── */
@@ -775,12 +727,6 @@ button {
     width: calc(var(--bar) * 100%);
     background: var(--color-info-bg);
     border-radius: 2px;
-  }
-
-  .skeleton {
-    background: var(--color-fill);
-    border-radius: 4px;
-    animation: evalkit-pulse 1.4s ease-in-out infinite;
   }
 
   .badge {
