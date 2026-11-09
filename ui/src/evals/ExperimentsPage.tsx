@@ -21,6 +21,7 @@ import { experimentTailColumns } from "./experimentRow";
 import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
 import { useWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 const getExperimentId = (exp: ExperimentListItem) => String(exp.id);
 
@@ -95,56 +96,58 @@ export function ExperimentsPage() {
   const grid = useDataGrid<ExperimentListItem>("experiments");
 
   return (
-    <div className="page">
-      <div className="toolbar mb-3">
-        <h1 className="page-title">Experiments</h1>
-        <input
-          className="input w-64"
-          placeholder="Filter name or dataset"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+    <>
+      <PageHeader title="Experiments" />
+      <div className="page">
+        <div className="toolbar mb-3">
+          <input
+            className="input w-64"
+            placeholder="Filter name or dataset"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <Select
+            ariaLabel="status"
+            value={status}
+            onChange={setStatus}
+            options={[
+              { value: "", label: "All statuses" },
+              ...STATUSES.map((s) => ({ value: s, label: s })),
+            ]}
+          />
+          <Select
+            ariaLabel="agent"
+            value={agent}
+            onChange={setAgent}
+            options={[
+              { value: "", label: "All agents" },
+              ...agents.map((a) => ({ value: a, label: a })),
+            ]}
+          />
+          <span
+            className="row-meta ml-auto"
+            title={listCapNote(rows?.length ?? 0) ?? undefined}
+          >
+            {loading
+              ? "Loading…"
+              : `${grid.filteredCount ?? visible.length} experiments${listCapNote(rows?.length ?? 0) ? ` (of the latest ${EXPERIMENT_LIST_LIMIT})` : ""}`}
+          </span>
+          <ColumnsMenu grid={grid} />
+        </div>
+        {error && <div className="pane-status error">{error}</div>}
+        <DataGrid
+          grid={grid}
+          rows={visible}
+          columns={columns}
+          getRowId={getExperimentId}
+          loading={loading}
+          empty={
+            rows && rows.length === 0
+              ? `No experiments in @${workspace.name} yet.`
+              : "No experiments match this filter."
+          }
         />
-        <Select
-          ariaLabel="status"
-          value={status}
-          onChange={setStatus}
-          options={[
-            { value: "", label: "All statuses" },
-            ...STATUSES.map((s) => ({ value: s, label: s })),
-          ]}
-        />
-        <Select
-          ariaLabel="agent"
-          value={agent}
-          onChange={setAgent}
-          options={[
-            { value: "", label: "All agents" },
-            ...agents.map((a) => ({ value: a, label: a })),
-          ]}
-        />
-        <span
-          className="row-meta ml-auto"
-          title={listCapNote(rows?.length ?? 0) ?? undefined}
-        >
-          {loading
-            ? "Loading…"
-            : `${grid.filteredCount ?? visible.length} experiments${listCapNote(rows?.length ?? 0) ? ` (of the latest ${EXPERIMENT_LIST_LIMIT})` : ""}`}
-        </span>
-        <ColumnsMenu grid={grid} />
       </div>
-      {error && <div className="pane-status error">{error}</div>}
-      <DataGrid
-        grid={grid}
-        rows={visible}
-        columns={columns}
-        getRowId={getExperimentId}
-        loading={loading}
-        empty={
-          rows && rows.length === 0
-            ? `No experiments in @${workspace.name} yet.`
-            : "No experiments match this filter."
-        }
-      />
-    </div>
+    </>
   );
 }

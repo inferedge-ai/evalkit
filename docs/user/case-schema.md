@@ -29,6 +29,8 @@ cases:
 
 `defaults` takes only `input`, `tags`, `max_response_time` and `agents` (for overlays). A case's own `input` keys and `max_response_time` win over the defaults; tags are merged.
 
+In the mapping shape, a top-level key starting with `x-` (for example `x-shared`) is ignored. Use it to hold YAML anchors that several cases reuse with `*name`.
+
 ## Case keys
 
 | Key | Type | Meaning |

@@ -370,11 +370,18 @@ class SuiteDefaults(BaseModel):
 
 
 class SuiteFile(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"patternProperties": {"^x-": {}}})
 
     defaults: SuiteDefaults = Field(default_factory=SuiteDefaults)
     cases: list[Case | Overlay] = Field(default_factory=list)
     overlays: list[Overlay] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_anchor_keys(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if not str(k).startswith("x-")}
+        return data
 
     @field_validator("defaults", "cases", "overlays", mode="before")
     @classmethod
@@ -527,7 +534,8 @@ def load_cases_from_yaml(path: Path) -> tuple[list[Case], list[Overlay]]:
     Accepts these top-level shapes:
       - a single case dict
       - a list of case/overlay dicts (overlays identified by `extends`)
-      - a mapping with any of `defaults`, `cases`, `overlays`
+      - a mapping with any of `defaults`, `cases`, `overlays`, plus keys starting
+        with `x-` that hold YAML anchors and are otherwise ignored
     """
     path = Path(path)
     try:

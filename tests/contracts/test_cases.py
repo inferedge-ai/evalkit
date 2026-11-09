@@ -426,7 +426,7 @@ def test_overlay_schema_error_says_the_evaluator_is_not_allowed(tmp_path):
 
 def test_file_level_keys_are_checked(tmp_path):
     p = tmp_path / "cases.yaml"
-    p.write_text("defualts: {}\ncases:\n- id: a\n  input: {question: q}\n")
+    p.write_text("x-shared: {}\ndefualts: {}\ncases:\n- id: a\n  input: {question: q}\n")
     with pytest.raises(CaseSchemaError) as exc:
         load_cases_from_yaml(p)
     assert exc.value.problems[0].case_id is None
@@ -442,6 +442,7 @@ def test_published_schema_accepts_every_file_shape():
     CASE_FILE.validate_python(
         {"defaults": {"max_response_time": 90}, "cases": [single], "overlays": [overlay]}
     )
+    CASE_FILE.validate_python({"x-shared": {"q": "q"}, "cases": [single]})
 
 
 @pytest.mark.parametrize(
