@@ -36,7 +36,8 @@ cp <this-skill-dir>/docker-compose.yml .
 # API keys are not in config: the commands below store them in the database.
 # First start: EVALKIT_ADMIN_PASSWORD (8+ characters, at most 72 bytes)
 # creates the admin user; a server with no admin and no
-# EVALKIT_ADMIN_PASSWORD refuses to start. Put these in a .env
+# EVALKIT_ADMIN_PASSWORD refuses to start, unless auth.password_login is
+# none (admins then come from the identity provider). Put these in a .env
 # file next to docker-compose.yml.
 # With db.migrate_on_start: true in config.yaml (see "Migrations on start"),
 # this one command starts everything and migrates:
@@ -142,7 +143,7 @@ indirection, resolved at load time — keep secrets out of the file.
 | `sentry` | optional: `dsn`, `environment`, `traces_sample_rate` (default `0.0`, errors only), `max_request_body_size` (default `never`; `small` up to 1 KB, `medium` up to 10 KB, `always`; bodies can hold client case and trajectory data). With it, the server reports unhandled errors, 500 responses and error logs to Sentry, tagged with release `evalkit@<version>`. IPs, cookies and sensitive headers are never sent. |
 | `cost_map` | `bundled` (snapshot in the image) or a path/URL override |
 | `auth` | `token_ttl_hours` for UI/CLI tokens |
-| `auth` | `token_ttl_hours`, `password_login` (`admin` or `all`), and optional `oidc`: `issuer`, `client_id`, `audience`, `name`, `scopes`, `authorize_params`, `algorithms`. With `oidc`, `/api` and `/mcp` verify the identity provider's JWT access tokens. The registration and runbook are on [Single sign-on](../../evalkit-docs/sso.md). `mcp.oauth` is removed |
+| `auth` | `token_ttl_hours`, `password_login` (`admin`, `all`, or `none`, which needs `oidc.admin_claim`), and optional `oidc`: `issuer`, `client_id`, `audience`, `name`, `scopes`, `authorize_params`, `algorithms`. With `oidc`, `/api` and `/mcp` verify the identity provider's JWT access tokens. The registration and runbook are on [Single sign-on](../../evalkit-docs/sso.md). `mcp.oauth` is removed |
 | `otel` | collector limits, below |
 | `limits` | request body caps, below |
 

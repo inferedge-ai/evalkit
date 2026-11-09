@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { SIDEBAR_COOKIE_NAME } from "../components/ui/sidebar";
 import { PageHeader } from "../components/widgets/PageHeader";
+import { isSignedOut } from "../lib/api";
 import { queryClient } from "../lib/query";
 import { DocsPage } from "../pages/DocsPage";
 import type { Me, WorkspaceInfo } from "../lib/types";
@@ -219,6 +220,7 @@ test("the profile menu shows who is signed in, switches the theme and signs out"
   await user.click(screen.getByRole("button", { name: "akshat" }));
   await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
   expect(await screen.findByText("login page")).toBeInTheDocument();
+  expect(isSignedOut()).toBe(true);
 });
 
 test("on a phone the top bar opens the navigation on any page, and picking a page closes it", async () => {

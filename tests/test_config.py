@@ -288,11 +288,22 @@ def test_oidc_required_scopes_must_be_requested():
     assert cfg.auth.oidc.required_scopes == []
 
 
-def test_password_login_is_admin_or_all():
+def test_password_login_is_admin_all_or_none():
     with pytest.raises(ValidationError):
         Config.model_validate({**OIDC_BASE, "auth": {"password_login": "nobody"}})
     cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": OIDC, "password_login": "all"}})
     assert cfg.auth.resolve_password_login() == "all"
+
+
+def test_password_login_none_needs_an_idp_that_names_admins():
+    for auth in ({"password_login": "none"}, {"oidc": OIDC, "password_login": "none"}):
+        with pytest.raises(ValidationError, match="password_login: none needs auth.oidc"):
+            Config.model_validate({**OIDC_BASE, "auth": auth})
+    admins = {"name": "roles", "value": "evalkit-admin"}
+    cfg = Config.model_validate(
+        {**OIDC_BASE, "auth": {"oidc": {**OIDC, "admin_claim": admins}, "password_login": "none"}}
+    )
+    assert cfg.auth.resolve_password_login() == "none"
 
 
 def test_password_login_is_all_without_an_idp():

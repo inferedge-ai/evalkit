@@ -61,7 +61,8 @@ cases, experiments, scores — bundled in compose or external), a blob URL,
 and an OpenAI-compatible judge endpoint. The first start needs
 `EVALKIT_ADMIN_PASSWORD`: it creates the `admin` user. It must be at least 8
 characters and at most 72 bytes. Without it, a server with no admin refuses
-to start and says so. Then `evalkit login` as admin
+to start and says so, unless `auth.password_login` is `none` (admins then
+come from the identity provider; see the SSO page). Then `evalkit login` as admin
 and `evalkit users add <name>` for each teammate (admin only). Each new user
 gets a personal workspace named after them. To turn on single sign-on, set
 `auth.oidc` (the IdP registration and runbook are on
