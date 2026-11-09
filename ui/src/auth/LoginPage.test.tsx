@@ -174,7 +174,7 @@ describe("LoginPage", () => {
     ]);
   });
 
-  it("waits for Sign in again even when Sign out cannot clear the provider's session", async () => {
+  it("waits for Sign in again even when Sign out cannot remove its stored tokens", async () => {
     const redirects = stubProvider(async () => {
       throw new Error("storage unavailable");
     });

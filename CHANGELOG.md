@@ -132,10 +132,12 @@
   - Sign-out: every open tab stops at a **Sign in again** button until the
     next sign-in, rather than restarting the provider sign-in, so a live
     provider session does not sign the person straight back in.
-- In every `password_login` mode, a visitor reaches the login page while the
-  identity provider is unreachable, whether they open a page signed out or
-  their session expires mid-visit, so with `admin` an admin can still use
-  the password form. Before, they saw an error.
+- In every `password_login` mode, a signed-out visitor who opens a page
+  while the identity provider is unreachable reaches the login page, and so
+  does someone whose password session expires mid-visit, so with `admin` an
+  admin can still use the password form. Before, they saw an error. A
+  provider session that needs refreshing while the provider is unreachable
+  still shows the error.
 
 ## 0.4.0
 
