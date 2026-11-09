@@ -103,6 +103,15 @@ test("while the run loads, its tabs show with the open one selected", async () =
     "true",
   );
   expect(screen.queryByText("Question")).toBeNull();
+  for (const name of ["Trajectory", "Workspace", "Cost", "Timing"])
+    expect(screen.getByRole("tab", { name })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  expect(screen.getByRole("tab", { name: "Case" })).not.toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
 });
 
 test("a case without runs whose experiment's cases fail to load shows the error, not Not found", async () => {
@@ -129,26 +138,6 @@ test("when the experiment's cases fail to load, the run page shows the error bes
   expect(
     screen.getByText("Refunds take five working days."),
   ).toBeInTheDocument();
-});
-
-test("an SDK run with Python evaluators and no scores yet does not say it has no evaluators", async () => {
-  serveRun((url) =>
-    url.endsWith("/api/experiments/12")
-      ? Response.json({
-          ...experiment,
-          config: {
-            ...experiment.config,
-            snapshot: {
-              ...experiment.config.snapshot,
-              code_evaluators: ["tone"],
-            },
-          },
-        })
-      : undefined,
-  );
-  openRun("?tab=scores");
-  expect(await screen.findByText("No scores yet")).toBeInTheDocument();
-  expect(screen.queryByText(/set no evaluators/)).toBeNull();
 });
 
 test("a run that fails to load shows the error under its header", async () => {
@@ -192,6 +181,24 @@ test("a case that has not run yet says so under its header, with a way back to t
   expect(
     screen.getByRole("link", { name: "Back to the experiment" }),
   ).toHaveAttribute("href", "/experiments/12");
+});
+
+test("a case without runs keeps saying it has not run when a refresh of the experiment's cases fails", async () => {
+  let caseLoads = 0;
+  serveRun((url) =>
+    url.endsWith(RUNS_URL)
+      ? Response.json([])
+      : url.endsWith("/api/experiments/12/cases") && ++caseLoads > 1
+        ? failure("store unavailable")
+        : undefined,
+  );
+  openRun();
+  expect(
+    await screen.findByText("This case has not run yet"),
+  ).toBeInTheDocument();
+  await act(refreshQueries);
+  expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
+  expect(screen.getByText("This case has not run yet")).toBeInTheDocument();
 });
 
 test("a case without runs is not reported missing while the experiment's cases load", async () => {

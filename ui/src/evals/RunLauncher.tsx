@@ -353,11 +353,13 @@ export function RunLauncher({
                   </div>
                 </div>
               )}
-              <span className="row-meta">
-                {examples === null
-                  ? "Loading cases…"
-                  : `${inScope.length} case${inScope.length === 1 ? "" : "s"}`}
-              </span>
+              {(examples || !casesQuery.error) && (
+                <span className="row-meta">
+                  {examples === null
+                    ? "Loading cases…"
+                    : `${inScope.length} case${inScope.length === 1 ? "" : "s"}`}
+                </span>
+              )}
             </div>
           </Field>
           <Field>

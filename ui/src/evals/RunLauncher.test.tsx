@@ -81,11 +81,12 @@ test("a dataset with no cases says so in the case picker", async () => {
   expect(screen.queryByText("No cases match this filter")).toBeNull();
 });
 
-test("when the cases cannot load, the case picker stops showing placeholders", async () => {
+test("when the cases cannot load, the case picker stops showing placeholders and stops saying it is loading", async () => {
   await pickCases(() => failure("store unavailable"));
   const dialog = await screen.findByRole("dialog");
   expect(
     await within(dialog).findByText(/store unavailable/),
   ).toBeInTheDocument();
   expect(dialog.querySelector('[data-slot="skeleton"]')).toBeNull();
+  expect(within(dialog).queryByText("Loading cases…")).toBeNull();
 });

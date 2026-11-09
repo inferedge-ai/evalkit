@@ -184,7 +184,7 @@ async function expectNoEmptyCaseTable() {
   expect(screen.queryByText("0 cases")).toBeNull();
 }
 
-test("while the experiment's cases load, the case table is not shown empty", async () => {
+test("while the experiment's cases load, the case table shows it is loading and is not shown empty", async () => {
   stubServer((url) =>
     url.endsWith("/api/experiments/12/cases")
       ? new Promise(() => {})
@@ -196,6 +196,7 @@ test("while the experiment's cases load, the case table is not shown empty", asy
   );
   openExperiment();
   await expectNoEmptyCaseTable();
+  expect(await screen.findAllByText("Loading...")).not.toHaveLength(0);
 });
 
 test("an experiment that pinned no cases says so in place of the case table", async () => {
@@ -281,4 +282,22 @@ test("a running experiment whose case list fails once shows its cases on the nex
   await act(() => vi.advanceTimersByTimeAsync(3000));
   expect(await screen.findByText("refund-policy")).toBeInTheDocument();
   expect(screen.queryByText(/store unavailable/)).toBeNull();
+});
+
+test("a finished experiment whose case list fails does not keep asking for it", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  let casesLoads = 0;
+  stubServer((url) => {
+    if (url.endsWith("/api/experiments/12")) return Response.json(experiment);
+    if (url.endsWith("/api/experiments/12/scorecard"))
+      return Response.json(scored);
+    if (url.endsWith("/api/experiments/12/cases")) {
+      casesLoads++;
+      return failure("store unavailable");
+    }
+  });
+  openExperiment();
+  expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
+  await act(() => vi.advanceTimersByTimeAsync(10_000));
+  expect(casesLoads).toBe(1);
 });

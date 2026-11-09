@@ -181,7 +181,7 @@ export function RunPage() {
       title={<span className="font-mono">{caseId}</span>}
     />
   );
-  if (!runs || (runs.length === 0 && !casesQuery.isSuccess))
+  if (!runs || (runs.length === 0 && casesQuery.data === undefined))
     return (
       <>
         {header}
@@ -199,6 +199,7 @@ export function RunPage() {
       <>
         {header}
         <div className="page">
+          {error && <div className="pane-status error">{error}</div>}
           <Card className="py-8">
             <Empty
               icon={CircleDashed}
@@ -419,19 +420,14 @@ export function RunPage() {
             </div>
           ) : tab === "scores" ? (
             example &&
-            status &&
             Object.keys(example.effective_evaluators).length === 0 &&
             Object.keys(scores).length === 0 ? (
               <Card className="py-8">
-                {status.config.snapshot.code_evaluators.length > 0 ? (
-                  <Empty icon={ListChecks} title="No scores yet" />
-                ) : (
-                  <Empty
-                    icon={ListChecks}
-                    title="No scores for this run"
-                    description="The case and its overlays set no evaluators for this agent."
-                  />
-                )}
+                <Empty
+                  icon={ListChecks}
+                  title="No scores for this run"
+                  description="The case and its overlays set no evaluators for this agent."
+                />
               </Card>
             ) : (
               <EvaluatorScores

@@ -176,17 +176,18 @@
   - A case that has not run yet says so under its run page's header, with a
     link back to the experiment. Before, it could show "Not found" while the
     experiment's cases were loading or after they failed to load; a failed
-    case list now shows its error, also beside a run that has loaded.
-  - A run with no scores says so on its Scores tab: "No scores yet" when the
-    experiment has Python evaluators, otherwise that the case and its
-    overlays set no evaluators for the agent.
+    case list now shows its error, also beside a run that has loaded, and
+    above "This case has not run yet" when a refresh fails.
+  - A run whose case sets no evaluators for the agent, even through
+    overlays, says so on its Scores tab.
   - The compare page opened without two experiments says how to pick them.
   - On a phone, long agent, model, judge and case-selection chips on an
     experiment's and a run's page end in an ellipsis instead of running off
     the screen.
   - The run launcher's case picker shows placeholder rows while the cases
     load, says when the dataset has no cases or its filter matches none, and
-    stops showing placeholders when the cases fail to load.
+    stops showing placeholders and "Loading cases…" when the cases fail to
+    load.
 
 ## 0.4.0
 
