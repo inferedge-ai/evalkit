@@ -176,10 +176,14 @@ test("when the mapping versions fail to load, the Mappings tab shows the error i
       return failure(500, "store unavailable");
     if (url.endsWith(AGENT_URL)) return Response.json(traced);
     if (url.includes(`${AGENT_URL}/runs?`))
-      return Response.json({ runs: [], total: 0 });
+      return Response.json({
+        runs: [{ run_id: "s-1", title: null, user_id: null, created_at: null }],
+        total: 1,
+      });
   });
   openAgent("mappings");
   expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
+  await screen.findByRole("button", { name: "session" });
   expect(placeholders()).toHaveLength(0);
 });
 
@@ -256,6 +260,35 @@ test("when the trace sources fail to load, the Import tab shows the error and do
   openAgent("import");
   expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
   expect(screen.queryByText(/No trace sources yet/)).toBeNull();
+  const sources = screen
+    .getByRole("heading", { name: "Import from a trace source" })
+    .closest("section")!;
+  expect(placeholders(sources)).toHaveLength(0);
+});
+
+test("when the trace sources and the range imports both fail, each section shows its own error", async () => {
+  stubServer((url) => {
+    if (url.endsWith("/api/trace-sources"))
+      return failure(500, "sources unavailable");
+    if (url.endsWith(`${AGENT_URL}/imports`))
+      return failure(500, "imports unavailable");
+    if (url.endsWith(AGENT_URL)) return Response.json(traced);
+  });
+  openAgent("import");
+  const section = async (name: string) =>
+    (await screen.findByRole("heading", { name })).closest(
+      "section",
+    ) as HTMLElement;
+  expect(
+    await within(await section("Import from a trace source")).findByText(
+      /sources unavailable/,
+    ),
+  ).toBeInTheDocument();
+  expect(
+    await within(await section("Range imports")).findByText(
+      /imports unavailable/,
+    ),
+  ).toBeInTheDocument();
 });
 
 test("importing traces without a trace source says how an admin adds one", async () => {

@@ -93,6 +93,18 @@ test("a trajectory without step times says what the timing tab needs", async () 
   ).toBeInTheDocument();
 });
 
+test("a run whose trajectory fails to load shows the error and stops showing placeholders", async () => {
+  serveRun((url) => {
+    if (url.endsWith(`${RUN_URL}/trajectory`))
+      return Response.json({ detail: "harness unreachable" }, { status: 502 });
+    if (url.includes("/api/agents/bot%40dev/runs?"))
+      return Response.json({ runs: [], total: 0 });
+  });
+  openRun();
+  expect(await screen.findByText(/harness unreachable/)).toBeInTheDocument();
+  expect(document.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0);
+});
+
 test("a workspace refresh that fails keeps the files on screen with the error above them", async () => {
   let down = false;
   serveRun((url) =>

@@ -169,11 +169,6 @@ export function ImportPanel({ agent }: { agent: string }) {
   });
   const imports = listedImports.data ?? null;
   const importsFailed = imports === null && !!listedImports.error;
-  const error =
-    actionError ??
-    listedSources.error?.message ??
-    listedImports.error?.message ??
-    null;
 
   const run = async (work: () => Promise<void>) => {
     setBusy(true);
@@ -225,9 +220,12 @@ export function ImportPanel({ agent }: { agent: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {error && <div className="pane-status error">{error}</div>}
+      {actionError && <div className="pane-status error">{actionError}</div>}
       <section className="flex max-w-3xl flex-col gap-2">
         <h2 className="font-medium">Import from a trace source</h2>
+        {listedSources.error && (
+          <div className="pane-status error">{listedSources.error.message}</div>
+        )}
         {!listedSources.data ? (
           !listedSources.error && <Skeleton className="h-96 rounded-xl" />
         ) : listedSources.data.length === 0 ? (
@@ -349,6 +347,9 @@ export function ImportPanel({ agent }: { agent: string }) {
       </section>
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Range imports</h2>
+        {listedImports.error && (
+          <div className="pane-status error">{listedImports.error.message}</div>
+        )}
         {!importsFailed && (
           <Card className="rows gap-0 py-0">
             {imports?.map((item) => (

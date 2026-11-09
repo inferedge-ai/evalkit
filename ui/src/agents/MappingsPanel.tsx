@@ -200,9 +200,7 @@ export function MappingsPanel({ agent }: { agent: string }) {
   );
   const active = activePreview.data ?? null;
   const draft = draftPreview.data ?? null;
-  const loadError = listedVersions.error ?? listedRuns.error;
   const versionsFailed = versions === null && !!listedVersions.error;
-  const error = actionError ?? (loadError ? String(loadError) : null);
 
   const activeRecord = versions?.find((v) => v.status === "active") ?? null;
   const shown = viewing ?? (activeRecord ? `v${activeRecord.version}` : null);
@@ -237,9 +235,14 @@ export function MappingsPanel({ agent }: { agent: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {error && <div className="pane-status error">{error}</div>}
+      {actionError && <div className="pane-status error">{actionError}</div>}
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Versions</h2>
+        {listedVersions.error && (
+          <div className="pane-status error">
+            {listedVersions.error.message}
+          </div>
+        )}
         {versions?.length === 0 ? (
           <Card className="py-8">
             <Empty
@@ -337,6 +340,9 @@ export function MappingsPanel({ agent }: { agent: string }) {
             />
           )}
         </div>
+        {listedRuns.error && (
+          <div className="pane-status error">{listedRuns.error.message}</div>
+        )}
         {listedRuns.data?.runs.length === 0 && (
           <Card className="py-8">
             <Empty icon={MessagesSquare} title="No sessions to preview yet" />

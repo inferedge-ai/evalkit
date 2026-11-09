@@ -84,6 +84,24 @@ test("an admin viewing an archived workspace without agents is told it is archiv
   ).toBeInTheDocument();
 });
 
+test("in an archived workspace with agents, the list says why there is no New agent button", async () => {
+  stubServer((url) => {
+    if (url.endsWith("/api/workspaces?include_archived=true"))
+      return Response.json([{ ...devWorkspace, archived: true }]);
+    if (url.includes("/api/agents?")) return Response.json([agent("billing")]);
+  });
+  renderPage(
+    { ...member({}), is_admin: true },
+    "/agents",
+    <Route path="/agents" element={<AgentsPage />} />,
+  );
+  expect(
+    await screen.findByText("This workspace is archived."),
+  ).toBeInTheDocument();
+  expect(screen.getByText("billing")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "New agent" })).toBeNull();
+});
+
 test("the page header counts the workspace's agents", async () => {
   openAgents([agent("billing"), agent("support")]);
   const header = await screen.findByRole("banner");

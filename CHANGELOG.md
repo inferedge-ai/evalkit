@@ -174,7 +174,8 @@
     cost tables scroll sideways on a phone.
   - Agents list: the agent count sits in the page header, and an empty
     workspace says how to add an agent, or why you can't: it is archived,
-    or read-only for you.
+    or read-only for you. When the workspace has agents but you can't add
+    one, that reason sits where the New agent button would be.
   - An agent's page: how evalkit reaches the agent and where its
     trajectories come from sits under its name in the page header. Without a
     mapping, the Mappings tab says how to push one
@@ -183,9 +184,9 @@
     the Import tab says how an admin adds one
     (`evalkit trace-sources create`), and no longer says so while the
     sources are still loading or when they fail to load. An import's row
-    wraps on a phone. A mapping version list, rules table, preview or import
-    list that fails to load shows its error instead of loading forever, and
-    a failed preview shows its error in its own column.
+    wraps on a phone. On both tabs, each list that fails to load (trace
+    sources, range imports, mapping versions, sessions, each preview) shows
+    its error in its own section instead of loading forever.
   - The agents list, an agent's page, its tabs and a running harness check
     load with placeholder rows.
   - The agent form's note about changing the trajectory source wraps

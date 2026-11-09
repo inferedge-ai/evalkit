@@ -64,7 +64,7 @@ export function AgentsPage() {
             : undefined
         }
         actions={
-          writable && (
+          writable ? (
             <Button
               variant="outline"
               size="sm"
@@ -72,6 +72,8 @@ export function AgentsPage() {
             >
               New agent
             </Button>
+          ) : (
+            !!agents?.length && <span className="row-meta">{readOnly}</span>
           )
         }
       />
