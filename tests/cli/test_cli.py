@@ -1686,6 +1686,20 @@ def test_offline_lint_reports_schema_errors_as_findings(tmp_path):
     assert "E-SCHEMA [q1] acme/cases.yaml: evaluators.output.max_response_time" in result.output
 
 
+def test_offline_lint_accepts_x_keys_holding_yaml_anchors(tmp_path):
+    (tmp_path / "acme").mkdir()
+    (tmp_path / "acme" / "cases.yaml").write_text(
+        "x-shared:\n"
+        "  question: &question {question: State the NAV}\n"
+        "cases:\n"
+        "- id: q1\n"
+        "  input: *question\n"
+    )
+    result = runner.invoke(cli_app, ["lint", "--offline", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert "E-SCHEMA" not in result.output
+
+
 def test_users_add_with_a_subject_skips_the_password(env):
     result = runner.invoke(cli_app, ["users", "add", "ci-bot", "--subject", "client-1"])
     assert result.exit_code == 1 and "SSO is not configured" in result.output

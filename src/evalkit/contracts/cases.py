@@ -370,7 +370,7 @@ class SuiteDefaults(BaseModel):
 
 
 class SuiteFile(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra={"patternProperties": {"^x-": {}}})
 
     defaults: SuiteDefaults = Field(default_factory=SuiteDefaults)
     cases: list[Case | Overlay] = Field(default_factory=list)
@@ -527,7 +527,8 @@ def load_cases_from_yaml(path: Path) -> tuple[list[Case], list[Overlay]]:
     Accepts these top-level shapes:
       - a single case dict
       - a list of case/overlay dicts (overlays identified by `extends`)
-      - a mapping with any of `defaults`, `cases`, `overlays`
+      - a mapping with any of `defaults`, `cases`, `overlays`, plus keys starting
+        with `x-` that hold YAML anchors and are otherwise ignored
     """
     path = Path(path)
     try:
@@ -538,7 +539,11 @@ def load_cases_from_yaml(path: Path) -> tuple[list[Case], list[Overlay]]:
     defaults = SuiteDefaults()
     overlay_items: Any = []
     if isinstance(raw, dict) and ("cases" in raw or "overlays" in raw):
-        shell = {k: v for k, v in raw.items() if k not in ("cases", "overlays")}
+        shell = {
+            k: v
+            for k, v in raw.items()
+            if k not in ("cases", "overlays") and not str(k).startswith("x-")
+        }
         suite = _check(SuiteFile, shell, None, problems)
         if suite is None:
             raise CaseSchemaError(path, problems)
