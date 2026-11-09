@@ -291,12 +291,6 @@ button {
     font-weight: 600;
     color: var(--color-ink);
   }
-  /* Prose past ~80 characters stops being read and starts being skimmed —
-     cap the measure on every block of authored text. */
-  .prose {
-    max-width: 82ch;
-  }
-
   /* ── Controls ───────────────────────────────────────────────────────── */
 
   .select {
@@ -794,17 +788,6 @@ button {
   .heat-fail {
     background: color-mix(in srgb, var(--color-err) 16%, transparent);
   }
-  /* Distribution strip under a column header: how that evaluator did across
-     every case, so a weak column is visible before reading a single number. */
-  .dist {
-    display: flex;
-    height: 3px;
-    margin-top: 4px;
-    border-radius: 2px;
-    overflow: hidden;
-    background: var(--color-fill);
-  }
-
   .pane-status {
     padding: 20px;
     font-size: var(--text-body);
@@ -848,9 +831,6 @@ button {
   }
   .iv-partial {
     color: var(--color-warn);
-  }
-  .iv-missing {
-    color: var(--color-err-text);
   }
   /* Absent is a gap (never addressed) — warn; incorrect is a wrong answer — red. */
   .iv-absent {

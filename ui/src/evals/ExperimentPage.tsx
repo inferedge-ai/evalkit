@@ -1,8 +1,7 @@
 import { Checkbox } from "@/components/ui/checkbox";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ListX } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertDialog,
@@ -35,53 +34,26 @@ import { RevisionChip, TimeSpan, WorkspaceChip } from "./bits";
 import { ComparePicker } from "./ComparePicker";
 import { agentRevision, agentTag } from "./experimentRow";
 import { ProgressBar } from "./ProgressBar";
-import { ScoreMatrix } from "./ScoreMatrix";
-import { BucketCards, CostSpeedLine } from "./ScoreSummary";
+import { LoadingScoreMatrix, ScoreMatrix } from "./ScoreMatrix";
+import { BucketCards, CostSpeedLine, ScoresSkeleton } from "./ScoreSummary";
 import { MultiSelect, Select } from "../lib/Select";
 import { hasAnyTag, sortedTags, tagCounts } from "../lib/tags";
 import { useFollowWorkspace } from "../shell/workspace";
+import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
+const CASES_TABLE = "experiment-cases";
+
 function ScorecardSkeleton() {
   return (
     <>
       <div className="eyebrow">Scores</div>
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
-        {Array.from({ length: 5 }, (_, i) => (
-          <div className="tile tile-hero" key={i}>
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="mt-2 h-7 w-16" />
-          </div>
-        ))}
-      </div>
-      <div className="eyebrow">Cost &amp; speed</div>
-      <div className="tile-grid">
-        {Array.from({ length: 10 }, (_, i) => (
-          <div className="tile" key={i}>
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="mt-2 h-4 w-10" />
-          </div>
-        ))}
-      </div>
+      <ScoresSkeleton />
       <div className="eyebrow">Cases</div>
-      <Card className="gap-0 py-0">
-        <div className="rows">
-          {Array.from({ length: 12 }, (_, i) => (
-            <div
-              key={i}
-              className="row grid-cols-[minmax(0,1fr)_repeat(5,4rem)]"
-            >
-              <Skeleton className="h-3.5" style={{ width: `${30 + i * 4}%` }} />
-              {Array.from({ length: 5 }, (_, j) => (
-                <Skeleton className="h-3.5" key={j} />
-              ))}
-            </div>
-          ))}
-        </div>
-      </Card>
+      <LoadingScoreMatrix id={CASES_TABLE} />
     </>
   );
 }
@@ -128,9 +100,10 @@ function ExperimentView() {
   const report = live.data?.report ?? null;
   useFollowWorkspace(status?.workspace);
   const missing = isMissing(live.error);
-  const error =
-    actionError ?? (live.error && !missing ? String(live.error) : null);
-  const pinned = useApi<CaseView[]>(validId ? `${base}/cases` : null).data;
+  const pinnedQuery = useApi<CaseView[]>(validId ? `${base}/cases` : null);
+  const pinned = pinnedQuery.data;
+  const loadError = (missing ? null : live.error) ?? pinnedQuery.error;
+  const error = actionError ?? (loadError ? String(loadError) : null);
   const agentRef = status?.agent;
   const driver =
     useApi<AgentInfo>(
@@ -247,11 +220,15 @@ function ExperimentView() {
         }
       />
       <div className="page">
-        <div className="toolbar mb-3 flex-wrap">
+        <div className="toolbar mb-3">
           <span className="row-meta" title="experiment id">
             <CopyText value={experimentId} />
           </span>
-          {tag && <Badge variant="secondary">{tag}</Badge>}
+          {tag && (
+            <Badge variant="secondary" className="min-w-0 shrink" title={tag}>
+              <span className="truncate">{tag}</span>
+            </Badge>
+          )}
           {config?.snapshot.trajectory_source === "otel" && (
             <Badge
               variant="secondary"
@@ -262,8 +239,12 @@ function ExperimentView() {
           )}
           <WorkspaceChip workspace={status?.workspace} />
           {selection && (
-            <Badge variant="secondary" title="the cases this experiment ran on">
-              cases: {selection}
+            <Badge
+              variant="secondary"
+              className="min-w-0 shrink"
+              title="the cases this experiment ran on"
+            >
+              <span className="truncate">cases: {selection}</span>
             </Badge>
           )}
           <RevisionChip
@@ -285,7 +266,7 @@ function ExperimentView() {
             <Badge
               id="judge"
               variant="secondary"
-              className="font-mono"
+              className="min-w-0 shrink font-mono"
               title={[
                 `judge ${config.judge.model}`,
                 config.judge.provider
@@ -299,10 +280,12 @@ function ExperimentView() {
                 .filter(Boolean)
                 .join(" · ")}
             >
-              judge {config.judge.model}
-              {config.judge.reasoning_effort
-                ? ` · ${config.judge.reasoning_effort}`
-                : ""}
+              <span className="truncate">
+                judge {config.judge.model}
+                {config.judge.reasoning_effort
+                  ? ` · ${config.judge.reasoning_effort}`
+                  : ""}
+              </span>
             </Badge>
           )}
           {config?.snapshot.evalkit_version && (
@@ -350,8 +333,20 @@ function ExperimentView() {
             <BucketCards report={report} onPick={setEvaluator} />
             <CostSpeedLine report={report} />
             <div className="eyebrow">Cases</div>
+            {!pinned && !pinnedQuery.error && (
+              <LoadingScoreMatrix id={CASES_TABLE} />
+            )}
+            {pinned?.length === 0 && (
+              <Card className="py-8">
+                <Empty icon={ListX} title="This experiment pinned no cases" />
+              </Card>
+            )}
+          </>
+        )}
+        {report && !!pinned?.length && (
+          <>
             <ScoreMatrix
-              id="experiment-cases"
+              id={CASES_TABLE}
               report={report}
               groups={groups}
               defaultHidden={hiddenByDefault}
@@ -465,9 +460,6 @@ function ExperimentView() {
               {report.baseline_id ? ` · vs ${report.baseline_id}` : ""}
             </div>
           </>
-        )}
-        {report && listed.length === 0 && (
-          <div className="pane-status">This experiment pinned no cases.</div>
         )}
         <AlertDialog
           open={confirmingReevaluate}

@@ -361,6 +361,22 @@ function buildMatrixColumns(
   ];
 }
 
+const NO_ROWS: MatrixRow[] = [];
+const LOADING_COLUMNS = buildMatrixColumns([], NO_COLUMNS, false);
+
+export function LoadingScoreMatrix({ id }: { id: string }) {
+  const grid = useDataGrid<MatrixRow>(id);
+  return (
+    <DataGrid
+      grid={grid}
+      rows={NO_ROWS}
+      columns={LOADING_COLUMNS}
+      getRowId={getMatrixRowId}
+      loading
+    />
+  );
+}
+
 export function ScoreMatrix({
   id,
   report,

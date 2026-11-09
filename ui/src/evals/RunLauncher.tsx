@@ -1,6 +1,6 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useId, useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { SearchX, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +40,8 @@ import { CopyButton } from "../lib/ui";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Field, FieldLabel, FieldTitle } from "@/components/ui/field";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Empty } from "@/components/widgets/Empty";
 
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "all", label: "All cases" },
@@ -300,7 +302,17 @@ export function RunLauncher({
                     </Button>
                   </div>
                   <div className="picker-list">
-                    {!examples && <div className="pane-status">Loading…</div>}
+                    {!examples &&
+                      Array.from({ length: 4 }, (_, i) => (
+                        <div key={i} className="picker-row">
+                          <Skeleton className="size-4" />
+                          <Skeleton className="h-3 w-28" />
+                          <Skeleton
+                            className="h-3"
+                            style={{ width: `${25 + i * 10}%` }}
+                          />
+                        </div>
+                      ))}
                     {pickable.map((ex) => (
                       <label key={ex.case_id} className="picker-row">
                         <Checkbox
@@ -326,7 +338,12 @@ export function RunLauncher({
                       </label>
                     ))}
                     {examples && !pickable.length && (
-                      <div className="pane-status">No cases match.</div>
+                      <Empty
+                        size="sm"
+                        icon={SearchX}
+                        title="No cases match this filter"
+                        className="py-6"
+                      />
                     )}
                   </div>
                 </div>

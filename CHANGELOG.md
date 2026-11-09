@@ -158,6 +158,28 @@
   - For a package extending the UI, `PageHeader` takes an optional
     `description` line, and `Empty` (`@/components/widgets/Empty`) draws an
     empty state.
+- The web UI's experiments, experiment, run and compare pages and the run
+  launcher are laid out on the design system:
+  - A workspace with no experiments shows an icon, a title and the command
+    to run instead of an empty table. When the list fails to load, the page
+    shows the error alone instead of an empty table.
+  - An experiment's page keeps the shape of its scores and case table while
+    it loads; the case table shows the grid's own loading state. It says
+    when the experiment pinned no cases, and shows the error when its cases
+    fail to load instead of an empty case table.
+  - A run's page and the compare page keep their header and breadcrumbs
+    while they load and when they fail to load, and keep their content on
+    screen when a refresh fails.
+  - A case that has not run yet says so under its run page's header, with a
+    link back to the experiment. Before, it could show "Not found" while the
+    experiment's cases were still loading. A run whose case and overlays set
+    no evaluators says so on its Scores tab.
+  - The compare page opened without two experiments says how to pick them.
+  - On a phone, long agent, model, judge and case-selection chips on an
+    experiment's and a run's page end in an ellipsis instead of running off
+    the screen.
+  - The run launcher's case picker shows placeholder rows while the cases
+    load, and an empty state when its filter matches nothing.
 
 ## 0.4.0
 

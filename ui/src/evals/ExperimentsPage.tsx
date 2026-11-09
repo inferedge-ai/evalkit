@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FlaskConical } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
 import { qs } from "../lib/api";
@@ -16,15 +17,48 @@ import {
   listCapNote,
 } from "../lib/experimentStatus";
 import { useApi } from "../lib/query";
-import type { ExperimentListItem } from "../lib/types";
+import type { ExperimentListItem, WorkspaceInfo } from "../lib/types";
 import { experimentTailColumns } from "./experimentRow";
 import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
 import { useWorkspace } from "../shell/workspace";
+import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
 const getExperimentId = (exp: ExperimentListItem) => String(exp.id);
+
+function NoExperiments({ workspace }: { workspace: WorkspaceInfo }) {
+  return (
+    <Card className="py-8">
+      <Empty
+        icon={FlaskConical}
+        title={`No experiments in @${workspace.name} yet`}
+        description={
+          workspace.type === "shared" ? (
+            <>
+              Start one with Run experiment on a dataset, or run{" "}
+              <span className="font-mono">
+                evalkit run &lt;dataset&gt;@{workspace.name} --agent
+                &lt;agent&gt;@{workspace.name}
+              </span>
+              .
+            </>
+          ) : (
+            <>
+              Run{" "}
+              <span className="font-mono">
+                evalkit run &lt;dataset&gt; --agent &lt;agent&gt;
+              </span>{" "}
+              from a repo with an evalkit.yaml.
+            </>
+          )
+        }
+      />
+    </Card>
+  );
+}
 
 export function ExperimentsPage() {
   const { workspace } = useWorkspace();
@@ -96,9 +130,30 @@ export function ExperimentsPage() {
   });
   const grid = useDataGrid<ExperimentListItem>("experiments");
 
+  const header = <PageHeader title="Experiments" />;
+  if (!rows && error)
+    return (
+      <>
+        {header}
+        <div className="page">
+          <div className="pane-status error">{error}</div>
+        </div>
+      </>
+    );
+  if (rows?.length === 0)
+    return (
+      <>
+        {header}
+        <div className="page">
+          {error && <div className="pane-status error">{error}</div>}
+          <NoExperiments workspace={workspace} />
+        </div>
+      </>
+    );
+
   return (
     <>
-      <PageHeader title="Experiments" />
+      {header}
       <div className="page">
         <div className="toolbar mb-3">
           <Input
@@ -142,11 +197,7 @@ export function ExperimentsPage() {
           columns={columns}
           getRowId={getExperimentId}
           loading={loading}
-          empty={
-            rows && rows.length === 0
-              ? `No experiments in @${workspace.name} yet.`
-              : "No experiments match this filter."
-          }
+          empty="No experiments match this filter."
         />
       </div>
     </>

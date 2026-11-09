@@ -1,136 +1,75 @@
 // @vitest-environment jsdom
-import { QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Route, useNavigate, type NavigateFunction } from "react-router-dom";
+import { afterEach, expect, test } from "vitest";
+import type { ExperimentInfo } from "../lib/types";
 import {
-  MemoryRouter,
-  Route,
-  Routes,
-  useNavigate,
-  type NavigateFunction,
-} from "react-router-dom";
-import { afterEach, expect, test, vi } from "vitest";
-import { queryClient } from "../lib/query";
-import type { ExperimentInfo, Me, Report, WorkspaceInfo } from "../lib/types";
-import { MeContext } from "../shell/capabilities";
-import { WorkspaceGate } from "../shell/workspace";
+  closePage,
+  experiment,
+  failure,
+  member,
+  renderPage,
+  scorecard,
+  stubServer,
+} from "../testFixtures";
 import { ExperimentPage } from "./ExperimentPage";
 
-const me: Me = {
-  username: "akshat",
-  is_admin: false,
-  email: null,
-  kind: "human",
-  personal_workspace: "akshat",
-  roles: { dev: ["writer"] },
-};
-
-const workspace: WorkspaceInfo = {
-  id: 2,
-  name: "dev",
-  type: "shared",
-  archived: false,
-  promotes_to: null,
-  promoted_from: null,
-};
-
 const failedWithPendingRuns: ExperimentInfo = {
-  id: 12,
-  number: 3,
-  workspace: "dev",
-  dataset: "support@dev",
-  agent: "bot@dev",
-  agent_id: 7,
-  created_by: "akshat",
+  ...experiment,
   status: "failed",
   status_error: "harness unreachable",
-  lease_holder: null,
-  lease_expires_at: null,
-  repetitions: 1,
-  config: {
-    model: null,
-    judge: {
-      provider: "openai",
-      model: "gpt-5",
-      reasoning_effort: "low",
-      max_tokens: 4096,
-    },
-    selection: { all: true },
-    revision: null,
-    snapshot: {
-      capabilities: {},
-      trajectory_source: "atif",
-      trajectory_wait_seconds: 30,
-      remote_evaluators: {},
-      code_evaluators: [],
-      evalkit_version: null,
-    },
-  },
-  started_at: "2026-11-01T10:00:00Z",
-  ended_at: "2026-11-01T10:05:00Z",
   progress: { total: 4, ran: 2, evaluated: 2 },
   case_states: {},
-  can_change: true,
-  server_may_drive: true,
   resumable: true,
   pending_runs: true,
 };
 
-const report: Report = {
-  experiment_id: "12",
-  name: "#3",
-  dataset: "support@dev",
-  metadata: {},
-  cases: [],
-  evaluators: [],
-  buckets: {},
-  gauges: [],
-  evaluator_columns: [],
-  baseline_id: null,
-};
+afterEach(closePage);
 
-afterEach(() => {
-  queryClient.clear();
-  vi.unstubAllGlobals();
-});
+// Stands in for the browser's Back button, which works while a dialog is open.
+let navigateTo: NavigateFunction = () => {};
+function History() {
+  navigateTo = useNavigate();
+  return null;
+}
+
+function openExperiment(id = 12) {
+  renderPage(
+    member({ dev: ["writer"] }),
+    `/experiments/${id}`,
+    <Route
+      path="/experiments/:experimentId"
+      element={
+        <>
+          <History />
+          <ExperimentPage />
+        </>
+      }
+    />,
+  );
+}
+
+function serveExperiment(status: ExperimentInfo = failedWithPendingRuns) {
+  const reevaluations: string[] = [];
+  stubServer((url, init) => {
+    if (url.endsWith("/evaluate")) {
+      reevaluations.push(init?.method ?? "GET");
+      return Response.json({});
+    }
+    const id = url.match(/\/api\/experiments\/(\d+)/)?.[1];
+    if (id && url.endsWith(`/api/experiments/${id}`))
+      return Response.json({ ...status, id: Number(id) });
+    if (id && url.endsWith("/scorecard"))
+      return Response.json({ ...scorecard, experiment_id: id });
+  });
+  return reevaluations;
+}
 
 test("re-evaluating an experiment with unfinished runs asks first, and only re-evaluates once confirmed", async () => {
-  const reevaluations: string[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string, init?: RequestInit) => {
-      if (url.endsWith("/api/auth/providers"))
-        return Response.json({ password: "all", oidc: null });
-      if (url.endsWith("/api/workspaces?include_archived=true"))
-        return Response.json([workspace]);
-      if (url.endsWith("/api/experiments/12/evaluate")) {
-        reevaluations.push(init?.method ?? "GET");
-        return Response.json({});
-      }
-      if (url.endsWith("/api/experiments/12"))
-        return Response.json(failedWithPendingRuns);
-      if (url.endsWith("/api/experiments/12/scorecard"))
-        return Response.json(report);
-      return Response.json([]);
-    }),
-  );
+  const reevaluations = serveExperiment();
   const user = userEvent.setup();
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MeContext.Provider value={me}>
-        <MemoryRouter initialEntries={["/experiments/12"]}>
-          <Routes>
-            <Route element={<WorkspaceGate />}>
-              <Route
-                path="/experiments/:experimentId"
-                element={<ExperimentPage />}
-              />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </MeContext.Provider>
-    </QueryClientProvider>,
-  );
+  openExperiment();
 
   await user.click(await screen.findByRole("button", { name: "Re-evaluate" }));
   const confirm = await screen.findByRole("alertdialog", {
@@ -158,42 +97,9 @@ test("double-clicking the confirmation re-evaluates once", async () => {
   // jsdom has no animations, so Base UI would unmount the closing dialog at
   // once; a browser keeps it on screen, and clickable, for its exit animation.
   Element.prototype.getAnimations = () => [];
-  const reevaluations: string[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string, init?: RequestInit) => {
-      if (url.endsWith("/api/auth/providers"))
-        return Response.json({ password: "all", oidc: null });
-      if (url.endsWith("/api/workspaces?include_archived=true"))
-        return Response.json([workspace]);
-      if (url.endsWith("/api/experiments/12/evaluate")) {
-        reevaluations.push(init?.method ?? "GET");
-        return Response.json({});
-      }
-      if (url.endsWith("/api/experiments/12"))
-        return Response.json(failedWithPendingRuns);
-      if (url.endsWith("/api/experiments/12/scorecard"))
-        return Response.json(report);
-      return Response.json([]);
-    }),
-  );
+  const reevaluations = serveExperiment();
   const user = userEvent.setup();
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MeContext.Provider value={me}>
-        <MemoryRouter initialEntries={["/experiments/12"]}>
-          <Routes>
-            <Route element={<WorkspaceGate />}>
-              <Route
-                path="/experiments/:experimentId"
-                element={<ExperimentPage />}
-              />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </MeContext.Provider>
-    </QueryClientProvider>,
-  );
+  openExperiment();
 
   await user.click(await screen.findByRole("button", { name: "Re-evaluate" }));
   await user.dblClick(
@@ -205,52 +111,10 @@ test("double-clicking the confirmation re-evaluates once", async () => {
   delete (Element.prototype as { getAnimations?: unknown }).getAnimations;
 });
 
-// Stands in for the browser's Back button, which works while a dialog is open.
-let navigateTo: NavigateFunction = () => {};
-function History() {
-  navigateTo = useNavigate();
-  return null;
-}
-
 test("a confirmation left open on one experiment is gone after moving to another", async () => {
-  const reevaluations: string[] = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (url: string) => {
-      if (url.endsWith("/api/auth/providers"))
-        return Response.json({ password: "all", oidc: null });
-      if (url.endsWith("/api/workspaces?include_archived=true"))
-        return Response.json([workspace]);
-      if (url.endsWith("/evaluate")) {
-        reevaluations.push(url);
-        return Response.json({});
-      }
-      const id = url.match(/\/api\/experiments\/(\d+)/)?.[1];
-      if (id && url.endsWith(`/api/experiments/${id}`))
-        return Response.json({ ...failedWithPendingRuns, id: Number(id) });
-      if (id && url.endsWith("/scorecard"))
-        return Response.json({ ...report, experiment_id: id });
-      return Response.json([]);
-    }),
-  );
+  const reevaluations = serveExperiment();
   const user = userEvent.setup();
-  render(
-    <QueryClientProvider client={queryClient}>
-      <MeContext.Provider value={me}>
-        <MemoryRouter initialEntries={["/experiments/12"]}>
-          <History />
-          <Routes>
-            <Route element={<WorkspaceGate />}>
-              <Route
-                path="/experiments/:experimentId"
-                element={<ExperimentPage />}
-              />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </MeContext.Provider>
-    </QueryClientProvider>,
-  );
+  openExperiment();
 
   await user.click(await screen.findByRole("button", { name: "Re-evaluate" }));
   await screen.findByRole("alertdialog");
@@ -261,4 +125,41 @@ test("a confirmation left open on one experiment is gone after moving to another
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
   );
   expect(reevaluations).toEqual([]);
+});
+
+test("while the scorecard loads, the case table shows the grid's own loading state", async () => {
+  stubServer((url) =>
+    url.endsWith("/api/experiments/12/scorecard")
+      ? new Promise(() => {})
+      : url.endsWith("/api/experiments/12")
+        ? Response.json(experiment)
+        : undefined,
+  );
+  openExperiment();
+  expect(await screen.findByText("Cases")).toBeInTheDocument();
+  expect(await screen.findByText("Loading...")).toBeInTheDocument();
+});
+
+test("an experiment that pinned no cases says so in place of the case table", async () => {
+  serveExperiment({ ...experiment, case_states: {} });
+  openExperiment();
+  expect(
+    await screen.findByText("This experiment pinned no cases"),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("0 cases")).toBeNull();
+});
+
+test("when the experiment's cases cannot load, the page says so instead of an empty case table", async () => {
+  stubServer((url) =>
+    url.endsWith("/api/experiments/12/cases")
+      ? failure("store unavailable")
+      : url.endsWith("/api/experiments/12")
+        ? Response.json(experiment)
+        : url.endsWith("/api/experiments/12/scorecard")
+          ? Response.json(scorecard)
+          : undefined,
+  );
+  openExperiment();
+  expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
+  expect(screen.queryByText("0 cases")).toBeNull();
 });
