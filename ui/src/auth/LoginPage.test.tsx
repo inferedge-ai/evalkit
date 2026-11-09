@@ -112,7 +112,7 @@ describe("LoginPage", () => {
     localStorage.clear();
   });
 
-  function stubProvider() {
+  function stubProvider(removeUser = async () => {}) {
     const redirects: unknown[] = [];
     resetProvidersForTest();
     setSessionForTest({
@@ -127,7 +127,7 @@ describe("LoginPage", () => {
         state: "/experiments",
       }),
       signinSilent: async () => null,
-      removeUser: async () => {},
+      removeUser,
     });
     vi.stubGlobal(
       "fetch",
@@ -172,6 +172,18 @@ describe("LoginPage", () => {
     expect(redirects).toEqual([
       { state: "/experiments", redirectMethod: "assign" },
     ]);
+  });
+
+  it("waits for Sign in again even when Sign out cannot clear the provider's session", async () => {
+    const redirects = stubProvider(async () => {
+      throw new Error("storage unavailable");
+    });
+    await logout().catch(() => {});
+    openLogin("/login?next=%2Fexperiments");
+    expect(
+      await screen.findByRole("button", { name: "Sign in again" }),
+    ).toBeTruthy();
+    expect(redirects).toEqual([]);
   });
 
   it("hands over at once again after the person signs back in", async () => {

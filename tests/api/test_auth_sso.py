@@ -146,7 +146,7 @@ async def test_password_sign_in_is_refused_when_passwords_are_off(env, idp):
         )
         providers = (await client.get("/api/auth/providers")).json()
     assert resp.status_code == 403
-    assert resp.json()["detail"] == "password sign-in is off on this server; sign in with Fake"
+    assert resp.json()["detail"] == "password login is off on this server; sign in with Fake"
     assert providers["password"] == "none"
 
 

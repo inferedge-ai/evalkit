@@ -275,7 +275,7 @@ async def login(body: LoginRequest, request: Request) -> dict:
         assert cfg.auth.oidc is not None
         raise HTTPException(
             status_code=403,
-            detail=f"password sign-in is off on this server; sign in with {cfg.auth.oidc.name}",
+            detail=f"password login is off on this server; sign in with {cfg.auth.oidc.name}",
         )
     tenant_id = await require_tenant(request.app.state, request, None)
     if len(body.password.encode()) > PASSWORD_MAX_BYTES:

@@ -141,16 +141,19 @@ export async function apiFetch(
   const resp = await fetch(`${API}/api${path}`, { ...init, headers });
   noteServerDate(resp.headers.get("Date"));
   if (resp.status === 401) {
-    await signOutLocally();
-    if (
-      !NO_REDIRECT.has(path) &&
-      typeof window !== "undefined" &&
-      !window.location.pathname.startsWith("/login")
-    ) {
-      const next = encodeURIComponent(
-        window.location.pathname + window.location.search,
-      );
-      window.location.assign(`/login?next=${next}`);
+    try {
+      await signOutLocally();
+    } finally {
+      if (
+        !NO_REDIRECT.has(path) &&
+        typeof window !== "undefined" &&
+        !window.location.pathname.startsWith("/login")
+      ) {
+        const next = encodeURIComponent(
+          window.location.pathname + window.location.search,
+        );
+        window.location.assign(`/login?next=${next}`);
+      }
     }
   }
   return resp;
@@ -229,9 +232,9 @@ export async function register(idToken: string): Promise<Me> {
 }
 
 export async function logout(): Promise<void> {
+  store?.setItem(SIGNED_OUT_KEY, "1");
   if (token !== null) {
     await apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
   }
   await signOutLocally();
-  store?.setItem(SIGNED_OUT_KEY, "1");
 }

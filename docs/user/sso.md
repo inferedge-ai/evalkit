@@ -197,9 +197,10 @@ in every tab of that browser, until you next sign in.
    With `password_login: none` there is no password account and no
    `EVALKIT_ADMIN_PASSWORD`: the IdP names the admins through `admin_claim`.
 2. Ask the first person to sign in; evalkit creates their user on the first
-   sign-in. Then `evalkit users promote <username>`. With
-   `password_login: none`, whoever `admin_claim` names is an admin from their
-   first sign-in, and promoting by hand does not last past the next one. If
+   sign-in. Then `evalkit users promote <username>`.
+   `password_login: none` requires `admin_claim`, so whoever the claim names
+   is an admin from their first sign-in and, as with `admin_claim` in any
+   mode, promoting by hand does not last past the next one. If
    nobody can sign in as an admin (the claim is missing from the access
    token, say), switch back to `password_login: admin` and start with
    `EVALKIT_ADMIN_PASSWORD`: the server creates `admin` when no admin
@@ -227,7 +228,7 @@ in every tab of that browser, until you next sign in.
 | 401 `SSO is not configured on this server` | A JWT reached a server without `auth.oidc` | Configure `auth.oidc` or use password login |
 | 401 `user is archived` | Archived in evalkit | `evalkit users restore <username>` |
 | 403 `password login is for admins on this server` | `password_login: admin` | Sign in with SSO, or set `password_login: all` |
-| 403 `password sign-in is off on this server` | `password_login: none` | Sign in with SSO; CI uses its machine client |
+| 403 `password login is off on this server` | `password_login: none` | Sign in with SSO; CI uses its machine client |
 | 403 `no tenant for this request` | A wrapper's `resolve_tenant` found no tenant for the token | Have the IdP put the organisation in the token, CI's client credentials tokens included |
 | 403 `access token lacks required scope <scope>` (on `/api` and register; `/mcp` says `insufficient_scope`) | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
 | 503 `identity provider unreachable` | Discovery or the JWKS could not be fetched | Check the issuer URL and network egress from the server; it retries every 30 s |
