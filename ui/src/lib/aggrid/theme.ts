@@ -22,6 +22,8 @@ export const gridTheme = themeQuartz.withParams({
   oddRowBackgroundColor: "var(--card)",
 
   accentColor: "var(--primary)",
+  // The checkbox radius defaults to borderRadius, which rounds a 14px box into a circle.
+  checkboxBorderRadius: 4,
 
   iconSize: 14,
   columnBorder: true,
