@@ -123,9 +123,12 @@
   A signed-out visitor goes straight to the provider instead of evalkit's
   login page and comes back to the page they opened. `POST /api/auth/login`
   refuses every password with 403 `password sign-in is off on this server`,
-  `evalkit login --username` included. Signing out shows a **Sign in again**
-  button rather than restarting the provider sign-in, so a live provider
-  session does not sign the person straight back in. When the provider is
+  `evalkit login --username` included. Signing out stops every open tab at
+  a **Sign in again** button until the next sign-in, rather than restarting
+  the provider sign-in, so a live provider session does not sign the person
+  straight back in. With `none` the identity provider owns admins: an admin
+  promoted by hand loses it at their next sign-in unless the claim names
+  them. When the provider is
   unreachable, the 503 from `GET /api/auth/providers` now also carries
   `password`, so the login page offers Retry and no password form. In every
   mode, a signed-out visitor who opens a page while the provider is

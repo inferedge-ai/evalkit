@@ -32,7 +32,10 @@ export interface SessionUser {
 
 export interface OidcSession {
   getUser(): Promise<SessionUser | null>;
-  signinRedirect(args: { state: unknown }): Promise<void>;
+  signinRedirect(args: {
+    state: unknown;
+    redirectMethod?: "replace" | "assign";
+  }): Promise<void>;
   signinCallback(): Promise<SessionUser | undefined>;
   signinSilent(): Promise<SessionUser | null>;
   removeUser(): Promise<void>;
@@ -56,8 +59,10 @@ export function loadProviders(): Promise<Providers> {
         .catch(() => ({}) as Record<string, unknown>);
       if (!resp.ok) {
         providersPromise = null;
+        const message = String(body.detail ?? "cannot load sign-in options");
+        if (resp.status !== 503) throw new Error(message);
         throw new ProvidersUnavailable(
-          String(body.detail ?? "cannot load sign-in options"),
+          message,
           (body.password as Providers["password"] | undefined) ?? null,
         );
       }

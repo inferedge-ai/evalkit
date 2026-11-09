@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { register, signOutLocally } from "../lib/api";
+import { clearSignOut, register, signOutLocally } from "../lib/api";
 import { completeSignIn } from "./completeSignIn";
 import { session } from "./oidc";
 import { buttonVariants } from "@/components/ui/button";
@@ -61,6 +61,7 @@ export function LoginCallbackPage() {
     let cancelled = false;
     exchangeOnce().then(
       ({ next }) => {
+        clearSignOut();
         if (!cancelled) navigate(next, { replace: true });
       },
       (err: unknown) => {

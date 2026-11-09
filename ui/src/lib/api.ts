@@ -5,6 +5,7 @@ import type { Me } from "./types";
 const API = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const TOKEN_KEY = "evalkit.token";
+const SIGNED_OUT_KEY = "evalkit.signed_out";
 
 const store: Storage | null =
   typeof localStorage !== "undefined" ? localStorage : null;
@@ -15,6 +16,16 @@ export function setToken(value: string | null): void {
   token = value;
   if (value === null) store?.removeItem(TOKEN_KEY);
   else store?.setItem(TOKEN_KEY, value);
+}
+
+// Every tab shares this, so a tab whose session ends after a sign-out elsewhere
+// stops at the login page instead of signing the person straight back in.
+export function isSignedOut(): boolean {
+  return store?.getItem(SIGNED_OUT_KEY) === "1";
+}
+
+export function clearSignOut(): void {
+  store?.removeItem(SIGNED_OUT_KEY);
 }
 
 const REFRESH_WINDOW_SECONDS = 60;
@@ -210,6 +221,7 @@ export async function login(username: string, password: string): Promise<void> {
   if (!resp.ok)
     throw new ApiError(resp.status, String(body.detail ?? "login failed"));
   setToken(String(body.token));
+  clearSignOut();
 }
 
 export async function register(idToken: string): Promise<Me> {
@@ -221,4 +233,5 @@ export async function logout(): Promise<void> {
     await apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
   }
   await signOutLocally();
+  store?.setItem(SIGNED_OUT_KEY, "1");
 }

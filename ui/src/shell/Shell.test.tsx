@@ -2,7 +2,7 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { SIDEBAR_COOKIE_NAME } from "../components/ui/sidebar";
 import { PageHeader } from "../components/widgets/PageHeader";
@@ -69,15 +69,6 @@ afterEach(() => {
   document.cookie = `${SIDEBAR_COOKIE_NAME}=; path=/; max-age=0`;
 });
 
-function LoginStandIn() {
-  return (
-    <>
-      <p>login page</p>
-      <p>{useLocation().search}</p>
-    </>
-  );
-}
-
 function page(name: string) {
   return (
     <>
@@ -94,7 +85,7 @@ function renderApp(me: Me | null, path: string) {
         <MeContext.Provider value={me}>
           <MemoryRouter initialEntries={[path]}>
             <Routes>
-              <Route path="/login" element={<LoginStandIn />} />
+              <Route path="/login" element={<p>login page</p>} />
               <Route element={<WorkspaceOrPublic />}>
                 <Route element={<ShellOrBare />}>
                   <Route path="/docs/:tab" element={<DocsPage />} />
@@ -228,7 +219,6 @@ test("the profile menu shows who is signed in, switches the theme and signs out"
   await user.click(screen.getByRole("button", { name: "akshat" }));
   await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
   expect(await screen.findByText("login page")).toBeInTheDocument();
-  expect(screen.getByText("?signed_out=1")).toBeInTheDocument();
 });
 
 test("on a phone the top bar opens the navigation on any page, and picking a page closes it", async () => {

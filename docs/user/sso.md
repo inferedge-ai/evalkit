@@ -192,10 +192,17 @@ your identity provider session stays. With `none`, signing out shows a
 
 ## Admin runbook
 
-1. Start with `EVALKIT_ADMIN_PASSWORD` set, as before; `admin` is a password
-   account.
+1. Start with `EVALKIT_ADMIN_PASSWORD` set; `admin` is a password account.
+   With `password_login: none` there is no password account and no
+   `EVALKIT_ADMIN_PASSWORD`: the IdP names the admins through `admin_claim`.
 2. Ask the first person to sign in; evalkit creates their user on the first
-   sign-in. Then `evalkit users promote <username>`.
+   sign-in. Then `evalkit users promote <username>`. With
+   `password_login: none`, whoever `admin_claim` names is an admin from their
+   first sign-in, and promoting by hand does not last past the next one. If
+   nobody can sign in as an admin (the claim is missing from the access
+   token, say), switch back to `password_login: admin` and start with
+   `EVALKIT_ADMIN_PASSWORD`: the server creates `admin` when no admin
+   exists.
 3. Bind machine users: `evalkit users add ci-bot --subject <sub>`, then
    `evalkit workspaces members add dev ci-bot --role writer`.
 4. A sign-in that answers 409 `username <x> is taken by a user or workspace`

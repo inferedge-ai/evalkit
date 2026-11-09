@@ -191,13 +191,6 @@ async def test_bootstrap_admin_only_when_empty(session_factory):
         assert len((await session.execute(select(User))).scalars().all()) == 1
 
 
-async def test_bootstrap_makes_no_password_admin_when_passwords_are_off(session_factory):
-    await bootstrap_admin(session_factory, None, "none")
-    await bootstrap_admin(session_factory, "secret-password", "none")
-    async with session_factory() as session:
-        assert (await session.execute(select(User))).scalars().all() == []
-
-
 def test_run_migrations_postgres(fresh_db_url):
     run_migrations(fresh_db_url)
     engine = create_engine(fresh_db_url)

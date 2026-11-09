@@ -299,9 +299,7 @@ function ProfileMenu({ me }: { me: Me }) {
             {theme === "dark" ? "Light mode" : "Dark mode"}
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() =>
-              logout().finally(() => navigate("/login?signed_out=1"))
-            }
+            onClick={() => logout().finally(() => navigate("/login"))}
           >
             <LogOut />
             Sign out

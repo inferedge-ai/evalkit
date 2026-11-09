@@ -36,7 +36,8 @@ cp <this-skill-dir>/docker-compose.yml .
 # API keys are not in config: the commands below store them in the database.
 # First start: EVALKIT_ADMIN_PASSWORD (8+ characters, at most 72 bytes)
 # creates the admin user; a server with no admin and no
-# EVALKIT_ADMIN_PASSWORD refuses to start. Put these in a .env
+# EVALKIT_ADMIN_PASSWORD refuses to start, unless auth.password_login is
+# none (admins then come from the identity provider). Put these in a .env
 # file next to docker-compose.yml.
 # With db.migrate_on_start: true in config.yaml (see "Migrations on start"),
 # this one command starts everything and migrates:

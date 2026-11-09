@@ -4,8 +4,13 @@ import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { logout } from "../lib/api";
 import { LoginChoices, LoginPage, runSso } from "./LoginPage";
-import type { Providers } from "./oidc";
+import {
+  resetProvidersForTest,
+  setSessionForTest,
+  type Providers,
+} from "./oidc";
 
 const okta = {
   name: "Okta",
@@ -99,7 +104,60 @@ describe("with passwords off", () => {
 });
 
 describe("LoginPage", () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    setSessionForTest(undefined);
+    resetProvidersForTest();
+    localStorage.clear();
+  });
+
+  function stubProvider() {
+    const redirects: unknown[] = [];
+    resetProvidersForTest();
+    setSessionForTest({
+      getUser: async () => null,
+      signinRedirect: async (args) => {
+        redirects.push(args);
+        await new Promise(() => {});
+      },
+      signinCallback: async () => undefined,
+      signinSilent: async () => null,
+      removeUser: async () => {},
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json({ password: "none", oidc: okta })),
+    );
+    return redirects;
+  }
+
+  function openLogin(path: string) {
+    renderDom(
+      <MemoryRouter initialEntries={[path]}>
+        <LoginPage />
+      </MemoryRouter>,
+    );
+  }
+
+  it("hands over to the provider with the page the visitor asked for", async () => {
+    const redirects = stubProvider();
+    openLogin("/login?next=%2Fexperiments");
+    await vi.waitFor(() =>
+      expect(redirects).toEqual([
+        { state: "/experiments", redirectMethod: "replace" },
+      ]),
+    );
+  });
+
+  it("waits for Sign in again after Sign out, even when another tab's expired session lands here", async () => {
+    const redirects = stubProvider();
+    await logout();
+    openLogin("/login?next=%2Fexperiments");
+    expect(
+      await screen.findByRole("button", { name: "Sign in again" }),
+    ).toBeTruthy();
+    expect(redirects).toEqual([]);
+  });
 
   it("offers Retry, not a password form, when passwords are off and the provider is unreachable", async () => {
     vi.stubGlobal(

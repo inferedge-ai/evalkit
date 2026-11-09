@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { login } from "../lib/api";
+import { isSignedOut, login } from "../lib/api";
 import { PublicShell } from "../shell/PublicShell";
 import { safeNext } from "./next";
 import {
@@ -212,7 +212,7 @@ export function LoginPage() {
   const startSso = async () => {
     const s = await session();
     if (s === null) throw new Error("Single sign-on is not configured.");
-    await s.signinRedirect({ state: next });
+    await s.signinRedirect({ state: next, redirectMethod: "replace" });
   };
 
   const fallback: Providers = { password: fallbackPassword, oidc: null };
@@ -232,7 +232,7 @@ export function LoginPage() {
             <LoginChoices
               providers={providers ?? fallback}
               next={next}
-              signedOut={params.has("signed_out")}
+              signedOut={isSignedOut()}
               onSso={startSso}
             />
           </div>
