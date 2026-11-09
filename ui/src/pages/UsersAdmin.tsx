@@ -6,6 +6,8 @@ import { refreshQueries, useApi } from "../lib/query";
 import type { UserRow } from "../lib/types";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 type UserAction = "archive" | "restore" | "promote" | "demote";
 
@@ -49,15 +51,15 @@ export function UsersAdminPage() {
           blocks login and archives their personal workspace.
         </p>
         <form className="toolbar mt-3 mb-3" onSubmit={add}>
-          <input
-            className="input"
+          <Input
+            className="w-auto"
             placeholder="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
           />
-          <input
-            className="input"
+          <Input
+            className="w-auto"
             type="password"
             placeholder="password"
             value={password}
@@ -89,9 +91,9 @@ export function UsersAdminPage() {
                 >
                   <span className="font-mono">{user.username}</span>
                   <span className="flex gap-1">
-                    {user.is_admin && <span className="chip muted">admin</span>}
+                    {user.is_admin && <Badge variant="secondary">admin</Badge>}
                     {user.archived && (
-                      <span className="chip muted">archived</span>
+                      <Badge variant="secondary">archived</Badge>
                     )}
                   </span>
                   <span className="row-meta num">

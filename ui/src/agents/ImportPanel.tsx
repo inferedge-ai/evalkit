@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -17,6 +18,7 @@ import type { SessionTrajectory, TraceSourceInfo } from "../lib/types";
 import { Summary } from "./MappingsPanel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 
 const POLL_MS = 2000;
 
@@ -66,17 +68,17 @@ function ImportRow({
     <div className="row gap-2">
       <div className="grid grid-cols-[auto_auto_1fr_auto_auto_auto] items-center gap-3">
         <span className="row-strong font-mono">#{item.id}</span>
-        <span
-          className={`chip ${
+        <Badge
+          variant={
             item.status === "done"
-              ? "chip-pass"
+              ? "pass"
               : item.status === "failed"
-                ? "chip-fail"
-                : "muted"
-          }`}
+                ? "fail"
+                : "secondary"
+          }
         >
           {item.status}
-        </span>
+        </Badge>
         <span className="row-meta">
           {item.source}/{item.project} · {fmtWhen(item.since)} <ToArrow />{" "}
           {fmtWhen(item.until)} · by {item.created_by}
@@ -234,8 +236,8 @@ export function ImportPanel({ agent }: { agent: string }) {
             </div>
             <div className="form-row">
               <span className="form-label">Project</span>
-              <input
-                className="input w-72"
+              <Input
+                className="w-72"
                 value={project}
                 onChange={(e) => setProject(e.target.value)}
               />
@@ -260,8 +262,8 @@ export function ImportPanel({ agent }: { agent: string }) {
             {mode === "session" ? (
               <div className="form-row">
                 <span className="form-label">Session id</span>
-                <input
-                  className="input w-72 font-mono"
+                <Input
+                  className="w-72 font-mono"
                   value={sessionId}
                   onChange={(e) => setSessionId(e.target.value)}
                 />
@@ -270,18 +272,18 @@ export function ImportPanel({ agent }: { agent: string }) {
               <>
                 <div className="form-row">
                   <span className="form-label">Since</span>
-                  <input
+                  <Input
                     type="datetime-local"
-                    className="input"
+                    className="w-auto"
                     value={since}
                     onChange={(e) => setSince(e.target.value)}
                   />
                 </div>
                 <div className="form-row">
                   <span className="form-label">Until</span>
-                  <input
+                  <Input
                     type="datetime-local"
-                    className="input"
+                    className="w-auto"
                     value={until}
                     onChange={(e) => setUntil(e.target.value)}
                   />

@@ -16,6 +16,7 @@ import { ENDPOINT_NOTE, PERSONAL_KEY_NOTE } from "../lib/endpoint";
 import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { Select } from "../lib/Select";
 import type { RemoteEvaluatorInfo, WorkspaceInfo } from "../lib/types";
+import { Input } from "@/components/ui/input";
 
 export interface EvaluatorFormValues {
   name: string;
@@ -124,8 +125,8 @@ export function EvaluatorForm({
             <>
               <div className="form-row">
                 <span className="form-label">Name</span>
-                <input
-                  className="input w-72"
+                <Input
+                  className="w-72"
                   aria-label="name"
                   value={values.name}
                   onChange={(e) => set("name", e.target.value)}
@@ -147,8 +148,8 @@ export function EvaluatorForm({
           )}
           <div className="form-row">
             <span className="form-label">Endpoint</span>
-            <input
-              className="input min-w-0 flex-1"
+            <Input
+              className="min-w-0 flex-1"
               aria-label="endpoint"
               placeholder="https://evaluators.example.com/evaluate"
               value={values.endpoint}
@@ -158,8 +159,8 @@ export function EvaluatorForm({
           <p className="row-meta whitespace-normal">{ENDPOINT_NOTE}</p>
           <div className="form-row">
             <span className="form-label">Timeout (s)</span>
-            <input
-              className="input w-28"
+            <Input
+              className="w-28"
               aria-label="timeout"
               inputMode="numeric"
               value={values.timeout}

@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import {
   Check,
@@ -56,6 +57,7 @@ import { downloadFile, serverNow } from "../lib/api";
 import { fixtureEntries } from "../lib/fixtures";
 import { httpUrl } from "../lib/safeUrl";
 import { Button } from "@/components/ui/button";
+import { Badge, badgeVariants } from "@/components/ui/badge";
 
 export function Markdown({ text }: { text: string }) {
   const normalized = useMemo(() => normalizeMathDelimiters(text), [text]);
@@ -91,7 +93,7 @@ export function PreBlock({
 }
 
 export function Tag({ children }: { children: React.ReactNode }) {
-  return <span className="chip muted">{children}</span>;
+  return <Badge variant="secondary">{children}</Badge>;
 }
 
 // The files a case attaches to its question; each downloads on click. Sits
@@ -147,9 +149,9 @@ export function WorkspaceChip({
 }) {
   if (!workspace) return null;
   return (
-    <span className="chip" title="the experiment's home workspace">
+    <Badge variant="info" title="the experiment's home workspace">
       {workspace}
-    </span>
+    </Badge>
   );
 }
 
@@ -166,7 +168,10 @@ export function ScoreChip({
 }) {
   const sev = severity(score);
   const label = compact ? fmtScore(score) : `${name} ${fmtScore(score)}`;
-  const cls = `chip chip-${sev} num`;
+  const cls = cn(
+    badgeVariants({ variant: sev === "none" ? "secondary" : sev }),
+    "num",
+  );
   if (onClick) {
     return (
       <button
@@ -276,7 +281,7 @@ export function RevisionChip({
   const title = branch ? `${branch} @ ${sha}` : sha;
   const cls = compact
     ? "num font-mono text-meta text-ink-3 transition-colors hover:text-brand"
-    : "chip muted font-mono";
+    : cn(badgeVariants({ variant: "secondary" }), "font-mono");
   const href = httpUrl(url);
   if (href) {
     return (
@@ -302,13 +307,14 @@ export function RevisionChip({
 export function UserPill({ user }: { user: string | null | undefined }) {
   if (!user) return null;
   return (
-    <span
-      className="chip muted inline-flex shrink-0 items-center gap-1"
+    <Badge
+      variant="secondary"
+      className="inline-flex shrink-0 items-center gap-1"
       title="run by"
     >
       <User size={11} />
       {user}
-    </span>
+    </Badge>
   );
 }
 
@@ -321,13 +327,13 @@ export function LintBadges({
   return (
     <span className="inline-flex gap-1">
       {findings.map((f, i) => (
-        <span
+        <Badge
           key={i}
-          className={`chip ${f.severity === "error" ? "chip-fail" : "chip-partial"}`}
+          variant={f.severity === "error" ? "fail" : "partial"}
           title={`${f.code}: ${f.message}`}
         >
           {f.code}
-        </span>
+        </Badge>
       ))}
     </span>
   );
@@ -834,14 +840,16 @@ function MemberScore({
   title: string;
   score: number | null;
 }) {
+  const sev = severity(score);
   return (
-    <span
-      className={`chip chip-${severity(score)} num inline-flex items-center gap-1`}
+    <Badge
+      variant={sev === "none" ? "secondary" : sev}
+      className="num"
       title={`${title}: ${fmtScore(score)}`}
     >
       {name} {fmtScore(score)}
       <InfoTip term={title} />
-    </span>
+    </Badge>
   );
 }
 
@@ -882,8 +890,8 @@ function EvaluatorGroupCard({
         {label ? <span className="text-n-400">· {label}</span> : null}
         <SummaryChip summary={summary} />
         {scoredOn ? (
-          <span
-            className="chip muted"
+          <Badge
+            variant="secondary"
             title={
               scoredOn === "server"
                 ? "scored on the evalkit server"
@@ -891,7 +899,7 @@ function EvaluatorGroupCard({
             }
           >
             {scoredOn}
-          </span>
+          </Badge>
         ) : null}
         <span className="flex-1" />
         {members.length === 0 ? (

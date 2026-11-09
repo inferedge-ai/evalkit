@@ -1,3 +1,4 @@
+import type { BadgeVariant } from "@/components/ui/badge";
 import { fmtWhen } from "./format";
 import { stateLabel } from "./review";
 import type { TwinStatus, WorkspaceInfo } from "./types";
@@ -39,18 +40,18 @@ export function twinLine(twin: TwinStatus, side: PromotionSide): string {
 export function twinCell(
   twin: TwinStatus | null | undefined,
   side: PromotionSide | null,
-): { label: string; cls: string } | null {
+): { label: string; variant: BadgeVariant } | null {
   if (!twin || !side) return null;
   if (side === "source") {
-    if (twin.state === "same") return { label: "Promoted", cls: "chip-pass" };
+    if (twin.state === "same") return { label: "Promoted", variant: "pass" };
     if (twin.state === "differs")
-      return { label: `ahead of ${twin.workspace}`, cls: "chip-info" };
-    return { label: `not in ${twin.workspace}`, cls: "muted" };
+      return { label: `ahead of ${twin.workspace}`, variant: "info" };
+    return { label: `not in ${twin.workspace}`, variant: "secondary" };
   }
-  if (twin.state === "same") return { label: "same", cls: "muted" };
+  if (twin.state === "same") return { label: "same", variant: "secondary" };
   if (twin.state === "differs")
-    return { label: `newer in ${twin.workspace}`, cls: "chip-info" };
-  return { label: `removed in ${twin.workspace}`, cls: "chip-partial" };
+    return { label: `newer in ${twin.workspace}`, variant: "info" };
+  return { label: `removed in ${twin.workspace}`, variant: "partial" };
 }
 
 export function promotedImpliesApproved(

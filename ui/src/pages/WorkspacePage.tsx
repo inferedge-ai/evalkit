@@ -21,6 +21,8 @@ import { useWorkspace } from "../shell/workspace";
 import { BuiltinEvaluatorsNote } from "./BuiltinEvaluatorsNote";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 type WorkspaceTab = "evaluators" | "members";
 const TABS: { id: WorkspaceTab; label: string }[] = [
@@ -92,8 +94,8 @@ function EvaluatorsTab({
             className="row grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,2fr)_auto_auto]"
           >
             <span className="row-strong">{row.name}</span>
-            <span className="chip muted">{row.kind}</span>
-            <span className="chip muted">
+            <Badge variant="secondary">{row.kind}</Badge>
+            <Badge variant="secondary">
               {row.archived
                 ? "archived"
                 : ws.type === "shared"
@@ -101,7 +103,7 @@ function EvaluatorsTab({
                     ? "key set"
                     : "no key"
                   : ""}
-            </span>
+            </Badge>
             <span className="row-meta truncate font-mono">
               {row.settings.endpoint}
             </span>
@@ -190,8 +192,8 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
             setUsername("");
           }}
         >
-          <input
-            className="input"
+          <Input
+            className="w-auto"
             placeholder="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -229,7 +231,7 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
                     key={grant.role}
                     className="inline-flex items-center gap-1.5"
                   >
-                    <span className="chip muted">{grant.role}</span>
+                    <Badge variant="secondary">{grant.role}</Badge>
                     <span className="row-meta">
                       by {grant.granted_by} {fmtWhen(grant.created_at) ?? ""}
                     </span>
@@ -332,15 +334,15 @@ export function WorkspacePage() {
       />
       <div className="page">
         <div className="toolbar mb-2">
-          <span className="chip muted">{ws.type}</span>
-          {ws.archived && <span className="chip muted">archived</span>}
+          <Badge variant="secondary">{ws.type}</Badge>
+          {ws.archived && <Badge variant="secondary">archived</Badge>}
           {ws.promotes_to && (
-            <span className="chip chip-info" title="promotion target">
+            <Badge variant="info" title="promotion target">
               <ToArrow /> {ws.promotes_to}
-            </span>
+            </Badge>
           )}
           {ws.promoted_from && (
-            <span className="chip chip-info" title="promotion source">
+            <Badge variant="info" title="promotion source">
               <ArrowLeft
                 size={12}
                 role="img"
@@ -348,7 +350,7 @@ export function WorkspacePage() {
                 className="inline shrink-0 align-[-0.125em]"
               />{" "}
               {ws.promoted_from}
-            </span>
+            </Badge>
           )}
           {me.is_admin && ws.type === "shared" && !ws.promoted_from && (
             <label className="row-meta flex items-center gap-1">
@@ -367,8 +369,8 @@ export function WorkspacePage() {
         </div>
         {me.is_admin && (
           <form className="toolbar mb-3" onSubmit={create}>
-            <input
-              className="input"
+            <Input
+              className="w-auto"
               placeholder="shared workspace name, e.g. dev"
               value={name}
               onChange={(e) => setName(e.target.value)}

@@ -6,6 +6,8 @@ import { refreshQueries, useApi } from "../lib/query";
 import type { TraceSourceInfo } from "../lib/types";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 export function TraceSourcesPage() {
   const listed = useApi<TraceSourceInfo[]>("/trace-sources");
@@ -56,22 +58,22 @@ export function TraceSourcesPage() {
           encrypted and never shown again.
         </p>
         <form className="toolbar mt-3 mb-3" onSubmit={create}>
-          <input
-            className="input"
+          <Input
+            className="w-auto"
             placeholder="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
           />
-          <input
-            className="input min-w-0 flex-1"
+          <Input
+            className="min-w-0 flex-1"
             placeholder="Phoenix URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             required
           />
-          <input
-            className="input"
+          <Input
+            className="w-auto"
             type="password"
             placeholder="API key"
             value={apiKey}
@@ -88,7 +90,7 @@ export function TraceSourcesPage() {
               className="row grid-cols-[minmax(0,1fr)_auto_minmax(0,2fr)_auto]"
             >
               <span className="row-strong">{row.name}</span>
-              <span className="chip muted">{row.provider}</span>
+              <Badge variant="secondary">{row.provider}</Badge>
               <span className="row-meta truncate font-mono">{row.url}</span>
               <Button
                 variant="outline"

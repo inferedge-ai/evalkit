@@ -15,7 +15,7 @@ import { apiJson, isNotFound } from "../lib/api";
 import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { questionText } from "../lib/format";
 import { useApi } from "../lib/query";
-import { stateClass, stateLabel } from "../lib/review";
+import { getStateVariant, stateLabel } from "../lib/review";
 import {
   casesInScope,
   cliCommand,
@@ -36,6 +36,8 @@ import type {
   CaseView,
 } from "../lib/types";
 import { CopyButton } from "../lib/ui";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "all", label: "All cases" },
@@ -219,9 +221,10 @@ export function RunLauncher({
                       aria-label="selected tags"
                     >
                       {choice.tags.map((tag) => (
-                        <span
+                        <Badge
                           key={tag}
-                          className="chip muted inline-flex items-center font-mono"
+                          variant="secondary"
+                          className="inline-flex items-center font-mono"
                         >
                           {tag}
                           <button
@@ -237,7 +240,7 @@ export function RunLauncher({
                           >
                             <X size={10} />
                           </button>
-                        </span>
+                        </Badge>
                       ))}
                     </div>
                   )}
@@ -259,8 +262,8 @@ export function RunLauncher({
               {choice.scope === "cases" && (
                 <div className="picker">
                   <div className="picker-toolbar">
-                    <input
-                      className="input h-7 min-w-0 flex-1"
+                    <Input
+                      className="h-7 min-w-0 flex-1"
                       placeholder="Filter by id or question"
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
@@ -310,11 +313,12 @@ export function RunLauncher({
                         {isSuite &&
                           ex.review &&
                           ex.review.state !== "approved" && (
-                            <span
-                              className={`chip ml-auto shrink-0 ${stateClass(ex.review.state)}`}
+                            <Badge
+                              variant={getStateVariant(ex.review.state)}
+                              className="ml-auto shrink-0"
                             >
                               {stateLabel(ex.review.state)}
-                            </span>
+                            </Badge>
                           )}
                       </label>
                     ))}
@@ -333,8 +337,8 @@ export function RunLauncher({
           </div>
           <div className="form-row">
             <span className="form-label">Repetitions</span>
-            <input
-              className="input w-20"
+            <Input
+              className="w-20"
               type="number"
               min={1}
               max={10}
@@ -346,8 +350,8 @@ export function RunLauncher({
           </div>
           <div className="form-row">
             <span className="form-label">Model</span>
-            <input
-              className="input w-72"
+            <Input
+              className="w-72"
               placeholder="harness default"
               value={model}
               onChange={(e) => setModel(e.target.value)}
@@ -356,8 +360,8 @@ export function RunLauncher({
           </div>
           <div className="form-row">
             <span className="form-label">Evaluation concurrency</span>
-            <input
-              className="input w-20"
+            <Input
+              className="w-20"
               type="number"
               min={1}
               placeholder="default"
@@ -401,8 +405,8 @@ export function RunLauncher({
               <span className="form-label">
                 {key === "model" ? "Judge model" : "Judge effort"}
               </span>
-              <input
-                className="input w-72"
+              <Input
+                className="w-72"
                 placeholder={judgeDefault?.[key] ?? ""}
                 value={judge[key]}
                 onChange={(e) => setJudge({ ...judge, [key]: e.target.value })}

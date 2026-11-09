@@ -10,6 +10,7 @@ import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 function AgentRow({ agent }: { agent: AgentInfo }) {
   return (
@@ -18,11 +19,11 @@ function AgentRow({ agent }: { agent: AgentInfo }) {
       to={`/agents/${encodeURIComponent(agent.ref)}/overview`}
     >
       <span className="row-strong">{agent.name}</span>
-      <span className="chip muted">{agentKind(agent)}</span>
+      <Badge variant="secondary">{agentKind(agent)}</Badge>
       <span className="row-meta truncate font-mono">
         {agent.harness_url ?? ""}
       </span>
-      <span className="chip muted">{agent.driver}</span>
+      <Badge variant="secondary">{agent.driver}</Badge>
     </Link>
   );
 }

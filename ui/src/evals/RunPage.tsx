@@ -29,6 +29,7 @@ import { RunTabs, TRAJECTORY_TABS } from "../runs/RunTabs";
 import { Select } from "../lib/Select";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Badge } from "@/components/ui/badge";
 
 const TABS = [
   "case",
@@ -163,14 +164,14 @@ export function RunPage() {
             </span>
           )}
           {tag && (
-            <span className="chip muted" title="agent · model">
+            <Badge variant="secondary" title="agent · model">
               {tag}
-            </span>
+            </Badge>
           )}
           {badge && (
-            <span className="chip muted" title="trajectory source and mapping">
+            <Badge variant="secondary" title="trajectory source and mapping">
               {badge}
-            </span>
+            </Badge>
           )}
           {record && (
             <TimeSpan start={record.started_at} end={record.ended_at} />

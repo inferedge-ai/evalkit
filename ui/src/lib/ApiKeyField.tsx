@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 export interface ApiKeyValue {
   key: string;
   clear: boolean;
@@ -16,7 +18,7 @@ export function ApiKeyField({
   if (hasKey && !value.clear && !value.key)
     return (
       <div className="flex items-center gap-2">
-        <span className="chip muted">Key set</span>
+        <Badge variant="secondary">Key set</Badge>
         <Button
           type="button"
           variant="outline"
@@ -28,8 +30,8 @@ export function ApiKeyField({
       </div>
     );
   return (
-    <input
-      className="input min-w-0 flex-1"
+    <Input
+      className="min-w-0 flex-1"
       type="password"
       aria-label="API key"
       placeholder={

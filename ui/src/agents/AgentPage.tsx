@@ -31,6 +31,7 @@ import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 function Overview({ agent }: { agent: AgentInfo }) {
   const repoHref = httpUrl(agent.repo_url);
@@ -221,7 +222,7 @@ function AgentView() {
       />
       <div className="page">
         <div className="toolbar mb-2">
-          {agent && <span className="chip muted">{agentKind(agent)}</span>}
+          {agent && <Badge variant="secondary">{agentKind(agent)}</Badge>}
         </div>
         {error && <div className="pane-status error">{error}</div>}
         {agent && (

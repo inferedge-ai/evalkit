@@ -20,6 +20,7 @@ import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 
 const NO_RUNS: RunListItem[] = [];
 
@@ -158,8 +159,8 @@ export function RunsBrowser() {
             placeholder="No agents"
             options={agents.map((a) => ({ value: a.ref, label: a.name }))}
           />
-          <input
-            className="input w-72"
+          <Input
+            className="w-72"
             placeholder={
               otel ? "Session id prefix" : "Search id prefix or title"
             }
@@ -167,8 +168,8 @@ export function RunsBrowser() {
             onChange={(e) => setQuery(e.target.value)}
           />
           {!otel && (
-            <input
-              className="input w-44"
+            <Input
+              className="w-44"
               placeholder="User id"
               value={userId}
               onChange={(e) => setUserId(e.target.value)}

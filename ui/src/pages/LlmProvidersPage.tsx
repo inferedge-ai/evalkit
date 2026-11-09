@@ -8,6 +8,8 @@ import { Select } from "../lib/Select";
 import type { JudgeSettings, LlmProviderInfo } from "../lib/types";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 function DefaultJudge({
   providers,
@@ -74,15 +76,15 @@ function DefaultJudge({
         placeholder="provider"
         options={providers.map((p) => ({ value: p.name, label: p.name }))}
       />
-      <input
-        className="input"
+      <Input
+        className="w-auto"
         placeholder="model"
         value={model}
         onChange={(e) => setModel(e.target.value)}
         required
       />
-      <input
-        className="input w-28"
+      <Input
+        className="w-28"
         placeholder="effort"
         value={effort}
         onChange={(e) => setEffort(e.target.value)}
@@ -154,13 +156,13 @@ export function LlmProvidersPage() {
               <span className="row-meta truncate font-mono">
                 {row.base_url}
               </span>
-              <span className="chip muted">
+              <Badge variant="secondary">
                 {row.archived
                   ? "archived"
                   : row.has_api_key
                     ? "key set"
                     : "no key"}
-              </span>
+              </Badge>
               {me.is_admin ? (
                 <>
                   <Button

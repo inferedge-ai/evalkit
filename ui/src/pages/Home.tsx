@@ -7,6 +7,7 @@ import type { AgentInfo, Dataset } from "../lib/types";
 import { useWorkspace } from "../shell/workspace";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 
 function SkeletonRows({ n }: { n: number }) {
   return (
@@ -31,7 +32,7 @@ function DatasetRow({ ds }: { ds: Dataset }) {
       className="row grid-cols-[minmax(0,1fr)_auto]"
     >
       <span className="row-strong">{ds.name}</span>
-      <span className="chip muted">{ds.kind}</span>
+      <Badge variant="secondary">{ds.kind}</Badge>
     </Link>
   );
 }
@@ -77,9 +78,9 @@ export function Home() {
         title={
           <>
             @{workspace.name}{" "}
-            <span className="chip muted align-middle font-normal">
+            <Badge variant="secondary" className="align-middle font-normal">
               {workspace.type}
-            </span>
+            </Badge>
           </>
         }
         actions={

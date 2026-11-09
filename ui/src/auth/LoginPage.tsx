@@ -6,6 +6,7 @@ import { PublicShell } from "../shell/PublicShell";
 import { safeNext } from "./next";
 import { loadProviders, session, type Providers } from "./oidc";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 function LoginForm({ next }: { next: string }) {
   const navigate = useNavigate();
@@ -32,8 +33,8 @@ function LoginForm({ next }: { next: string }) {
     <form onSubmit={submit}>
       <label className="mb-3 block text-micro font-semibold tracking-wide text-ink-2 uppercase">
         Username
-        <input
-          className="input mt-1 block w-full"
+        <Input
+          className="mt-1 block w-full"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoFocus
@@ -42,8 +43,8 @@ function LoginForm({ next }: { next: string }) {
       </label>
       <label className="mb-5 block text-micro font-semibold tracking-wide text-ink-2 uppercase">
         Password
-        <input
-          className="input mt-1 block w-full"
+        <Input
+          className="mt-1 block w-full"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

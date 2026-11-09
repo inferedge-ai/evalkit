@@ -8,6 +8,8 @@ import type { Dataset } from "../lib/types";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 function datasetMeta(ds: Dataset): string {
   const parts: string[] = [];
@@ -30,7 +32,7 @@ function DatasetRow({ ds }: { ds: Dataset }) {
       to={`/datasets/${encodeURIComponent(ds.ref)}`}
     >
       <span className="row-strong">{ds.name}</span>
-      <span className="chip muted">{ds.kind}</span>
+      <Badge variant="secondary">{ds.kind}</Badge>
       <span
         className="row-meta num truncate text-right"
         title={datasetMeta(ds)}
@@ -65,8 +67,8 @@ export function DatasetsPage() {
       <PageHeader title="Datasets" />
       <div className="page">
         <div className="toolbar mb-3">
-          <input
-            className="input w-64"
+          <Input
+            className="w-64"
             placeholder="Filter datasets"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

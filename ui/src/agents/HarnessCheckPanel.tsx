@@ -1,3 +1,4 @@
+import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { Check, Minus, TriangleAlert, X } from "lucide-react";
 import { apiJson } from "../lib/api";
@@ -10,11 +11,11 @@ const STATUS_ICON = {
   fail: X,
   skipped: Minus,
 } as const;
-const CLS = {
-  pass: "chip-pass",
-  warn: "chip-partial",
-  fail: "chip-fail",
-  skipped: "chip-none",
+const VARIANT = {
+  pass: "pass",
+  warn: "partial",
+  fail: "fail",
+  skipped: "secondary",
 } as const;
 
 export function HarnessCheckPanel({ agent }: { agent: string }) {
@@ -65,11 +66,9 @@ export function HarnessCheckPanel({ agent }: { agent: string }) {
                   className="row grid-cols-[8rem_auto_minmax(0,1fr)]"
                 >
                   <span className="font-mono">{capability}</span>
-                  <span
-                    className={`chip inline-flex items-center gap-1 ${CLS[entry.status]}`}
-                  >
+                  <Badge variant={VARIANT[entry.status]}>
                     <Icon size={11} /> {entry.status}
-                  </span>
+                  </Badge>
                   <span className="truncate text-ink-3" title={entry.detail}>
                     {entry.detail}
                   </span>

@@ -9,6 +9,7 @@ import { mappingRows, ruleNotes, sameRule } from "../lib/mappingRules";
 import type { MappingRecord, RunList, SessionTrajectory } from "../lib/types";
 import { TrajectoryViewer } from "../runs/TrajectoryViewer";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export function Summary({ session }: { session: SessionTrajectory }) {
   const esf = session.esf ?? [];
@@ -45,9 +46,9 @@ export function Summary({ session }: { session: SessionTrajectory }) {
       <dd className="flex flex-wrap gap-1">
         {session.unmapped_attributes.length
           ? session.unmapped_attributes.map((k) => (
-              <span key={k} className="chip muted font-mono">
+              <Badge key={k} variant="secondary" className="font-mono">
                 {k}
-              </span>
+              </Badge>
             ))
           : "none"}
       </dd>
@@ -81,7 +82,9 @@ function MappingRules({
               <td className="whitespace-nowrap">
                 {row.label}
                 {changed && (
-                  <span className="chip chip-info ml-2">changed</span>
+                  <Badge variant="info" className="ml-2">
+                    changed
+                  </Badge>
                 )}
               </td>
               <td className="font-mono">
@@ -95,15 +98,19 @@ function MappingRules({
                 <div className="flex flex-wrap gap-1">
                   {row.rule &&
                     ruleNotes(row.rule).map((note) => (
-                      <span key={note} className="chip muted">
+                      <Badge key={note} variant="secondary">
                         {note}
-                      </span>
+                      </Badge>
                     ))}
                   {row.rule?.values &&
                     Object.entries(row.rule.values).map(([from, to]) => (
-                      <span key={from} className="chip muted font-mono">
+                      <Badge
+                        key={from}
+                        variant="secondary"
+                        className="font-mono"
+                      >
                         {from} <ToArrow /> {to}
-                      </span>
+                      </Badge>
                     ))}
                 </div>
               </td>
@@ -220,11 +227,9 @@ export function MappingsPanel({ agent }: { agent: string }) {
               className="row grid-cols-[auto_auto_1fr_auto_auto_auto]"
             >
               <span className="row-strong font-mono">v{v.version}</span>
-              <span
-                className={`chip ${v.status === "active" ? "chip-pass" : "muted"}`}
-              >
+              <Badge variant={v.status === "active" ? "pass" : "secondary"}>
                 {v.status}
-              </span>
+              </Badge>
               <span className="row-meta">by {v.created_by ?? "-"}</span>
               <span className="row-meta">{fmtWhen(v.created_at) ?? ""}</span>
               {v.status === "draft" ? (

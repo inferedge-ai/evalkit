@@ -11,6 +11,7 @@ import { monacoTheme, useTheme } from "../shell/theme";
 import type { FileEntry } from "../lib/types";
 import { CopyButton } from "../lib/ui";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface FileNode {
   name: string;
@@ -473,8 +474,8 @@ export function WorkspaceTab({
         style={{ width: treeWidth }}
       >
         <div className="flex items-center gap-2 border-b border-line-soft p-2">
-          <input
-            className="input btn-sm min-w-0 flex-1"
+          <Input
+            className="min-w-0 flex-1 h-7"
             placeholder="Filter files"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}

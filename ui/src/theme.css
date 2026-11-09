@@ -392,27 +392,6 @@ button {
     position: relative;
     display: inline-flex;
   }
-  .select-trigger {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    width: 100%;
-    min-width: 7rem;
-    padding-right: 7px;
-    text-align: left;
-    transition: border-color 120ms;
-  }
-  .select-trigger:hover:not(:disabled) {
-    border-color: var(--color-n-300);
-  }
-  .select-trigger[aria-expanded="true"] {
-    border-color: var(--color-brand);
-    box-shadow: 0 0 0 3px var(--color-brand-ring);
-  }
-  .select-trigger:disabled {
-    opacity: 0.45;
-    cursor: default;
-  }
   .select-chevron {
     flex-shrink: 0;
     margin-left: auto;

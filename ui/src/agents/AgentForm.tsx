@@ -25,6 +25,8 @@ import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import type { AgentFormValues } from "../lib/agentForm";
 import { Select } from "../lib/Select";
 import type { AgentInfo } from "../lib/types";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 export function AgentForm({
   workspace,
@@ -83,8 +85,8 @@ export function AgentForm({
           {!agent && (
             <div className="form-row">
               <span className="form-label">Name</span>
-              <input
-                className="input w-72"
+              <Input
+                className="w-72"
                 value={values.name}
                 onChange={(e) => set("name", e.target.value)}
               />
@@ -92,8 +94,8 @@ export function AgentForm({
           )}
           <div className="form-row">
             <span className="form-label">Harness URL</span>
-            <input
-              className="input min-w-0 flex-1"
+            <Input
+              className="min-w-0 flex-1"
               placeholder="empty for a code-driven agent (SDK runs only)"
               value={values.harness_url}
               onChange={(e) => set("harness_url", e.target.value)}
@@ -141,8 +143,8 @@ export function AgentForm({
             (!agent || agent.trajectory_source !== "otel") && (
               <div className="form-row items-start">
                 <span className="form-label pt-1.5">Span mapping</span>
-                <textarea
-                  className="input min-w-0 flex-1 font-mono"
+                <Textarea
+                  className="min-w-0 flex-1 font-mono"
                   rows={6}
                   placeholder={
                     agent
@@ -156,8 +158,8 @@ export function AgentForm({
             )}
           <div className="form-row">
             <span className="form-label">Repository</span>
-            <input
-              className="input min-w-0 flex-1"
+            <Input
+              className="min-w-0 flex-1"
               placeholder="https://github.com/org/repo (optional)"
               value={values.repo_url}
               onChange={(e) => set("repo_url", e.target.value)}
@@ -166,8 +168,8 @@ export function AgentForm({
           {SETTING_FIELDS.map(({ key, label }) => (
             <div key={key} className="form-row">
               <span className="form-label">{label}</span>
-              <input
-                className="input w-28"
+              <Input
+                className="w-28"
                 inputMode="numeric"
                 value={values.settings[key]}
                 onChange={(e) =>

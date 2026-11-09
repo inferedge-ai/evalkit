@@ -15,6 +15,7 @@ import type { ApiKeyValue } from "../lib/ApiKeyField";
 import { ENDPOINT_NOTE } from "../lib/endpoint";
 import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import type { LlmProviderInfo } from "../lib/types";
+import { Input } from "@/components/ui/input";
 
 export function providerBody(
   name: string,
@@ -89,8 +90,8 @@ export function LlmProviderForm({
           {!provider && (
             <div className="form-row">
               <span className="form-label">Name</span>
-              <input
-                className="input w-72"
+              <Input
+                className="w-72"
                 placeholder="openai"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -99,8 +100,8 @@ export function LlmProviderForm({
           )}
           <div className="form-row">
             <span className="form-label">Base URL</span>
-            <input
-              className="input min-w-0 flex-1"
+            <Input
+              className="min-w-0 flex-1"
               placeholder="https://api.openai.com/v1"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}

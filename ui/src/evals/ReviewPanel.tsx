@@ -1,15 +1,17 @@
+import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
-import { stateClass, stateLabel } from "../lib/review";
+import { getStateVariant, stateLabel } from "../lib/review";
 import type { ReviewSummary } from "../lib/types";
 import { isReviewerOf } from "../lib/access";
 import { splitRef } from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
 import { ToArrow } from "../lib/ui";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 type Action = "approve" | "request_changes";
 
@@ -60,9 +62,9 @@ export function ReviewPanel({
       <div className="eyebrow">Review</div>
       <div className="card p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`chip ${stateClass(review.state)}`}>
+          <Badge variant={getStateVariant(review.state)}>
             {stateLabel(review.state)}
-          </span>
+          </Badge>
           {review.state === "review_requested" && review.requested_to ? (
             <span className="row-meta">
               <ToArrow /> {review.requested_to}
@@ -98,8 +100,8 @@ export function ReviewPanel({
         ) : null}
         {action ? (
           <div className="mt-3">
-            <textarea
-              className="input w-full"
+            <Textarea
+              className="w-full"
               rows={3}
               placeholder={
                 action === "approve"

@@ -67,7 +67,7 @@ describe("twinCell", () => {
     expect(twinCell(twin({}), null)).toBeNull();
     expect(twinCell(twin({}), "source")).toEqual({
       label: "Promoted",
-      cls: "chip-pass",
+      variant: "pass",
     });
     expect(twinCell(twin({ state: "differs" }), "source")?.label).toBe(
       "ahead of prod",

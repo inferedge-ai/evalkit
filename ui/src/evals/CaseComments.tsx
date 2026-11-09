@@ -8,6 +8,8 @@ import { isReviewerOf } from "../lib/access";
 import { splitRef } from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 
 export function CaseComments({
   dataset,
@@ -48,9 +50,9 @@ export function CaseComments({
         <span className="font-medium">{c.author}</span>
         <span className="text-ink-3">{fmtWhen(c.created_at)}</span>
         {isStale(c, currentHash) ? (
-          <span className="chip chip-partial">Case has been updated since</span>
+          <Badge variant="partial">Case has been updated since</Badge>
         ) : null}
-        {c.resolved ? <span className="chip muted">resolved</span> : null}
+        {c.resolved ? <Badge variant="secondary">resolved</Badge> : null}
         {canResolve(c) ? (
           <Button
             variant="outline"
@@ -116,8 +118,8 @@ export function CaseComments({
               </div>
             ))
           : null}
-        <textarea
-          className="input mt-2 w-full"
+        <Textarea
+          className="mt-2 w-full"
           rows={3}
           placeholder={
             replyTo === null ? "Write a comment…" : `Reply to #${replyTo}…`
