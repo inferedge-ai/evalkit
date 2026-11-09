@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, Bot } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
-import { canWrite } from "../lib/access";
+import { getReadOnlyReason } from "../lib/access";
 import { qs } from "../lib/api";
 import {
   ColumnsMenu,
@@ -140,7 +140,7 @@ export function RunsBrowser() {
       ? String(listedRuns.error)
       : null;
   const noAgents = listedAgents.data?.length === 0;
-  const showGrid = (agent || !listedAgents.data) && (runs || !error);
+  const showGrid = !noAgents && (runs || !error);
   const columns = useMemo(() => runColumns(agent), [agent]);
   const grid = useDataGrid<RunListItem>("runs");
   const otel =
@@ -166,9 +166,9 @@ export function RunsBrowser() {
           <Card className="py-8">
             <Empty
               icon={Bot}
-              title={`No agents in @${workspace.name}`}
+              title={`No active agents in @${workspace.name}`}
               description={
-                canWrite(me, workspace) && !workspace.archived ? (
+                getReadOnlyReason(me, workspace) === null ? (
                   <>
                     Runs are listed per agent. Add one on the{" "}
                     <Link className="text-brand hover:underline" to="/agents">

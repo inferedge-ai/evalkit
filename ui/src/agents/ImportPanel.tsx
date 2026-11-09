@@ -87,7 +87,7 @@ function ImportRow({
         >
           {item.status}
         </Badge>
-        <span className="row-meta">
+        <span className="row-meta whitespace-normal">
           {item.source}/{item.project} · {fmtWhen(item.since)} <ToArrow />{" "}
           {fmtWhen(item.until)} · by {item.created_by}
         </span>
@@ -168,6 +168,7 @@ export function ImportPanel({ agent }: { agent: string }) {
       q.state.data?.some((i) => isActiveImport(i.status)) ? POLL_MS : false,
   });
   const imports = listedImports.data ?? null;
+  const importsFailed = imports === null && !!listedImports.error;
   const error =
     actionError ??
     listedSources.error?.message ??
@@ -348,33 +349,35 @@ export function ImportPanel({ agent }: { agent: string }) {
       </section>
       <section className="flex flex-col gap-2">
         <h2 className="font-medium">Range imports</h2>
-        <Card className="rows gap-0 py-0">
-          {imports?.map((item) => (
-            <ImportRow
-              key={item.id}
-              item={item}
-              agent={agent}
-              busy={busy}
-              act={act}
-            />
-          ))}
-          {imports && imports.length === 0 && (
-            <Empty
-              size="sm"
-              icon={History}
-              title="No range imports yet"
-              className="py-6"
-            />
-          )}
-          {imports === null &&
-            Array.from({ length: 2 }, (_, i) => (
-              <div key={i} className="row grid-cols-[auto_auto_1fr]">
-                <Skeleton className="h-4 w-10" />
-                <Skeleton className="h-4 w-14" />
-                <Skeleton className="h-3 w-2/3" />
-              </div>
+        {!importsFailed && (
+          <Card className="rows gap-0 py-0">
+            {imports?.map((item) => (
+              <ImportRow
+                key={item.id}
+                item={item}
+                agent={agent}
+                busy={busy}
+                act={act}
+              />
             ))}
-        </Card>
+            {imports && imports.length === 0 && (
+              <Empty
+                size="sm"
+                icon={History}
+                title="No range imports yet"
+                className="py-6"
+              />
+            )}
+            {imports === null &&
+              Array.from({ length: 2 }, (_, i) => (
+                <div key={i} className="row grid-cols-[auto_auto_1fr]">
+                  <Skeleton className="h-4 w-10" />
+                  <Skeleton className="h-4 w-14" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+              ))}
+          </Card>
+        )}
       </section>
     </div>
   );

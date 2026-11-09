@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Bot } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { AgentForm } from "./AgentForm";
-import { canWrite } from "../lib/access";
+import { getReadOnlyReason } from "../lib/access";
 import { agentKind } from "../lib/agents";
 import { qs } from "../lib/api";
 import { useApi } from "../lib/query";
@@ -40,7 +40,8 @@ export function AgentsPage() {
   const navigate = useNavigate();
 
   const { workspace } = useWorkspace();
-  const writable = canWrite(me, workspace) && !workspace.archived;
+  const readOnly = getReadOnlyReason(me, workspace);
+  const writable = readOnly === null;
 
   const listed = useApi<AgentInfo[]>(
     `/agents${qs({ workspace: workspace.name, include_archived: "true" })}`,
@@ -94,13 +95,11 @@ export function AgentsPage() {
               icon={Bot}
               title={`No agents in @${workspace.name}`}
               description={
-                writable ? (
+                readOnly ?? (
                   <>
                     Create one with New agent, or run{" "}
                     <span className="font-mono">evalkit agents create</span>.
                   </>
-                ) : (
-                  "This workspace is read-only for you."
                 )
               }
             />

@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { act, screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { refreshQueries } from "../lib/query";
 import type { AgentInfo, RunList, WorkspaceRole } from "../lib/types";
 import { closePage, member, renderPage, stubServer } from "../testFixtures";
@@ -63,7 +63,9 @@ test("a workspace without agents says so and points to the Agents page", async (
     if (url.includes("/api/agents?")) return Response.json([]);
   });
   openRuns("/runs");
-  expect(await screen.findByText("No agents in @dev")).toBeInTheDocument();
+  expect(
+    await screen.findByText("No active agents in @dev"),
+  ).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Agents" })).toHaveAttribute(
     "href",
     "/agents",
@@ -76,7 +78,9 @@ test("a reader of a workspace without agents is not pointed at adding one", asyn
     if (url.includes("/api/agents?")) return Response.json([]);
   });
   openRuns("/runs", ["reviewer"]);
-  expect(await screen.findByText("No agents in @dev")).toBeInTheDocument();
+  expect(
+    await screen.findByText("No active agents in @dev"),
+  ).toBeInTheDocument();
   expect(screen.getByText("Runs are listed per agent.")).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Agents" })).toBeNull();
 });
@@ -87,6 +91,28 @@ test("while the agents load, the runs table already shows it is loading", async 
   );
   openRuns("/runs");
   expect(await screen.findByText("Loading...")).toBeInTheDocument();
+});
+
+test("the runs table stays up while the page picks the first agent", async () => {
+  let sendAgents: (() => void) | undefined;
+  const runsAsked = vi.fn();
+  stubServer(async (url) => {
+    if (url.includes("/api/agents?")) {
+      await new Promise<void>((settle) => (sendAgents = settle));
+      return Response.json([bot]);
+    }
+    if (url.includes("/api/agents/bot%40dev/runs")) {
+      runsAsked();
+      return new Promise(() => {});
+    }
+  });
+  openRuns("/runs");
+  await screen.findByText("Loading...");
+  await waitFor(() => expect(sendAgents).toBeDefined());
+  const table = document.querySelector(".ag-root-wrapper")!;
+  sendAgents!();
+  await waitFor(() => expect(runsAsked).toHaveBeenCalled());
+  expect(table.isConnected).toBe(true);
 });
 
 test("an agent without runs says it has none yet, and a search that matches nothing says so", async () => {

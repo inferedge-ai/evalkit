@@ -159,8 +159,8 @@
     `description` line, and `Empty` (`@/components/widgets/Empty`) draws an
     empty state.
 - The web UI's runs and agents pages are laid out on the design system:
-  - Runs: a workspace without agents says so and links to the Agents page
-    instead of showing empty filters. The table shows its loading state
+  - Runs: a workspace without active agents says so and links to the Agents
+    page instead of showing empty filters. The table shows its loading state
     while the agents load, says "No runs yet." when the agent has none ("No
     runs match." only under a filter), and stays on screen with the error
     above it when a refresh fails. An agent list that fails to load no
@@ -173,7 +173,8 @@
     viewer before a file is picked show an icon and a title. The timing and
     cost tables scroll sideways on a phone.
   - Agents list: the agent count sits in the page header, and an empty
-    workspace says how to add an agent, or that it is read-only for you.
+    workspace says how to add an agent, or why you can't: it is archived,
+    or read-only for you.
   - An agent's page: how evalkit reaches the agent and where its
     trajectories come from sits under its name in the page header. Without a
     mapping, the Mappings tab says how to push one
@@ -181,7 +182,10 @@
     sessions, it says there is nothing to preview. Without a trace source,
     the Import tab says how an admin adds one
     (`evalkit trace-sources create`), and no longer says so while the
-    sources are still loading. An import's row wraps on a phone.
+    sources are still loading or when they fail to load. An import's row
+    wraps on a phone. A mapping version list, rules table, preview or import
+    list that fails to load shows its error instead of loading forever, and
+    a failed preview shows its error in its own column.
   - The agents list, an agent's page, its tabs and a running harness check
     load with placeholder rows.
   - The agent form's note about changing the trajectory source wraps

@@ -3,7 +3,13 @@ import { screen, within } from "@testing-library/react";
 import { Route } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import type { AgentInfo, WorkspaceRole } from "../lib/types";
-import { closePage, member, renderPage, stubServer } from "../testFixtures";
+import {
+  closePage,
+  devWorkspace,
+  member,
+  renderPage,
+  stubServer,
+} from "../testFixtures";
 import { AgentsPage } from "./AgentsPage";
 
 // The agent form imports a file outside ui/ that jsdom runs can't load.
@@ -60,6 +66,22 @@ test("a reader of a workspace without agents is told it is read-only for them", 
     screen.getByText("This workspace is read-only for you."),
   ).toBeInTheDocument();
   expect(screen.queryByText(/evalkit agents create/)).toBeNull();
+});
+
+test("an admin viewing an archived workspace without agents is told it is archived", async () => {
+  stubServer((url) => {
+    if (url.endsWith("/api/workspaces?include_archived=true"))
+      return Response.json([{ ...devWorkspace, archived: true }]);
+    if (url.includes("/api/agents?")) return Response.json([]);
+  });
+  renderPage(
+    { ...member({}), is_admin: true },
+    "/agents",
+    <Route path="/agents" element={<AgentsPage />} />,
+  );
+  expect(
+    await screen.findByText("This workspace is archived."),
+  ).toBeInTheDocument();
 });
 
 test("the page header counts the workspace's agents", async () => {

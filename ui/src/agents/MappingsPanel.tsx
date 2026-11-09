@@ -133,14 +133,17 @@ function MappingRules({
 function Preview({
   label,
   session,
+  error,
 }: {
   label: string;
   session: SessionTrajectory | null;
+  error: string | null;
 }) {
   return (
     <section className="flex min-w-0 flex-col gap-2">
       <h2 className="font-medium">{label}</h2>
-      {!session && (
+      {error && <div className="pane-status error">{error}</div>}
+      {!session && !error && (
         <>
           <Skeleton className="h-36 rounded-xl" />
           <Skeleton className="h-96 rounded-xl" />
@@ -197,9 +200,8 @@ export function MappingsPanel({ agent }: { agent: string }) {
   );
   const active = activePreview.data ?? null;
   const draft = draftPreview.data ?? null;
-  const loadError = [listedVersions, listedRuns, activePreview, draftPreview]
-    .map((q) => q.error)
-    .find(Boolean);
+  const loadError = listedVersions.error ?? listedRuns.error;
+  const versionsFailed = versions === null && !!listedVersions.error;
   const error = actionError ?? (loadError ? String(loadError) : null);
 
   const activeRecord = versions?.find((v) => v.status === "active") ?? null;
@@ -256,42 +258,46 @@ export function MappingsPanel({ agent }: { agent: string }) {
             />
           </Card>
         ) : (
-          <Card className="rows gap-0 py-0">
-            {versions === null &&
-              Array.from({ length: 2 }, (_, i) => (
-                <div key={i} className={`row ${VERSION_COLUMNS}`}>
-                  <Skeleton className="h-4 w-8" />
-                  <Skeleton className="h-4 w-14" />
-                  <Skeleton className="h-3 w-40" />
+          !versionsFailed && (
+            <Card className="rows gap-0 py-0">
+              {versions === null &&
+                Array.from({ length: 2 }, (_, i) => (
+                  <div key={i} className={`row ${VERSION_COLUMNS}`}>
+                    <Skeleton className="h-4 w-8" />
+                    <Skeleton className="h-4 w-14" />
+                    <Skeleton className="h-3 w-40" />
+                  </div>
+                ))}
+              {versions?.map((v) => (
+                <div key={v.id} className={`row ${VERSION_COLUMNS}`}>
+                  <span className="row-strong font-mono">v{v.version}</span>
+                  <Badge variant={v.status === "active" ? "pass" : "secondary"}>
+                    {v.status}
+                  </Badge>
+                  <span className="row-meta">by {v.created_by ?? "-"}</span>
+                  <span className="row-meta">
+                    {fmtWhen(v.created_at) ?? ""}
+                  </span>
+                  {v.status === "draft" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => activate(v.version)}
+                    >
+                      Activate
+                    </Button>
+                  ) : (
+                    <span />
+                  )}
+                  {viewButton(`v${v.version}`)}
                 </div>
               ))}
-            {versions?.map((v) => (
-              <div key={v.id} className={`row ${VERSION_COLUMNS}`}>
-                <span className="row-strong font-mono">v{v.version}</span>
-                <Badge variant={v.status === "active" ? "pass" : "secondary"}>
-                  {v.status}
-                </Badge>
-                <span className="row-meta">by {v.created_by ?? "-"}</span>
-                <span className="row-meta">{fmtWhen(v.created_at) ?? ""}</span>
-                {v.status === "draft" ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => activate(v.version)}
-                  >
-                    Activate
-                  </Button>
-                ) : (
-                  <span />
-                )}
-                {viewButton(`v${v.version}`)}
-              </div>
-            ))}
-          </Card>
+            </Card>
+          )
         )}
       </section>
-      {versions?.length !== 0 && (
+      {!versionsFailed && versions?.length !== 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="font-medium">
             Rules:{" "}
@@ -336,12 +342,22 @@ export function MappingsPanel({ agent }: { agent: string }) {
             <Empty icon={MessagesSquare} title="No sessions to preview yet" />
           </Card>
         )}
-        {selected && (
+        {selected && versions && (
           <div
             className={`grid gap-4 ${hasDraft ? "lg:grid-cols-2" : "grid-cols-1"}`}
           >
-            <Preview label="Active mapping" session={active} />
-            {hasDraft && <Preview label="Draft mapping" session={draft} />}
+            <Preview
+              label="Active mapping"
+              session={active}
+              error={activePreview.error?.message ?? null}
+            />
+            {hasDraft && (
+              <Preview
+                label="Draft mapping"
+                session={draft}
+                error={draftPreview.error?.message ?? null}
+              />
+            )}
           </div>
         )}
       </section>
