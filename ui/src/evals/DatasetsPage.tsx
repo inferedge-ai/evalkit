@@ -1,6 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
+import { Database, SearchX } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Empty } from "@/components/widgets/Empty";
 import { canWrite } from "../lib/access";
 import { qs } from "../lib/api";
 import { useApi } from "../lib/query";
@@ -92,32 +94,32 @@ export function DatasetsPage() {
         )}
         {!loading && (
           <>
-            {datasets && datasets.length === 0 && !writable && (
-              <Card className="gap-0 py-0">
-                <div className="pane-status">
-                  No datasets in @{workspace.name}. This workspace is read-only
-                  for you.
-                </div>
-              </Card>
-            )}
-            {datasets && datasets.length === 0 && writable && (
-              <Card className="gap-0 py-0">
-                <div className="pane-status">
-                  No datasets in @{workspace.name} — run{" "}
-                  <span className="font-mono">
-                    {workspace.type === "shared"
-                      ? `evalkit sync <dir> --workspace ${workspace.name}`
-                      : "evalkit run finance --agent <your-agent>"}
-                  </span>{" "}
-                  from a repo with an evalkit.yaml.
-                </div>
+            {datasets && datasets.length === 0 && (
+              <Card className="py-8">
+                <Empty
+                  icon={Database}
+                  title={`No datasets in @${workspace.name}`}
+                  description={
+                    writable ? (
+                      <>
+                        Run{" "}
+                        <span className="font-mono">
+                          {workspace.type === "shared"
+                            ? `evalkit sync <dir> --workspace ${workspace.name}`
+                            : "evalkit run finance --agent <your-agent>"}
+                        </span>{" "}
+                        from a repo with an evalkit.yaml.
+                      </>
+                    ) : (
+                      "This workspace is read-only for you."
+                    )
+                  }
+                />
               </Card>
             )}
             {datasets && datasets.length > 0 && visible.length === 0 && (
-              <Card className="gap-0 py-0">
-                <div className="pane-status">
-                  No datasets match this filter.
-                </div>
+              <Card className="py-8">
+                <Empty icon={SearchX} title="No datasets match this filter" />
               </Card>
             )}
             {visible.length > 0 && (

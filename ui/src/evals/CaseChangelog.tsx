@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { History } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Empty } from "@/components/widgets/Empty";
 import { fmtWhen } from "../lib/format";
 import { useApi } from "../lib/query";
 import { ToArrow } from "../lib/ui";
@@ -23,10 +26,11 @@ export function CaseChangelog({
   caseId: string;
   currentHash: string | undefined;
 }) {
-  const events =
-    useApi<{ events: CaseEvent[] }>(
-      `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/events`,
-    ).data?.events ?? null;
+  const loaded = useApi<{ events: CaseEvent[] }>(
+    `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/events`,
+  );
+  const events = loaded.data?.events ?? null;
+  const error = loaded.error ? String(loaded.error) : null;
   const [expanded, setExpanded] = useState(false);
 
   const all = events ?? [];
@@ -78,8 +82,22 @@ export function CaseChangelog({
               </div>
             );
           })}
+          {error ? <div className="pane-status error">{error}</div> : null}
+          {events === null && !error
+            ? Array.from({ length: 2 }, (_, i) => (
+                <div key={i} className="flex flex-col gap-1.5 px-3 py-2">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              ))
+            : null}
           {events && events.length === 0 ? (
-            <div className="pane-status">No events yet.</div>
+            <Empty
+              size="sm"
+              icon={History}
+              title="No events yet"
+              className="py-4"
+            />
           ) : null}
           {hidden > 0 || expanded ? (
             <button

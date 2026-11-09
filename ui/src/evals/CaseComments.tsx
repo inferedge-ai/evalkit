@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function CaseComments({
   dataset,
@@ -23,8 +24,9 @@ export function CaseComments({
 }) {
   const me = useMe();
   const base = `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/comments`;
-  const threads =
-    useApi<{ threads: CommentThread[] }>(base).data?.threads ?? null;
+  const loaded = useApi<{ threads: CommentThread[] }>(base);
+  const threads = loaded.data?.threads ?? null;
+  const error = loaded.error ? String(loaded.error) : null;
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<number | null>(null);
   const [showResolved, setShowResolved] = useState(false);
@@ -84,8 +86,12 @@ export function CaseComments({
       <div className="eyebrow">Comments</div>
       <Card size="sm">
         <CardContent>
-          {threads === null ? (
-            <div className="pane-status">Loading…</div>
+          {error ? <div className="pane-status error">{error}</div> : null}
+          {threads === null && !error ? (
+            <div className="mb-3 flex flex-col gap-1.5">
+              <Skeleton className="h-3 w-1/3" />
+              <Skeleton className="h-4 w-4/5" />
+            </div>
           ) : null}
           {open.map((t) => (
             <div

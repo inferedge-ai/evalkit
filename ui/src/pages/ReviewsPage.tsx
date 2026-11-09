@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
 import { qs } from "../lib/api";
 import { useApi } from "../lib/query";
@@ -12,6 +12,7 @@ import {
 } from "../lib/DataGrid";
 import { fmtWhen } from "../lib/format";
 import type { QueueItem } from "../lib/types";
+import { Tabs } from "../lib/ui";
 import { splitRef } from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
@@ -20,9 +21,9 @@ import { PageHeader } from "@/components/widgets/PageHeader";
 type View = "mine" | "all" | "changes";
 
 const VIEWS: { id: View; label: string }[] = [
-  { id: "mine", label: "requested to me" },
-  { id: "all", label: "all under review" },
-  { id: "changes", label: "changes requested" },
+  { id: "mine", label: "Requested to me" },
+  { id: "all", label: "All under review" },
+  { id: "changes", label: "Changes requested" },
 ];
 
 const NO_ITEMS: QueueItem[] = [];
@@ -101,7 +102,10 @@ function queueColumns(
 export function ReviewsPage() {
   const me = useMe();
   const { workspace } = useWorkspace();
-  const [view, setView] = useState<View>("mine");
+  const [params, setParams] = useSearchParams();
+  const view = VIEWS.find((v) => v.id === params.get("view"))?.id ?? "mine";
+  const setView = (v: View) =>
+    setParams(v === "mine" ? {} : { view: v }, { replace: true });
   const everyWorkspace = workspace.type === "personal";
   const queue = useApi<{ items: QueueItem[] }>(
     `/review/queue${qs({
@@ -124,19 +128,8 @@ export function ReviewsPage() {
     <>
       <PageHeader title="Reviews" />
       <div className="page">
-        <div className="toolbar mb-2">
-          <div className="flex flex-wrap items-center gap-3">
-            {VIEWS.map((v) => (
-              <label key={v.id} className="row-meta flex items-center gap-1">
-                <input
-                  type="radio"
-                  checked={view === v.id}
-                  onChange={() => setView(v.id)}
-                />
-                {v.label}
-              </label>
-            ))}
-          </div>
+        <Tabs<View> tabs={VIEWS} active={view} onSelect={setView} />
+        <div className="toolbar mt-3 mb-2">
           {everyWorkspace && (
             <span className="row-meta">across every workspace</span>
           )}

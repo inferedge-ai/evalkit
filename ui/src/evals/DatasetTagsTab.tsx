@@ -1,6 +1,8 @@
+import { Tags } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { TagInfo } from "../lib/types";
 import { Card } from "@/components/ui/card";
+import { Empty } from "@/components/widgets/Empty";
 
 export function DatasetTagsTab({
   tags,
@@ -11,7 +13,13 @@ export function DatasetTagsTab({
 }) {
   if (tags.length === 0)
     return (
-      <div className="pane-status">No tags on this dataset's cases yet.</div>
+      <Card className="py-8">
+        <Empty
+          icon={Tags}
+          title="No tags on this dataset's cases yet"
+          description="A case gets tags from its YAML, its folder in the suite, or an overlay."
+        />
+      </Card>
     );
   return (
     <Card className="gap-0 py-0">

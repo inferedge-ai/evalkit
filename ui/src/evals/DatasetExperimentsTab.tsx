@@ -1,6 +1,7 @@
-import { Skeleton } from "@/components/ui/skeleton";
 import { useMemo } from "react";
+import { FlaskConical } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Empty } from "@/components/widgets/Empty";
 import type { ColDef } from "ag-grid-community";
 import { scoredBucketColumns } from "../lib/bucketColumns";
 import {
@@ -16,6 +17,8 @@ import { experimentTailColumns } from "./experimentRow";
 import { Card } from "@/components/ui/card";
 
 const getExperimentId = (exp: ExperimentListItem) => String(exp.id);
+
+const NO_EXPERIMENTS: ExperimentListItem[] = [];
 
 export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
   const listed = useApi<ExperimentListItem[]>(
@@ -53,29 +56,26 @@ export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
   const grid = useDataGrid<ExperimentListItem>("dataset-experiments");
 
   if (error) return <div className="pane-status error">{error}</div>;
-  if (!experiments)
+  if (experiments?.length === 0)
     return (
-      <Card className="rows gap-0 py-0">
-        {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} className="row grid-cols-[1fr_auto]">
-            <Skeleton className="h-4" style={{ width: `${25 + i * 7}%` }} />
-            <Skeleton className="h-3 w-40" />
-          </div>
-        ))}
+      <Card className="py-8">
+        <Empty
+          icon={FlaskConical}
+          title="No experiments on this dataset yet"
+          description={
+            <>
+              Start one with Run experiment, or run{" "}
+              <span className="font-mono">
+                evalkit run {dataset} --agent &lt;agent&gt;
+              </span>
+              .
+            </>
+          }
+        />
       </Card>
     );
-  if (experiments.length === 0)
-    return (
-      <div className="pane-status">
-        No experiments yet — run one with the button above or{" "}
-        <span className="font-mono">
-          evalkit run {dataset} --agent &lt;agent&gt;
-        </span>
-        .
-      </div>
-    );
 
-  const capNote = listCapNote(experiments.length);
+  const capNote = experiments ? listCapNote(experiments.length) : null;
   return (
     <>
       <div className="toolbar mb-2">
@@ -86,9 +86,10 @@ export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
       </div>
       <DataGrid
         grid={grid}
-        rows={experiments}
+        rows={experiments ?? NO_EXPERIMENTS}
         columns={columns}
         getRowId={getExperimentId}
+        loading={!experiments}
       />
     </>
   );
