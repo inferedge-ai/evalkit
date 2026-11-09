@@ -338,15 +338,7 @@ function ExperimentView() {
       {report && (
         <>
           <div className="eyebrow">Scores</div>
-          <BucketCards
-            report={report}
-            onPick={(name) => {
-              setEvaluator(name);
-              document
-                .getElementById(`col-${name}`)
-                ?.scrollIntoView({ block: "nearest", inline: "center" });
-            }}
-          />
+          <BucketCards report={report} onPick={setEvaluator} />
           <CostSpeedLine report={report} />
           <div className="eyebrow">Cases</div>
           <ScoreMatrix

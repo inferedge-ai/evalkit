@@ -1,8 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import type { ColDef } from "ag-grid-community";
 import { qs } from "../lib/api";
-import { DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import {
+  ColumnsMenu,
+  DataGrid,
+  compareNullsLast,
+  readValue,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
 import { fmtWhen } from "../lib/format";
 import { useApi } from "../lib/query";
 import type { AgentInfo, RunList, RunListItem } from "../lib/types";
@@ -12,76 +19,78 @@ import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 
 const NO_RUNS: RunListItem[] = [];
 
-function runColumns(agent: string): Column<RunListItem>[] {
+const getRunId = (run: RunListItem) => run.run_id;
+
+function runColumns(agent: string): ColDef<RunListItem>[] {
   const href = (run: RunListItem) =>
     `/runs/${encodeURIComponent(agent)}/${encodeURIComponent(run.run_id)}`;
   return [
     {
-      id: "title",
-      header: "title",
-      accessorFn: (run) => run.title ?? run.run_id,
-      meta: { wrap: true },
-      cell: (c) => (
+      colId: "title",
+      headerName: "title",
+      type: "text",
+      initialFlex: 2,
+      valueGetter: readValue((run) => run.title ?? run.run_id),
+      cellRenderer: renderCell<RunListItem>((run) => (
         <Link
           className="font-medium text-brand hover:underline"
-          to={href(c.row.original)}
+          to={href(run)}
+          title={run.title || run.run_id}
         >
-          {c.row.original.title || (
-            <span className="font-mono">{c.row.original.run_id}</span>
-          )}
+          {run.title || <span className="font-mono">{run.run_id}</span>}
         </Link>
-      ),
+      )),
     },
     {
-      id: "run_id",
-      header: "run id",
-      accessorKey: "run_id",
-      cell: (c) => (
-        <span className="row-meta font-mono text-ink-4">
-          {c.row.original.run_id}
-        </span>
-      ),
+      colId: "run_id",
+      headerName: "run id",
+      type: "text",
+      field: "run_id",
+      cellRenderer: renderCell<RunListItem>((run) => (
+        <span className="row-meta font-mono text-ink-4">{run.run_id}</span>
+      )),
     },
     {
-      id: "experiment",
-      header: "experiment",
-      accessorFn: (run) => run.experiment_number ?? undefined,
-      sortUndefined: "last",
-      meta: { align: "right" },
-      cell: (c) => (
+      colId: "experiment",
+      headerName: "experiment",
+      type: "number",
+      initialWidth: 110,
+      valueGetter: readValue((run) => run.experiment_number),
+      comparator: compareNullsLast,
+      cellRenderer: renderCell<RunListItem>((run) => (
         <span className="row-meta font-mono">
-          {c.row.original.experiment_id != null
-            ? `#${c.row.original.experiment_number ?? "?"}`
-            : ""}
+          {run.experiment_id != null ? `#${run.experiment_number ?? "?"}` : ""}
         </span>
-      ),
+      )),
     },
     {
-      id: "case",
-      header: "case",
-      accessorFn: (run) => run.case_id ?? "",
-      cell: (c) => (
-        <span className="row-meta font-mono">{c.row.original.case_id}</span>
-      ),
+      colId: "case",
+      headerName: "case",
+      type: "text",
+      valueGetter: readValue((run) => run.case_id ?? ""),
+      cellRenderer: renderCell<RunListItem>((run) => (
+        <span className="row-meta font-mono">{run.case_id}</span>
+      )),
     },
     {
-      id: "user",
-      header: "user",
-      accessorFn: (run) => run.user_id ?? "",
-      cell: (c) => (
-        <span className="row-meta font-mono">{c.row.original.user_id}</span>
-      ),
+      colId: "user",
+      headerName: "user",
+      type: "text",
+      valueGetter: readValue((run) => run.user_id ?? ""),
+      cellRenderer: renderCell<RunListItem>((run) => (
+        <span className="row-meta font-mono">{run.user_id}</span>
+      )),
     },
     {
-      id: "created",
-      header: "created",
-      accessorFn: (run) => run.created_at ?? "",
-      meta: { align: "right" },
-      cell: (c) => (
-        <span className="row-meta">
-          {fmtWhen(c.row.original.created_at) ?? ""}
-        </span>
-      ),
+      colId: "created",
+      headerName: "created",
+      type: "rightAligned",
+      initialFlex: 0,
+      initialWidth: 140,
+      valueGetter: readValue((run) => run.created_at ?? ""),
+      cellRenderer: renderCell<RunListItem>((run) => (
+        <span className="row-meta">{fmtWhen(run.created_at) ?? ""}</span>
+      )),
     },
   ];
 }
@@ -118,12 +127,7 @@ export function RunsBrowser() {
   const loadError = listedAgents.error ?? listedRuns.error;
   const error = loadError ? String(loadError) : null;
   const columns = useMemo(() => runColumns(agent), [agent]);
-  const table = useDataTable({
-    id: "runs",
-    data: runs?.runs ?? NO_RUNS,
-    columns,
-    getRowId: (run) => run.run_id,
-  });
+  const grid = useDataGrid<RunListItem>("runs");
   const otel =
     agents.find((a) => a.ref === agent)?.trajectory_source === "otel";
 
@@ -181,9 +185,14 @@ export function RunsBrowser() {
             Agent ↗
           </Link>
         )}
-        {runs && (
-          <span className="row-meta num ml-auto">{runs.total} runs</span>
-        )}
+        <span className="row-meta num ml-auto">
+          {runs
+            ? grid.filteredCount !== null
+              ? `${grid.filteredCount} of the ${runs.runs.length} loaded`
+              : `${runs.total} runs`
+            : ""}
+        </span>
+        {agent && !error && <ColumnsMenu grid={grid} />}
       </div>
       {error && (
         <div className="pane-status error">
@@ -197,7 +206,14 @@ export function RunsBrowser() {
         </div>
       )}
       {agent && !error && (
-        <DataTable table={table} loading={!runs} empty="No runs match." />
+        <DataGrid
+          grid={grid}
+          rows={runs?.runs ?? NO_RUNS}
+          columns={columns}
+          getRowId={getRunId}
+          loading={!runs}
+          empty="No runs match."
+        />
       )}
     </div>
   );

@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import type { ColDef } from "ag-grid-community";
 import { qs } from "../lib/api";
 import { scoredBucketColumns } from "../lib/bucketColumns";
-import { ColumnsMenu, DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import {
+  ColumnsMenu,
+  DataGrid,
+  readValue,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
 import {
   EXPERIMENT_LIST_LIMIT,
   STATUSES,
@@ -16,7 +22,7 @@ import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
 import { useWorkspace } from "../shell/workspace";
 
-const HIDDEN = ["latency", "took", "rev", "judge"];
+const getExperimentId = (exp: ExperimentListItem) => String(exp.id);
 
 export function ExperimentsPage() {
   const { workspace } = useWorkspace();
@@ -34,37 +40,39 @@ export function ExperimentsPage() {
   }, [workspace.name]);
 
   const buckets = useMemo(() => scoredBucketColumns(rows ?? []), [rows]);
-  const columns = useMemo<Column<ExperimentListItem>[]>(
+  const columns = useMemo<ColDef<ExperimentListItem>[]>(
     () => [
       {
-        id: "dataset",
-        header: "dataset",
-        accessorFn: (exp) => splitRef(exp.dataset).name,
-        meta: { wrap: true },
-        cell: (c) => (
+        colId: "dataset",
+        headerName: "dataset",
+        type: "text",
+        valueGetter: readValue((exp) => splitRef(exp.dataset).name),
+        cellRenderer: renderCell<ExperimentListItem>((exp) => (
           <Link
-            to={`/datasets/${encodeURIComponent(c.row.original.dataset)}`}
+            to={`/datasets/${encodeURIComponent(exp.dataset)}`}
             className="row-meta hover:text-brand"
-            title={c.row.original.dataset}
+            title={exp.dataset}
           >
-            {c.getValue()}
+            {splitRef(exp.dataset).name}
           </Link>
-        ),
+        )),
       },
       {
-        id: "number",
-        header: "#",
-        accessorKey: "number",
-        meta: { align: "right", title: "number in its dataset" },
-        cell: (c) => (
+        colId: "number",
+        headerName: "#",
+        headerTooltip: "number in its dataset",
+        type: "number",
+        initialWidth: 72,
+        field: "number",
+        cellRenderer: renderCell<ExperimentListItem>((exp) => (
           <Link
-            to={`/experiments/${c.row.original.id}`}
+            to={`/experiments/${exp.id}`}
             className="font-mono font-medium text-brand hover:underline"
-            title={`experiment ${c.row.original.id}`}
+            title={`experiment ${exp.id}`}
           >
-            #{c.row.original.number}
+            #{exp.number}
           </Link>
-        ),
+        )),
       },
       ...experimentTailColumns(buckets),
     ],
@@ -84,13 +92,7 @@ export function ExperimentsPage() {
     if (agent && exp.agent !== agent) return false;
     return true;
   });
-  const table = useDataTable({
-    id: "experiments",
-    data: visible,
-    columns,
-    getRowId: (exp) => String(exp.id),
-    defaultHidden: HIDDEN,
-  });
+  const grid = useDataGrid<ExperimentListItem>("experiments");
 
   return (
     <div className="page">
@@ -126,13 +128,16 @@ export function ExperimentsPage() {
         >
           {loading
             ? "Loading…"
-            : `${visible.length} experiments${listCapNote(rows?.length ?? 0) ? ` (of the latest ${EXPERIMENT_LIST_LIMIT})` : ""}`}
+            : `${grid.filteredCount ?? visible.length} experiments${listCapNote(rows?.length ?? 0) ? ` (of the latest ${EXPERIMENT_LIST_LIMIT})` : ""}`}
         </span>
-        <ColumnsMenu table={table} defaultHidden={HIDDEN} />
+        <ColumnsMenu grid={grid} />
       </div>
       {error && <div className="pane-status error">{error}</div>}
-      <DataTable
-        table={table}
+      <DataGrid
+        grid={grid}
+        rows={visible}
+        columns={columns}
+        getRowId={getExperimentId}
         loading={loading}
         empty={
           rows && rows.length === 0

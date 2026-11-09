@@ -1,3 +1,4 @@
+import type { ColDef } from "ag-grid-community";
 import {
   STATUS_TONE,
   isIncomplete,
@@ -11,8 +12,7 @@ import {
   formatMs,
   selectionLabel,
 } from "../lib/format";
-import { columnHelper } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import { compareNullsLast, readValue, renderCell } from "../lib/DataGrid";
 import { describeTerm } from "../lib/glossary";
 import { agentCommitUrl } from "../lib/meta";
 import { splitRef } from "../lib/workspace";
@@ -44,101 +44,100 @@ export function agentRevision(exp: Experiment): {
   };
 }
 
-const helper = columnHelper<ExperimentListItem>();
+type ExperimentColumn = ColDef<ExperimentListItem>;
 
 export function experimentTailColumns(
   columns: BucketColumn[],
-): Column<ExperimentListItem>[] {
+): ExperimentColumn[] {
   return [
-    ...columns.map((column) =>
-      helper.accessor(
-        (exp) => scoreValue(exp.scores, column.bucket) ?? undefined,
-        {
-          id: `score:${column.bucket}`,
-          header: column.short,
-          meta: {
-            align: "right",
-            title: describeTerm(`bucket:${column.bucket}`) ?? column.label,
-          },
-          sortUndefined: "last",
-          cell: (c) => <ScoreCell score={c.getValue()} />,
-        },
-      ),
-    ),
-    helper.accessor((exp) => exp.cost_usd ?? undefined, {
-      id: "cost",
-      sortUndefined: "last",
-      header: "cost",
-      meta: {
-        align: "right",
-        title: "mean agent cost per run (gauge_agent_cost_usd)",
-      },
-      cell: (c) => <CostCell cost={c.getValue()} />,
-    }),
-    helper.accessor((exp) => exp.avg_latency_ms ?? undefined, {
-      id: "latency",
-      sortUndefined: "last",
-      header: "latency",
-      meta: { align: "right" },
-      cell: (c) => {
-        const ms = c.getValue();
-        return <span className="row-meta num">{ms ? formatMs(ms) : ""}</span>;
-      },
-    }),
-    helper.accessor("status", {
-      id: "status",
-      header: "status",
-      cell: (c) => (
-        <span className={`chip ${STATUS_TONE[c.getValue()] ?? "muted"}`}>
-          {c.getValue()}
+    ...columns.map((column): ExperimentColumn => ({
+      colId: `score:${column.bucket}`,
+      headerName: column.short,
+      headerTooltip: describeTerm(`bucket:${column.bucket}`) ?? column.label,
+      type: "number",
+      valueGetter: readValue((exp) => scoreValue(exp.scores, column.bucket)),
+      comparator: compareNullsLast,
+      cellRenderer: renderCell<ExperimentListItem>((exp) => (
+        <ScoreCell score={scoreValue(exp.scores, column.bucket)} />
+      )),
+    })),
+    {
+      colId: "cost",
+      headerName: "cost",
+      headerTooltip: "mean agent cost per run (gauge_agent_cost_usd)",
+      type: "number",
+      valueGetter: readValue((exp) => exp.cost_usd),
+      comparator: compareNullsLast,
+      cellRenderer: renderCell<ExperimentListItem>((exp) => (
+        <CostCell cost={exp.cost_usd} />
+      )),
+    },
+    {
+      colId: "latency",
+      headerName: "latency",
+      initialHide: true,
+      type: "number",
+      valueGetter: readValue((exp) => exp.avg_latency_ms),
+      comparator: compareNullsLast,
+      cellRenderer: renderCell<ExperimentListItem>((exp) => (
+        <span className="row-meta num">
+          {exp.avg_latency_ms ? formatMs(exp.avg_latency_ms) : ""}
         </span>
-      ),
-    }),
-    helper.accessor((exp) => exp.progress.evaluated, {
-      id: "cases",
-      header: "cases",
-      meta: { align: "right", title: "cases evaluated / pinned" },
-      cell: (c) => {
-        const progress = c.row.original.progress;
-        return (
-          <span
-            className={`row-meta num ${isIncomplete(progress) ? "text-warn" : ""}`}
-            title={progressLabel(progress)}
-          >
-            {shortProgress(progress)}
-          </span>
-        );
-      },
-    }),
-    helper.accessor((exp) => agentTag(exp), {
-      id: "agent",
-      header: "agent",
-      cell: (c) => {
-        const exp = c.row.original;
-        return (
-          <span className="flex flex-col items-start" title={c.getValue()}>
-            <span className="flex items-center gap-1">
-              {splitRef(exp.agent).name}
-              <WorkspaceChip workspace={exp.workspace} />
+      )),
+    },
+    {
+      colId: "status",
+      headerName: "status",
+      type: "text",
+      field: "status",
+      cellRenderer: renderCell<ExperimentListItem>((exp) => (
+        <span className={`chip ${STATUS_TONE[exp.status] ?? "muted"}`}>
+          {exp.status}
+        </span>
+      )),
+    },
+    {
+      colId: "cases",
+      headerName: "cases",
+      headerTooltip: "cases evaluated / pinned",
+      type: "number",
+      valueGetter: readValue((exp) => exp.progress.evaluated),
+      cellRenderer: renderCell<ExperimentListItem>((exp) => (
+        <span
+          className={`row-meta num ${isIncomplete(exp.progress) ? "text-warn" : ""}`}
+          title={progressLabel(exp.progress)}
+        >
+          {shortProgress(exp.progress)}
+        </span>
+      )),
+    },
+    {
+      colId: "agent",
+      headerName: "agent",
+      type: "text",
+      valueGetter: readValue((exp) => agentTag(exp)),
+      cellRenderer: renderCell<ExperimentListItem>((exp) => (
+        <span className="inline-flex items-center gap-1" title={agentTag(exp)}>
+          {splitRef(exp.agent).name}
+          <WorkspaceChip workspace={exp.workspace} />
+          {exp.config.model && (
+            <span className="row-meta">
+              {exp.config.model.split("/").pop()}
             </span>
-            {exp.config.model && (
-              <span className="row-meta">
-                {exp.config.model.split("/").pop()}
-              </span>
-            )}
-          </span>
-        );
-      },
-    }),
-    helper.accessor((exp) => exp.config.judge?.model ?? "", {
-      id: "judge",
-      header: "judge",
-      meta: { title: "LLM judge model and reasoning effort" },
-      cell: (c) => {
-        const judge = c.row.original.config.judge;
-        if (!judge?.model) return null;
-        return (
-          <span className="flex flex-col items-start" title={judge.model}>
+          )}
+        </span>
+      )),
+    },
+    {
+      colId: "judge",
+      headerName: "judge",
+      headerTooltip: "LLM judge model and reasoning effort",
+      initialHide: true,
+      type: "text",
+      valueGetter: readValue((exp) => exp.config.judge?.model ?? ""),
+      cellRenderer: renderCell<ExperimentListItem>(({ config: { judge } }) =>
+        judge?.model ? (
+          <span className="inline-flex items-center gap-1" title={judge.model}>
             <span className="row-meta">{judge.model.split("/").pop()}</span>
             {judge.reasoning_effort && (
               <span className="row-meta text-ink-4">
@@ -146,28 +145,37 @@ export function experimentTailColumns(
               </span>
             )}
           </span>
+        ) : null,
+      ),
+    },
+    {
+      colId: "selection",
+      headerName: "selection",
+      headerTooltip: "the cases this experiment ran on",
+      type: "text",
+      valueGetter: readValue(
+        (exp) => selectionLabel({ selection: exp.config.selection }) ?? "",
+      ),
+      cellRenderer: renderCell<ExperimentListItem>((exp) => {
+        const label = selectionLabel({ selection: exp.config.selection });
+        return (
+          <span className="row-meta" title={label ?? undefined}>
+            {label}
+          </span>
         );
-      },
-    }),
-    helper.accessor(
-      (exp) => selectionLabel({ selection: exp.config.selection }) ?? "",
-      {
-        id: "cases",
-        header: "cases",
-        meta: { wrap: true, title: "the cases this experiment ran on" },
-        cell: (c) => <span className="row-meta">{c.getValue()}</span>,
-      },
-    ),
-    helper.accessor((exp) => agentRevision(exp).sha ?? "", {
-      id: "rev",
-      header: "rev",
-      meta: { title: "harness git revision, and the cases revision" },
-      cell: (c) => {
-        const exp = c.row.original;
+      }),
+    },
+    {
+      colId: "rev",
+      headerName: "rev",
+      headerTooltip: "harness git revision, and the cases revision",
+      initialHide: true,
+      valueGetter: readValue((exp) => agentRevision(exp).sha ?? ""),
+      cellRenderer: renderCell<ExperimentListItem>((exp) => {
         const rev = agentRevision(exp);
         const cases = exp.config.revision;
         return (
-          <span className="flex flex-col">
+          <span className="inline-flex items-center gap-2">
             <RevisionChip
               sha={rev.sha}
               branch={rev.branch}
@@ -185,42 +193,47 @@ export function experimentTailColumns(
             )}
           </span>
         );
-      },
-    }),
-    helper.accessor("created_by", {
-      id: "user",
-      header: "user",
-      cell: (c) => <UserPill user={c.getValue()} />,
-    }),
-    helper.accessor(
-      (exp) => elapsedMs(exp.started_at, exp.ended_at) ?? undefined,
-      {
-        id: "took",
-        header: "took",
-        meta: { align: "right", title: "wall time from start to end" },
-        sortUndefined: "last",
-        cell: (c) => {
-          const took = c.getValue();
-          return (
-            <span className="row-meta num">
-              {took !== undefined ? formatElapsed(took) : ""}
-            </span>
-          );
-        },
-      },
-    ),
-    helper.accessor("started_at", {
-      id: "started",
-      header: "started",
-      meta: { align: "right", wrap: true, className: "min-w-28" },
-      cell: (c) => (
-        <span className="row-meta">
-          {fmtWhen(c.getValue()) ?? ""}
-          {c.row.original.repetitions > 1
-            ? ` ×${c.row.original.repetitions}`
-            : ""}
+      }),
+    },
+    {
+      colId: "user",
+      headerName: "user",
+      type: "text",
+      field: "created_by",
+      cellRenderer: renderCell<ExperimentListItem>((exp) => (
+        <UserPill user={exp.created_by} />
+      )),
+    },
+    {
+      colId: "took",
+      headerName: "took",
+      headerTooltip: "wall time from start to end",
+      initialHide: true,
+      type: "number",
+      valueGetter: readValue((exp) => elapsedMs(exp.started_at, exp.ended_at)),
+      comparator: compareNullsLast,
+      cellRenderer: renderCell<ExperimentListItem>((exp) => {
+        const took = elapsedMs(exp.started_at, exp.ended_at);
+        return (
+          <span className="row-meta num">
+            {took !== null ? formatElapsed(took) : ""}
+          </span>
+        );
+      }),
+    },
+    {
+      colId: "started",
+      headerName: "started",
+      type: "rightAligned",
+      initialFlex: 0,
+      initialWidth: 140,
+      field: "started_at",
+      cellRenderer: renderCell<ExperimentListItem>((exp) => (
+        <span className="row-meta" title={exp.started_at ?? undefined}>
+          {fmtWhen(exp.started_at) ?? ""}
+          {exp.repetitions > 1 ? ` ×${exp.repetitions}` : ""}
         </span>
-      ),
-    }),
+      )),
+    },
   ];
 }

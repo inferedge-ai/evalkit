@@ -1,11 +1,18 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import type { ColDef } from "ag-grid-community";
 import { isNotFound, qs } from "../lib/api";
 import { fmtWhen, questionText, toYaml } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
 import { BUCKET_COLUMNS, scoreValue } from "../lib/bucketColumns";
-import { DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import {
+  ColumnsMenu,
+  DataGrid,
+  compareNullsLast,
+  readValue,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
 import type {
   CaseScorePoint,
   CaseScoresResponse,
@@ -33,6 +40,72 @@ const PAGE = 10;
 
 const NO_POINTS: CaseScorePoint[] = [];
 
+const getExperimentId = (p: CaseScorePoint) => String(p.experiment_id);
+
+const SCORE_HISTORY_COLUMNS: ColDef<CaseScorePoint>[] = [
+  {
+    colId: "experiment",
+    headerName: "experiment",
+    field: "number",
+    initialFlex: 0,
+    initialWidth: 110,
+    cellRenderer: renderCell<CaseScorePoint>((p) => (
+      <Link
+        to={`/experiments/${p.experiment_id}`}
+        className="font-mono font-medium text-brand hover:underline"
+        title={`#${p.number} by ${p.created_by} · ${fmtWhen(p.created_at) ?? ""}${
+          p.repetitions > 1 ? ` · ×${p.repetitions}` : ""
+        }`}
+      >
+        #{p.number}
+      </Link>
+    )),
+  },
+  {
+    colId: "agent",
+    headerName: "agent",
+    type: "text",
+    field: "agent",
+    cellRenderer: renderCell<CaseScorePoint>((p) => (
+      <span className="row-meta" title={p.agent}>
+        {p.agent}
+      </span>
+    )),
+  },
+  {
+    colId: "model",
+    headerName: "model",
+    type: "text",
+    valueGetter: readValue((p) => p.model ?? ""),
+    cellRenderer: renderCell<CaseScorePoint>((p) => (
+      <span className="row-meta" title={p.model ?? undefined}>
+        {p.model ?? "—"}
+      </span>
+    )),
+  },
+  ...BUCKET_COLUMNS.map((column): ColDef<CaseScorePoint> => ({
+    colId: `score:${column.bucket}`,
+    headerName: column.short,
+    headerTooltip: `${column.bucket} bucket`,
+    type: "number",
+    valueGetter: readValue((p) => scoreValue(p.scores, column.bucket)),
+    comparator: compareNullsLast,
+    cellRenderer: renderCell<CaseScorePoint>((p) => (
+      <ScoreCell score={p.scores[column.bucket]} />
+    )),
+  })),
+  {
+    colId: "cost",
+    headerName: "cost",
+    type: "number",
+    valueGetter: readValue((p) => p.cost_usd),
+    comparator: compareNullsLast,
+    cellRenderer: renderCell<CaseScorePoint>((p) => (
+      <CostCell cost={p.cost_usd} />
+    )),
+  },
+];
+
 function ScoreHistory({
   dataset,
   caseId,
@@ -50,78 +123,23 @@ function ScoreHistory({
   const error = scores.error ? String(scores.error) : null;
 
   const hasMore = (points?.length ?? 0) === PAGE;
-  const buckets = BUCKET_COLUMNS;
-  const columns = useMemo<Column<CaseScorePoint>[]>(
-    () => [
-      {
-        id: "experiment",
-        header: "experiment",
-        accessorKey: "number",
-        cell: (c) => {
-          const p = c.row.original;
-          return (
-            <Link
-              to={`/experiments/${p.experiment_id}`}
-              className="font-mono font-medium text-brand hover:underline"
-              title={`#${p.number} by ${p.created_by} · ${fmtWhen(p.created_at) ?? ""}${
-                p.repetitions > 1 ? ` · ×${p.repetitions}` : ""
-              }`}
-            >
-              #{p.number}
-            </Link>
-          );
-        },
-      },
-      {
-        id: "agent",
-        header: "agent",
-        accessorKey: "agent",
-        meta: { wrap: true },
-        cell: (c) => <span className="row-meta">{c.row.original.agent}</span>,
-      },
-      {
-        id: "model",
-        header: "model",
-        accessorFn: (p) => p.model ?? "",
-        meta: { wrap: true },
-        cell: (c) => (
-          <span className="row-meta">{c.row.original.model ?? "—"}</span>
-        ),
-      },
-      ...buckets.map((column): Column<CaseScorePoint> => ({
-        id: `score:${column.bucket}`,
-        header: column.short,
-        accessorFn: (p) => scoreValue(p.scores, column.bucket) ?? undefined,
-        sortUndefined: "last",
-        meta: { align: "right", title: `${column.bucket} bucket` },
-        cell: (c) => <ScoreCell score={c.row.original.scores[column.bucket]} />,
-      })),
-      {
-        id: "cost",
-        header: "cost",
-        accessorFn: (p) => p.cost_usd ?? undefined,
-        sortUndefined: "last",
-        meta: { align: "right" },
-        cell: (c) => <CostCell cost={c.row.original.cost_usd} />,
-      },
-    ],
-    [buckets],
-  );
-  const table = useDataTable({
-    id: "case-score-history",
-    data: points ?? NO_POINTS,
-    columns,
-    getRowId: (p) => String(p.experiment_id),
-  });
+  const grid = useDataGrid<CaseScorePoint>("case-score-history");
 
   return (
     <>
-      <div className="eyebrow">Score history</div>
+      <div className="eyebrow">
+        Score history
+        <span className="ml-auto font-normal tracking-normal normal-case">
+          <ColumnsMenu grid={grid} />
+        </span>
+      </div>
       {error && <div className="pane-status error">{error}</div>}
-      <DataTable
-        table={table}
+      <DataGrid
+        grid={grid}
+        rows={points ?? NO_POINTS}
+        columns={SCORE_HISTORY_COLUMNS}
+        getRowId={getExperimentId}
         loading={!points && !error}
-        skeletonRows={4}
         empty={offset === 0 ? "This case has never been run." : undefined}
       />
       {(offset > 0 || hasMore) && (
