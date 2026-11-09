@@ -1,14 +1,60 @@
-import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
+import {
+  Link,
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+import {
+  ChevronRight,
+  LogOut,
+  Moon,
+  PanelLeft,
+  Puzzle,
+  Search,
+  Sun,
+} from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 import { logout } from "../lib/api";
+import type { NavItem } from "../lib/extensions";
 import { Select } from "../lib/Select";
 import { othersPersonal, workspaceHint } from "../lib/workspace";
 import type { Me, WorkspaceInfo } from "../lib/types";
 import { useMe } from "./capabilities";
 import { JumpPalette } from "./JumpPalette";
-import { ADMIN_NAV, MORE_NAV, NAV } from "./nav";
+import { DOCS_NAV, getNavSections } from "./nav";
 import { useTheme } from "./theme";
 import { SWITCH_FLASH_MS, useSwitchWorkspace, useWorkspace } from "./workspace";
+
+const SIDEBAR_WIDTHS = {
+  "--sidebar-width": "220px",
+  "--sidebar-width-icon": "53px",
+} as CSSProperties;
 
 export function BrandLink({ to = "/" }: { to?: string }) {
   return (
@@ -17,6 +63,132 @@ export function BrandLink({ to = "/" }: { to?: string }) {
         Evalkit
       </span>
     </NavLink>
+  );
+}
+
+// SidebarProvider writes this cookie whenever the sidebar is toggled.
+function readSidebarOpen(): boolean {
+  return !document.cookie.split("; ").includes("sidebar_state=false");
+}
+
+export function Shell() {
+  return (
+    <SidebarProvider
+      defaultOpen={readSidebarOpen()}
+      className="h-dvh overflow-hidden"
+      style={SIDEBAR_WIDTHS}
+    >
+      <SideNav />
+      <SidebarInset>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <Outlet />
+        </div>
+      </SidebarInset>
+      <JumpPalette />
+    </SidebarProvider>
+  );
+}
+
+function SideNav() {
+  const me = useMe();
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="gap-0 p-0">
+        <SideNavHeader />
+      </SidebarHeader>
+      <SidebarContent>
+        {getNavSections(me.is_admin).map((section, i) => (
+          <SidebarGroup
+            key={section.label ?? i}
+            role="group"
+            aria-label={section.label}
+          >
+            {section.label && (
+              <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+            )}
+            <SidebarMenu>
+              {section.items.map((item) => (
+                <NavRow key={item.to} item={item} />
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <NavRow item={DOCS_NAV} />
+          <ProfileMenu me={me} />
+        </SidebarMenu>
+      </SidebarFooter>
+    </Sidebar>
+  );
+}
+
+function NavRow({ item }: { item: NavItem }) {
+  const { pathname } = useLocation();
+  const { isMobile, setOpenMobile } = useSidebar();
+  const Icon = item.icon ?? Puzzle;
+  const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        render={
+          <Link to={item.to} aria-current={active ? "page" : undefined} />
+        }
+        isActive={active}
+        tooltip={item.label}
+        onClick={() => {
+          if (isMobile) setOpenMobile(false);
+        }}
+      >
+        <Icon />
+        <span className="group-data-[collapsible=icon]:hidden">
+          {item.label}
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+function SideNavHeader() {
+  const { state, isMobile, toggleSidebar } = useSidebar();
+  const collapsed = state === "collapsed" && !isMobile;
+  return (
+    <>
+      <div className="flex min-h-12 items-center justify-between overflow-hidden p-2 group-data-[collapsible=icon]:justify-center">
+        {!collapsed && (
+          <span className="px-2">
+            <BrandLink />
+          </span>
+        )}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={toggleSidebar}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar (⌘B)" : "Collapse sidebar (⌘B)"}
+          className="shrink-0"
+        >
+          <PanelLeft />
+        </Button>
+      </div>
+      <SidebarMenu className="gap-2 px-2 pb-2">
+        <WorkspaceSwitcher />
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            variant="outline"
+            tooltip="Search (⌘K)"
+            onClick={() => window.dispatchEvent(new Event("jump-palette:open"))}
+          >
+            <Search />
+            <span className="group-data-[collapsible=icon]:hidden">Search</span>
+            <kbd className="ml-auto font-mono text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+              ⌘K
+            </kbd>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    </>
   );
 }
 
@@ -40,14 +212,19 @@ function WorkspaceSwitcher() {
     othersPersonal(ws, me.personal_workspace),
   );
   return (
-    <div
-      className={`flex items-center gap-1.5 rounded-md ${flash ? "ws-switched" : ""}`}
+    <SidebarMenuItem
+      className={cn(
+        "flex flex-col gap-1 rounded-md group-data-[collapsible=icon]:hidden",
+        flash && "ws-switched",
+      )}
       aria-live="polite"
     >
-      <span className="text-micro tracking-wide text-ink-4 uppercase">
+      <span className="px-2 text-xs text-sidebar-foreground/70">
         {flash ? `Switched to @${workspace.name}` : "Workspace"}
+        {othersPersonal(workspace, me.personal_workspace) && " · read-only"}
       </span>
       <Select
+        className="w-full"
         ariaLabel="workspace"
         title="workspace (⌘K, w)"
         value={workspace.name}
@@ -60,142 +237,68 @@ function WorkspaceSwitcher() {
           options: others.map(option),
         }}
       />
-      {othersPersonal(workspace, me.personal_workspace) && (
-        <span className="text-micro text-ink-4">read-only</span>
-      )}
-    </div>
+    </SidebarMenuItem>
   );
 }
 
-export const navClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-md px-2.5 py-1 text-lede transition-colors ${
-    isActive ? "bg-info-bg font-medium text-brand" : "text-ink-2 hover:bg-fill"
-  }`;
-
-function MoreMenu() {
-  const me = useMe();
-  const { pathname } = useLocation();
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const groups = me.is_admin ? [MORE_NAV, ADMIN_NAV] : [MORE_NAV];
-  const active = groups
-    .flat()
-    .find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`));
-
-  useEffect(() => setOpen(false), [pathname]);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={navClass({ isActive: !!active })}
-        onClick={() => setOpen((o) => !o)}
-      >
-        {active ? active.label : "More"} <span className="text-ink-4">▾</span>
-      </button>
-      {open && (
-        <div role="menu" className="select-menu">
-          <div className="select-list">
-            {groups.map((group, i) => (
-              <div key={i} className={i ? "select-more mt-1 pt-1" : ""}>
-                {group.map((n) => (
-                  <NavLink
-                    key={n.to}
-                    to={n.to}
-                    role="menuitem"
-                    onClick={() => setOpen(false)}
-                    className={({ isActive }) =>
-                      `select-option ${isActive ? "font-medium text-brand" : ""}`
-                    }
-                  >
-                    {n.label}
-                  </NavLink>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function AccountChip({ me }: { me: Me }) {
-  return (
-    <span
-      className="chip muted flex flex-col items-end leading-tight"
-      title="signed in as"
-    >
-      <span>{me.username}</span>
-      {me.email !== null && (
-        <span className="text-micro text-ink-4">{me.email}</span>
-      )}
-    </span>
-  );
-}
-
-export function Shell() {
-  const me = useMe();
+function ProfileMenu({ me }: { me: Me }) {
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
+  const initials = me.username.slice(0, 2).toUpperCase();
   return (
-    <div className="flex h-dvh flex-col">
-      <header className="flex items-center gap-4 border-b border-line bg-surface px-4 py-2">
-        <BrandLink />
-        <WorkspaceSwitcher />
-        <nav className="ml-2 flex items-center gap-0.5">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} className={navClass}>
-              {n.label}
-            </NavLink>
-          ))}
-          <MoreMenu />
-        </nav>
-        <div className="ml-auto flex items-center gap-2">
-          <AccountChip me={me} />
-          <button
-            className="btn"
-            title="search datasets, experiments, cases, runs and pages"
-            onClick={() => window.dispatchEvent(new Event("jump-palette:open"))}
-          >
-            Search <span className="num font-mono text-ink-4">⌘K</span>
-          </button>
-          <button
-            className="btn"
-            title={`switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            onClick={toggle}
-          >
-            {theme === "dark" ? "☀ Light" : "☾ Dark"}
-          </button>
-          <button
-            className="btn btn-quiet"
+    <SidebarMenuItem>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <SidebarMenuButton
+              tooltip={me.username}
+              size="lg"
+              aria-label={me.username}
+            />
+          }
+        >
+          <Avatar className="size-8 shrink-0">
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+          <span className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
+            <span className="truncate font-semibold">{me.username}</span>
+            {me.email !== null && (
+              <span className="truncate text-xs text-muted-foreground">
+                {me.email}
+              </span>
+            )}
+          </span>
+          <ChevronRight className="text-muted-foreground group-data-[collapsible=icon]:hidden" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="end" className="min-w-56">
+          <div className="flex items-center gap-2 p-2">
+            <Avatar className="size-10 shrink-0">
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate text-sm font-semibold">
+                {me.username}
+              </span>
+              {me.email !== null && (
+                <span className="truncate text-xs text-muted-foreground">
+                  {me.email}
+                </span>
+              )}
+            </div>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={toggle}>
+            {theme === "dark" ? <Sun /> : <Moon />}
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => logout().finally(() => navigate("/login"))}
           >
+            <LogOut />
             Sign out
-          </button>
-        </div>
-      </header>
-      <main className="min-h-0 flex-1 overflow-auto">
-        <Outlet />
-      </main>
-      <JumpPalette />
-    </div>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
   );
 }

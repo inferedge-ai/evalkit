@@ -55,6 +55,21 @@
   headed `selection`. In the case matrix, the case column fits its content on
   every load, the evaluator descriptions are in the header's tooltip instead of
   an ⓘ, and picking a score card scrolls the matrix to that evaluator's column.
+- The web UI's top bar and its More menu are replaced by a left sidebar. Its
+  header has the Evalkit wordmark, the workspace switcher and Search (⌘K); its
+  sections are Evaluate (Datasets, Experiments, Reviews), Observe (Runs,
+  Agents), Workspace (Settings) and, for admins, Admin (Users, Trace sources,
+  LLM providers); its footer has Docs and a menu with your name, the light or
+  dark mode switch and Sign out. The sidebar collapses to icons (its button,
+  or ⌘B) and stays collapsed across reloads through the `sidebar_state`
+  cookie; on a phone it opens as a sheet from the button at the left of the
+  page header. Each page starts with a header holding its title, the pages
+  above it as links, and its main actions. The ⌘K search opens in a shadcn
+  dialog. Signed-out pages (sign-in, docs) keep a top bar with the wordmark,
+  Docs, the theme switch and Sign in. For a package extending the UI, a
+  `NavItem` takes an optional lucide `icon`; `nav` items get a sidebar section
+  of their own after Observe, `moreNav` items join Workspace and `adminNav`
+  items join Admin, and all of them stay in ⌘K.
 
 ## 0.4.0
 

@@ -168,12 +168,18 @@ then add plain FastAPI routes with `app.include_router(...)`.
   `tsc -b` checks your pages against evalkit's types. A Vite alias to a module
   outside `ui/` does not work: imports in that module, such as `react`, do not
   resolve.
-- `routes` render for signed-in users inside the app shell. `nav` items join
-  the top bar, `moreNav` the More menu, and `adminNav` the admin part of that
-  menu. `adminNav` only hides the item from non-admins; the page's endpoints
-  must check admin themselves.
-- Keep the folder path, the `extensions` export, `UiExtensions` and
-  `SIGNED_IN` stable: other packages build against them.
+- `routes` render for signed-in users inside the app shell, beside the left
+  sidebar. Start each page with `PageHeader` from
+  `@/components/widgets/PageHeader` (title, breadcrumbs, actions): on a phone
+  its button is the only way to open the sidebar.
+- A `NavItem` may set `icon`, a `lucide-react` icon; the collapsed sidebar
+  shows a puzzle piece for one without. `nav` items get a sidebar section of
+  their own after Observe, `moreNav` items join Workspace, and `adminNav`
+  items join Admin. All of them are pages in ⌘K search. `adminNav` only
+  hides the item from non-admins; the page's endpoints must check admin
+  themselves.
+- Keep the folder path, the `extensions` export, `UiExtensions`,
+  `PageHeader` and `SIGNED_IN` stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
 (`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,

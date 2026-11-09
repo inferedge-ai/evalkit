@@ -19,8 +19,9 @@ import type {
   ExperimentListItem,
   RunList,
 } from "../lib/types";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMe } from "./capabilities";
-import { ADMIN_NAV, MORE_NAV, NAV } from "./nav";
+import { DOCS_NAV, getNavSections } from "./nav";
 import { useSwitchWorkspace, useWorkspace } from "./workspace";
 
 interface Loaded {
@@ -123,7 +124,10 @@ export function JumpPalette() {
   const listRef = useRef<HTMLUListElement>(null);
   const navigate = useNavigate();
   const pages = useMemo(
-    () => [...NAV, ...MORE_NAV, ...(me.is_admin ? ADMIN_NAV : [])],
+    () => [
+      ...getNavSections(me.is_admin).flatMap((section) => section.items),
+      DOCS_NAV,
+    ],
     [me.is_admin],
   );
 
@@ -133,7 +137,6 @@ export function JumpPalette() {
         e.preventDefault();
         setOpen((o) => !o);
       }
-      if (e.key === "Escape") setOpen(false);
     };
     const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKey);
@@ -145,12 +148,9 @@ export function JumpPalette() {
   }, []);
 
   useEffect(() => {
-    if (!open) {
-      setKind(null);
-      setValue("");
-      return;
-    }
-    inputRef.current?.focus();
+    if (open) return;
+    setKind(null);
+    setValue("");
   }, [open]);
 
   const local =
@@ -238,7 +238,6 @@ export function JumpPalette() {
     } else go(row.item.route, newTab);
   };
 
-  if (!open) return null;
   const active = SEARCH_KINDS.find((k) => k.kind === kind);
   const loading =
     kind !== null &&
@@ -246,14 +245,14 @@ export function JumpPalette() {
     (kind === "run" ? runs === null : local === null);
 
   return (
-    <div className="dialog-backdrop" onMouseDown={() => setOpen(false)}>
-      <div
-        className="dialog w-140"
-        role="dialog"
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent
         aria-label="Search"
-        onMouseDown={(e) => e.stopPropagation()}
+        showCloseButton={false}
+        initialFocus={inputRef}
+        className="top-[10vh] flex max-h-[80vh] translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-140"
       >
-        <div className="flex items-center gap-2 border-b border-line px-3">
+        <div className="flex items-center gap-2 border-b px-3">
           {active && (
             <button
               className="chip shrink-0"
@@ -325,13 +324,13 @@ export function JumpPalette() {
             </li>
           ))}
         </ul>
-        <div className="border-t border-line px-3 py-1.5 text-micro text-ink-4">
+        <div className="border-t px-3 py-1.5 text-micro text-muted-foreground">
           {kind === null
             ? "↑↓ choose · Enter or Tab opens a type · Enter on an unknown id opens it as an experiment"
             : "↑↓ choose · Enter opens · ⌘Enter new tab · Backspace on empty goes back"}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
