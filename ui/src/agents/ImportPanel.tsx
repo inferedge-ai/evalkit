@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
@@ -35,7 +36,7 @@ function SessionCheck({ agent, session }: { agent: string; session: string }) {
           className="btn btn-quiet text-brand"
           to={`/runs/${encodeURIComponent(agent)}/${encodeURIComponent(session)}`}
         >
-          Trajectory ↗
+          Trajectory <ArrowUpRight size={12} />
         </Link>
       </div>
       {error && <div className="pane-status error">{error}</div>}

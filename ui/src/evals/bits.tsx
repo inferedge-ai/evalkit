@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Download, User } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -116,7 +117,9 @@ export function FixtureList({
               <span className="truncate font-mono text-meta text-brand">
                 {entry.name}
               </span>
-              <span className="row-meta">download ↓</span>
+              <span className="row-meta inline-flex items-center gap-1">
+                download <Download size={11} />
+              </span>
             </button>
           ))}
         </div>
@@ -291,15 +294,7 @@ export function UserPill({ user }: { user: string | null | undefined }) {
       className="chip muted inline-flex shrink-0 items-center gap-1"
       title="run by"
     >
-      <svg
-        width="11"
-        height="11"
-        viewBox="0 0 16 16"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A5.986 5.986 0 0 1 8 9.5c2.55 0 4.77 1.59 5.784 4.5a.75.75 0 0 1-.703 1H2.919a.75.75 0 0 1-.703-1Z" />
-      </svg>
+      <User size={11} />
       {user}
     </span>
   );
@@ -654,7 +649,12 @@ function RubricSummaryTable({ detail }: { detail: Record<string, unknown> }) {
                 aria-expanded={showTypes}
                 onClick={() => setShowTypes((v) => !v)}
               >
-                {showTypes ? "▾" : "▸"} by type ({typeRows.length})
+                {showTypes ? (
+                  <ChevronDown size={12} />
+                ) : (
+                  <ChevronRight size={12} />
+                )}
+                by type ({typeRows.length})
               </button>
             </td>
           </tr>

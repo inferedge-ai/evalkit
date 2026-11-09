@@ -53,8 +53,18 @@
   the search box and review-state filter drop the cases they hide from the
   selection. The experiments list's second `cases` column (which cases ran) is
   headed `selection`. In the case matrix, the case column fits its content on
-  every load, the evaluator descriptions are in the header's tooltip instead of
-  an ⓘ, and picking a score card scrolls the matrix to that evaluator's column.
+  every load, and picking a score card scrolls the matrix to that evaluator's
+  column.
+- The web UI's icons come from `lucide-react` instead of hand-drawn SVGs and
+  text characters: the ⓘ beside a score, gauge or evaluator name, the
+  dropdown chevron and check mark, the copy and user icons, the arrow on links
+  to another page, the buttons that clear a selection or remove a tag or role,
+  the Columns menu's move up and down buttons, and the arrows that open a
+  folder or section. The ⓘ shows its description in a tooltip drawn above the
+  page, so a table no longer cuts it off, on hover or when it has keyboard
+  focus. Each case matrix column whose evaluator has a description shows the
+  ⓘ in its header: Tab from the header moves to it, and clicking it does not
+  sort the column.
 
 ## 0.4.0
 

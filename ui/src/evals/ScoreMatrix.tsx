@@ -6,8 +6,12 @@ import type {
   ColGroupDef,
   RowHeightParams,
   SizeColumnsToContentStrategy,
+  SuppressHeaderKeyboardEventParams,
 } from "ag-grid-community";
-import type { CustomCellRendererProps } from "ag-grid-react";
+import type {
+  CustomCellRendererProps,
+  CustomInnerHeaderProps,
+} from "ag-grid-react";
 import {
   ColumnsMenu,
   DataGrid,
@@ -18,6 +22,7 @@ import {
 import type { GridColumn } from "../lib/DataGrid";
 import { fmtDelta, fmtGauge, fmtScore, severity } from "../lib/format";
 import { describeTerm } from "../lib/glossary";
+import { InfoTip } from "../lib/ui";
 import {
   cellValue,
   delta,
@@ -253,6 +258,25 @@ function MatrixCaseCell({ data, node }: CustomCellRendererProps<MatrixRow>) {
 // value.
 const alwaysRefresh = () => false;
 
+function MatrixHeaderLabel({
+  displayName,
+  term,
+}: CustomInnerHeaderProps<MatrixRow> & { term: string }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1">
+      <span className="truncate">{displayName}</span>
+      <InfoTip term={term} />
+    </span>
+  );
+}
+
+// AG Grid moves Tab from header cell to header cell; this lets the browser
+// take it from the cell to the ⓘ inside first.
+const tabIntoInfoTip = ({ event }: SuppressHeaderKeyboardEventParams) =>
+  event.key === "Tab" &&
+  !event.shiftKey &&
+  event.target === event.currentTarget;
+
 function buildValueColumn(
   kind: ColumnKind,
   col: string,
@@ -261,16 +285,21 @@ function buildValueColumn(
 ): ColDef<MatrixRow> {
   const colId = kind === "avg" ? "avg" : col;
   const label = kind === "avg" ? "mean" : shortLabel(col);
-  const term = describeTerm(col);
   return {
     colId,
     headerName: label,
-    headerTooltip:
-      kind === "avg"
-        ? "mean of the case's bucketed scores"
-        : term
-          ? `${col}: ${term}`
-          : col,
+    ...(describeTerm(col)
+      ? {
+          headerComponentParams: {
+            innerHeaderComponent: MatrixHeaderLabel,
+            innerHeaderComponentParams: { term: col },
+          },
+          suppressHeaderKeyboardEvent: tabIntoInfoTip,
+        }
+      : {
+          headerTooltip:
+            kind === "avg" ? "mean of the case's bucketed scores" : col,
+        }),
     initialHide: defaultHidden.includes(colId),
     type: "number",
     initialWidth: estimateColumnWidth(label, withBase),

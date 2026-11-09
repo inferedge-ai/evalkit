@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import {
   AlertDialog,
@@ -204,10 +205,10 @@ function AgentView() {
           className={`btn btn-quiet text-brand ${writable ? "" : "ml-auto"}`}
           to={`/runs?agent=${encodeURIComponent(slug)}`}
         >
-          Runs ↗
+          Runs <ArrowUpRight size={12} />
         </Link>
         <Link className="btn btn-quiet text-brand" to="/agents">
-          All agents ↗
+          All agents <ArrowUpRight size={12} />
         </Link>
       </div>
       {error && <div className="pane-status error">{error}</div>}

@@ -1,5 +1,11 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { Check, ChevronDown, ChevronRight, Copy, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Editor } from "./Editor";
 import { monacoTheme, useTheme } from "../shell/theme";
 import { describeTerm } from "./glossary";
@@ -10,53 +16,19 @@ export function InfoTip({ term }: { term: string }) {
   const text = describeTerm(term);
   if (!text) return null;
   return (
-    <span className="infotip" tabIndex={0} aria-label={text}>
-      <svg
-        width="11"
-        height="11"
-        viewBox="0 0 16 16"
-        fill="none"
-        aria-hidden="true"
+    <Tooltip>
+      <TooltipTrigger
+        type="button"
+        delay={0}
+        aria-label={text}
+        className="inline-flex shrink-0 cursor-help items-center rounded-full text-ink-4 outline-none hover:text-brand focus-visible:text-brand focus-visible:ring-2 focus-visible:ring-ring/50"
+        // In a sortable table header the click would also sort the column.
+        onClick={(e) => e.stopPropagation()}
       >
-        <circle cx="8" cy="8" r="6.6" stroke="currentColor" strokeWidth="1.3" />
-        <path
-          d="M8 7.4v3.4"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-        />
-        <circle cx="8" cy="4.9" r="0.9" fill="currentColor" />
-      </svg>
-      <span className="infotip-bubble" role="tooltip">
-        {text}
-      </span>
-    </span>
-  );
-}
-
-function CopyGlyph({ copied }: { copied: boolean }) {
-  return (
-    <svg
-      width="11"
-      height="11"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      {copied ? (
-        <path d="m3 8.5 3.5 3.5L13 5" />
-      ) : (
-        <>
-          <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-          <path d="M10.5 3.5h-7a1 1 0 0 0-1 1v7" />
-        </>
-      )}
-    </svg>
+        <Info size={12} />
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -87,7 +59,11 @@ export function CopyText({
       }}
     >
       <span className="truncate">{label ?? value}</span>
-      <CopyGlyph copied={copied} />
+      {copied ? (
+        <Check size={11} className="shrink-0" />
+      ) : (
+        <Copy size={11} className="shrink-0" />
+      )}
     </button>
   );
 }
@@ -105,7 +81,7 @@ export function CopyButton({ text }: { text: string }) {
         });
       }}
     >
-      {copied ? "✓" : "copy"}
+      {copied ? <Check size={12} role="img" aria-label="copied" /> : "copy"}
     </button>
   );
 }
@@ -138,7 +114,11 @@ export function Collapsible({
   return (
     <div className={`collapsible ${open ? "is-open" : ""}`}>
       <div className="collapsible-header group/row" onClick={toggle}>
-        <span className="w-3 text-ink-4">{open ? "▾" : "▸"}</span>
+        {open ? (
+          <ChevronDown size={12} className="shrink-0 text-ink-4" />
+        ) : (
+          <ChevronRight size={12} className="shrink-0 text-ink-4" />
+        )}
         <span className={`badge badge-${badge}`}>{badge}</span>
         <span className="collapsible-title">{header}</span>
         {actions}

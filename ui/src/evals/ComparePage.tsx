@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
 import { progressLabel } from "../lib/experimentStatus";
@@ -49,12 +50,12 @@ function CaseDetail({
   );
   const runLink = (id: string, label: string) => (
     <Link
-      className="text-brand hover:underline"
+      className="inline-flex items-center gap-0.5 text-brand hover:underline"
       to={`/experiments/${encodeURIComponent(id)}/${encodeURIComponent(row.case_id)}`}
       target="_blank"
       rel="noopener"
     >
-      {label} ↗
+      {label} <ArrowUpRight size={12} />
     </Link>
   );
   return (

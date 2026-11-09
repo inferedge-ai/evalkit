@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
 import { answerText, fmtGauge, outputText, questionText } from "../lib/format";
@@ -186,7 +187,7 @@ export function RunPage() {
           className={`btn btn-quiet text-brand ${status?.config.judge?.model ? "" : "ml-auto"}`}
           to={`/experiments/${encodeURIComponent(experimentId)}`}
         >
-          Experiment ↗
+          Experiment <ArrowUpRight size={12} />
         </Link>
       </div>
 

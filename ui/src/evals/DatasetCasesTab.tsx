@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { apiJson, qs } from "../lib/api";
 import { questionText } from "../lib/format";
@@ -338,9 +339,10 @@ export function DatasetCasesTab({
           )}
           <button
             className="btn btn-sm ml-auto"
+            aria-label="clear selection"
             onClick={() => grid.api?.deselectAll()}
           >
-            ✕
+            <X size={12} />
           </button>
         </div>
       )}

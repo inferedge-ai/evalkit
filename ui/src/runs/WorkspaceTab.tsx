@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { Editor } from "../lib/Editor";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -151,7 +152,11 @@ function TreeNode({
           style={pad}
           onClick={() => setExpanded(!open)}
         >
-          <span className="text-ink-4">{open ? "▾" : "▸"}</span>
+          {open ? (
+            <ChevronDown size={12} className="shrink-0 text-ink-4" />
+          ) : (
+            <ChevronRight size={12} className="shrink-0 text-ink-4" />
+          )}
           <span>{node.name}/</span>
           <button
             className="ml-auto hidden text-micro text-ink-3 group-hover:inline hover:text-brand"

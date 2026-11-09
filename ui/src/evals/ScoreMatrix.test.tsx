@@ -1,6 +1,15 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, expect, test, vi } from "vitest";
+import { describeTerm } from "../lib/glossary";
 import type { ColumnGroup } from "../lib/scoreSummary";
 import type { CaseRow, Report } from "../lib/types";
 import { ScoreMatrix, type MatrixRow } from "./ScoreMatrix";
@@ -186,4 +195,65 @@ test("each refresh shows the rows' new data even where the sorted value stays th
       .querySelector('.ag-row[row-id="late-fee"] [col-id="accuracy"] span')
       ?.getAttribute("title"),
   ).toBe("judge rate limited");
+});
+
+const COVERAGE = "answer_rubric_coverage";
+const COVERAGE_TEXT = describeTerm(COVERAGE)!;
+
+function GlossaryMatrix() {
+  return (
+    <ScoreMatrix
+      id="experiment-cases"
+      report={REPORT}
+      groups={[{ label: "content", kind: "score", cols: [COVERAGE] }]}
+      rows={CASES.map((row): MatrixRow => ({
+        case_id: row.case_id,
+        row: { ...row, scores: { [COVERAGE]: row.scores.coverage } },
+      }))}
+      filtered={false}
+      caseCell={(r) => r.case_id}
+    />
+  );
+}
+
+async function findHeader(colId: string): Promise<HTMLElement> {
+  return waitFor(() => {
+    const header = document.querySelector<HTMLElement>(
+      `.ag-header-cell[col-id="${colId}"]`,
+    );
+    expect(header).not.toBeNull();
+    return header!;
+  });
+}
+
+test("an evaluator's header ⓘ shows its description without sorting, and its label still sorts", async () => {
+  const user = userEvent.setup();
+  render(<GlossaryMatrix />);
+  const header = await findHeader(COVERAGE);
+  const tip = await within(header).findByLabelText(COVERAGE_TEXT);
+
+  await user.hover(tip);
+  expect(await screen.findByText(COVERAGE_TEXT)).toBeVisible();
+  await user.click(tip);
+  expect(sortOf(COVERAGE)).toBe("none");
+
+  await user.click(within(header).getByText("coverage"));
+  await waitFor(() => expect(sortOf(COVERAGE)).toBe("ascending"));
+  expect(caseOrder()).toEqual(["refund-policy", "card-limit", "late-fee"]);
+});
+
+test("a keyboard user tabbing across the header stops on an evaluator's ⓘ and reads its description", async () => {
+  const user = userEvent.setup();
+  render(<GlossaryMatrix />);
+  const header = await findHeader(COVERAGE);
+  const tip = await within(header).findByLabelText(COVERAGE_TEXT);
+
+  for (let i = 0; i < 10 && document.activeElement !== header; i++)
+    await user.tab();
+  expect(header).toHaveFocus();
+  expect(screen.queryByText(COVERAGE_TEXT)).not.toBeInTheDocument();
+
+  await user.tab();
+  expect(tip).toHaveFocus();
+  expect(await screen.findByText(COVERAGE_TEXT)).toBeVisible();
 });

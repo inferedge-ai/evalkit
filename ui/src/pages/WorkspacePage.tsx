@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { X } from "lucide-react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { canManageMembers, canWrite, groupMembers } from "../lib/access";
 import { apiJson } from "../lib/api";
@@ -240,7 +241,7 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
                           )
                         }
                       >
-                        ×
+                        <X size={12} />
                       </button>
                     )}
                   </span>
