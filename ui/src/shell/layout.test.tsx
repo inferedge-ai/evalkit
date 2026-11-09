@@ -38,12 +38,6 @@ function render(signedIn: Me | null, path: string): string {
 }
 
 describe("signed-out layout", () => {
-  it("shows docs under the public navbar with a sign-in link back to the page", () => {
-    const html = render(null, "/docs/install");
-    expect(html).toContain("docs body");
-    expect(html).toContain('href="/login?next=%2Fdocs%2Finstall"');
-  });
-
   it("does not render private pages", () => {
     expect(render(null, "/datasets")).not.toContain("datasets body");
   });

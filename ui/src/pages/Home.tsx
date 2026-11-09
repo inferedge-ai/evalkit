@@ -1,5 +1,6 @@
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import { PageHeader } from "@/components/widgets/PageHeader";
 import { qs } from "../lib/api";
 import { useApi } from "../lib/query";
 import type { AgentInfo, Dataset } from "../lib/types";
@@ -69,71 +70,83 @@ export function Home() {
   const empty = !datasets?.length && !agents?.length;
 
   return (
-    <div className="page">
-      <div className="toolbar mb-3">
-        <h1 className="page-title">@{workspace.name}</h1>
-        <span className="chip muted">{workspace.type}</span>
-        <Link to="/datasets" className="btn btn-quiet ml-auto text-brand">
-          All datasets <ArrowRight size={14} />
-        </Link>
-        <Link to="/agents" className="btn btn-quiet text-brand">
-          All agents <ArrowRight size={14} />
-        </Link>
+    <>
+      <PageHeader
+        title={
+          <>
+            @{workspace.name}{" "}
+            <span className="chip muted align-middle font-normal">
+              {workspace.type}
+            </span>
+          </>
+        }
+        actions={
+          <>
+            <Link to="/datasets" className="btn btn-quiet text-brand">
+              All datasets <ArrowRight size={14} />
+            </Link>
+            <Link to="/agents" className="btn btn-quiet text-brand">
+              All agents <ArrowRight size={14} />
+            </Link>
+          </>
+        }
+      />
+      <div className="page">
+        {datasetsError && (
+          <div className="pane-status error">{datasetsError}</div>
+        )}
+        {agentsError && <div className="pane-status error">{agentsError}</div>}
+        {loading && (
+          <div className="card">
+            <SkeletonRows n={8} />
+          </div>
+        )}
+        {!loading && (
+          <div className="grid gap-x-5 gap-y-2 lg:grid-cols-2">
+            {!!datasets?.length && (
+              <section className="min-w-0">
+                <div className="eyebrow">Datasets</div>
+                <div className="card rows">
+                  {datasets.map((ds) => (
+                    <DatasetRow key={ds.ref} ds={ds} />
+                  ))}
+                </div>
+              </section>
+            )}
+            {!!agents?.length && (
+              <section className="min-w-0">
+                <div className="eyebrow">Agents</div>
+                <div className="card rows">
+                  {agents.map((a) => (
+                    <AgentRow key={a.ref} agent={a} />
+                  ))}
+                </div>
+              </section>
+            )}
+            {empty && (
+              <div className="card pane-status lg:col-span-2">
+                {workspace.type === "shared" ? (
+                  <>
+                    No datasets or agents yet — run{" "}
+                    <span className="font-mono">
+                      evalkit sync &lt;dir&gt; --workspace {workspace.name}
+                    </span>{" "}
+                    or add an agent.
+                  </>
+                ) : (
+                  <>
+                    Nothing here yet — run{" "}
+                    <span className="font-mono">
+                      evalkit run &lt;dataset&gt; --agent &lt;agent&gt;
+                    </span>{" "}
+                    from a repo with an evalkit.yaml.
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      {datasetsError && (
-        <div className="pane-status error">{datasetsError}</div>
-      )}
-      {agentsError && <div className="pane-status error">{agentsError}</div>}
-      {loading && (
-        <div className="card">
-          <SkeletonRows n={8} />
-        </div>
-      )}
-      {!loading && (
-        <div className="grid gap-x-5 gap-y-2 lg:grid-cols-2">
-          {!!datasets?.length && (
-            <section className="min-w-0">
-              <div className="eyebrow">Datasets</div>
-              <div className="card rows">
-                {datasets.map((ds) => (
-                  <DatasetRow key={ds.ref} ds={ds} />
-                ))}
-              </div>
-            </section>
-          )}
-          {!!agents?.length && (
-            <section className="min-w-0">
-              <div className="eyebrow">Agents</div>
-              <div className="card rows">
-                {agents.map((a) => (
-                  <AgentRow key={a.ref} agent={a} />
-                ))}
-              </div>
-            </section>
-          )}
-          {empty && (
-            <div className="card pane-status lg:col-span-2">
-              {workspace.type === "shared" ? (
-                <>
-                  No datasets or agents yet — run{" "}
-                  <span className="font-mono">
-                    evalkit sync &lt;dir&gt; --workspace {workspace.name}
-                  </span>{" "}
-                  or add an agent.
-                </>
-              ) : (
-                <>
-                  Nothing here yet — run{" "}
-                  <span className="font-mono">
-                    evalkit run &lt;dataset&gt; --agent &lt;agent&gt;
-                  </span>{" "}
-                  from a repo with an evalkit.yaml.
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    </>
   );
 }

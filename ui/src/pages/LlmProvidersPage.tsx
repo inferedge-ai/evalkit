@@ -6,6 +6,7 @@ import { useMe } from "../shell/capabilities";
 import { LlmProviderForm } from "./LlmProviderForm";
 import { Select } from "../lib/Select";
 import type { JudgeSettings, LlmProviderInfo } from "../lib/types";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 function DefaultJudge({
   providers,
@@ -118,79 +119,82 @@ export function LlmProvidersPage() {
 
   const active = rows?.filter((r) => !r.archived) ?? [];
   return (
-    <div className="page">
-      <div className="toolbar mb-1">
-        <h1 className="page-title">LLM providers</h1>
-        {me.is_admin && (
-          <button
-            className="btn btn-sm ml-auto"
-            onClick={() => setEditing("new")}
-          >
-            New provider
-          </button>
+    <>
+      <PageHeader
+        title="LLM providers"
+        actions={
+          me.is_admin && (
+            <button className="btn btn-sm" onClick={() => setEditing("new")}>
+              New provider
+            </button>
+          )
+        }
+      />
+      <div className="page">
+        <p className="row-meta mb-3 whitespace-normal">
+          OpenAI-compatible endpoints the server judges with. Judge-using
+          evaluators run on the server with a provider from this list, unless a
+          run brings its own judge key. Keys are stored encrypted and never
+          shown again.
+        </p>
+        {rows && <DefaultJudge providers={active} editable={me.is_admin} />}
+        {error && <div className="pane-status error">{error}</div>}
+        <div className="card rows">
+          {rows?.map((row) => (
+            <div
+              key={row.name}
+              className="row grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto_auto]"
+            >
+              <span className="row-strong">{row.name}</span>
+              <span className="row-meta truncate font-mono">
+                {row.base_url}
+              </span>
+              <span className="chip muted">
+                {row.archived
+                  ? "archived"
+                  : row.has_api_key
+                    ? "key set"
+                    : "no key"}
+              </span>
+              {me.is_admin ? (
+                <>
+                  <button
+                    className="btn btn-sm"
+                    disabled={row.archived}
+                    onClick={() => setEditing(row)}
+                  >
+                    edit
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => toggleArchive(row)}
+                  >
+                    {row.archived ? "restore" : "archive"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span />
+                  <span />
+                </>
+              )}
+            </div>
+          ))}
+          {rows && !rows.length && (
+            <div className="pane-status">No LLM providers.</div>
+          )}
+        </div>
+        {editing && (
+          <LlmProviderForm
+            provider={editing === "new" ? undefined : editing}
+            onSaved={() => {
+              setEditing(null);
+              void refreshQueries();
+            }}
+            onClose={() => setEditing(null)}
+          />
         )}
       </div>
-      <p className="row-meta mb-3 whitespace-normal">
-        OpenAI-compatible endpoints the server judges with. Judge-using
-        evaluators run on the server with a provider from this list, unless a
-        run brings its own judge key. Keys are stored encrypted and never shown
-        again.
-      </p>
-      {rows && <DefaultJudge providers={active} editable={me.is_admin} />}
-      {error && <div className="pane-status error">{error}</div>}
-      <div className="card rows">
-        {rows?.map((row) => (
-          <div
-            key={row.name}
-            className="row grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto_auto_auto]"
-          >
-            <span className="row-strong">{row.name}</span>
-            <span className="row-meta truncate font-mono">{row.base_url}</span>
-            <span className="chip muted">
-              {row.archived
-                ? "archived"
-                : row.has_api_key
-                  ? "key set"
-                  : "no key"}
-            </span>
-            {me.is_admin ? (
-              <>
-                <button
-                  className="btn btn-sm"
-                  disabled={row.archived}
-                  onClick={() => setEditing(row)}
-                >
-                  edit
-                </button>
-                <button
-                  className="btn btn-sm"
-                  onClick={() => toggleArchive(row)}
-                >
-                  {row.archived ? "restore" : "archive"}
-                </button>
-              </>
-            ) : (
-              <>
-                <span />
-                <span />
-              </>
-            )}
-          </div>
-        ))}
-        {rows && !rows.length && (
-          <div className="pane-status">No LLM providers.</div>
-        )}
-      </div>
-      {editing && (
-        <LlmProviderForm
-          provider={editing === "new" ? undefined : editing}
-          onSaved={() => {
-            setEditing(null);
-            void refreshQueries();
-          }}
-          onClose={() => setEditing(null)}
-        />
-      )}
-    </div>
+    </>
   );
 }

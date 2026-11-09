@@ -36,6 +36,7 @@ import {
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 import { promotionSide, twinLine } from "../lib/promotion";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 const PAGE = 10;
 
@@ -223,84 +224,84 @@ export function CasePage() {
       : null;
 
   return (
-    <div className="page">
-      <div className="toolbar mb-1">
-        <nav className="flex min-w-0 items-baseline gap-1.5">
-          <Link
-            className="shrink-0 text-meta text-ink-3 transition-colors hover:text-brand"
-            to={`/datasets/${encodeURIComponent(datasetId)}/cases`}
-          >
-            {datasetId}
-          </Link>
-          <span className="text-ink-4" aria-hidden>
-            ›
-          </span>
-          <h1 className="page-title font-mono">
+    <>
+      <PageHeader
+        breadcrumbs={[
+          { label: "Datasets", to: "/datasets" },
+          {
+            label: datasetId,
+            to: `/datasets/${encodeURIComponent(datasetId)}/cases`,
+          },
+        ]}
+        title={
+          <span className="font-mono">
             <CopyText value={example.case_id} />
-          </h1>
-        </nav>
-      </div>
-      {tags.length > 0 ? (
-        <div className="mb-3 flex flex-wrap items-center gap-1">
-          {tags.map((tag) => (
-            <Tag key={tag}>{tag}</Tag>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="grid gap-x-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
-        <div className="min-w-0">
-          <div className="eyebrow">Question</div>
-          <div className="card p-4">
-            <Markdown text={questionText(example.input)} />
-          </div>
-          <FixtureList files={example.files} />
-          <details className="mt-2 text-micro">
-            <summary className="cursor-pointer text-n-400">Raw input</summary>
-            <PreBlock text={toYaml(example.input)} language="yaml" />
-          </details>
-
-          {example.expected ? (
-            <>
-              <div className="eyebrow">Expected</div>
-              <PreBlock text={toYaml(example.expected)} language="yaml" />
-            </>
-          ) : null}
-
-          <div className="eyebrow">Evaluators</div>
-          <EvaluatorScores evaluators={example.evaluators} scores={{}} />
-          <details className="mt-2 text-micro">
-            <summary className="cursor-pointer text-n-400">
-              Full evaluator config
-            </summary>
-            <PreBlock text={toYaml(example.evaluators)} language="yaml" />
-          </details>
-
-          <ScoreHistory dataset={datasetId} caseId={example.case_id} />
-        </div>
-
-        {example.review ? (
-          <div className="min-w-0">
-            <ReviewPanel
-              dataset={datasetId}
-              caseId={example.case_id}
-              review={example.review}
-              twin={twinPanel}
-              onChanged={() => void refreshQueries()}
-            />
-            <CaseChangelog
-              dataset={datasetId}
-              caseId={example.case_id}
-              currentHash={example.content_hash}
-            />
-            <CaseComments
-              dataset={datasetId}
-              caseId={example.case_id}
-              currentHash={example.content_hash}
-            />
+          </span>
+        }
+      />
+      <div className="page">
+        {tags.length > 0 ? (
+          <div className="mb-3 flex flex-wrap items-center gap-1">
+            {tags.map((tag) => (
+              <Tag key={tag}>{tag}</Tag>
+            ))}
           </div>
         ) : null}
+
+        <div className="grid gap-x-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+          <div className="min-w-0">
+            <div className="eyebrow">Question</div>
+            <div className="card p-4">
+              <Markdown text={questionText(example.input)} />
+            </div>
+            <FixtureList files={example.files} />
+            <details className="mt-2 text-micro">
+              <summary className="cursor-pointer text-n-400">Raw input</summary>
+              <PreBlock text={toYaml(example.input)} language="yaml" />
+            </details>
+
+            {example.expected ? (
+              <>
+                <div className="eyebrow">Expected</div>
+                <PreBlock text={toYaml(example.expected)} language="yaml" />
+              </>
+            ) : null}
+
+            <div className="eyebrow">Evaluators</div>
+            <EvaluatorScores evaluators={example.evaluators} scores={{}} />
+            <details className="mt-2 text-micro">
+              <summary className="cursor-pointer text-n-400">
+                Full evaluator config
+              </summary>
+              <PreBlock text={toYaml(example.evaluators)} language="yaml" />
+            </details>
+
+            <ScoreHistory dataset={datasetId} caseId={example.case_id} />
+          </div>
+
+          {example.review ? (
+            <div className="min-w-0">
+              <ReviewPanel
+                dataset={datasetId}
+                caseId={example.case_id}
+                review={example.review}
+                twin={twinPanel}
+                onChanged={() => void refreshQueries()}
+              />
+              <CaseChangelog
+                dataset={datasetId}
+                caseId={example.case_id}
+                currentHash={example.content_hash}
+              />
+              <CaseComments
+                dataset={datasetId}
+                caseId={example.case_id}
+                currentHash={example.content_hash}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

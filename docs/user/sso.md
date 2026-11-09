@@ -176,9 +176,9 @@ In the web UI, the login page shows **Continue with <provider>** when single
 sign-on is configured. The first sign-in creates your evalkit user from the
 identity provider's account; later sign-ins find it. An admin can still use
 the username and password form behind **Admin sign-in** (or under the button
-when `auth.password_login` is `all`). The account chip shows your email under
-your username. Sign out clears the session in this browser only; your
-identity provider session stays.
+when `auth.password_login` is `all`). The profile button at the bottom of the
+sidebar shows your email under your username. Sign out clears the session in
+this browser only; your identity provider session stays.
 
 ## Admin runbook
 

@@ -74,6 +74,22 @@
   header moves to it, and clicking, tapping or pressing Enter on it does not
   sort the column. A score named like a JavaScript object property (such as
   `constructor`) no longer breaks the page that shows its ⓘ.
+- The web UI's top bar and its More menu are replaced by a left sidebar. Its
+  header has the Evalkit wordmark, the workspace switcher and Search (⌘K); its
+  sections are Evaluate (Datasets, Experiments, Reviews), Observe (Runs,
+  Agents), Workspace (Settings) and, for admins, Admin (Users, Trace sources,
+  LLM providers); its footer has Docs and a menu with your name, the light or
+  dark mode switch and Sign out. The sidebar collapses to icons (its button,
+  or ⌘B), and the `sidebar_state` cookie keeps it collapsed across reloads for
+  a week after the last toggle. Collapsed, it shows the workspace's initials,
+  which expand it again. On a phone it opens as a sheet from the button in a
+  slim bar at the top of the screen. Each page starts with a header holding
+  its title, the pages above it as links, and its main actions. The ⌘K search
+  opens in a shadcn dialog. Signed-out pages (sign-in, docs) keep a top bar
+  with the wordmark, Docs, the theme switch and Sign in. For a package
+  extending the UI, a `NavItem` takes an optional lucide `icon`; `nav` items
+  get a sidebar section of their own after Observe, `moreNav` items join
+  Workspace and `adminNav` items join Admin, and all of them stay in ⌘K.
 
 ## 0.4.0
 

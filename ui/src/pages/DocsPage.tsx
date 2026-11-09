@@ -3,6 +3,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Highlight, themes } from "prism-react-renderer";
+import { PageHeader } from "@/components/widgets/PageHeader";
 import { ApiError } from "../lib/api";
 import { useApi } from "../lib/query";
 import {
@@ -14,6 +15,7 @@ import {
 } from "../lib/docs";
 import type { CliInfo } from "../lib/types";
 import { CopyButton } from "../lib/ui";
+import { useOptionalMe } from "../shell/capabilities";
 import { useTheme } from "../shell/theme";
 
 function Snippet({ code, language }: { code: string; language: string }) {
@@ -65,6 +67,7 @@ function Pre({ children }: { children?: ReactNode }) {
 
 export function DocsPage() {
   const { tab } = useParams();
+  const me = useOptionalMe();
   const cli = useApi<CliInfo>("/cli");
   const error =
     cli.error instanceof ApiError
@@ -80,50 +83,52 @@ export function DocsPage() {
   };
   const body = DOC_TABS.find((t) => t.id === tab)?.body ?? "";
   return (
-    <div className="page">
-      <div className="mx-auto flex max-w-6xl gap-10">
-        <nav
-          className="sticky top-4 w-44 shrink-0 self-start"
-          aria-label="Docs"
-        >
-          <h1 className="page-title mb-3">Docs</h1>
-          {DOC_GROUPS.map((group) => (
-            <div key={group} className="mb-4">
-              <div className="mb-1 text-micro font-semibold tracking-wide text-ink-3 uppercase">
-                {group}
+    <>
+      {me && <PageHeader title="Docs" />}
+      <div className="page">
+        <div className="mx-auto flex max-w-6xl gap-10">
+          <nav
+            className="sticky top-4 w-44 shrink-0 self-start"
+            aria-label="Docs"
+          >
+            {DOC_GROUPS.map((group) => (
+              <div key={group} className="mb-4">
+                <div className="mb-1 text-micro font-semibold tracking-wide text-ink-3 uppercase">
+                  {group}
+                </div>
+                <ul className="flex flex-col">
+                  {DOC_TABS.filter((t) => t.group === group).map((t) => (
+                    <li key={t.id}>
+                      <Link
+                        to={`/docs/${t.id}`}
+                        aria-current={t.id === tab ? "page" : undefined}
+                        className={`block rounded px-2 py-1 text-lede ${
+                          t.id === tab
+                            ? "bg-n-50 font-medium text-ink"
+                            : "text-ink-2 hover:bg-hover"
+                        }`}
+                      >
+                        {t.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="flex flex-col">
-                {DOC_TABS.filter((t) => t.group === group).map((t) => (
-                  <li key={t.id}>
-                    <Link
-                      to={`/docs/${t.id}`}
-                      aria-current={t.id === tab ? "page" : undefined}
-                      className={`block rounded px-2 py-1 text-lede ${
-                        t.id === tab
-                          ? "bg-n-50 font-medium text-ink"
-                          : "text-ink-2 hover:bg-hover"
-                      }`}
-                    >
-                      {t.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+            ))}
+          </nav>
+          <article className="min-w-0 flex-1">
+            {error && <p className="text-ink-2">{error}</p>}
+            <div className="md-body docs-body mx-auto max-w-3xl text-lede">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{ pre: Pre, a: DocLink }}
+              >
+                {fillTemplate(body, values)}
+              </ReactMarkdown>
             </div>
-          ))}
-        </nav>
-        <article className="min-w-0 flex-1">
-          {error && <p className="text-ink-2">{error}</p>}
-          <div className="md-body docs-body mx-auto max-w-3xl text-lede">
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              components={{ pre: Pre, a: DocLink }}
-            >
-              {fillTemplate(body, values)}
-            </ReactMarkdown>
-          </div>
-        </article>
+          </article>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
