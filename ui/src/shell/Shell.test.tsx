@@ -252,16 +252,20 @@ test("on a phone, Search in the navigation closes it and opens the search", asyn
   await waitFor(() => expect(sheet).not.toBeInTheDocument());
 });
 
-test("Escape closes the ⌘K search", async () => {
+test("Escape closes the ⌘K search, and it opens empty again", async () => {
   const user = userEvent.setup();
   renderApp(member, "/datasets");
   await screen.findByText("Datasets page");
 
   await user.keyboard("{Meta>}k{/Meta}");
   const search = await screen.findByRole("dialog", { name: "Search" });
+  await user.keyboard("Billing");
   await user.keyboard("{Escape}");
-
   await waitFor(() => expect(search).not.toBeInTheDocument());
+
+  await user.keyboard("{Meta>}k{/Meta}");
+  const reopened = await screen.findByRole("dialog", { name: "Search" });
+  expect(within(reopened).getByRole("textbox")).toHaveValue("");
 });
 
 test("the sidebar marks the section of a nested page as the current one", async () => {
@@ -295,4 +299,20 @@ test("the collapsed sidebar names the workspace, and clicking it expands the sid
   expect(
     screen.getByRole("button", { name: "Collapse sidebar" }),
   ).toBeInTheDocument();
+});
+
+test("on a phone the navigation's wordmark goes home and closes it", async () => {
+  stubBrowser(390);
+  const user = userEvent.setup();
+  renderApp(member, "/datasets");
+  await screen.findByText("Datasets page");
+
+  await user.click(screen.getByRole("button", { name: "Open navigation" }));
+  const sheet = await screen.findByRole("dialog");
+  expect(
+    within(sheet).getByRole("button", { name: "Close navigation" }),
+  ).toBeInTheDocument();
+  await user.click(within(sheet).getByRole("link", { name: "Evalkit" }));
+
+  await waitFor(() => expect(sheet).not.toBeInTheDocument());
 });

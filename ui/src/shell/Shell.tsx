@@ -37,9 +37,15 @@ import { DOCS_NAV, getNavSections } from "./nav";
 import { useTheme } from "./theme";
 import { SWITCH_FLASH_MS, useSwitchWorkspace, useWorkspace } from "./workspace";
 
-export function BrandLink({ to = "/" }: { to?: string }) {
+export function BrandLink({
+  to = "/",
+  onClick,
+}: {
+  to?: string;
+  onClick?: () => void;
+}) {
   return (
-    <NavLink to={to} className="flex items-baseline">
+    <NavLink to={to} className="flex items-baseline" onClick={onClick}>
       <span className="font-mono text-head font-semibold tracking-tight text-brand">
         Evalkit
       </span>
@@ -132,17 +138,22 @@ function NavRow({ item }: { item: NavItem }) {
 function SideNavHeader() {
   const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed" && !isMobile;
+  const toggleLabel = isMobile
+    ? "Close navigation"
+    : collapsed
+      ? "Expand sidebar"
+      : "Collapse sidebar";
   return (
     <>
       <div className="flex min-h-12 items-center justify-between overflow-hidden p-2 group-data-[collapsible=icon]:justify-center">
         {!collapsed && (
           <span className="px-2">
-            <BrandLink />
+            <BrandLink onClick={() => setOpenMobile(false)} />
           </span>
         )}
         <SidebarTrigger
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand sidebar (⌘B)" : "Collapse sidebar (⌘B)"}
+          aria-label={toggleLabel}
+          title={isMobile ? toggleLabel : `${toggleLabel} (⌘B)`}
           className="shrink-0"
         />
       </div>
