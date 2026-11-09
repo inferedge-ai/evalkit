@@ -46,9 +46,21 @@ const CASE_ROW = "row w-full grid-cols-[minmax(0,1fr)_auto_auto_auto_7rem]";
 function CompareSkeleton() {
   return (
     <>
+      <div className="toolbar mb-3">
+        <Skeleton className="h-5 w-48 rounded-4xl" />
+        <Skeleton className="h-5 w-40 rounded-4xl" />
+      </div>
       <div className="eyebrow">Scores</div>
       <ScoresSkeleton />
       <div className="eyebrow">Cases</div>
+      <div className="toolbar mb-1">
+        <Skeleton className="h-5 w-24 rounded-4xl" />
+        <Skeleton className="h-5 w-20 rounded-4xl" />
+        <span className="ml-auto flex gap-1">
+          <Skeleton className="h-7 w-12" />
+          <Skeleton className="h-7 w-28" />
+        </span>
+      </div>
       <Card className="rows gap-0 py-0">
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className={CASE_ROW}>

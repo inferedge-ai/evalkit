@@ -2,8 +2,8 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route, useNavigate, type NavigateFunction } from "react-router-dom";
-import { afterEach, expect, test } from "vitest";
-import type { ExperimentInfo } from "../lib/types";
+import { afterEach, expect, test, vi } from "vitest";
+import type { CaseView, ExperimentInfo, Report } from "../lib/types";
 import {
   closePage,
   experiment,
@@ -25,7 +25,56 @@ const failedWithPendingRuns: ExperimentInfo = {
   pending_runs: true,
 };
 
-afterEach(closePage);
+const refundPolicy: CaseView = {
+  case_ref: 1,
+  case_id: "refund-policy",
+  content_hash: "abc",
+  input: { question: "How long do refunds take?" },
+  expected: null,
+  evaluators: {},
+  effective_evaluators: {},
+  tags: [],
+  split_tags: [],
+  source: null,
+  files: [],
+  review_state: null,
+};
+
+const scored: Report = {
+  ...scorecard,
+  cases: [
+    {
+      case_id: "refund-policy",
+      scores: { accuracy: 0.5 },
+      explanations: {},
+      gauges: {},
+      errors: {},
+      run_errors: [],
+      repetitions: 1,
+      overall: 0.5,
+      baseline_overall: null,
+      delta: null,
+    },
+  ],
+  evaluators: [
+    {
+      name: "accuracy",
+      score: 0.5,
+      cases: 1,
+      errors: 0,
+      bucket: "content",
+      source: "builtin",
+    },
+  ],
+  buckets: { content: 0.5 },
+  evaluator_columns: ["accuracy"],
+};
+
+afterEach(() => {
+  closePage();
+  localStorage.clear();
+  vi.useRealTimers();
+});
 
 // Stands in for the browser's Back button, which works while a dialog is open.
 let navigateTo: NavigateFunction = () => {};
@@ -127,17 +176,26 @@ test("a confirmation left open on one experiment is gone after moving to another
   expect(reevaluations).toEqual([]);
 });
 
-test("while the scorecard loads, the case table shows the grid's own loading state", async () => {
+async function expectNoEmptyCaseTable() {
+  await screen.findByRole("button", { name: "Re-evaluate" });
+  await expect(
+    screen.findByText("This experiment pinned no cases", {}, { timeout: 300 }),
+  ).rejects.toThrow();
+  expect(screen.queryByText("0 cases")).toBeNull();
+}
+
+test("while the experiment's cases load, the case table is not shown empty", async () => {
   stubServer((url) =>
-    url.endsWith("/api/experiments/12/scorecard")
+    url.endsWith("/api/experiments/12/cases")
       ? new Promise(() => {})
       : url.endsWith("/api/experiments/12")
         ? Response.json(experiment)
-        : undefined,
+        : url.endsWith("/api/experiments/12/scorecard")
+          ? Response.json(scorecard)
+          : undefined,
   );
   openExperiment();
-  expect(await screen.findByText("Cases")).toBeInTheDocument();
-  expect(await screen.findByText("Loading...")).toBeInTheDocument();
+  await expectNoEmptyCaseTable();
 });
 
 test("an experiment that pinned no cases says so in place of the case table", async () => {
@@ -161,5 +219,66 @@ test("when the experiment's cases cannot load, the page says so instead of an em
   );
   openExperiment();
   expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
-  expect(screen.queryByText("0 cases")).toBeNull();
+  await expectNoEmptyCaseTable();
+});
+
+test("a saved sort on an evaluator column survives the case table's loading state", async () => {
+  localStorage.setItem(
+    "evalkit.table.experiment-cases",
+    JSON.stringify([
+      { colId: "case" },
+      { colId: "avg", sort: "asc", sortIndex: 0 },
+      { colId: "accuracy", sort: "desc", sortIndex: 1 },
+    ]),
+  );
+  let showScores = () => {};
+  const scores = new Promise<void>((resolve) => (showScores = resolve));
+  stubServer(async (url) => {
+    if (url.endsWith("/api/experiments/12")) return Response.json(experiment);
+    if (url.endsWith("/api/experiments/12/cases"))
+      return Response.json([refundPolicy]);
+    if (url.endsWith("/api/experiments/12/scorecard")) {
+      await scores;
+      return Response.json(scored);
+    }
+  });
+  openExperiment();
+  await waitFor(() =>
+    expect(
+      document.querySelector('.ag-header-cell[col-id="avg"]'),
+    ).not.toBeNull(),
+  );
+  await new Promise((settled) => setTimeout(settled, 100));
+  showScores();
+  await waitFor(() =>
+    expect(
+      document
+        .querySelector('.ag-header-cell[col-id="accuracy"]')
+        ?.getAttribute("aria-sort"),
+    ).toBe("descending"),
+  );
+});
+
+test("a running experiment whose case list fails once shows its cases on the next poll", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  let casesLoads = 0;
+  stubServer((url) => {
+    if (url.endsWith("/api/experiments/12"))
+      return Response.json({
+        ...experiment,
+        status: "running",
+        ended_at: null,
+      });
+    if (url.endsWith("/api/experiments/12/scorecard"))
+      return Response.json(scored);
+    if (url.endsWith("/api/experiments/12/cases"))
+      return ++casesLoads === 1
+        ? failure("store unavailable")
+        : Response.json([refundPolicy]);
+  });
+  openExperiment();
+  expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
+  await act(() => vi.advanceTimersByTimeAsync(3000));
+  expect(await screen.findByText("refund-policy")).toBeInTheDocument();
+  expect(screen.queryByText(/store unavailable/)).toBeNull();
 });

@@ -44,28 +44,72 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number];
 
-function RunSkeleton() {
+const TAB_LABELS: Record<Tab, string> = {
+  case: "Case",
+  scores: "Scores",
+  trajectory: "Trajectory",
+  workspace: "Workspace",
+  cost: "Cost",
+  timing: "Timing",
+};
+
+const LOADING_TABS = TABS.map((id) => ({
+  id,
+  label: TAB_LABELS[id],
+  disabled: id !== "case" && id !== "scores",
+}));
+
+function RunSkeleton({
+  tab,
+  onSelect,
+}: {
+  tab: Tab;
+  onSelect: (tab: Tab) => void;
+}) {
   return (
     <>
-      <div className="grid gap-x-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
-        <div className="min-w-0">
-          <div className="eyebrow">Question</div>
-          <Card>
-            <CardContent className="flex flex-col gap-2">
-              <Skeleton className="h-4 w-4/5" />
-              <Skeleton className="h-4 w-2/5" />
-            </CardContent>
-          </Card>
-        </div>
+      <div className="toolbar mb-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-5 w-36 rounded-4xl" />
+        <Skeleton className="h-4 w-44" />
+        <Skeleton className="ml-auto h-4 w-32" />
       </div>
-      <div className="eyebrow">Answer</div>
-      <Card className="lg:py-6">
-        <CardContent className="flex flex-col gap-2 lg:px-8">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-11/12" />
-          <Skeleton className="h-4 w-3/5" />
-        </CardContent>
-      </Card>
+      <Skeleton className="mt-1 h-3 w-72 max-w-full" />
+      <div className="mt-3">
+        <Tabs<Tab> tabs={LOADING_TABS} active={tab} onSelect={onSelect} />
+      </div>
+      <div className="mt-3">
+        {tab === "case" && (
+          <>
+            <div className="grid gap-x-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+              <div className="min-w-0">
+                <div className="eyebrow">Question</div>
+                <Card>
+                  <CardContent className="flex flex-col gap-2">
+                    <Skeleton className="h-4 w-4/5" />
+                    <Skeleton className="h-4 w-2/5" />
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+            <div className="eyebrow">Answer</div>
+            <Card className="lg:py-6">
+              <CardContent className="flex flex-col gap-2 lg:px-8">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-11/12" />
+                <Skeleton className="h-4 w-3/5" />
+              </CardContent>
+            </Card>
+          </>
+        )}
+        {tab === "scores" && (
+          <>
+            <Skeleton className="mt-3 mb-1.5 h-4 w-24" />
+            <Skeleton className="mb-2 h-20 w-full rounded-xl" />
+            <Skeleton className="mb-2 h-20 w-full rounded-xl" />
+          </>
+        )}
+      </div>
     </>
   );
 }
@@ -86,7 +130,7 @@ export function RunPage() {
   const casesQuery = useApi<CaseView[]>(validId ? `${base}/cases` : null);
   const example = casesQuery.data?.find((ex) => ex.case_id === caseId) ?? null;
   const missing = isMissing(statusQuery.error) || isMissing(runsQuery.error);
-  const loadError = statusQuery.error ?? runsQuery.error;
+  const loadError = statusQuery.error ?? runsQuery.error ?? casesQuery.error;
   const error = loadError && !missing ? String(loadError) : null;
   const [repetition, setRepetition] = useState(1);
   const [params, setParams] = useSearchParams();
@@ -137,7 +181,7 @@ export function RunPage() {
       title={<span className="font-mono">{caseId}</span>}
     />
   );
-  if (!runs || (runs.length === 0 && casesQuery.isPending))
+  if (!runs || (runs.length === 0 && !casesQuery.isSuccess))
     return (
       <>
         {header}
@@ -145,7 +189,7 @@ export function RunPage() {
           {error ? (
             <div className="pane-status error">{error}</div>
           ) : (
-            <RunSkeleton />
+            <RunSkeleton tab={tab} onSelect={setTab} />
           )}
         </div>
       </>
@@ -283,11 +327,11 @@ export function RunPage() {
         <div className="mt-3">
           <Tabs<Tab>
             tabs={[
-              { id: "case", label: "Case" },
-              { id: "scores", label: "Scores" },
+              { id: "case", label: TAB_LABELS.case },
+              { id: "scores", label: TAB_LABELS.scores },
               {
                 id: "trajectory",
-                label: "Trajectory",
+                label: TAB_LABELS.trajectory,
                 disabled: !trajectoryAvailable(trajectoryStatus),
                 title: trajectoryAvailable(trajectoryStatus)
                   ? undefined
@@ -295,7 +339,7 @@ export function RunPage() {
               },
               {
                 id: "workspace",
-                label: "Workspace",
+                label: TAB_LABELS.workspace,
                 disabled: !agent || !workspaceRunId,
                 title: workspaceRunId
                   ? undefined
@@ -303,7 +347,7 @@ export function RunPage() {
               },
               {
                 id: "cost",
-                label: "Cost",
+                label: TAB_LABELS.cost,
                 disabled: !trajectoryAvailable(trajectoryStatus),
                 title: trajectoryAvailable(trajectoryStatus)
                   ? undefined
@@ -311,7 +355,7 @@ export function RunPage() {
               },
               {
                 id: "timing",
-                label: "Timing",
+                label: TAB_LABELS.timing,
                 disabled: !trajectoryAvailable(trajectoryStatus),
                 title: trajectoryAvailable(trajectoryStatus)
                   ? undefined
@@ -375,14 +419,19 @@ export function RunPage() {
             </div>
           ) : tab === "scores" ? (
             example &&
+            status &&
             Object.keys(example.effective_evaluators).length === 0 &&
             Object.keys(scores).length === 0 ? (
               <Card className="py-8">
-                <Empty
-                  icon={ListChecks}
-                  title="No scores for this run"
-                  description="The case and its overlays set no evaluators for this agent."
-                />
+                {status.config.snapshot.code_evaluators.length > 0 ? (
+                  <Empty icon={ListChecks} title="No scores yet" />
+                ) : (
+                  <Empty
+                    icon={ListChecks}
+                    title="No scores for this run"
+                    description="The case and its overlays set no evaluators for this agent."
+                  />
+                )}
               </Card>
             ) : (
               <EvaluatorScores

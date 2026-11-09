@@ -1,4 +1,5 @@
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { ReactNode } from "react";
@@ -21,7 +22,7 @@ import {
   readValue,
   useDataGrid,
 } from "../lib/DataGrid";
-import type { GridColumn } from "../lib/DataGrid";
+import type { DataGridHandle, GridColumn } from "../lib/DataGrid";
 import { fmtDelta, fmtGauge, fmtScore, severity } from "../lib/format";
 import { describeTerm } from "../lib/glossary";
 import { InfoTip } from "../lib/ui";
@@ -363,17 +364,42 @@ function buildMatrixColumns(
 
 const NO_ROWS: MatrixRow[] = [];
 const LOADING_COLUMNS = buildMatrixColumns([], NO_COLUMNS, false);
+const ignore = () => {};
+const UNSAVED_GRID: DataGridHandle<MatrixRow> = {
+  api: null,
+  filteredCount: null,
+  reset: ignore,
+  events: {
+    onGridReady: ignore,
+    onGridPreDestroyed: ignore,
+    onNewColumnsLoaded: ignore,
+    onSortChanged: ignore,
+    onColumnMoved: ignore,
+    onColumnVisible: ignore,
+    onColumnResized: ignore,
+    onColumnPinned: ignore,
+    onModelUpdated: ignore,
+  },
+};
 
-export function LoadingScoreMatrix({ id }: { id: string }) {
-  const grid = useDataGrid<MatrixRow>(id);
+export function LoadingScoreMatrix() {
   return (
-    <DataGrid
-      grid={grid}
-      rows={NO_ROWS}
-      columns={LOADING_COLUMNS}
-      getRowId={getMatrixRowId}
-      loading
-    />
+    <>
+      <div className="toolbar mb-1">
+        <Skeleton className="h-8 w-36" />
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="ml-auto h-8 w-24" />
+      </div>
+      <div className="mt-2">
+        <DataGrid
+          grid={UNSAVED_GRID}
+          rows={NO_ROWS}
+          columns={LOADING_COLUMNS}
+          getRowId={getMatrixRowId}
+          loading
+        />
+      </div>
+    </>
   );
 }
 

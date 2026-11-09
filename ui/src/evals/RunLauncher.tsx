@@ -1,6 +1,6 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useId, useMemo, useState } from "react";
-import { SearchX, X } from "lucide-react";
+import { ListX, SearchX, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -303,6 +303,7 @@ export function RunLauncher({
                   </div>
                   <div className="picker-list">
                     {!examples &&
+                      !casesQuery.error &&
                       Array.from({ length: 4 }, (_, i) => (
                         <div key={i} className="picker-row">
                           <Skeleton className="size-4" />
@@ -340,8 +341,12 @@ export function RunLauncher({
                     {examples && !pickable.length && (
                       <Empty
                         size="sm"
-                        icon={SearchX}
-                        title="No cases match this filter"
+                        icon={needle ? SearchX : ListX}
+                        title={
+                          needle
+                            ? "No cases match this filter"
+                            : "This dataset has no cases"
+                        }
                         className="py-6"
                       />
                     )}

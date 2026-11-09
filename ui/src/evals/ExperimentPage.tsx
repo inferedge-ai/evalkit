@@ -45,19 +45,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
-const CASES_TABLE = "experiment-cases";
-
-function ScorecardSkeleton() {
-  return (
-    <>
-      <div className="eyebrow">Scores</div>
-      <ScoresSkeleton />
-      <div className="eyebrow">Cases</div>
-      <LoadingScoreMatrix id={CASES_TABLE} />
-    </>
-  );
-}
-
 // A fresh page per experiment, so a confirmation left open on one can't act on
 // the next after Back or Forward.
 export function ExperimentPage() {
@@ -100,7 +87,12 @@ function ExperimentView() {
   const report = live.data?.report ?? null;
   useFollowWorkspace(status?.workspace);
   const missing = isMissing(live.error);
-  const pinnedQuery = useApi<CaseView[]>(validId ? `${base}/cases` : null);
+  const pinnedQuery = useApi<CaseView[]>(validId ? `${base}/cases` : null, {
+    refetchInterval: (q) =>
+      q.state.status === "error" && status && isActive(status.status)
+        ? 3000
+        : false,
+  });
   const pinned = pinnedQuery.data;
   const loadError = (missing ? null : live.error) ?? pinnedQuery.error;
   const error = actionError ?? (loadError ? String(loadError) : null);
@@ -325,28 +317,31 @@ function ExperimentView() {
           <div className="pane-status error">{status.status_error}</div>
         )}
         {error && <div className="pane-status error">{error}</div>}
-        {!report && !error && <ScorecardSkeleton />}
+        {!report && !error && (
+          <>
+            <div className="eyebrow">Scores</div>
+            <ScoresSkeleton />
+          </>
+        )}
 
         {report && (
           <>
             <div className="eyebrow">Scores</div>
             <BucketCards report={report} onPick={setEvaluator} />
             <CostSpeedLine report={report} />
-            <div className="eyebrow">Cases</div>
-            {!pinned && !pinnedQuery.error && (
-              <LoadingScoreMatrix id={CASES_TABLE} />
-            )}
-            {pinned?.length === 0 && (
-              <Card className="py-8">
-                <Empty icon={ListX} title="This experiment pinned no cases" />
-              </Card>
-            )}
           </>
+        )}
+        {(report || !error) && <div className="eyebrow">Cases</div>}
+        {(!report || !pinned) && !error && <LoadingScoreMatrix />}
+        {report && pinned?.length === 0 && (
+          <Card className="py-8">
+            <Empty icon={ListX} title="This experiment pinned no cases" />
+          </Card>
         )}
         {report && !!pinned?.length && (
           <>
             <ScoreMatrix
-              id={CASES_TABLE}
+              id="experiment-cases"
               report={report}
               groups={groups}
               defaultHidden={hiddenByDefault}
