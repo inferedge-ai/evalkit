@@ -157,6 +157,9 @@ then add plain FastAPI routes with `app.include_router(...)`.
   public. `SIGNED_IN` covers path operations (`@router.get` and the like), not
   `router.add_route()` or mounts. A handler that needs the user takes
   `CurrentUser`; an admin-only one takes `AdminUser`.
+- To answer the config per request, for example per tenant, replace `get_config`
+  (`evalkit.api.deps`) in `app.dependency_overrides`. Every private-address check
+  (`allow_private_endpoints`) reads the config through it.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
