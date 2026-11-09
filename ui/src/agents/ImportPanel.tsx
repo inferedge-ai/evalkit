@@ -20,6 +20,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 
 const POLL_MS = 2000;
 
@@ -226,9 +227,9 @@ export function ImportPanel({ agent }: { agent: string }) {
           </p>
         ) : (
           <Card size="sm">
-            <CardContent className="flex flex-col gap-2">
-              <div className="form-row">
-                <span className="form-label">Source</span>
+            <CardContent className="flex flex-col gap-3">
+              <Field>
+                <FieldLabel>Source</FieldLabel>
                 <Select
                   ariaLabel="trace source"
                   value={source}
@@ -238,62 +239,61 @@ export function ImportPanel({ agent }: { agent: string }) {
                     label: s.name,
                   }))}
                 />
-              </div>
-              <div className="form-row">
-                <span className="form-label">Project</span>
+              </Field>
+              <Field>
+                <FieldLabel>Project</FieldLabel>
                 <Input
-                  className="w-72"
                   value={project}
                   onChange={(e) => setProject(e.target.value)}
                 />
-              </div>
-              <div className="form-row">
-                <span className="form-label">What</span>
-                <div className="segment self-start">
-                  <button
-                    aria-pressed={mode === "range"}
-                    onClick={() => setMode("range")}
-                  >
-                    Time range
-                  </button>
-                  <button
-                    aria-pressed={mode === "session"}
-                    onClick={() => setMode("session")}
-                  >
-                    One session
-                  </button>
+              </Field>
+              <Field>
+                <FieldLabel>What</FieldLabel>
+                <div>
+                  <div className="segment">
+                    <button
+                      aria-pressed={mode === "range"}
+                      onClick={() => setMode("range")}
+                    >
+                      Time range
+                    </button>
+                    <button
+                      aria-pressed={mode === "session"}
+                      onClick={() => setMode("session")}
+                    >
+                      One session
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </Field>
               {mode === "session" ? (
-                <div className="form-row">
-                  <span className="form-label">Session id</span>
+                <Field>
+                  <FieldLabel>Session id</FieldLabel>
                   <Input
-                    className="w-72 font-mono"
+                    className="font-mono"
                     value={sessionId}
                     onChange={(e) => setSessionId(e.target.value)}
                   />
-                </div>
+                </Field>
               ) : (
                 <>
-                  <div className="form-row">
-                    <span className="form-label">Since</span>
+                  <Field>
+                    <FieldLabel>Since</FieldLabel>
                     <Input
                       type="datetime-local"
-                      className="w-auto"
                       value={since}
                       onChange={(e) => setSince(e.target.value)}
                     />
-                  </div>
-                  <div className="form-row">
-                    <span className="form-label">Until</span>
+                  </Field>
+                  <Field>
+                    <FieldLabel>Until</FieldLabel>
                     <Input
                       type="datetime-local"
-                      className="w-auto"
                       value={until}
                       onChange={(e) => setUntil(e.target.value)}
                     />
-                    <span className="row-meta">empty means now</span>
-                  </div>
+                    <FieldDescription>empty means now</FieldDescription>
+                  </Field>
                   <p className="text-meta text-ink-3">
                     Imports every trace that started in this range, oldest
                     first, as a job on the server. Sessions come from the active

@@ -27,6 +27,7 @@ import { Select } from "../lib/Select";
 import type { AgentInfo } from "../lib/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 
 export function AgentForm({
   workspace,
@@ -83,34 +84,32 @@ export function AgentForm({
         </DialogHeader>
         <div className={FORM_DIALOG_BODY}>
           {!agent && (
-            <div className="form-row">
-              <span className="form-label">Name</span>
+            <Field>
+              <FieldLabel>Name</FieldLabel>
               <Input
-                className="w-72"
                 value={values.name}
                 onChange={(e) => set("name", e.target.value)}
               />
-            </div>
+            </Field>
           )}
-          <div className="form-row">
-            <span className="form-label">Harness URL</span>
+          <Field>
+            <FieldLabel>Harness URL</FieldLabel>
             <Input
-              className="min-w-0 flex-1"
               placeholder="empty for a code-driven agent (SDK runs only)"
               value={values.harness_url}
               onChange={(e) => set("harness_url", e.target.value)}
             />
-          </div>
-          <p className="row-meta whitespace-normal">{ENDPOINT_NOTE}</p>
+            <FieldDescription>{ENDPOINT_NOTE}</FieldDescription>
+          </Field>
           {shared ? (
-            <div className="form-row">
-              <span className="form-label">API key</span>
+            <Field>
+              <FieldLabel>API key</FieldLabel>
               <ApiKeyField
                 hasKey={agent?.has_api_key ?? false}
                 value={values.api_key}
                 onChange={(apiKey) => set("api_key", apiKey)}
               />
-            </div>
+            </Field>
           ) : (
             <p className="row-meta whitespace-normal">{PERSONAL_KEY_NOTE}</p>
           )}
@@ -120,8 +119,8 @@ export function AgentForm({
               for the new URL above.
             </p>
           )}
-          <div className="form-row">
-            <span className="form-label">Trajectories</span>
+          <Field>
+            <FieldLabel>Trajectories</FieldLabel>
             <Select
               ariaLabel="trajectory source"
               value={values.trajectory_source}
@@ -131,7 +130,7 @@ export function AgentForm({
                 { value: "otel", label: "From traces (OTel spans)" },
               ]}
             />
-          </div>
+          </Field>
           {agent && values.trajectory_source !== agent.trajectory_source && (
             <p className="row-meta">
               Experiments that already ran keep the source they ran with. The
@@ -141,10 +140,10 @@ export function AgentForm({
           )}
           {values.trajectory_source === "otel" &&
             (!agent || agent.trajectory_source !== "otel") && (
-              <div className="form-row items-start">
-                <span className="form-label pt-1.5">Span mapping</span>
+              <Field>
+                <FieldLabel>Span mapping</FieldLabel>
                 <Textarea
-                  className="min-w-0 flex-1 font-mono"
+                  className="font-mono"
                   rows={6}
                   placeholder={
                     agent
@@ -154,29 +153,27 @@ export function AgentForm({
                   value={values.mapping}
                   onChange={(e) => set("mapping", e.target.value)}
                 />
-              </div>
+              </Field>
             )}
-          <div className="form-row">
-            <span className="form-label">Repository</span>
+          <Field>
+            <FieldLabel>Repository</FieldLabel>
             <Input
-              className="min-w-0 flex-1"
               placeholder="https://github.com/org/repo (optional)"
               value={values.repo_url}
               onChange={(e) => set("repo_url", e.target.value)}
             />
-          </div>
+          </Field>
           {SETTING_FIELDS.map(({ key, label }) => (
-            <div key={key} className="form-row">
-              <span className="form-label">{label}</span>
+            <Field key={key}>
+              <FieldLabel>{label}</FieldLabel>
               <Input
-                className="w-28"
                 inputMode="numeric"
                 value={values.settings[key]}
                 onChange={(e) =>
                   set("settings", { ...values.settings, [key]: e.target.value })
                 }
               />
-            </div>
+            </Field>
           ))}
           {errors.map((message) => (
             <div key={message} className="text-meta text-err-text">

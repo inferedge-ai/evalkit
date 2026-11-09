@@ -39,6 +39,7 @@ import type {
 import { CopyButton } from "../lib/ui";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Field, FieldLabel } from "@/components/ui/field";
 
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "all", label: "All cases" },
@@ -172,8 +173,8 @@ export function RunLauncher({
           <DialogDescription className="font-mono">{dataset}</DialogDescription>
         </DialogHeader>
         <div className={FORM_DIALOG_BODY}>
-          <div className="form-row">
-            <span className="form-label">Agent</span>
+          <Field>
+            <FieldLabel>Agent</FieldLabel>
             <Select
               ariaLabel="agent"
               value={agent}
@@ -181,10 +182,10 @@ export function RunLauncher({
               placeholder={serverRuns ? "No shared agents" : "No agents"}
               options={agents.map((a) => ({ value: a.ref, label: a.ref }))}
             />
-          </div>
-          <div className="form-row items-start">
-            <span className="form-label pt-1.5">Cases</span>
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
+          </Field>
+          <Field>
+            <FieldLabel>Cases</FieldLabel>
+            <div className="flex flex-col gap-2">
               <div className="segment self-start">
                 {SCOPES.map((s) => (
                   <button
@@ -334,11 +335,10 @@ export function RunLauncher({
                   : `${inScope.length} case${inScope.length === 1 ? "" : "s"}`}
               </span>
             </div>
-          </div>
-          <div className="form-row">
-            <span className="form-label">Repetitions</span>
+          </Field>
+          <Field>
+            <FieldLabel>Repetitions</FieldLabel>
             <Input
-              className="w-20"
               type="number"
               min={1}
               max={10}
@@ -347,21 +347,19 @@ export function RunLauncher({
                 setRuns(Math.max(1, Math.min(10, Number(e.target.value) || 1)))
               }
             />
-          </div>
-          <div className="form-row">
-            <span className="form-label">Model</span>
+          </Field>
+          <Field>
+            <FieldLabel>Model</FieldLabel>
             <Input
-              className="w-72"
               placeholder="harness default"
               value={model}
               onChange={(e) => setModel(e.target.value)}
               title="Used only if the harness accepts a model override"
             />
-          </div>
-          <div className="form-row">
-            <span className="form-label">Evaluation concurrency</span>
+          </Field>
+          <Field>
+            <FieldLabel>Evaluation concurrency</FieldLabel>
             <Input
-              className="w-20"
               type="number"
               min={1}
               placeholder="default"
@@ -375,9 +373,9 @@ export function RunLauncher({
               }
               title="How many runs are scored at once. Server runs default to the server's limit and may not go above it"
             />
-          </div>
-          <div className="form-row">
-            <span className="form-label">Judge provider</span>
+          </Field>
+          <Field>
+            <FieldLabel>Judge provider</FieldLabel>
             <Select
               ariaLabel="judge provider"
               value={judge.provider}
@@ -393,7 +391,7 @@ export function RunLauncher({
               ]}
               title="LLM providers an admin registered; judge-using evaluators run on the server with these"
             />
-          </div>
+          </Field>
           {!judgeDefault && (
             <p className="row-meta whitespace-normal">
               This server has no default judge yet. Pick a provider and a judge
@@ -401,27 +399,26 @@ export function RunLauncher({
             </p>
           )}
           {(["model", "reasoning_effort"] as const).map((key) => (
-            <div key={key} className="form-row">
-              <span className="form-label">
+            <Field key={key}>
+              <FieldLabel>
                 {key === "model" ? "Judge model" : "Judge effort"}
-              </span>
+              </FieldLabel>
               <Input
-                className="w-72"
                 placeholder={judgeDefault?.[key] ?? ""}
                 value={judge[key]}
                 onChange={(e) => setJudge({ ...judge, [key]: e.target.value })}
                 title="Defaults to the server's judge; the experiment records the judge it used"
               />
-            </div>
+            </Field>
           ))}
           {request && (
-            <div className="form-row items-start">
-              <span className="form-label pt-1">CLI</span>
+            <Field>
+              <FieldLabel>CLI</FieldLabel>
               <div className="cli-preview">
                 <code>{cliCommand(request)}</code>
                 <CopyButton text={cliCommand(request)} />
               </div>
-            </div>
+            </Field>
           )}
         </div>
         <DialogFooter>

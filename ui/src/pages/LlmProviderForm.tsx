@@ -16,6 +16,7 @@ import { ENDPOINT_NOTE } from "../lib/endpoint";
 import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import type { LlmProviderInfo } from "../lib/types";
 import { Input } from "@/components/ui/input";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 
 export function providerBody(
   name: string,
@@ -88,34 +89,32 @@ export function LlmProviderForm({
         </DialogHeader>
         <div className={FORM_DIALOG_BODY}>
           {!provider && (
-            <div className="form-row">
-              <span className="form-label">Name</span>
+            <Field>
+              <FieldLabel>Name</FieldLabel>
               <Input
-                className="w-72"
                 placeholder="openai"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
-            </div>
+            </Field>
           )}
-          <div className="form-row">
-            <span className="form-label">Base URL</span>
+          <Field>
+            <FieldLabel>Base URL</FieldLabel>
             <Input
-              className="min-w-0 flex-1"
               placeholder="https://api.openai.com/v1"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
             />
-          </div>
-          <p className="row-meta whitespace-normal">{ENDPOINT_NOTE}</p>
-          <div className="form-row">
-            <span className="form-label">API key</span>
+            <FieldDescription>{ENDPOINT_NOTE}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel>API key</FieldLabel>
             <ApiKeyField
               hasKey={provider?.has_api_key ?? false}
               value={apiKey}
               onChange={setApiKey}
             />
-          </div>
+          </Field>
           {urlClearsKey && (
             <p className="row-meta whitespace-normal text-err-text">
               Saving a new base URL removes the stored API key. Enter the key

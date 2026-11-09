@@ -69,7 +69,7 @@ function DefaultJudge({
   }
   return (
     <form className="toolbar mb-3" onSubmit={save}>
-      <span className="form-label">Default judge</span>
+      <span className="row-meta">Default judge</span>
       <Select
         ariaLabel="default judge provider"
         value={provider}

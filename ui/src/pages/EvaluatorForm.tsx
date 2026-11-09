@@ -17,6 +17,7 @@ import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { Select } from "../lib/Select";
 import type { RemoteEvaluatorInfo, WorkspaceInfo } from "../lib/types";
 import { Input } from "@/components/ui/input";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 
 export interface EvaluatorFormValues {
   name: string;
@@ -123,17 +124,16 @@ export function EvaluatorForm({
         <div className={FORM_DIALOG_BODY}>
           {!evaluator && (
             <>
-              <div className="form-row">
-                <span className="form-label">Name</span>
+              <Field>
+                <FieldLabel>Name</FieldLabel>
                 <Input
-                  className="w-72"
                   aria-label="name"
                   value={values.name}
                   onChange={(e) => set("name", e.target.value)}
                 />
-              </div>
-              <div className="form-row">
-                <span className="form-label">Kind</span>
+              </Field>
+              <Field>
+                <FieldLabel>Kind</FieldLabel>
                 <Select
                   ariaLabel="kind"
                   value={values.kind}
@@ -143,39 +143,37 @@ export function EvaluatorForm({
                     { value: "gauge", label: "gauge" },
                   ]}
                 />
-              </div>
+              </Field>
             </>
           )}
-          <div className="form-row">
-            <span className="form-label">Endpoint</span>
+          <Field>
+            <FieldLabel>Endpoint</FieldLabel>
             <Input
-              className="min-w-0 flex-1"
               aria-label="endpoint"
               placeholder="https://evaluators.example.com/evaluate"
               value={values.endpoint}
               onChange={(e) => set("endpoint", e.target.value)}
             />
-          </div>
-          <p className="row-meta whitespace-normal">{ENDPOINT_NOTE}</p>
-          <div className="form-row">
-            <span className="form-label">Timeout (s)</span>
+            <FieldDescription>{ENDPOINT_NOTE}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel>Timeout (s)</FieldLabel>
             <Input
-              className="w-28"
               aria-label="timeout"
               inputMode="numeric"
               value={values.timeout}
               onChange={(e) => set("timeout", e.target.value)}
             />
-          </div>
+          </Field>
           {shared ? (
-            <div className="form-row">
-              <span className="form-label">API key</span>
+            <Field>
+              <FieldLabel>API key</FieldLabel>
               <ApiKeyField
                 hasKey={evaluator?.has_api_key ?? false}
                 value={values.apiKey}
                 onChange={(apiKey) => set("apiKey", apiKey)}
               />
-            </div>
+            </Field>
           ) : (
             <p className="row-meta whitespace-normal">{PERSONAL_KEY_NOTE}</p>
           )}
