@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getStateVariant, isStale, stateLabel } from "./review";
 
 describe("stateLabel / getStateVariant", () => {
-  it("maps every state to copy and a chip class", () => {
+  it("maps every state to a label and a badge variant", () => {
     expect(stateLabel("unreviewed")).toBe("Unreviewed");
     expect(stateLabel("review_requested")).toBe("Review requested");
     expect(stateLabel("changes_requested")).toBe("Changes requested");

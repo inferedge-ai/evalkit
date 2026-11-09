@@ -13,6 +13,7 @@ import type { AtifTrajectory } from "../lib/types";
 import { Collapsible, Tabs } from "../lib/ui";
 import { Markdown, PreBlock } from "../evals/bits";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 function clock(iso: string | null): string | null {
   if (!iso) return null;
@@ -326,12 +327,11 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
                   : []),
               ] as const
             ).map(([label, value, setter]) => (
-              <label key={label} className="check">
-                <input
-                  type="checkbox"
-                  checked={value}
-                  onChange={(e) => setter(e.target.checked)}
-                />
+              <label
+                key={label}
+                className="flex cursor-pointer items-center gap-1.5 text-meta text-muted-foreground select-none"
+              >
+                <Checkbox checked={value} onCheckedChange={setter} />
                 {label}
               </label>
             ))}

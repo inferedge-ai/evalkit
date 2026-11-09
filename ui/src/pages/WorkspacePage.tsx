@@ -96,15 +96,17 @@ function EvaluatorsTab({
           >
             <span className="row-strong">{row.name}</span>
             <Badge variant="secondary">{row.kind}</Badge>
-            <Badge variant="secondary">
-              {row.archived
-                ? "archived"
-                : ws.type === "shared"
-                  ? row.has_api_key
+            {row.archived || ws.type === "shared" ? (
+              <Badge variant="secondary">
+                {row.archived
+                  ? "archived"
+                  : row.has_api_key
                     ? "key set"
-                    : "no key"
-                  : ""}
-            </Badge>
+                    : "no key"}
+              </Badge>
+            ) : (
+              <span />
+            )}
             <span className="row-meta truncate font-mono">
               {row.settings.endpoint}
             </span>
@@ -239,7 +241,7 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
                     {manage && (
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon-xs"
                         title={`remove the ${grant.role} role from ${member.username}`}
                         aria-label={`remove ${grant.role}`}
                         onClick={() =>

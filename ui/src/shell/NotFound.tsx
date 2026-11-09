@@ -22,10 +22,7 @@ export function NotFound({
               There is no <span className="font-mono">{what}</span>.
             </p>
             <Link
-              className={cn(
-                buttonVariants({ variant: "ghost" }),
-                "mt-3 text-brand",
-              )}
+              className={cn(buttonVariants({ variant: "link" }), "mt-3")}
               to={up.to}
             >
               <ArrowLeft size={14} /> {up.label}

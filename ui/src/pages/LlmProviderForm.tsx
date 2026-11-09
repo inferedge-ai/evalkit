@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -43,6 +43,7 @@ export function LlmProviderForm({
   onSaved: () => void;
   onClose: () => void;
 }) {
+  const formId = useId();
   const [name, setName] = useState(provider?.name ?? "");
   const [baseUrl, setBaseUrl] = useState(provider?.base_url ?? "");
   const [apiKey, setApiKey] = useState<ApiKeyValue>({ key: "", clear: false });
@@ -90,8 +91,9 @@ export function LlmProviderForm({
         <div className={FORM_DIALOG_BODY}>
           {!provider && (
             <Field>
-              <FieldLabel>Name</FieldLabel>
+              <FieldLabel htmlFor={`${formId}-name`}>Name</FieldLabel>
               <Input
+                id={`${formId}-name`}
                 placeholder="openai"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -99,8 +101,9 @@ export function LlmProviderForm({
             </Field>
           )}
           <Field>
-            <FieldLabel>Base URL</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-base-url`}>Base URL</FieldLabel>
             <Input
+              id={`${formId}-base-url`}
               placeholder="https://api.openai.com/v1"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}

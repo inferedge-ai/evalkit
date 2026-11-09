@@ -41,6 +41,7 @@ import {
 import { defaultColDef, defaultGridOptions } from "./aggrid/defaults";
 import { gridTheme } from "./aggrid/theme";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 ModuleRegistry.registerModules([
   CellStyleModule,
@@ -305,12 +306,11 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
               const name = api.getDisplayNameForColumn(column, "header");
               return (
                 <li key={id} className="columns-menu-row">
-                  <label className="flex flex-1 items-center gap-2">
-                    <input
-                      type="checkbox"
+                  <label className="flex flex-1 cursor-pointer items-center gap-2 select-none">
+                    <Checkbox
                       checked={column.isVisible()}
-                      onChange={(e) =>
-                        api.setColumnsVisible([column], e.target.checked)
+                      onCheckedChange={(checked) =>
+                        api.setColumnsVisible([column], checked)
                       }
                     />
                     {name}
@@ -318,7 +318,7 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
+                    size="icon-xs"
                     aria-label={`move ${name} up`}
                     disabled={!canSwapColumns(column, movable[i - 1])}
                     onClick={() =>
@@ -330,7 +330,7 @@ export function ColumnsMenu<T>({ grid }: { grid: DataGridHandle<T> }) {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
+                    size="icon-xs"
                     aria-label={`move ${name} down`}
                     disabled={!canSwapColumns(column, movable[i + 1])}
                     onClick={() =>

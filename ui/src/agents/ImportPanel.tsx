@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiJson } from "../lib/api";
@@ -17,7 +17,6 @@ import type { TraceImport } from "../lib/traceImports";
 import type { SessionTrajectory, TraceSourceInfo } from "../lib/types";
 import { Summary } from "./MappingsPanel";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -40,7 +39,7 @@ function SessionCheck({ agent, session }: { agent: string; session: string }) {
           Session <span className="font-mono">{session}</span>
         </span>
         <Link
-          className={cn(buttonVariants({ variant: "ghost" }), "text-brand")}
+          className={buttonVariants({ variant: "link" })}
           to={`/runs/${encodeURIComponent(agent)}/${encodeURIComponent(session)}`}
         >
           Trajectory <ArrowUpRight size={12} />
@@ -139,6 +138,7 @@ function ImportRow({
 }
 
 export function ImportPanel({ agent }: { agent: string }) {
+  const formId = useId();
   const base = `/agents/${encodeURIComponent(agent)}`;
   const [pickedSource, setPickedSource] = useState("");
   const [project, setProject] = useState("");
@@ -241,8 +241,9 @@ export function ImportPanel({ agent }: { agent: string }) {
                 />
               </Field>
               <Field>
-                <FieldLabel>Project</FieldLabel>
+                <FieldLabel htmlFor={`${formId}-project`}>Project</FieldLabel>
                 <Input
+                  id={`${formId}-project`}
                   value={project}
                   onChange={(e) => setProject(e.target.value)}
                 />
@@ -268,8 +269,11 @@ export function ImportPanel({ agent }: { agent: string }) {
               </Field>
               {mode === "session" ? (
                 <Field>
-                  <FieldLabel>Session id</FieldLabel>
+                  <FieldLabel htmlFor={`${formId}-session-id`}>
+                    Session id
+                  </FieldLabel>
                   <Input
+                    id={`${formId}-session-id`}
                     className="font-mono"
                     value={sessionId}
                     onChange={(e) => setSessionId(e.target.value)}
@@ -278,16 +282,18 @@ export function ImportPanel({ agent }: { agent: string }) {
               ) : (
                 <>
                   <Field>
-                    <FieldLabel>Since</FieldLabel>
+                    <FieldLabel htmlFor={`${formId}-since`}>Since</FieldLabel>
                     <Input
+                      id={`${formId}-since`}
                       type="datetime-local"
                       value={since}
                       onChange={(e) => setSince(e.target.value)}
                     />
                   </Field>
                   <Field>
-                    <FieldLabel>Until</FieldLabel>
+                    <FieldLabel htmlFor={`${formId}-until`}>Until</FieldLabel>
                     <Input
+                      id={`${formId}-until`}
                       type="datetime-local"
                       value={until}
                       onChange={(e) => setUntil(e.target.value)}

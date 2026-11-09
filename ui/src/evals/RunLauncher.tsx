@@ -1,5 +1,5 @@
 import { Checkbox } from "@/components/ui/checkbox";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ export function RunLauncher({
   initialCaseIds?: string[];
   onClose: () => void;
 }) {
+  const formId = useId();
   const navigate = useNavigate();
   const agentsQuery = useApi<AgentInfo[]>("/agents", {
     select: (all) =>
@@ -337,8 +338,11 @@ export function RunLauncher({
             </div>
           </Field>
           <Field>
-            <FieldLabel>Repetitions</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-repetitions`}>
+              Repetitions
+            </FieldLabel>
             <Input
+              id={`${formId}-repetitions`}
               type="number"
               min={1}
               max={10}
@@ -349,8 +353,9 @@ export function RunLauncher({
             />
           </Field>
           <Field>
-            <FieldLabel>Model</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-model`}>Model</FieldLabel>
             <Input
+              id={`${formId}-model`}
               placeholder="harness default"
               value={model}
               onChange={(e) => setModel(e.target.value)}
@@ -358,8 +363,11 @@ export function RunLauncher({
             />
           </Field>
           <Field>
-            <FieldLabel>Evaluation concurrency</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-evaluation-concurrency`}>
+              Evaluation concurrency
+            </FieldLabel>
             <Input
+              id={`${formId}-evaluation-concurrency`}
               type="number"
               min={1}
               placeholder="default"
@@ -400,10 +408,11 @@ export function RunLauncher({
           )}
           {(["model", "reasoning_effort"] as const).map((key) => (
             <Field key={key}>
-              <FieldLabel>
+              <FieldLabel htmlFor={`${formId}-judge-${key}`}>
                 {key === "model" ? "Judge model" : "Judge effort"}
               </FieldLabel>
               <Input
+                id={`${formId}-judge-${key}`}
                 placeholder={judgeDefault?.[key] ?? ""}
                 value={judge[key]}
                 onChange={(e) => setJudge({ ...judge, [key]: e.target.value })}

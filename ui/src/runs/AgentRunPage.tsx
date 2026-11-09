@@ -63,10 +63,7 @@ export function AgentRunPage() {
           )}
           {caseLink && (
             <Link
-              className={cn(
-                buttonVariants({ variant: "ghost" }),
-                "ml-auto text-brand",
-              )}
+              className={cn(buttonVariants({ variant: "link" }), "ml-auto")}
               to={caseLink}
             >
               Experiment run <ArrowUpRight size={12} />
@@ -74,8 +71,7 @@ export function AgentRunPage() {
           )}
           <Link
             className={cn(
-              buttonVariants({ variant: "ghost" }),
-              "text-brand",
+              buttonVariants({ variant: "link" }),
               !caseLink && "ml-auto",
             )}
             to={`/runs?agent=${agent}`}

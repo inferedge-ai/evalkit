@@ -19,8 +19,8 @@ import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const NO_RUNS: RunListItem[] = [];
 
@@ -176,18 +176,14 @@ export function RunsBrowser() {
             />
           )}
           {otel && (
-            <label className="flex items-center gap-1 text-meta text-ink-2">
-              <input
-                type="checkbox"
-                checked={noSession}
-                onChange={(e) => setNoSession(e.target.checked)}
-              />
+            <label className="flex cursor-pointer items-center gap-1.5 text-meta text-muted-foreground select-none">
+              <Checkbox checked={noSession} onCheckedChange={setNoSession} />
               no session
             </label>
           )}
           {otel && (
             <Link
-              className={cn(buttonVariants({ variant: "ghost" }), "text-brand")}
+              className={buttonVariants({ variant: "link" })}
               to={`/agents/${encodeURIComponent(agent)}/mappings`}
             >
               Agent <ArrowUpRight size={12} />

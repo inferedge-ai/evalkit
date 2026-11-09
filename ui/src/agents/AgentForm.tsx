@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -42,6 +42,7 @@ export function AgentForm({
   onSaved: (agent: AgentInfo) => void;
   onClose: () => void;
 }) {
+  const formId = useId();
   const mode = agent ? "edit" : "create";
   const [values, setValues] = useState<AgentFormValues>(
     agent ? agentFormFrom(agent) : emptyAgentForm(workspace),
@@ -85,16 +86,20 @@ export function AgentForm({
         <div className={FORM_DIALOG_BODY}>
           {!agent && (
             <Field>
-              <FieldLabel>Name</FieldLabel>
+              <FieldLabel htmlFor={`${formId}-name`}>Name</FieldLabel>
               <Input
+                id={`${formId}-name`}
                 value={values.name}
                 onChange={(e) => set("name", e.target.value)}
               />
             </Field>
           )}
           <Field>
-            <FieldLabel>Harness URL</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-harness-url`}>
+              Harness URL
+            </FieldLabel>
             <Input
+              id={`${formId}-harness-url`}
               placeholder="empty for a code-driven agent (SDK runs only)"
               value={values.harness_url}
               onChange={(e) => set("harness_url", e.target.value)}
@@ -141,9 +146,12 @@ export function AgentForm({
           {values.trajectory_source === "otel" &&
             (!agent || agent.trajectory_source !== "otel") && (
               <Field>
-                <FieldLabel>Span mapping</FieldLabel>
+                <FieldLabel htmlFor={`${formId}-span-mapping`}>
+                  Span mapping
+                </FieldLabel>
                 <Textarea
-                  className="font-mono"
+                  id={`${formId}-span-mapping`}
+                  className="max-h-80 font-mono"
                   rows={6}
                   placeholder={
                     agent
@@ -156,8 +164,9 @@ export function AgentForm({
               </Field>
             )}
           <Field>
-            <FieldLabel>Repository</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-repository`}>Repository</FieldLabel>
             <Input
+              id={`${formId}-repository`}
               placeholder="https://github.com/org/repo (optional)"
               value={values.repo_url}
               onChange={(e) => set("repo_url", e.target.value)}
@@ -165,8 +174,9 @@ export function AgentForm({
           </Field>
           {SETTING_FIELDS.map(({ key, label }) => (
             <Field key={key}>
-              <FieldLabel>{label}</FieldLabel>
+              <FieldLabel htmlFor={`${formId}-${key}`}>{label}</FieldLabel>
               <Input
+                id={`${formId}-${key}`}
                 inputMode="numeric"
                 value={values.settings[key]}
                 onChange={(e) =>

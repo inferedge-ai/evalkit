@@ -202,8 +202,7 @@ export function RunPage() {
           )}
           <Link
             className={cn(
-              buttonVariants({ variant: "ghost" }),
-              "text-brand",
+              buttonVariants({ variant: "link" }),
               !status?.config.judge?.model && "ml-auto",
             )}
             to={`/experiments/${encodeURIComponent(experimentId)}`}

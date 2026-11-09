@@ -1,6 +1,9 @@
+// @vitest-environment jsdom
+import { render as renderDom, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LoginChoices, runSso } from "./LoginPage";
 import type { Providers } from "./oidc";
 
@@ -48,6 +51,63 @@ describe("LoginChoices", () => {
     expect(html).toContain("Continue with Okta");
     expect(html).toContain("Username");
     expect(html).not.toContain("Admin sign-in");
+  });
+});
+
+describe("password sign-in", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function signIn(username: string, password: string) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body ?? "{}"));
+        if (
+          url.endsWith("/api/auth/login") &&
+          body.username === "admin" &&
+          body.password === "s3cret"
+        )
+          return Response.json({ token: "token-1" });
+        return Response.json(
+          { detail: "invalid username or password" },
+          { status: 401 },
+        );
+      }),
+    );
+    renderDom(
+      <MemoryRouter initialEntries={["/login"]}>
+        <Routes>
+          <Route
+            path="/login"
+            element={
+              <LoginChoices
+                providers={{ password: "all", oidc: null }}
+                next="/datasets"
+                onSso={() => Promise.resolve()}
+              />
+            }
+          />
+          <Route path="/datasets" element={<p>Datasets page</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Username"), username);
+    await user.type(screen.getByLabelText("Password"), password);
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+  }
+
+  it("lands on the page the user asked for", async () => {
+    await signIn("admin", "s3cret");
+    expect(await screen.findByText("Datasets page")).toBeTruthy();
+  });
+
+  it("stays on the form with the server's message when the password is wrong", async () => {
+    await signIn("admin", "wrong");
+    expect(
+      await screen.findByText("invalid username or password"),
+    ).toBeTruthy();
+    expect(screen.queryByText("Datasets page")).toBeNull();
   });
 });
 

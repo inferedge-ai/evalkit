@@ -343,7 +343,7 @@ export function DatasetCasesTab({
           )}
           <Button
             variant="outline"
-            size="sm"
+            size="icon-sm"
             className="ml-auto"
             aria-label="clear selection"
             onClick={() => grid.api?.deselectAll()}

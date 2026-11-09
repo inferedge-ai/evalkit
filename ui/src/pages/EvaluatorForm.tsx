@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -70,6 +70,7 @@ export function EvaluatorForm({
   onSaved: () => void;
   onClose: () => void;
 }) {
+  const formId = useId();
   const [values, setValues] = useState<EvaluatorFormValues>({
     name: evaluator?.name ?? "",
     kind: evaluator?.kind ?? "score",
@@ -125,8 +126,9 @@ export function EvaluatorForm({
           {!evaluator && (
             <>
               <Field>
-                <FieldLabel>Name</FieldLabel>
+                <FieldLabel htmlFor={`${formId}-name`}>Name</FieldLabel>
                 <Input
+                  id={`${formId}-name`}
                   aria-label="name"
                   value={values.name}
                   onChange={(e) => set("name", e.target.value)}
@@ -147,8 +149,9 @@ export function EvaluatorForm({
             </>
           )}
           <Field>
-            <FieldLabel>Endpoint</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-endpoint`}>Endpoint</FieldLabel>
             <Input
+              id={`${formId}-endpoint`}
               aria-label="endpoint"
               placeholder="https://evaluators.example.com/evaluate"
               value={values.endpoint}
@@ -157,8 +160,9 @@ export function EvaluatorForm({
             <FieldDescription>{ENDPOINT_NOTE}</FieldDescription>
           </Field>
           <Field>
-            <FieldLabel>Timeout (s)</FieldLabel>
+            <FieldLabel htmlFor={`${formId}-timeout-s`}>Timeout (s)</FieldLabel>
             <Input
+              id={`${formId}-timeout-s`}
               aria-label="timeout"
               inputMode="numeric"
               value={values.timeout}

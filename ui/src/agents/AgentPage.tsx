@@ -30,7 +30,6 @@ import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 function Overview({ agent }: { agent: AgentInfo }) {
@@ -212,7 +211,7 @@ function AgentView() {
               </Button>
             )}
             <Link
-              className={cn(buttonVariants({ variant: "ghost" }), "text-brand")}
+              className={buttonVariants({ variant: "link" })}
               to={`/runs?agent=${encodeURIComponent(slug)}`}
             >
               Runs <ArrowUpRight size={12} />

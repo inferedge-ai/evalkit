@@ -201,6 +201,7 @@ export function MappingsPanel({ agent }: { agent: string }) {
   const viewButton = (key: string) => (
     <Button
       variant={shown === key ? "default" : "outline"}
+      size="sm"
       onClick={() => setViewing(key)}
     >
       {shown === key ? "Showing" : "View"}
@@ -240,6 +241,7 @@ export function MappingsPanel({ agent }: { agent: string }) {
               {v.status === "draft" ? (
                 <Button
                   variant="outline"
+                  size="sm"
                   disabled={busy}
                   onClick={() => activate(v.version)}
                 >
