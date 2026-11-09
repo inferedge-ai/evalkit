@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
 import { qs } from "../lib/api";
@@ -186,7 +187,7 @@ export function RunsBrowser() {
               className="btn btn-quiet text-brand"
               to={`/agents/${encodeURIComponent(agent)}/mappings`}
             >
-              Agent ↗
+              Agent <ArrowUpRight size={12} />
             </Link>
           )}
           <span className="row-meta num ml-auto">

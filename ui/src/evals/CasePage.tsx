@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
 import { isNotFound, qs } from "../lib/api";
@@ -150,7 +151,7 @@ function ScoreHistory({
             disabled={offset === 0}
             onClick={() => setOffset(Math.max(0, offset - PAGE))}
           >
-            ← Newer
+            <ArrowLeft size={12} /> Newer
           </button>
           <span className="row-meta">
             {points && points.length > 0
@@ -162,7 +163,7 @@ function ScoreHistory({
             disabled={!hasMore}
             onClick={() => setOffset(offset + PAGE)}
           >
-            Older →
+            Older <ArrowRight size={12} />
           </button>
         </div>
       )}

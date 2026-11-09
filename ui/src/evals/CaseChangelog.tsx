@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { fmtWhen } from "../lib/format";
 import { useApi } from "../lib/query";
+import { ToArrow } from "../lib/ui";
 import type { CaseEvent } from "../lib/types";
 
 const KIND_LABEL: Record<CaseEvent["kind"], string> = {
@@ -50,7 +51,12 @@ export function CaseChangelog({
                   </span>
                   <span className="min-w-0 truncate text-ink-3">
                     {e.actor}
-                    {e.target ? ` → ${e.target}` : ""}
+                    {e.target ? (
+                      <>
+                        {" "}
+                        <ToArrow /> {e.target}
+                      </>
+                    ) : null}
                     {e.dataset !== dataset ? ` · in ${e.dataset}` : ""}
                   </span>
                 </div>

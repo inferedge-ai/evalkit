@@ -1,3 +1,4 @@
+import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { qs } from "../lib/api";
@@ -76,10 +77,10 @@ export function Home() {
           <>
             <span className="chip muted">{workspace.type}</span>
             <Link to="/datasets" className="btn btn-quiet text-brand">
-              All datasets →
+              All datasets <ArrowRight size={14} />
             </Link>
             <Link to="/agents" className="btn btn-quiet text-brand">
-              All agents →
+              All agents <ArrowRight size={14} />
             </Link>
           </>
         }

@@ -1043,53 +1043,6 @@ button {
     color: var(--color-brand);
   }
 
-  /* Glossary ⓘ. The bubble is a styled tooltip: native title= only shows on a
-     delayed mouse hover, never on focus or touch, and can't wrap or be themed. */
-  .infotip {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    vertical-align: -1px;
-    color: var(--color-ink-4);
-    cursor: help;
-    outline: none;
-  }
-  .infotip:hover,
-  .infotip:focus-visible {
-    color: var(--color-brand);
-  }
-  .infotip-bubble {
-    display: none;
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 40;
-    width: max-content;
-    max-width: min(280px, 70vw);
-    padding: 5px 8px;
-    border: 1px solid var(--color-line);
-    border-radius: 6px;
-    background: var(--color-surface);
-    color: var(--color-ink-2);
-    box-shadow: 0 4px 12px rgb(0 0 0 / 0.1);
-    /* Hosts include uppercase micro tile labels and bold table headers — the
-       bubble resets to plain body text regardless. */
-    font-family: var(--font-sans);
-    font-size: var(--text-micro);
-    line-height: var(--text-micro--line-height);
-    font-weight: 400;
-    font-variant-numeric: normal;
-    letter-spacing: normal;
-    text-transform: none;
-    text-align: left;
-    white-space: normal;
-  }
-  .infotip:hover .infotip-bubble,
-  .infotip:focus-visible .infotip-bubble {
-    display: block;
-  }
-
   .tab-button {
     border: none;
     background: none;

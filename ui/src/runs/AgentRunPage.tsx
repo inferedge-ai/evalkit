@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { trajectoryBounds } from "../lib/atif";
 import { useApi } from "../lib/query";
@@ -60,14 +61,14 @@ export function AgentRunPage() {
           )}
           {caseLink && (
             <Link className="btn btn-quiet ml-auto text-brand" to={caseLink}>
-              Experiment run ↗
+              Experiment run <ArrowUpRight size={12} />
             </Link>
           )}
           <Link
             className={`btn btn-quiet text-brand${caseLink ? "" : " ml-auto"}`}
             to={`/runs?agent=${agent}`}
           >
-            Runs ↗
+            Runs <ArrowUpRight size={12} />
           </Link>
         </div>
         <Tabs<RunTab>

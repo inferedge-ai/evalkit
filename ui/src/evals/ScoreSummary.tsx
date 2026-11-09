@@ -6,7 +6,7 @@ import {
   hasScores,
 } from "../lib/scoreSummary";
 import type { Report } from "../lib/types";
-import { InfoTip } from "../lib/ui";
+import { InfoTip, ToArrow } from "../lib/ui";
 
 export const HEADLINE_GAUGES = [
   "gauge_agent_cost_usd",
@@ -116,7 +116,9 @@ export function CompareBucketCards({
                 <span className="member-name truncate font-mono">{m.name}</span>
                 {m.side === "both" ? (
                   <span className="num">
-                    <span className="text-ink-3">{fmtScore(m.base)} → </span>
+                    <span className="text-ink-3">
+                      {fmtScore(m.base)} <ToArrow />{" "}
+                    </span>
                     <span className={`sev-fg-${severity(m.compare)}`}>
                       {fmtScore(m.compare)}
                     </span>
@@ -160,7 +162,7 @@ export function CostSpeedLine({
           <InfoTip term={name} />
           {was && (
             <span className="num text-ink-3">
-              {fmtGauge(name, was.median)} →
+              {fmtGauge(name, was.median)} <ToArrow />
             </span>
           )}
           <span className="num font-semibold">

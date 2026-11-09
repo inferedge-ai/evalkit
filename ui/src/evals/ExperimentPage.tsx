@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   AlertDialog,
@@ -437,11 +438,11 @@ function ExperimentView() {
                         to={`/datasets/${encodeURIComponent(status.dataset)}/cases/${encodeURIComponent(case_id)}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="ml-2 text-micro text-ink-3 hover:text-brand hover:underline"
+                        className="ml-2 inline-flex items-center gap-0.5 text-micro text-ink-3 hover:text-brand hover:underline"
                         title="open the case definition in its dataset (new tab)"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        def ↗
+                        def <ArrowUpRight size={10} />
                       </Link>
                     )}
                     {row && row.run_errors.length > 0 && (

@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
 import { progressLabel } from "../lib/experimentStatus";
 import { useApi } from "../lib/query";
 import { NotFound } from "../shell/NotFound";
+import { ToArrow } from "../lib/ui";
 import { fmtDelta, fmtScore, severity } from "../lib/format";
 import {
   CHANGE_LABEL,
@@ -50,12 +52,12 @@ function CaseDetail({
   );
   const runLink = (id: string, label: string) => (
     <Link
-      className="text-brand hover:underline"
+      className="inline-flex items-center gap-0.5 text-brand hover:underline"
       to={`/experiments/${encodeURIComponent(id)}/${encodeURIComponent(row.case_id)}`}
       target="_blank"
       rel="noopener"
     >
-      {label} ↗
+      {label} <ArrowUpRight size={12} />
     </Link>
   );
   return (
@@ -72,7 +74,7 @@ function CaseDetail({
             <div className="flex items-baseline gap-2">
               <span className="flex-1 font-mono">{n}</span>
               <span className="num text-ink-3">
-                {fmtScore(row.base?.scores[n] ?? null)} →
+                {fmtScore(row.base?.scores[n] ?? null)} <ToArrow />
               </span>
               <span
                 className={`num sev-fg-${severity(row.compare?.scores[n] ?? null)}`}
@@ -174,7 +176,9 @@ export function ComparePage() {
           <Link className="chip muted font-mono" to={`/experiments/${base}`}>
             base: {data.base.dataset} {data.base.name}
           </Link>
-          <span className="text-ink-4">→</span>
+          <span className="text-ink-4">
+            <ToArrow />
+          </span>
           <Link className="chip muted font-mono" to={`/experiments/${compare}`}>
             {data.compare.dataset} {data.compare.name}
           </Link>

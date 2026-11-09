@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
 import { Select } from "../lib/Select";
+import { ToArrow } from "../lib/ui";
 import {
   importAction,
   importFraction,
@@ -35,7 +37,7 @@ function SessionCheck({ agent, session }: { agent: string; session: string }) {
           className="btn btn-quiet text-brand"
           to={`/runs/${encodeURIComponent(agent)}/${encodeURIComponent(session)}`}
         >
-          Trajectory ↗
+          Trajectory <ArrowUpRight size={12} />
         </Link>
       </div>
       {error && <div className="pane-status error">{error}</div>}
@@ -74,7 +76,7 @@ function ImportRow({
           {item.status}
         </span>
         <span className="row-meta">
-          {item.source}/{item.project} · {fmtWhen(item.since)} →{" "}
+          {item.source}/{item.project} · {fmtWhen(item.since)} <ToArrow />{" "}
           {fmtWhen(item.until)} · by {item.created_by}
         </span>
         <span className="flex items-center gap-2">

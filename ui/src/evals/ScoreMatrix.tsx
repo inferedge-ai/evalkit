@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef } from "react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import type { ReactNode } from "react";
 import type {
   CellClassParams,
@@ -6,8 +7,12 @@ import type {
   ColGroupDef,
   RowHeightParams,
   SizeColumnsToContentStrategy,
+  SuppressHeaderKeyboardEventParams,
 } from "ag-grid-community";
-import type { CustomCellRendererProps } from "ag-grid-react";
+import type {
+  CustomCellRendererProps,
+  CustomInnerHeaderProps,
+} from "ag-grid-react";
 import {
   ColumnsMenu,
   DataGrid,
@@ -18,6 +23,7 @@ import {
 import type { GridColumn } from "../lib/DataGrid";
 import { fmtDelta, fmtGauge, fmtScore, severity } from "../lib/format";
 import { describeTerm } from "../lib/glossary";
+import { InfoTip } from "../lib/ui";
 import {
   cellValue,
   delta,
@@ -129,7 +135,21 @@ function Value({
         <span
           className={`ml-1 text-micro ${moved > 0 ? "text-ok" : "text-err-text"}`}
         >
-          {moved > 0 ? "▲" : "▼"}
+          {moved > 0 ? (
+            <ArrowUp
+              size={10}
+              role="img"
+              aria-label="up"
+              className="inline align-[-0.1em]"
+            />
+          ) : (
+            <ArrowDown
+              size={10}
+              role="img"
+              aria-label="down"
+              className="inline align-[-0.1em]"
+            />
+          )}
           {Math.abs(moved).toFixed(2)}
         </span>
       )}
@@ -253,6 +273,28 @@ function MatrixCaseCell({ data, node }: CustomCellRendererProps<MatrixRow>) {
 // value.
 const alwaysRefresh = () => false;
 
+function MatrixHeaderLabel({
+  displayName,
+  term,
+}: CustomInnerHeaderProps<MatrixRow> & { term: string }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1">
+      <span className="truncate" title={term}>
+        {displayName}
+      </span>
+      <InfoTip term={term} />
+    </span>
+  );
+}
+
+// AG Grid moves Tab from header cell to header cell, and sorts on Enter
+// anywhere inside one. The browser takes Tab from the cell to the ⓘ inside,
+// and Enter on the ⓘ presses it instead of sorting.
+const passKeysToInfoTip = ({ event }: SuppressHeaderKeyboardEventParams) =>
+  event.target === event.currentTarget
+    ? event.key === "Tab" && !event.shiftKey
+    : event.key === "Enter";
+
 function buildValueColumn(
   kind: ColumnKind,
   col: string,
@@ -261,16 +303,21 @@ function buildValueColumn(
 ): ColDef<MatrixRow> {
   const colId = kind === "avg" ? "avg" : col;
   const label = kind === "avg" ? "mean" : shortLabel(col);
-  const term = describeTerm(col);
   return {
     colId,
     headerName: label,
-    headerTooltip:
-      kind === "avg"
-        ? "mean of the case's bucketed scores"
-        : term
-          ? `${col}: ${term}`
-          : col,
+    ...(describeTerm(col)
+      ? {
+          headerComponentParams: {
+            innerHeaderComponent: MatrixHeaderLabel,
+            innerHeaderComponentParams: { term: col },
+          },
+          suppressHeaderKeyboardEvent: passKeysToInfoTip,
+        }
+      : {
+          headerTooltip:
+            kind === "avg" ? "mean of the case's bucketed scores" : col,
+        }),
     initialHide: defaultHidden.includes(colId),
     type: "number",
     initialWidth: estimateColumnWidth(label, withBase),

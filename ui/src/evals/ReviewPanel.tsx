@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Check } from "lucide-react";
 import { Link } from "react-router-dom";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
@@ -7,6 +8,7 @@ import type { ReviewSummary } from "../lib/types";
 import { isReviewerOf } from "../lib/access";
 import { splitRef } from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
+import { ToArrow } from "../lib/ui";
 
 type Action = "approve" | "request_changes";
 
@@ -61,7 +63,9 @@ export function ReviewPanel({
             {stateLabel(review.state)}
           </span>
           {review.state === "review_requested" && review.requested_to ? (
-            <span className="row-meta">→ {review.requested_to}</span>
+            <span className="row-meta">
+              <ToArrow /> {review.requested_to}
+            </span>
           ) : null}
           {review.updated_at ? (
             <span className="row-meta">{fmtWhen(review.updated_at)}</span>
@@ -120,7 +124,13 @@ export function ReviewPanel({
                 onClick={submit}
                 disabled={busy || needsComment}
               >
-                {action === "approve" ? "Approve ✓" : "Request changes"}
+                {action === "approve" ? (
+                  <>
+                    Approve <Check size={14} />
+                  </>
+                ) : (
+                  "Request changes"
+                )}
               </button>
             </div>
           </div>

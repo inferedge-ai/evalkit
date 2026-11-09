@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { ArrowDown } from "lucide-react";
 import { timingAnalysis } from "../lib/analysis";
 import { errorEntries, toModel } from "../lib/atif";
 import type {
@@ -54,9 +55,11 @@ function StepGutter({
       )}
       {completion !== null && (
         <div
+          className="flex items-center justify-end"
           title={`input ${prompt ?? 0} · cache read ${cached ?? 0} · output ${completion}`}
         >
-          ↓{formatTokensShort(completion)}
+          <ArrowDown size={9} />
+          {formatTokensShort(completion)}
         </div>
       )}
       {step.costUsd !== null && (

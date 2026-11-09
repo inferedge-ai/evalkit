@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
@@ -218,7 +219,10 @@ export function RunLauncher({
                       aria-label="selected tags"
                     >
                       {choice.tags.map((tag) => (
-                        <span key={tag} className="chip muted font-mono">
+                        <span
+                          key={tag}
+                          className="chip muted inline-flex items-center font-mono"
+                        >
                           {tag}
                           <button
                             type="button"
@@ -231,7 +235,7 @@ export function RunLauncher({
                               }))
                             }
                           >
-                            ×
+                            <X size={10} />
                           </button>
                         </span>
                       ))}
