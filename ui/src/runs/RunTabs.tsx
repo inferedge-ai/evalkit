@@ -35,12 +35,14 @@ function TrajectorySkeleton() {
 
 function AnalysisSkeleton() {
   return (
-    <div className="flex max-w-[68rem] flex-col gap-4">
+    <div className="max-w-[68rem]">
+      <Skeleton className="mb-1.5 h-3 w-20" />
       <div className="tile-grid">
         {Array.from({ length: 3 }, (_, i) => (
           <Skeleton key={i} className="h-14" />
         ))}
       </div>
+      <Skeleton className="mt-4 mb-1.5 h-3 w-24" />
       <Skeleton className="h-48 rounded-xl" />
     </div>
   );

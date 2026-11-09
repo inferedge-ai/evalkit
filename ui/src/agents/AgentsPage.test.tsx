@@ -2,7 +2,7 @@
 import { screen, within } from "@testing-library/react";
 import { Route } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
-import type { AgentInfo } from "../lib/types";
+import type { AgentInfo, WorkspaceRole } from "../lib/types";
 import { closePage, member, renderPage, stubServer } from "../testFixtures";
 import { AgentsPage } from "./AgentsPage";
 
@@ -36,12 +36,12 @@ function agent(name: string): AgentInfo {
 
 afterEach(closePage);
 
-function openAgents(agents: AgentInfo[]) {
+function openAgents(agents: AgentInfo[], roles: WorkspaceRole[] = ["writer"]) {
   stubServer((url) => {
     if (url.includes("/api/agents?")) return Response.json(agents);
   });
   renderPage(
-    member({ dev: ["writer"] }),
+    member({ dev: roles }),
     "/agents",
     <Route path="/agents" element={<AgentsPage />} />,
   );
@@ -51,6 +51,15 @@ test("a workspace without agents says so and how to add one", async () => {
   openAgents([]);
   expect(await screen.findByText("No agents in @dev")).toBeInTheDocument();
   expect(screen.getByText(/evalkit agents create/)).toBeInTheDocument();
+});
+
+test("a reader of a workspace without agents is told it is read-only for them", async () => {
+  openAgents([], ["reviewer"]);
+  expect(await screen.findByText("No agents in @dev")).toBeInTheDocument();
+  expect(
+    screen.getByText("This workspace is read-only for you."),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/evalkit agents create/)).toBeNull();
 });
 
 test("the page header counts the workspace's agents", async () => {

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
 import { afterEach, expect, test } from "vitest";
 import { refreshQueries } from "../lib/query";
-import type { AgentInfo, RunList } from "../lib/types";
+import type { AgentInfo, RunList, WorkspaceRole } from "../lib/types";
 import { closePage, member, renderPage, stubServer } from "../testFixtures";
 import { RunsBrowser } from "./RunsBrowser";
 
@@ -47,9 +47,12 @@ const failure = (detail: string) => Response.json({ detail }, { status: 500 });
 
 afterEach(closePage);
 
-function openRuns(path = "/runs?agent=bot@dev") {
+function openRuns(
+  path = "/runs?agent=bot@dev",
+  roles: WorkspaceRole[] = ["writer"],
+) {
   renderPage(
-    member({ dev: ["writer"] }),
+    member({ dev: roles }),
     path,
     <Route path="/runs" element={<RunsBrowser />} />,
   );
@@ -66,6 +69,16 @@ test("a workspace without agents says so and points to the Agents page", async (
     "/agents",
   );
   expect(screen.queryByPlaceholderText("Search id prefix or title")).toBeNull();
+});
+
+test("a reader of a workspace without agents is not pointed at adding one", async () => {
+  stubServer((url) => {
+    if (url.includes("/api/agents?")) return Response.json([]);
+  });
+  openRuns("/runs", ["reviewer"]);
+  expect(await screen.findByText("No agents in @dev")).toBeInTheDocument();
+  expect(screen.getByText("Runs are listed per agent.")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Agents" })).toBeNull();
 });
 
 test("while the agents load, the runs table already shows it is loading", async () => {
@@ -98,6 +111,20 @@ test("when the agents cannot load, the error does not blame the harness's run li
   openRuns("/runs");
   expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
   expect(screen.queryByText(/may not implement run listing/)).toBeNull();
+});
+
+test("when the run listing fails, the error says the harness may not implement it", async () => {
+  stubServer((url) => {
+    if (url.includes("/api/agents?")) return Response.json([bot]);
+    if (url.includes("/api/agents/bot%40dev/runs"))
+      return failure("not implemented");
+  });
+  openRuns();
+  expect(
+    await screen.findByText(
+      /not implemented — the harness may not implement run listing/,
+    ),
+  ).toBeInTheDocument();
 });
 
 test("a refresh that fails keeps the runs on screen with the error above them", async () => {

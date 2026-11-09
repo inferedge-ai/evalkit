@@ -12,6 +12,7 @@ import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function AgentRunPage() {
   const { agent = "", runId = "" } = useParams();
@@ -54,22 +55,21 @@ export function AgentRunPage() {
         }
       />
       <div className="page flex min-h-0 flex-1 flex-col">
-        {(title || trajectory) && (
-          <div className="toolbar mb-2">
-            {title && (
-              <span className="row-meta font-mono">
-                <CopyText value={runId} />
-              </span>
-            )}
-            {trajectory && (
-              <TimeSpan
-                {...trajectoryBounds(trajectory)}
-                doneLabel="steps span"
-                doneTitle="first to last step start; the last step's own time is not recorded"
-              />
-            )}
-          </div>
-        )}
+        <div className="toolbar mb-2">
+          {title && (
+            <span className="row-meta font-mono">
+              <CopyText value={runId} />
+            </span>
+          )}
+          {trajectory && (
+            <TimeSpan
+              {...trajectoryBounds(trajectory)}
+              doneLabel="steps span"
+              doneTitle="first to last step start; the last step's own time is not recorded"
+            />
+          )}
+          {!title && !trajectory && !error && <Skeleton className="h-4 w-64" />}
+        </div>
         <Tabs<RunTab>
           tabs={[
             { id: "trajectory", label: "Trajectory" },

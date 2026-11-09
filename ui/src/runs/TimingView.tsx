@@ -39,7 +39,7 @@ function StepTable({ title, rows }: { title: string; rows: TimingRow[] }) {
   if (rows.length === 0) return null;
   const max = Math.max(...rows.map((r) => r.duration_ms ?? 0), 0);
   return (
-    <section>
+    <section className="mt-4">
       <div className="eyebrow">{title}</div>
       <Card className="gap-0 py-0">
         <div className="overflow-x-auto">

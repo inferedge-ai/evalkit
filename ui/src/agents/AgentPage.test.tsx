@@ -3,7 +3,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
-import type { AgentInfo } from "../lib/types";
+import type { AgentInfo, MappingRecord } from "../lib/types";
 import { closePage, member, renderPage, stubServer } from "../testFixtures";
 import { AgentPage } from "./AgentPage";
 
@@ -36,6 +36,29 @@ const agent: AgentInfo = {
 const traced: AgentInfo = { ...agent, trajectory_source: "otel" };
 
 const AGENT_URL = "/api/agents/bot%40dev";
+
+const activeMapping: MappingRecord = {
+  id: 3,
+  version: 1,
+  status: "active",
+  document: {
+    schema_version: "1",
+    kind: {
+      attribute: "gen_ai.operation.name",
+      values: { chat: "llm", execute_tool: "tool", invoke_agent: "agent" },
+    },
+    session_id: { attribute: "gen_ai.conversation.id" },
+    model: { attribute: "gen_ai.request.model" },
+    tokens: {
+      prompt: { attribute: "gen_ai.usage.input_tokens" },
+      completion: { attribute: "gen_ai.usage.output_tokens" },
+    },
+    tool: { name: { attribute: "gen_ai.tool.name" } },
+  },
+  created_by: "akshat",
+  created_at: "2026-11-09T10:00:00Z",
+  activated_at: "2026-11-09T10:05:00Z",
+};
 
 afterEach(closePage);
 
@@ -110,6 +133,23 @@ test("a traced agent without a mapping or sessions says how to push a mapping an
   expect(
     await screen.findByText("No sessions to preview yet"),
   ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "session" })).toBeNull();
+});
+
+test("a traced agent with an active mapping shows its rules", async () => {
+  stubServer((url) => {
+    if (url.endsWith(`${AGENT_URL}/mappings`))
+      return Response.json([activeMapping]);
+    if (url.endsWith(AGENT_URL)) return Response.json(traced);
+    if (url.includes(`${AGENT_URL}/runs?`))
+      return Response.json({ runs: [], total: 0 });
+  });
+  openAgent("mappings");
+  expect(
+    await screen.findByRole("heading", { name: "Rules: v1 (active)" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("gen_ai.conversation.id")).toBeInTheDocument();
+  expect(screen.queryByText("No mapping yet")).toBeNull();
 });
 
 test("while the trace sources load, the Import tab does not say there are none", async () => {
@@ -121,6 +161,17 @@ test("while the trace sources load, the Import tab does not say there are none",
   expect(
     await screen.findByRole("heading", { name: "Range imports" }),
   ).toBeInTheDocument();
+  expect(screen.queryByText(/No trace sources yet/)).toBeNull();
+});
+
+test("when the trace sources fail to load, the Import tab shows the error and does not say there are none", async () => {
+  stubServer((url) => {
+    if (url.endsWith("/api/trace-sources"))
+      return Response.json({ detail: "store unavailable" }, { status: 500 });
+    if (url.endsWith(AGENT_URL)) return Response.json(traced);
+  });
+  openAgent("import");
+  expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
   expect(screen.queryByText(/No trace sources yet/)).toBeNull();
 });
 

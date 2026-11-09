@@ -32,7 +32,7 @@ function CostTable({ title, rows }: { title: string; rows: CostRollupRow[] }) {
   if (rows.length === 0) return null;
   const max = Math.max(...rows.map((r) => r.cost), 0);
   return (
-    <section>
+    <section className="mt-4">
       <div className="eyebrow">{title}</div>
       <Card className="gap-0 py-0">
         <div className="overflow-x-auto">
@@ -121,7 +121,7 @@ export function CostView({ doc }: { doc: AtifTrajectory }) {
       )}
 
       {analysis.tool_calls.length > 0 && (
-        <section>
+        <section className="mt-4">
           <div className="eyebrow">Tool calls</div>
           <Card className="gap-0 py-0">
             <div className="overflow-x-auto">

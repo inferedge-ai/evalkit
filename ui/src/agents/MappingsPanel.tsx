@@ -102,7 +102,7 @@ function MappingRules({
                   )}
                 </td>
                 <td>
-                  <div className="flex flex-wrap gap-1">
+                  <div className="flex min-w-64 flex-wrap gap-1">
                     {row.rule &&
                       ruleNotes(row.rule).map((note) => (
                         <Badge key={note} variant="secondary">
@@ -322,13 +322,14 @@ export function MappingsPanel({ agent }: { agent: string }) {
       <section className="flex flex-col gap-2">
         <div className="toolbar">
           <h2 className="font-medium">Preview over recent sessions</h2>
-          <Select
-            ariaLabel="session"
-            value={selected}
-            onChange={setSelected}
-            placeholder="No sessions"
-            options={sessions.map((id) => ({ value: id, label: id }))}
-          />
+          {sessions.length > 0 && (
+            <Select
+              ariaLabel="session"
+              value={selected}
+              onChange={setSelected}
+              options={sessions.map((id) => ({ value: id, label: id }))}
+            />
+          )}
         </div>
         {listedRuns.data?.runs.length === 0 && (
           <Card className="py-8">
