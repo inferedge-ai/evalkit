@@ -1322,6 +1322,7 @@
 <span class="w">              </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">factual_retrieval</span>
 </code></pre></div>
 <p><code>defaults</code> takes only <code>input</code>, <code>tags</code>, <code>max_response_time</code> and <code>agents</code> (for overlays). A case's own <code>input</code> keys and <code>max_response_time</code> win over the defaults; tags are merged.</p>
+<p>In the mapping shape, a top-level key starting with <code>x-</code> (for example <code>x-shared</code>) is ignored. Use it to hold YAML anchors that several cases reuse with <code>*name</code>.</p>
 <h2 id="case-keys">Case keys<a class="headerlink" href="#case-keys" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
