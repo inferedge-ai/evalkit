@@ -1055,7 +1055,7 @@ to enter on any device.</p>
 <p>Without single sign-on, or with <code>--username</code>, the command asks for a username
 and password and stores an evalkit token instead. With single sign-on
 configured, password login is for admins unless the deployer set
-<code>password_login: all</code>.</p>
+<code>password_login: all</code>, and off for everyone with <code>password_login: none</code>.</p>
 <p>The CLI talks to one server at a time: logging in again, to the same server
 or another, replaces the stored login. Dev and prod are workspaces on one
 server (<code>finance@dev</code>, <code>finance@prod</code>), not separate logins.</p>
