@@ -461,7 +461,7 @@ button {
   }
   .segment > button:hover {
     background: var(--color-hover);
-    color: var(--color-ink-2);
+    color: var(--color-ink);
   }
   .segment > button[aria-pressed="true"] {
     background: var(--color-info-bg);
