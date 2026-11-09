@@ -33,6 +33,7 @@ import {
   twinCell,
 } from "../lib/promotion";
 import { useWorkspace } from "../shell/workspace";
+import { ToArrow } from "../lib/ui";
 
 // Last N experiments' bucket scores shown inline per case, newest first.
 const RECENT = 4;
@@ -240,7 +241,9 @@ export function DatasetCasesTab({
                   ) : null}
                   {ex.review?.state === "review_requested" &&
                   ex.review.requested_to ? (
-                    <span className="row-meta">→ {ex.review.requested_to}</span>
+                    <span className="row-meta">
+                      <ToArrow /> {ex.review.requested_to}
+                    </span>
                   ) : null}
                 </span>
               )),

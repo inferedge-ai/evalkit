@@ -5,6 +5,7 @@ import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
 import { Select } from "../lib/Select";
+import { ToArrow } from "../lib/ui";
 import {
   importAction,
   importFraction,
@@ -75,7 +76,7 @@ function ImportRow({
           {item.status}
         </span>
         <span className="row-meta">
-          {item.source}/{item.project} · {fmtWhen(item.since)} →{" "}
+          {item.source}/{item.project} · {fmtWhen(item.since)} <ToArrow />{" "}
           {fmtWhen(item.until)} · by {item.created_by}
         </span>
         <span className="flex items-center gap-2">

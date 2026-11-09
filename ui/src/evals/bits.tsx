@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Download, User } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Circle,
+  Contrast,
+  Dot,
+  Download,
+  User,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -328,13 +339,25 @@ function asDict(v: unknown): Dict {
 }
 
 // ── ScoreDetail (per-item verdict tables) ─────────────────────────────────
-const GLYPH: Record<Verdict, string> = {
-  satisfied: "✓",
-  partial: "◐",
-  absent: "○",
-  incorrect: "✗",
-  other: "·",
+const VERDICT_ICON: Record<Verdict, LucideIcon> = {
+  satisfied: Check,
+  partial: Contrast,
+  absent: Circle,
+  incorrect: X,
+  other: Dot,
 };
+
+function VerdictIcon({ kind }: { kind: Verdict }) {
+  const Icon = VERDICT_ICON[kind];
+  return (
+    <Icon
+      size={12}
+      role="img"
+      aria-label={kind}
+      className="inline shrink-0 align-[-0.125em]"
+    />
+  );
+}
 
 const VERDICT_KEYS = new Set(["verdict", "status"]);
 
@@ -431,7 +454,9 @@ function ItemTable({ items }: { items: Record<string, unknown>[] }) {
           return (
             <tr key={i} className={`iv-${kind} border-b border-n-50 align-top`}>
               <td className="num py-1 text-n-400">{i + 1}</td>
-              <td className="py-1">{GLYPH[kind]}</td>
+              <td className="py-1">
+                <VerdictIcon kind={kind} />
+              </td>
               {hasWord ? (
                 <td className="py-1">{verdictWord(verdictRaw) ?? ""}</td>
               ) : null}
@@ -715,7 +740,7 @@ export function SummaryChip({ summary }: { summary?: Record<string, number> }) {
         const word = verdictWord(k);
         return (
           <span key={k} className={`iv-${kind}`}>
-            {GLYPH[kind]} {n}
+            <VerdictIcon kind={kind} /> {n}
             {word ? ` ${word}` : ""}
           </span>
         );

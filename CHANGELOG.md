@@ -60,7 +60,12 @@
   menus' chevron and check mark, the copy and user icons, the arrow on links
   to another page, the buttons that clear a selection or remove a tag or role,
   the Columns menu's move up and down buttons, the download and Approve
-  icons, and the arrows that open a folder or section. The ⓘ shows its
+  icons, the arrows that open a folder or section, the rubric verdict marks
+  (satisfied, partial, absent, incorrect), the agent check's pass, warn, fail
+  and skipped marks, the up and down marks on a case's score change, and the
+  arrows in links and between two values ("0.50 → 0.75", "→ alice"). A screen
+  reader reads each rubric verdict mark by its verdict, a score change mark as
+  "up" or "down", and an arrow between two values as "to". The ⓘ shows its
   description in a tooltip drawn above the page, so a table no longer cuts it
   off: on hover, on keyboard focus, or on a tap, which also hides it again. A
   screen reader reads it as "definition" with the description. Each case

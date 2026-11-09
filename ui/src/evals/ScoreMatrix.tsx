@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef } from "react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import type { ReactNode } from "react";
 import type {
   CellClassParams,
@@ -134,7 +135,21 @@ function Value({
         <span
           className={`ml-1 text-micro ${moved > 0 ? "text-ok" : "text-err-text"}`}
         >
-          {moved > 0 ? "▲" : "▼"}
+          {moved > 0 ? (
+            <ArrowUp
+              size={10}
+              role="img"
+              aria-label="up"
+              className="inline align-[-0.1em]"
+            />
+          ) : (
+            <ArrowDown
+              size={10}
+              role="img"
+              aria-label="down"
+              className="inline align-[-0.1em]"
+            />
+          )}
           {Math.abs(moved).toFixed(2)}
         </span>
       )}

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { canManageMembers, canWrite, groupMembers } from "../lib/access";
 import { apiJson } from "../lib/api";
@@ -15,7 +15,7 @@ import type {
   WorkspaceInfo,
   WorkspaceRole,
 } from "../lib/types";
-import { Tabs } from "../lib/ui";
+import { Tabs, ToArrow } from "../lib/ui";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { BuiltinEvaluatorsNote } from "./BuiltinEvaluatorsNote";
@@ -318,12 +318,18 @@ export function WorkspacePage() {
         {ws.archived && <span className="chip muted">archived</span>}
         {ws.promotes_to && (
           <span className="chip chip-info" title="promotion target">
-            → {ws.promotes_to}
+            <ToArrow /> {ws.promotes_to}
           </span>
         )}
         {ws.promoted_from && (
           <span className="chip chip-info" title="promotion source">
-            ← {ws.promoted_from}
+            <ArrowLeft
+              size={12}
+              role="img"
+              aria-label="from"
+              className="inline shrink-0 align-[-0.125em]"
+            />{" "}
+            {ws.promoted_from}
           </span>
         )}
         {me.is_admin && ws.type === "shared" && !ws.promoted_from && (

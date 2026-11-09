@@ -1,6 +1,13 @@
 import { useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { Check, ChevronDown, ChevronRight, Copy, Info } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Info,
+} from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -12,6 +19,17 @@ import { describeTerm } from "./glossary";
 
 // Renders nothing for names outside the glossary (custom evaluators), so call
 // sites can attach it unconditionally.
+export function ToArrow() {
+  return (
+    <ArrowRight
+      size={12}
+      role="img"
+      aria-label="to"
+      className="inline shrink-0 align-[-0.125em]"
+    />
+  );
+}
+
 export function InfoTip({ term }: { term: string }) {
   const text = describeTerm(term);
   const [open, setOpen] = useState(false);
