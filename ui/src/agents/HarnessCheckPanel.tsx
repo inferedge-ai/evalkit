@@ -5,6 +5,9 @@ import { apiJson } from "../lib/api";
 import type { HarnessCheckReport } from "../lib/types";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const ROW_COLUMNS = "grid-cols-[8rem_auto_minmax(0,1fr)]";
 
 const STATUS_ICON = {
   pass: Check,
@@ -56,16 +59,24 @@ export function HarnessCheckPanel({ agent }: { agent: string }) {
         </p>
       </div>
       {error && <div className="pane-status error">{error}</div>}
+      {busy && (
+        <Card className="rows gap-0 py-0">
+          {Array.from({ length: 5 }, (_, i) => (
+            <div key={i} className={`row ${ROW_COLUMNS}`}>
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-14" />
+              <Skeleton className="h-3" style={{ width: `${35 + i * 9}%` }} />
+            </div>
+          ))}
+        </Card>
+      )}
       {report && (
         <Card className="gap-0 py-0">
           <div className="rows">
             {Object.entries(report.checks).map(([capability, entry]) => {
               const Icon = STATUS_ICON[entry.status];
               return (
-                <div
-                  key={capability}
-                  className="row grid-cols-[8rem_auto_minmax(0,1fr)]"
-                >
+                <div key={capability} className={`row ${ROW_COLUMNS}`}>
                   <span className="font-mono">{capability}</span>
                   <Badge variant={VARIANT[entry.status]}>
                     <Icon size={11} /> {entry.status}

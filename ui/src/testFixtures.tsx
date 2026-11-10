@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
 import { queryClient } from "./lib/query";
-import type { Me, WorkspaceInfo } from "./lib/types";
+import type { ExperimentInfo, Me, Report, WorkspaceInfo } from "./lib/types";
 import { MeContext } from "./shell/capabilities";
 import { WorkspaceGate } from "./shell/workspace";
 
@@ -15,6 +15,61 @@ export const devWorkspace: WorkspaceInfo = {
   archived: false,
   promotes_to: null,
   promoted_from: null,
+};
+
+export const experiment: ExperimentInfo = {
+  id: 12,
+  number: 3,
+  workspace: "dev",
+  dataset: "support@dev",
+  agent: "bot@dev",
+  agent_id: 7,
+  created_by: "akshat",
+  status: "completed",
+  status_error: null,
+  lease_holder: null,
+  lease_expires_at: null,
+  repetitions: 1,
+  config: {
+    model: null,
+    judge: {
+      provider: "openai",
+      model: "gpt-5",
+      reasoning_effort: "low",
+      max_tokens: 4096,
+    },
+    selection: { all: true },
+    revision: null,
+    snapshot: {
+      capabilities: {},
+      trajectory_source: "atif",
+      trajectory_wait_seconds: 30,
+      remote_evaluators: {},
+      code_evaluators: [],
+      evalkit_version: null,
+    },
+  },
+  started_at: "2026-11-01T10:00:00Z",
+  ended_at: "2026-11-01T10:05:00Z",
+  progress: { total: 1, ran: 1, evaluated: 1 },
+  case_states: { "refund-policy": "evaluated" },
+  can_change: true,
+  server_may_drive: true,
+  resumable: false,
+  pending_runs: false,
+};
+
+export const scorecard: Report = {
+  experiment_id: "12",
+  name: "#3",
+  dataset: "support@dev",
+  metadata: {},
+  cases: [],
+  evaluators: [],
+  buckets: {},
+  gauges: [],
+  evaluator_columns: [],
+  baseline_id: null,
 };
 
 export const failure = (detail: string) =>

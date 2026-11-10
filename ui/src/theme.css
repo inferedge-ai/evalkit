@@ -785,20 +785,6 @@ button {
   .pane-status.error {
     color: var(--color-err-text);
   }
-  /* Nothing selected yet is an invitation, not a dead end — centre it in the
-     pane it belongs to instead of stranding one line in the top corner. */
-  .pane-empty {
-    display: flex;
-    height: 100%;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 24px;
-    color: var(--color-ink-3);
-    font-size: var(--text-body);
-    text-align: center;
-  }
 
   .sev-fg-pass {
     color: var(--color-ok);

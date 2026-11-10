@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, CircleDashed, ListChecks } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
 import { answerText, fmtGauge, outputText, questionText } from "../lib/format";
@@ -28,9 +28,11 @@ import {
 import { RunTabs, TRAJECTORY_TABS } from "../runs/RunTabs";
 import { Select } from "../lib/Select";
 import { useFollowWorkspace } from "../shell/workspace";
+import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const TABS = [
   "case",
@@ -41,6 +43,76 @@ const TABS = [
   "timing",
 ] as const;
 type Tab = (typeof TABS)[number];
+
+const TAB_LABELS: Record<Tab, string> = {
+  case: "Case",
+  scores: "Scores",
+  trajectory: "Trajectory",
+  workspace: "Workspace",
+  cost: "Cost",
+  timing: "Timing",
+};
+
+const LOADING_TABS = TABS.map((id) => ({
+  id,
+  label: TAB_LABELS[id],
+  disabled: id !== "case" && id !== "scores",
+}));
+
+function RunSkeleton({
+  tab,
+  onSelect,
+}: {
+  tab: Tab;
+  onSelect: (tab: Tab) => void;
+}) {
+  return (
+    <>
+      <div className="toolbar mb-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-5 w-36 rounded-4xl" />
+        <Skeleton className="h-4 w-44" />
+        <Skeleton className="ml-auto h-4 w-32" />
+      </div>
+      <Skeleton className="mt-1 h-3 w-72 max-w-full" />
+      <div className="mt-3">
+        <Tabs<Tab> tabs={LOADING_TABS} active={tab} onSelect={onSelect} />
+      </div>
+      <div className="mt-3">
+        {tab === "case" && (
+          <>
+            <div className="grid gap-x-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+              <div className="min-w-0">
+                <div className="eyebrow">Question</div>
+                <Card>
+                  <CardContent className="flex flex-col gap-2">
+                    <Skeleton className="h-4 w-4/5" />
+                    <Skeleton className="h-4 w-2/5" />
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+            <div className="eyebrow">Answer</div>
+            <Card className="lg:py-6">
+              <CardContent className="flex flex-col gap-2 lg:px-8">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-11/12" />
+                <Skeleton className="h-4 w-3/5" />
+              </CardContent>
+            </Card>
+          </>
+        )}
+        {tab === "scores" && (
+          <>
+            <Skeleton className="mt-3 mb-1.5 h-4 w-24" />
+            <Skeleton className="mb-2 h-20 w-full rounded-xl" />
+            <Skeleton className="mb-2 h-20 w-full rounded-xl" />
+          </>
+        )}
+      </div>
+    </>
+  );
+}
 
 export function RunPage() {
   const { experimentId = "", exampleId: caseId = "" } = useParams();
@@ -55,12 +127,10 @@ export function RunPage() {
   const runs = runsQuery.data ?? null;
   // The case version PINNED to this experiment — a later case edit or
   // overlay sync must not change what this page shows beside old scores.
-  const example =
-    useApi<CaseView[]>(validId ? `${base}/cases` : null).data?.find(
-      (ex) => ex.case_id === caseId,
-    ) ?? null;
+  const casesQuery = useApi<CaseView[]>(validId ? `${base}/cases` : null);
+  const example = casesQuery.data?.find((ex) => ex.case_id === caseId) ?? null;
   const missing = isMissing(statusQuery.error) || isMissing(runsQuery.error);
-  const loadError = statusQuery.error ?? runsQuery.error;
+  const loadError = statusQuery.error ?? runsQuery.error ?? casesQuery.error;
   const error = loadError && !missing ? String(loadError) : null;
   const [repetition, setRepetition] = useState(1);
   const [params, setParams] = useSearchParams();
@@ -99,21 +169,50 @@ export function RunPage() {
         up={{ label: "All experiments", to: "/experiments" }}
       />
     );
-  if (error) return <div className="pane-status error">{error}</div>;
-  if (!runs) return <div className="pane-status">Loading run…</div>;
+  const header = (
+    <PageHeader
+      breadcrumbs={[
+        { label: "Experiments", to: "/experiments" },
+        {
+          label: status ? `${status.dataset} #${status.number}` : experimentId,
+          to: base,
+        },
+      ]}
+      title={<span className="font-mono">{caseId}</span>}
+    />
+  );
+  if (!runs || (runs.length === 0 && casesQuery.data === undefined))
+    return (
+      <>
+        {header}
+        <div className="page">
+          {error ? (
+            <div className="pane-status error">{error}</div>
+          ) : (
+            <RunSkeleton tab={tab} onSelect={setTab} />
+          )}
+        </div>
+      </>
+    );
   if (runs.length === 0 && example)
     return (
-      <div className="page">
-        <div className="pane-status">
-          This case has not run yet in experiment {experimentId}.{" "}
-          <Link
-            className="text-brand"
-            to={`/experiments/${encodeURIComponent(experimentId)}`}
-          >
-            Back to the experiment
-          </Link>
+      <>
+        {header}
+        <div className="page">
+          {error && <div className="pane-status error">{error}</div>}
+          <Card className="py-8">
+            <Empty
+              icon={CircleDashed}
+              title="This case has not run yet"
+              description={
+                <Link className="text-brand hover:underline" to={base}>
+                  Back to the experiment
+                </Link>
+              }
+            />
+          </Card>
         </div>
-      </div>
+      </>
     );
   if (runs.length === 0)
     return (
@@ -121,7 +220,7 @@ export function RunPage() {
         what={`run of ${caseId} in experiment ${experimentId}`}
         up={{
           label: `experiment ${experimentId}`,
-          to: `/experiments/${encodeURIComponent(experimentId)}`,
+          to: base,
         }}
       />
     );
@@ -145,28 +244,21 @@ export function RunPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader
-        breadcrumbs={[
-          { label: "Experiments", to: "/experiments" },
-          {
-            label: status
-              ? `${status.dataset} #${status.number}`
-              : experimentId,
-            to: `/experiments/${encodeURIComponent(experimentId)}`,
-          },
-        ]}
-        title={<span className="font-mono">{caseId}</span>}
-      />
+      {header}
       <div className="page flex min-h-0 flex-1 flex-col">
+        {error && <div className="pane-status error">{error}</div>}
         <div className="toolbar mb-2">
           {harnessRunId && (
-            <span className="row-meta font-mono" title="harness run id">
+            <span
+              className="row-meta flex min-w-0 font-mono"
+              title="harness run id"
+            >
               <CopyText value={harnessRunId} />
             </span>
           )}
           {tag && (
-            <Badge variant="secondary" title="agent · model">
-              {tag}
+            <Badge variant="secondary" className="min-w-0 shrink" title={tag}>
+              <span className="truncate">{tag}</span>
             </Badge>
           )}
           {badge && (
@@ -193,8 +285,8 @@ export function RunPage() {
           )}
           {status?.config.judge?.model && (
             <Link
-              className="row-meta ml-auto font-mono hover:underline"
-              to={`/experiments/${encodeURIComponent(experimentId)}#judge`}
+              className="row-meta ml-auto min-w-0 truncate font-mono hover:underline"
+              to={`${base}#judge`}
               title="one judge scores the whole experiment; its settings are on the experiment page"
             >
               judge {status.config.judge.model}
@@ -205,7 +297,7 @@ export function RunPage() {
               buttonVariants({ variant: "link" }),
               !status?.config.judge?.model && "ml-auto",
             )}
-            to={`/experiments/${encodeURIComponent(experimentId)}`}
+            to={base}
           >
             Experiment <ArrowUpRight size={12} />
           </Link>
@@ -236,11 +328,11 @@ export function RunPage() {
         <div className="mt-3">
           <Tabs<Tab>
             tabs={[
-              { id: "case", label: "Case" },
-              { id: "scores", label: "Scores" },
+              { id: "case", label: TAB_LABELS.case },
+              { id: "scores", label: TAB_LABELS.scores },
               {
                 id: "trajectory",
-                label: "Trajectory",
+                label: TAB_LABELS.trajectory,
                 disabled: !trajectoryAvailable(trajectoryStatus),
                 title: trajectoryAvailable(trajectoryStatus)
                   ? undefined
@@ -248,7 +340,7 @@ export function RunPage() {
               },
               {
                 id: "workspace",
-                label: "Workspace",
+                label: TAB_LABELS.workspace,
                 disabled: !agent || !workspaceRunId,
                 title: workspaceRunId
                   ? undefined
@@ -256,7 +348,7 @@ export function RunPage() {
               },
               {
                 id: "cost",
-                label: "Cost",
+                label: TAB_LABELS.cost,
                 disabled: !trajectoryAvailable(trajectoryStatus),
                 title: trajectoryAvailable(trajectoryStatus)
                   ? undefined
@@ -264,7 +356,7 @@ export function RunPage() {
               },
               {
                 id: "timing",
-                label: "Timing",
+                label: TAB_LABELS.timing,
                 disabled: !trajectoryAvailable(trajectoryStatus),
                 title: trajectoryAvailable(trajectoryStatus)
                   ? undefined
@@ -327,10 +419,22 @@ export function RunPage() {
               )}
             </div>
           ) : tab === "scores" ? (
-            <EvaluatorScores
-              evaluators={example?.effective_evaluators ?? {}}
-              scores={scores}
-            />
+            example &&
+            Object.keys(example.effective_evaluators).length === 0 &&
+            Object.keys(scores).length === 0 ? (
+              <Card className="py-8">
+                <Empty
+                  icon={ListChecks}
+                  title="No scores for this run"
+                  description="The case and its overlays set no evaluators for this agent."
+                />
+              </Card>
+            ) : (
+              <EvaluatorScores
+                evaluators={example?.effective_evaluators ?? {}}
+                scores={scores}
+              />
+            )
           ) : (
             <RunTabs
               tab={tab}

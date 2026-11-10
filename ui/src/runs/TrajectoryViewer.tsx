@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ArrowDown } from "lucide-react";
+import { ArrowDown, ListFilter } from "lucide-react";
 import { timingAnalysis } from "../lib/analysis";
 import { errorEntries, toModel } from "../lib/atif";
 import type {
@@ -14,6 +14,7 @@ import { Collapsible, Tabs } from "../lib/ui";
 import { Markdown, PreBlock } from "../evals/bits";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Empty } from "@/components/widgets/Empty";
 
 function clock(iso: string | null): string | null {
   if (!iso) return null;
@@ -371,9 +372,12 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
               </div>
             ))}
             {visible.length === 0 && (
-              <div className="pane-status">
-                Nothing to show with these filters.
-              </div>
+              <Empty
+                size="sm"
+                icon={ListFilter}
+                title="Nothing to show with these filters"
+                className="py-8"
+              />
             )}
           </div>
         </div>

@@ -12,14 +12,38 @@ export const TRAJECTORY_TABS: RunTab[] = ["trajectory", "cost", "timing"];
 
 function TrajectorySkeleton() {
   return (
-    <div className="space-y-2">
-      {Array.from({ length: 5 }, (_, i) => (
-        <Skeleton
-          key={i}
-          className="h-10"
-          style={{ width: `${100 - i * 7}%` }}
-        />
-      ))}
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      <Skeleton className="h-4 w-80 max-w-full" />
+      <div className="flex min-h-96 flex-1 overflow-hidden rounded-lg border border-line">
+        <div className="min-w-0 flex-1 space-y-2 p-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="flex gap-3">
+              <Skeleton className="h-8 w-14 shrink-0" />
+              <Skeleton className="h-20 flex-1" />
+            </div>
+          ))}
+        </div>
+        <div className="w-64 shrink-0 space-y-2 border-l border-line bg-surface p-2">
+          {Array.from({ length: 3 }, (_, i) => (
+            <Skeleton key={i} className="h-8" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalysisSkeleton() {
+  return (
+    <div className="max-w-[68rem]">
+      <Skeleton className="mb-1.5 h-3 w-20" />
+      <div className="tile-grid">
+        {Array.from({ length: 3 }, (_, i) => (
+          <Skeleton key={i} className="h-14" />
+        ))}
+      </div>
+      <Skeleton className="mt-4 mb-1.5 h-3 w-24" />
+      <Skeleton className="h-48 rounded-xl" />
     </div>
   );
 }
@@ -43,9 +67,20 @@ export function RunTabs({
   if (tab === "workspace")
     return agent && runId ? <WorkspaceTab agent={agent} runId={runId} /> : null;
   if (!TRAJECTORY_TABS.includes(tab as RunTab)) return null;
-  if (error) return <div className="pane-status error">{error}</div>;
-  if (!trajectory) return <TrajectorySkeleton />;
-  if (tab === "cost") return <CostView doc={trajectory} />;
-  if (tab === "timing") return <TimingView doc={trajectory} />;
-  return <TrajectoryViewer doc={trajectory} />;
+  if (!trajectory) {
+    if (error) return <div className="pane-status error">{error}</div>;
+    return tab === "trajectory" ? <TrajectorySkeleton /> : <AnalysisSkeleton />;
+  }
+  return (
+    <>
+      {error && <div className="pane-status error">{error}</div>}
+      {tab === "cost" ? (
+        <CostView doc={trajectory} />
+      ) : tab === "timing" ? (
+        <TimingView doc={trajectory} />
+      ) : (
+        <TrajectoryViewer doc={trajectory} />
+      )}
+    </>
+  );
 }

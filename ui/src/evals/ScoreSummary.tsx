@@ -7,6 +7,7 @@ import {
 } from "../lib/scoreSummary";
 import type { Report } from "../lib/types";
 import { InfoTip, ToArrow } from "../lib/ui";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const HEADLINE_GAUGES = [
   "gauge_agent_cost_usd",
@@ -138,6 +139,36 @@ export function CompareBucketCards({
         </div>
       ))}
     </div>
+  );
+}
+
+export function ScoresSkeleton() {
+  return (
+    <>
+      <div className="bucket-cards">
+        {Array.from({ length: 3 }, (_, i) => (
+          <div className="tile tile-hero" key={i}>
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-7 w-14" />
+            </div>
+            <div className="mt-2 flex flex-col gap-1.5">
+              {Array.from({ length: 3 }, (_, j) => (
+                <Skeleton
+                  className="h-3"
+                  key={j}
+                  style={{ width: `${55 + j * 15}%` }}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-4 w-48" />
+      </div>
+    </>
   );
 }
 
