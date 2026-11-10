@@ -291,6 +291,7 @@ button {
     font-weight: 600;
     color: var(--color-ink);
   }
+
   /* ── Controls ───────────────────────────────────────────────────────── */
 
   .select {
@@ -615,10 +616,6 @@ button {
     color: var(--color-ink-3);
     flex-shrink: 0;
   }
-  .badge-result {
-    background: var(--color-info-bg);
-    color: var(--color-brand);
-  }
   .badge-thinking {
     background: var(--color-warn-bg);
     color: var(--color-warn);
@@ -675,10 +672,6 @@ button {
   .tool-block {
     border-left: 2px solid color-mix(in srgb, var(--kind) 60%, transparent);
     border-radius: 6px;
-  }
-  .badge-sidechain {
-    background: var(--color-n-50);
-    color: var(--color-ink-3);
   }
 
   /* Closed rows read as one continuous stream; opening one lifts it into a
@@ -788,6 +781,7 @@ button {
   .heat-fail {
     background: color-mix(in srgb, var(--color-err) 16%, transparent);
   }
+
   .pane-status {
     padding: 20px;
     font-size: var(--text-body);
@@ -796,20 +790,6 @@ button {
   }
   .pane-status.error {
     color: var(--color-err-text);
-  }
-  /* Nothing selected yet is an invitation, not a dead end — centre it in the
-     pane it belongs to instead of stranding one line in the top corner. */
-  .pane-empty {
-    display: flex;
-    height: 100%;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    padding: 24px;
-    color: var(--color-ink-3);
-    font-size: var(--text-body);
-    text-align: center;
   }
 
   .sev-fg-pass {

@@ -4,6 +4,6 @@ import type { UiExtensions } from "../lib/extensions";
 export const extensions: UiExtensions = {
   routes: [],
   nav: [],
-  moreNav: [],
-  adminNav: [],
+  accountSettings: [],
+  organizationSettings: [],
 };
