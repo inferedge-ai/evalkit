@@ -22,7 +22,7 @@ import {
   readValue,
   useDataGrid,
 } from "../lib/DataGrid";
-import type { DataGridHandle, GridColumn } from "../lib/DataGrid";
+import type { GridColumn } from "../lib/DataGrid";
 import { fmtDelta, fmtGauge, fmtScore, severity } from "../lib/format";
 import { describeTerm } from "../lib/glossary";
 import { InfoTip } from "../lib/ui";
@@ -364,25 +364,9 @@ function buildMatrixColumns(
 
 const NO_ROWS: MatrixRow[] = [];
 const LOADING_COLUMNS = buildMatrixColumns([], NO_COLUMNS, false);
-const ignore = () => {};
-const UNSAVED_GRID: DataGridHandle<MatrixRow> = {
-  api: null,
-  filteredCount: null,
-  reset: ignore,
-  events: {
-    onGridReady: ignore,
-    onGridPreDestroyed: ignore,
-    onNewColumnsLoaded: ignore,
-    onSortChanged: ignore,
-    onColumnMoved: ignore,
-    onColumnVisible: ignore,
-    onColumnResized: ignore,
-    onColumnPinned: ignore,
-    onModelUpdated: ignore,
-  },
-};
 
 export function LoadingScoreMatrix() {
+  const grid = useDataGrid<MatrixRow>(null);
   return (
     <>
       <div className="toolbar mb-1">
@@ -392,7 +376,7 @@ export function LoadingScoreMatrix() {
       </div>
       <div className="mt-2">
         <DataGrid
-          grid={UNSAVED_GRID}
+          grid={grid}
           rows={NO_ROWS}
           columns={LOADING_COLUMNS}
           getRowId={getMatrixRowId}
