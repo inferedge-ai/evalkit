@@ -108,8 +108,9 @@ function getColumnIds<T>(api: GridApi<T>): string[] {
 }
 
 // One table's grid. Its column layout (order, hidden, sort, widths) is saved
-// under `tableId` and restored whenever the grid is given its columns.
-export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
+// under `tableId` and restored whenever the grid is given its columns. A
+// placeholder grid passes null and leaves every saved layout alone.
+export function useDataGrid<T>(tableId: string | null): DataGridHandle<T> {
   const [api, setApi] = useState<GridApi<T> | null>(null);
   // Re-renders the caller's column toggles when the layout changes.
   const [, setLayout] = useState("");
@@ -118,7 +119,8 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
   const restoredColumns = useRef("");
 
   return useMemo(() => {
-    const loadLayout = () => (saved.current ??= loadColumnState(tableId));
+    const loadLayout = () =>
+      (saved.current ??= tableId === null ? [] : loadColumnState(tableId));
     const trackLayout = (grid: GridApi<T>) =>
       setLayout(
         grid
@@ -146,7 +148,7 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
       finished?: boolean;
     }) => {
       trackLayout(grid);
-      if (finished === false) return;
+      if (tableId === null || finished === false) return;
       // New columns resize the others before they are restored; saving then
       // would store the grid's placement of them (last) over the default one.
       if (JSON.stringify(getColumnIds(grid)) !== restoredColumns.current)
@@ -163,7 +165,7 @@ export function useDataGrid<T>(tableId: string): DataGridHandle<T> {
       filteredCount,
       reset: () => {
         saved.current = [];
-        saveColumnState(tableId, []);
+        if (tableId !== null) saveColumnState(tableId, []);
         api?.resetColumnState();
       },
       events: {

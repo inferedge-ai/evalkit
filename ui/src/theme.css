@@ -812,9 +812,6 @@ button {
   .iv-partial {
     color: var(--color-warn);
   }
-  .iv-missing {
-    color: var(--color-err-text);
-  }
   /* Absent is a gap (never addressed) — warn; incorrect is a wrong answer — red. */
   .iv-absent {
     color: var(--color-warn);

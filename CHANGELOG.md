@@ -215,6 +215,39 @@
     load with placeholder rows.
   - The agent form's note about changing the trajectory source wraps
     instead of running past the dialog's edge.
+- The web UI's experiments, experiment, run and compare pages and the run
+  launcher are laid out on the design system:
+  - A workspace with no experiments shows an icon, a title and the command
+    to run instead of an empty table, or why you can't start one: the
+    workspace is archived, or you can't start experiments there (only the
+    owner can in a personal workspace, and admins, writers and reviewers in
+    a shared one). When the list fails to load, the page
+    shows the error alone instead of an empty table.
+  - An experiment's page keeps the shape of its scores and case table while
+    it loads; the case table shows the grid's own loading state and leaves
+    the table's saved column layout alone. It says when the experiment
+    pinned no cases, and shows the error when its cases fail to load instead
+    of an empty case table. A running experiment retries a failed case list
+    every 3 seconds, as it polls its scores.
+  - A run's page and the compare page keep their header and breadcrumbs
+    while they load and when they fail to load, and keep their content on
+    screen when a refresh fails. A run's page shows its tabs while it loads,
+    with the open tab selected.
+  - A case that has not run yet says so under its run page's header, with a
+    link back to the experiment. Before, it could show "Not found" while the
+    experiment's cases were loading or after they failed to load; a failed
+    case list now shows its error, also beside a run that has loaded, and
+    above "This case has not run yet" when a refresh fails.
+  - A run whose case sets no evaluators for the agent, even through
+    overlays, says so on its Scores tab.
+  - The compare page opened without two experiments says how to pick them.
+  - On a phone, long agent, model, judge and case-selection chips on an
+    experiment's and a run's page end in an ellipsis instead of running off
+    the screen.
+  - The run launcher's case picker shows placeholder rows while the cases
+    load, says when the dataset has no cases or its filter matches none, and
+    stops showing placeholders and "Loading cases…" when the cases fail to
+    load.
 
 ## 0.4.0
 

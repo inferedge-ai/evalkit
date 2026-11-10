@@ -1,4 +1,5 @@
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { ReactNode } from "react";
@@ -359,6 +360,31 @@ function buildMatrixColumns(
       ),
     })),
   ];
+}
+
+const NO_ROWS: MatrixRow[] = [];
+const LOADING_COLUMNS = buildMatrixColumns([], NO_COLUMNS, false);
+
+export function LoadingScoreMatrix() {
+  const grid = useDataGrid<MatrixRow>(null);
+  return (
+    <>
+      <div className="toolbar mb-1">
+        <Skeleton className="h-8 w-36" />
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="ml-auto h-8 w-24" />
+      </div>
+      <div className="mt-2">
+        <DataGrid
+          grid={grid}
+          rows={NO_ROWS}
+          columns={LOADING_COLUMNS}
+          getRowId={getMatrixRowId}
+          loading
+        />
+      </div>
+    </>
+  );
 }
 
 export function ScoreMatrix({

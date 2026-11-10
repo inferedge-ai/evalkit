@@ -4,7 +4,13 @@ import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import type { CaseView } from "../lib/types";
-import { closePage, member, renderPage, stubServer } from "../testFixtures";
+import {
+  closePage,
+  failure,
+  member,
+  renderPage,
+  stubServer,
+} from "../testFixtures";
 import { CasePage } from "./CasePage";
 
 const revenue: CaseView = {
@@ -30,8 +36,6 @@ const revenue: CaseView = {
 afterEach(closePage);
 
 const CASE_URL = "/api/datasets/acme%40dev/cases/acme-revenue";
-
-const failure = (detail: string) => Response.json({ detail }, { status: 500 });
 
 function serveCase(
   route: (url: string) => Promise<Response> | Response | undefined = () =>

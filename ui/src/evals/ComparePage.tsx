@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, GitCompareArrows } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
 import { progressLabel } from "../lib/experimentStatus";
@@ -21,11 +21,17 @@ import {
 } from "../lib/scoreSummary";
 import type { ExperimentInfo, Report } from "../lib/types";
 import { ScoreMatrix } from "./ScoreMatrix";
-import { CompareBucketCards, CostSpeedLine } from "./ScoreSummary";
+import {
+  CompareBucketCards,
+  CostSpeedLine,
+  ScoresSkeleton,
+} from "./ScoreSummary";
+import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CompareResponse {
   base: Report;
@@ -34,6 +40,41 @@ interface CompareResponse {
 
 const deltaTone = (d: number | null) =>
   d && d > 0 ? "text-ok" : d && d < 0 ? "text-err-text" : "text-ink-4";
+
+const CASE_ROW = "row w-full grid-cols-[minmax(0,1fr)_auto_auto_auto_7rem]";
+
+function CompareSkeleton() {
+  return (
+    <>
+      <div className="toolbar mb-3">
+        <Skeleton className="h-5 w-48 rounded-4xl" />
+        <Skeleton className="h-5 w-40 rounded-4xl" />
+      </div>
+      <div className="eyebrow">Scores</div>
+      <ScoresSkeleton />
+      <div className="eyebrow">Cases</div>
+      <div className="toolbar mb-1">
+        <Skeleton className="h-5 w-24 rounded-4xl" />
+        <Skeleton className="h-5 w-20 rounded-4xl" />
+        <span className="ml-auto flex gap-1">
+          <Skeleton className="h-7 w-12" />
+          <Skeleton className="h-7 w-28" />
+        </span>
+      </div>
+      <Card className="rows gap-0 py-0">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className={CASE_ROW}>
+            <Skeleton className="h-4" style={{ width: `${30 + i * 8}%` }} />
+            <Skeleton className="h-3 w-8" />
+            <Skeleton className="h-3 w-8" />
+            <Skeleton className="h-3 w-8" />
+            <Skeleton className="h-4 w-16 justify-self-end" />
+          </div>
+        ))}
+      </Card>
+    </>
+  );
+}
 
 function CaseDetail({
   row,
@@ -148,14 +189,40 @@ export function ComparePage() {
       />
     );
 
+  const header = (
+    <PageHeader
+      breadcrumbs={[{ label: "Experiments", to: "/experiments" }]}
+      title="Compare"
+    />
+  );
   if (!base || !compare)
     return (
-      <div className="pane-status">
-        Pick two experiments to compare: /experiments/compare?base=…&compare=…
-      </div>
+      <>
+        {header}
+        <div className="page">
+          <Card className="py-8">
+            <Empty
+              icon={GitCompareArrows}
+              title="Pick two experiments to compare"
+              description="On an experiment's page, pick another experiment on its dataset under Compare with."
+            />
+          </Card>
+        </div>
+      </>
     );
-  if (error) return <div className="pane-status error">{error}</div>;
-  if (!data) return <div className="pane-status">Loading comparison…</div>;
+  if (!data)
+    return (
+      <>
+        {header}
+        <div className="page">
+          {error ? (
+            <div className="pane-status error">{error}</div>
+          ) : (
+            <CompareSkeleton />
+          )}
+        </div>
+      </>
+    );
 
   const rows = compareRows(data.base, data.compare);
   const counts = new Map<CaseChange, number>();
@@ -171,11 +238,9 @@ export function ComparePage() {
 
   return (
     <>
-      <PageHeader
-        breadcrumbs={[{ label: "Experiments", to: "/experiments" }]}
-        title="Compare"
-      />
+      {header}
       <div className="page">
+        {error && <div className="pane-status error">{error}</div>}
         <div className="toolbar mb-3">
           <Link
             className={cn(badgeVariants({ variant: "secondary" }), "font-mono")}
@@ -258,7 +323,7 @@ export function ComparePage() {
                 <div key={r.case_id}>
                   <button
                     type="button"
-                    className="row w-full grid-cols-[minmax(0,1fr)_auto_auto_auto_7rem] text-left hover:bg-fill"
+                    className={cn(CASE_ROW, "text-left hover:bg-fill")}
                     onClick={() => toggle(r.case_id)}
                     aria-expanded={open.has(r.case_id)}
                   >
