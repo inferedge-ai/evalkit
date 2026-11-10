@@ -1,11 +1,13 @@
 import { useMemo } from "react";
 import type { CSSProperties } from "react";
+import { Clock } from "lucide-react";
 import { timingAnalysis } from "../lib/analysis";
 import type { TimingRow } from "../lib/analysis";
 import { toModel } from "../lib/atif";
 import { formatMs } from "../lib/format";
 import type { AtifTrajectory } from "../lib/types";
 import { Card } from "@/components/ui/card";
+import { Empty } from "@/components/widgets/Empty";
 
 function StepCells({ row, max }: { row: TimingRow; max: number }) {
   return (
@@ -37,28 +39,30 @@ function StepTable({ title, rows }: { title: string; rows: TimingRow[] }) {
   if (rows.length === 0) return null;
   const max = Math.max(...rows.map((r) => r.duration_ms ?? 0), 0);
   return (
-    <section>
+    <section className="mt-4">
       <div className="eyebrow">{title}</div>
       <Card className="gap-0 py-0">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th className="col-num">step</th>
-              <th>agent</th>
-              <th>source</th>
-              <th>tools</th>
-              <th className="col-num">start</th>
-              <th className="col-num">duration</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={`${r.agent}-${r.step}`}>
-                <StepCells row={r} max={max} />
+        <div className="overflow-x-auto">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th className="col-num">step</th>
+                <th>agent</th>
+                <th>source</th>
+                <th>tools</th>
+                <th className="col-num">start</th>
+                <th className="col-num">duration</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={`${r.agent}-${r.step}`}>
+                  <StepCells row={r} max={max} />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
     </section>
   );
@@ -69,10 +73,13 @@ export function TimingView({ doc }: { doc: AtifTrajectory }) {
 
   if (timing.timed_steps === 0) {
     return (
-      <div className="pane-status">
-        No step timestamps in this trajectory — timing needs at least two
-        timestamped steps.
-      </div>
+      <Card className="py-8">
+        <Empty
+          icon={Clock}
+          title="No step timestamps in this trajectory"
+          description="Timing needs at least two timestamped steps."
+        />
+      </Card>
     );
   }
 

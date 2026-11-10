@@ -1,7 +1,13 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Download } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Download,
+  FileText,
+  FolderOpen,
+} from "lucide-react";
 import { Editor } from "../lib/Editor";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -13,6 +19,8 @@ import type { FileEntry } from "../lib/types";
 import { CopyButton } from "../lib/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Empty } from "@/components/widgets/Empty";
 
 interface FileNode {
   name: string;
@@ -379,7 +387,15 @@ function FileViewer({ base, node }: { base: string; node: FileNode }) {
             )
           ))}
         {showSource && !tooLarge && text === null && !error && (
-          <div className="pane-status">Loading…</div>
+          <div className="space-y-1.5 p-3">
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton
+                key={i}
+                className="h-3.5"
+                style={{ width: `${30 + ((i * 17) % 50)}%` }}
+              />
+            ))}
+          </div>
         )}
         {showSource && text !== null && (
           <Editor
@@ -403,6 +419,8 @@ function FileViewer({ base, node }: { base: string; node: FileNode }) {
   );
 }
 
+const WORKSPACE_FRAME =
+  "flex h-[calc(100dvh-16rem)] min-h-96 overflow-hidden rounded-lg border border-line";
 const TREE_WIDTH_KEY = "evalkit.workspace.treeWidth";
 const MIN_TREE_WIDTH = 180;
 const MAX_TREE_SHARE = 0.6;
@@ -446,114 +464,125 @@ export function WorkspaceTab({
 
   const tree = useMemo(() => buildTree(files ?? []), [files]);
 
-  if (error) return <div className="pane-status error">{error}</div>;
+  if (!files && error) return <div className="pane-status error">{error}</div>;
   if (!files)
     return (
-      <div className="space-y-1.5 p-2">
-        {Array.from({ length: 8 }, (_, i) => (
-          <Skeleton
-            key={i}
-            className="h-4"
-            style={{ width: `${20 + i * 7}%` }}
-          />
-        ))}
+      <div className={WORKSPACE_FRAME}>
+        <div
+          className="flex shrink-0 flex-col gap-2 border-r border-line bg-surface p-2"
+          style={{ width: treeWidth }}
+        >
+          <Skeleton className="h-7" />
+          {Array.from({ length: 8 }, (_, i) => (
+            <Skeleton
+              key={i}
+              className="h-4"
+              style={{ width: `${40 + ((i * 13) % 50)}%` }}
+            />
+          ))}
+        </div>
+        <div className="min-w-0 flex-1 bg-surface" />
       </div>
     );
   if (files.length === 0)
-    return <div className="pane-status">Workspace is empty.</div>;
+    return (
+      <Card className="py-8">
+        <Empty icon={FolderOpen} title="No files in this run's workspace" />
+      </Card>
+    );
 
   const needle = filter.trim().toLowerCase();
   const visible = filterTree(tree, needle);
 
   return (
-    <div
-      ref={containerRef}
-      className="flex h-[calc(100dvh-16rem)] min-h-96 overflow-hidden rounded-lg border border-line"
-    >
-      <div
-        className="flex shrink-0 flex-col border-r border-line bg-surface"
-        style={{ width: treeWidth }}
-      >
-        <div className="flex items-center gap-2 border-b border-line-soft p-2">
-          <Input
-            className="min-w-0 flex-1 h-7"
-            placeholder="Filter files"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="shrink-0"
-            title="download the whole workspace as zip"
-            onClick={() =>
-              downloadFile(`${base}/zip`).catch((e) =>
-                setDownloadError(describeDownloadError(e)),
-              )
-            }
-          >
-            <Download size={11} /> zip all
-          </Button>
-        </div>
-        {downloadError && (
-          <div
-            className="pane-status error cursor-pointer"
-            title="dismiss"
-            onClick={() => setDownloadError(null)}
-          >
-            {downloadError}
-          </div>
-        )}
-        <div className="min-h-0 flex-1 overflow-auto py-1">
-          {visible.map((node) => (
-            <TreeNode
-              key={node.path}
-              base={base}
-              node={node}
-              depth={0}
-              selected={selected?.path ?? null}
-              onSelect={setSelected}
-              onError={setDownloadError}
-              forceOpen={!!needle}
+    <>
+      {error && <div className="pane-status error">{error}</div>}
+      <div ref={containerRef} className={WORKSPACE_FRAME}>
+        <div
+          className="flex shrink-0 flex-col border-r border-line bg-surface"
+          style={{ width: treeWidth }}
+        >
+          <div className="flex items-center gap-2 border-b border-line-soft p-2">
+            <Input
+              className="min-w-0 flex-1 h-7"
+              placeholder="Filter files"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
             />
-          ))}
-          {needle && visible.length === 0 && (
-            <div className="px-3 py-2 text-meta text-ink-3">
-              No files match.
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              title="download the whole workspace as zip"
+              onClick={() =>
+                downloadFile(`${base}/zip`).catch((e) =>
+                  setDownloadError(describeDownloadError(e)),
+                )
+              }
+            >
+              <Download size={11} /> zip all
+            </Button>
+          </div>
+          {downloadError && (
+            <div
+              className="pane-status error cursor-pointer"
+              title="dismiss"
+              onClick={() => setDownloadError(null)}
+            >
+              {downloadError}
             </div>
+          )}
+          <div className="min-h-0 flex-1 overflow-auto py-1">
+            {visible.map((node) => (
+              <TreeNode
+                key={node.path}
+                base={base}
+                node={node}
+                depth={0}
+                selected={selected?.path ?? null}
+                onSelect={setSelected}
+                onError={setDownloadError}
+                forceOpen={!!needle}
+              />
+            ))}
+            {needle && visible.length === 0 && (
+              <div className="px-3 py-2 text-meta text-ink-3">
+                No files match.
+              </div>
+            )}
+          </div>
+        </div>
+        <div
+          className="w-1.5 shrink-0 cursor-col-resize touch-none bg-surface transition-colors hover:bg-brand-ring"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="resize file tree"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={dragTree}
+          onPointerUp={(e) => {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+            setTreeWidth((w) => {
+              localStorage.setItem(TREE_WIDTH_KEY, String(Math.round(w)));
+              return w;
+            });
+          }}
+        />
+        <div className="min-w-0 flex-1 bg-surface">
+          {selected ? (
+            <FileViewer key={selected.path} base={base} node={selected} />
+          ) : (
+            <Empty
+              icon={FileText}
+              title="Pick a file from the tree to view it"
+              description="Markdown, HTML, SVG and images render inline."
+              className="h-full p-6"
+            />
           )}
         </div>
       </div>
-      <div
-        className="w-1.5 shrink-0 cursor-col-resize touch-none bg-surface transition-colors hover:bg-brand-ring"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="resize file tree"
-        onPointerDown={(e) => {
-          e.preventDefault();
-          e.currentTarget.setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={dragTree}
-        onPointerUp={(e) => {
-          e.currentTarget.releasePointerCapture(e.pointerId);
-          setTreeWidth((w) => {
-            localStorage.setItem(TREE_WIDTH_KEY, String(Math.round(w)));
-            return w;
-          });
-        }}
-      />
-      <div className="min-w-0 flex-1 bg-surface">
-        {selected ? (
-          <FileViewer key={selected.path} base={base} node={selected} />
-        ) : (
-          <div className="pane-empty">
-            <div>Pick a file from the tree to view it.</div>
-            <div className="text-micro text-ink-4">
-              Markdown, HTML, SVG and images render inline.
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    </>
   );
 }

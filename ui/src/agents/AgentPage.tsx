@@ -30,7 +30,7 @@ import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function Overview({ agent }: { agent: AgentInfo }) {
   const repoHref = httpUrl(agent.repo_url);
@@ -90,6 +90,22 @@ function Overview({ agent }: { agent: AgentInfo }) {
         </>
       )}
     </dl>
+  );
+}
+
+function AgentSkeleton() {
+  return (
+    <div className="flex flex-col gap-4">
+      <Skeleton className="h-8 w-56" />
+      <div className="grid max-w-3xl grid-cols-[max-content_1fr] gap-x-4 gap-y-2">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Fragment key={i}>
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4" style={{ width: `${30 + i * 8}%` }} />
+          </Fragment>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -185,6 +201,7 @@ function AgentView() {
             <CopyText value={slug} />
           </span>
         }
+        description={agent ? agentKind(agent) : undefined}
         actions={
           <>
             {writable && !agent.archived && (
@@ -220,10 +237,8 @@ function AgentView() {
         }
       />
       <div className="page">
-        <div className="toolbar mb-2">
-          {agent && <Badge variant="secondary">{agentKind(agent)}</Badge>}
-        </div>
         {error && <div className="pane-status error">{error}</div>}
+        {!agent && !error && <AgentSkeleton />}
         {agent && (
           <>
             <Tabs<AgentTab>

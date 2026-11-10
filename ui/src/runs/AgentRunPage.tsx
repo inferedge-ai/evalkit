@@ -12,7 +12,7 @@ import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function AgentRunPage() {
   const { agent = "", runId = "" } = useParams();
@@ -46,6 +46,13 @@ export function AgentRunPage() {
             {title || <CopyText value={runId} />}
           </span>
         }
+        actions={
+          caseLink && (
+            <Link className={buttonVariants({ variant: "link" })} to={caseLink}>
+              Experiment run <ArrowUpRight size={12} />
+            </Link>
+          )
+        }
       />
       <div className="page flex min-h-0 flex-1 flex-col">
         <div className="toolbar mb-2">
@@ -61,23 +68,7 @@ export function AgentRunPage() {
               doneTitle="first to last step start; the last step's own time is not recorded"
             />
           )}
-          {caseLink && (
-            <Link
-              className={cn(buttonVariants({ variant: "link" }), "ml-auto")}
-              to={caseLink}
-            >
-              Experiment run <ArrowUpRight size={12} />
-            </Link>
-          )}
-          <Link
-            className={cn(
-              buttonVariants({ variant: "link" }),
-              !caseLink && "ml-auto",
-            )}
-            to={`/runs?agent=${agent}`}
-          >
-            Runs <ArrowUpRight size={12} />
-          </Link>
+          {!title && !trajectory && !error && <Skeleton className="h-4 w-64" />}
         </div>
         <Tabs<RunTab>
           tabs={[

@@ -182,6 +182,39 @@
     evalkit drops a page whose name isn't, is one it uses itself
     (`workspace`, `users`, `trace-sources` and `llm-providers`), or is
     already taken by an earlier page in either list, `accountSettings` first.
+- The web UI's runs and agents pages are laid out on the design system:
+  - Runs: a workspace without active agents says so and links to the Agents
+    page instead of showing empty filters. The table shows its loading state
+    while the agents load, says "No runs yet." when the agent has none ("No
+    runs match." only under a filter), and stays on screen with the error
+    above it when a refresh fails. An agent list that fails to load no
+    longer blames the harness's run listing.
+  - A run's page: "Experiment run" moves into the page header, and the
+    "Runs" link, which led where the agent breadcrumb does, is gone. Its
+    tabs load with placeholders shaped like them and keep their content,
+    with the error above it, when a refresh fails. A trajectory without step
+    times, an empty workspace, a trajectory filtered to nothing and the file
+    viewer before a file is picked show an icon and a title. The timing and
+    cost tables scroll sideways on a phone.
+  - Agents list: the agent count sits in the page header, and an empty
+    workspace says how to add an agent, or why you can't: it is archived,
+    or read-only for you. When the workspace has agents but you can't add
+    one, that reason sits where the New agent button would be.
+  - An agent's page: how evalkit reaches the agent and where its
+    trajectories come from sits under its name in the page header. Without a
+    mapping, the Mappings tab says how to push one
+    (`evalkit traces mapping push`) and hides the empty rules table; without
+    sessions, it says there is nothing to preview. Without a trace source,
+    the Import tab says how an admin adds one
+    (`evalkit trace-sources create`), and no longer says so while the
+    sources are still loading or when they fail to load. An import's row
+    wraps on a phone. On both tabs, each list that fails to load (trace
+    sources, range imports, mapping versions, sessions, each preview) shows
+    its error in its own section instead of loading forever.
+  - The agents list, an agent's page, its tabs and a running harness check
+    load with placeholder rows.
+  - The agent form's note about changing the trajectory source wraps
+    instead of running past the dialog's edge.
 
 ## 0.4.0
 
