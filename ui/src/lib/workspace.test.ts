@@ -68,8 +68,8 @@ describe("sectionRoot", () => {
     expect(sectionRoot("/agents")).toBe("/agents");
   });
 
-  it("keeps the settings tab and ignores unscoped pages", () => {
-    expect(sectionRoot("/workspace/members")).toBe("/workspace/members");
+  it("leaves Settings and unscoped pages where they are", () => {
+    expect(sectionRoot("/settings/workspace/members")).toBe(null);
     expect(sectionRoot("/docs/install")).toBe(null);
     expect(sectionRoot("/")).toBe(null);
   });

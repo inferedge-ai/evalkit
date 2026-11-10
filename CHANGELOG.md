@@ -98,9 +98,8 @@
   its title, the pages above it as links, and its main actions. The ⌘K search
   opens in a shadcn dialog. Signed-out pages (sign-in, docs) keep a top bar
   with the wordmark, Docs, the theme switch and Sign in. For a package
-  extending the UI, a `NavItem` takes an optional lucide `icon`; `nav` items
-  get a sidebar section of their own after Observe, `moreNav` items join
-  Workspace and `adminNav` items join Admin, and all of them stay in ⌘K.
+  extending the UI, a `NavItem` takes an optional lucide `icon`, and `nav`
+  items get a sidebar section of their own after Observe and stay in ⌘K.
 - The web UI draws its buttons, badges, inputs, cards, tabs, form fields,
   checkboxes and loading placeholders with the shadcn components, and
   evalkit's own CSS classes for them are removed: `btn` and its variants,
@@ -158,6 +157,31 @@
   - For a package extending the UI, `PageHeader` takes an optional
     `description` line, and `Empty` (`@/components/widgets/Empty`) draws an
     empty state.
+- The web UI's settings move into one Settings area, opened from Settings in
+  the account menu, with its own sidebar in place of the main one:
+  - Workspace › ‹@workspace› is the current workspace's settings, at
+    `/settings/workspace/evaluators` and `/members` (was `/workspace/...`).
+    The workspace switcher stays at the top of the Settings sidebar.
+  - Organization, for admins: Users (`/settings/users`, was `/users`), Trace
+    sources (`/settings/trace-sources`, was `/admin/trace-sources`) and LLM
+    providers (`/settings/llm-providers`, was `/admin/llm-providers`).
+  - `/settings` opens the first page the person can see. The old paths
+    redirect to the new ones. Back to evalkit, at the top of the Settings
+    sidebar, returns to the page Settings was opened from.
+  - The main sidebar no longer has Workspace and Admin sections. Settings
+    pages the person can see are in ⌘K search, as "Settings › Organization ›
+    LLM providers".
+  - Members who open Trace sources see the list without the add form and
+    archive buttons, which only admins can use; LLM providers already worked
+    this way.
+  - For a package extending the UI, `UiExtensions` drops `moreNav` and
+    `adminNav` and gains `accountSettings` (everyone) and
+    `organizationSettings` (admins): pages rendered at `/settings/<name>`
+    inside the Settings area. A package that set `moreNav` or `adminNav` must
+    move those pages. A page's name is lowercase letters, digits and dashes;
+    evalkit drops a page whose name isn't, is one it uses itself
+    (`workspace`, `users`, `trace-sources` and `llm-providers`), or is
+    already taken by an earlier page in either list, `accountSettings` first.
 
 ## 0.4.0
 

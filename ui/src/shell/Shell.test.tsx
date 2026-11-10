@@ -18,8 +18,8 @@ vi.mock("../extensions", () => ({
   extensions: {
     routes: [],
     nav: [{ to: "/billing", label: "Billing" }],
-    moreNav: [{ to: "/usage", label: "Usage" }],
-    adminNav: [{ to: "/tenants", label: "Tenants" }],
+    accountSettings: [],
+    organizationSettings: [],
   },
 }));
 
@@ -109,7 +109,7 @@ function section(name: string) {
   return screen.getByRole("group", { name });
 }
 
-test("the sidebar groups evalkit's pages and puts extension items in their sections", async () => {
+test("the sidebar groups evalkit's pages and puts a wrapper's items after them", async () => {
   renderApp(admin, "/datasets");
   await screen.findByText("Datasets page");
 
@@ -123,37 +123,11 @@ test("the sidebar groups evalkit's pages and puts extension items in their secti
       .getAllByRole("link")
       .map((a) => a.textContent),
   ).toEqual(["Runs", "Agents"]);
-  expect(
-    within(section("Workspace"))
-      .getAllByRole("link")
-      .map((a) => a.textContent),
-  ).toEqual(["Settings", "Usage"]);
-  expect(
-    within(section("Admin"))
-      .getAllByRole("link")
-      .map((a) => a.textContent),
-  ).toEqual(["Users", "Trace sources", "LLM providers", "Tenants"]);
 
   const groups = screen.getAllByRole("group");
   const billing = screen.getByRole("link", { name: "Billing" });
-  const at = groups.findIndex((g) => g.contains(billing));
-  expect(groups[at - 1]).toBe(section("Observe"));
-  expect(groups[at + 1]).toBe(section("Workspace"));
-});
-
-test("only admins see the Admin section", async () => {
-  const { unmount } = renderApp(member, "/datasets");
-  await screen.findByText("Datasets page");
-  expect(screen.queryByRole("group", { name: "Admin" })).toBeNull();
-  expect(screen.queryByRole("link", { name: "Users" })).toBeNull();
-  expect(screen.queryByRole("link", { name: "Tenants" })).toBeNull();
-  unmount();
-
-  renderApp(admin, "/datasets");
-  await screen.findByText("Datasets page");
-  expect(
-    within(section("Admin")).getByRole("link", { name: "Users" }),
-  ).toBeInTheDocument();
+  expect(groups.at(-1)?.contains(billing)).toBe(true);
+  expect(groups.at(-2)).toBe(section("Observe"));
 });
 
 test("⌘K finds an extension page and opens it", async () => {
