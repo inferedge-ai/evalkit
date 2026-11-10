@@ -248,6 +248,38 @@
     load, says when the dataset has no cases or its filter matches none, and
     stops showing placeholders and "Loading cases…" when the cases fail to
     load.
+- The web UI's settings, docs, sign-in and not-found pages are laid out on
+  the design system:
+  - Workspace settings: the page header says whether the workspace is shared
+    or personal, archived, and where it promotes to or from. An admin's
+    "Promotes to" picker sits above the tabs, and the "Create workspace"
+    form moves below them, under "New shared workspace", since it makes
+    another workspace; a name it refuses shows its error under that form.
+    Without remote evaluators, the Evaluators tab says how
+    to add one (`evalkit evaluators create`), or why you can't: the
+    workspace is archived or read-only for you. A workspace without members,
+    or a personal one, says so on the Members tab.
+  - Users, Trace sources and LLM providers: the page's description sits
+    under its title in the page header, and wraps on a phone instead of
+    running off the screen. LLM providers splits into Default judge and
+    Providers sections. Without trace sources or LLM providers, the page
+    says how to add one (`evalkit trace-sources create`,
+    `evalkit llm-providers create`), or that an admin does. A user list that
+    fails to load shows the error instead of placeholder rows.
+  - The add forms on Users, Trace sources and the Members tab put each field
+    on its own line on a phone. Lists show placeholder rows while they load.
+  - Docs: on a phone the page list folds under a button naming the current
+    page, above the page, and folds again after you pick one; wide tables
+    scroll sideways inside their own box.
+  - Markdown everywhere in the UI (docs, case questions, run answers, agent
+    messages in trajectories and workspace file previews) takes the design
+    system's colours for code blocks, inline code, tables and quotes.
+  - Sign-in: the sign-in card is 384px wide (was 336px) with labelled
+    fields that password managers fill, and a failed provider sign-in
+    (`/login/callback`) shows the same header bar as `/login`.
+  - A missing page shows an icon, what is missing and a button back.
+- A failed API request whose response carries no error message, such as a
+  proxy's 502 page, shows `HTTP <status>` instead of an empty error.
 
 ## 0.4.0
 

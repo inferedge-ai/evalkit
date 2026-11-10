@@ -1,8 +1,12 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { ArrowLeft, X } from "lucide-react";
+import { Gauge, Users, X } from "lucide-react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { canManageMembers, canWrite, groupMembers } from "../lib/access";
+import {
+  canManageMembers,
+  getReadOnlyReason,
+  groupMembers,
+} from "../lib/access";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { PERSONAL_KEY_NOTE } from "../lib/endpoint";
@@ -15,15 +19,17 @@ import type {
   WorkspaceInfo,
   WorkspaceRole,
 } from "../lib/types";
-import { Tabs, ToArrow } from "../lib/ui";
+import { Tabs } from "../lib/ui";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { BuiltinEvaluatorsNote } from "./BuiltinEvaluatorsNote";
+import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type WorkspaceTab = "evaluators" | "members";
 const TABS: { id: WorkspaceTab; label: string }[] = [
@@ -31,21 +37,45 @@ const TABS: { id: WorkspaceTab; label: string }[] = [
   { id: "members", label: "Members" },
 ];
 
+const EVALUATOR_COLUMNS =
+  "grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,2fr)_auto_auto]";
+const MEMBER_COLUMNS = "grid-cols-[minmax(0,1fr)_auto]";
+
 function isTab(value: string | undefined): value is WorkspaceTab {
   return TABS.some((t) => t.id === value);
 }
 
-function EvaluatorsTab({
-  ws,
-  writable,
-}: {
-  ws: WorkspaceInfo;
-  writable: boolean;
-}) {
+function describeWorkspace(ws: WorkspaceInfo): string {
+  return [
+    ws.type === "shared" ? "Shared workspace" : "Personal workspace",
+    ws.archived && "archived",
+    ws.promotes_to && `promotes to @${ws.promotes_to}`,
+    ws.promoted_from && `promoted from @${ws.promoted_from}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function SkeletonRows({ columns }: { columns: string }) {
+  return (
+    <Card className="rows gap-0 py-0">
+      {Array.from({ length: 3 }, (_, i) => (
+        <div key={i} className={`row ${columns}`}>
+          <Skeleton className="h-4" style={{ width: `${35 + i * 12}%` }} />
+          <Skeleton className="h-4 w-14" />
+          <Skeleton className="h-3 w-40 max-w-full" />
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+function EvaluatorsTab({ ws }: { ws: WorkspaceInfo }) {
+  const me = useMe();
   const listed = useApi<RemoteEvaluatorInfo[]>(
     `/evaluators?workspace=${encodeURIComponent(ws.name)}&include_archived=true`,
   );
-  const rows = listed.data ?? null;
+  const rows = listed.data;
   const [actionError, setActionError] = useState<string | null>(null);
   const error = actionError ?? listed.error?.message ?? null;
   const [editing, setEditing] = useState<RemoteEvaluatorInfo | "new" | null>(
@@ -65,81 +95,92 @@ function EvaluatorsTab({
     }
   };
 
-  const canEdit = writable && !ws.archived;
+  const readOnlyReason = getReadOnlyReason(me, ws);
+  const canEdit = readOnlyReason === null;
   return (
     <>
-      <div className="toolbar mb-2">
-        <p className="row-meta whitespace-normal">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <p className="max-w-3xl text-xs text-muted-foreground">
           Runs of this workspace's agents are scored with these evaluators.{" "}
           {ws.type === "shared"
             ? "Their API keys are stored encrypted on the server and never shown again."
             : PERSONAL_KEY_NOTE}
         </p>
         {canEdit && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="ml-auto"
-            onClick={() => setEditing("new")}
-          >
+          <Button variant="outline" size="sm" onClick={() => setEditing("new")}>
             New evaluator
           </Button>
         )}
       </div>
       <BuiltinEvaluatorsNote />
       {error && <div className="pane-status error">{error}</div>}
-      <Card className="rows gap-0 py-0">
-        {rows?.map((row) => (
-          <div
-            key={row.ref}
-            className="row grid-cols-[minmax(0,1fr)_auto_auto_minmax(0,2fr)_auto_auto]"
-          >
-            <span className="row-strong">{row.name}</span>
-            <Badge variant="secondary">{row.kind}</Badge>
-            {row.archived || ws.type === "shared" ? (
-              <Badge variant="secondary">
-                {row.archived
-                  ? "archived"
-                  : row.has_api_key
-                    ? "key set"
-                    : "no key"}
-              </Badge>
-            ) : (
-              <span />
-            )}
-            <span className="row-meta truncate font-mono">
-              {row.settings.endpoint}
-            </span>
-            {canEdit ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={row.archived}
-                  onClick={() => setEditing(row)}
-                >
-                  edit
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => toggleArchive(row)}
-                >
-                  {row.archived ? "restore" : "archive"}
-                </Button>
-              </>
-            ) : (
-              <>
+      {rows === undefined && !listed.error && (
+        <SkeletonRows columns={EVALUATOR_COLUMNS} />
+      )}
+      {rows?.length === 0 && (
+        <Card className="py-8">
+          <Empty
+            icon={Gauge}
+            title={`No remote evaluators in @${ws.name}`}
+            description={
+              readOnlyReason ?? (
+                <>
+                  Add one with New evaluator, or run{" "}
+                  <span className="font-mono">evalkit evaluators create</span>.
+                </>
+              )
+            }
+          />
+        </Card>
+      )}
+      {!!rows?.length && (
+        <Card className="rows gap-0 py-0">
+          {rows.map((row) => (
+            <div key={row.ref} className={`row ${EVALUATOR_COLUMNS}`}>
+              <span className="row-strong">{row.name}</span>
+              <Badge variant="secondary">{row.kind}</Badge>
+              {row.archived || ws.type === "shared" ? (
+                <Badge variant="secondary">
+                  {row.archived
+                    ? "archived"
+                    : row.has_api_key
+                      ? "key set"
+                      : "no key"}
+                </Badge>
+              ) : (
                 <span />
-                <span />
-              </>
-            )}
-          </div>
-        ))}
-        {rows && !rows.length && (
-          <div className="pane-status">No remote evaluators.</div>
-        )}
-      </Card>
+              )}
+              <span className="row-meta truncate font-mono">
+                {row.settings.endpoint}
+              </span>
+              {canEdit ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={row.archived}
+                    onClick={() => setEditing(row)}
+                  >
+                    edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => toggleArchive(row)}
+                  >
+                    {row.archived ? "restore" : "archive"}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <span />
+                  <span />
+                </>
+              )}
+            </div>
+          ))}
+        </Card>
+      )}
       {editing && (
         <EvaluatorForm
           ws={ws}
@@ -162,7 +203,7 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
   const [role, setRole] = useState<WorkspaceRole>("reviewer");
   const base = `/workspaces/${encodeURIComponent(ws.name)}/members`;
   const listed = useApi<MemberRow[]>(base);
-  const rows = listed.data ?? null;
+  const rows = listed.data;
   const [actionError, setActionError] = useState<string | null>(null);
   const error = actionError ?? listed.error?.message ?? null;
 
@@ -178,15 +219,24 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
 
   if (ws.type === "personal")
     return (
-      <div className="pane-status">
-        A personal workspace has no members: only @{ws.name} writes to it.
-      </div>
+      <Card className="py-8">
+        <Empty
+          icon={Users}
+          title={`No members in @${ws.name}`}
+          description={`A personal workspace has no members: only @${ws.name} writes to it.`}
+        />
+      </Card>
     );
   return (
     <>
+      <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
+        Writers sync datasets and edit agents and evaluators. Reviewers approve
+        cases or request changes. Both can run experiments, and one member can
+        hold both roles.
+      </p>
       {manage && (
         <form
-          className="toolbar mb-2"
+          className="mb-3 flex flex-wrap items-center gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             run(() =>
@@ -196,7 +246,7 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
           }}
         >
           <Input
-            className="w-auto"
+            className="w-full sm:w-56"
             placeholder="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
@@ -214,21 +264,36 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
           <Button type="submit">Add member</Button>
         </form>
       )}
-      <p className="row-meta mb-2">
-        Writers sync datasets and edit agents and evaluators. Reviewers approve
-        cases or request changes. Both can run experiments, and one member can
-        hold both roles.
-      </p>
       {error && <div className="pane-status error">{error}</div>}
-      <Card className="rows gap-0 py-0">
-        {rows &&
-          groupMembers(rows).map((member) => (
-            <div
-              key={member.username}
-              className="row grid-cols-[minmax(0,1fr)_auto]"
-            >
+      {rows === undefined && !listed.error && (
+        <SkeletonRows columns={MEMBER_COLUMNS} />
+      )}
+      {rows?.length === 0 && (
+        <Card className="py-8">
+          <Empty
+            icon={Users}
+            title={`No members in @${ws.name}`}
+            description={
+              manage ? (
+                <>
+                  Add one above, or run{" "}
+                  <span className="font-mono">
+                    evalkit workspaces members add {ws.name} &lt;username&gt;
+                    --role writer
+                  </span>
+                  .
+                </>
+              ) : undefined
+            }
+          />
+        </Card>
+      )}
+      {!!rows?.length && (
+        <Card className="rows gap-0 py-0">
+          {groupMembers(rows).map((member) => (
+            <div key={member.username} className={`row ${MEMBER_COLUMNS}`}>
               <span className="row-strong">{member.username}</span>
-              <span className="flex items-center justify-end gap-3">
+              <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
                 {member.grants.map((grant) => (
                   <span
                     key={grant.role}
@@ -261,9 +326,52 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
               </span>
             </div>
           ))}
-        {rows && !rows.length && <div className="pane-status">No members.</div>}
-      </Card>
+        </Card>
+      )}
     </>
+  );
+}
+
+function NewWorkspaceForm() {
+  const { select } = useWorkspace();
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const create = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    try {
+      const created = await apiJson<WorkspaceInfo>("/workspaces", "POST", {
+        name: name.trim(),
+      });
+      setName("");
+      await refreshQueries();
+      select(created.name);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  return (
+    <section
+      className="mt-8 border-t pt-4"
+      aria-labelledby="new-workspace-title"
+    >
+      <div id="new-workspace-title" className="eyebrow">
+        New shared workspace
+      </div>
+      <form className="flex flex-wrap items-center gap-2" onSubmit={create}>
+        <Input
+          className="w-full sm:w-64"
+          placeholder="shared workspace name, e.g. dev"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+        <Button type="submit">Create workspace</Button>
+      </form>
+      {error && <p className="mt-2 text-xs text-err-text">{error}</p>}
+    </section>
   );
 }
 
@@ -271,15 +379,20 @@ export function WorkspacePage() {
   const { tab } = useParams();
   const navigate = useNavigate();
   const me = useMe();
-  const { workspace: ws, workspaces, select } = useWorkspace();
-  const [name, setName] = useState("");
+  const { workspace: ws, workspaces } = useWorkspace();
   const [error, setError] = useState<string | null>(null);
+  const [errorWorkspace, setErrorWorkspace] = useState(ws.name);
+  if (errorWorkspace !== ws.name) {
+    setErrorWorkspace(ws.name);
+    setError(null);
+  }
 
   if (!isTab(tab))
     return <Navigate to="/settings/workspace/evaluators" replace />;
-  const writable = canWrite(me, ws);
   const mayArchive =
     ws.type === "shared" ? me.is_admin : ws.name === me.personal_workspace;
+  const mayEditPromotion =
+    me.is_admin && ws.type === "shared" && !ws.promoted_from;
   const run = async (call: () => Promise<unknown>) => {
     setError(null);
     try {
@@ -296,17 +409,6 @@ export function WorkspacePage() {
       );
       await refreshQueries();
     });
-  const create = (e: FormEvent) => {
-    e.preventDefault();
-    run(async () => {
-      const created = await apiJson<WorkspaceInfo>("/workspaces", "POST", {
-        name: name.trim(),
-      });
-      setName("");
-      await refreshQueries();
-      select(created.name);
-    });
-  };
   const setPromotesTo = (target: string) =>
     run(async () => {
       await apiJson(`/workspaces/${encodeURIComponent(ws.name)}`, "PATCH", {
@@ -327,6 +429,7 @@ export function WorkspacePage() {
     <>
       <PageHeader
         title={`@${ws.name}`}
+        description={describeWorkspace(ws)}
         actions={
           mayArchive && (
             <Button variant="outline" size="sm" onClick={toggleArchive}>
@@ -336,64 +439,31 @@ export function WorkspacePage() {
         }
       />
       <div className="page">
-        <div className="toolbar mb-2">
-          <Badge variant="secondary">{ws.type}</Badge>
-          {ws.archived && <Badge variant="secondary">archived</Badge>}
-          {ws.promotes_to && (
-            <Badge variant="info" title="promotion target">
-              <ToArrow /> {ws.promotes_to}
-            </Badge>
-          )}
-          {ws.promoted_from && (
-            <Badge variant="info" title="promotion source">
-              <ArrowLeft
-                size={12}
-                role="img"
-                aria-label="from"
-                className="inline shrink-0 align-[-0.125em]"
-              />{" "}
-              {ws.promoted_from}
-            </Badge>
-          )}
-          {me.is_admin && ws.type === "shared" && !ws.promoted_from && (
-            <label className="row-meta flex items-center gap-1">
-              promotes to
-              <Select
-                ariaLabel="promotion target"
-                value={ws.promotes_to ?? ""}
-                onChange={setPromotesTo}
-                options={[
-                  { value: "", label: "none" },
-                  ...targets.map((w) => ({ value: w.name, label: w.name })),
-                ]}
-              />
-            </label>
-          )}
-        </div>
-        {me.is_admin && (
-          <form className="toolbar mb-3" onSubmit={create}>
-            <Input
-              className="w-auto"
-              placeholder="shared workspace name, e.g. dev"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <Button type="submit">Create workspace</Button>
-          </form>
-        )}
         {error && <div className="pane-status error">{error}</div>}
+        {mayEditPromotion && (
+          <label className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+            Promotes to
+            <Select
+              ariaLabel="promotion target"
+              value={ws.promotes_to ?? ""}
+              onChange={setPromotesTo}
+              options={[
+                { value: "", label: "none" },
+                ...targets.map((w) => ({ value: w.name, label: w.name })),
+              ]}
+            />
+          </label>
+        )}
         <Tabs<WorkspaceTab>
           tabs={TABS}
           active={tab}
           onSelect={(next) => navigate(`/settings/workspace/${next}`)}
         />
         <div className="mt-4">
-          {tab === "evaluators" && (
-            <EvaluatorsTab ws={ws} writable={writable} />
-          )}
+          {tab === "evaluators" && <EvaluatorsTab ws={ws} />}
           {tab === "members" && <MembersTab ws={ws} />}
         </div>
+        {me.is_admin && <NewWorkspaceForm />}
       </div>
     </>
   );

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { isSignedOut, login } from "../lib/api";
 import { PublicShell } from "../shell/PublicShell";
@@ -13,9 +13,34 @@ import {
 } from "./oidc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+} from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
+
+export function SignInCard({
+  description,
+  children,
+}: {
+  description?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card className="w-full max-w-sm">
+      <CardHeader>
+        <h1 className="text-base font-semibold">Evalkit</h1>
+        {description && <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">{children}</CardContent>
+    </Card>
+  );
+}
 
 function LoginForm({ next }: { next: string }) {
+  const id = useId();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -37,28 +62,30 @@ function LoginForm({ next }: { next: string }) {
   };
 
   return (
-    <form onSubmit={submit}>
-      <label className="mb-3 block text-micro font-semibold tracking-wide text-ink-2 uppercase">
-        Username
+    <form className="flex flex-col gap-4" onSubmit={submit}>
+      <Field>
+        <FieldLabel htmlFor={`${id}-username`}>Username</FieldLabel>
         <Input
-          className="mt-1 block w-full"
+          id={`${id}-username`}
+          autoComplete="username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoFocus
           required
         />
-      </label>
-      <label className="mb-5 block text-micro font-semibold tracking-wide text-ink-2 uppercase">
-        Password
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${id}-password`}>Password</FieldLabel>
         <Input
-          className="mt-1 block w-full"
+          id={`${id}-password`}
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-      </label>
-      {error && <div className="mb-3 text-meta text-err-text">{error}</div>}
+      </Field>
+      {error && <p className="text-sm text-err-text">{error}</p>}
       <Button type="submit" className="w-full" disabled={busy}>
         {busy ? "Signing in…" : "Sign in"}
       </Button>
@@ -101,38 +128,37 @@ function ProviderSignIn({
   }, [handOver, onSso]);
 
   return (
-    <Card className="w-84">
-      <CardContent className="flex flex-col gap-4">
-        <h1 className="page-title">Evalkit</h1>
-        {oidc === null ? (
-          <Button
-            type="button"
-            className="w-full"
-            onClick={() => window.location.reload()}
-          >
-            Retry
+    <SignInCard>
+      {oidc === null ? (
+        <Button
+          type="button"
+          className="w-full"
+          onClick={() => window.location.reload()}
+        >
+          Retry
+        </Button>
+      ) : busy ? (
+        <p className="text-sm text-muted-foreground">
+          Taking you to {oidc.name}…
+        </p>
+      ) : error !== null ? (
+        <>
+          <p className="text-sm text-err-text">{error}</p>
+          <Button type="button" className="w-full" onClick={start}>
+            Try again
           </Button>
-        ) : busy ? (
-          <p className="text-meta text-ink-3">Taking you to {oidc.name}…</p>
-        ) : error !== null ? (
-          <>
-            <p className="text-meta text-err-text">{error}</p>
-            <Button type="button" className="w-full" onClick={start}>
-              Try again
-            </Button>
-          </>
-        ) : (
-          <>
-            <p className="text-meta text-ink-3">
-              You're signed out of evalkit.
-            </p>
-            <Button type="button" className="w-full" onClick={start}>
-              Sign in again
-            </Button>
-          </>
-        )}
-      </CardContent>
-    </Card>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground">
+            You're signed out of evalkit.
+          </p>
+          <Button type="button" className="w-full" onClick={start}>
+            Sign in again
+          </Button>
+        </>
+      )}
+    </SignInCard>
   );
 }
 
@@ -155,40 +181,36 @@ export function LoginChoices({
     return <ProviderSignIn oidc={oidc} signedOut={signedOut} onSso={onSso} />;
   const formOpen = oidc === null || providers.password === "all" || adminOpen;
   return (
-    <Card className="w-84">
-      <CardContent>
-        <h1 className="page-title">Evalkit</h1>
-        <p className="mt-1 mb-5 text-meta text-ink-3">
-          {oidc === null
-            ? "Sign in with your evalkit account."
-            : `Sign in with your ${oidc.name} account.`}
-        </p>
-        {oidc !== null && (
-          <Button
-            type="button"
-            className="mb-4 w-full"
-            disabled={ssoBusy}
-            onClick={() => runSso(onSso, setSsoBusy, setSsoError)}
-          >
-            Continue with {oidc.name}
-          </Button>
-        )}
-        {ssoError !== null && (
-          <div className="mb-3 text-meta text-err-text">{ssoError}</div>
-        )}
-        {formOpen ? (
-          <LoginForm next={next} />
-        ) : (
-          <button
-            type="button"
-            className="text-meta text-ink-3 underline"
-            onClick={() => setAdminOpen(true)}
-          >
-            Admin sign-in
-          </button>
-        )}
-      </CardContent>
-    </Card>
+    <SignInCard
+      description={
+        oidc === null
+          ? "Sign in with your evalkit account."
+          : `Sign in with your ${oidc.name} account.`
+      }
+    >
+      {oidc !== null && (
+        <Button
+          type="button"
+          className="w-full"
+          disabled={ssoBusy}
+          onClick={() => runSso(onSso, setSsoBusy, setSsoError)}
+        >
+          Continue with {oidc.name}
+        </Button>
+      )}
+      {ssoError !== null && <p className="text-sm text-err-text">{ssoError}</p>}
+      {formOpen ? (
+        <LoginForm next={next} />
+      ) : (
+        <button
+          type="button"
+          className="self-start text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          onClick={() => setAdminOpen(true)}
+        >
+          Admin sign-in
+        </button>
+      )}
+    </SignInCard>
   );
 }
 
@@ -222,13 +244,13 @@ export function LoginPage() {
 
   return (
     <PublicShell>
-      <div className="flex min-h-full items-center justify-center bg-canvas">
+      <div className="flex min-h-full items-center justify-center p-4">
         {providers === null && error === null ? (
           <div className="pane-status">Loading sign-in options…</div>
         ) : (
-          <div>
+          <div className="flex w-full max-w-sm flex-col gap-3">
             {error !== null && (
-              <Card size="sm" className="mb-3 w-84 text-meta text-err-text">
+              <Card size="sm" className="text-sm text-err-text">
                 <CardContent>{error}</CardContent>
               </Card>
             )}

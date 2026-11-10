@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
+import { Route } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import { queryClient } from "../lib/query";
 import type { Me } from "../lib/types";
 import { MeContext } from "../shell/capabilities";
+import { closePage, renderPage, stubServer } from "../testFixtures";
 import { LlmProvidersPage } from "./LlmProvidersPage";
 
 // The provider form imports a file outside ui/ that jsdom runs can't load.
@@ -25,10 +27,7 @@ const judge = (model: string) => ({
   reasoning_effort: "high",
 });
 
-afterEach(() => {
-  queryClient.clear();
-  vi.unstubAllGlobals();
-});
+afterEach(closePage);
 
 test("reopening the page shows the server's current default judge", async () => {
   queryClient.setQueryData(["/judge-default"], judge("old-model"));
@@ -56,4 +55,20 @@ test("reopening the page shows the server's current default judge", async () => 
       (screen.getByPlaceholderText("model") as HTMLInputElement).value,
     ).toBe("new-model"),
   );
+});
+
+test("without providers, an admin is told how to add one", async () => {
+  stubServer((url) =>
+    url.endsWith("/api/judge-default")
+      ? Response.json({ detail: "no default judge" }, { status: 404 })
+      : undefined,
+  );
+  renderPage(
+    admin,
+    "/settings/llm-providers",
+    <Route path="/settings/llm-providers" element={<LlmProvidersPage />} />,
+  );
+  expect(await screen.findByText("No LLM providers")).toBeInTheDocument();
+  expect(screen.getByText(/Add one with New provider/)).toBeInTheDocument();
+  expect(screen.getByText("evalkit llm-providers create")).toBeInTheDocument();
 });

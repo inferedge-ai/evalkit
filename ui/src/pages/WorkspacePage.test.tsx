@@ -1,13 +1,20 @@
 // @vitest-environment jsdom
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import { queryClient } from "../lib/query";
-import type { Me, WorkspaceInfo } from "../lib/types";
+import type { Me, WorkspaceInfo, WorkspaceRole } from "../lib/types";
 import { MeContext } from "../shell/capabilities";
 import { WorkspaceGate } from "../shell/workspace";
+import {
+  closePage,
+  devWorkspace,
+  failure,
+  renderPage,
+  stubServer,
+} from "../testFixtures";
 import { WorkspacePage } from "./WorkspacePage";
 
 // endpoint.ts reads a file outside ui/ that jsdom runs can't load.
@@ -37,10 +44,7 @@ const workspace: WorkspaceInfo = {
 // jsdom has no layout; the select scrolls its highlighted option into view.
 Element.prototype.scrollIntoView = () => {};
 
-afterEach(() => {
-  queryClient.clear();
-  vi.unstubAllGlobals();
-});
+afterEach(closePage);
 
 test("Esc closes the open kind list, then the new evaluator form, without saving", async () => {
   const writes: string[] = [];
@@ -90,4 +94,137 @@ test("Esc closes the open kind list, then the new evaluator form, without saving
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
   );
   expect(writes).toEqual([]);
+});
+
+function openSettings(
+  tab: "evaluators" | "members",
+  roles: WorkspaceRole[] = ["writer"],
+  ws: WorkspaceInfo = devWorkspace,
+  isAdmin = false,
+) {
+  stubServer((url) => {
+    if (url.endsWith("/api/workspaces?include_archived=true"))
+      return Response.json([ws]);
+  });
+  renderPage(
+    { ...me, is_admin: isAdmin, roles: { [ws.name]: roles } },
+    `/settings/workspace/${tab}`,
+    <Route path="/settings/workspace/:tab" element={<WorkspacePage />} />,
+  );
+}
+
+test("the page header says the workspace is shared and where it promotes to", async () => {
+  openSettings("evaluators", ["writer"], {
+    ...devWorkspace,
+    promotes_to: "prod",
+  });
+  const header = await screen.findByRole("banner");
+  expect(
+    within(header).getByText("Shared workspace · promotes to @prod"),
+  ).toBeInTheDocument();
+});
+
+test("a workspace without remote evaluators says so and how to add one", async () => {
+  openSettings("evaluators");
+  expect(
+    await screen.findByText("No remote evaluators in @dev"),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/evalkit evaluators create/)).toBeInTheDocument();
+});
+
+test("a reader of a workspace without remote evaluators is told it is read-only for them", async () => {
+  openSettings("evaluators", ["reviewer"]);
+  expect(
+    await screen.findByText("No remote evaluators in @dev"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("This workspace is read-only for you."),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/evalkit evaluators create/)).toBeNull();
+});
+
+test("a shared workspace without members says so", async () => {
+  openSettings("members");
+  expect(await screen.findByText("No members in @dev")).toBeInTheDocument();
+});
+
+test("a personal workspace's Members tab says only its owner writes to it", async () => {
+  openSettings("members", [], workspace);
+  expect(await screen.findByText("No members in @akshat")).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "A personal workspace has no members: only @akshat writes to it.",
+    ),
+  ).toBeInTheDocument();
+});
+
+test("an admin on an archived workspace is told it is archived and cannot add evaluators", async () => {
+  openSettings("evaluators", [], { ...devWorkspace, archived: true }, true);
+  expect(
+    await screen.findByText("This workspace is archived."),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "New evaluator" })).toBeNull();
+});
+
+test("a workspace an admin cannot create says why next to its form", async () => {
+  stubServer((url, init) =>
+    url.endsWith("/api/workspaces") && init?.method === "POST"
+      ? Response.json(
+          { detail: "workspace dev already exists" },
+          { status: 409 },
+        )
+      : undefined,
+  );
+  renderPage(
+    { ...me, is_admin: true },
+    "/settings/workspace/members",
+    <Route path="/settings/workspace/:tab" element={<WorkspacePage />} />,
+  );
+  const user = userEvent.setup();
+  const form = await screen.findByRole("region", {
+    name: "New shared workspace",
+  });
+  await user.type(within(form).getByRole("textbox"), "dev");
+  await user.click(
+    within(form).getByRole("button", { name: "Create workspace" }),
+  );
+  expect(
+    await within(form).findByText("workspace dev already exists"),
+  ).toBeInTheDocument();
+});
+
+test("an error on one workspace is gone after the admin creates another", async () => {
+  const qa = { ...devWorkspace, id: 3, name: "qa" };
+  let created = false;
+  stubServer((url, init) => {
+    if (url.endsWith("/api/workspaces/dev/archive"))
+      return failure("dev holds running experiments");
+    if (url.endsWith("/api/workspaces") && init?.method === "POST") {
+      created = true;
+      return Response.json(qa);
+    }
+    if (url.endsWith("/api/workspaces?include_archived=true"))
+      return Response.json(created ? [devWorkspace, qa] : [devWorkspace]);
+  });
+  renderPage(
+    { ...me, is_admin: true },
+    "/settings/workspace/members",
+    <Route path="/settings/workspace/:tab" element={<WorkspacePage />} />,
+  );
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Archive" }));
+  expect(
+    await screen.findByText("dev holds running experiments"),
+  ).toBeInTheDocument();
+
+  const form = screen.getByRole("region", { name: "New shared workspace" });
+  await user.type(within(form).getByRole("textbox"), "qa");
+  await user.click(
+    within(form).getByRole("button", { name: "Create workspace" }),
+  );
+
+  expect(
+    await screen.findByRole("heading", { name: "@qa" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("dev holds running experiments")).toBeNull();
 });

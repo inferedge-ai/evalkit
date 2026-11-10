@@ -163,7 +163,9 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await apiFetch(path, init);
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}) as Record<string, unknown>);
-    const detail = detailText(body.detail ?? resp.statusText);
+    const detail = detailText(
+      body.detail ?? (resp.statusText || `HTTP ${resp.status}`),
+    );
     if (resp.status === 404) throw new NotFoundError(detail);
     throw new ApiError(resp.status, detail);
   }

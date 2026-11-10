@@ -1,9 +1,9 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileQuestion } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 
 export function NotFound({
   what,
@@ -16,18 +16,21 @@ export function NotFound({
     <>
       <PageHeader title="Not found" />
       <div className="page">
-        <Card>
-          <CardContent>
-            <p className="text-lede text-ink-3">
-              There is no <span className="font-mono">{what}</span>.
-            </p>
-            <Link
-              className={cn(buttonVariants({ variant: "link" }), "mt-3")}
-              to={up.to}
-            >
-              <ArrowLeft size={14} /> {up.label}
-            </Link>
-          </CardContent>
+        <Card className="items-center gap-4 py-8">
+          <Empty
+            icon={FileQuestion}
+            title={
+              <>
+                There is no <span className="font-mono">{what}</span>
+              </>
+            }
+          />
+          <Link
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+            to={up.to}
+          >
+            <ArrowLeft /> {up.label}
+          </Link>
         </Card>
       </div>
     </>
