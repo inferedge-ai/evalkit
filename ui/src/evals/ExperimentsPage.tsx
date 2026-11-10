@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FlaskConical } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { ColDef } from "ag-grid-community";
+import { canCreateExperiment, getReadOnlyReason } from "../lib/access";
 import { qs } from "../lib/api";
 import { scoredBucketColumns } from "../lib/bucketColumns";
 import {
@@ -21,6 +22,7 @@ import type { ExperimentListItem, WorkspaceInfo } from "../lib/types";
 import { experimentTailColumns } from "./experimentRow";
 import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
+import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
@@ -30,13 +32,16 @@ import { Input } from "@/components/ui/input";
 const getExperimentId = (exp: ExperimentListItem) => String(exp.id);
 
 function NoExperiments({ workspace }: { workspace: WorkspaceInfo }) {
+  const me = useMe();
+  const readOnlyReason = getReadOnlyReason(me, workspace, canCreateExperiment);
   return (
     <Card className="py-8">
       <Empty
         icon={FlaskConical}
         title={`No experiments in @${workspace.name} yet`}
         description={
-          workspace.type === "shared" ? (
+          readOnlyReason ??
+          (workspace.type === "shared" ? (
             <>
               Start one with Run experiment on a dataset, or run{" "}
               <span className="font-mono">
@@ -53,7 +58,7 @@ function NoExperiments({ workspace }: { workspace: WorkspaceInfo }) {
               </span>{" "}
               from a repo with an evalkit.yaml.
             </>
-          )
+          ))
         }
       />
     </Card>

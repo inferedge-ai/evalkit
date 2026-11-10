@@ -218,7 +218,9 @@
 - The web UI's experiments, experiment, run and compare pages and the run
   launcher are laid out on the design system:
   - A workspace with no experiments shows an icon, a title and the command
-    to run instead of an empty table. When the list fails to load, the page
+    to run instead of an empty table, or why you can't start one: the
+    workspace is archived, or you are not its owner, admin, writer or
+    reviewer. When the list fails to load, the page
     shows the error alone instead of an empty table.
   - An experiment's page keeps the shape of its scores and case table while
     it loads; the case table shows the grid's own loading state and leaves
