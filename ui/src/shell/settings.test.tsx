@@ -143,6 +143,23 @@ test("a wrapper's page can't take a name evalkit uses", async () => {
   expect(screen.queryByRole("link", { name: "People" })).toBeNull();
 });
 
+test("a wrapper's page can't take a name another of its pages uses", async () => {
+  wrapper.organizationSettings = [
+    { name: "team", label: "Team", element: <p>Team page</p> },
+    { name: "team", label: "Team again", element: <p>Second team page</p> },
+    { name: "profile", label: "Org profile", element: <p>Org profile page</p> },
+  ];
+  openApp(admin, "/settings/profile");
+  expect(await screen.findByText("Profile page")).toBeInTheDocument();
+  expect(links("Account")).toEqual(["Profile"]);
+  expect(links("Organization")).toEqual([
+    "Users",
+    "Trace sources",
+    "LLM providers",
+    "Team",
+  ]);
+});
+
 test("a wrapper's page name can't reach into evalkit's pages", async () => {
   openApp(admin, "/settings/workspace/members");
   await vi.waitFor(() => expect(where()).toBe("/settings/workspace/members"));

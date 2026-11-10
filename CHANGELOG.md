@@ -179,8 +179,9 @@
     `organizationSettings` (admins): pages rendered at `/settings/<name>`
     inside the Settings area. A package that set `moreNav` or `adminNav` must
     move those pages. A page's name is lowercase letters, digits and dashes;
-    evalkit drops a page whose name isn't, or is one it uses itself:
-    `workspace`, `users`, `trace-sources` and `llm-providers`.
+    evalkit drops a page whose name isn't, is one it uses itself
+    (`workspace`, `users`, `trace-sources` and `llm-providers`), or is
+    already taken by an earlier page in either list, `accountSettings` first.
 
 ## 0.4.0
 
