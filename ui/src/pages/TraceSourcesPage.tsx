@@ -4,6 +4,7 @@ import { apiJson } from "../lib/api";
 import { ENDPOINT_NOTE } from "../lib/endpoint";
 import { refreshQueries, useApi } from "../lib/query";
 import type { TraceSourceInfo } from "../lib/types";
+import { useMe } from "../shell/capabilities";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 
 export function TraceSourcesPage() {
+  const me = useMe();
   const listed = useApi<TraceSourceInfo[]>("/trace-sources");
   const rows = listed.data ?? null;
   const [name, setName] = useState("");
@@ -58,31 +60,35 @@ export function TraceSourcesPage() {
           Third-party trace stores to import history from. Keys are stored
           encrypted and never shown again.
         </p>
-        <form className="toolbar mt-3 mb-3" onSubmit={create}>
-          <Input
-            className="w-auto"
-            placeholder="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <Input
-            className="min-w-0 flex-1"
-            placeholder="Phoenix URL"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            required
-          />
-          <Input
-            className="w-auto"
-            type="password"
-            placeholder="API key"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-          <Button type="submit">Add trace source</Button>
-        </form>
-        <p className="row-meta mb-3 whitespace-normal">{ENDPOINT_NOTE}</p>
+        {me.is_admin && (
+          <>
+            <form className="toolbar mt-3 mb-3" onSubmit={create}>
+              <Input
+                className="w-auto"
+                placeholder="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+              <Input
+                className="min-w-0 flex-1"
+                placeholder="Phoenix URL"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                required
+              />
+              <Input
+                className="w-auto"
+                type="password"
+                placeholder="API key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+              <Button type="submit">Add trace source</Button>
+            </form>
+            <p className="row-meta mb-3 whitespace-normal">{ENDPOINT_NOTE}</p>
+          </>
+        )}
         {error && <div className="pane-status error">{error}</div>}
         <Card className="rows gap-0 py-0">
           {rows?.map((row) => (
@@ -93,13 +99,15 @@ export function TraceSourcesPage() {
               <span className="row-strong">{row.name}</span>
               <Badge variant="secondary">{row.provider}</Badge>
               <span className="row-meta truncate font-mono">{row.url}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => archive(row.name)}
-              >
-                archive
-              </Button>
+              {me.is_admin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => archive(row.name)}
+                >
+                  archive
+                </Button>
+              )}
             </div>
           ))}
           {rows && !rows.length && (
