@@ -1,11 +1,10 @@
 import { Navigate, Route, useParams } from "react-router-dom";
-import { extensions } from "./extensions";
 import { LlmProvidersPage } from "./pages/LlmProvidersPage";
 import { TraceSourcesPage } from "./pages/TraceSourcesPage";
 import { UsersAdminPage } from "./pages/UsersAdmin";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { useMe } from "./shell/capabilities";
-import { filterWrapperSettings, getSettingsSections } from "./shell/nav";
+import { getSettingsSections, getWrapperSettings } from "./shell/nav";
 import { useWorkspace } from "./shell/workspace";
 
 function FirstSettingsPage() {
@@ -21,10 +20,8 @@ function MovedWorkspaceTab() {
 }
 
 export function renderSettingsRoutes() {
-  const wrapperPages = [
-    ...filterWrapperSettings(extensions.accountSettings),
-    ...filterWrapperSettings(extensions.organizationSettings),
-  ];
+  const { account, organization } = getWrapperSettings();
+  const wrapperPages = [...account, ...organization];
   return (
     <>
       <Route path="/settings" element={<FirstSettingsPage />} />

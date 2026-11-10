@@ -62,12 +62,21 @@ const EVALKIT_SETTINGS = [WORKSPACE_SETTINGS, ...ORGANIZATION_SETTINGS].map(
   (item) => item.to,
 );
 
-export function filterWrapperSettings(pages: SettingsPage[]): SettingsPage[] {
-  return pages.filter(
-    (page) =>
-      /^[a-z0-9-]+$/.test(page.name) &&
-      !EVALKIT_SETTINGS.includes(`/settings/${page.name}`),
-  );
+export function getWrapperSettings(): {
+  account: SettingsPage[];
+  organization: SettingsPage[];
+} {
+  const taken = new Set(EVALKIT_SETTINGS);
+  const claim = (page: SettingsPage) => {
+    const to = `/settings/${page.name}`;
+    if (!/^[a-z0-9-]+$/.test(page.name) || taken.has(to)) return false;
+    taken.add(to);
+    return true;
+  };
+  return {
+    account: extensions.accountSettings.filter(claim),
+    organization: extensions.organizationSettings.filter(claim),
+  };
 }
 
 function toSettingsItem(page: SettingsPage): NavItem {
@@ -78,12 +87,11 @@ export function getSettingsSections(
   isAdmin: boolean,
   workspace: string,
 ): NavSection[] {
+  const wrapperSettings = getWrapperSettings();
   const sections: NavSection[] = [
     {
       label: "Account",
-      items: filterWrapperSettings(extensions.accountSettings).map(
-        toSettingsItem,
-      ),
+      items: wrapperSettings.account.map(toSettingsItem),
     },
     {
       label: "Workspace",
@@ -95,9 +103,7 @@ export function getSettingsSections(
       label: "Organization",
       items: [
         ...ORGANIZATION_SETTINGS,
-        ...filterWrapperSettings(extensions.organizationSettings).map(
-          toSettingsItem,
-        ),
+        ...wrapperSettings.organization.map(toSettingsItem),
       ],
     });
   return sections.filter((section) => section.items.length > 0);
