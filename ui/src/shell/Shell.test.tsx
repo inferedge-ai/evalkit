@@ -40,6 +40,7 @@ const workspace: WorkspaceInfo = {
   archived: false,
   promotes_to: null,
   promoted_from: null,
+  members: 0,
 };
 
 Element.prototype.scrollIntoView = () => {};

@@ -12,7 +12,13 @@ import {
   renderMovedSettingsRoutes,
   renderSettingsRoutes,
 } from "../settingsRoutes";
-import { closePage, devWorkspace, member, stubServer } from "../testFixtures";
+import {
+  closePage,
+  devWorkspace,
+  failure,
+  member,
+  stubServer,
+} from "../testFixtures";
 import { MeContext } from "./capabilities";
 import { ShellOrBare, WorkspaceOrPublic } from "./layout";
 import { ThemeProvider } from "./theme";
@@ -128,19 +134,57 @@ test("an admin's Organization section lists evalkit's pages, then the wrapper's,
   ).toBeInTheDocument();
   expect(links("Organization")).toEqual([
     "Users",
+    "Workspaces",
     "Trace sources",
     "LLM providers",
     "Team",
   ]);
 });
 
-test("a wrapper's page can't take a name evalkit uses", async () => {
-  openApp(admin, "/settings/users");
+test.each([
+  ["users", "Users", "People"],
+  ["workspaces", "Workspaces", "Projects"],
+])(
+  "a wrapper's page can't take evalkit's name %s",
+  async (name, heading, wrapperLabel) => {
+    wrapper.organizationSettings = [
+      {
+        name,
+        label: wrapperLabel,
+        element: <p>Wrapper {wrapperLabel} page</p>,
+      },
+    ];
+    openApp(admin, `/settings/${name}`);
+    expect(
+      await screen.findByRole("heading", { name: heading }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(`Wrapper ${wrapperLabel} page`)).toBeNull();
+    expect(screen.queryByRole("link", { name: wrapperLabel })).toBeNull();
+  },
+);
+
+test("an error on one workspace is gone after switching to another in Settings", async () => {
+  stubServer((url) => {
+    if (url.endsWith("/api/workspaces/dev/archive"))
+      return failure("dev holds running experiments");
+    if (url.endsWith("/api/workspaces?include_archived=true"))
+      return Response.json([
+        devWorkspace,
+        { ...devWorkspace, id: 3, name: "prod" },
+      ]);
+  });
+  openApp(admin, "/settings/workspace/members");
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Archive" }));
   expect(
-    await screen.findByRole("heading", { name: "Users" }),
+    await screen.findByText("dev holds running experiments"),
   ).toBeInTheDocument();
-  expect(screen.queryByText("Wrapper people page")).toBeNull();
-  expect(screen.queryByRole("link", { name: "People" })).toBeNull();
+  await user.click(screen.getByRole("button", { name: "workspace" }));
+  await user.click(await screen.findByRole("option", { name: /@prod/ }));
+  expect(
+    await screen.findByRole("heading", { name: "@prod" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("dev holds running experiments")).toBeNull();
 });
 
 test("a wrapper's page can't take a name another of its pages uses", async () => {
@@ -154,6 +198,7 @@ test("a wrapper's page can't take a name another of its pages uses", async () =>
   expect(links("Account")).toEqual(["Profile"]);
   expect(links("Organization")).toEqual([
     "Users",
+    "Workspaces",
     "Trace sources",
     "LLM providers",
     "Team",

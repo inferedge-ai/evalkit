@@ -49,7 +49,9 @@ your agent:
 
 ### Set it up
 
-An admin runs these once:
+An admin runs these once. In the web UI, Settings › Organization ›
+Workspaces creates workspaces too, and lists them with each one's member
+count.
 
 ```bash
 evalkit users add alice                                 # prompts for a password; once per user

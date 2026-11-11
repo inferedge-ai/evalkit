@@ -292,6 +292,20 @@
   harness, the words the runs list's note uses, and the MCP tools
   `get_run_files` and `download_run_file` return `upstream_failed: harness
   unreachable`; before, the error escaped as a plain-text 500.
+- The web UI has a Workspaces page under Settings › Organization
+  (`/settings/workspaces`) listing the workspaces as the sidebar's workspace
+  switcher does: yours and the shared ones, with other people's personal
+  workspaces behind "Show N other personal workspaces". Each row shows the
+  workspace's member count and promotion link, a filter narrows the list,
+  and clicking a row switches to that workspace and opens its settings.
+  Admins create shared workspaces there with New workspace, then land on the
+  new workspace's Members tab. The "New shared workspace" form is gone from
+  the workspace settings page. `workspaces` is now one of evalkit's own
+  Settings page names, so a wrapper's `organizationSettings` or
+  `accountSettings` page named `workspaces` is dropped.
+- `GET /api/workspaces` and the other workspace endpoints return `members`:
+  how many users hold a writer or reviewer grant on the workspace, each
+  counted once (0 for a personal workspace).
 
 ## 0.4.0
 

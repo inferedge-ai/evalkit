@@ -16,6 +16,7 @@ const ws = (name: string, shared = false): WorkspaceInfo => ({
   promoted_from: null,
   type: shared ? "shared" : "personal",
   archived: false,
+  members: 0,
 });
 
 describe("workspace helpers", () => {

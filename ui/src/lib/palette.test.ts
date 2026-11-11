@@ -115,6 +115,7 @@ describe("workspaceItems", () => {
     promoted_from: null,
     type: shared ? "shared" : "personal",
     archived: false,
+    members: 0,
   });
 
   it("makes one switch item per workspace and marks the current one", () => {

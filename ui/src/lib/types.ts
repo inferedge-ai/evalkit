@@ -19,6 +19,7 @@ export interface WorkspaceInfo {
   archived: boolean;
   promotes_to: string | null;
   promoted_from: string | null;
+  members: number;
 }
 
 export interface MemberRow {
