@@ -21,7 +21,7 @@ from evalkit.api.access import (
     require,
     workspace_ref,
 )
-from evalkit.api.deps import ConfigDep, HolderDep, SessionDep
+from evalkit.api.deps import AllowPrivateEndpointsDep, HolderDep, SessionDep
 from evalkit.api.llm_providers import require_provider_judge
 from evalkit.api.server_keys import server_keys, with_keys
 from evalkit.contracts.atif import validate_trajectory
@@ -263,7 +263,7 @@ async def create_experiment(
     body: ExperimentRequest,
     request: Request,
     stores: StoresDep,
-    cfg: ConfigDep,
+    allow_private: AllowPrivateEndpointsDep,
     session: SessionDep,
     actor: ActorDep,
     pod: HolderDep,
@@ -310,7 +310,7 @@ async def create_experiment(
     run_deps = stores.deps
     if server_driven:
         provider = await require_provider_judge(providers, judge) if judge is not None else None
-        keys, warnings = await server_keys(stores, cfg, agent, provider)
+        keys, warnings = await server_keys(stores, agent, provider, allow_private=allow_private)
         api_key = keys.key_for("agent", agent.ref)
         run_deps = _scoring(request, with_keys(stores.deps, keys), body.evaluation_concurrency)
     holder = task_holder(pod) if server_driven else str(body.holder)
@@ -573,7 +573,7 @@ async def evaluate(
     exp_id: int,
     request: Request,
     stores: StoresDep,
-    cfg: ConfigDep,
+    allow_private: AllowPrivateEndpointsDep,
     session: SessionDep,
     actor: ActorDep,
     pod: HolderDep,
@@ -587,7 +587,7 @@ async def evaluate(
         if exp.config.judge is not None
         else None
     )
-    keys, warnings = await server_keys(stores, cfg, agent, provider)
+    keys, warnings = await server_keys(stores, agent, provider, allow_private=allow_private)
     holder = task_holder(pod)
     exp = await stores.store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
     _track(
@@ -614,7 +614,7 @@ async def resume(
     exp_id: int,
     request: Request,
     stores: StoresDep,
-    cfg: ConfigDep,
+    allow_private: AllowPrivateEndpointsDep,
     session: SessionDep,
     actor: ActorDep,
     pod: HolderDep,
@@ -628,7 +628,7 @@ async def resume(
         if exp.config.judge is not None
         else None
     )
-    keys, warnings = await server_keys(stores, cfg, agent, provider)
+    keys, warnings = await server_keys(stores, agent, provider, allow_private=allow_private)
     holder = task_holder(pod)
     exp = await stores.store.transition(exp_id, ExperimentStatus.RUNNING, holder)
     _track(

@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import AwareDatetime, BaseModel, model_validator
 
 from evalkit.api.access import ActorDep, StoresDep, TenantStores
-from evalkit.api.deps import ConfigDep, HolderDep
+from evalkit.api.deps import AllowPrivateEndpointsDep, HolderDep
 from evalkit.api.experiments import task_holder
 from evalkit.api.traces import agent_or_404, require_otel, require_write, resolve_import_source
 from evalkit.contracts.enums import TraceImportStatus
@@ -102,13 +102,13 @@ async def start_import(
     stores: StoresDep,
     actor: ActorDep,
     pod: HolderDep,
-    cfg: ConfigDep,
+    allow_private: AllowPrivateEndpointsDep,
 ) -> TraceImportView:
     _, record = await agent_or_404(stores.agents, agent)
     await require_write(stores, actor, record)
     require_otel(record)
     mapping = await _session_mapping(stores.mappings, record)
-    source = await resolve_import_source(stores, cfg, body.source)
+    source = await resolve_import_source(stores, body.source, allow_private=allow_private)
     holder = task_holder(pod)
     view = await stores.imports.create(
         record.id, source.id, body.project, body.since, body.until, actor.id, holder
@@ -149,14 +149,14 @@ async def continue_import(
     stores: StoresDep,
     actor: ActorDep,
     pod: HolderDep,
-    cfg: ConfigDep,
+    allow_private: AllowPrivateEndpointsDep,
 ) -> TraceImportView:
     _, record = await agent_or_404(stores.agents, agent)
     await require_write(stores, actor, record)
     require_otel(record)
     mapping = await _session_mapping(stores.mappings, record)
     current = await stores.imports.get(record.id, import_id)
-    source = await resolve_import_source(stores, cfg, current.source)
+    source = await resolve_import_source(stores, current.source, allow_private=allow_private)
     holder = task_holder(pod)
     view = await stores.imports.restart(record.id, import_id, holder)
     _launch(request, stores, view.id, holder, source, mapping)

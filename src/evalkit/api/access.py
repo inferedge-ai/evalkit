@@ -8,7 +8,6 @@ from starlette.datastructures import State
 
 from evalkit.api.auth import CurrentUser
 from evalkit.api.deps import SessionDep
-from evalkit.config import Config
 from evalkit.contracts.enums import WorkspaceRole
 from evalkit.contracts.notes import PERSONAL_KEY_NOTE
 from evalkit.core.access import Actor, WorkspaceRef, can_write
@@ -166,9 +165,9 @@ def ensure_active(ws: WorkspaceRef) -> None:
 async def writable_endpoint(
     stores: StoresDep,
     actor: ActorDep,
-    cfg: Config,
     workspace: str,
     *,
+    allow_private: bool,
     api_key: bool = False,
     url: str | None = None,
 ) -> WorkspaceRef:
@@ -178,7 +177,7 @@ async def writable_endpoint(
     if api_key and not ws.is_shared:
         raise HTTPException(status_code=400, detail=PERSONAL_KEY_NOTE)
     if url is not None and ws.is_shared:
-        await check_endpoint(url, allow_private=cfg.allow_private_endpoints)
+        await check_endpoint(url, allow_private=allow_private)
     return ws
 
 

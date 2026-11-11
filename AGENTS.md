@@ -158,8 +158,11 @@ then add plain FastAPI routes with `app.include_router(...)`.
   `router.add_route()` or mounts. A handler that needs the user takes
   `CurrentUser`; an admin-only one takes `AdminUser`.
 - To answer the config per request, for example per tenant, replace `get_config`
-  (`evalkit.api.deps`) in `app.dependency_overrides`. Every private-address check
-  (`allow_private_endpoints`) reads the config through it.
+  (`evalkit.api.deps`) in `app.dependency_overrides`. To decide only the
+  private-address rule (`allow_private_endpoints`) per request, replace
+  `get_allow_private_endpoints` from the same module instead: every
+  private-address check reads it, and each runs on a signed-in route, so the
+  replacement may take `CurrentUser`.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
@@ -192,8 +195,8 @@ then add plain FastAPI routes with `app.include_router(...)`.
 - Every `nav` item and every Settings page the person can see is a page in
   ⌘K search.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
-  `PageHeader`, `Empty` and `SIGNED_IN` stable: other packages build against
-  them.
+  `PageHeader`, `Empty`, `SIGNED_IN`, `get_config` and
+  `get_allow_private_endpoints` stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
 (`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,

@@ -2,7 +2,6 @@ import logging
 from dataclasses import replace
 
 from evalkit.api.access import TenantStores
-from evalkit.config import Config
 from evalkit.core.agents import AgentDefinition
 from evalkit.core.endpoints import check_endpoint
 from evalkit.core.runner import RunnerDeps
@@ -12,13 +11,17 @@ LOGGER = logging.getLogger(__name__)
 
 
 async def server_keys(
-    stores: TenantStores, cfg: Config, agent: AgentDefinition, judge_provider: str | None
+    stores: TenantStores,
+    agent: AgentDefinition,
+    judge_provider: str | None,
+    *,
+    allow_private: bool,
 ) -> tuple[StoredKeys, list[str]]:
     keys = await stores.keys.load(agent, judge_provider)
     judge_url = keys.provider_judge(judge_provider)[0] if judge_provider is not None else None
     for url in (agent.harness_url, judge_url):
         if url is not None:
-            await check_endpoint(url, allow_private=cfg.allow_private_endpoints)
+            await check_endpoint(url, allow_private=allow_private)
     warnings = []
     if agent.harness_url is not None and keys.key_for("agent", agent.ref) is None:
         warnings.append(

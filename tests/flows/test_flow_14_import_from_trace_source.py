@@ -6,7 +6,7 @@ from cryptography.fernet import Fernet
 from respx import MockResponse, Route, Router
 from sqlalchemy import func, select
 
-from evalkit.api.deps import get_config
+from evalkit.api.deps import get_allow_private_endpoints, get_config
 from evalkit.cli.traces_commands import render_check
 from evalkit.db.crypto import SecretBox
 from evalkit.db.models import Span
@@ -310,9 +310,14 @@ async def test_flow_14_imports_refuse_a_stored_private_url(httpx2_mock, api):
         assert refused.status_code == 400 and "allow_private_endpoints" in refused.json()["detail"]
     refusing = api.app.state.cfg.model_copy()
     api.app.state.cfg.allow_private_endpoints = True
-    api.app.dependency_overrides[get_config] = lambda: refusing
-    for path, payload in paths:
-        refused = await api.post(path, json=payload)
-        assert refused.status_code == 400 and "allow_private_endpoints" in refused.json()["detail"]
+    for dependency, override in (
+        (get_config, lambda: refusing),
+        (get_allow_private_endpoints, lambda: False),
+    ):
+        api.app.dependency_overrides = {dependency: override}
+        for path, payload in paths:
+            refused = await api.post(path, json=payload)
+            detail = refused.json()["detail"]
+            assert refused.status_code == 400 and "allow_private_endpoints" in detail
     imports = (await api.get(f"/api/agents/{AGENT}/imports")).json()
     assert [(i["id"], i["status"]) for i in imports] == [(import_id, "failed")]
