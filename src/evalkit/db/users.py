@@ -13,6 +13,7 @@ from evalkit.db.models import AuthToken, User, Workspace
 from evalkit.db.session import ALL_TENANTS, tenant_session
 
 NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+USERNAME_PATTERN = re.compile(r"^[^\s@/\\?#%\x00-\x1f\x7f]+$")
 
 
 class NameTaken(Exception):
@@ -22,16 +23,26 @@ class NameTaken(Exception):
 
 
 class InvalidName(ValueError):
-    def __init__(self, name: str):
-        super().__init__(
-            f"invalid name {name!r}: use lowercase letters, digits, '.', '_' or '-', "
-            "starting with a letter or digit"
-        )
+    def __init__(
+        self,
+        name: str,
+        rule: str = "use lowercase letters, digits, '.', '_' or '-', "
+        "starting with a letter or digit",
+    ):
+        super().__init__(f"invalid name {name!r}: {rule}")
 
 
 def check_name(name: str) -> None:
     if not NAME_PATTERN.fullmatch(name):
         raise InvalidName(name)
+
+
+def check_username(username: str) -> None:
+    if username != username.lower() or not USERNAME_PATTERN.fullmatch(username):
+        raise InvalidName(
+            username,
+            "use lowercase, with no whitespace, '@', '/', '\\', '?', '#' or '%'",
+        )
 
 
 async def lock_names(session: AsyncSession) -> None:
@@ -41,13 +52,6 @@ async def lock_names(session: AsyncSession) -> None:
 class IdentityConflict(Exception):
     def __init__(self, message: str):
         super().__init__(message)
-
-    @classmethod
-    def name_taken(cls, username: str, subject: str) -> IdentityConflict:
-        return cls(
-            f"username {username} is taken by a user or workspace; "
-            f"ask an admin to bind subject {subject} to an account"
-        )
 
     @classmethod
     def already_bound(cls, subject: str, username: str) -> IdentityConflict:
@@ -68,7 +72,16 @@ class UserArchived(Exception):
 def derive_username(preferred_username: str | None, email: str) -> str:
     source = preferred_username or email
     username = source.split("@")[0].lower()
-    check_name(username)
+    check_username(username)
+    return username
+
+
+async def find_free_username(session: AsyncSession, tenant_id: str, base: str) -> str:
+    username = base
+    suffix = 0
+    while await name_taken(session, tenant_id, username):
+        suffix += 1
+        username = f"{base}{suffix}"
     return username
 
 
@@ -157,7 +170,7 @@ class UserStore:
         email: str | None = None,
         is_admin: bool = False,
     ) -> User:
-        check_name(username)
+        check_username(username)
         if (password is None) == (subject is None):
             raise ValueError("give exactly one of password or subject")
         if password is not None:
@@ -207,9 +220,9 @@ class UserStore:
                         user.is_admin = is_admin
                     await s.commit()
                 return user, False
-            username = derive_username(preferred_username, email)
-            if await name_taken(s, self._tenant_id, username):
-                raise IdentityConflict.name_taken(username, subject)
+            username = await find_free_username(
+                s, self._tenant_id, derive_username(preferred_username, email)
+            )
             user = User(
                 tenant_id=self._tenant_id,
                 username=username,

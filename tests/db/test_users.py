@@ -108,12 +108,19 @@ async def test_create_and_set_password_enforce_the_password_rules(session_factor
     await users.set_password("bob", "é" * 36)
 
 
-@pytest.mark.parametrize("name", ["", "a@b", "a/b", "Bob", "two words", "-x", "bob\n"])
+@pytest.mark.parametrize("name", ["", "a@b", "a/b", "Bob", "two words", "bob\n"])
 async def test_invalid_names_are_refused(session_factory, name):
     with pytest.raises(InvalidName):
         await UserStore(session_factory, "default").create(name, password="password")
     with pytest.raises(InvalidName):
         await WorkspaceStore(session_factory, "default").create_shared(name, None)
+
+
+@pytest.mark.parametrize("name", ["-x", "ann+evals", "okta|ann"])
+async def test_usernames_allow_what_workspace_names_refuse(session_factory, name):
+    await UserStore(session_factory, "default").create(name, password="password")
+    with pytest.raises(InvalidName):
+        await WorkspaceStore(session_factory, "default").create_shared(f"{name}2", None)
 
 
 async def test_concurrent_creates_of_one_name_raise_name_taken(session_factory):

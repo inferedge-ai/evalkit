@@ -295,14 +295,11 @@ async def test_register_refuses_mismatched_subjects(env, idp):
     assert resp.status_code == 400 and "different subjects" in resp.json()["detail"]
 
 
-async def test_register_refuses_a_taken_username(env, idp):
+async def test_register_numbers_a_taken_username(env, idp):
     async with sso_app(env, idp) as client:
         resp = await register(client, idp, "sub-9", "admin@example.com", "admin")
-    assert resp.status_code == 409
-    assert (
-        resp.json()["detail"] == "username admin is taken by a user or workspace; "
-        "ask an admin to bind subject sub-9 to an account"
-    )
+    assert resp.status_code == 200
+    assert resp.json()["username"] == "admin1"
 
 
 async def test_register_refuses_an_archived_user(env, idp):

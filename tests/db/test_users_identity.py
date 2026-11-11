@@ -19,7 +19,11 @@ ISSUER = "https://idp.test"
         ("ann", "ann@example.com", "ann"),
         ("Ann.Lee@Example.com", "x@example.com", "ann.lee"),
         (None, "Bob_Smith@example.com", "bob_smith"),
-        ("okta|ann", "ann@example.com", None),
+        ("okta|ann", "ann@example.com", "okta|ann"),
+        (None, "Ann+Evals@example.com", "ann+evals"),
+        ("ann lee", "ann@example.com", None),
+        ("a/b", "ann@example.com", None),
+        ("@example.com", "ann@example.com", None),
     ],
 )
 def test_derive_username(preferred, email, expected):
@@ -52,11 +56,20 @@ async def test_register_creates_once_and_refreshes_email(session_factory):
     assert "ann" in workspaces
 
 
-async def test_register_refuses_a_taken_name_and_an_archived_user(session_factory):
+async def test_register_numbers_a_taken_name(session_factory):
     store = UserStore(session_factory, "default")
     await store.create("ann", password="hunter2-pw")
-    with pytest.raises(IdentityConflict, match="taken by a user or workspace"):
-        await store.register(ISSUER, "sub-2", "ann@example.com", "ann")
+    await WorkspaceStore(session_factory, "default").create_shared("ann1", None)
+    user, created = await store.register(ISSUER, "sub-2", "ann@other.example.com", None)
+    assert created and user.username == "ann2"
+    user, _ = await store.register(ISSUER, "sub-4", "ann@third.example.com", None)
+    assert user.username == "ann3"
+    workspaces = [w.name for w in await WorkspaceStore(session_factory, "default").list()]
+    assert {"ann2", "ann3"} <= set(workspaces)
+
+
+async def test_register_refuses_an_archived_user(session_factory):
+    store = UserStore(session_factory, "default")
     user, _ = await store.register(ISSUER, "sub-3", "cy@example.com", "cy")
     await store.archive("cy")
     with pytest.raises(UserArchived):
