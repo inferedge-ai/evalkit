@@ -3,7 +3,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException
 
 from evalkit.api.access import ActorDep, StoresDep, require, workspace_ref
-from evalkit.api.deps import ConfigDep
+from evalkit.api.deps import AllowPrivateEndpointsDep
 from evalkit.api.server_keys import server_keys
 from evalkit.core.access import can_use_agent
 from evalkit.core.agents import explicit, server_may_drive
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 async def run_check(
     agent: str,
     stores: StoresDep,
-    cfg: ConfigDep,
+    allow_private: AllowPrivateEndpointsDep,
     actor: ActorDep,
 ) -> dict:
     definition = await stores.agents.get(explicit(parse_slug(agent)))
@@ -33,10 +33,11 @@ async def run_check(
             detail=f"the server does not drive {definition.ref}; its owner checks it with "
             f"evalkit harness check {definition.ref}",
         )
+    keys, _ = await server_keys(stores, allow_private, definition, None)
     report = await asyncio.wait_for(
         check_harness(
             definition,
-            (await server_keys(stores, cfg, definition, None))[0].key_for("agent", definition.ref),
+            keys.key_for("agent", definition.ref),
             stores.deps.blob_store,
             transport=stores.deps.harness_transport,
             sessions=stores.sessions,

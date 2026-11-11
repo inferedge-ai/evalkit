@@ -8,11 +8,17 @@
   `E-SCHEMA ... x-shared: Extra inputs are not permitted`; 0.3.0 accepted them.
   The server parses synced and linted files itself, so `evalkit sync` and online
   `evalkit lint` accept them once the server runs this release.
-- Trace import (`POST /api/agents/{agent}/sessions/import`, `.../imports` and
-  `.../imports/{id}/continue`) reads the server config through `get_config`, like
-  every other private-address check. A package that replaces `get_config` in
-  `app.dependency_overrides` now decides trace import's `allow_private_endpoints`
-  too; before, trace import read the server's own config and ignored it.
+- Every private-address check reads `allow_private_endpoints` through a new
+  dependency, `get_allow_private_endpoints` in `evalkit.api.deps`, which reads the
+  server config through `get_config`. A package that serves evalkit can replace it
+  in `app.dependency_overrides` to decide the rule per request, for example per
+  tenant, without replacing the whole config; replacing `get_config` still decides
+  it too. The checks are on saving an agent, remote evaluator, LLM provider or
+  trace source; on starting, evaluating or resuming a server run; on
+  `POST /api/agents/{agent}/check`; and on trace import
+  (`POST /api/agents/{agent}/sessions/import`, `.../imports` and
+  `.../imports/{id}/continue`). Before, trace import read the server's own config
+  and ignored a replaced `get_config`.
 - The web UI uses InferEdge's design tokens and shadcn's setup
   (`ui/components.json`, the `@/` import alias): Roboto at 14px (was the
   system font at 13px), new light and dark colours with a white page in light

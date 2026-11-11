@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from evalkit.api.access import ActorDep, StoresDep, writable, writable_endpoint
-from evalkit.api.deps import ConfigDep
+from evalkit.api.deps import AllowPrivateEndpointsDep
 from evalkit.contracts.enums import EvaluatorKind
 from evalkit.contracts.settings import RemoteEvaluatorSettings
 from evalkit.core.remote_evaluators import RemoteEvaluator
@@ -37,12 +37,12 @@ async def create_evaluator(
     body: CreateEvaluator,
     stores: StoresDep,
     actor: ActorDep,
-    cfg: ConfigDep,
+    allow_private: AllowPrivateEndpointsDep,
 ) -> dict:
     ws = await writable_endpoint(
         stores,
         actor,
-        cfg,
+        allow_private,
         body.workspace,
         api_key="api_key" in body.model_fields_set,
         url=body.settings.endpoint,
@@ -68,14 +68,14 @@ async def edit_evaluator(
     body: EditEvaluator,
     stores: StoresDep,
     actor: ActorDep,
-    cfg: ConfigDep,
+    allow_private: AllowPrivateEndpointsDep,
 ) -> dict:
     current = await stores.evaluators.get(ref)
     moved = body.settings is not None and body.settings.endpoint != current.settings.endpoint
     await writable_endpoint(
         stores,
         actor,
-        cfg,
+        allow_private,
         current.workspace,
         api_key="api_key" in body.model_fields_set,
         url=body.settings.endpoint if moved and body.settings is not None else None,

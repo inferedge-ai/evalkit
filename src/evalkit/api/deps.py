@@ -25,3 +25,10 @@ async def get_session(request: Request, user: CurrentUser) -> AsyncIterator[Asyn
 ConfigDep = Annotated[Config, Depends(get_config)]
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 HolderDep = Annotated[str, Depends(get_holder)]
+
+
+def get_allow_private_endpoints(cfg: ConfigDep) -> bool:
+    return cfg.allow_private_endpoints
+
+
+AllowPrivateEndpointsDep = Annotated[bool, Depends(get_allow_private_endpoints)]

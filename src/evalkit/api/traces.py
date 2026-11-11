@@ -16,9 +16,8 @@ from evalkit.api.access import (
     require,
     workspace_ref,
 )
-from evalkit.api.deps import ConfigDep
+from evalkit.api.deps import AllowPrivateEndpointsDep, ConfigDep
 from evalkit.api.experiments import slug_or_400
-from evalkit.config import Config
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.access import can_write
 from evalkit.core.agents import AgentDefinition, UnknownAgent, explicit
@@ -36,10 +35,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 async def resolve_import_source(
-    stores: TenantStores, cfg: Config, name: str
+    stores: TenantStores, allow_private: bool, name: str
 ) -> ResolvedTraceSource:
     source = await stores.sources.resolve(name)
-    await check_endpoint(source.url, allow_private=cfg.allow_private_endpoints)
+    await check_endpoint(source.url, allow_private=allow_private)
     return source
 
 
@@ -173,11 +172,12 @@ async def import_session(
     stores: StoresDep,
     actor: ActorDep,
     cfg: ConfigDep,
+    allow_private: AllowPrivateEndpointsDep,
 ) -> dict:
     _, record = await agent_or_404(stores.agents, agent)
     await require_write(stores, actor, record)
     require_otel(record)
-    source = await resolve_import_source(stores, cfg, body.source)
+    source = await resolve_import_source(stores, allow_private, body.source)
     client = client_for(
         source.provider,
         source.url,
