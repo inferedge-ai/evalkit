@@ -184,7 +184,7 @@ def check_trusted_endpoints(urls: list[str]) -> list[str]:
         try:
             parsed = httpx2.URL(url)
         except httpx2.InvalidURL as exc:
-            raise ValueError(f"trusted_endpoints[{i}] is not a valid URL: {exc}") from exc
+            raise ValueError(f"trusted_endpoints[{i}] is not a valid URL") from exc
         if parsed.scheme not in ("http", "https") or not parsed.host or parsed.userinfo:
             raise ValueError(
                 f"trusted_endpoints[{i}] must be an http or https URL with a host and no user"

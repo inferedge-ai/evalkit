@@ -165,8 +165,9 @@ then add plain FastAPI routes with `app.include_router(...)`.
   replacement may take `CurrentUser`. A URL whose origin is in the config's
   `trusted_endpoints` passes every check whatever it returns. The list is read
   through `get_config`, so set it on the `Config` you pass to `create_app`, and
-  on every config a replaced `get_config` returns; `create_app` refuses a bad
-  entry.
+  on every config a replaced `get_config` returns. `create_app` refuses a bad
+  entry only in the config passed to it, so build any other config with
+  `Config.model_validate`, not `model_copy`.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
