@@ -28,6 +28,21 @@ async def test_create_user_makes_personal_workspace(api):
     assert (await client.get("/api/workspaces/ghost")).status_code == 404
 
 
+async def test_workspaces_count_each_member_once(api):
+    client = api
+    await _user(client, "bob")
+    await _user(client, "carol")
+    await client.post("/api/workspaces", json={"name": "dev"})
+    for username, role in [("bob", "writer"), ("bob", "reviewer"), ("carol", "reviewer")]:
+        resp = await client.post(
+            "/api/workspaces/dev/members", json={"username": username, "role": role}
+        )
+        assert resp.status_code == 200
+    listed = {ws["name"]: ws["members"] for ws in (await client.get("/api/workspaces")).json()}
+    assert listed["dev"] == 2 and listed["bob"] == 0
+    assert (await client.get("/api/workspaces/dev")).json()["members"] == 2
+
+
 async def test_admin_manages_shared_workspace_and_members(api):
     client = api
     bob = await _user(client, "bob")

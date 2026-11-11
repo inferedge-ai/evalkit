@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from pydantic import BaseModel
-from sqlalchemy import delete, select
+from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
@@ -228,6 +228,16 @@ class WorkspaceStore:
                 MemberRow(username=u, role=WorkspaceRole(r), granted_by=g, created_at=c)
                 for u, r, g, c in (await s.execute(query)).all()
             ]
+
+    async def count_members(self) -> dict[int, int]:
+        query = (
+            select(WorkspaceMember.workspace_id, func.count(distinct(WorkspaceMember.user_id)))
+            .join(Workspace, Workspace.id == WorkspaceMember.workspace_id)
+            .where(Workspace.tenant_id == self._tenant_id)
+            .group_by(WorkspaceMember.workspace_id)
+        )
+        async with self._session() as s:
+            return {ws_id: count for ws_id, count in (await s.execute(query)).all()}
 
     async def list(self, include_archived: bool = False) -> list[WorkspaceRef]:
         query = (

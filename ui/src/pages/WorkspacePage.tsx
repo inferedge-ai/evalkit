@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
 import { Gauge, Users, X } from "lucide-react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import {
@@ -332,49 +331,6 @@ function MembersTab({ ws }: { ws: WorkspaceInfo }) {
   );
 }
 
-function NewWorkspaceForm() {
-  const { select } = useWorkspace();
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const create = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    try {
-      const created = await apiJson<WorkspaceInfo>("/workspaces", "POST", {
-        name: name.trim(),
-      });
-      setName("");
-      await refreshQueries();
-      select(created.name);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  return (
-    <section
-      className="mt-8 border-t pt-4"
-      aria-labelledby="new-workspace-title"
-    >
-      <div id="new-workspace-title" className="eyebrow">
-        New shared workspace
-      </div>
-      <form className="flex flex-wrap items-center gap-2" onSubmit={create}>
-        <Input
-          className="w-full sm:w-64"
-          placeholder="shared workspace name, e.g. dev"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <Button type="submit">Create workspace</Button>
-      </form>
-      {error && <p className="mt-2 text-xs text-err-text">{error}</p>}
-    </section>
-  );
-}
-
 export function WorkspacePage() {
   const { tab } = useParams();
   const navigate = useNavigate();
@@ -463,7 +419,6 @@ export function WorkspacePage() {
           {tab === "evaluators" && <EvaluatorsTab ws={ws} />}
           {tab === "members" && <MembersTab ws={ws} />}
         </div>
-        {me.is_admin && <NewWorkspaceForm />}
       </div>
     </>
   );

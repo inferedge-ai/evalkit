@@ -11,7 +11,6 @@ import { WorkspaceGate } from "../shell/workspace";
 import {
   closePage,
   devWorkspace,
-  failure,
   renderPage,
   stubServer,
 } from "../testFixtures";
@@ -39,6 +38,7 @@ const workspace: WorkspaceInfo = {
   archived: false,
   promotes_to: null,
   promoted_from: null,
+  members: 0,
 };
 
 // jsdom has no layout; the select scrolls its highlighted option into view.
@@ -166,65 +166,13 @@ test("an admin on an archived workspace is told it is archived and cannot add ev
   expect(screen.queryByRole("button", { name: "New evaluator" })).toBeNull();
 });
 
-test("a workspace an admin cannot create says why next to its form", async () => {
-  stubServer((url, init) =>
-    url.endsWith("/api/workspaces") && init?.method === "POST"
-      ? Response.json(
-          { detail: "workspace dev already exists" },
-          { status: 409 },
-        )
-      : undefined,
-  );
-  renderPage(
-    { ...me, is_admin: true },
-    "/settings/workspace/members",
-    <Route path="/settings/workspace/:tab" element={<WorkspacePage />} />,
-  );
-  const user = userEvent.setup();
-  const form = await screen.findByRole("region", {
-    name: "New shared workspace",
-  });
-  await user.type(within(form).getByRole("textbox"), "dev");
-  await user.click(
-    within(form).getByRole("button", { name: "Create workspace" }),
-  );
+test("an admin's workspace settings page has no form for creating another workspace", async () => {
+  openSettings("members", [], devWorkspace, true);
   expect(
-    await within(form).findByText("workspace dev already exists"),
+    await screen.findByRole("heading", { name: "@dev" }),
   ).toBeInTheDocument();
-});
-
-test("an error on one workspace is gone after the admin creates another", async () => {
-  const qa = { ...devWorkspace, id: 3, name: "qa" };
-  let created = false;
-  stubServer((url, init) => {
-    if (url.endsWith("/api/workspaces/dev/archive"))
-      return failure("dev holds running experiments");
-    if (url.endsWith("/api/workspaces") && init?.method === "POST") {
-      created = true;
-      return Response.json(qa);
-    }
-    if (url.endsWith("/api/workspaces?include_archived=true"))
-      return Response.json(created ? [devWorkspace, qa] : [devWorkspace]);
-  });
-  renderPage(
-    { ...me, is_admin: true },
-    "/settings/workspace/members",
-    <Route path="/settings/workspace/:tab" element={<WorkspacePage />} />,
-  );
-  const user = userEvent.setup();
-  await user.click(await screen.findByRole("button", { name: "Archive" }));
   expect(
-    await screen.findByText("dev holds running experiments"),
-  ).toBeInTheDocument();
-
-  const form = screen.getByRole("region", { name: "New shared workspace" });
-  await user.type(within(form).getByRole("textbox"), "qa");
-  await user.click(
-    within(form).getByRole("button", { name: "Create workspace" }),
-  );
-
-  expect(
-    await screen.findByRole("heading", { name: "@qa" }),
-  ).toBeInTheDocument();
-  expect(screen.queryByText("dev holds running experiments")).toBeNull();
+    screen.queryByRole("button", { name: /create workspace/i }),
+  ).toBeNull();
+  expect(screen.queryByText(/new shared workspace/i)).toBeNull();
 });

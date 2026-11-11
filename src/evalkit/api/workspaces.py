@@ -12,7 +12,7 @@ from evalkit.db.workspaces import WorkspaceStore
 router = APIRouter(prefix="/api/workspaces", tags=["workspaces"])
 
 
-def _view(ws: WorkspaceRef, names: dict[int, str]) -> dict:
+def _view(ws: WorkspaceRef, names: dict[int, str], members: dict[int, int]) -> dict:
     return {
         "id": ws.id,
         "tenant_id": ws.tenant_id,
@@ -22,20 +22,22 @@ def _view(ws: WorkspaceRef, names: dict[int, str]) -> dict:
         "archived": ws.archived,
         "promotes_to": names.get(ws.promotes_to) if ws.promotes_to is not None else None,
         "promoted_from": names.get(ws.promoted_from) if ws.promoted_from is not None else None,
+        "members": members.get(ws.id, 0),
     }
 
 
 async def _one(store: WorkspaceStore, ws: WorkspaceRef) -> dict:
     linked = [i for i in (ws.promotes_to, ws.promoted_from) if i is not None]
     names = {i: (await store.get_by_id(i)).name for i in linked}
-    return _view(ws, names)
+    return _view(ws, names, await store.count_members())
 
 
 @router.get("")
 async def list_workspaces(stores: StoresDep, include_archived: bool = False) -> list[dict]:
     rows = await stores.workspaces.list(include_archived=True)
     names = {ws.id: ws.name for ws in rows}
-    return [_view(ws, names) for ws in rows if include_archived or not ws.archived]
+    members = await stores.workspaces.count_members()
+    return [_view(ws, names, members) for ws in rows if include_archived or not ws.archived]
 
 
 class CreateWorkspace(BaseModel):

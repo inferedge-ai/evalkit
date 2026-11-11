@@ -14,6 +14,7 @@ const ws = (extra: Partial<WorkspaceInfo>): WorkspaceInfo => ({
   archived: false,
   promotes_to: null,
   promoted_from: null,
+  members: 0,
   ...extra,
 });
 

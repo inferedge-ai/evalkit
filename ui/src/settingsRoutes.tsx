@@ -3,6 +3,7 @@ import { LlmProvidersPage } from "./pages/LlmProvidersPage";
 import { TraceSourcesPage } from "./pages/TraceSourcesPage";
 import { UsersAdminPage } from "./pages/UsersAdmin";
 import { WorkspacePage } from "./pages/WorkspacePage";
+import { WorkspacesPage } from "./pages/WorkspacesPage";
 import { useMe } from "./shell/capabilities";
 import { getSettingsSections, getWrapperSettings } from "./shell/nav";
 import { useWorkspace } from "./shell/workspace";
@@ -31,6 +32,7 @@ export function renderSettingsRoutes() {
       />
       <Route path="/settings/workspace/:tab" element={<WorkspacePage />} />
       <Route path="/settings/users" element={<UsersAdminPage />} />
+      <Route path="/settings/workspaces" element={<WorkspacesPage />} />
       <Route path="/settings/trace-sources" element={<TraceSourcesPage />} />
       <Route path="/settings/llm-providers" element={<LlmProvidersPage />} />
       {wrapperPages.map((page) => (

@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   Database,
   FlaskConical,
+  Layers,
   Users,
   Waypoints,
 } from "lucide-react";
@@ -54,6 +55,7 @@ const WORKSPACE_SETTINGS: NavItem = {
 
 const ORGANIZATION_SETTINGS: NavItem[] = [
   { to: "/settings/users", label: "Users", icon: Users },
+  { to: "/settings/workspaces", label: "Workspaces", icon: Layers },
   { to: "/settings/trace-sources", label: "Trace sources", icon: Waypoints },
   { to: "/settings/llm-providers", label: "LLM providers", icon: BrainCircuit },
 ];
