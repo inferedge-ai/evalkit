@@ -107,7 +107,7 @@ function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
               <FieldLabel htmlFor={`${formId}-name`}>Name</FieldLabel>
               <Input
                 id={`${formId}-name`}
-                placeholder="dev"
+                placeholder="e.g. staging"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -154,7 +154,7 @@ export function WorkspacesPage() {
     <>
       <PageHeader
         title="Workspaces"
-        description="Click a workspace to switch to it and open its settings. Everyone has a personal workspace; admins create shared ones and add their members."
+        description="Click a workspace to switch to it and open its settings."
         actions={
           me.is_admin && (
             <Button size="sm" onClick={() => setCreating(true)}>
