@@ -7,6 +7,8 @@
   session, fixing its mapping against it, then importing a time range, with no
   change to the agent's code. The Tracing docs page describes the same steps.
   Imported sessions are app runs; experiments still need the collector or ATIF.
+- `evalkit trace-sources --help` no longer says "(admin only)": every user can
+  list trace sources; only admins create, edit or archive them.
 - A case file's mapping shape accepts top-level keys starting with `x-` (for
   example `x-shared`) and ignores them, so they can hold YAML anchors that cases
   reuse. In 0.4.0, `evalkit lint` and `evalkit sync` refused such files with

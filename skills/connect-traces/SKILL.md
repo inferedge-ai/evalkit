@@ -20,8 +20,7 @@ ATIF conversion are evalkit's side and need nothing from you.
 
 ## Two paths: export or import
 
-Spans reach evalkit in one of two ways. Ask the developer which one they want
-before step 1; most of the steps are the same.
+Spans reach evalkit in one of two ways. Most of the steps are the same.
 
 | | Export | Import |
 | -- | -- | -- |
@@ -33,6 +32,22 @@ before step 1; most of the steps are the same.
 Import suits a developer who already sends traces to Phoenix and wants to
 try evalkit on that history first. They can add the export path later
 without redoing anything: the agent and its mapping stay the same.
+
+Pick the path yourself, then confirm it with the developer in one line:
+
+1. The developer wants to run experiments now → export.
+2. The agent already sends traces to Phoenix and `evalkit trace-sources list`
+   shows a source → import first, export later. An empty list means no admin
+   has registered one; the developer asks an admin to run
+   `evalkit trace-sources create`, or takes the export path.
+3. Otherwise → export.
+
+For import, ask in the same message for the Phoenix project name and one
+session id from it (Phoenix → the project → Sessions tab), so the developer
+is interrupted once. For example: "Your traces are already in Phoenix, so I'll
+import them and leave your code alone. Which Phoenix project, and one session
+id from its Sessions tab?" You cannot list Phoenix projects or sessions
+yourself: the trace source's URL and key live on the evalkit server.
 
 The steps below mark where the paths differ. The sections after the steps
 ("An agent in another process" and later) apply to the export path only.
@@ -73,8 +88,9 @@ lacks it. That is what a wrong mapping looks like in the check.
 ## Steps
 
 1. **Identify the instrumentation.** Grep the repository for `openinference`
-   and `gen_ai.`, or on the import path look at one span's attributes in the
-   trace source. Note which one applies, or neither. Then make sure the
+   and `gen_ai.`. Note which one applies, or neither. On the import path
+   without the agent's repository, start from `openinference.json` (Phoenix's
+   own instrumentation) and correct it in step 6 from the imported spans. Then make sure the
    instrumentation records message content: without it evalkit gets token
    counts but no messages, tool arguments or results, and the trajectory is
    close to empty. The GenAI conventions turn content capture off by
@@ -87,10 +103,10 @@ lacks it. That is what a wrong mapping looks like in the check.
    | OpenLLMetry (Traceloop) | on by default; check `TRACELOOP_TRACE_CONTENT` is not `false` |
    | Vercel AI SDK | `experimental_telemetry: { isEnabled: true }`; `recordInputs` / `recordOutputs` default to on |
 
-   On the import path, the spans already exist: check a few in the trace
-   source for message content. If they have none, the import still works but
-   the trajectories will be close to empty; turning capture on now only helps
-   spans recorded from then on.
+   On the import path, the spans already exist, so step 5 checks them for
+   message content (the `llm` line). If they have none, the import still
+   works but the trajectories are close to empty; turning capture on now only
+   helps spans recorded from then on.
 
    On the export path, turn it on wherever spans are exported to evalkit: the process that runs
    the eval, and any deployed agent or worker those runs call. Whether a
@@ -166,20 +182,26 @@ lacks it. That is what a wrong mapping looks like in the check.
      creates no experiment, and prints the session id (`session <id>: N spans
      ...`). The agent's own entry point works too; the Runs page lists the
      session either way.
-   - **Import path.** Find the trace source's name with
-     `evalkit trace-sources list`. An empty list means no admin has
-     registered one yet; ask the developer to have an admin run
-     `evalkit trace-sources create`. Then pick one session id from the
-     developer's Phoenix project and import it:
+   - **Import path.** Import the session the developer named, with the
+     trace source from `evalkit trace-sources list`:
 
      ```bash
      evalkit traces import <agent> <session id> --source <trace source> --project <Phoenix project>
      ```
 
-     It prints `imported <n> spans` and then the same lines as step 5's
-     check. `imported 0 spans` means the project has no spans for that id:
-     check the project name and the id. You can also import from the agent's
-     Import tab in the web UI.
+     It prints `imported <n> spans`, waits the server's settle time (a pause
+     here is normal), then prints the same lines as step 5's check.
+     `imported 0 spans` means the project has no spans for that id: check the
+     project name and the id. You can also import from the agent's Import tab
+     in the web UI.
+
+     If the project's Sessions tab is empty, its spans carry no `session.id`
+     and there is no id to give. Import a short range instead (an hour, see
+     step 8; the mapping from step 2 is already active, so the range is
+     allowed) and use the sample session it prints. If it prints
+     `no sessions were imported`, the spans carry no attribute the
+     `session_id` rule can read: find one in a span (Phoenix's span details)
+     that is shared by every span of a run.
 5. **Check it.**
 
    ```bash
@@ -187,6 +209,8 @@ lacks it. That is what a wrong mapping looks like in the check.
    ```
 
    Read the lines against this table. `spans.json` holds the raw attributes.
+   On the import path the import already printed these lines; run the check
+   only for `spans.json`.
 
    | Line | What it tells you |
    | -- | -- |
@@ -224,6 +248,14 @@ lacks it. That is what a wrong mapping looks like in the check.
    developer: the deployment's admin can raise the limit together with the
    server's memory.
 
+   On the import path, also open `spans.json` and confirm the root span
+   carries the attribute the mapping's `session_id` rule names. The
+   one-session import falls back to the id you gave when the rule finds
+   nothing, so the lines look right even with a wrong rule; the range import
+   in step 8 has no fallback. Phoenix groups sessions by `session.id`, while
+   `gen_ai.json`, `google-adk.json`, `mastra.json` and `claude-agent-sdk.json`
+   read `gen_ai.conversation.id`.
+
    When the lines look right, go to step 7.
 6. **Fix the mapping** when they do not. Edit `eval/span-mapping.json` (it is
    JSON, one rule per ESF field) and change the attribute keys to the ones in
@@ -248,23 +280,37 @@ lacks it. That is what a wrong mapping looks like in the check.
    output is not approval; a mapping applies to every future run of the agent.
 
    On the export path you are done. On the import path, go on to step 8.
-8. **Import path: import the history.** A time range imports every trace
-   that started in it, as a job on the server:
+8. **Import path: import the history.** Before importing, tell the developer
+   two things and get a yes, as for activation in step 7:
+
+   - **Who can read it.** Imported runs land in the agent's workspace, and
+     every user on the evalkit server can read every workspace. A history
+     of app traffic may hold end users' data.
+   - **How much.** Ask how far back they want. Each span is stored on the
+     evalkit server, and one long session can take hundreds of MB, so a
+     large range takes time and storage.
+
+   A time range imports every trace that started in it, as a job on the
+   server. Import one day first:
 
    ```bash
-   evalkit traces import <agent> --source <trace source> --project <Phoenix project> --since 2026-10-01
+   evalkit traces import <agent> --source <trace source> --project <Phoenix project> --since 2026-11-10 --until 2026-11-11
    ```
 
-   `--until` ends the range (exclusive; default now); both take ISO 8601,
-   UTC unless the value carries an offset. The CLI follows the job's
-   progress, and Ctrl-C only stops following. When the job is done it prints
-   the check lines for one sample session.
+   `--since` and `--until` take ISO 8601 times, UTC unless the value carries
+   an offset; `--until` is exclusive and defaults to now. The CLI follows
+   the job's progress, and Ctrl-C only stops following. When the job is done
+   it prints the check lines for one sample session. If they look right,
+   import the full range the developer chose.
 
    - The server groups the spans into sessions by the attribute the active
-     mapping's `session_id` rule names, so that rule must match the attribute
-     the developer's spans carry. Without a `session_id` rule the server
-     refuses the range with `409 activate a mapping with session_id before
-     importing a time range`.
+     mapping's `session_id` rule names. Without a `session_id` rule it refuses
+     the range with `409 activate a mapping with session_id before importing a
+     time range`.
+   - `no sessions were imported` after a range import means the rule names an
+     attribute the spans do not carry. Fix the rule, push and activate it
+     (steps 6–7), and import the same range again: a re-import rewrites each
+     span's session.
    - `evalkit traces imports <agent>` lists the agent's range imports;
      `evalkit traces imports <agent> <id>` follows one, `--stop` stops it and
      `--continue` resumes a failed or stopped one from where it got to.

@@ -16,7 +16,8 @@ members_app = typer.Typer(no_args_is_help=True, help="Writers and reviewers of a
 workspaces_app.add_typer(members_app, name="members")
 agents_app = typer.Typer(no_args_is_help=True, help="Agents: create, edit, list, archive.")
 trace_sources_app = typer.Typer(
-    no_args_is_help=True, help="Third-party trace stores for evalkit traces import (admin only)."
+    no_args_is_help=True,
+    help="Trace stores for evalkit traces import. Everyone can list them; admins change them.",
 )
 evaluators_app = typer.Typer(
     no_args_is_help=True, help="Remote evaluators (Custom Evaluator API endpoints) per workspace."

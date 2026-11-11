@@ -200,12 +200,21 @@ user can import traces from it into an OTel agent they can write, with
 You can start with evalkit this way, without exporting spans to the
 collector or changing the agent's code:
 
-1. Create the OTel agent with a mapping (see [Mappings](mappings.md)).
+1. Create the OTel agent with a mapping (see [Mappings](mappings.md)):
+   `evalkit agents create <agent> --trajectory-source otel --mapping <file>`.
 2. Import one session: `evalkit traces import <agent> <session id> --source <trace source> --project <project>`.
-   It prints the same check lines as `evalkit traces check`.
-3. Fix the mapping until the check looks right, and activate it. It needs a
-   `session_id` rule that matches the attribute your spans carry.
-4. Import a time range: `evalkit traces import <agent> --source <trace source> --project <project> --since <time>`.
+   `evalkit trace-sources list` names the trace sources; the session id comes
+   from the project's Sessions tab in Phoenix. The import prints the same
+   check lines as `evalkit traces check`.
+3. Fix the mapping until the check looks right: push a draft with
+   `evalkit traces mapping push`, check it with `--mapping draft`, then
+   `evalkit traces mapping activate` (or use the agent's Mappings tab).
+   Make sure the root span carries the attribute the `session_id` rule names
+   (`evalkit traces check ... --dump spans.json` shows it). The one-session
+   import falls back to the id you gave, so a wrong rule only shows up in the
+   next step, as `no sessions were imported`.
+4. Import a time range, one day first and then the rest:
+   `evalkit traces import <agent> --source <trace source> --project <project> --since <time>`.
 
 The imported sessions are app runs: they show on the Runs page and
 `evalkit runs pull` downloads them. Experiments still need trajectories from
