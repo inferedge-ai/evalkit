@@ -1055,7 +1055,7 @@ to enter on any device.</p>
 <p>Without single sign-on, or with <code>--username</code>, the command asks for a username
 and password and stores an evalkit token instead. With single sign-on
 configured, password login is for admins unless the deployer set
-<code>password_login: all</code>.</p>
+<code>password_login: all</code>, and off for everyone with <code>password_login: none</code>.</p>
 <p>The CLI talks to one server at a time: logging in again, to the same server
 or another, replaces the stored login. Dev and prod are workspaces on one
 server (<code>finance@dev</code>, <code>finance@prod</code>), not separate logins.</p>
@@ -1065,9 +1065,11 @@ server rejects it. An SSO access token expires within the hour and renews
 itself; that line is not a reason to log in again. When a command fails with
 <code>your login has expired</code>, run <code>evalkit login</code> again.</p>
 <p>The first sign-in creates your evalkit user, named after the part before <code>@</code>
-in your identity provider's username or email. If that name is taken, the
-command says so and names the subject an admin binds with
-<code>evalkit users bind</code>; see <a href="../sso/">Single sign-on</a>.</p>
+in your identity provider's username or email, in lowercase. If another user
+or a workspace has that name, evalkit adds the first free number to it
+(<code>ann1</code>, <code>ann2</code>, ...). If an active password account not yet bound to an
+identity has it, the command says so and names the subject an admin binds
+with <code>evalkit users bind</code>; see <a href="../sso/">Single sign-on</a>.</p>
 <h2 id="scripts-and-ci">Scripts and CI<a class="headerlink" href="#scripts-and-ci" title="Permanent link">&para;</a></h2>
 <p>Pipelines authenticate as a machine client at the identity provider:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_SERVER_URL</span><span class="o">=</span>http://localhost:8020

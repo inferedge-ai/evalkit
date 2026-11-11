@@ -1108,7 +1108,7 @@
 <tr>
 <td><code>server.accent_color</code></td>
 <td>none</td>
-<td>A CSS color for the web UI's accent.</td>
+<td>A CSS color for a strip along the top of every web UI page, so each environment is told apart at a glance.</td>
 </tr>
 <tr>
 <td><code>db.url</code></td>
@@ -1204,6 +1204,11 @@
 <td><code>allow_private_endpoints</code></td>
 <td><code>false</code></td>
 <td>Let agents, evaluators, LLM providers and trace sources point at loopback, private or link-local addresses.</td>
+</tr>
+<tr>
+<td><code>trusted_endpoints</code></td>
+<td><code>[]</code></td>
+<td>URLs whose origin (scheme, host and port) is always allowed, even when it is a private address and <code>allow_private_endpoints</code> is off, for example an in-cluster LLM gateway: <code>["http://litellm:4000"]</code>. Each must be an <code>http</code> or <code>https</code> URL with a host and no user; the path is ignored, and a URL must spell the host exactly as listed. Any path on a listed origin is open to every agent, remote evaluator, LLM provider and trace source, and any writer of a shared workspace can create agents and evaluators, so list only services that check their own credentials.</td>
 </tr>
 </tbody>
 </table>

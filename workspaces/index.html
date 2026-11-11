@@ -1258,7 +1258,9 @@ your agent:</p>
 <div class="highlight"><pre><span></span><code>@alice ──PR merged, CI syncs──▶ @dev (Unreviewed) ──reviewer approves──▶ @dev (Approved) ──promotion──▶ @prod (Approved)
 </code></pre></div>
 <h3 id="set-it-up">Set it up<a class="headerlink" href="#set-it-up" title="Permanent link">&para;</a></h3>
-<p>An admin runs these once:</p>
+<p>An admin runs these once. In the web UI, Settings › Organization ›
+Workspaces creates workspaces too, and lists them with each one's member
+count.</p>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>users<span class="w"> </span>add<span class="w"> </span>alice<span class="w">                                 </span><span class="c1"># prompts for a password; once per user</span>
 evalkit<span class="w"> </span>users<span class="w"> </span>add<span class="w"> </span>bob
 evalkit<span class="w"> </span>workspaces<span class="w"> </span>create<span class="w"> </span>dev
