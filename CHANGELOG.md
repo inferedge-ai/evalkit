@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - An SSO first sign-in derives the username more loosely: it is the part before
   `@` in lowercase, and may hold any character except whitespace, `@`, `/`,
