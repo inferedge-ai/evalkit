@@ -287,9 +287,11 @@
   source view showed "Failed to load file: " with nothing after it over
   HTTP/2, and previews showed `Error`. Previews now also explain a harness
   that no longer has the file, as the source view did.
-  `GET /api/agents/{agent}/runs/{run_id}/files` and `.../files/{path}`
-  answer 502 `harness unreachable` when they can't reach the harness, the
-  words the runs list's note uses; before, they failed with a plain-text 500.
+  `GET /api/agents/{agent}/runs/{run_id}/files`, `.../files/{path}` and
+  `.../zip` answer 502 `harness unreachable` when they can't reach the
+  harness, the words the runs list's note uses, and the MCP tools
+  `get_run_files` and `download_run_file` return `upstream_failed: harness
+  unreachable`; before, the error escaped as a plain-text 500.
 
 ## 0.4.0
 

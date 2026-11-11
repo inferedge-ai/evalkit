@@ -236,7 +236,7 @@ async def test_single_file_closes_the_harness_client_on_any_error(
 
 @pytest.mark.parametrize(
     ("method", "url"),
-    [("stream_file", "files/a.md"), ("list_files", "files")],
+    [("stream_file", "files/a.md"), ("list_files", "files"), ("list_files", "zip")],
 )
 async def test_workspace_reads_from_an_unreachable_harness_say_so(
     tmp_path, stub_judges, session_factory, monkeypatch, method, url
