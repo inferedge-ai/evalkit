@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from evalkit.api.access import StoresDep
 from evalkit.api.auth import AdminUser
-from evalkit.api.deps import AllowPrivateEndpointsDep
+from evalkit.api.deps import EndpointRuleDep
 from evalkit.contracts.enums import TraceProvider
 from evalkit.core.endpoints import check_endpoint
 
@@ -27,10 +27,10 @@ class CreateTraceSource(BaseModel):
 async def create_trace_source(
     body: CreateTraceSource,
     stores: StoresDep,
-    allow_private: AllowPrivateEndpointsDep,
+    rule: EndpointRuleDep,
     admin: AdminUser,
 ) -> dict:
-    await check_endpoint(body.url, allow_private=allow_private)
+    await check_endpoint(body.url, rule=rule)
     created = await stores.sources.create(body.name, body.provider, body.url, body.api_key)
     return created.model_dump(mode="json")
 
@@ -45,11 +45,11 @@ async def edit_trace_source(
     name: str,
     body: EditTraceSource,
     stores: StoresDep,
-    allow_private: AllowPrivateEndpointsDep,
+    rule: EndpointRuleDep,
     admin: AdminUser,
 ) -> dict:
     if body.url is not None:
-        await check_endpoint(body.url, allow_private=allow_private)
+        await check_endpoint(body.url, rule=rule)
     edited = await stores.sources.edit(name, url=body.url, api_key=body.api_key)
     return edited.model_dump(mode="json")
 

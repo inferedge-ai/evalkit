@@ -3,7 +3,7 @@ from dataclasses import replace
 
 from evalkit.api.access import TenantStores
 from evalkit.core.agents import AgentDefinition
-from evalkit.core.endpoints import check_endpoint
+from evalkit.core.endpoints import EndpointRule, check_endpoint
 from evalkit.core.runner import RunnerDeps
 from evalkit.db.keys import StoredKeys
 
@@ -15,13 +15,13 @@ async def server_keys(
     agent: AgentDefinition,
     judge_provider: str | None,
     *,
-    allow_private: bool,
+    rule: EndpointRule,
 ) -> tuple[StoredKeys, list[str]]:
     keys = await stores.keys.load(agent, judge_provider)
     judge_url = keys.provider_judge(judge_provider)[0] if judge_provider is not None else None
     for url in (agent.harness_url, judge_url):
         if url is not None:
-            await check_endpoint(url, allow_private=allow_private)
+            await check_endpoint(url, rule=rule)
     warnings = []
     if agent.harness_url is not None and keys.key_for("agent", agent.ref) is None:
         warnings.append(

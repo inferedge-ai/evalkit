@@ -45,5 +45,6 @@ Any value can be `env:NAME` (required) or `env:NAME:<default>`. Unknown keys fai
 | `sentry` | none | Report server errors to Sentry: `dsn` (required), `environment`, `traces_sample_rate` (`0.0`), `max_request_body_size` (`never`, `small`, `medium` or `always`). |
 | `encryption_key` | none | Fernet key that encrypts stored API keys. The server refuses to start without it once any exist. |
 | `allow_private_endpoints` | `false` | Let agents, evaluators, LLM providers and trace sources point at loopback, private or link-local addresses. |
+| `trusted_endpoints` | `[]` | URLs whose origin (scheme, host and port) is always allowed, even when it is a private address and `allow_private_endpoints` is off, for example an in-cluster LLM gateway: `["http://litellm:4000"]`. Each must be an `http` or `https` URL with a host and no user; the path is ignored, and a URL must spell the host exactly as listed. Any path on a listed origin is open to every agent, remote evaluator, LLM provider and trace source, and any writer of a shared workspace can create agents and evaluators, so list only services that check their own credentials. |
 
 LLM providers, the default judge and stored API keys live in the database, not here: set them with `evalkit llm-providers`, `evalkit judge-default set` and `evalkit agents edit`.

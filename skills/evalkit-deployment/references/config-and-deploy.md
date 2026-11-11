@@ -140,6 +140,7 @@ indirection, resolved at load time — keep secrets out of the file.
 | `blob` | one blob URL: `fixtures/sha256/<sha256>` (case input files), `trajectories/`, `artifacts/` |
 | `encryption_key` | Fernet key that encrypts the stored API keys of agents, remote evaluators, LLM providers and trace sources. The server refuses to start without it once any exist. `evalkit db rekey --config config.yaml --old-key-env OLD --new-key-env NEW` re-encrypts all of them after a change. |
 | `allow_private_endpoints` | default `false`. The server refuses (400) a harness URL, evaluator endpoint, LLM provider base URL or trace source URL that resolves to a loopback, private, link-local, unspecified, multicast or reserved address, or does not resolve. Set `true` when they run in the same cluster or on `host.docker.internal`. |
+| `trusted_endpoints` | default `[]`. `http` or `https` URLs whose origin (scheme, host, port) is allowed even with `allow_private_endpoints` off, e.g. an in-cluster LLM gateway: `["http://litellm:4000"]`. The path is ignored and the host must be spelled exactly as listed. Every agent, remote evaluator, LLM provider and trace source may use any path on it, so list only services that check their own credentials. |
 | `sentry` | optional: `dsn`, `environment`, `traces_sample_rate` (default `0.0`, errors only), `max_request_body_size` (default `never`; `small` up to 1 KB, `medium` up to 10 KB, `always`; bodies can hold client case and trajectory data). With it, the server reports unhandled errors, 500 responses and error logs to Sentry, tagged with release `evalkit@<version>`. IPs, cookies and sensitive headers are never sent. |
 | `cost_map` | `bundled` (snapshot in the image) or a path/URL override |
 | `auth` | `token_ttl_hours` for UI/CLI tokens |
@@ -249,7 +250,8 @@ express a limit (concurrency), evalkit takes the minimum.
 - Without `allow_private_endpoints: true`, the server refuses agent, evaluator,
   LLM provider and trace source URLs that resolve to internal addresses:
   localhost, private ranges, link-local (including `169.254.169.254`), or that
-  don't resolve.
+  don't resolve. A URL on an origin listed in `trusted_endpoints` is allowed
+  either way.
 - The server never calls URLs from personal workspaces.
 - A server run whose agent, evaluator or LLM provider has no stored key calls
   it without a key header. The create, resume or evaluate response carries

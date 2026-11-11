@@ -82,6 +82,15 @@ def test_defaults(tmp_path, monkeypatch):
     assert isinstance(cfg, RunnerConfig)
 
 
+def test_trusted_endpoints_must_be_http_urls_with_a_host(tmp_path, monkeypatch):
+    monkeypatch.setenv("DB_URL", "pk")
+    cfg = load_config(write(tmp_path, BASIC + "trusted_endpoints:\n  - http://litellm-svc:4000\n"))
+    assert cfg.trusted_endpoints == ["http://litellm-svc:4000"]
+    for typo in ("litellm-svc:4000", "ftp://gateway", "http://user@gateway", "http://gw:40OO"):
+        with pytest.raises(ValidationError, match="trusted_endpoints"):
+            load_config(write(tmp_path, BASIC + f"trusted_endpoints:\n  - {typo}\n"))
+
+
 def test_validation_errors_never_echo_resolved_secrets(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_URL", "pk")
     monkeypatch.setenv("SECRET", "sk-proj-SECRET")
@@ -91,6 +100,11 @@ def test_validation_errors_never_echo_resolved_secrets(tmp_path, monkeypatch):
     with pytest.raises(ValidationError) as raised:
         load_config(write(tmp_path, BASIC + "otel:\n  settle_seconds: env:SECRET\n"))
     assert "sk-proj-SECRET" not in str(raised.value)
+    for url in ("http://u:sk-proj-SECRET@gateway", "http://u:sk-proj-SECRET/x@gateway"):
+        monkeypatch.setenv("SECRET_URL", url)
+        with pytest.raises(ValidationError) as raised:
+            load_config(write(tmp_path, BASIC + "trusted_endpoints:\n  - env:SECRET_URL\n"))
+        assert "sk-proj-SECRET" not in str(raised.value)
 
 
 def test_local_credentials_must_be_plain_env_names(tmp_path):

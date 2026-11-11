@@ -164,7 +164,8 @@ sequenceDiagram
   receives the API key you enter here and the data evalkit sends it: cases,
   answers and trajectories." The server refuses an endpoint that resolves to a
   loopback, private, link-local or other non-public address (or does not
-  resolve) with 400, unless its config sets `allow_private_endpoints: true`.
+  resolve) with 400, unless its config sets `allow_private_endpoints: true` or
+  lists the endpoint's origin in `trusted_endpoints`.
 - **`db rekey --config … --old-key-env … --new-key-env …`:** re-encrypts every
   stored key (agents, evaluators, LLM providers, trace sources) after the
   server's `encryption_key` changes. It talks to the database directly and
@@ -206,7 +207,7 @@ sequenceDiagram
   evaluators read their key from evalkit.yaml`.
 - **An endpoint on a private or unresolvable address:** 400 `<url> resolves to
   a private address; the operator can allow it with allow_private_endpoints:
-  true`.
+  true or trusted_endpoints`.
 - **A judge names an unknown provider:** 400 `<name> is not a registered LLM
   provider; registered: …`. A server run's judge with a base URL: 400 `the
   server judges with a registered LLM provider, not a base_url …`. No judge
