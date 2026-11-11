@@ -1,6 +1,6 @@
 ---
 name: connect-traces
-description: Use when wiring a client's OpenTelemetry traces into evalkit so run_experiment or a harness run gets trajectories, when creating an OTel agent (it needs a span mapping), or when `evalkit traces check` shows wrong span kinds, empty messages or missing tokens.
+description: Use when wiring a client's OpenTelemetry traces into evalkit so run_experiment or a harness run gets trajectories, when importing an agent's existing traces from a trace store such as Phoenix instead, when creating an OTel agent (it needs a span mapping), or when `evalkit traces check` shows wrong span kinds, empty messages or missing tokens.
 ---
 
 # connect-traces
@@ -9,15 +9,33 @@ description: Use when wiring a client's OpenTelemetry traces into evalkit so run
 
 evalkit scores an agent on its **trajectory**: the LLM calls, messages, tool
 calls and token counts of one run. When the agent emits OpenTelemetry spans,
-evalkit builds that trajectory from the spans itself: the agent exports every
-span to the evalkit server (the **collector**), the server groups the spans of
-one run into an **agent session** by the `session.id` attribute, reads each
-span into the evalkit span format (**ESF**) with a **mapping**, and converts
-the session to ATIF. Nothing in the client's code converts anything.
+evalkit builds that trajectory from the spans itself: the server groups the
+spans of one run into an **agent session** by the `session.id` attribute,
+reads each span into the evalkit span format (**ESF**) with a **mapping**, and
+converts the session to ATIF. Nothing in the client's code converts anything.
 
 Your job ends when `evalkit traces check` shows the right span kinds,
 messages, tool calls and tokens for one session. Scoring, scorecards and the
 ATIF conversion are evalkit's side and need nothing from you.
+
+## Two paths: export or import
+
+Spans reach evalkit in one of two ways. Ask the developer which one they want
+before step 1; most of the steps are the same.
+
+| | Export | Import |
+| -- | -- | -- |
+| How spans arrive | The agent sends every new span to the evalkit server (the **collector**) | evalkit pulls past spans from a **trace source**: a trace store an admin registered, today Arize Phoenix |
+| Change to the agent's code | Add evalkit's exporter | None |
+| What the developer gets | App runs on the Runs page, `evalkit runs pull`, case mining, and trajectories for experiments | App runs on the Runs page, `evalkit runs pull` and case mining, for the time range imported |
+| Experiments (`run_experiment`, harness runs) | Get trajectories from the spans | Do not: they still need the export path or an agent that returns ATIF |
+
+Import suits a developer who already sends traces to Phoenix and wants to
+try evalkit on that history first. They can add the export path later
+without redoing anything: the agent and its mapping stay the same.
+
+The steps below mark where the paths differ. The sections after the steps
+("An agent in another process" and later) apply to the export path only.
 
 Traces replace the trajectory only. The files a run wrote (the run's
 Workspace tab in evalkit) come from the Harness API files endpoints, which
@@ -55,7 +73,8 @@ lacks it. That is what a wrong mapping looks like in the check.
 ## Steps
 
 1. **Identify the instrumentation.** Grep the repository for `openinference`
-   and `gen_ai.`. Note which one applies, or neither. Then make sure the
+   and `gen_ai.`, or on the import path look at one span's attributes in the
+   trace source. Note which one applies, or neither. Then make sure the
    instrumentation records message content: without it evalkit gets token
    counts but no messages, tool arguments or results, and the trajectory is
    close to empty. The GenAI conventions turn content capture off by
@@ -68,7 +87,12 @@ lacks it. That is what a wrong mapping looks like in the check.
    | OpenLLMetry (Traceloop) | on by default; check `TRACELOOP_TRACE_CONTENT` is not `false` |
    | Vercel AI SDK | `experimental_telemetry: { isEnabled: true }`; `recordInputs` / `recordOutputs` default to on |
 
-   Turn it on wherever spans are exported to evalkit: the process that runs
+   On the import path, the spans already exist: check a few in the trace
+   source for message content. If they have none, the import still works but
+   the trajectories will be close to empty; turning capture on now only helps
+   spans recorded from then on.
+
+   On the export path, turn it on wherever spans are exported to evalkit: the process that runs
    the eval, and any deployed agent or worker those runs call. Whether a
    deployed agent also exports its app traffic (runs outside any experiment:
    production, staging, or by hand) is the developer's choice; ask them.
@@ -91,7 +115,10 @@ lacks it. That is what a wrong mapping looks like in the check.
    The agent must exist before any span arrives: the collector refuses spans
    for an unknown agent, and neither a token nor the first export creates
    one.
-3. **Register the exporter.** *After* the client's own tracer provider is set
+3. **Export path: register the exporter.** On the import path, skip this
+   step: the agent's code does not change.
+
+   *After* the client's own tracer provider is set
    up, add
 
    ```python
@@ -133,10 +160,26 @@ lacks it. That is what a wrong mapping looks like in the check.
    milliseconds, `60000`). The server refuses a batch over
    `otel.max_batch_bytes` (16 MiB by default) with `413` and the spans are
    lost, and the default 10 s timeout is too short for multi-MB spans.
-4. **Run one session.** `run_experiment(..., dry_run=True)` runs one case,
-   creates no experiment, and prints the session id (`session <id>: N spans
-   ...`). The agent's own entry point works too; the Runs page lists the
-   session either way.
+4. **Get one session into evalkit.**
+
+   - **Export path.** `run_experiment(..., dry_run=True)` runs one case,
+     creates no experiment, and prints the session id (`session <id>: N spans
+     ...`). The agent's own entry point works too; the Runs page lists the
+     session either way.
+   - **Import path.** Find the trace source's name with
+     `evalkit trace-sources list`. An empty list means no admin has
+     registered one yet; ask the developer to have an admin run
+     `evalkit trace-sources create`. Then pick one session id from the
+     developer's Phoenix project and import it:
+
+     ```bash
+     evalkit traces import <agent> <session id> --source <trace source> --project <Phoenix project>
+     ```
+
+     It prints `imported <n> spans` and then the same lines as step 5's
+     check. `imported 0 spans` means the project has no spans for that id:
+     check the project name and the id. You can also import from the agent's
+     Import tab in the web UI.
 5. **Check it.**
 
    ```bash
@@ -181,7 +224,7 @@ lacks it. That is what a wrong mapping looks like in the check.
    developer: the deployment's admin can raise the limit together with the
    server's memory.
 
-   When the lines look right, stop.
+   When the lines look right, go to step 7.
 6. **Fix the mapping** when they do not. Edit `eval/span-mapping.json` (it is
    JSON, one rule per ESF field) and change the attribute keys to the ones in
    `spans.json`.
@@ -203,6 +246,33 @@ lacks it. That is what a wrong mapping looks like in the check.
    Otherwise tell them to review it on the agent's Mappings tab (Agents →
    the agent → Mappings in the web UI) and activate it there. Green check
    output is not approval; a mapping applies to every future run of the agent.
+
+   On the export path you are done. On the import path, go on to step 8.
+8. **Import path: import the history.** A time range imports every trace
+   that started in it, as a job on the server:
+
+   ```bash
+   evalkit traces import <agent> --source <trace source> --project <Phoenix project> --since 2026-10-01
+   ```
+
+   `--until` ends the range (exclusive; default now); both take ISO 8601,
+   UTC unless the value carries an offset. The CLI follows the job's
+   progress, and Ctrl-C only stops following. When the job is done it prints
+   the check lines for one sample session.
+
+   - The server groups the spans into sessions by the attribute the active
+     mapping's `session_id` rule names, so that rule must match the attribute
+     the developer's spans carry. Without a `session_id` rule the server
+     refuses the range with `409 activate a mapping with session_id before
+     importing a time range`.
+   - `evalkit traces imports <agent>` lists the agent's range imports;
+     `evalkit traces imports <agent> <id>` follows one, `--stop` stops it and
+     `--continue` resumes a failed or stopped one from where it got to.
+   - Importing the same range again duplicates nothing.
+
+   The imported sessions are app runs: the developer finds them on the
+   agent's Runs page and downloads them with
+   `evalkit runs pull <agent> --source app`.
 
 ## An agent in another process
 

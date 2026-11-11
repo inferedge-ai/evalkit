@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- The connect-traces skill has an import path: an agent whose traces already
+  go to a trace source (Phoenix) can start with evalkit by importing one
+  session, fixing its mapping against it, then importing a time range, with no
+  change to the agent's code. The Tracing docs page describes the same steps.
+  Imported sessions are app runs; experiments still need the collector or ATIF.
 - A case file's mapping shape accepts top-level keys starting with `x-` (for
   example `x-shared`) and ignores them, so they can hold YAML anchors that cases
   reuse. In 0.4.0, `evalkit lint` and `evalkit sync` refused such files with

@@ -197,6 +197,20 @@ An admin registers a trace source (a Phoenix server) once. After that, any
 user can import traces from it into an OTel agent they can write, with
 `evalkit traces import` or the agent page's Import tab.
 
+You can start with evalkit this way, without exporting spans to the
+collector or changing the agent's code:
+
+1. Create the OTel agent with a mapping (see [Mappings](mappings.md)).
+2. Import one session: `evalkit traces import <agent> <session id> --source <trace source> --project <project>`.
+   It prints the same check lines as `evalkit traces check`.
+3. Fix the mapping until the check looks right, and activate it. It needs a
+   `session_id` rule that matches the attribute your spans carry.
+4. Import a time range: `evalkit traces import <agent> --source <trace source> --project <project> --since <time>`.
+
+The imported sessions are app runs: they show on the Runs page and
+`evalkit runs pull` downloads them. Experiments still need trajectories from
+the collector or from an agent that returns ATIF.
+
 - The trace source's API key is shared with every user in effect: anyone can
   import any project that key can read.
 - Imported traces land in the agent's workspace. Every user can read every
