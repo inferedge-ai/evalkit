@@ -33,7 +33,7 @@ Import suits a developer who already sends traces to Phoenix and wants to
 try evalkit on that history first. They can add the export path later
 without redoing anything: the agent and its mapping stay the same.
 
-Pick the path yourself, then confirm it with the developer in one line:
+Pick the path with these rules, then confirm it with the developer:
 
 1. The developer wants to run experiments now → export.
 2. The agent already sends traces to Phoenix (the developer said so, or the
@@ -43,12 +43,9 @@ Pick the path yourself, then confirm it with the developer in one line:
    `evalkit trace-sources create`, or takes the export path.
 3. Otherwise → export.
 
-For import, ask in the same message for the Phoenix project name and one
-session id from it (Phoenix → the project → Sessions tab), so the developer
-is interrupted once. For example: "Your traces are already in Phoenix, so I'll
-import them and leave your code alone. Which Phoenix project, and one session
-id from its Sessions tab?" You cannot list Phoenix projects or sessions
-yourself: the trace source's URL and key live on the evalkit server.
+The import path needs two values from the developer: the Phoenix project
+name and one session id from it (Phoenix → the project → Sessions tab).
+evalkit cannot list a trace source's projects or sessions.
 
 The steps below mark where the paths differ. The sections after the steps
 ("An agent in another process" and later) apply to the export path only.
