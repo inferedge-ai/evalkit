@@ -100,6 +100,10 @@ def test_validation_errors_never_echo_resolved_secrets(tmp_path, monkeypatch):
     with pytest.raises(ValidationError) as raised:
         load_config(write(tmp_path, BASIC + "otel:\n  settle_seconds: env:SECRET\n"))
     assert "sk-proj-SECRET" not in str(raised.value)
+    monkeypatch.setenv("SECRET_URL", "http://u:sk-proj-SECRET@gateway")
+    with pytest.raises(ValidationError) as raised:
+        load_config(write(tmp_path, BASIC + "trusted_endpoints:\n  - env:SECRET_URL\n"))
+    assert "sk-proj-SECRET" not in str(raised.value)
 
 
 def test_local_credentials_must_be_plain_env_names(tmp_path):

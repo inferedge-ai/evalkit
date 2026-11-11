@@ -48,7 +48,7 @@ from evalkit.api.limits import BodyLimitMiddleware
 from evalkit.api.mcp.auth import MCP_PATH
 from evalkit.api.mcp.server import mcp_running, mount_mcp
 from evalkit.api.oidc import OidcState
-from evalkit.config import Config
+from evalkit.config import Config, check_trusted_endpoints
 from evalkit.core.agents import UnknownAgent
 from evalkit.core.blob import BlobStore
 from evalkit.core.endpoints import BlockedEndpoint
@@ -203,6 +203,7 @@ def create_app(
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
     resolve_tenant: TenantResolver = default_resolve_tenant,
 ) -> FastAPI:
+    check_trusted_endpoints(cfg.trusted_endpoints)
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (
         session_factory

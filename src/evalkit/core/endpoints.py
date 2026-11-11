@@ -44,5 +44,5 @@ async def check_endpoint(url: str, *, rule: EndpointRule) -> None:
     if bad:
         raise BlockedEndpoint(
             f"{url} resolves to a private address ({', '.join(bad)}); "
-            "the operator can allow it with allow_private_endpoints: true"
+            "the operator can allow it with allow_private_endpoints: true or trusted_endpoints"
         )
