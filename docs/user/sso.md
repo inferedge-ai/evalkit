@@ -208,11 +208,12 @@ in every tab of that browser, until you next sign in.
 3. Bind machine users: `evalkit users add ci-bot --subject <sub>`, then
    `evalkit workspaces members add dev ci-bot --role writer`.
 4. The first sign-in names the user after the part before `@` in
-   `preferred_username`, else in `email`, in lowercase. If another SSO user
-   or a workspace already has that name, evalkit adds the first free number
-   (`ann1`, `ann2`, ...). If a password account has it, such as one that
-   predates SSO, the sign-in answers 409 `username <x> is taken by a password
-   account` and names the subject: link it with
+   `preferred_username`, else in `email`, in lowercase. If another SSO user,
+   an archived account or a workspace already has that name, evalkit adds the
+   first free number (`ann1`, `ann2`, ...). If an active password account not
+   yet bound to an identity has it, such as one that predates SSO, the
+   sign-in answers 409 `username <x> is taken by a password account` and
+   names the subject: link it with
    `evalkit users bind <username> --subject <sub>`.
 5. Revoke: `evalkit users archive <username>` blocks the next request. The
    IdP's own revocation takes effect within one access token lifetime.

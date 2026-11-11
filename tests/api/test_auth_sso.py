@@ -303,6 +303,14 @@ async def test_register_numbers_a_name_another_sso_user_holds(env, idp):
     assert resp.json()["username"] == "ann1"
 
 
+async def test_register_numbers_the_name_of_an_archived_password_account(env, idp):
+    async with sso_app(env, idp) as client:
+        assert (await client.post("/api/users/alice/archive")).status_code == 200
+        resp = await register(client, idp, "sub-a", "alice@example.com", "alice")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["username"] == "alice1"
+
+
 async def test_register_refuses_the_name_of_a_password_account(env, idp):
     async with sso_app(env, idp) as client:
         resp = await register(client, idp, "sub-9", "admin@example.com", "admin")

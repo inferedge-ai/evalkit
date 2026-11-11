@@ -152,7 +152,7 @@ async def name_taken(session: AsyncSession, tenant_id: str, name: str) -> bool:
 
 async def user_id(session: AsyncSession, tenant_id: str, username: str) -> int:
     found = await session.scalar(
-        select(User.id).where(User.tenant_id == tenant_id, User.username == username)
+        select(User.id).where(User.tenant_id == tenant_id, User.username == username.lower())
     )
     if found is None:
         raise UnknownUser(username)
@@ -234,6 +234,7 @@ class UserStore:
                     User.tenant_id == self._tenant_id,
                     User.username == base,
                     User.subject.is_(None),
+                    User.archived_at.is_(None),
                 )
             )
             if password_account is not None:
@@ -274,7 +275,7 @@ class UserStore:
 
     async def _get(self, s: AsyncSession, username: str) -> User:
         user = await s.scalar(
-            select(User).where(User.tenant_id == self._tenant_id, User.username == username)
+            select(User).where(User.tenant_id == self._tenant_id, User.username == username.lower())
         )
         if user is None:
             raise UnknownUser(username)

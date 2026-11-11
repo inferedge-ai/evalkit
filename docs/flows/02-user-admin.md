@@ -61,6 +61,6 @@ sequenceDiagram
 - Server start with no admin user and no `EVALKIT_ADMIN_PASSWORD` (and `auth.password_login` is not `none`): the server refuses to start, "no admin user exists and EVALKIT_ADMIN_PASSWORD is not set; set it and start the server again to create the admin user".
 - Not admin: 403 "admin only".
 - Name already a user or workspace (e.g. `dev`): 409 "name 'X' is already a user or workspace".
-- Bad name: 400 "invalid name 'X': use no whitespace, '@', '/', '\', '?', '#' or '%', and not just '.' or '..'". Uppercase is not an error: `Bob` is created as `bob`.
+- Bad name: 400 "invalid name 'X': use no whitespace, '@', '/', '\', '?', '#' or '%', and not just '.' or '..'". Uppercase is not an error: `Bob` is created as `bob`, and the password login and every user and member command match the name in any case.
 - Archiving or demoting the last active admin: 409 "cannot remove the last admin".
 - Unknown user: 404 "unknown user: X".
