@@ -33,9 +33,8 @@ import { useWorkspace } from "../shell/workspace";
 
 const ROW_COLUMNS = "grid-cols-[minmax(0,1fr)_auto_6rem_minmax(0,14rem)]";
 
-function describeMembers(ws: WorkspaceInfo): string {
-  if (ws.type === "personal") return "";
-  return `${ws.members} member${ws.members === 1 ? "" : "s"}`;
+function describeMembers(count: number): string {
+  return `${count} member${count === 1 ? "" : "s"}`;
 }
 
 function WorkspaceRow({
@@ -47,6 +46,7 @@ function WorkspaceRow({
   me: string | null;
   onOpen: (name: string) => void;
 }) {
+  const promotion = describePromotion(ws);
   return (
     <button
       type="button"
@@ -55,8 +55,10 @@ function WorkspaceRow({
     >
       <span className="row-strong">@{ws.name}</span>
       <Badge variant="secondary">{workspaceHint(ws, me)}</Badge>
-      <span className="row-meta">{describeMembers(ws)}</span>
-      <span className="row-meta truncate">{describePromotion(ws)}</span>
+      {ws.type === "shared" && (
+        <span className="row-meta">{describeMembers(ws.members)}</span>
+      )}
+      {promotion && <span className="row-meta truncate">{promotion}</span>}
     </button>
   );
 }
