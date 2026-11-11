@@ -130,6 +130,8 @@ const proxyPage = () =>
     status: 502,
     headers: { "content-type": "text/html" },
   });
+const neverStored = () =>
+  Response.json({ detail: "no such file" }, { status: 404 });
 const notOnHarness = () =>
   Response.json(
     {
@@ -154,6 +156,8 @@ test.each([
     answer: notOnHarness,
     says: "The harness doesn't have this file",
   },
+  { file: "notes.txt", answer: neverStored, says: "No such file" },
+  { file: "chart.png", answer: neverStored, says: "No such file" },
 ])(
   "$file that fails to load says why: $says",
   async ({ file, answer, says }) => {

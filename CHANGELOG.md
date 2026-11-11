@@ -282,13 +282,14 @@
   proxy's 502 page, shows `HTTP <status>` instead of an empty error.
 - A file on a run's Workspace tab that fails to load says why, in the source
   view and in image, PDF, SVG and HTML previews alike: the server's message
-  (`harness error` when the harness fails), or `HTTP <status>` when there is
-  none. Before, the source view showed "Failed to load file: " with nothing
-  after it over HTTP/2, and previews showed `Error`. Previews now also explain
-  a harness that no longer has the file, as the source view did.
-  `GET /api/agents/{agent}/runs/{run_id}/files/{path}` answers 502
-  `harness unreachable` when it can't reach the harness, as the runs list
-  does; before, it failed with a plain-text 500.
+  (`harness error` when the harness fails), or else the response's status
+  text, which is empty over HTTP/2, so `HTTP <status>` there. Before, the
+  source view showed "Failed to load file: " with nothing after it over
+  HTTP/2, and previews showed `Error`. Previews now also explain a harness
+  that no longer has the file, as the source view did.
+  `GET /api/agents/{agent}/runs/{run_id}/files` and `.../files/{path}`
+  answer 502 `harness unreachable` when they can't reach the harness, the
+  words the runs list's note uses; before, they failed with a plain-text 500.
 
 ## 0.4.0
 

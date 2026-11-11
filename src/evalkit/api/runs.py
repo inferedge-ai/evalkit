@@ -326,7 +326,9 @@ def _path_or_400(path: str) -> str:
     return path.lstrip("/")
 
 
-def _harness_status(exc: httpx2.HTTPStatusError) -> HTTPException:
+def _map_harness_error(exc: httpx2.HTTPError) -> HTTPException:
+    if not isinstance(exc, httpx2.HTTPStatusError):
+        return HTTPException(status_code=502, detail=HARNESS_UNREACHABLE)
     if exc.response.status_code == 404:
         return HTTPException(status_code=404, detail=NOT_ON_HARNESS)
     return HTTPException(status_code=exc.response.status_code, detail="harness error")
@@ -358,8 +360,8 @@ async def _listing(
     client = await harness_client(deps, record)
     try:
         files = await client.list_files(run_id)
-    except httpx2.HTTPStatusError as exc:
-        raise _harness_status(exc) from exc
+    except httpx2.HTTPError as exc:
+        raise _map_harness_error(exc) from exc
     finally:
         await client.aclose()
     return {entry.path: entry for entry in files.files}, set()
@@ -533,10 +535,8 @@ async def get_file(
             cleanup.push_async_callback(client.aclose)
             try:
                 file = await client.stream_file(run_id, path)
-            except httpx2.HTTPStatusError as exc:
-                raise _harness_status(exc) from exc
             except httpx2.HTTPError as exc:
-                raise HTTPException(status_code=502, detail=HARNESS_UNREACHABLE) from exc
+                raise _map_harness_error(exc) from exc
             cleanup.pop_all()
         length = {"Content-Length": str(file.size)} if file.size is not None else {}
         return StreamingResponse(
