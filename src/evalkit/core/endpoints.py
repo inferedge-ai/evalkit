@@ -1,6 +1,7 @@
 import asyncio
 import ipaddress
 import socket
+from dataclasses import dataclass
 
 import httpx2
 
@@ -9,17 +10,30 @@ class BlockedEndpoint(ValueError):
     pass
 
 
+@dataclass(frozen=True)
+class EndpointRule:
+    allow_private: bool
+    trusted: tuple[str, ...] = ()
+
+
 def blocked(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     return not addr.is_global or addr.is_multicast or addr.is_reserved
 
 
-async def check_endpoint(url: str, *, allow_private: bool) -> None:
-    if allow_private:
+def get_origin(url: httpx2.URL) -> tuple[str, str, int | None]:
+    return url.scheme, url.host, url.port
+
+
+async def check_endpoint(url: str, *, rule: EndpointRule) -> None:
+    if rule.allow_private:
         return
     try:
-        host = httpx2.URL(url).host
+        parsed = httpx2.URL(url)
     except httpx2.InvalidURL as exc:
         raise BlockedEndpoint(f"{url} is not a valid URL: {exc}") from exc
+    if get_origin(parsed) in {get_origin(httpx2.URL(t)) for t in rule.trusted}:
+        return
+    host = parsed.host
     if not host:
         raise BlockedEndpoint(f"{url} has no host")
     try:

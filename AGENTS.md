@@ -162,7 +162,9 @@ then add plain FastAPI routes with `app.include_router(...)`.
   private-address rule (`allow_private_endpoints`) per request, replace
   `get_allow_private_endpoints` from the same module instead: every
   private-address check reads it, and each runs on a signed-in route, so the
-  replacement may take `CurrentUser`.
+  replacement may take `CurrentUser`. A URL whose origin is in the config's
+  `trusted_endpoints` passes every check whatever it returns; set that list on
+  the `Config` you pass to `create_app`.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type

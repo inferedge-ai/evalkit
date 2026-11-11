@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from evalkit.api.auth import CurrentUser
 from evalkit.config import Config
+from evalkit.core.endpoints import EndpointRule
 from evalkit.db.session import tenant_session
 
 
@@ -32,3 +33,10 @@ def get_allow_private_endpoints(cfg: ConfigDep) -> bool:
 
 
 AllowPrivateEndpointsDep = Annotated[bool, Depends(get_allow_private_endpoints)]
+
+
+def get_endpoint_rule(cfg: ConfigDep, allow_private: AllowPrivateEndpointsDep) -> EndpointRule:
+    return EndpointRule(allow_private, tuple(cfg.trusted_endpoints))
+
+
+EndpointRuleDep = Annotated[EndpointRule, Depends(get_endpoint_rule)]

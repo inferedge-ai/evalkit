@@ -19,6 +19,13 @@
   (`POST /api/agents/{agent}/sessions/import`, `.../imports` and
   `.../imports/{id}/continue`). Before, trace import read the server's own config
   and ignored a replaced `get_config`.
+- New server config `trusted_endpoints`: a list of `http` or `https` URLs whose
+  origin (scheme, host and port) every private-address check lets through, even
+  when `allow_private_endpoints` is off or a package decides it per request. Use
+  it for a service every tenant may reach on a private address, such as an
+  in-cluster LLM gateway. The path is ignored, default ports match either
+  spelling, and the server refuses to start on an entry that isn't an `http` or
+  `https` URL with a host.
 - The web UI uses InferEdge's design tokens and shadcn's setup
   (`ui/components.json`, the `@/` import alias): Roboto at 14px (was the
   system font at 13px), new light and dark colours with a white page in light

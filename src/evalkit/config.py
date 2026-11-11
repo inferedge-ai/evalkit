@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
+import httpx2
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -189,6 +190,19 @@ class Config(RunnerConfig):
     sentry: SentryConfig | None = None
     encryption_key: str | None = None
     allow_private_endpoints: bool = False
+    trusted_endpoints: list[str] = []
+
+    @field_validator("trusted_endpoints")
+    @classmethod
+    def _check_trusted_endpoints(cls, urls: list[str]) -> list[str]:
+        for url in urls:
+            try:
+                parsed = httpx2.URL(url)
+            except httpx2.InvalidURL as exc:
+                raise ValueError(f"{url} is not a valid URL: {exc}") from exc
+            if parsed.scheme not in ("http", "https") or not parsed.host or parsed.userinfo:
+                raise ValueError(f"{url} must be an http or https URL with a host and no user")
+        return urls
 
     # TODO: remove in 0.5.0, two minor versions after 0.3.0 moved credentials and
     # judge_default to the database.
