@@ -1164,11 +1164,11 @@ def users_add(
     Examples: evalkit users add alice · evalkit users add ci-bot --subject 0oa...
     """
     if subject is not None:
-        _client().post("/api/users", json={"username": username, "subject": subject})
+        resp = _client().post("/api/users", json={"username": username, "subject": subject})
     else:
         password = password or typer.prompt("Password", hide_input=True)
-        _client().post("/api/users", json={"username": username, "password": password})
-    typer.echo(f"created {username}")
+        resp = _client().post("/api/users", json={"username": username, "password": password})
+    typer.echo(f"created {resp.json()['username']}")
 
 
 @users_app.command("bind")

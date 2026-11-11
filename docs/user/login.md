@@ -27,9 +27,11 @@ itself; that line is not a reason to log in again. When a command fails with
 `your login has expired`, run `evalkit login` again.
 
 The first sign-in creates your evalkit user, named after the part before `@`
-in your identity provider's username or email. If that name is taken, the
-command says so and names the subject an admin binds with
-`evalkit users bind`; see [Single sign-on](sso.md).
+in your identity provider's username or email, in lowercase. If another user
+or a workspace has that name, evalkit adds the first free number to it
+(`ann1`, `ann2`, ...). If an active password account not yet bound to an
+identity has it, the command says so and names the subject an admin binds
+with `evalkit users bind`; see [Single sign-on](sso.md).
 
 ## Scripts and CI
 

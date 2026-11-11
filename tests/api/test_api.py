@@ -382,6 +382,20 @@ async def test_harness_check(api):
     assert checks["stop"]["status"] == "pass"
 
 
+async def test_usernames_match_in_any_case(api):
+    client, *_ = api
+    created = await client.post("/api/users", json={"username": "Bob", "password": "password"})
+    assert created.json()["username"] == "bob"
+    login = await client.post("/api/auth/login", json={"username": "BOB", "password": "password"})
+    assert login.status_code == 200, login.text
+    assert (await client.post("/api/users/Bob/promote")).status_code == 200
+    added = await client.post(
+        "/api/workspaces/canonical/members", json={"username": "Bob", "role": "writer"}
+    )
+    assert added.status_code == 200, added.text
+    assert (await client.delete("/api/workspaces/canonical/members/Bob/writer")).status_code == 200
+
+
 async def test_users_admin(api):
     client, *_ = api
     resp = await client.post("/api/users", json={"username": "bob", "password": "password"})

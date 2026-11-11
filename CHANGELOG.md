@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- An SSO first sign-in derives the username more loosely: it is the part before
+  `@` in lowercase, and may hold any character except whitespace, `@`, `/`,
+  `\`, `?`, `#` and `%`, as long as it is not just `.` or `..`. So
+  `ann+evals@example.com` becomes `ann+evals`; before, anything outside
+  lowercase letters, digits, `.`, `_` and `-` was refused. `evalkit users add`
+  follows the same rule and stores the name in lowercase (`Bob` becomes
+  `bob`) where it used to refuse it, and the password login and the user and
+  workspace member commands match a username in any case; workspace and
+  dataset names keep the strict rule. When another SSO user, an archived
+  account or a workspace already has the name, the sign-in now creates the
+  user with the first free number appended (`ann1`, `ann2`, ...) instead of
+  answering 409. An active password account not yet bound to an identity
+  still gets the 409, which names the subject for `evalkit users bind`.
 - A case file's mapping shape accepts top-level keys starting with `x-` (for
   example `x-shared`) and ignores them, so they can hold YAML anchors that cases
   reuse. In 0.4.0, `evalkit lint` and `evalkit sync` refused such files with
