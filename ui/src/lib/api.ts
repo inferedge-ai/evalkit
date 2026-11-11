@@ -159,16 +159,19 @@ export async function apiFetch(
   return resp;
 }
 
+export async function readApiError(resp: Response): Promise<ApiError> {
+  const body = await resp.json().catch(() => ({}) as Record<string, unknown>);
+  const detail = detailText(
+    body.detail ?? (resp.statusText || `HTTP ${resp.status}`),
+  );
+  return resp.status === 404
+    ? new NotFoundError(detail)
+    : new ApiError(resp.status, detail);
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await apiFetch(path, init);
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => ({}) as Record<string, unknown>);
-    const detail = detailText(
-      body.detail ?? (resp.statusText || `HTTP ${resp.status}`),
-    );
-    if (resp.status === 404) throw new NotFoundError(detail);
-    throw new ApiError(resp.status, detail);
-  }
+  if (!resp.ok) throw await readApiError(resp);
   return resp.json();
 }
 
@@ -182,14 +185,6 @@ export async function apiJson<T>(
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-}
-
-// For INLINE previews only (img/iframe src) — the whole blob lands in JS
-// memory, so never use this for downloads, which can be large zips.
-export async function apiBlobUrl(path: string): Promise<string> {
-  const resp = await apiFetch(path);
-  if (!resp.ok) throw new ApiError(resp.status, resp.statusText);
-  return URL.createObjectURL(await resp.blob());
 }
 
 // Bearer auth rules out a plain <a href>, and fetching into a Blob would hold

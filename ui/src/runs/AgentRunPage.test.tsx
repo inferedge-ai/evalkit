@@ -123,6 +123,63 @@ test("a workspace refresh that fails keeps the files on screen with the error ab
   expect(screen.getByText("report.md")).toBeInTheDocument();
 });
 
+const harnessError = () =>
+  Response.json({ detail: "harness error" }, { status: 502 });
+const proxyPage = () =>
+  new Response("<html><body>Bad Gateway</body></html>", {
+    status: 502,
+    headers: { "content-type": "text/html" },
+  });
+const neverStored = () =>
+  Response.json({ detail: "no such file" }, { status: 404 });
+const notOnHarness = () =>
+  Response.json(
+    {
+      detail:
+        "not found on the harness: wrong path, or the harness no longer has it",
+    },
+    { status: 404 },
+  );
+
+test.each([
+  { file: "notes.txt", answer: harnessError, says: "harness error" },
+  { file: "chart.png", answer: harnessError, says: "harness error" },
+  { file: "notes.txt", answer: proxyPage, says: "HTTP 502" },
+  { file: "chart.png", answer: proxyPage, says: "HTTP 502" },
+  {
+    file: "notes.txt",
+    answer: notOnHarness,
+    says: "The harness doesn't have this file",
+  },
+  {
+    file: "chart.png",
+    answer: notOnHarness,
+    says: "The harness doesn't have this file",
+  },
+  { file: "notes.txt", answer: neverStored, says: "No such file" },
+  { file: "chart.png", answer: neverStored, says: "No such file" },
+])(
+  "$file that fails to load says why: $says",
+  async ({ file, answer, says }) => {
+    serveRun((url) => {
+      if (url.endsWith(`${RUN_URL}/files`))
+        return Response.json({
+          files: [
+            { path: "notes.txt", size: 10 },
+            { path: "chart.png", size: 100 },
+          ],
+        });
+      if (url.endsWith(`${RUN_URL}/files/${file}`)) return answer();
+    });
+    openRun();
+    await userEvent.click(
+      await screen.findByRole("tab", { name: "Workspace" }),
+    );
+    await userEvent.click(await screen.findByText(file));
+    expect(await screen.findByText(new RegExp(`^${says}`))).toBeInTheDocument();
+  },
+);
+
 test("a run whose workspace holds no files says so", async () => {
   serveRun((url) =>
     url.endsWith(`${RUN_URL}/files`) ? Response.json({ files: [] }) : undefined,

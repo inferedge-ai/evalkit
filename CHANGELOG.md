@@ -280,6 +280,18 @@
   - A missing page shows an icon, what is missing and a button back.
 - A failed API request whose response carries no error message, such as a
   proxy's 502 page, shows `HTTP <status>` instead of an empty error.
+- A file on a run's Workspace tab that fails to load says why, in the source
+  view and in image, PDF, SVG and HTML previews alike: the server's message
+  (`harness error` when the harness fails), or else the response's status
+  text, which is empty over HTTP/2, so `HTTP <status>` there. Before, the
+  source view showed "Failed to load file: " with nothing after it over
+  HTTP/2, and previews showed `Error`. Previews now also explain a harness
+  that no longer has the file, as the source view did.
+  `GET /api/agents/{agent}/runs/{run_id}/files`, `.../files/{path}` and
+  `.../zip` answer 502 `harness unreachable` when they can't reach the
+  harness, the words the runs list's note uses, and the MCP tools
+  `get_run_files` and `download_run_file` return `upstream_failed: harness
+  unreachable`; before, the error escaped as a plain-text 500.
 
 ## 0.4.0
 
