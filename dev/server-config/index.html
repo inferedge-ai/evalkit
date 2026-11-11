@@ -1205,6 +1205,11 @@
 <td><code>false</code></td>
 <td>Let agents, evaluators, LLM providers and trace sources point at loopback, private or link-local addresses.</td>
 </tr>
+<tr>
+<td><code>trusted_endpoints</code></td>
+<td><code>[]</code></td>
+<td>URLs whose origin (scheme, host and port) is always allowed, even when it is a private address and <code>allow_private_endpoints</code> is off, for example an in-cluster LLM gateway: <code>["http://litellm:4000"]</code>. Each must be an <code>http</code> or <code>https</code> URL with a host and no user; the path is ignored, and a URL must spell the host exactly as listed. Any path on a listed origin is open to every agent, remote evaluator, LLM provider and trace source, and any writer of a shared workspace can create agents and evaluators, so list only services that check their own credentials.</td>
+</tr>
 </tbody>
 </table>
 <p>LLM providers, the default judge and stored API keys live in the database, not here: set them with <code>evalkit llm-providers</code>, <code>evalkit judge-default set</code> and <code>evalkit agents edit</code>.</p>
