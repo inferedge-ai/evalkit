@@ -220,7 +220,7 @@ async def test_single_file_closes_the_harness_client_on_any_error(
     original = HarnessClient.aclose
 
     async def refuse(self, run_id, path):
-        raise httpx2.ConnectError("harness down")
+        raise RuntimeError("bug")
 
     async def tracked(self):
         closed.append(True)
@@ -229,8 +229,31 @@ async def test_single_file_closes_the_harness_client_on_any_error(
     monkeypatch.setattr(HarnessClient, "stream_file", refuse)
     monkeypatch.setattr(HarnessClient, "aclose", tracked)
     async with api_env(tmp_path, session_factory, harness) as (client, _):
-        with pytest.raises(httpx2.ConnectError):
+        with pytest.raises(RuntimeError):
             await client.get("/api/agents/fake@canonical/runs/sess-1/files/a.md")
+    assert closed == [True]
+
+
+async def test_single_file_from_an_unreachable_harness_says_so(
+    tmp_path, stub_judges, session_factory, monkeypatch
+):
+    harness = FakeHarness(workspace_files={"a.md": b"a"})
+    harness.runs["sess-1"] = {"polls": 0, "stopped": False, "payload": {}, "model": "m"}
+    closed = []
+    original = HarnessClient.aclose
+
+    async def refuse(self, run_id, path):
+        raise httpx2.ConnectError("connection refused")
+
+    async def tracked(self):
+        closed.append(True)
+        await original(self)
+
+    monkeypatch.setattr(HarnessClient, "stream_file", refuse)
+    monkeypatch.setattr(HarnessClient, "aclose", tracked)
+    async with api_env(tmp_path, session_factory, harness) as (client, _):
+        resp = await client.get("/api/agents/fake@canonical/runs/sess-1/files/a.md")
+    assert resp.status_code == 502 and resp.json()["detail"] == "harness unreachable"
     assert closed == [True]
 
 

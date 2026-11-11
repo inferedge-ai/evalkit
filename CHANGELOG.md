@@ -286,6 +286,9 @@
   none. Before, the source view showed "Failed to load file: " with nothing
   after it over HTTP/2, and previews showed `Error`. Previews now also explain
   a harness that no longer has the file, as the source view did.
+  `GET /api/agents/{agent}/runs/{run_id}/files/{path}` answers 502
+  `harness unreachable` when it can't reach the harness, as the runs list
+  does; before, it failed with a plain-text 500.
 
 ## 0.4.0
 

@@ -535,6 +535,8 @@ async def get_file(
                 file = await client.stream_file(run_id, path)
             except httpx2.HTTPStatusError as exc:
                 raise _harness_status(exc) from exc
+            except httpx2.HTTPError as exc:
+                raise HTTPException(status_code=502, detail=HARNESS_UNREACHABLE) from exc
             cleanup.pop_all()
         length = {"Content-Length": str(file.size)} if file.size is not None else {}
         return StreamingResponse(
