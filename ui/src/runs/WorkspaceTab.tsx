@@ -11,7 +11,14 @@ import {
 import { Editor } from "../lib/Editor";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ApiError, apiBlobUrl, apiFetch, downloadFile, qs } from "../lib/api";
+import {
+  NotFoundError,
+  apiFetch,
+  downloadFile,
+  isNotFound,
+  qs,
+  readApiError,
+} from "../lib/api";
 import { formatBytes } from "../lib/format";
 import { useApi } from "../lib/query";
 import { monacoTheme, useTheme } from "../shell/theme";
@@ -217,8 +224,24 @@ function TreeNode({
   );
 }
 
+const NOT_ON_HARNESS =
+  "not found on the harness: wrong path, or the harness no longer has it";
+
+async function fetchFile(path: string): Promise<Response> {
+  const resp = await apiFetch(path);
+  if (resp.ok) return resp;
+  const error = await readApiError(resp);
+  if (!isNotFound(error)) throw error;
+  throw new NotFoundError(
+    error.message === NOT_ON_HARNESS
+      ? "The harness doesn't have this file: the path is wrong, or the harness has dropped the session. Only stored deliverables outlive the session."
+      : "No such file.",
+  );
+}
+
 // Object-URL for an API-served file, fetched through the authed client (a
-// plain <img src>/<iframe src> would 401 without the bearer token).
+// plain <img src>/<iframe src> would 401 without the bearer token). For
+// inline previews only: the whole file lands in tab memory.
 function useBlobUrl(path: string | null): {
   url: string | null;
   error: string | null;
@@ -231,16 +254,17 @@ function useBlobUrl(path: string | null): {
     if (!path) return;
     let revoked: string | null = null;
     let cancelled = false;
-    apiBlobUrl(path)
-      .then((u) => {
-        if (cancelled) {
-          URL.revokeObjectURL(u);
-          return;
-        }
-        revoked = u;
-        setUrl(u);
+    fetchFile(path)
+      .then((resp) => resp.blob())
+      .then((blob) => {
+        if (cancelled) return;
+        revoked = URL.createObjectURL(blob);
+        setUrl(revoked);
       })
-      .catch((e) => !cancelled && setError(String(e)));
+      .catch(
+        (e) =>
+          !cancelled && setError(e instanceof Error ? e.message : String(e)),
+      );
     return () => {
       cancelled = true;
       if (revoked) URL.revokeObjectURL(revoked);
@@ -275,23 +299,7 @@ function FileViewer({ base, node }: { base: string; node: FileNode }) {
   const loaded = useQuery({
     queryKey: [path, "text"],
     queryFn: async () => {
-      const resp = await apiFetch(path);
-      if (resp.status === 404) {
-        const body = await resp.json().catch(() => ({}));
-        throw new ApiError(
-          404,
-          body.detail ===
-            "not found on the harness: wrong path, or the harness no longer has it"
-            ? "The harness doesn't have this file: the path is wrong, or the harness has dropped the session. Only stored deliverables outlive the session."
-            : "No such file.",
-        );
-      }
-      if (!resp.ok)
-        throw new ApiError(
-          resp.status,
-          `Failed to load file: ${resp.statusText}`,
-        );
-      const raw = await resp.text();
+      const raw = await (await fetchFile(path)).text();
       if (extension === "json") {
         try {
           return JSON.stringify(JSON.parse(raw), null, 2);

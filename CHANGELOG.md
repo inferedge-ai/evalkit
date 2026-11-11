@@ -280,6 +280,12 @@
   - A missing page shows an icon, what is missing and a button back.
 - A failed API request whose response carries no error message, such as a
   proxy's 502 page, shows `HTTP <status>` instead of an empty error.
+- A file on a run's Workspace tab that fails to load says why, in the source
+  view and in image, PDF, SVG and HTML previews alike: the server's message
+  (`harness error` when the harness fails), or `HTTP <status>` when there is
+  none. Before, the source view showed "Failed to load file: " with nothing
+  after it over HTTP/2, and previews showed `Error`. Previews now also explain
+  a harness that no longer has the file, as the source view did.
 
 ## 0.4.0
 
