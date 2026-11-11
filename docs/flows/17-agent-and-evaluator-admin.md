@@ -140,7 +140,8 @@ sequenceDiagram
     results still show what scored them after an evaluator changes or is
     archived.
 - **Trace sources:**
-  - **`trace-sources create|edit|list|archive`:** admin only. The provider
+  - **`trace-sources create|edit|archive`:** admin only. `list` works for
+    every user. The provider
     defaults to `phoenix`. `--api-key-env NAME` reads the key from an env var on
     the admin's machine.
   - The key is stored encrypted and never returned. `list` shows name, provider

@@ -36,7 +36,8 @@ without redoing anything: the agent and its mapping stay the same.
 Pick the path yourself, then confirm it with the developer in one line:
 
 1. The developer wants to run experiments now → export.
-2. The agent already sends traces to Phoenix and `evalkit trace-sources list`
+2. The agent already sends traces to Phoenix (the developer said so, or the
+   repository mentions `phoenix.otel` or `PHOENIX_COLLECTOR_ENDPOINT`) and `evalkit trace-sources list`
    shows a source → import first, export later. An empty list means no admin
    has registered one; the developer asks an admin to run
    `evalkit trace-sources create`, or takes the export path.
@@ -196,12 +197,22 @@ lacks it. That is what a wrong mapping looks like in the check.
      in the web UI.
 
      If the project's Sessions tab is empty, its spans carry no `session.id`
-     and there is no id to give. Import a short range instead (an hour, see
-     step 8; the mapping from step 2 is already active, so the range is
-     allowed) and use the sample session it prints. If it prints
-     `no sessions were imported`, the spans carry no attribute the
-     `session_id` rule can read: find one in a span (Phoenix's span details)
-     that is shared by every span of a run.
+     and there is no id to give. Import a short range instead (an hour with
+     traffic, see step 8; the mapping from step 2 is already active, so the
+     range is allowed). With a mapping whose `session_id` rule reads
+     `session.id`, it prints `no sessions were imported`: that is expected
+     here, not a failure. The spans are in evalkit now. Find one trace id
+     on the agent's Runs page with the "no session" box ticked (the row's id
+     is the trace id), and read its root span's attributes with
+     `evalkit traces check <agent> <trace id> --dump spans.json`.
+
+     - If the root span carries an attribute that names the run or the
+       conversation, point the mapping's `session_id` rule at it (steps 6–7)
+       and import the same hour again. The root span is enough: every span
+       of a trace takes its session from the trace's root.
+     - If it carries none, the import path cannot group these spans into
+       runs. The developer adds `session.id` to the agent's root span, which
+       only helps traces recorded from then on, or takes the export path.
 5. **Check it.**
 
    ```bash
@@ -294,10 +305,11 @@ lacks it. That is what a wrong mapping looks like in the check.
    server. Import one day first:
 
    ```bash
-   evalkit traces import <agent> --source <trace source> --project <Phoenix project> --since 2026-11-10 --until 2026-11-11
+   evalkit traces import <agent> --source <trace source> --project <Phoenix project> --since <yesterday> --until <today>
    ```
 
-   `--since` and `--until` take ISO 8601 times, UTC unless the value carries
+   For example `--since 2026-11-10 --until 2026-11-11`, with dates
+   worked out from today. `--since` and `--until` take ISO 8601 times, UTC unless the value carries
    an offset; `--until` is exclusive and defaults to now. The CLI follows
    the job's progress, and Ctrl-C only stops following. When the job is done
    it prints the check lines for one sample session. If they look right,
@@ -307,8 +319,10 @@ lacks it. That is what a wrong mapping looks like in the check.
      mapping's `session_id` rule names. Without a `session_id` rule it refuses
      the range with `409 activate a mapping with session_id before importing a
      time range`.
-   - `no sessions were imported` after a range import means the rule names an
-     attribute the spans do not carry. Fix the rule, push and activate it
+   - `no sessions were imported` has two causes; read the last progress
+     line (`... N traces M spans`) to tell them apart. `0 traces` means the
+     range held no traffic: widen it. Some traces and no sessions means the
+     rule names an attribute the spans do not carry. Fix the rule, push and activate it
      (steps 6–7), and import the same range again: a re-import rewrites each
      span's session.
    - `evalkit traces imports <agent>` lists the agent's range imports;
