@@ -38,10 +38,10 @@ def check_name(name: str) -> None:
 
 
 def check_username(username: str) -> None:
-    if username != username.lower() or not USERNAME_PATTERN.fullmatch(username):
+    if username in (".", "..") or not USERNAME_PATTERN.fullmatch(username):
         raise InvalidName(
             username,
-            "use lowercase, with no whitespace, '@', '/', '\\', '?', '#' or '%'",
+            "use no whitespace, '@', '/', '\\', '?', '#' or '%', and not just '.' or '..'",
         )
 
 
@@ -52,6 +52,13 @@ async def lock_names(session: AsyncSession) -> None:
 class IdentityConflict(Exception):
     def __init__(self, message: str):
         super().__init__(message)
+
+    @classmethod
+    def name_taken(cls, username: str, subject: str) -> IdentityConflict:
+        return cls(
+            f"username {username} is taken by a password account; "
+            f"ask an admin to bind subject {subject} to an account"
+        )
 
     @classmethod
     def already_bound(cls, subject: str, username: str) -> IdentityConflict:
@@ -170,6 +177,7 @@ class UserStore:
         email: str | None = None,
         is_admin: bool = False,
     ) -> User:
+        username = username.lower()
         check_username(username)
         if (password is None) == (subject is None):
             raise ValueError("give exactly one of password or subject")
@@ -220,9 +228,17 @@ class UserStore:
                         user.is_admin = is_admin
                     await s.commit()
                 return user, False
-            username = await find_free_username(
-                s, self._tenant_id, derive_username(preferred_username, email)
+            base = derive_username(preferred_username, email)
+            password_account = await s.scalar(
+                select(User.id).where(
+                    User.tenant_id == self._tenant_id,
+                    User.username == base,
+                    User.subject.is_(None),
+                )
             )
+            if password_account is not None:
+                raise IdentityConflict.name_taken(base, subject)
+            username = await find_free_username(s, self._tenant_id, base)
             user = User(
                 tenant_id=self._tenant_id,
                 username=username,

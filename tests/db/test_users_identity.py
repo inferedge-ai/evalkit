@@ -23,6 +23,7 @@ ISSUER = "https://idp.test"
         (None, "Ann+Evals@example.com", "ann+evals"),
         ("ann lee", "ann@example.com", None),
         ("a/b", "ann@example.com", None),
+        ("..", "ann@example.com", None),
         ("@example.com", "ann@example.com", None),
     ],
 )
@@ -58,7 +59,7 @@ async def test_register_creates_once_and_refreshes_email(session_factory):
 
 async def test_register_numbers_a_taken_name(session_factory):
     store = UserStore(session_factory, "default")
-    await store.create("ann", password="hunter2-pw")
+    await store.register(ISSUER, "sub-1", "ann@example.com", None)
     await WorkspaceStore(session_factory, "default").create_shared("ann1", None)
     user, created = await store.register(ISSUER, "sub-2", "ann@other.example.com", None)
     assert created and user.username == "ann2"

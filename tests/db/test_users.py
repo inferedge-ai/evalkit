@@ -108,7 +108,7 @@ async def test_create_and_set_password_enforce_the_password_rules(session_factor
     await users.set_password("bob", "é" * 36)
 
 
-@pytest.mark.parametrize("name", ["", "a@b", "a/b", "Bob", "two words", "bob\n"])
+@pytest.mark.parametrize("name", ["", "a@b", "a/b", ".", "..", "two words", "bob\n"])
 async def test_invalid_names_are_refused(session_factory, name):
     with pytest.raises(InvalidName):
         await UserStore(session_factory, "default").create(name, password="password")

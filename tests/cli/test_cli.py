@@ -1705,6 +1705,13 @@ def test_users_add_with_a_subject_skips_the_password(env):
     assert result.exit_code == 1 and "SSO is not configured" in result.output
 
 
+def test_users_add_stores_the_username_in_lowercase(env):
+    result = runner.invoke(cli_app, ["users", "add", "Bob", "--password", "password"])
+    assert result.exit_code == 0, result.output
+    assert "created bob" in result.output
+    assert "bob" in runner.invoke(cli_app, ["users", "list"]).output
+
+
 def test_users_list_shows_kind_and_email(env):
     result = runner.invoke(cli_app, ["users", "list"])
     assert result.exit_code == 0
