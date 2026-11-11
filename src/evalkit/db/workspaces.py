@@ -229,13 +229,15 @@ class WorkspaceStore:
                 for u, r, g, c in (await s.execute(query)).all()
             ]
 
-    async def count_members(self) -> dict[int, int]:
+    async def count_members(self, workspace_id: int | None = None) -> dict[int, int]:
         query = (
             select(WorkspaceMember.workspace_id, func.count(distinct(WorkspaceMember.user_id)))
             .join(Workspace, Workspace.id == WorkspaceMember.workspace_id)
             .where(Workspace.tenant_id == self._tenant_id)
             .group_by(WorkspaceMember.workspace_id)
         )
+        if workspace_id is not None:
+            query = query.where(WorkspaceMember.workspace_id == workspace_id)
         async with self._session() as s:
             return {ws_id: count for ws_id, count in (await s.execute(query)).all()}
 

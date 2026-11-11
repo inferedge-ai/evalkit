@@ -29,7 +29,7 @@ def _view(ws: WorkspaceRef, names: dict[int, str], members: dict[int, int]) -> d
 async def _one(store: WorkspaceStore, ws: WorkspaceRef) -> dict:
     linked = [i for i in (ws.promotes_to, ws.promoted_from) if i is not None]
     names = {i: (await store.get_by_id(i)).name for i in linked}
-    return _view(ws, names, await store.count_members())
+    return _view(ws, names, await store.count_members(ws.id))
 
 
 @router.get("")
