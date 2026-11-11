@@ -8,11 +8,13 @@ from evalkit.api.app import TenantResolver, content_security_policy, create_app
 from evalkit.api.oidc import Discovery, OidcState
 from evalkit.client.connection import MachineLogin
 from evalkit.client.oidc import ClientCredentials
-from evalkit.config import OidcConfig
+from evalkit.config import AdminClaimConfig, OidcConfig
 from evalkit.core.tenant import resolve_tenant as default_resolve_tenant
 from evalkit.db.users import UserStore
 from tests.identity import FakeIdp
 from tests.native import HOLDER, USERS, Env, seed_env, serve
+
+ADMINS = AdminClaimConfig(name="roles", value="evalkit-admin")
 
 
 @asynccontextmanager
@@ -51,10 +53,11 @@ async def sso_app(
             transport=httpx2.ASGITransport(app=app), base_url="http://test"
         ) as client:
             client.app = app  # type: ignore[attr-defined]
-            login = await client.post(
-                "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
-            )
-            client.headers["Authorization"] = f"Bearer {login.json()['token']}"
+            if password_login != "none":
+                login = await client.post(
+                    "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
+                )
+                client.headers["Authorization"] = f"Bearer {login.json()['token']}"
             yield client
 
 
@@ -132,7 +135,31 @@ async def test_providers_is_503_while_discovery_is_down(env, idp):
     async with sso_app(env, idp, transport=httpx2.MockTransport(down)) as client:
         resp = await client.get("/api/auth/providers")
         assert resp.status_code == 503
+        assert resp.json() == {"detail": "identity provider unreachable", "password": "admin"}
         assert client.app.state.oidc_retry is not None and not client.app.state.oidc_retry.done()
+
+
+async def test_password_sign_in_is_refused_when_passwords_are_off(env, idp):
+    async with sso_app(env, idp, password_login="none", admin_claim=ADMINS) as client:
+        resp = await client.post(
+            "/api/auth/login", json={"username": "admin", "password": USERS["admin"]}
+        )
+        providers = (await client.get("/api/auth/providers")).json()
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "password login is off on this server; sign in with Fake"
+    assert providers["password"] == "none"
+
+
+async def test_providers_says_passwords_are_off_while_discovery_is_down(env, idp):
+    def down(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ConnectError("down")
+
+    async with sso_app(
+        env, idp, password_login="none", admin_claim=ADMINS, transport=httpx2.MockTransport(down)
+    ) as client:
+        resp = await client.get("/api/auth/providers")
+    assert resp.status_code == 503
+    assert resp.json() == {"detail": "identity provider unreachable", "password": "none"}
 
 
 def bearer(token: str) -> dict[str, str]:
@@ -268,12 +295,28 @@ async def test_register_refuses_mismatched_subjects(env, idp):
     assert resp.status_code == 400 and "different subjects" in resp.json()["detail"]
 
 
-async def test_register_refuses_a_taken_username(env, idp):
+async def test_register_numbers_a_name_another_sso_user_holds(env, idp):
+    async with sso_app(env, idp) as client:
+        await register(client, idp, "sub-1", "ann@example.com", "ann")
+        resp = await register(client, idp, "sub-2", "ann@other.example.com", "ann")
+    assert resp.status_code == 200
+    assert resp.json()["username"] == "ann1"
+
+
+async def test_register_numbers_the_name_of_an_archived_password_account(env, idp):
+    async with sso_app(env, idp) as client:
+        assert (await client.post("/api/users/alice/archive")).status_code == 200
+        resp = await register(client, idp, "sub-a", "alice@example.com", "alice")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["username"] == "alice1"
+
+
+async def test_register_refuses_the_name_of_a_password_account(env, idp):
     async with sso_app(env, idp) as client:
         resp = await register(client, idp, "sub-9", "admin@example.com", "admin")
     assert resp.status_code == 409
     assert (
-        resp.json()["detail"] == "username admin is taken by a user or workspace; "
+        resp.json()["detail"] == "username admin is taken by a password account; "
         "ask an admin to bind subject sub-9 to an account"
     )
 

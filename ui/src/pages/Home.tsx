@@ -1,23 +1,33 @@
-import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ArrowRight, Database } from "lucide-react";
 import { Link } from "react-router-dom";
-import { api, qs } from "../lib/api";
+import { Empty } from "@/components/widgets/Empty";
+import { PageHeader } from "@/components/widgets/PageHeader";
+import { qs } from "../lib/api";
+import { useApi } from "../lib/query";
 import type { AgentInfo, Dataset } from "../lib/types";
 import { useWorkspace } from "../shell/workspace";
+import { buttonVariants } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
-function SkeletonRows({ n }: { n: number }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rows">
-      {Array.from({ length: n }, (_, i) => (
-        <div key={i} className="row grid-cols-[1fr_auto]">
-          <span
-            className="skeleton h-4"
-            style={{ width: `${40 + ((i * 13) % 45)}%` }}
-          />
-          <span className="skeleton h-3 w-28" />
-        </div>
-      ))}
-    </div>
+    <section className="min-w-0">
+      <div className="eyebrow">{title}</div>
+      <Card className="rows gap-0 py-0">{children}</Card>
+    </section>
   );
+}
+
+function SkeletonRows() {
+  return Array.from({ length: 3 }, (_, i) => (
+    <div key={i} className="row grid-cols-[1fr_auto]">
+      <Skeleton className="h-4" style={{ width: `${40 + ((i * 13) % 45)}%` }} />
+      <Skeleton className="h-3 w-28" />
+    </div>
+  ));
 }
 
 function DatasetRow({ ds }: { ds: Dataset }) {
@@ -27,7 +37,7 @@ function DatasetRow({ ds }: { ds: Dataset }) {
       className="row grid-cols-[minmax(0,1fr)_auto]"
     >
       <span className="row-strong">{ds.name}</span>
-      <span className="chip muted">{ds.kind}</span>
+      <Badge variant="secondary">{ds.kind}</Badge>
     </Link>
   );
 }
@@ -46,108 +56,117 @@ function AgentRow({ agent }: { agent: AgentInfo }) {
   );
 }
 
+function sortByName<T extends { name: string }>(list: T[]): T[] {
+  return [...list].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export function Home() {
   const { workspace } = useWorkspace();
-  const [datasets, setDatasets] = useState<Dataset[] | null>(null);
-  const [datasetsError, setDatasetsError] = useState<string | null>(null);
-  const [agents, setAgents] = useState<AgentInfo[] | null>(null);
-  const [agentsError, setAgentsError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let stale = false;
-    const scope = qs({ workspace: workspace.name });
-    const message = (e: unknown) =>
-      e instanceof Error ? e.message : String(e);
-    setDatasets(null);
-    setAgents(null);
-    setDatasetsError(null);
-    setAgentsError(null);
-    api<Dataset[]>(`/datasets${scope}`)
-      .then((list) => {
-        if (!stale)
-          setDatasets([...list].sort((a, b) => a.name.localeCompare(b.name)));
-      })
-      .catch((e) => !stale && setDatasetsError(message(e)));
-    api<AgentInfo[]>(`/agents${scope}`)
-      .then((list) => {
-        if (!stale)
-          setAgents([...list].sort((a, b) => a.name.localeCompare(b.name)));
-      })
-      .catch((e) => !stale && setAgentsError(message(e)));
-    return () => {
-      stale = true;
-    };
-  }, [workspace.name]);
+  const scope = qs({ workspace: workspace.name });
+  const datasetsQuery = useApi<Dataset[]>(`/datasets${scope}`, {
+    select: sortByName,
+  });
+  const agentsQuery = useApi<AgentInfo[]>(`/agents${scope}`, {
+    select: sortByName,
+  });
+  const datasets = datasetsQuery.data ?? null;
+  const agents = agentsQuery.data ?? null;
+  const datasetsError = datasetsQuery.error?.message ?? null;
+  const agentsError = agentsQuery.error?.message ?? null;
 
   const loading = (!datasets && !datasetsError) || (!agents && !agentsError);
   const empty = !datasets?.length && !agents?.length;
 
   return (
-    <div className="page">
-      <div className="toolbar mb-3">
-        <h1 className="page-title">@{workspace.name}</h1>
-        <span className="chip muted">{workspace.type}</span>
-        <Link to="/datasets" className="btn btn-quiet ml-auto text-brand">
-          All datasets →
-        </Link>
-        <Link to="/agents" className="btn btn-quiet text-brand">
-          All agents →
-        </Link>
-      </div>
-      {datasetsError && (
-        <div className="pane-status error">{datasetsError}</div>
-      )}
-      {agentsError && <div className="pane-status error">{agentsError}</div>}
-      {loading && (
-        <div className="card">
-          <SkeletonRows n={8} />
-        </div>
-      )}
-      {!loading && (
-        <div className="grid gap-x-5 gap-y-2 lg:grid-cols-2">
-          {!!datasets?.length && (
-            <section className="min-w-0">
-              <div className="eyebrow">Datasets</div>
-              <div className="card rows">
-                {datasets.map((ds) => (
-                  <DatasetRow key={ds.ref} ds={ds} />
-                ))}
-              </div>
-            </section>
+    <>
+      <PageHeader
+        title={
+          <>
+            @{workspace.name}{" "}
+            <Badge variant="secondary" className="align-middle font-normal">
+              {workspace.type}
+            </Badge>
+          </>
+        }
+        actions={
+          <>
+            <Link
+              to="/datasets"
+              className={buttonVariants({ variant: "link" })}
+            >
+              All datasets <ArrowRight size={14} />
+            </Link>
+            <Link to="/agents" className={buttonVariants({ variant: "link" })}>
+              All agents <ArrowRight size={14} />
+            </Link>
+          </>
+        }
+      />
+      <div className="page">
+        {datasetsError && (
+          <div className="pane-status error">{datasetsError}</div>
+        )}
+        {agentsError && <div className="pane-status error">{agentsError}</div>}
+        <div className="grid gap-4 lg:grid-cols-2">
+          {loading && (
+            <>
+              <Section title="Datasets">
+                <SkeletonRows />
+              </Section>
+              <Section title="Agents">
+                <SkeletonRows />
+              </Section>
+            </>
           )}
-          {!!agents?.length && (
-            <section className="min-w-0">
-              <div className="eyebrow">Agents</div>
-              <div className="card rows">
-                {agents.map((a) => (
-                  <AgentRow key={a.ref} agent={a} />
-                ))}
-              </div>
-            </section>
+          {!loading && !!datasets?.length && (
+            <Section title="Datasets">
+              {datasets.map((ds) => (
+                <DatasetRow key={ds.ref} ds={ds} />
+              ))}
+            </Section>
           )}
-          {empty && (
-            <div className="card pane-status lg:col-span-2">
+          {!loading && !!agents?.length && (
+            <Section title="Agents">
+              {agents.map((a) => (
+                <AgentRow key={a.ref} agent={a} />
+              ))}
+            </Section>
+          )}
+          {!loading && !datasetsError && !agentsError && empty && (
+            <Card className="py-8 lg:col-span-2">
               {workspace.type === "shared" ? (
-                <>
-                  No datasets or agents yet — run{" "}
-                  <span className="font-mono">
-                    evalkit sync &lt;dir&gt; --workspace {workspace.name}
-                  </span>{" "}
-                  or add an agent.
-                </>
+                <Empty
+                  icon={Database}
+                  title={`No datasets or agents in @${workspace.name} yet`}
+                  description={
+                    <>
+                      Run{" "}
+                      <span className="font-mono">
+                        evalkit sync &lt;dir&gt; --workspace {workspace.name}
+                      </span>{" "}
+                      or add an agent.
+                    </>
+                  }
+                />
               ) : (
-                <>
-                  Nothing here yet — run{" "}
-                  <span className="font-mono">
-                    evalkit run &lt;dataset&gt; --agent &lt;agent&gt;
-                  </span>{" "}
-                  from a repo with an evalkit.yaml.
-                </>
+                <Empty
+                  icon={Database}
+                  title="Nothing here yet"
+                  description={
+                    <>
+                      Run{" "}
+                      <span className="font-mono">
+                        evalkit run &lt;dataset&gt; --agent &lt;agent&gt;
+                      </span>{" "}
+                      from a repo with an evalkit.yaml.
+                    </>
+                  }
+                />
               )}
-            </div>
+            </Card>
           )}
         </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }

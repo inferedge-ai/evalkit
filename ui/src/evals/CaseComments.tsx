@@ -1,48 +1,47 @@
-import { useEffect, useState } from "react";
-import { api, apiJson } from "../lib/api";
+import { useState } from "react";
+import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
+import { refreshQueries, useApi } from "../lib/query";
 import { isStale } from "../lib/review";
 import type { CaseComment, CommentThread } from "../lib/types";
 import { isReviewerOf } from "../lib/access";
 import { splitRef } from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function CaseComments({
   dataset,
   caseId,
   currentHash,
-  version,
 }: {
   dataset: string;
   caseId: string;
   currentHash: string | undefined;
-  version: number;
 }) {
   const me = useMe();
   const base = `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/comments`;
-  const [threads, setThreads] = useState<CommentThread[] | null>(null);
+  const loaded = useApi<{ threads: CommentThread[] }>(base);
+  const threads = loaded.data?.threads ?? null;
+  const error = loaded.error ? String(loaded.error) : null;
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState<number | null>(null);
   const [showResolved, setShowResolved] = useState(false);
-
-  useEffect(() => {
-    api<{ threads: CommentThread[] }>(base).then((r) => setThreads(r.threads));
-  }, [base, version]);
-
-  const reload = () =>
-    api<{ threads: CommentThread[] }>(base).then((r) => setThreads(r.threads));
 
   const post = async () => {
     if (!draft.trim()) return;
     await apiJson(base, "POST", { body: draft, parent_id: replyTo });
     setDraft("");
     setReplyTo(null);
-    await reload();
+    await refreshQueries();
   };
 
   const toggle = async (c: CaseComment) => {
     await apiJson(`${base}/${c.id}`, "PATCH", { resolved: !c.resolved });
-    await reload();
+    await refreshQueries();
   };
 
   const canResolve = (c: CaseComment) =>
@@ -54,18 +53,23 @@ export function CaseComments({
         <span className="font-medium">{c.author}</span>
         <span className="text-ink-3">{fmtWhen(c.created_at)}</span>
         {isStale(c, currentHash) ? (
-          <span className="chip chip-partial">Case has been updated since</span>
+          <Badge variant="partial">Case has been updated since</Badge>
         ) : null}
-        {c.resolved ? <span className="chip muted">resolved</span> : null}
+        {c.resolved ? <Badge variant="secondary">resolved</Badge> : null}
         {canResolve(c) ? (
-          <button className="btn btn-sm ml-auto" onClick={() => toggle(c)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto"
+            onClick={() => toggle(c)}
+          >
             {c.resolved ? "Unresolve" : "Resolve"}
-          </button>
+          </Button>
         ) : null}
         {!reply && !c.resolved ? (
-          <button className="btn btn-sm" onClick={() => setReplyTo(c.id)}>
+          <Button variant="outline" size="sm" onClick={() => setReplyTo(c.id)}>
             Reply
-          </button>
+          </Button>
         ) : null}
       </div>
       {c.resolved && reply ? null : (
@@ -80,65 +84,80 @@ export function CaseComments({
   return (
     <>
       <div className="eyebrow">Comments</div>
-      <div className="card p-3">
-        {threads === null ? <div className="pane-status">Loading…</div> : null}
-        {open.map((t) => (
-          <div
-            key={t.id}
-            className="mb-3 border-b border-line pb-3 last:border-0"
-          >
-            <Comment c={t} />
-            {t.replies.map((r) => (
-              <Comment key={r.id} c={r} reply />
-            ))}
-          </div>
-        ))}
-        {resolved.length > 0 ? (
-          <button
-            className="btn btn-sm mb-2"
-            onClick={() => setShowResolved(!showResolved)}
-          >
-            {showResolved ? "Hide" : "Show"} {resolved.length} resolved thread
-            {resolved.length === 1 ? "" : "s"}
-          </button>
-        ) : null}
-        {showResolved
-          ? resolved.map((t) => (
-              <div
-                key={t.id}
-                className="mb-3 border-b border-line pb-3 opacity-70 last:border-0"
-              >
-                <Comment c={t} />
-                {t.replies.map((r) => (
-                  <Comment key={r.id} c={r} reply />
-                ))}
-              </div>
-            ))
-          : null}
-        <textarea
-          className="input mt-2 w-full"
-          rows={3}
-          placeholder={
-            replyTo === null ? "Write a comment…" : `Reply to #${replyTo}…`
-          }
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-        />
-        <div className="toolbar mt-2 justify-end">
-          {replyTo !== null ? (
-            <button className="btn btn-sm" onClick={() => setReplyTo(null)}>
-              Cancel reply
-            </button>
+      <Card size="sm">
+        <CardContent>
+          {error ? <div className="pane-status error">{error}</div> : null}
+          {threads === null && !error ? (
+            <div className="mb-3 flex flex-col gap-1.5">
+              <Skeleton className="h-3 w-1/3" />
+              <Skeleton className="h-4 w-4/5" />
+            </div>
           ) : null}
-          <button
-            className="btn btn-sm"
-            onClick={post}
-            disabled={!draft.trim()}
-          >
-            {replyTo === null ? "Comment" : "Reply"}
-          </button>
-        </div>
-      </div>
+          {open.map((t) => (
+            <div
+              key={t.id}
+              className="mb-3 border-b border-line pb-3 last:border-0"
+            >
+              <Comment c={t} />
+              {t.replies.map((r) => (
+                <Comment key={r.id} c={r} reply />
+              ))}
+            </div>
+          ))}
+          {resolved.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mb-2"
+              onClick={() => setShowResolved(!showResolved)}
+            >
+              {showResolved ? "Hide" : "Show"} {resolved.length} resolved thread
+              {resolved.length === 1 ? "" : "s"}
+            </Button>
+          ) : null}
+          {showResolved
+            ? resolved.map((t) => (
+                <div
+                  key={t.id}
+                  className="mb-3 border-b border-line pb-3 opacity-70 last:border-0"
+                >
+                  <Comment c={t} />
+                  {t.replies.map((r) => (
+                    <Comment key={r.id} c={r} reply />
+                  ))}
+                </div>
+              ))
+            : null}
+          <Textarea
+            className="mt-2 w-full"
+            rows={3}
+            placeholder={
+              replyTo === null ? "Write a comment…" : `Reply to #${replyTo}…`
+            }
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <div className="toolbar mt-2 justify-end">
+            {replyTo !== null ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setReplyTo(null)}
+              >
+                Cancel reply
+              </Button>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={post}
+              disabled={!draft.trim()}
+            >
+              {replyTo === null ? "Comment" : "Reply"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </>
   );
 }

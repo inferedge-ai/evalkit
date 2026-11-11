@@ -1,8 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useEffect, useId, useMemo, useState } from "react";
+import { ListX, SearchX, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { api, apiJson, NotFoundError } from "../lib/api";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { apiJson, isNotFound } from "../lib/api";
+import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { questionText } from "../lib/format";
-import { stateClass, stateLabel } from "../lib/review";
+import { useApi } from "../lib/query";
+import { getStateVariant, stateLabel } from "../lib/review";
 import {
   casesInScope,
   cliCommand,
@@ -23,6 +37,11 @@ import type {
   CaseView,
 } from "../lib/types";
 import { CopyButton } from "../lib/ui";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Field, FieldLabel, FieldTitle } from "@/components/ui/field";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Empty } from "@/components/widgets/Empty";
 
 const SCOPES: { id: Scope; label: string }[] = [
   { id: "all", label: "All cases" },
@@ -30,6 +49,8 @@ const SCOPES: { id: Scope; label: string }[] = [
   { id: "file", label: "Case file" },
   { id: "cases", label: "Pick cases" },
 ];
+
+const NO_JUDGE: JudgeChoice = { model: "", provider: "", reasoning_effort: "" };
 
 export function RunLauncher({
   dataset,
@@ -44,11 +65,26 @@ export function RunLauncher({
   initialCaseIds?: string[];
   onClose: () => void;
 }) {
+  const formId = useId();
   const navigate = useNavigate();
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [agent, setAgent] = useState("");
-  const [examples, setExamples] = useState<CaseView[] | null>(null);
-  const [isSuite, setIsSuite] = useState(false);
+  const agentsQuery = useApi<AgentInfo[]>("/agents", {
+    select: (all) =>
+      serverRuns
+        ? all.filter((a) => a.driver === "server")
+        : [
+            ...all.filter((a) => a.driver === "cli"),
+            ...all.filter((a) => a.driver === "server"),
+          ],
+  });
+  const agents = agentsQuery.data ?? [];
+  const [pickedAgent, setAgent] = useState("");
+  const agent = pickedAgent || agents[0]?.ref || "";
+  const casesQuery = useApi<CaseView[]>(
+    `/datasets/${encodeURIComponent(dataset)}/cases`,
+  );
+  const examples = casesQuery.data ?? null;
+  const ds = useApi<Dataset>(`/datasets/${encodeURIComponent(dataset)}`).data;
+  const isSuite = !!ds && ds.kind === "suite" && ds.workspace_is_shared;
   const [choice, setChoice] = useState<ScopeChoice>({
     scope: initialCaseIds?.length ? "cases" : "all",
     tags: [],
@@ -58,57 +94,22 @@ export function RunLauncher({
   const [runs, setRuns] = useState(1);
   const [model, setModel] = useState("");
   const [scoring, setScoring] = useState("");
-  const [judgeDefault, setJudgeDefault] = useState<JudgeSettings | null>(null);
-  const [providers, setProviders] = useState<LlmProviderInfo[]>([]);
-  const [judge, setJudge] = useState<JudgeChoice>({
-    model: "",
-    provider: "",
-    reasoning_effort: "",
-  });
+  const judgeQuery = useApi<JudgeSettings>("/judge-default");
+  const judgeDefault = judgeQuery.data ?? null;
+  const providersQuery = useApi<LlmProviderInfo[]>("/llm-providers");
+  const providers = providersQuery.data ?? [];
+  const [editedJudge, setJudge] = useState<JudgeChoice | null>(null);
+  const judge =
+    editedJudge ?? (judgeDefault ? judgeChoice(judgeDefault) : NO_JUDGE);
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<AgentInfo[]>("/agents")
-      .then((all) => {
-        const list = serverRuns
-          ? all.filter((a) => a.driver === "server")
-          : [
-              ...all.filter((a) => a.driver === "cli"),
-              ...all.filter((a) => a.driver === "server"),
-            ];
-        setAgents(list);
-        setAgent((a) => a || list[0]?.ref || "");
-      })
-      .catch((e) => setError(String(e)));
-    api<LlmProviderInfo[]>("/llm-providers")
-      .then(setProviders)
-      .catch((e) => setError(String(e)));
-    api<JudgeSettings>("/judge-default")
-      .then((settings) => {
-        setJudgeDefault(settings);
-        setJudge(judgeChoice(settings));
-      })
-      .catch((e) => {
-        setJudgeDefault(null);
-        if (!(e instanceof NotFoundError)) setError(String(e));
-      });
-    api<CaseView[]>(`/datasets/${encodeURIComponent(dataset)}/cases`)
-      .then(setExamples)
-      .catch((e) => setError(String(e)));
-    api<Dataset>(`/datasets/${encodeURIComponent(dataset)}`)
-      .then((d) => setIsSuite(d.kind === "suite" && d.workspace_is_shared))
-      .catch(() => setIsSuite(false));
-  }, [dataset, serverRuns]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const loadError =
+    agentsQuery.error ??
+    providersQuery.error ??
+    (isNotFound(judgeQuery.error) ? null : judgeQuery.error) ??
+    casesQuery.error;
+  const error = actionError ?? (loadError ? String(loadError) : null);
 
   const files = useMemo(() => sourceFiles(examples ?? []), [examples]);
   useEffect(() => {
@@ -136,7 +137,7 @@ export function RunLauncher({
   const launch = async () => {
     if (!request) return;
     setBusy(true);
-    setError(null);
+    setActionError(null);
     try {
       const resp = await apiJson<{ id: number }>(
         "/experiments",
@@ -145,7 +146,7 @@ export function RunLauncher({
       );
       navigate(`/experiments/${resp.id}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
       setBusy(false);
     }
   };
@@ -168,38 +169,27 @@ export function RunLauncher({
   );
 
   return (
-    <div className="dialog-backdrop" onMouseDown={onClose}>
-      <div
-        className="dialog w-160"
-        role="dialog"
-        aria-label="Run experiment"
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="dialog-head">
-          <span className="font-semibold">Run experiment</span>
-          <span className="row-meta font-mono">{dataset}</span>
-          <button
-            className="btn btn-quiet btn-sm ml-auto"
-            aria-label="close"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-        <div className="dialog-body">
-          <div className="form-row">
-            <span className="form-label">Agent</span>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className={FORM_DIALOG}>
+        <DialogHeader>
+          <DialogTitle>Run experiment</DialogTitle>
+          <DialogDescription className="font-mono">{dataset}</DialogDescription>
+        </DialogHeader>
+        <div className={FORM_DIALOG_BODY}>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-agent`}>Agent</FieldLabel>
             <Select
+              id={`${formId}-agent`}
               ariaLabel="agent"
               value={agent}
               onChange={setAgent}
               placeholder={serverRuns ? "No shared agents" : "No agents"}
               options={agents.map((a) => ({ value: a.ref, label: a.ref }))}
             />
-          </div>
-          <div className="form-row items-start">
-            <span className="form-label pt-1.5">Cases</span>
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
+          </Field>
+          <Field>
+            <FieldTitle>Cases</FieldTitle>
+            <div className="flex flex-col gap-2">
               <div className="segment self-start">
                 {SCOPES.map((s) => (
                   <button
@@ -237,7 +227,11 @@ export function RunLauncher({
                       aria-label="selected tags"
                     >
                       {choice.tags.map((tag) => (
-                        <span key={tag} className="chip muted font-mono">
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="inline-flex items-center font-mono"
+                        >
                           {tag}
                           <button
                             type="button"
@@ -250,9 +244,9 @@ export function RunLauncher({
                               }))
                             }
                           >
-                            ×
+                            <X size={10} />
                           </button>
-                        </span>
+                        </Badge>
                       ))}
                     </div>
                   )}
@@ -274,14 +268,15 @@ export function RunLauncher({
               {choice.scope === "cases" && (
                 <div className="picker">
                   <div className="picker-toolbar">
-                    <input
-                      className="input h-7 min-w-0 flex-1"
+                    <Input
+                      className="h-7 min-w-0 flex-1"
                       placeholder="Filter by id or question"
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
                     />
-                    <button
-                      className="btn btn-sm"
+                    <Button
+                      variant="outline"
+                      size="sm"
                       disabled={!pickable.length}
                       onClick={() =>
                         setChoice((c) => ({
@@ -296,23 +291,34 @@ export function RunLauncher({
                       }
                     >
                       Select shown
-                    </button>
-                    <button
-                      className="btn btn-sm"
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       disabled={!choice.caseIds.length}
                       onClick={() => setChoice((c) => ({ ...c, caseIds: [] }))}
                     >
                       Clear
-                    </button>
+                    </Button>
                   </div>
                   <div className="picker-list">
-                    {!examples && <div className="pane-status">Loading…</div>}
+                    {!examples &&
+                      !casesQuery.error &&
+                      Array.from({ length: 4 }, (_, i) => (
+                        <div key={i} className="picker-row">
+                          <Skeleton className="size-4" />
+                          <Skeleton className="h-3 w-28" />
+                          <Skeleton
+                            className="h-3"
+                            style={{ width: `${25 + i * 10}%` }}
+                          />
+                        </div>
+                      ))}
                     {pickable.map((ex) => (
-                      <label key={ex.case_id} className="picker-row check">
-                        <input
-                          type="checkbox"
+                      <label key={ex.case_id} className="picker-row">
+                        <Checkbox
                           checked={picked.has(ex.case_id)}
-                          onChange={() => togglePick(ex.case_id)}
+                          onCheckedChange={() => togglePick(ex.case_id)}
                         />
                         <span className="max-w-[60%] shrink-0 truncate font-mono text-ink">
                           {ex.case_id}
@@ -323,31 +329,45 @@ export function RunLauncher({
                         {isSuite &&
                           ex.review &&
                           ex.review.state !== "approved" && (
-                            <span
-                              className={`chip ml-auto shrink-0 ${stateClass(ex.review.state)}`}
+                            <Badge
+                              variant={getStateVariant(ex.review.state)}
+                              className="ml-auto shrink-0"
                             >
                               {stateLabel(ex.review.state)}
-                            </span>
+                            </Badge>
                           )}
                       </label>
                     ))}
                     {examples && !pickable.length && (
-                      <div className="pane-status">No cases match.</div>
+                      <Empty
+                        size="sm"
+                        icon={needle ? SearchX : ListX}
+                        title={
+                          needle
+                            ? "No cases match this filter"
+                            : "This dataset has no cases"
+                        }
+                        className="py-6"
+                      />
                     )}
                   </div>
                 </div>
               )}
-              <span className="row-meta">
-                {examples === null
-                  ? "Loading cases…"
-                  : `${inScope.length} case${inScope.length === 1 ? "" : "s"}`}
-              </span>
+              {(examples || !casesQuery.error) && (
+                <span className="row-meta">
+                  {examples === null
+                    ? "Loading cases…"
+                    : `${inScope.length} case${inScope.length === 1 ? "" : "s"}`}
+                </span>
+              )}
             </div>
-          </div>
-          <div className="form-row">
-            <span className="form-label">Repetitions</span>
-            <input
-              className="input w-20"
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-repetitions`}>
+              Repetitions
+            </FieldLabel>
+            <Input
+              id={`${formId}-repetitions`}
               type="number"
               min={1}
               max={10}
@@ -356,21 +376,23 @@ export function RunLauncher({
                 setRuns(Math.max(1, Math.min(10, Number(e.target.value) || 1)))
               }
             />
-          </div>
-          <div className="form-row">
-            <span className="form-label">Model</span>
-            <input
-              className="input w-72"
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-model`}>Model</FieldLabel>
+            <Input
+              id={`${formId}-model`}
               placeholder="harness default"
               value={model}
               onChange={(e) => setModel(e.target.value)}
               title="Used only if the harness accepts a model override"
             />
-          </div>
-          <div className="form-row">
-            <span className="form-label">Evaluation concurrency</span>
-            <input
-              className="input w-20"
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-evaluation-concurrency`}>
+              Evaluation concurrency
+            </FieldLabel>
+            <Input
+              id={`${formId}-evaluation-concurrency`}
               type="number"
               min={1}
               placeholder="default"
@@ -384,13 +406,16 @@ export function RunLauncher({
               }
               title="How many runs are scored at once. Server runs default to the server's limit and may not go above it"
             />
-          </div>
-          <div className="form-row">
-            <span className="form-label">Judge provider</span>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-judge-provider`}>
+              Judge provider
+            </FieldLabel>
             <Select
+              id={`${formId}-judge-provider`}
               ariaLabel="judge provider"
               value={judge.provider}
-              onChange={(provider) => setJudge((j) => ({ ...j, provider }))}
+              onChange={(provider) => setJudge({ ...judge, provider })}
               options={[
                 ...(judgeDefault
                   ? [{ value: "", label: "server default" }]
@@ -402,7 +427,7 @@ export function RunLauncher({
               ]}
               title="LLM providers an admin registered; judge-using evaluators run on the server with these"
             />
-          </div>
+          </Field>
           {!judgeDefault && (
             <p className="row-meta whitespace-normal">
               This server has no default judge yet. Pick a provider and a judge
@@ -410,67 +435,69 @@ export function RunLauncher({
             </p>
           )}
           {(["model", "reasoning_effort"] as const).map((key) => (
-            <div key={key} className="form-row">
-              <span className="form-label">
+            <Field key={key}>
+              <FieldLabel htmlFor={`${formId}-judge-${key}`}>
                 {key === "model" ? "Judge model" : "Judge effort"}
-              </span>
-              <input
-                className="input w-72"
+              </FieldLabel>
+              <Input
+                id={`${formId}-judge-${key}`}
                 placeholder={judgeDefault?.[key] ?? ""}
                 value={judge[key]}
-                onChange={(e) =>
-                  setJudge((j) => ({ ...j, [key]: e.target.value }))
-                }
+                onChange={(e) => setJudge({ ...judge, [key]: e.target.value })}
                 title="Defaults to the server's judge; the experiment records the judge it used"
               />
-            </div>
+            </Field>
           ))}
           {request && (
-            <div className="form-row items-start">
-              <span className="form-label pt-1">CLI</span>
+            <Field>
+              <FieldTitle>CLI</FieldTitle>
               <div className="cli-preview">
                 <code>{cliCommand(request)}</code>
                 <CopyButton text={cliCommand(request)} />
               </div>
-            </div>
+            </Field>
           )}
         </div>
-        <div className="dialog-foot">
-          {error && <span className="text-meta text-err-text">{error}</span>}
-          {!serverRuns && !error && (
-            <span className="text-meta text-ink-3">
-              Datasets in a personal workspace run from your terminal.
-            </span>
-          )}
-          <button className="btn btn-quiet ml-auto" onClick={onClose}>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>
             Cancel
-          </button>
+          </DialogClose>
           {serverRuns ? (
-            <button
-              className="btn btn-primary"
+            <Button
               disabled={busy || !request || inScope.length === 0}
               onClick={launch}
             >
               {busy
                 ? "Starting…"
                 : `Start ${inScope.length * runs} run${inScope.length * runs === 1 ? "" : "s"}`}
-            </button>
+            </Button>
           ) : (
             <CopyCommandButton
               text={request && inScope.length ? cliCommand(request) : null}
             />
           )}
-        </div>
-      </div>
-    </div>
+          {/* Last in the DOM: the footer stacks in reverse on a phone, so this
+              lands above the buttons there, and left of them from sm up. */}
+          {error && (
+            <span className="text-meta text-err-text sm:order-first sm:mr-auto sm:self-center">
+              {error}
+            </span>
+          )}
+          {!serverRuns && !error && (
+            <span className="text-meta text-ink-3 sm:order-first sm:mr-auto sm:self-center">
+              Datasets in a personal workspace run from your terminal.
+            </span>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function CopyCommandButton({ text }: { text: string | null }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button
-      className="btn btn-primary"
+    <Button
       disabled={!text}
       onClick={() => {
         if (!text) return;
@@ -481,6 +508,6 @@ function CopyCommandButton({ text }: { text: string | null }) {
       }}
     >
       {copied ? "Copied" : "Copy CLI command"}
-    </button>
+    </Button>
   );
 }

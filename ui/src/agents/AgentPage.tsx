@@ -1,5 +1,16 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AgentForm } from "./AgentForm";
 import { HarnessCheckPanel } from "./HarnessCheckPanel";
 import { ImportPanel } from "./ImportPanel";
@@ -8,7 +19,8 @@ import { agentKind, agentTabs, isAgentTab } from "../lib/agents";
 import type { AgentTab } from "../lib/agents";
 import { canUseAgent, canWrite } from "../lib/access";
 import { SETTING_FIELDS } from "../lib/agentForm";
-import { api, apiJson, isNotFound } from "../lib/api";
+import { apiJson, isNotFound } from "../lib/api";
+import { setApiData, useApi } from "../lib/query";
 import { httpUrl } from "../lib/safeUrl";
 import type { AgentInfo } from "../lib/types";
 import { CopyText, Tabs } from "../lib/ui";
@@ -16,6 +28,9 @@ import { useMe } from "../shell/capabilities";
 import { NotFound } from "../shell/NotFound";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function Overview({ agent }: { agent: AgentInfo }) {
   const repoHref = httpUrl(agent.repo_url);
@@ -78,29 +93,51 @@ function Overview({ agent }: { agent: AgentInfo }) {
   );
 }
 
+function AgentSkeleton() {
+  return (
+    <div className="flex flex-col gap-4">
+      <Skeleton className="h-8 w-56" />
+      <div className="grid max-w-3xl grid-cols-[max-content_1fr] gap-x-4 gap-y-2">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Fragment key={i}>
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-4" style={{ width: `${30 + i * 8}%` }} />
+          </Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const DRIVERS: Record<AgentInfo["driver"], string> = {
   server: "the server (shared agent)",
   cli: "its owner's CLI (evalkit run)",
   sdk: "the SDK (evalkit.sdk.run_experiment)",
 };
 
+// A fresh page per agent, so a form or confirmation left open on one can't
+// act on the next after Back or Forward.
 export function AgentPage() {
+  const { agent } = useParams();
+  return <AgentView key={agent} />;
+}
+
+function AgentView() {
   const { agent: slug = "", tab } = useParams();
   useFollowWorkspace(splitRef(slug).workspace);
   const navigate = useNavigate();
   const me = useMe();
-  const [agent, setAgent] = useState<AgentInfo | null | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
 
-  useEffect(() => {
-    api<AgentInfo>(`/agents/${encodeURIComponent(slug)}`)
-      .then(setAgent)
-      .catch((e) => {
-        if (isNotFound(e)) setAgent(null);
-        else setError(e instanceof Error ? e.message : String(e));
-      });
-  }, [slug]);
+  const path = `/agents/${encodeURIComponent(slug)}`;
+  const loaded = useApi<AgentInfo>(path);
+  const agent = isNotFound(loaded.error) ? null : loaded.data;
+  const error =
+    actionError ??
+    (loaded.error && !isNotFound(loaded.error) ? loaded.error.message : null);
+  const setAgent = (saved: AgentInfo) => void setApiData(path, saved);
 
   if (!isAgentTab(tab))
     return (
@@ -125,13 +162,7 @@ export function AgentPage() {
     : [];
   const archive = async () => {
     if (!agent) return;
-    if (
-      !window.confirm(
-        `Archive ${agent.ref}? Nobody can run it until it's restored. Its runs and results stay.`,
-      )
-    )
-      return;
-    setError(null);
+    setActionError(null);
     try {
       setAgent(
         await apiJson<AgentInfo>(
@@ -140,12 +171,12 @@ export function AgentPage() {
         ),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
     }
   };
   const restore = async () => {
     if (!agent) return;
-    setError(null);
+    setActionError(null);
     try {
       setAgent(
         await apiJson<AgentInfo>(
@@ -154,78 +185,117 @@ export function AgentPage() {
         ),
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setActionError(e instanceof Error ? e.message : String(e));
     }
   };
-  if (agent && !tabs.some((t) => t.id === tab))
+  if (agent && loaded.isFetchedAfterMount && !tabs.some((t) => t.id === tab))
     return (
       <Navigate to={`/agents/${encodeURIComponent(slug)}/overview`} replace />
     );
   return (
-    <div className="page">
-      <div className="toolbar mb-2">
-        <h1 className="max-w-160 truncate font-mono text-head font-semibold">
-          <CopyText value={slug} />
-        </h1>
-        {agent && <span className="chip muted">{agentKind(agent)}</span>}
-        {writable && !agent.archived && (
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: "Agents", to: "/agents" }]}
+        title={
+          <span className="font-mono">
+            <CopyText value={slug} />
+          </span>
+        }
+        description={agent ? agentKind(agent) : undefined}
+        actions={
           <>
-            <button
-              className="btn btn-sm ml-auto"
-              onClick={() => setEditing(true)}
+            {writable && !agent.archived && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setEditing(true)}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setConfirmingArchive(true)}
+                >
+                  Archive
+                </Button>
+              </>
+            )}
+            {writable && agent.archived && (
+              <Button variant="outline" size="sm" onClick={restore}>
+                Restore
+              </Button>
+            )}
+            <Link
+              className={buttonVariants({ variant: "link" })}
+              to={`/runs?agent=${encodeURIComponent(slug)}`}
             >
-              Edit
-            </button>
-            <button className="btn btn-sm" onClick={archive}>
-              Archive
-            </button>
+              Runs <ArrowUpRight size={12} />
+            </Link>
+          </>
+        }
+      />
+      <div className="page">
+        {error && <div className="pane-status error">{error}</div>}
+        {!agent && !error && <AgentSkeleton />}
+        {agent && (
+          <>
+            <Tabs<AgentTab>
+              tabs={tabs}
+              active={tab}
+              onSelect={(next) =>
+                navigate(`/agents/${encodeURIComponent(slug)}/${next}`)
+              }
+            />
+            <div className="mt-4">
+              {tab === "overview" && <Overview agent={agent} />}
+              {tab === "mappings" && <MappingsPanel agent={slug} />}
+              {tab === "import" && <ImportPanel agent={slug} />}
+              {tab === "check" && <HarnessCheckPanel agent={agent.ref} />}
+            </div>
+            {editing && (
+              <AgentForm
+                workspace={agent.workspace}
+                shared={agent.workspace_type === "shared"}
+                agent={agent}
+                onSaved={(saved) => {
+                  setAgent(saved);
+                  setEditing(false);
+                }}
+                onClose={() => setEditing(false)}
+              />
+            )}
+            <AlertDialog
+              open={confirmingArchive}
+              onOpenChange={setConfirmingArchive}
+            >
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Archive {agent.ref}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Nobody can run it until it&apos;s restored. Its runs and
+                    results stay.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      // The closing dialog stays clickable; a double click acts once.
+                      if (!confirmingArchive) return;
+                      setConfirmingArchive(false);
+                      void archive();
+                    }}
+                  >
+                    Archive
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </>
         )}
-        {writable && agent.archived && (
-          <button className="btn btn-sm ml-auto" onClick={restore}>
-            Restore
-          </button>
-        )}
-        <Link
-          className={`btn btn-quiet text-brand ${writable ? "" : "ml-auto"}`}
-          to={`/runs?agent=${encodeURIComponent(slug)}`}
-        >
-          Runs ↗
-        </Link>
-        <Link className="btn btn-quiet text-brand" to="/agents">
-          All agents ↗
-        </Link>
       </div>
-      {error && <div className="pane-status error">{error}</div>}
-      {agent && (
-        <>
-          <Tabs<AgentTab>
-            tabs={tabs}
-            active={tab}
-            onSelect={(next) =>
-              navigate(`/agents/${encodeURIComponent(slug)}/${next}`)
-            }
-          />
-          <div className="mt-4">
-            {tab === "overview" && <Overview agent={agent} />}
-            {tab === "mappings" && <MappingsPanel agent={slug} />}
-            {tab === "import" && <ImportPanel agent={slug} />}
-            {tab === "check" && <HarnessCheckPanel agent={agent.ref} />}
-          </div>
-          {editing && (
-            <AgentForm
-              workspace={agent.workspace}
-              shared={agent.workspace_type === "shared"}
-              agent={agent}
-              onSaved={(saved) => {
-                setAgent(saved);
-                setEditing(false);
-              }}
-              onClose={() => setEditing(false)}
-            />
-          )}
-        </>
-      )}
-    </div>
+    </>
   );
 }

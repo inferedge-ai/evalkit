@@ -1,11 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { X } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, apiJson, qs } from "../lib/api";
+import { apiJson, qs } from "../lib/api";
 import { questionText } from "../lib/format";
+import { refreshQueries, useApi } from "../lib/query";
+import type {
+  ColDef,
+  RowSelectionOptions,
+  SelectionColumnDef,
+} from "ag-grid-community";
 import { BUCKET_COLUMNS } from "../lib/bucketColumns";
-import { ColumnsMenu, DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
-import { REVIEW_STATES, stateClass, stateLabel } from "../lib/review";
+import {
+  ColumnsMenu,
+  DataGrid,
+  readValue,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
+import { REVIEW_STATES, getStateVariant, stateLabel } from "../lib/review";
 import type {
   CaseScorePoint,
   CaseView,
@@ -21,12 +33,30 @@ import {
   twinCell,
 } from "../lib/promotion";
 import { useWorkspace } from "../shell/workspace";
+import { ToArrow } from "../lib/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 // Last N experiments' bucket scores shown inline per case, newest first.
 const RECENT = 4;
 
 const NO_CASES: CaseView[] = [];
-const HIDDEN = ["source"];
+const NO_SCORES: Record<string, CaseScorePoint[]> = {};
+
+const getCaseId = (ex: CaseView) => ex.case_id;
+
+// Select all ticks the cases the column filters leave.
+const CASE_SELECTION: RowSelectionOptions<CaseView> = {
+  mode: "multiRow",
+  selectAll: "filtered",
+  enableClickSelection: false,
+};
+
+const SELECTION_COLUMN: SelectionColumnDef = {
+  lockPosition: "left",
+  resizable: false,
+};
 
 export function DatasetCasesTab({
   dataset,
@@ -41,8 +71,6 @@ export function DatasetCasesTab({
   const tag = params.get("tag") ?? "";
   const [q, setQ] = useState("");
   const [state, setState] = useState<ReviewState | "">("");
-  const [examples, setExamples] = useState<CaseView[] | null>(null);
-  const [scores, setScores] = useState<Record<string, CaseScorePoint[]>>({});
   const reviewable = reviewed;
   const { workspaces } = useWorkspace();
   const linked = workspaces.find((w) => w.name === splitRef(dataset).workspace);
@@ -50,53 +78,37 @@ export function DatasetCasesTab({
   const requestable = reviewable && side !== "target";
   const otherWorkspace = linked?.promotes_to ?? linked?.promoted_from ?? null;
   const twinColumn = reviewable && side !== null && otherWorkspace !== null;
-  const [reviewers, setReviewers] = useState<string[]>([]);
-  const [reviewer, setReviewer] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pickedReviewer, setReviewer] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const examplesPath = `/datasets/${encodeURIComponent(dataset)}/cases${qs({
-    tag: tag || undefined,
-  })}`;
+  const cases = useApi<CaseView[]>(
+    `/datasets/${encodeURIComponent(dataset)}/cases${qs({
+      tag: tag || undefined,
+    })}`,
+  );
+  const examples = cases.data ?? null;
+  const error = actionError ?? (cases.error ? String(cases.error) : null);
 
-  useEffect(() => {
-    setExamples(null);
-    api<CaseView[]>(examplesPath)
-      .then(setExamples)
-      .catch((e) => setError(String(e)));
-  }, [dataset, tag, examplesPath]);
-
-  useEffect(() => {
-    setSelected(new Set());
-  }, [dataset]);
-
-  useEffect(() => {
-    if (!requestable) return;
-    const workspace = splitRef(dataset).workspace;
-    api<MemberRow[]>(
-      `/workspaces/${encodeURIComponent(workspace)}/members?role=reviewer`,
-    )
-      .then((rows) => {
-        const names = rows.map((r) => r.username);
-        setReviewers(names);
-        setReviewer(names[0] ?? "");
-      })
-      .catch(() => setReviewers([]));
-  }, [requestable, dataset]);
+  const reviewers =
+    useApi<MemberRow[]>(
+      requestable
+        ? `/workspaces/${encodeURIComponent(splitRef(dataset).workspace)}/members?role=reviewer`
+        : null,
+    ).data?.map((r) => r.username) ?? [];
+  const reviewer = reviewers.includes(pickedReviewer)
+    ? pickedReviewer
+    : (reviewers[0] ?? "");
 
   // Recent scores are dataset-wide and tag-independent, so they load once and
   // are keyed by case id.
-  useEffect(() => {
-    setScores({});
-    api<Record<string, CaseScorePoint[]>>(
+  const scores =
+    useApi<Record<string, CaseScorePoint[]>>(
       `/datasets/${encodeURIComponent(dataset)}/case-scores${qs({
         experiments: String(RECENT),
       })}`,
-    )
-      .then(setScores)
-      .catch(() => setScores({}));
-  }, [dataset]);
+    ).data ?? NO_SCORES;
 
   const allTags = useMemo(
     () => [...new Set((examples ?? []).flatMap((ex) => ex.split_tags))].sort(),
@@ -116,170 +128,134 @@ export function DatasetCasesTab({
       : (examples ?? NO_CASES);
     return state ? matched.filter((ex) => ex.review?.state === state) : matched;
   }, [examples, needle, state]);
+  const grid = useDataGrid<CaseView>("dataset-cases");
 
-  const columns = useMemo<Column<CaseView>[]>(
+  const columns = useMemo<ColDef<CaseView>[]>(
     () => [
       {
-        id: "select",
-        enableSorting: false,
-        enableHiding: false,
-        enableResizing: false,
-        header: () => (
-          <input
-            type="checkbox"
-            aria-label="select all shown"
-            checked={
-              rows.length > 0 && rows.every((ex) => selected.has(ex.case_id))
-            }
-            onChange={(e) =>
-              setSelected(
-                e.target.checked
-                  ? new Set([...selected, ...rows.map((ex) => ex.case_id)])
-                  : new Set(),
-              )
-            }
-          />
-        ),
-        cell: (c) => (
-          <input
-            type="checkbox"
-            aria-label={`select ${c.row.original.case_id}`}
-            checked={selected.has(c.row.original.case_id)}
-            onChange={(e) => toggle(c.row.original.case_id, e.target.checked)}
-          />
-        ),
-      },
-      {
-        id: "id",
-        header: "id",
-        accessorKey: "case_id",
-        meta: { wrap: true, className: "min-w-44 max-w-72" },
-        cell: (c) => (
+        colId: "id",
+        headerName: "id",
+        type: "text",
+        field: "case_id",
+        initialFlex: 0,
+        initialWidth: 288,
+        cellRenderer: renderCell<CaseView>((ex) => (
           <Link
             className="font-mono font-medium text-brand hover:underline"
-            to={`/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(c.row.original.case_id)}`}
+            to={`/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(ex.case_id)}`}
+            title={ex.case_id}
           >
-            {c.row.original.case_id}
+            {ex.case_id}
           </Link>
-        ),
+        )),
       },
       {
-        id: "source",
-        header: "source",
-        accessorFn: (ex) => ex.source ?? "",
-        cell: (c) =>
-          c.row.original.source ? (
-            <span className="row-meta font-mono">{c.row.original.source}</span>
+        colId: "source",
+        headerName: "source",
+        initialHide: true,
+        type: "text",
+        valueGetter: readValue((ex) => ex.source ?? ""),
+        cellRenderer: renderCell<CaseView>((ex) =>
+          ex.source ? (
+            <span className="row-meta font-mono">{ex.source}</span>
           ) : (
             <span className="row-meta text-ink-4">—</span>
           ),
-      },
-      {
-        id: "question",
-        header: "question",
-        accessorFn: (ex) => questionText(ex.input),
-        meta: { wrap: true, className: "min-w-40" },
-        cell: (c) => (
-          <span
-            className="line-clamp-2 text-ink-3"
-            title={questionText(c.row.original.input)}
-          >
-            {questionText(c.row.original.input)}
-          </span>
         ),
       },
-      ...buckets.map((column): Column<CaseView> => ({
-        id: `score:${column.bucket}`,
-        header: column.label,
-        enableSorting: false,
-        meta: {
-          title: `${column.bucket} bucket, last ${RECENT} experiments (newest first)`,
-        },
-        cell: (c) => (
+      {
+        colId: "question",
+        headerName: "question",
+        type: "text",
+        initialFlex: 2,
+        valueGetter: readValue((ex) => questionText(ex.input)),
+        cellRenderer: renderCell<CaseView>((ex) => (
+          <span className="text-ink-3" title={questionText(ex.input)}>
+            {questionText(ex.input)}
+          </span>
+        )),
+      },
+      ...buckets.map((column): ColDef<CaseView> => ({
+        colId: `score:${column.bucket}`,
+        headerName: column.label,
+        headerTooltip: `${column.bucket} bucket, last ${RECENT} experiments (newest first)`,
+        sortable: false,
+        initialFlex: 0,
+        initialWidth: 148,
+        cellRenderer: renderCell<CaseView>((ex) => (
           <ScoreBlockStrip
-            points={(scores[c.row.original.case_id] ?? []).slice(0, RECENT)}
+            points={(scores[ex.case_id] ?? []).slice(0, RECENT)}
             bucket={column.bucket}
           />
-        ),
+        )),
       })),
       {
-        id: "tags",
-        header: "tags",
-        accessorFn: (ex) => ex.split_tags.join(" "),
-        meta: { wrap: true },
-        cell: (c) => (
-          <span className="flex gap-1">
-            {c.row.original.split_tags.map((t) => (
-              <span key={t} className="chip muted">
+        colId: "tags",
+        headerName: "tags",
+        type: "text",
+        valueGetter: readValue((ex) => ex.split_tags.join(" ")),
+        cellRenderer: renderCell<CaseView>((ex) => (
+          <span className="inline-flex gap-1" title={ex.split_tags.join(", ")}>
+            {ex.split_tags.map((t) => (
+              <Badge key={t} variant="secondary">
                 {t}
-              </span>
+              </Badge>
             ))}
           </span>
-        ),
+        )),
       },
       ...(twinColumn
         ? [
             {
-              id: "twin",
-              header: otherWorkspace ?? "",
-              accessorFn: (ex) => twinCell(ex.twin, side)?.label ?? "",
-              cell: (c) => {
-                const cell = twinCell(c.row.original.twin, side);
+              colId: "twin",
+              headerName: otherWorkspace ?? "",
+              type: "text",
+              valueGetter: readValue<CaseView, string>(
+                (ex) => twinCell(ex.twin, side)?.label ?? "",
+              ),
+              cellRenderer: renderCell<CaseView>((ex) => {
+                const cell = twinCell(ex.twin, side);
                 return cell ? (
-                  <span className={`chip ${cell.cls}`}>{cell.label}</span>
+                  <Badge variant={cell.variant}>{cell.label}</Badge>
                 ) : null;
-              },
-            } satisfies Column<CaseView>,
+              }),
+            } satisfies ColDef<CaseView>,
           ]
         : []),
       ...(reviewable
         ? [
             {
-              id: "state",
-              header: "state",
-              accessorFn: (ex) => ex.review?.state ?? "",
-              cell: (c) => {
-                const ex = c.row.original;
-                return (
-                  <span className="flex flex-col items-start gap-0.5">
-                    {ex.review &&
-                    !promotedImpliesApproved(ex.twin, side, ex.review.state) ? (
-                      <span className={`chip ${stateClass(ex.review.state)}`}>
-                        {stateLabel(ex.review.state)}
-                      </span>
-                    ) : null}
-                    {ex.review?.state === "review_requested" &&
-                    ex.review.requested_to ? (
-                      <span className="row-meta">
-                        → {ex.review.requested_to}
-                      </span>
-                    ) : null}
-                  </span>
-                );
-              },
-            } satisfies Column<CaseView>,
+              colId: "state",
+              headerName: "state",
+              type: "text",
+              valueGetter: readValue<CaseView, string>((ex) =>
+                ex.review &&
+                !promotedImpliesApproved(ex.twin, side, ex.review.state)
+                  ? stateLabel(ex.review.state)
+                  : "",
+              ),
+              cellRenderer: renderCell<CaseView>((ex) => (
+                <span className="inline-flex items-center gap-1">
+                  {ex.review &&
+                  !promotedImpliesApproved(ex.twin, side, ex.review.state) ? (
+                    <Badge variant={getStateVariant(ex.review.state)}>
+                      {stateLabel(ex.review.state)}
+                    </Badge>
+                  ) : null}
+                  {ex.review?.state === "review_requested" &&
+                  ex.review.requested_to ? (
+                    <span className="row-meta">
+                      <ToArrow /> {ex.review.requested_to}
+                    </span>
+                  ) : null}
+                </span>
+              )),
+            } satisfies ColDef<CaseView>,
           ]
         : []),
     ],
-    [
-      buckets,
-      rows,
-      selected,
-      scores,
-      dataset,
-      twinColumn,
-      reviewable,
-      side,
-      otherWorkspace,
-    ],
+    [buckets, scores, dataset, twinColumn, reviewable, side, otherWorkspace],
   );
-  const table = useDataTable({
-    id: "dataset-cases",
-    data: rows,
-    columns,
-    getRowId: (ex) => ex.case_id,
-    defaultHidden: HIDDEN,
-  });
 
   const requestReview = async () => {
     setBusy(true);
@@ -287,22 +263,15 @@ export function DatasetCasesTab({
       await apiJson(
         `/datasets/${encodeURIComponent(dataset)}/review-requests`,
         "POST",
-        { selection: { case_ids: [...selected] }, reviewer },
+        { selection: { case_ids: selected }, reviewer },
       );
-      setSelected(new Set());
-      setExamples(await api<CaseView[]>(examplesPath));
+      grid.api?.deselectAll();
+      await refreshQueries();
     } catch (e) {
-      setError(String(e));
+      setActionError(String(e));
     } finally {
       setBusy(false);
     }
-  };
-
-  const toggle = (caseId: string, on: boolean) => {
-    const next = new Set(selected);
-    if (on) next.add(caseId);
-    else next.delete(caseId);
-    setSelected(next);
   };
 
   if (error) return <div className="pane-status error">{error}</div>;
@@ -312,8 +281,8 @@ export function DatasetCasesTab({
   return (
     <>
       <div className="toolbar mb-2">
-        <input
-          className="input w-72"
+        <Input
+          className="w-72"
           placeholder="Filter by id or question"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -342,19 +311,16 @@ export function DatasetCasesTab({
           />
         )}
         <span className="row-meta num ml-auto">
-          {loading ? "Loading…" : `${rows.length} cases`}
+          {loading ? "Loading…" : `${grid.filteredCount ?? rows.length} cases`}
         </span>
-        <ColumnsMenu table={table} defaultHidden={HIDDEN} />
+        <ColumnsMenu grid={grid} />
       </div>
-      {selected.size > 0 && (
+      {selected.length > 0 && (
         <div className="toolbar mb-2 rounded-md border border-brand bg-info-bg px-3 py-2">
-          <span className="font-medium">{selected.size} selected</span>
-          <button
-            className="btn btn-sm btn-primary"
-            onClick={() => onRun([...selected])}
-          >
+          <span className="font-medium">{selected.length} selected</span>
+          <Button size="sm" onClick={() => onRun(selected)}>
             Run selected
-          </button>
+          </Button>
           {requestable && (
             <>
               <span className="row-meta ml-2">Request review from</span>
@@ -365,27 +331,39 @@ export function DatasetCasesTab({
                 placeholder="No reviewers"
                 options={reviewers.map((r) => ({ value: r, label: r }))}
               />
-              <button
-                className="btn btn-sm"
+              <Button
+                variant="outline"
+                size="sm"
                 disabled={busy || !reviewer}
                 onClick={requestReview}
               >
                 Request
-              </button>
+              </Button>
             </>
           )}
-          <button
-            className="btn btn-sm ml-auto"
-            onClick={() => setSelected(new Set())}
+          <Button
+            variant="outline"
+            size="icon-sm"
+            className="ml-auto"
+            aria-label="clear selection"
+            onClick={() => grid.api?.deselectAll()}
           >
-            ✕
-          </button>
+            <X size={12} />
+          </Button>
         </div>
       )}
-      <DataTable
-        table={table}
+      <DataGrid
+        grid={grid}
+        rows={rows}
+        columns={columns}
+        getRowId={getCaseId}
         loading={loading}
         empty="No cases match this filter."
+        rowSelection={CASE_SELECTION}
+        selectionColumnDef={SELECTION_COLUMN}
+        onSelectionChanged={({ api }) =>
+          setSelected(api.getSelectedRows().map(getCaseId))
+        }
       />
     </>
   );

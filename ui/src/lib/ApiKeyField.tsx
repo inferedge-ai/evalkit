@@ -1,13 +1,18 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 export interface ApiKeyValue {
   key: string;
   clear: boolean;
 }
 
 export function ApiKeyField({
+  id,
   hasKey,
   value,
   onChange,
 }: {
+  id?: string;
   hasKey: boolean;
   value: ApiKeyValue;
   onChange: (value: ApiKeyValue) => void;
@@ -15,19 +20,22 @@ export function ApiKeyField({
   if (hasKey && !value.clear && !value.key)
     return (
       <div className="flex items-center gap-2">
-        <span className="chip muted">Key set</span>
-        <button
+        <Badge variant="secondary">Key set</Badge>
+        <Button
+          id={id}
           type="button"
-          className="btn btn-sm"
+          variant="outline"
+          size="sm"
           onClick={() => onChange({ key: "", clear: true })}
         >
           Replace or clear
-        </button>
+        </Button>
       </div>
     );
   return (
-    <input
-      className="input min-w-0 flex-1"
+    <Input
+      id={id}
+      className="min-w-0 flex-1"
       type="password"
       aria-label="API key"
       placeholder={

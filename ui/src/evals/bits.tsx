@@ -1,4 +1,17 @@
+import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Circle,
+  Contrast,
+  Dot,
+  Download,
+  User,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -43,6 +56,9 @@ import { toYaml } from "../lib/format";
 import { downloadFile, serverNow } from "../lib/api";
 import { fixtureEntries } from "../lib/fixtures";
 import { httpUrl } from "../lib/safeUrl";
+import { Button } from "@/components/ui/button";
+import { Badge, badgeVariants } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 export function Markdown({ text }: { text: string }) {
   const normalized = useMemo(() => normalizeMathDelimiters(text), [text]);
@@ -78,7 +94,7 @@ export function PreBlock({
 }
 
 export function Tag({ children }: { children: React.ReactNode }) {
-  return <span className="chip muted">{children}</span>;
+  return <Badge variant="secondary">{children}</Badge>;
 }
 
 // The files a case attaches to its question; each downloads on click. Sits
@@ -98,7 +114,7 @@ export function FixtureList({
       {entries.length === 0 ? (
         <div className="text-micro text-ink-4">No files attached.</div>
       ) : (
-        <div className="card rows">
+        <Card className="rows gap-0 py-0">
           {entries.map((entry) => (
             <button
               key={entry.key}
@@ -116,10 +132,12 @@ export function FixtureList({
               <span className="truncate font-mono text-meta text-brand">
                 {entry.name}
               </span>
-              <span className="row-meta">download ↓</span>
+              <span className="row-meta inline-flex items-center gap-1">
+                download <Download size={11} />
+              </span>
             </button>
           ))}
-        </div>
+        </Card>
       )}
     </>
   );
@@ -132,9 +150,9 @@ export function WorkspaceChip({
 }) {
   if (!workspace) return null;
   return (
-    <span className="chip" title="the experiment's home workspace">
+    <Badge variant="info" title="the experiment's home workspace">
       {workspace}
-    </span>
+    </Badge>
   );
 }
 
@@ -151,7 +169,10 @@ export function ScoreChip({
 }) {
   const sev = severity(score);
   const label = compact ? fmtScore(score) : `${name} ${fmtScore(score)}`;
-  const cls = `chip chip-${sev} num`;
+  const cls = cn(
+    badgeVariants({ variant: sev === "none" ? "secondary" : sev }),
+    "num",
+  );
   if (onClick) {
     return (
       <button
@@ -229,7 +250,7 @@ export function ScoreBlockStrip({
   if (!points || points.length === 0)
     return <span className="text-ink-4">—</span>;
   return (
-    <span className="flex gap-0.5">
+    <span className="inline-flex gap-0.5 align-middle">
       {points.map((p) => (
         <ScoreBlock
           key={p.experiment_id}
@@ -261,7 +282,7 @@ export function RevisionChip({
   const title = branch ? `${branch} @ ${sha}` : sha;
   const cls = compact
     ? "num font-mono text-meta text-ink-3 transition-colors hover:text-brand"
-    : "chip muted font-mono";
+    : cn(badgeVariants({ variant: "secondary" }), "font-mono");
   const href = httpUrl(url);
   if (href) {
     return (
@@ -287,21 +308,14 @@ export function RevisionChip({
 export function UserPill({ user }: { user: string | null | undefined }) {
   if (!user) return null;
   return (
-    <span
-      className="chip muted inline-flex shrink-0 items-center gap-1"
+    <Badge
+      variant="secondary"
+      className="inline-flex shrink-0 items-center gap-1"
       title="run by"
     >
-      <svg
-        width="11"
-        height="11"
-        viewBox="0 0 16 16"
-        fill="currentColor"
-        aria-hidden="true"
-      >
-        <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5.784 6A5.986 5.986 0 0 1 8 9.5c2.55 0 4.77 1.59 5.784 4.5a.75.75 0 0 1-.703 1H2.919a.75.75 0 0 1-.703-1Z" />
-      </svg>
+      <User size={11} />
       {user}
-    </span>
+    </Badge>
   );
 }
 
@@ -314,13 +328,13 @@ export function LintBadges({
   return (
     <span className="inline-flex gap-1">
       {findings.map((f, i) => (
-        <span
+        <Badge
           key={i}
-          className={`chip ${f.severity === "error" ? "chip-fail" : "chip-partial"}`}
+          variant={f.severity === "error" ? "fail" : "partial"}
           title={`${f.code}: ${f.message}`}
         >
           {f.code}
-        </span>
+        </Badge>
       ))}
     </span>
   );
@@ -333,13 +347,25 @@ function asDict(v: unknown): Dict {
 }
 
 // ── ScoreDetail (per-item verdict tables) ─────────────────────────────────
-const GLYPH: Record<Verdict, string> = {
-  satisfied: "✓",
-  partial: "◐",
-  absent: "○",
-  incorrect: "✗",
-  other: "·",
+const VERDICT_ICON: Record<Verdict, LucideIcon> = {
+  satisfied: Check,
+  partial: Contrast,
+  absent: Circle,
+  incorrect: X,
+  other: Dot,
 };
+
+function VerdictIcon({ kind }: { kind: Verdict }) {
+  const Icon = VERDICT_ICON[kind];
+  return (
+    <Icon
+      size={12}
+      role="img"
+      aria-label={kind}
+      className="inline shrink-0 align-[-0.125em]"
+    />
+  );
+}
 
 const VERDICT_KEYS = new Set(["verdict", "status"]);
 
@@ -359,7 +385,7 @@ function HeadCell({
 }) {
   return (
     <th
-      className={`border-b border-line-soft py-1 pr-2 text-left font-medium tracking-wide text-n-400 uppercase ${className}`}
+      className={`border-b border-line-soft py-1 pr-2 text-left font-medium tracking-wide text-muted-foreground uppercase ${className}`}
     >
       {children}
     </th>
@@ -435,8 +461,10 @@ function ItemTable({ items }: { items: Record<string, unknown>[] }) {
           const kind = verdictKind(verdictRaw);
           return (
             <tr key={i} className={`iv-${kind} border-b border-n-50 align-top`}>
-              <td className="num py-1 text-n-400">{i + 1}</td>
-              <td className="py-1">{GLYPH[kind]}</td>
+              <td className="num py-1 text-muted-foreground">{i + 1}</td>
+              <td className="py-1">
+                <VerdictIcon kind={kind} />
+              </td>
               {hasWord ? (
                 <td className="py-1">{verdictWord(verdictRaw) ?? ""}</td>
               ) : null}
@@ -472,7 +500,7 @@ function StatValue({ label, value }: { label: string; value: unknown }) {
 function Stat({ label, value }: { label: string; value: unknown }) {
   return (
     <span className="inline-flex items-baseline gap-1">
-      <span className="text-n-400">{label}</span>
+      <span className="text-muted-foreground">{label}</span>
       <StatValue label={label} value={value} />
     </span>
   );
@@ -595,7 +623,7 @@ function KeyedBlocks({ entries }: { entries: [string, unknown][] }) {
       {flat.length ? <StatRow entries={flat} /> : null}
       {nested.map(([k, v]) => (
         <div key={k}>
-          <div className="mb-0.5 font-mono text-n-400">{k}</div>
+          <div className="mb-0.5 font-mono text-muted-foreground">{k}</div>
           <DetailValue value={v} />
         </div>
       ))}
@@ -648,14 +676,21 @@ function RubricSummaryTable({ detail }: { detail: Record<string, unknown> }) {
         {typeRows.length > 0 && (
           <tr className="border-b border-n-50">
             <td colSpan={RUBRIC_COLUMNS.length + 1} className="py-0.5">
-              <button
+              <Button
                 type="button"
-                className="btn btn-quiet btn-sm -ml-1.5 text-ink-3"
+                variant="ghost"
+                size="sm"
+                className="-ml-1.5 text-ink-3"
                 aria-expanded={showTypes}
                 onClick={() => setShowTypes((v) => !v)}
               >
-                {showTypes ? "▾" : "▸"} by type ({typeRows.length})
-              </button>
+                {showTypes ? (
+                  <ChevronDown size={12} />
+                ) : (
+                  <ChevronRight size={12} />
+                )}
+                by type ({typeRows.length})
+              </Button>
             </td>
           </tr>
         )}
@@ -715,7 +750,7 @@ export function SummaryChip({ summary }: { summary?: Record<string, number> }) {
         const word = verdictWord(k);
         return (
           <span key={k} className={`iv-${kind}`}>
-            {GLYPH[kind]} {n}
+            <VerdictIcon kind={kind} /> {n}
             {word ? ` ${word}` : ""}
           </span>
         );
@@ -806,14 +841,16 @@ function MemberScore({
   title: string;
   score: number | null;
 }) {
+  const sev = severity(score);
   return (
-    <span
-      className={`chip chip-${severity(score)} num inline-flex items-center gap-1`}
+    <Badge
+      variant={sev === "none" ? "secondary" : sev}
+      className="num"
       title={`${title}: ${fmtScore(score)}`}
     >
       {name} {fmtScore(score)}
       <InfoTip term={title} />
-    </span>
+    </Badge>
   );
 }
 
@@ -844,18 +881,20 @@ function EvaluatorGroupCard({
   const scoredOn = members.find((m) => m.score.scored_on)?.score.scored_on;
 
   return (
-    <div
-      className="mb-2 rounded-lg border border-n-100 bg-n-0"
+    <Card
+      className="mb-2 gap-0 py-0"
       data-eval={group.names.join(" ") || group.title}
     >
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-n-50 px-3 py-1.5 text-meta">
         <span className="font-mono font-medium">{group.title}</span>
         <InfoTip term={group.title} />
-        {label ? <span className="text-n-400">· {label}</span> : null}
+        {label ? (
+          <span className="text-muted-foreground">· {label}</span>
+        ) : null}
         <SummaryChip summary={summary} />
         {scoredOn ? (
-          <span
-            className="chip muted"
+          <Badge
+            variant="secondary"
             title={
               scoredOn === "server"
                 ? "scored on the evalkit server"
@@ -863,11 +902,11 @@ function EvaluatorGroupCard({
             }
           >
             {scoredOn}
-          </span>
+          </Badge>
         ) : null}
         <span className="flex-1" />
         {members.length === 0 ? (
-          <span className="text-micro text-n-400">not scored</span>
+          <span className="text-micro text-muted-foreground">not scored</span>
         ) : single ? (
           <span className={`num sev-fg-${severity(single.score)}`}>
             {fmtScore(single.score)}
@@ -888,7 +927,7 @@ function EvaluatorGroupCard({
           <div key={block.key}>
             {blocks.length > 1 ||
             (members.length > 1 && block.names.length < members.length) ? (
-              <div className="mb-1 font-mono text-n-400">
+              <div className="mb-1 font-mono text-muted-foreground">
                 {block.names.map((n) => shortName(n, group.title)).join(", ")}
               </div>
             ) : null}
@@ -898,7 +937,9 @@ function EvaluatorGroupCard({
         {hasCfg ? (
           blocks.length ? (
             <details>
-              <summary className="cursor-pointer text-n-400">config</summary>
+              <summary className="cursor-pointer text-muted-foreground">
+                config
+              </summary>
               <ConfigBlock cfg={cfg} />
             </details>
           ) : (
@@ -906,7 +947,7 @@ function EvaluatorGroupCard({
           )
         ) : null}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -991,7 +1032,7 @@ export function EvaluatorScores({
           </div>
         ))}
       <details className="mt-1 text-micro">
-        <summary className="cursor-pointer text-n-400">
+        <summary className="cursor-pointer text-muted-foreground">
           Full evaluator config
         </summary>
         <PreBlock text={toYaml(evaluators)} language="yaml" />

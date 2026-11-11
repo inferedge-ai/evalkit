@@ -18,7 +18,7 @@ export type OidcProviders = {
 };
 
 export type Providers = {
-  password: "all" | "admin";
+  password: "all" | "admin" | "none";
   oidc: OidcProviders | null;
 };
 
@@ -32,13 +32,24 @@ export interface SessionUser {
 
 export interface OidcSession {
   getUser(): Promise<SessionUser | null>;
-  signinRedirect(args: { state: unknown }): Promise<void>;
+  signinRedirect(args: {
+    state: unknown;
+    redirectMethod?: "replace" | "assign";
+  }): Promise<void>;
   signinCallback(): Promise<SessionUser | undefined>;
   signinSilent(): Promise<SessionUser | null>;
   removeUser(): Promise<void>;
 }
 
 let providersPromise: Promise<Providers> | null = null;
+
+export class ProvidersUnavailable extends Error {
+  password: Providers["password"] | null;
+  constructor(message: string, password: Providers["password"] | null) {
+    super(message);
+    this.password = password;
+  }
+}
 
 export function loadProviders(): Promise<Providers> {
   if (providersPromise === null) {
@@ -48,7 +59,12 @@ export function loadProviders(): Promise<Providers> {
         .catch(() => ({}) as Record<string, unknown>);
       if (!resp.ok) {
         providersPromise = null;
-        throw new Error(String(body.detail ?? "cannot load sign-in options"));
+        const message = String(body.detail ?? "cannot load sign-in options");
+        if (resp.status !== 503) throw new Error(message);
+        throw new ProvidersUnavailable(
+          message,
+          (body.password as Providers["password"] | undefined) ?? null,
+        );
       }
       return body as Providers;
     });

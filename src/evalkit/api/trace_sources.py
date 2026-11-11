@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from evalkit.api.access import StoresDep
 from evalkit.api.auth import AdminUser
-from evalkit.api.deps import ConfigDep
+from evalkit.api.deps import EndpointRuleDep
 from evalkit.contracts.enums import TraceProvider
 from evalkit.core.endpoints import check_endpoint
 
@@ -25,9 +25,12 @@ class CreateTraceSource(BaseModel):
 
 @router.post("")
 async def create_trace_source(
-    body: CreateTraceSource, stores: StoresDep, cfg: ConfigDep, admin: AdminUser
+    body: CreateTraceSource,
+    stores: StoresDep,
+    rule: EndpointRuleDep,
+    admin: AdminUser,
 ) -> dict:
-    await check_endpoint(body.url, allow_private=cfg.allow_private_endpoints)
+    await check_endpoint(body.url, rule=rule)
     created = await stores.sources.create(body.name, body.provider, body.url, body.api_key)
     return created.model_dump(mode="json")
 
@@ -39,10 +42,14 @@ class EditTraceSource(BaseModel):
 
 @router.patch("/{name}")
 async def edit_trace_source(
-    name: str, body: EditTraceSource, stores: StoresDep, cfg: ConfigDep, admin: AdminUser
+    name: str,
+    body: EditTraceSource,
+    stores: StoresDep,
+    rule: EndpointRuleDep,
+    admin: AdminUser,
 ) -> dict:
     if body.url is not None:
-        await check_endpoint(body.url, allow_private=cfg.allow_private_endpoints)
+        await check_endpoint(body.url, rule=rule)
     edited = await stores.sources.edit(name, url=body.url, api_key=body.api_key)
     return edited.model_dump(mode="json")
 

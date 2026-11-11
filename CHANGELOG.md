@@ -1,5 +1,342 @@
 # Changelog
 
+## 0.5.0
+
+- An SSO first sign-in derives the username more loosely: it is the part before
+  `@` in lowercase, and may hold any character except whitespace, `@`, `/`,
+  `\`, `?`, `#` and `%`, as long as it is not just `.` or `..`. So
+  `ann+evals@example.com` becomes `ann+evals`; before, anything outside
+  lowercase letters, digits, `.`, `_` and `-` was refused. `evalkit users add`
+  follows the same rule and stores the name in lowercase (`Bob` becomes
+  `bob`) where it used to refuse it, and the password login and the user and
+  workspace member commands match a username in any case; workspace and
+  dataset names keep the strict rule. When another SSO user, an archived
+  account or a workspace already has the name, the sign-in now creates the
+  user with the first free number appended (`ann1`, `ann2`, ...) instead of
+  answering 409. An active password account not yet bound to an identity
+  still gets the 409, which names the subject for `evalkit users bind`.
+- A case file's mapping shape accepts top-level keys starting with `x-` (for
+  example `x-shared`) and ignores them, so they can hold YAML anchors that cases
+  reuse. In 0.4.0, `evalkit lint` and `evalkit sync` refused such files with
+  `E-SCHEMA ... x-shared: Extra inputs are not permitted`; 0.3.0 accepted them.
+  The server parses synced and linted files itself, so `evalkit sync` and online
+  `evalkit lint` accept them once the server runs this release.
+- Every private-address check reads `allow_private_endpoints` through a new
+  dependency, `get_allow_private_endpoints` in `evalkit.api.deps`, which reads the
+  server config through `get_config`. A package that serves evalkit can replace it
+  in `app.dependency_overrides` to decide the rule per request, for example per
+  tenant, without replacing the whole config; replacing `get_config` still decides
+  it too. The checks are on saving an agent, remote evaluator, LLM provider or
+  trace source; on starting, evaluating or resuming a server run; on
+  `POST /api/agents/{agent}/check`; and on trace import
+  (`POST /api/agents/{agent}/sessions/import`, `.../imports` and
+  `.../imports/{id}/continue`). Before, trace import read the server's own config
+  and ignored a replaced `get_config`.
+- New server config `trusted_endpoints`: a list of `http` or `https` URLs whose
+  origin (scheme, host and port) every private-address check lets through, even
+  when `allow_private_endpoints` is off or a package decides it per request. Use
+  it for a service every tenant may reach on a private address, such as an
+  in-cluster LLM gateway that checks its own credentials: any path on a listed
+  origin is open to every agent, remote evaluator, LLM provider and trace source.
+  The path is ignored, the host must be spelled exactly as listed, default ports
+  match either spelling, and the server (or `create_app`) refuses to start on an
+  entry that isn't an `http` or `https` URL with a host and no user. The refusal
+  for a private address now names `trusted_endpoints` beside
+  `allow_private_endpoints`.
+- The web UI uses InferEdge's design tokens and shadcn's setup
+  (`ui/components.json`, the `@/` import alias): Roboto at 14px (was the
+  system font at 13px), new light and dark colours with a white page in light
+  mode and slightly darker borders, and a larger corner radius (`rounded-md`
+  is 8px, was 6px). Dark mode is the `dark` class on `<html>` instead of
+  `data-theme="dark"`. UI tests can render components with jsdom and Testing
+  Library.
+- A deploy's `server.accent_color` no longer recolours the web UI's buttons and
+  links, which stay the brand blue. It draws a 3px strip along the top of
+  every page, the login page included. The colour comes from the new public
+  `GET /api/appearance` (`{"accent_color": ...}`), and `GET /api/meta` no
+  longer returns `accent_color`. Before, the colour loaded only after sign-in,
+  so the login page was blue and signed-in pages took the accent.
+- The web UI header shows only "Evalkit"; the InferEdge lockup beside it is
+  gone.
+- `ui/package.json` overrides the KaTeX that `rehype-katex` and `remark-math`
+  bring in (0.16.47) with the UI's own KaTeX (0.19.1), which fixes
+  GHSA-238p-pmpm-9mq7 (KaTeX below 0.18.2 can read polluted object
+  prototypes).
+- The web UI loads its data with TanStack Query (`ui/src/lib/query.ts`). A
+  page you come back to shows its last data at once and refreshes it in the
+  background. After a save, archive, comment or other change, every page on
+  screen refetches, so the change shows without a reload. A running
+  experiment's page and the trace import panel still poll until they finish,
+  and pause while the browser tab is in the background. Failed loads are not
+  retried. Signing in clears everything loaded earlier in the tab, so the next
+  user never sees the previous user's pages.
+- The web UI's forms for launching a run, creating or editing an agent, a
+  remote evaluator or an LLM provider open in a shadcn dialog: focus stays
+  inside it, and Esc or a click outside closes it without saving. Archiving an
+  agent and re-evaluating an experiment whose runs have not all completed ask
+  in a confirmation dialog instead of the browser's `confirm()` box. Going
+  Back or Forward to another experiment, agent or dataset closes any dialog
+  left open on the previous one. The UI gains shadcn's components under
+  `ui/src/components/ui/` and the
+  `@base-ui/react`, `class-variance-authority` and `lucide-react`
+  dependencies.
+- The web UI's tables (experiments, a dataset's cases and experiments, an
+  experiment's and a comparison's case matrix, a case's score history, reviews,
+  runs) are AG Grid Community grids (`ag-grid-community`, `ag-grid-react`) in
+  place of `@tanstack/react-table`. Rows are 28px and a cell's content stays on
+  one line, cut off with its full text on hover where it was wrapped before.
+  Columns can be resized, dragged to a new order, sorted, hidden, and filtered
+  where they hold text; a page's row count follows those filters. The Reviews,
+  Runs and score history tables gain the Columns menu. Each table still
+  remembers its sort, column order, widths and hidden columns in the browser,
+  in a new format, so layouts saved before this release are dropped once. On a
+  dataset's Cases tab, select all ticks the cases the column filters leave, and
+  the search box and review-state filter drop the cases they hide from the
+  selection. The experiments list's second `cases` column (which cases ran) is
+  headed `selection`. In the case matrix, the case column fits its content on
+  every load, and picking a score card scrolls the matrix to that evaluator's
+  column.
+- The web UI's icons come from `lucide-react` instead of hand-drawn SVGs and
+  text characters: the ⓘ beside a score, gauge or evaluator name, the select
+  menus' chevron and check mark, the copy and user icons, the arrow on links
+  to another page, the buttons that clear a selection or remove a tag or role,
+  the Columns menu's move up and down buttons, the download and Approve
+  icons, the arrows that open a folder or section, the rubric verdict marks
+  (satisfied, partial, absent, incorrect), the agent check's pass, warn, fail
+  and skipped marks, the up and down marks on a case's score change, and the
+  arrows in links and between two values ("0.50 → 0.75", "→ alice"). A screen
+  reader reads each rubric verdict mark by its verdict, a score change mark as
+  "up" or "down", and an arrow between two values as "to". The ⓘ shows its
+  description in a tooltip drawn above the page, so a table no longer cuts it
+  off: on hover, on keyboard focus, or on a tap, which also hides it again. A
+  screen reader reads it as "definition" with the description. Each case
+  matrix column whose evaluator has a description shows the ⓘ in its header,
+  with the evaluator's full name on the label's hover text: Tab from the
+  header moves to it, and clicking, tapping or pressing Enter on it does not
+  sort the column. A score named like a JavaScript object property (such as
+  `constructor`) no longer breaks the page that shows its ⓘ.
+- The web UI's top bar and its More menu are replaced by a left sidebar. Its
+  header has the Evalkit wordmark, the workspace switcher and Search (⌘K); its
+  sections are Evaluate (Datasets, Experiments, Reviews), Observe (Runs,
+  Agents), Workspace (Settings) and, for admins, Admin (Users, Trace sources,
+  LLM providers); its footer has Docs and a menu with your name, the light or
+  dark mode switch and Sign out. The sidebar collapses to icons (its button,
+  or ⌘B), and the `sidebar_state` cookie keeps it collapsed across reloads for
+  a week after the last toggle. Collapsed, it shows the workspace's initials,
+  which expand it again. On a phone it opens as a sheet from the button in a
+  slim bar at the top of the screen. Each page starts with a header holding
+  its title, the pages above it as links, and its main actions. The ⌘K search
+  opens in a shadcn dialog. Signed-out pages (sign-in, docs) keep a top bar
+  with the wordmark, Docs, the theme switch and Sign in. For a package
+  extending the UI, a `NavItem` takes an optional lucide `icon`, and `nav`
+  items get a sidebar section of their own after Observe and stay in ⌘K.
+- The web UI draws its buttons, badges, inputs, cards, tabs, form fields,
+  checkboxes and loading placeholders with the shadcn components, and
+  evalkit's own CSS classes for them are removed: `btn` and its variants,
+  `chip` and its variants, `input`, `card`, `card-head`, `tab-button`,
+  `form-row`, `form-label`, `check` and `skeleton`. A page in a package that
+  extends the UI and uses one of them must move to the component. Buttons come
+  in three heights (28, 32 and 36px) and line up with the 32px inputs and
+  selects beside them; badges gain pass, partial, fail and info colours. List
+  rows are 36px, with names at 14px and details at 12px, and on a phone a
+  row's details wrap under its name instead of squeezing it to nothing.
+  Toolbars wrap on a narrow screen instead of running off it, and tab bars
+  scroll sideways. Cards have 14px corners. Forms put each label above its
+  control, with its hint underneath. Table checkboxes are square with 4px
+  corners instead of round. Secondary text uses the components' muted grey,
+  one shade darker than before in light mode.
+- `auth.password_login` takes `none`, for servers where everyone signs in
+  through the identity provider:
+  - Config: `none` needs `auth.oidc.admin_claim`, so the identity provider
+    says who is an admin. The server makes no password-only `admin` account
+    and starts without `EVALKIT_ADMIN_PASSWORD`. Because `none` requires
+    `admin_claim`, an admin promoted by hand loses it at their next sign-in
+    unless the claim names them.
+  - Sign-in: a signed-out visitor goes straight to the provider instead of
+    evalkit's login page and comes back to the page they opened.
+    `POST /api/auth/login` refuses every password with 403 `password login
+    is off on this server`, `evalkit login --username` included. While the
+    provider is unreachable, the 503 from `GET /api/auth/providers` also
+    carries `password`, so the login page offers Retry and no password form.
+  - Sign-out: every open tab stops at a **Sign in again** button until the
+    next sign-in, rather than restarting the provider sign-in, so a live
+    provider session does not sign the person straight back in.
+- In every `password_login` mode, a signed-out visitor who opens a page
+  while the identity provider is unreachable reaches the login page, and so
+  does someone whose password session expires mid-visit, so with `admin` an
+  admin can still use the password form. Before, they saw an error. A
+  provider session that needs refreshing while the provider is unreachable
+  still shows the error.
+- The web UI's home, datasets, dataset, case and reviews pages are laid out
+  on the design system:
+  - An empty home page, datasets list, dataset tab or changelog shows an
+    icon, a title and, where there is one, the command to run. Empty tables
+    keep their one-line message.
+  - Loading placeholders have the shape of what loads. A case's page keeps its
+    header and breadcrumbs while it loads, keeps the case on screen when a
+    refresh fails, and its changelog and comments show their error instead of
+    loading forever.
+  - A dataset's sync line (workspace, branch, commit, who synced it and when)
+    sits under its name in the page header, on up to two lines on a phone.
+  - The reviews page switches between its three queues with tabs instead of
+    radio buttons, and the queue is in the URL (`/reviews?view=all`,
+    `?view=changes`), so Back from a case returns to it.
+  - A case's page offers "Full evaluator config" once instead of twice, and
+    says when its YAML sets no evaluators (overlays can still add some).
+  - Every page's content has 16px of padding (was 18 to 28px).
+  - For a package extending the UI, `PageHeader` takes an optional
+    `description` line, and `Empty` (`@/components/widgets/Empty`) draws an
+    empty state.
+- The web UI's settings move into one Settings area, opened from Settings in
+  the account menu, with its own sidebar in place of the main one:
+  - Workspace › ‹@workspace› is the current workspace's settings, at
+    `/settings/workspace/evaluators` and `/members` (was `/workspace/...`).
+    The workspace switcher stays at the top of the Settings sidebar.
+  - Organization, for admins: Users (`/settings/users`, was `/users`), Trace
+    sources (`/settings/trace-sources`, was `/admin/trace-sources`) and LLM
+    providers (`/settings/llm-providers`, was `/admin/llm-providers`).
+  - `/settings` opens the first page the person can see. The old paths
+    redirect to the new ones. Back to evalkit, at the top of the Settings
+    sidebar, returns to the page Settings was opened from.
+  - The main sidebar no longer has Workspace and Admin sections. Settings
+    pages the person can see are in ⌘K search, as "Settings › Organization ›
+    LLM providers".
+  - Members who open Trace sources see the list without the add form and
+    archive buttons, which only admins can use; LLM providers already worked
+    this way.
+  - For a package extending the UI, `UiExtensions` drops `moreNav` and
+    `adminNav` and gains `accountSettings` (everyone) and
+    `organizationSettings` (admins): pages rendered at `/settings/<name>`
+    inside the Settings area. A package that set `moreNav` or `adminNav` must
+    move those pages. A page's name is lowercase letters, digits and dashes;
+    evalkit drops a page whose name isn't, is one it uses itself
+    (`workspace`, `users`, `trace-sources` and `llm-providers`), or is
+    already taken by an earlier page in either list, `accountSettings` first.
+- The web UI's runs and agents pages are laid out on the design system:
+  - Runs: a workspace without active agents says so and links to the Agents
+    page instead of showing empty filters. The table shows its loading state
+    while the agents load, says "No runs yet." when the agent has none ("No
+    runs match." only under a filter), and stays on screen with the error
+    above it when a refresh fails. An agent list that fails to load no
+    longer blames the harness's run listing.
+  - A run's page: "Experiment run" moves into the page header, and the
+    "Runs" link, which led where the agent breadcrumb does, is gone. Its
+    tabs load with placeholders shaped like them and keep their content,
+    with the error above it, when a refresh fails. A trajectory without step
+    times, an empty workspace, a trajectory filtered to nothing and the file
+    viewer before a file is picked show an icon and a title. The timing and
+    cost tables scroll sideways on a phone.
+  - Agents list: the agent count sits in the page header, and an empty
+    workspace says how to add an agent, or why you can't: it is archived,
+    or read-only for you. When the workspace has agents but you can't add
+    one, that reason sits where the New agent button would be.
+  - An agent's page: how evalkit reaches the agent and where its
+    trajectories come from sits under its name in the page header. Without a
+    mapping, the Mappings tab says how to push one
+    (`evalkit traces mapping push`) and hides the empty rules table; without
+    sessions, it says there is nothing to preview. Without a trace source,
+    the Import tab says how an admin adds one
+    (`evalkit trace-sources create`), and no longer says so while the
+    sources are still loading or when they fail to load. An import's row
+    wraps on a phone. On both tabs, each list that fails to load (trace
+    sources, range imports, mapping versions, sessions, each preview) shows
+    its error in its own section instead of loading forever.
+  - The agents list, an agent's page, its tabs and a running harness check
+    load with placeholder rows.
+  - The agent form's note about changing the trajectory source wraps
+    instead of running past the dialog's edge.
+- The web UI's experiments, experiment, run and compare pages and the run
+  launcher are laid out on the design system:
+  - A workspace with no experiments shows an icon, a title and the command
+    to run instead of an empty table, or why you can't start one: the
+    workspace is archived, or you can't start experiments there (only the
+    owner can in a personal workspace, and admins, writers and reviewers in
+    a shared one). When the list fails to load, the page
+    shows the error alone instead of an empty table.
+  - An experiment's page keeps the shape of its scores and case table while
+    it loads; the case table shows the grid's own loading state and leaves
+    the table's saved column layout alone. It says when the experiment
+    pinned no cases, and shows the error when its cases fail to load instead
+    of an empty case table. A running experiment retries a failed case list
+    every 3 seconds, as it polls its scores.
+  - A run's page and the compare page keep their header and breadcrumbs
+    while they load and when they fail to load, and keep their content on
+    screen when a refresh fails. A run's page shows its tabs while it loads,
+    with the open tab selected.
+  - A case that has not run yet says so under its run page's header, with a
+    link back to the experiment. Before, it could show "Not found" while the
+    experiment's cases were loading or after they failed to load; a failed
+    case list now shows its error, also beside a run that has loaded, and
+    above "This case has not run yet" when a refresh fails.
+  - A run whose case sets no evaluators for the agent, even through
+    overlays, says so on its Scores tab.
+  - The compare page opened without two experiments says how to pick them.
+  - On a phone, long agent, model, judge and case-selection chips on an
+    experiment's and a run's page end in an ellipsis instead of running off
+    the screen.
+  - The run launcher's case picker shows placeholder rows while the cases
+    load, says when the dataset has no cases or its filter matches none, and
+    stops showing placeholders and "Loading cases…" when the cases fail to
+    load.
+- The web UI's settings, docs, sign-in and not-found pages are laid out on
+  the design system:
+  - Workspace settings: the page header says whether the workspace is shared
+    or personal, archived, and where it promotes to or from. An admin's
+    "Promotes to" picker sits above the tabs, and the "Create workspace"
+    form moves below them, under "New shared workspace", since it makes
+    another workspace; a name it refuses shows its error under that form.
+    Without remote evaluators, the Evaluators tab says how
+    to add one (`evalkit evaluators create`), or why you can't: the
+    workspace is archived or read-only for you. A workspace without members,
+    or a personal one, says so on the Members tab.
+  - Users, Trace sources and LLM providers: the page's description sits
+    under its title in the page header, and wraps on a phone instead of
+    running off the screen. LLM providers splits into Default judge and
+    Providers sections. Without trace sources or LLM providers, the page
+    says how to add one (`evalkit trace-sources create`,
+    `evalkit llm-providers create`), or that an admin does. A user list that
+    fails to load shows the error instead of placeholder rows.
+  - The add forms on Users, Trace sources and the Members tab put each field
+    on its own line on a phone. Lists show placeholder rows while they load.
+  - Docs: on a phone the page list folds under a button naming the current
+    page, above the page, and folds again after you pick one; wide tables
+    scroll sideways inside their own box.
+  - Markdown everywhere in the UI (docs, case questions, run answers, agent
+    messages in trajectories and workspace file previews) takes the design
+    system's colours for code blocks, inline code, tables and quotes.
+  - Sign-in: the sign-in card is 384px wide (was 336px) with labelled
+    fields that password managers fill, and a failed provider sign-in
+    (`/login/callback`) shows the same header bar as `/login`.
+  - A missing page shows an icon, what is missing and a button back.
+- A failed API request whose response carries no error message, such as a
+  proxy's 502 page, shows `HTTP <status>` instead of an empty error.
+- A file on a run's Workspace tab that fails to load says why, in the source
+  view and in image, PDF, SVG and HTML previews alike: the server's message
+  (`harness error` when the harness fails), or else the response's status
+  text, which is empty over HTTP/2, so `HTTP <status>` there. Before, the
+  source view showed "Failed to load file: " with nothing after it over
+  HTTP/2, and previews showed `Error`. Previews now also explain a harness
+  that no longer has the file, as the source view did.
+  `GET /api/agents/{agent}/runs/{run_id}/files`, `.../files/{path}` and
+  `.../zip` answer 502 `harness unreachable` when they can't reach the
+  harness, the words the runs list's note uses, and the MCP tools
+  `get_run_files` and `download_run_file` return `upstream_failed: harness
+  unreachable`; before, the error escaped as a plain-text 500.
+- The web UI has a Workspaces page under Settings › Organization
+  (`/settings/workspaces`) listing the workspaces as the sidebar's workspace
+  switcher does: yours and the shared ones, with other people's personal
+  workspaces behind "Show N other personal workspaces". Each row shows the
+  workspace's member count and promotion link, a filter narrows the list,
+  and clicking a row switches to that workspace and opens its settings.
+  Admins create shared workspaces there with New workspace, then land on the
+  new workspace's Members tab. The "New shared workspace" form is gone from
+  the workspace settings page. `workspaces` is now one of evalkit's own
+  Settings page names, so a wrapper's `organizationSettings` or
+  `accountSettings` page named `workspaces` is dropped.
+- `GET /api/workspaces` and the other workspace endpoints return `members`:
+  how many users hold a writer or reviewer grant on the workspace, each
+  counted once (0 for a personal workspace).
+
 ## 0.4.0
 
 - evalkit is now licensed under Apache-2.0 instead of AGPL-3.0 (`LICENSE`).

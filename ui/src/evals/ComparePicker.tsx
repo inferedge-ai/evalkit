@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../lib/api";
 import { EXPERIMENT_LIST_LIMIT, listCapNote } from "../lib/experimentStatus";
+import { useApi } from "../lib/query";
 import { Select } from "../lib/Select";
 import type { SelectOption } from "../lib/Select";
 import type { ExperimentListItem } from "../lib/types";
@@ -30,15 +29,10 @@ export function ComparePicker({
   experimentId: number;
 }) {
   const navigate = useNavigate();
-  const [experiments, setExperiments] = useState<ExperimentListItem[]>([]);
-
-  useEffect(() => {
-    api<ExperimentListItem[]>(
+  const experiments =
+    useApi<ExperimentListItem[]>(
       `/datasets/${encodeURIComponent(dataset)}/experiments?limit=${EXPERIMENT_LIST_LIMIT}`,
-    )
-      .then(setExperiments)
-      .catch(() => setExperiments([]));
-  }, [dataset]);
+    ).data ?? [];
 
   const options = compareOptions(experiments, experimentId);
   if (options.length === 0) return null;

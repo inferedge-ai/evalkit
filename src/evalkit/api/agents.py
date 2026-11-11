@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from pydantic import AfterValidator, BaseModel
 
 from evalkit.api.access import ActorDep, StoresDep, writable, writable_endpoint
-from evalkit.api.deps import ConfigDep
+from evalkit.api.deps import EndpointRuleDep
 from evalkit.contracts.enums import TrajectorySource
 from evalkit.contracts.settings import AgentSettings
 from evalkit.core.agents import AgentDefinition, driver
@@ -73,13 +73,13 @@ async def create_agent(
     body: CreateAgent,
     stores: StoresDep,
     actor: ActorDep,
-    cfg: ConfigDep,
+    rule: EndpointRuleDep,
 ) -> dict:
     ws = await writable_endpoint(
         stores,
         actor,
-        cfg,
         body.workspace,
+        rule=rule,
         api_key="api_key" in body.model_fields_set,
         url=body.harness_url,
     )
@@ -112,15 +112,15 @@ async def edit_agent(
     body: EditAgent,
     stores: StoresDep,
     actor: ActorDep,
-    cfg: ConfigDep,
+    rule: EndpointRuleDep,
 ) -> dict:
     current = await stores.agents.get(ref)
     url_changes = "harness_url" in body.model_fields_set and body.harness_url != current.harness_url
     await writable_endpoint(
         stores,
         actor,
-        cfg,
         current.workspace,
+        rule=rule,
         api_key="api_key" in body.model_fields_set,
         url=body.harness_url if url_changes else None,
     )

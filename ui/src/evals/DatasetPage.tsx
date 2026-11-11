@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { api, isMissing } from "../lib/api";
+import { isMissing } from "../lib/api";
 import { fmtWhen } from "../lib/format";
+import { useApi } from "../lib/query";
 import type { Dataset, TagInfo } from "../lib/types";
 import { Tabs } from "../lib/ui";
 import { NotFound } from "../shell/NotFound";
@@ -11,6 +12,8 @@ import { DatasetTagsTab } from "./DatasetTagsTab";
 import { RunLauncher } from "./RunLauncher";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
 
 type Tab = "experiments" | "cases" | "tags";
 
@@ -19,6 +22,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "cases", label: "Cases" },
   { id: "tags", label: "Tags" },
 ];
+
+const NO_TAGS: TagInfo[] = [];
 
 export function syncLabel(ds: Dataset): string[] {
   const parts = [
@@ -37,27 +42,26 @@ export function syncLabel(ds: Dataset): string[] {
   return parts;
 }
 
+// A fresh page per dataset, so the run launcher left open on one can't start
+// runs on the next after Back or Forward.
 export function DatasetPage() {
+  const { ref } = useParams();
+  return <DatasetView key={ref} />;
+}
+
+function DatasetView() {
   const { ref = "", tab = "experiments" } = useParams();
   useFollowWorkspace(splitRef(ref).workspace);
   const navigate = useNavigate();
-  const [tags, setTags] = useState<TagInfo[]>([]);
-  const [info, setInfo] = useState<Dataset | null>(null);
-  const [missing, setMissing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [launch, setLaunch] = useState<{ caseIds?: string[] } | null>(null);
 
   const fullRef = ref.includes("@");
-  useEffect(() => {
-    setMissing(false);
-    if (!fullRef) return;
-    api<Dataset>(`/datasets/${encodeURIComponent(ref)}`)
-      .then(setInfo)
-      .catch((e) => (isMissing(e) ? setMissing(true) : setError(String(e))));
-    api<TagInfo[]>(`/datasets/${encodeURIComponent(ref)}/tags`)
-      .then(setTags)
-      .catch(() => setTags([]));
-  }, [ref, fullRef]);
+  const base = fullRef ? `/datasets/${encodeURIComponent(ref)}` : null;
+  const loaded = useApi<Dataset>(base);
+  const tags = useApi<TagInfo[]>(base ? `${base}/tags` : null).data ?? NO_TAGS;
+  const info = loaded.data ?? null;
+  const missing = isMissing(loaded.error);
+  const error = loaded.error && !missing ? String(loaded.error) : null;
 
   if (missing || !fullRef)
     return (
@@ -73,51 +77,46 @@ export function DatasetPage() {
         replace
       />
     );
-  const metaParts = info ? syncLabel(info) : [];
-
   return (
-    <div className="page">
-      <div className="toolbar mb-2">
-        <h1 className="page-title font-mono">{ref}</h1>
-        {metaParts.length > 0 && (
-          <span className="row-meta truncate" title={metaParts.join(" · ")}>
-            {metaParts.join(" · ")}
-          </span>
-        )}
-        <span className="ml-auto">
-          {info && (
-            <button className="btn btn-primary" onClick={() => setLaunch({})}>
-              Run experiment
-            </button>
-          )}
-        </span>
-      </div>
-      {error && <div className="pane-status error">{error}</div>}
-      <Tabs<Tab>
-        tabs={TABS}
-        active={tab as Tab}
-        onSelect={(t) => navigate(`/datasets/${encodeURIComponent(ref)}/${t}`)}
+    <>
+      <PageHeader
+        breadcrumbs={[{ label: "Datasets", to: "/datasets" }]}
+        title={<span className="font-mono">{ref}</span>}
+        description={info ? syncLabel(info).join(" · ") : undefined}
+        actions={
+          info && <Button onClick={() => setLaunch({})}>Run experiment</Button>
+        }
       />
-      <div className="mt-3">
-        {tab === "cases" && (
-          <DatasetCasesTab
+      <div className="page">
+        {error && <div className="pane-status error">{error}</div>}
+        <Tabs<Tab>
+          tabs={TABS}
+          active={tab as Tab}
+          onSelect={(t) =>
+            navigate(`/datasets/${encodeURIComponent(ref)}/${t}`)
+          }
+        />
+        <div className="mt-3">
+          {tab === "cases" && (
+            <DatasetCasesTab
+              dataset={ref}
+              reviewed={!!info?.workspace_is_shared && info.kind === "suite"}
+              onRun={(caseIds) => setLaunch({ caseIds })}
+            />
+          )}
+          {tab === "experiments" && <DatasetExperimentsTab dataset={ref} />}
+          {tab === "tags" && <DatasetTagsTab tags={tags} dataset={ref} />}
+        </div>
+        {launch && (
+          <RunLauncher
             dataset={ref}
-            reviewed={!!info?.workspace_is_shared && info.kind === "suite"}
-            onRun={(caseIds) => setLaunch({ caseIds })}
+            tags={tags}
+            initialCaseIds={launch.caseIds}
+            serverRuns={!!info?.workspace_is_shared}
+            onClose={() => setLaunch(null)}
           />
         )}
-        {tab === "experiments" && <DatasetExperimentsTab dataset={ref} />}
-        {tab === "tags" && <DatasetTagsTab tags={tags} dataset={ref} />}
       </div>
-      {launch && (
-        <RunLauncher
-          dataset={ref}
-          tags={tags}
-          initialCaseIds={launch.caseIds}
-          serverRuns={!!info?.workspace_is_shared}
-          onClose={() => setLaunch(null)}
-        />
-      )}
-    </div>
+    </>
   );
 }

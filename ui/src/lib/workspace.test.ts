@@ -16,6 +16,7 @@ const ws = (name: string, shared = false): WorkspaceInfo => ({
   promoted_from: null,
   type: shared ? "shared" : "personal",
   archived: false,
+  members: 0,
 });
 
 describe("workspace helpers", () => {
@@ -68,8 +69,8 @@ describe("sectionRoot", () => {
     expect(sectionRoot("/agents")).toBe("/agents");
   });
 
-  it("keeps the settings tab and ignores unscoped pages", () => {
-    expect(sectionRoot("/workspace/members")).toBe("/workspace/members");
+  it("leaves Settings and unscoped pages where they are", () => {
+    expect(sectionRoot("/settings/workspace/members")).toBe(null);
     expect(sectionRoot("/docs/install")).toBe(null);
     expect(sectionRoot("/")).toBe(null);
   });

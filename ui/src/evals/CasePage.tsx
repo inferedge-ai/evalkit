@@ -1,10 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
+import { ArrowLeft, ArrowRight, ListChecks } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
-import { api, isNotFound, qs } from "../lib/api";
+import type { ColDef } from "ag-grid-community";
+import { isNotFound, qs } from "../lib/api";
 import { fmtWhen, questionText, toYaml } from "../lib/format";
+import { refreshQueries, useApi } from "../lib/query";
 import { BUCKET_COLUMNS, scoreValue } from "../lib/bucketColumns";
-import { DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import {
+  ColumnsMenu,
+  DataGrid,
+  compareNullsLast,
+  readValue,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
 import type {
   CaseScorePoint,
   CaseScoresResponse,
@@ -27,10 +36,81 @@ import {
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
 import { promotionSide, twinLine } from "../lib/promotion";
+import { Empty } from "@/components/widgets/Empty";
+import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const PAGE = 10;
 
 const NO_POINTS: CaseScorePoint[] = [];
+
+const getExperimentId = (p: CaseScorePoint) => String(p.experiment_id);
+
+const SCORE_HISTORY_COLUMNS: ColDef<CaseScorePoint>[] = [
+  {
+    colId: "experiment",
+    headerName: "experiment",
+    field: "number",
+    initialFlex: 0,
+    initialWidth: 110,
+    cellRenderer: renderCell<CaseScorePoint>((p) => (
+      <Link
+        to={`/experiments/${p.experiment_id}`}
+        className="font-mono font-medium text-brand hover:underline"
+        title={`#${p.number} by ${p.created_by} · ${fmtWhen(p.created_at) ?? ""}${
+          p.repetitions > 1 ? ` · ×${p.repetitions}` : ""
+        }`}
+      >
+        #{p.number}
+      </Link>
+    )),
+  },
+  {
+    colId: "agent",
+    headerName: "agent",
+    type: "text",
+    field: "agent",
+    cellRenderer: renderCell<CaseScorePoint>((p) => (
+      <span className="row-meta" title={p.agent}>
+        {p.agent}
+      </span>
+    )),
+  },
+  {
+    colId: "model",
+    headerName: "model",
+    type: "text",
+    valueGetter: readValue((p) => p.model ?? ""),
+    cellRenderer: renderCell<CaseScorePoint>((p) => (
+      <span className="row-meta" title={p.model ?? undefined}>
+        {p.model ?? "—"}
+      </span>
+    )),
+  },
+  ...BUCKET_COLUMNS.map((column): ColDef<CaseScorePoint> => ({
+    colId: `score:${column.bucket}`,
+    headerName: column.short,
+    headerTooltip: `${column.bucket} bucket`,
+    type: "number",
+    valueGetter: readValue((p) => scoreValue(p.scores, column.bucket)),
+    comparator: compareNullsLast,
+    cellRenderer: renderCell<CaseScorePoint>((p) => (
+      <ScoreCell score={p.scores[column.bucket]} />
+    )),
+  })),
+  {
+    colId: "cost",
+    headerName: "cost",
+    type: "number",
+    valueGetter: readValue((p) => p.cost_usd),
+    comparator: compareNullsLast,
+    cellRenderer: renderCell<CaseScorePoint>((p) => (
+      <CostCell cost={p.cost_usd} />
+    )),
+  },
+];
 
 function ScoreHistory({
   dataset,
@@ -39,121 +119,77 @@ function ScoreHistory({
   dataset: string;
   caseId: string;
 }) {
-  const [points, setPoints] = useState<CaseScorePoint[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
-
-  useEffect(() => {
-    setPoints(null);
-    setError(null);
-    api<CaseScoresResponse>(
-      `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/scores${qs(
-        { limit: String(PAGE), offset: String(offset) },
-      )}`,
-    )
-      .then((r) => setPoints(r.points))
-      .catch((e) => setError(String(e)));
-  }, [dataset, caseId, offset]);
+  const scores = useApi<CaseScoresResponse>(
+    `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/scores${qs(
+      { limit: String(PAGE), offset: String(offset) },
+    )}`,
+  );
+  const points = scores.data?.points ?? null;
+  const error = scores.error ? String(scores.error) : null;
 
   const hasMore = (points?.length ?? 0) === PAGE;
-  const buckets = BUCKET_COLUMNS;
-  const columns = useMemo<Column<CaseScorePoint>[]>(
-    () => [
-      {
-        id: "experiment",
-        header: "experiment",
-        accessorKey: "number",
-        cell: (c) => {
-          const p = c.row.original;
-          return (
-            <Link
-              to={`/experiments/${p.experiment_id}`}
-              className="font-mono font-medium text-brand hover:underline"
-              title={`#${p.number} by ${p.created_by} · ${fmtWhen(p.created_at) ?? ""}${
-                p.repetitions > 1 ? ` · ×${p.repetitions}` : ""
-              }`}
-            >
-              #{p.number}
-            </Link>
-          );
-        },
-      },
-      {
-        id: "agent",
-        header: "agent",
-        accessorKey: "agent",
-        meta: { wrap: true },
-        cell: (c) => <span className="row-meta">{c.row.original.agent}</span>,
-      },
-      {
-        id: "model",
-        header: "model",
-        accessorFn: (p) => p.model ?? "",
-        meta: { wrap: true },
-        cell: (c) => (
-          <span className="row-meta">{c.row.original.model ?? "—"}</span>
-        ),
-      },
-      ...buckets.map((column): Column<CaseScorePoint> => ({
-        id: `score:${column.bucket}`,
-        header: column.short,
-        accessorFn: (p) => scoreValue(p.scores, column.bucket) ?? undefined,
-        sortUndefined: "last",
-        meta: { align: "right", title: `${column.bucket} bucket` },
-        cell: (c) => <ScoreCell score={c.row.original.scores[column.bucket]} />,
-      })),
-      {
-        id: "cost",
-        header: "cost",
-        accessorFn: (p) => p.cost_usd ?? undefined,
-        sortUndefined: "last",
-        meta: { align: "right" },
-        cell: (c) => <CostCell cost={c.row.original.cost_usd} />,
-      },
-    ],
-    [buckets],
-  );
-  const table = useDataTable({
-    id: "case-score-history",
-    data: points ?? NO_POINTS,
-    columns,
-    getRowId: (p) => String(p.experiment_id),
-  });
+  const grid = useDataGrid<CaseScorePoint>("case-score-history");
 
   return (
     <>
-      <div className="eyebrow">Score history</div>
+      <div className="eyebrow">
+        Score history
+        <span className="ml-auto font-normal tracking-normal normal-case">
+          <ColumnsMenu grid={grid} />
+        </span>
+      </div>
       {error && <div className="pane-status error">{error}</div>}
-      <DataTable
-        table={table}
+      <DataGrid
+        grid={grid}
+        rows={points ?? NO_POINTS}
+        columns={SCORE_HISTORY_COLUMNS}
+        getRowId={getExperimentId}
         loading={!points && !error}
-        skeletonRows={4}
         empty={offset === 0 ? "This case has never been run." : undefined}
       />
       {(offset > 0 || hasMore) && (
         <div className="toolbar mt-2">
-          <button
-            className="btn btn-sm"
+          <Button
+            variant="outline"
+            size="sm"
             disabled={offset === 0}
             onClick={() => setOffset(Math.max(0, offset - PAGE))}
           >
-            ← Newer
-          </button>
+            <ArrowLeft size={12} /> Newer
+          </Button>
           <span className="row-meta">
             {points && points.length > 0
               ? `${offset + 1}–${offset + points.length}`
               : "—"}
           </span>
-          <button
-            className="btn btn-sm"
+          <Button
+            variant="outline"
+            size="sm"
             disabled={!hasMore}
             onClick={() => setOffset(offset + PAGE)}
           >
-            Older →
-          </button>
+            Older <ArrowRight size={12} />
+          </Button>
         </div>
       )}
     </>
+  );
+}
+
+function CaseSkeleton() {
+  return (
+    <div className="lg:w-3/4">
+      <div className="eyebrow">Question</div>
+      <Card>
+        <CardContent className="flex flex-col gap-2">
+          <Skeleton className="h-4 w-4/5" />
+          <Skeleton className="h-4 w-2/5" />
+        </CardContent>
+      </Card>
+      <div className="eyebrow">Evaluators</div>
+      <Skeleton className="h-24 w-full rounded-xl" />
+    </div>
   );
 }
 
@@ -163,24 +199,17 @@ export function CasePage() {
   useFollowWorkspace(workspaceName);
   const { workspaces } = useWorkspace();
   const side = promotionSide(workspaces.find((w) => w.name === workspaceName));
-  const [example, setExample] = useState<CaseView | null>(null);
-  const [missing, setMissing] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [version, setVersion] = useState(0);
-
-  useEffect(() => {
-    setMissing(null);
-    api<CaseView>(
-      `/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(exampleId)}`,
-    )
-      .then(setExample)
-      .catch((e) => {
-        if (!isNotFound(e)) return setError(String(e));
-        setMissing(String(e).includes("unknown case") ? "case" : "dataset");
-      });
-  }, [datasetId, exampleId, version]);
-
-  const reload = () => setVersion((v) => v + 1);
+  const loaded = useApi<CaseView>(
+    `/datasets/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(exampleId)}`,
+  );
+  const example = loaded.data ?? null;
+  const notFound = isNotFound(loaded.error);
+  const missing = notFound
+    ? String(loaded.error).includes("unknown case")
+      ? "case"
+      : "dataset"
+    : null;
+  const error = loaded.error && !notFound ? String(loaded.error) : null;
 
   if (missing === "dataset")
     return (
@@ -199,8 +228,35 @@ export function CasePage() {
         }}
       />
     );
-  if (error) return <div className="pane-status error">{error}</div>;
-  if (!example) return <div className="pane-status">Loading case…</div>;
+  const header = (
+    <PageHeader
+      breadcrumbs={[
+        { label: "Datasets", to: "/datasets" },
+        {
+          label: datasetId,
+          to: `/datasets/${encodeURIComponent(datasetId)}/cases`,
+        },
+      ]}
+      title={
+        <span className="font-mono">
+          <CopyText value={exampleId} />
+        </span>
+      }
+    />
+  );
+  if (!example)
+    return (
+      <>
+        {header}
+        <div className="page">
+          {error ? (
+            <div className="pane-status error">{error}</div>
+          ) : (
+            <CaseSkeleton />
+          )}
+        </div>
+      </>
+    );
 
   const tags = example.split_tags;
   const twin = example.twin && side ? example.twin : null;
@@ -217,86 +273,81 @@ export function CasePage() {
       : null;
 
   return (
-    <div className="page">
-      <div className="toolbar mb-1">
-        <nav className="flex min-w-0 items-baseline gap-1.5">
-          <Link
-            className="shrink-0 text-meta text-ink-3 transition-colors hover:text-brand"
-            to={`/datasets/${encodeURIComponent(datasetId)}/cases`}
-          >
-            {datasetId}
-          </Link>
-          <span className="text-ink-4" aria-hidden>
-            ›
-          </span>
-          <h1 className="page-title font-mono">
-            <CopyText value={example.case_id} />
-          </h1>
-        </nav>
-      </div>
-      {tags.length > 0 ? (
-        <div className="mb-3 flex flex-wrap items-center gap-1">
-          {tags.map((tag) => (
-            <Tag key={tag}>{tag}</Tag>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="grid gap-x-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
-        <div className="min-w-0">
-          <div className="eyebrow">Question</div>
-          <div className="card p-4">
-            <Markdown text={questionText(example.input)} />
-          </div>
-          <FixtureList files={example.files} />
-          <details className="mt-2 text-micro">
-            <summary className="cursor-pointer text-n-400">Raw input</summary>
-            <PreBlock text={toYaml(example.input)} language="yaml" />
-          </details>
-
-          {example.expected ? (
-            <>
-              <div className="eyebrow">Expected</div>
-              <PreBlock text={toYaml(example.expected)} language="yaml" />
-            </>
-          ) : null}
-
-          <div className="eyebrow">Evaluators</div>
-          <EvaluatorScores evaluators={example.evaluators} scores={{}} />
-          <details className="mt-2 text-micro">
-            <summary className="cursor-pointer text-n-400">
-              Full evaluator config
-            </summary>
-            <PreBlock text={toYaml(example.evaluators)} language="yaml" />
-          </details>
-
-          <ScoreHistory dataset={datasetId} caseId={example.case_id} />
-        </div>
-
-        {example.review ? (
-          <div className="min-w-0">
-            <ReviewPanel
-              dataset={datasetId}
-              caseId={example.case_id}
-              review={example.review}
-              twin={twinPanel}
-              onChanged={reload}
-            />
-            <CaseChangelog
-              dataset={datasetId}
-              caseId={example.case_id}
-              currentHash={example.content_hash}
-              version={version}
-            />
-            <CaseComments
-              dataset={datasetId}
-              caseId={example.case_id}
-              currentHash={example.content_hash}
-              version={version}
-            />
+    <>
+      {header}
+      <div className="page">
+        {error && <div className="pane-status error">{error}</div>}
+        {tags.length > 0 ? (
+          <div className="mb-3 flex flex-wrap items-center gap-1">
+            {tags.map((tag) => (
+              <Tag key={tag}>{tag}</Tag>
+            ))}
           </div>
         ) : null}
+
+        <div className="grid gap-x-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+          <div className="min-w-0">
+            <div className="eyebrow">Question</div>
+            <Card>
+              <CardContent>
+                <Markdown text={questionText(example.input)} />
+              </CardContent>
+            </Card>
+            <FixtureList files={example.files} />
+            <details className="mt-2 text-micro">
+              <summary className="cursor-pointer text-muted-foreground">
+                Raw input
+              </summary>
+              <PreBlock text={toYaml(example.input)} language="yaml" />
+            </details>
+
+            {example.expected ? (
+              <>
+                <div className="eyebrow">Expected</div>
+                <PreBlock text={toYaml(example.expected)} language="yaml" />
+              </>
+            ) : null}
+
+            <div className="eyebrow">Evaluators</div>
+            {Object.keys(example.evaluators).length > 0 ? (
+              <EvaluatorScores evaluators={example.evaluators} scores={{}} />
+            ) : (
+              <Card className="py-4">
+                <Empty
+                  size="sm"
+                  icon={ListChecks}
+                  title="No evaluators in this case's YAML"
+                  description="Overlays can add evaluators for the agents they name."
+                />
+              </Card>
+            )}
+
+            <ScoreHistory dataset={datasetId} caseId={example.case_id} />
+          </div>
+
+          {example.review ? (
+            <div className="min-w-0">
+              <ReviewPanel
+                dataset={datasetId}
+                caseId={example.case_id}
+                review={example.review}
+                twin={twinPanel}
+                onChanged={() => void refreshQueries()}
+              />
+              <CaseChangelog
+                dataset={datasetId}
+                caseId={example.case_id}
+                currentHash={example.content_hash}
+              />
+              <CaseComments
+                dataset={datasetId}
+                caseId={example.case_id}
+                currentHash={example.content_hash}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

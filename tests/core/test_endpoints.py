@@ -1,6 +1,9 @@
 import pytest
 
-from evalkit.core.endpoints import BlockedEndpoint, check_endpoint
+from evalkit.core.endpoints import BlockedEndpoint, EndpointRule, check_endpoint
+
+REFUSE = EndpointRule(allow_private=False)
+GATEWAY = EndpointRule(allow_private=False, trusted=("http://litellm-svc:4000/v1",))
 
 
 @pytest.mark.parametrize(
@@ -20,17 +23,43 @@ from evalkit.core.endpoints import BlockedEndpoint, check_endpoint
 )
 async def test_private_addresses_are_refused(url):
     with pytest.raises(BlockedEndpoint, match="allow_private_endpoints"):
-        await check_endpoint(url, allow_private=False)
+        await check_endpoint(url, rule=REFUSE)
 
 
 async def test_public_addresses_pass():
-    await check_endpoint("https://8.8.8.8/v1", allow_private=False)
+    await check_endpoint("https://8.8.8.8/v1", rule=REFUSE)
 
 
 async def test_the_operator_can_allow_private_addresses():
-    await check_endpoint("http://169.254.169.254/", allow_private=True)
+    await check_endpoint("http://169.254.169.254/", rule=EndpointRule(allow_private=True))
 
 
 async def test_unresolvable_hosts_are_refused():
     with pytest.raises(BlockedEndpoint, match="cannot resolve"):
-        await check_endpoint("http://no-such-host.invalid/v1", allow_private=False)
+        await check_endpoint("http://no-such-host.invalid/v1", rule=REFUSE)
+
+
+@pytest.mark.parametrize(
+    "url", ["http://litellm-svc:4000", "http://LiteLLM-Svc:4000/v1/chat/completions"]
+)
+async def test_a_trusted_origin_passes_without_resolving(url):
+    await check_endpoint(url, rule=GATEWAY)
+
+
+async def test_a_trusted_default_port_matches_either_spelling():
+    await check_endpoint("http://gateway/v1", rule=EndpointRule(False, ("http://gateway:80",)))
+    await check_endpoint("https://gateway:443/v1", rule=EndpointRule(False, ("https://gateway",)))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://litellm-svc:4000/v1",
+        "http://litellm-svc:4001/v1",
+        "http://litellm-svc/v1",
+        "http://litellm-svc:4000@127.0.0.1:9/v1",
+    ],
+)
+async def test_only_the_trusted_origin_passes(url):
+    with pytest.raises(BlockedEndpoint):
+        await check_endpoint(url, rule=GATEWAY)

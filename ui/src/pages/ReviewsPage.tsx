@@ -1,78 +1,100 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { api, qs } from "../lib/api";
-import { DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import { useMemo } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import type { ColDef } from "ag-grid-community";
+import { qs } from "../lib/api";
+import { useApi } from "../lib/query";
+import {
+  ColumnsMenu,
+  DataGrid,
+  readValue,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
 import { fmtWhen } from "../lib/format";
 import type { QueueItem } from "../lib/types";
+import { Tabs } from "../lib/ui";
 import { splitRef } from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
 
 type View = "mine" | "all" | "changes";
 
 const VIEWS: { id: View; label: string }[] = [
-  { id: "mine", label: "requested to me" },
-  { id: "all", label: "all under review" },
-  { id: "changes", label: "changes requested" },
+  { id: "mine", label: "Requested to me" },
+  { id: "all", label: "All under review" },
+  { id: "changes", label: "Changes requested" },
 ];
 
 const NO_ITEMS: QueueItem[] = [];
 
+const getItemId = (i: QueueItem) => `${i.dataset}/${i.case_id}`;
+
 function queueColumns(
   changes: boolean,
   everyWorkspace: boolean,
-): Column<QueueItem>[] {
+): ColDef<QueueItem>[] {
   return [
     {
-      id: "dataset",
-      header: "dataset",
-      accessorFn: (i) =>
+      colId: "dataset",
+      headerName: "dataset",
+      type: "text",
+      valueGetter: readValue((i) =>
         everyWorkspace ? i.dataset : splitRef(i.dataset).name,
-    },
-    {
-      id: "case",
-      header: "case",
-      accessorKey: "case_id",
-      cell: (c) => (
-        <Link
-          className="font-mono text-brand hover:underline"
-          to={`/datasets/${encodeURIComponent(c.row.original.dataset)}/cases/${encodeURIComponent(c.row.original.case_id)}`}
-        >
-          {c.row.original.case_id}
-        </Link>
       ),
     },
     {
-      id: "requested_by",
-      header: changes ? "reviewer" : "requested by",
-      accessorKey: "requested_by",
+      colId: "case",
+      headerName: "case",
+      type: "text",
+      field: "case_id",
+      cellRenderer: renderCell<QueueItem>((i) => (
+        <Link
+          className="font-mono text-brand hover:underline"
+          to={`/datasets/${encodeURIComponent(i.dataset)}/cases/${encodeURIComponent(i.case_id)}`}
+          title={i.case_id}
+        >
+          {i.case_id}
+        </Link>
+      )),
+    },
+    {
+      colId: "requested_by",
+      headerName: changes ? "reviewer" : "requested by",
+      type: "text",
+      field: "requested_by",
     },
     ...(changes
       ? []
       : [
           {
-            id: "requested_to",
-            header: "to",
-            accessorFn: (i) => i.requested_to ?? "—",
-          } satisfies Column<QueueItem>,
+            colId: "requested_to",
+            headerName: "to",
+            type: "text",
+            valueGetter: readValue<QueueItem, string>(
+              (i) => i.requested_to ?? "—",
+            ),
+          } satisfies ColDef<QueueItem>,
         ]),
     {
-      id: "requested_at",
-      header: changes ? "sent back" : "requested",
-      accessorFn: (i) => i.requested_at ?? "",
-      cell: (c) => (
-        <span className="row-meta">{fmtWhen(c.row.original.requested_at)}</span>
-      ),
+      colId: "requested_at",
+      headerName: changes ? "sent back" : "requested",
+      valueGetter: readValue((i) => i.requested_at ?? ""),
+      cellRenderer: renderCell<QueueItem>((i) => (
+        <span className="row-meta">{fmtWhen(i.requested_at)}</span>
+      )),
     },
     {
-      id: "question",
-      header: "question",
-      accessorKey: "input",
-      meta: { wrap: true },
-      cell: (c) => (
-        <span className="line-clamp-3 text-ink-3">{c.row.original.input}</span>
-      ),
+      colId: "question",
+      headerName: "question",
+      type: "text",
+      initialFlex: 2,
+      field: "input",
+      cellRenderer: renderCell<QueueItem>((i) => (
+        <span className="text-ink-3" title={i.input}>
+          {i.input}
+        </span>
+      )),
     },
   ];
 }
@@ -80,81 +102,62 @@ function queueColumns(
 export function ReviewsPage() {
   const me = useMe();
   const { workspace } = useWorkspace();
-  const [view, setView] = useState<View>("mine");
-  const [items, setItems] = useState<QueueItem[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const view = VIEWS.find((v) => v.id === params.get("view"))?.id ?? "mine";
+  const setView = (v: View) =>
+    setParams(v === "mine" ? {} : { view: v }, { replace: true });
   const everyWorkspace = workspace.type === "personal";
-  const queueWorkspace = everyWorkspace ? undefined : workspace.name;
-
-  useEffect(() => {
-    let stale = false;
-    setItems(null);
-    setError(null);
-    api<{ items: QueueItem[] }>(
-      `/review/queue${qs({
-        reviewer: view === "mine" ? me.username : undefined,
-        state: view === "changes" ? "changes_requested" : undefined,
-        workspace: queueWorkspace,
-      })}`,
-    )
-      .then((r) => !stale && setItems(r.items))
-      .catch((e) => !stale && setError(String(e)));
-    return () => {
-      stale = true;
-    };
-  }, [view, me.username, queueWorkspace]);
+  const queue = useApi<{ items: QueueItem[] }>(
+    `/review/queue${qs({
+      reviewer: view === "mine" ? me.username : undefined,
+      state: view === "changes" ? "changes_requested" : undefined,
+      workspace: everyWorkspace ? undefined : workspace.name,
+    })}`,
+  );
+  const items = queue.data?.items ?? null;
+  const error = queue.error ? String(queue.error) : null;
 
   const changes = view === "changes";
   const columns = useMemo(
     () => queueColumns(changes, everyWorkspace),
     [changes, everyWorkspace],
   );
-  const table = useDataTable({
-    id: "review-queue",
-    data: items ?? NO_ITEMS,
-    columns,
-    getRowId: (i) => `${i.dataset}/${i.case_id}`,
-  });
+  const grid = useDataGrid<QueueItem>("review-queue");
 
   return (
-    <div className="page">
-      <div className="toolbar mb-2">
-        <h1 className="page-title">Reviews</h1>
-        <div className="ml-4 flex flex-wrap items-center gap-3">
-          {VIEWS.map((v) => (
-            <label key={v.id} className="row-meta flex items-center gap-1">
-              <input
-                type="radio"
-                checked={view === v.id}
-                onChange={() => setView(v.id)}
-              />
-              {v.label}
-            </label>
-          ))}
+    <>
+      <PageHeader title="Reviews" />
+      <div className="page">
+        <Tabs<View> tabs={VIEWS} active={view} onSelect={setView} />
+        <div className="toolbar mt-3 mb-2">
+          {everyWorkspace && (
+            <span className="row-meta">across every workspace</span>
+          )}
+          <span className="row-meta num ml-auto">
+            {error
+              ? ""
+              : items
+                ? `${grid.filteredCount ?? items.length} ${changes ? "awaiting an edit" : "waiting"}`
+                : "Loading…"}
+          </span>
+          <ColumnsMenu grid={grid} />
         </div>
-        {everyWorkspace && (
-          <span className="row-meta">across every workspace</span>
+        {error && <div className="pane-status error">{error}</div>}
+        {!error && (
+          <DataGrid
+            grid={grid}
+            rows={items ?? NO_ITEMS}
+            columns={columns}
+            getRowId={getItemId}
+            loading={!items}
+            empty={
+              changes
+                ? "No cases are waiting on their author."
+                : "Nothing waiting for review."
+            }
+          />
         )}
-        <span className="row-meta num ml-auto">
-          {error
-            ? ""
-            : items
-              ? `${items.length} ${changes ? "awaiting an edit" : "waiting"}`
-              : "Loading…"}
-        </span>
       </div>
-      {error && <div className="pane-status error">{error}</div>}
-      {!error && (
-        <DataTable
-          table={table}
-          loading={!items}
-          empty={
-            changes
-              ? "No cases are waiting on their author."
-              : "Nothing waiting for review."
-          }
-        />
-      )}
-    </div>
+    </>
   );
 }

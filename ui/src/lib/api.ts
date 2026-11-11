@@ -5,6 +5,7 @@ import type { Me } from "./types";
 const API = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const TOKEN_KEY = "evalkit.token";
+const SIGNED_OUT_KEY = "evalkit.signed_out";
 
 const store: Storage | null =
   typeof localStorage !== "undefined" ? localStorage : null;
@@ -15,6 +16,16 @@ export function setToken(value: string | null): void {
   token = value;
   if (value === null) store?.removeItem(TOKEN_KEY);
   else store?.setItem(TOKEN_KEY, value);
+}
+
+// Every tab shares this, so a tab whose session ends after a sign-out elsewhere
+// stops at the login page instead of signing the person straight back in.
+export function isSignedOut(): boolean {
+  return store?.getItem(SIGNED_OUT_KEY) === "1";
+}
+
+export function clearSignOut(): void {
+  store?.removeItem(SIGNED_OUT_KEY);
 }
 
 const REFRESH_WINDOW_SECONDS = 60;
@@ -130,29 +141,37 @@ export async function apiFetch(
   const resp = await fetch(`${API}/api${path}`, { ...init, headers });
   noteServerDate(resp.headers.get("Date"));
   if (resp.status === 401) {
-    await signOutLocally();
-    if (
-      !NO_REDIRECT.has(path) &&
-      typeof window !== "undefined" &&
-      !window.location.pathname.startsWith("/login")
-    ) {
-      const next = encodeURIComponent(
-        window.location.pathname + window.location.search,
-      );
-      window.location.assign(`/login?next=${next}`);
+    try {
+      await signOutLocally();
+    } finally {
+      if (
+        !NO_REDIRECT.has(path) &&
+        typeof window !== "undefined" &&
+        !window.location.pathname.startsWith("/login")
+      ) {
+        const next = encodeURIComponent(
+          window.location.pathname + window.location.search,
+        );
+        window.location.assign(`/login?next=${next}`);
+      }
     }
   }
   return resp;
 }
 
+export async function readApiError(resp: Response): Promise<ApiError> {
+  const body = await resp.json().catch(() => ({}) as Record<string, unknown>);
+  const detail = detailText(
+    body.detail ?? (resp.statusText || `HTTP ${resp.status}`),
+  );
+  return resp.status === 404
+    ? new NotFoundError(detail)
+    : new ApiError(resp.status, detail);
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const resp = await apiFetch(path, init);
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => ({}) as Record<string, unknown>);
-    const detail = detailText(body.detail ?? resp.statusText);
-    if (resp.status === 404) throw new NotFoundError(detail);
-    throw new ApiError(resp.status, detail);
-  }
+  if (!resp.ok) throw await readApiError(resp);
   return resp.json();
 }
 
@@ -166,14 +185,6 @@ export async function apiJson<T>(
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-}
-
-// For INLINE previews only (img/iframe src) — the whole blob lands in JS
-// memory, so never use this for downloads, which can be large zips.
-export async function apiBlobUrl(path: string): Promise<string> {
-  const resp = await apiFetch(path);
-  if (!resp.ok) throw new ApiError(resp.status, resp.statusText);
-  return URL.createObjectURL(await resp.blob());
 }
 
 // Bearer auth rules out a plain <a href>, and fetching into a Blob would hold
@@ -210,6 +221,7 @@ export async function login(username: string, password: string): Promise<void> {
   if (!resp.ok)
     throw new ApiError(resp.status, String(body.detail ?? "login failed"));
   setToken(String(body.token));
+  clearSignOut();
 }
 
 export async function register(idToken: string): Promise<Me> {
@@ -217,6 +229,7 @@ export async function register(idToken: string): Promise<Me> {
 }
 
 export async function logout(): Promise<void> {
+  store?.setItem(SIGNED_OUT_KEY, "1");
   if (token !== null) {
     await apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
   }

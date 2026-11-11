@@ -1,38 +1,281 @@
-import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import {
+  NavLink,
+  Outlet,
+  useLocation,
+  useMatch,
+  useNavigate,
+} from "react-router-dom";
+import {
+  ArrowLeft,
+  ChevronRight,
+  LogOut,
+  Moon,
+  Puzzle,
+  Search,
+  Settings,
+  Sun,
+} from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  SIDEBAR_COOKIE_NAME,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 import { logout } from "../lib/api";
+import type { NavItem } from "../lib/extensions";
 import { Select } from "../lib/Select";
-import { othersPersonal, workspaceHint } from "../lib/workspace";
+import {
+  describeOtherWorkspaces,
+  othersPersonal,
+  sectionRoot,
+  workspaceHint,
+} from "../lib/workspace";
 import type { Me, WorkspaceInfo } from "../lib/types";
 import { useMe } from "./capabilities";
 import { JumpPalette } from "./JumpPalette";
-import { ADMIN_NAV, MORE_NAV, NAV } from "./nav";
+import {
+  DOCS_NAV,
+  getNavSections,
+  getSettingsSections,
+  type NavSection,
+} from "./nav";
 import { useTheme } from "./theme";
 import { SWITCH_FLASH_MS, useSwitchWorkspace, useWorkspace } from "./workspace";
 
-export function InferEdgeLockup() {
+export function BrandLink({
+  to = "/",
+  onClick,
+}: {
+  to?: string;
+  onClick?: () => void;
+}) {
   return (
-    <span
-      aria-label="InferEdge"
-      className="num inline-flex items-baseline font-mono text-meta tracking-[0.08em] whitespace-nowrap uppercase select-none"
-    >
-      <span className="font-normal text-n-400">Infer</span>
-      <span className="font-normal text-brand" aria-hidden>
-        /
-      </span>
-      <span className="font-bold text-n-700">Edge</span>
-    </span>
-  );
-}
-
-export function BrandLink({ to = "/" }: { to?: string }) {
-  return (
-    <NavLink to={to} className="flex items-baseline gap-2">
-      <InferEdgeLockup />
+    <NavLink to={to} className="flex items-baseline" onClick={onClick}>
       <span className="font-mono text-head font-semibold tracking-tight text-brand">
         Evalkit
       </span>
     </NavLink>
+  );
+}
+
+// SidebarProvider writes this cookie whenever the sidebar is toggled.
+function readSidebarCookie(): boolean {
+  return !document.cookie.split("; ").includes(`${SIDEBAR_COOKIE_NAME}=false`);
+}
+
+export function Shell() {
+  const { pathname, search } = useLocation();
+  const inSettings = useMatch({ path: "/settings", end: false }) !== null;
+  const { workspace } = useWorkspace();
+  const [appPage, setAppPage] = useState({ path: "/", workspace: "" });
+  useEffect(() => {
+    if (!inSettings)
+      setAppPage({ path: pathname + search, workspace: workspace.name });
+  }, [inSettings, pathname, search, workspace.name]);
+  const backTo =
+    appPage.workspace === workspace.name
+      ? appPage.path
+      : (sectionRoot(appPage.path) ?? appPage.path);
+  return (
+    <SidebarProvider
+      defaultOpen={readSidebarCookie()}
+      className="h-dvh overflow-hidden"
+    >
+      {inSettings ? <SettingsNav backTo={backTo} /> : <SideNav />}
+      <SidebarInset>
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-card px-2 md:hidden">
+          <SidebarTrigger aria-label="Open navigation" />
+          <BrandLink />
+        </header>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <Outlet />
+        </div>
+      </SidebarInset>
+      <JumpPalette />
+    </SidebarProvider>
+  );
+}
+
+function SideNav() {
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="gap-0 p-0">
+        <SideNavHeader />
+      </SidebarHeader>
+      <SidebarContent>
+        <NavSections sections={getNavSections()} />
+      </SidebarContent>
+      <NavFooter />
+    </Sidebar>
+  );
+}
+
+function SettingsNav({ backTo }: { backTo: string }) {
+  const me = useMe();
+  const { workspace } = useWorkspace();
+  const { isMobile, setOpenMobile } = useSidebar();
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="gap-0 p-0">
+        <SideNavHeader />
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                render={<NavLink to={backTo} />}
+                tooltip="Back to evalkit"
+                onClick={() => {
+                  if (isMobile) setOpenMobile(false);
+                }}
+              >
+                <ArrowLeft />
+                <span>Back to evalkit</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+        <NavSections
+          sections={getSettingsSections(me.is_admin, workspace.name)}
+        />
+      </SidebarContent>
+      <NavFooter />
+    </Sidebar>
+  );
+}
+
+function NavSections({ sections }: { sections: NavSection[] }) {
+  return sections.map((section, i) => (
+    <SidebarGroup
+      key={section.label ?? i}
+      role="group"
+      aria-label={section.label}
+    >
+      {section.label && <SidebarGroupLabel>{section.label}</SidebarGroupLabel>}
+      <SidebarMenu>
+        {section.items.map((item) => (
+          <NavRow key={item.to} item={item} />
+        ))}
+      </SidebarMenu>
+    </SidebarGroup>
+  ));
+}
+
+function NavFooter() {
+  const me = useMe();
+  return (
+    <SidebarFooter>
+      <SidebarMenu>
+        <NavRow item={DOCS_NAV} />
+        <ProfileMenu me={me} />
+      </SidebarMenu>
+    </SidebarFooter>
+  );
+}
+
+function NavRow({ item }: { item: NavItem }) {
+  const active = useMatch({ path: item.to, end: false }) !== null;
+  const { isMobile, setOpenMobile } = useSidebar();
+  const Icon = item.icon ?? Puzzle;
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        render={<NavLink to={item.to} />}
+        isActive={active}
+        tooltip={item.label}
+        onClick={() => {
+          if (isMobile) setOpenMobile(false);
+        }}
+      >
+        <Icon />
+        <span>{item.label}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
+}
+
+function SideNavHeader() {
+  const { state, isMobile, setOpenMobile } = useSidebar();
+  const collapsed = state === "collapsed" && !isMobile;
+  const toggleLabel = isMobile
+    ? "Close navigation"
+    : collapsed
+      ? "Expand sidebar"
+      : "Collapse sidebar";
+  return (
+    <>
+      <div className="flex min-h-12 items-center justify-between overflow-hidden p-2 group-data-[collapsible=icon]:justify-center">
+        {!collapsed && (
+          <span className="px-2">
+            <BrandLink onClick={() => setOpenMobile(false)} />
+          </span>
+        )}
+        <SidebarTrigger
+          aria-label={toggleLabel}
+          title={isMobile ? toggleLabel : `${toggleLabel} (⌘B)`}
+          className="shrink-0"
+        />
+      </div>
+      <SidebarMenu className="gap-2 px-2 pb-2">
+        <WorkspaceSwitcher />
+        <WorkspaceBadge />
+        <SidebarMenuItem>
+          <SidebarMenuButton
+            variant="outline"
+            tooltip="Search (⌘K)"
+            onClick={() => {
+              setOpenMobile(false);
+              window.dispatchEvent(new Event("jump-palette:open"));
+            }}
+          >
+            <Search />
+            <span>Search</span>
+            <kbd className="ml-auto font-mono text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+              ⌘K
+            </kbd>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    </>
+  );
+}
+
+function WorkspaceBadge() {
+  const { workspace } = useWorkspace();
+  const { setOpen } = useSidebar();
+  return (
+    <SidebarMenuItem className="hidden group-data-[collapsible=icon]:block">
+      <SidebarMenuButton
+        tooltip={`@${workspace.name}`}
+        aria-label={`Workspace @${workspace.name}`}
+        onClick={() => setOpen(true)}
+      >
+        <span className="text-xs font-semibold">
+          {workspace.name.slice(0, 2).toUpperCase()}
+        </span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
   );
 }
 
@@ -56,14 +299,19 @@ function WorkspaceSwitcher() {
     othersPersonal(ws, me.personal_workspace),
   );
   return (
-    <div
-      className={`flex items-center gap-1.5 rounded-md ${flash ? "ws-switched" : ""}`}
+    <SidebarMenuItem
+      className={cn(
+        "flex flex-col gap-1 rounded-md group-data-[collapsible=icon]:hidden",
+        flash && "ws-switched",
+      )}
       aria-live="polite"
     >
-      <span className="text-micro tracking-wide text-ink-4 uppercase">
+      <span className="px-2 text-xs text-sidebar-foreground/70">
         {flash ? `Switched to @${workspace.name}` : "Workspace"}
+        {othersPersonal(workspace, me.personal_workspace) && " · read-only"}
       </span>
       <Select
+        className="w-full"
         ariaLabel="workspace"
         title="workspace (⌘K, w)"
         value={workspace.name}
@@ -72,146 +320,76 @@ function WorkspaceSwitcher() {
           .filter((ws) => !othersPersonal(ws, me.personal_workspace))
           .map(option)}
         more={{
-          label: `Show ${others.length} other personal workspace${others.length === 1 ? "" : "s"}`,
+          label: describeOtherWorkspaces(others.length),
           options: others.map(option),
         }}
       />
-      {othersPersonal(workspace, me.personal_workspace) && (
-        <span className="text-micro text-ink-4">read-only</span>
-      )}
-    </div>
+    </SidebarMenuItem>
   );
 }
 
-export const navClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-md px-2.5 py-1 text-lede transition-colors ${
-    isActive ? "bg-info-bg font-medium text-brand" : "text-ink-2 hover:bg-fill"
-  }`;
-
-function MoreMenu() {
-  const me = useMe();
-  const { pathname } = useLocation();
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const groups = me.is_admin ? [MORE_NAV, ADMIN_NAV] : [MORE_NAV];
-  const active = groups
-    .flat()
-    .find((n) => pathname === n.to || pathname.startsWith(`${n.to}/`));
-
-  useEffect(() => setOpen(false), [pathname]);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={navClass({ isActive: !!active })}
-        onClick={() => setOpen((o) => !o)}
-      >
-        {active ? active.label : "More"} <span className="text-ink-4">▾</span>
-      </button>
-      {open && (
-        <div role="menu" className="select-menu">
-          <div className="select-list">
-            {groups.map((group, i) => (
-              <div key={i} className={i ? "select-more mt-1 pt-1" : ""}>
-                {group.map((n) => (
-                  <NavLink
-                    key={n.to}
-                    to={n.to}
-                    role="menuitem"
-                    onClick={() => setOpen(false)}
-                    className={({ isActive }) =>
-                      `select-option ${isActive ? "font-medium text-brand" : ""}`
-                    }
-                  >
-                    {n.label}
-                  </NavLink>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function AccountChip({ me }: { me: Me }) {
-  return (
-    <span
-      className="chip muted flex flex-col items-end leading-tight"
-      title="signed in as"
-    >
-      <span>{me.username}</span>
-      {me.email !== null && (
-        <span className="text-micro text-ink-4">{me.email}</span>
-      )}
-    </span>
-  );
-}
-
-export function Shell() {
-  const me = useMe();
+function ProfileMenu({ me }: { me: Me }) {
   const navigate = useNavigate();
   const { theme, toggle } = useTheme();
+  const initials = me.username.slice(0, 2).toUpperCase();
   return (
-    <div className="flex h-dvh flex-col">
-      <header className="flex items-center gap-4 border-b border-line bg-surface px-4 py-2">
-        <BrandLink />
-        <WorkspaceSwitcher />
-        <nav className="ml-2 flex items-center gap-0.5">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} className={navClass}>
-              {n.label}
-            </NavLink>
-          ))}
-          <MoreMenu />
-        </nav>
-        <div className="ml-auto flex items-center gap-2">
-          <AccountChip me={me} />
-          <button
-            className="btn"
-            title="search datasets, experiments, cases, runs and pages"
-            onClick={() => window.dispatchEvent(new Event("jump-palette:open"))}
-          >
-            Search <span className="num font-mono text-ink-4">⌘K</span>
-          </button>
-          <button
-            className="btn"
-            title={`switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            onClick={toggle}
-          >
-            {theme === "dark" ? "☀ Light" : "☾ Dark"}
-          </button>
-          <button
-            className="btn btn-quiet"
+    <SidebarMenuItem>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <SidebarMenuButton
+              tooltip={me.username}
+              size="lg"
+              aria-label={me.username}
+            />
+          }
+        >
+          <Avatar className="size-8 shrink-0">
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+          <span className="flex min-w-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
+            <span className="truncate font-semibold">{me.username}</span>
+            {me.email !== null && (
+              <span className="truncate text-xs text-muted-foreground">
+                {me.email}
+              </span>
+            )}
+          </span>
+          <ChevronRight className="text-muted-foreground group-data-[collapsible=icon]:hidden" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="end" className="min-w-56">
+          <div className="flex items-center gap-2 p-2">
+            <Avatar className="size-10 shrink-0">
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate text-sm font-semibold">
+                {me.username}
+              </span>
+              {me.email !== null && (
+                <span className="truncate text-xs text-muted-foreground">
+                  {me.email}
+                </span>
+              )}
+            </div>
+          </div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => navigate("/settings")}>
+            <Settings />
+            Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={toggle}>
+            {theme === "dark" ? <Sun /> : <Moon />}
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </DropdownMenuItem>
+          <DropdownMenuItem
             onClick={() => logout().finally(() => navigate("/login"))}
           >
+            <LogOut />
             Sign out
-          </button>
-        </div>
-      </header>
-      <main className="min-h-0 flex-1 overflow-auto">
-        <Outlet />
-      </main>
-      <JumpPalette />
-    </div>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
   );
 }

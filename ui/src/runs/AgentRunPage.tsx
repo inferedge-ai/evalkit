@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
-import { api } from "../lib/api";
 import { trajectoryBounds } from "../lib/atif";
+import { useApi } from "../lib/query";
 import { TimeSpan } from "../evals/bits";
 import { experimentCaseLink, runTitle } from "../lib/runs";
 import type { AtifTrajectory, RunList } from "../lib/types";
@@ -9,90 +10,85 @@ import { CopyText, Tabs } from "../lib/ui";
 import { RunTabs, type RunTab } from "./RunTabs";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
+import { buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function AgentRunPage() {
   const { agent = "", runId = "" } = useParams();
   useFollowWorkspace(splitRef(agent).workspace);
-  const [title, setTitle] = useState<string | null>(null);
-  const [caseLink, setCaseLink] = useState<string | null>(null);
   const [tab, setTab] = useState<RunTab>("trajectory");
-  const [trajectory, setTrajectory] = useState<AtifTrajectory | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setTrajectory(null);
-    setError(null);
-    api<AtifTrajectory>(
-      `/agents/${encodeURIComponent(agent)}/runs/${encodeURIComponent(runId)}/trajectory`,
-    )
-      .then(setTrajectory)
-      .catch((e) => setError(String(e)));
-  }, [agent, runId]);
+  // Trajectories are the largest payloads; drop them when the page closes.
+  const loaded = useApi<AtifTrajectory>(
+    `/agents/${encodeURIComponent(agent)}/runs/${encodeURIComponent(runId)}/trajectory`,
+    { gcTime: 0 },
+  );
+  const trajectory = loaded.data ?? null;
+  const error = loaded.error ? String(loaded.error) : null;
 
   // The trajectory carries no title; it lives on the run listing, so look it
   // up there (the same query the runs browser uses).
-  useEffect(() => {
-    setTitle(null);
-    setCaseLink(null);
-    api<RunList>(
-      `/agents/${encodeURIComponent(agent)}/runs?query=${encodeURIComponent(runId)}&limit=20`,
-    )
-      .then((list) => {
-        setTitle(runTitle(list.runs, runId));
-        setCaseLink(experimentCaseLink(list.runs, runId));
-      })
-      .catch(() => setTitle(null));
-  }, [agent, runId]);
+  const runs = useApi<RunList>(
+    `/agents/${encodeURIComponent(agent)}/runs?query=${encodeURIComponent(runId)}&limit=20`,
+  ).data?.runs;
+  const title = runs ? runTitle(runs, runId) : null;
+  const caseLink = runs ? experimentCaseLink(runs, runId) : null;
 
   return (
-    <div className="page flex h-full flex-col">
-      <div className="toolbar mb-2">
-        <h1 className="max-w-160 truncate font-mono text-head font-semibold">
-          {title || <CopyText value={runId} />}
-        </h1>
-        {title && (
-          <span className="row-meta font-mono">
-            <CopyText value={runId} />
-          </span>
-        )}
-        <span className="chip muted">{agent}</span>
-        {trajectory && (
-          <TimeSpan
-            {...trajectoryBounds(trajectory)}
-            doneLabel="steps span"
-            doneTitle="first to last step start; the last step's own time is not recorded"
-          />
-        )}
-        {caseLink && (
-          <Link className="btn btn-quiet ml-auto text-brand" to={caseLink}>
-            Experiment run ↗
-          </Link>
-        )}
-        <Link
-          className={`btn btn-quiet text-brand${caseLink ? "" : " ml-auto"}`}
-          to={`/runs?agent=${agent}`}
-        >
-          Runs ↗
-        </Link>
-      </div>
-      <Tabs<RunTab>
-        tabs={[
-          { id: "trajectory", label: "Trajectory" },
-          { id: "workspace", label: "Workspace" },
-          { id: "cost", label: "Cost" },
-          { id: "timing", label: "Timing" },
+    <div className="flex h-full flex-col">
+      <PageHeader
+        breadcrumbs={[
+          { label: "Runs", to: "/runs" },
+          { label: agent, to: `/runs?agent=${encodeURIComponent(agent)}` },
         ]}
-        active={tab}
-        onSelect={setTab}
+        title={
+          <span className="font-mono">
+            {title || <CopyText value={runId} />}
+          </span>
+        }
+        actions={
+          caseLink && (
+            <Link className={buttonVariants({ variant: "link" })} to={caseLink}>
+              Experiment run <ArrowUpRight size={12} />
+            </Link>
+          )
+        }
       />
-      <div className="mt-3 flex min-h-0 flex-1 flex-col">
-        <RunTabs
-          tab={tab}
-          trajectory={trajectory}
-          error={error}
-          agent={agent}
-          runId={runId}
+      <div className="page flex min-h-0 flex-1 flex-col">
+        <div className="toolbar mb-2">
+          {title && (
+            <span className="row-meta font-mono">
+              <CopyText value={runId} />
+            </span>
+          )}
+          {trajectory && (
+            <TimeSpan
+              {...trajectoryBounds(trajectory)}
+              doneLabel="steps span"
+              doneTitle="first to last step start; the last step's own time is not recorded"
+            />
+          )}
+          {!title && !trajectory && !error && <Skeleton className="h-4 w-64" />}
+        </div>
+        <Tabs<RunTab>
+          tabs={[
+            { id: "trajectory", label: "Trajectory" },
+            { id: "workspace", label: "Workspace" },
+            { id: "cost", label: "Cost" },
+            { id: "timing", label: "Timing" },
+          ]}
+          active={tab}
+          onSelect={setTab}
         />
+        <div className="mt-3 flex min-h-0 flex-1 flex-col">
+          <RunTabs
+            tab={tab}
+            trajectory={trajectory}
+            error={error}
+            agent={agent}
+            runId={runId}
+          />
+        </div>
       </div>
     </div>
   );

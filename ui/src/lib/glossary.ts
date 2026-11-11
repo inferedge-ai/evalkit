@@ -60,5 +60,5 @@ export const GLOSSARY: Record<string, string> = {
 };
 
 export function describeTerm(name: string): string | undefined {
-  return GLOSSARY[name];
+  return Object.hasOwn(GLOSSARY, name) ? GLOSSARY[name] : undefined;
 }

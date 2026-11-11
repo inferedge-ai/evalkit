@@ -1,26 +1,34 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
-import { api, apiJson } from "../lib/api";
+import { Waypoints } from "lucide-react";
+import { apiJson } from "../lib/api";
 import { ENDPOINT_NOTE } from "../lib/endpoint";
+import { refreshQueries, useApi } from "../lib/query";
 import type { TraceSourceInfo } from "../lib/types";
+import { useMe } from "../shell/capabilities";
+import { Empty } from "@/components/widgets/Empty";
+import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+
+const ROW_COLUMNS = "grid-cols-[minmax(0,1fr)_auto_minmax(0,2fr)_auto]";
 
 export function TraceSourcesPage() {
-  const [rows, setRows] = useState<TraceSourceInfo[] | null>(null);
+  const me = useMe();
+  const listed = useApi<TraceSourceInfo[]>("/trace-sources");
+  const rows = listed.data;
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const load = () => {
-    api<TraceSourceInfo[]>("/trace-sources")
-      .then(setRows)
-      .catch((e) => setError(String(e)));
-  };
-  useEffect(load, []);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const error = actionError ?? listed.error?.message ?? null;
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setActionError(null);
     try {
       await apiJson("/trace-sources", "POST", {
         name: name.trim(),
@@ -31,75 +39,129 @@ export function TraceSourcesPage() {
       setName("");
       setUrl("");
       setApiKey("");
-      load();
+      void refreshQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     }
   };
   const archive = async (source: string) => {
-    setError(null);
+    setActionError(null);
     try {
       await apiJson(
         `/trace-sources/${encodeURIComponent(source)}/archive`,
         "POST",
       );
-      load();
+      void refreshQueries();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setActionError(err instanceof Error ? err.message : String(err));
     }
   };
 
   return (
-    <div className="page">
-      <h1 className="page-title">Trace sources</h1>
-      <p className="row-meta mt-1">
-        Third-party trace stores to import history from. Keys are stored
-        encrypted and never shown again.
-      </p>
-      <form className="toolbar mt-3 mb-3" onSubmit={create}>
-        <input
-          className="input"
-          placeholder="name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-        />
-        <input
-          className="input min-w-0 flex-1"
-          placeholder="Phoenix URL"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          required
-        />
-        <input
-          className="input"
-          type="password"
-          placeholder="API key"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-        />
-        <button className="btn btn-primary">Add trace source</button>
-      </form>
-      <p className="row-meta mb-3 whitespace-normal">{ENDPOINT_NOTE}</p>
-      {error && <div className="pane-status error">{error}</div>}
-      <div className="card rows">
-        {rows?.map((row) => (
-          <div
-            key={row.id}
-            className="row grid-cols-[minmax(0,1fr)_auto_minmax(0,2fr)_auto]"
-          >
-            <span className="row-strong">{row.name}</span>
-            <span className="chip muted">{row.provider}</span>
-            <span className="row-meta truncate font-mono">{row.url}</span>
-            <button className="btn btn-sm" onClick={() => archive(row.name)}>
-              archive
-            </button>
-          </div>
-        ))}
-        {rows && !rows.length && (
-          <div className="pane-status">No trace sources.</div>
+    <>
+      <PageHeader
+        title="Trace sources"
+        description="Third-party trace stores to import history from. Keys are stored encrypted and never shown again."
+      />
+      <div className="page">
+        {me.is_admin && (
+          <>
+            <form
+              className="mb-2 flex flex-wrap items-center gap-2"
+              onSubmit={create}
+            >
+              <Input
+                className="w-full sm:w-40"
+                placeholder="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+              <Input
+                className="w-full sm:w-auto sm:min-w-48 sm:flex-1"
+                placeholder="Phoenix URL"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                required
+              />
+              <Input
+                className="w-full sm:w-40"
+                type="password"
+                placeholder="API key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+              <Button type="submit">Add trace source</Button>
+            </form>
+            <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
+              {ENDPOINT_NOTE}
+            </p>
+          </>
+        )}
+        {error && <div className="pane-status error">{error}</div>}
+        {rows === undefined && !listed.error && (
+          <Card className="rows gap-0 py-0">
+            {Array.from({ length: 2 }, (_, i) => (
+              <div key={i} className={`row ${ROW_COLUMNS}`}>
+                <Skeleton
+                  className="h-4"
+                  style={{ width: `${40 + i * 15}%` }}
+                />
+                <Skeleton className="h-4 w-14" />
+                <Skeleton className="h-3 w-48 max-w-full" />
+              </div>
+            ))}
+          </Card>
+        )}
+        {rows?.length === 0 && (
+          <Card className="py-8">
+            <Empty
+              icon={Waypoints}
+              title="No trace sources"
+              description={
+                me.is_admin ? (
+                  <>
+                    Add a Phoenix server above to import an agent's past traces,
+                    or run{" "}
+                    <span className="font-mono">
+                      evalkit trace-sources create
+                    </span>
+                    .
+                  </>
+                ) : (
+                  <>
+                    An admin adds them with{" "}
+                    <span className="font-mono">
+                      evalkit trace-sources create
+                    </span>
+                    .
+                  </>
+                )
+              }
+            />
+          </Card>
+        )}
+        {!!rows?.length && (
+          <Card className="rows gap-0 py-0">
+            {rows.map((row) => (
+              <div key={row.id} className={`row ${ROW_COLUMNS}`}>
+                <span className="row-strong">{row.name}</span>
+                <Badge variant="secondary">{row.provider}</Badge>
+                <span className="row-meta truncate font-mono">{row.url}</span>
+                {me.is_admin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => archive(row.name)}
+                  >
+                    archive
+                  </Button>
+                )}
+              </div>
+            ))}
+          </Card>
         )}
       </div>
-    </div>
+    </>
   );
 }

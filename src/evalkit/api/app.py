@@ -48,7 +48,7 @@ from evalkit.api.limits import BodyLimitMiddleware
 from evalkit.api.mcp.auth import MCP_PATH
 from evalkit.api.mcp.server import mcp_running, mount_mcp
 from evalkit.api.oidc import OidcState
-from evalkit.config import Config
+from evalkit.config import Config, check_trusted_endpoints
 from evalkit.core.agents import UnknownAgent
 from evalkit.core.blob import BlobStore
 from evalkit.core.endpoints import BlockedEndpoint
@@ -203,6 +203,7 @@ def create_app(
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
     resolve_tenant: TenantResolver = default_resolve_tenant,
 ) -> FastAPI:
+    check_trusted_endpoints(cfg.trusted_endpoints)
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
     session_factory = (
         session_factory
@@ -243,7 +244,11 @@ def create_app(
                 "stored API keys exist but encryption_key is not configured; "
                 "set encryption_key: env:EVALKIT_ENCRYPTION_KEY in the server config"
             )
-        await bootstrap_admin(app.state.session_factory, os.environ.get("EVALKIT_ADMIN_PASSWORD"))
+        await bootstrap_admin(
+            app.state.session_factory,
+            os.environ.get("EVALKIT_ADMIN_PASSWORD"),
+            cfg.auth.resolve_password_login(),
+        )
         if app.state.oidc is not None and not await app.state.oidc.load():
             app.state.oidc_retry = asyncio.create_task(app.state.oidc.retry_forever())
             app.state.oidc_retry.add_done_callback(log_retry_failure)
@@ -367,6 +372,7 @@ def create_app(
         return {"ok": True}
 
     app.include_router(auth_router)
+    app.include_router(meta.appearance_router)
     app.include_router(datasets.router, dependencies=SIGNED_IN)
     app.include_router(meta.router, dependencies=SIGNED_IN)
     app.include_router(experiments.router, dependencies=SIGNED_IN)

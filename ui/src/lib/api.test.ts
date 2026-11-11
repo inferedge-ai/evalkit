@@ -13,7 +13,11 @@ import {
   setToken,
 } from "./api";
 import { ErrorResponse } from "oidc-client-ts";
-import { setSessionForTest, type OidcSession } from "../auth/oidc";
+import {
+  resetProvidersForTest,
+  setSessionForTest,
+  type OidcSession,
+} from "../auth/oidc";
 
 function fakeSession(
   user: {
@@ -281,6 +285,26 @@ describe("401 redirect", () => {
       expect(s.calls).toContain("removeUser");
     },
   );
+
+  it("navigates to login when a password session expires while the identity provider is unreachable", async () => {
+    resetProvidersForTest();
+    setSessionForTest(undefined);
+    setToken("password-token");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.endsWith("/api/auth/providers")
+          ? Response.json(
+              { detail: "identity provider unreachable", password: "admin" },
+              { status: 503 },
+            )
+          : Response.json({ detail: "token expired" }, { status: 401 }),
+      ),
+    );
+    const assign = stubWindow("/x");
+    await apiFetch("/datasets").catch(() => {});
+    expect(assign).toHaveBeenCalledWith("/login?next=%2Fx%3Fa%3D1");
+  });
 
   it("does not navigate when already on the login page", async () => {
     setSessionForTest(null);

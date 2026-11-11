@@ -6,7 +6,6 @@ afterEach(() => resetMetaForTests(null));
 describe("agentCommitUrl", () => {
   it("builds a commit url from the agent's repo and the sha", () => {
     resetMetaForTests({
-      accent_color: null,
       agents: ["myagent@dev"],
       agent_repos: { "myagent@dev": "https://github.com/inferedge-ai/evalkit" },
     });
@@ -17,7 +16,6 @@ describe("agentCommitUrl", () => {
 
   it("returns null when the repo, agent, or sha is unknown", () => {
     resetMetaForTests({
-      accent_color: null,
       agents: ["myagent@dev"],
       agent_repos: { "myagent@dev": "https://github.com/inferedge-ai/evalkit" },
     });

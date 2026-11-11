@@ -1,0 +1,79 @@
+import pytest
+
+from evalkit.api.app import create_app
+from evalkit.api.auth import CurrentUser
+from evalkit.api.deps import get_allow_private_endpoints
+from tests.api.native_api import api_env
+from tests.fake_agents import FAKE_HARNESS_URL, JUDGE_URL
+from tests.fake_harness import FakeHarness
+from tests.native import make_cfg, wait_for
+
+LISTED_TENANTS = {99}
+RUN = {"dataset": "finance@canonical", "agent": "fake@canonical"}
+STORED = "http://127.0.0.1:9/v1"
+METADATA = "http://169.254.169.254/"
+
+
+def allow_listed_tenants(user: CurrentUser) -> bool:
+    return user.tenant_id in LISTED_TENANTS
+
+
+@pytest.fixture
+async def api(tmp_path, stub_judges, session_factory):
+    async with api_env(tmp_path, session_factory, FakeHarness()) as (client, _env):
+        yield client
+
+
+async def test_a_host_refuses_private_addresses_the_server_allows(api):
+    exp_id = (await api.post("/api/experiments", json=RUN)).json()["id"]
+    await wait_for(api, exp_id)
+    evaluator = {"workspace": "canonical", "name": "remote", "kind": "score"}
+    await api.post("/api/evaluators", json={**evaluator, "settings": {"endpoint": STORED}})
+    source = {"name": "phx", "provider": "phoenix", "url": STORED}
+    assert (await api.post("/api/trace-sources", json=source)).status_code == 200
+    moved = await api.patch("/api/agents/fake@canonical", json={"harness_url": STORED})
+    assert moved.status_code == 200, moved.text
+
+    overrides = api._transport.app.dependency_overrides  # type: ignore[attr-defined]
+    overrides[get_allow_private_endpoints] = allow_listed_tenants
+    requests = [
+        ("POST", "/api/agents", {"workspace": "canonical", "name": "m", "harness_url": METADATA}),
+        ("PATCH", "/api/agents/fake@canonical", {"harness_url": METADATA}),
+        ("POST", "/api/evaluators", {**evaluator, "name": "m", "settings": {"endpoint": METADATA}}),
+        ("PATCH", "/api/evaluators/remote@canonical", {"settings": {"endpoint": METADATA}}),
+        ("POST", "/api/llm-providers", {"name": "m", "base_url": METADATA}),
+        ("PATCH", "/api/llm-providers/judge", {"base_url": METADATA}),
+        ("POST", "/api/trace-sources", {**source, "name": "m", "url": METADATA}),
+        ("PATCH", "/api/trace-sources/phx", {"url": METADATA}),
+        ("POST", "/api/experiments", RUN),
+        ("POST", f"/api/experiments/{exp_id}/evaluate", None),
+        ("POST", f"/api/experiments/{exp_id}/resume", None),
+        ("POST", "/api/agents/fake@canonical/check", None),
+    ]
+    for method, path, body in requests:
+        refused = await api.request(method, path, json=body)
+        assert refused.status_code == 400, (method, path, refused.text)
+        assert "private address" in refused.json()["detail"], (method, path)
+
+
+async def test_trusted_endpoints_pass_for_a_tenant_the_host_refuses(api):
+    app = api._transport.app  # type: ignore[attr-defined]
+    app.dependency_overrides[get_allow_private_endpoints] = allow_listed_tenants
+    app.state.cfg.trusted_endpoints = [FAKE_HARNESS_URL, JUDGE_URL]
+    started = await api.post("/api/experiments", json=RUN)
+    assert started.status_code == 200, started.text
+    assert (await wait_for(api, started.json()["id"]))["status"] == "completed"
+    gateway = await api.post(
+        "/api/llm-providers", json={"name": "gw", "base_url": f"{JUDGE_URL}/v2"}
+    )
+    assert gateway.status_code == 200, gateway.text
+    other_port = await api.post(
+        "/api/llm-providers", json={"name": "o", "base_url": "http://judge.test:81"}
+    )
+    assert other_port.status_code == 400
+
+
+def test_a_bad_trusted_endpoint_stops_a_wrapper_at_start(tmp_path):
+    cfg = make_cfg(tmp_path).model_copy(update={"trusted_endpoints": ["http://gw:40OO"]})
+    with pytest.raises(ValueError, match=r"trusted_endpoints\[0\]"):
+        create_app(cfg)

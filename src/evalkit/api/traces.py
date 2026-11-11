@@ -16,12 +16,12 @@ from evalkit.api.access import (
     require,
     workspace_ref,
 )
+from evalkit.api.deps import ConfigDep, EndpointRuleDep
 from evalkit.api.experiments import slug_or_400
-from evalkit.config import Config
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.access import can_write
 from evalkit.core.agents import AgentDefinition, UnknownAgent, explicit
-from evalkit.core.endpoints import check_endpoint
+from evalkit.core.endpoints import EndpointRule, check_endpoint
 from evalkit.core.traces.mapping import session_id_of
 from evalkit.core.traces.raw import RawSpan
 from evalkit.core.traces.sessions import SessionTrajectory
@@ -35,10 +35,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 async def resolve_import_source(
-    stores: TenantStores, cfg: Config, name: str
+    stores: TenantStores, name: str, *, rule: EndpointRule
 ) -> ResolvedTraceSource:
     source = await stores.sources.resolve(name)
-    await check_endpoint(source.url, allow_private=cfg.allow_private_endpoints)
+    await check_endpoint(source.url, rule=rule)
     return source
 
 
@@ -169,19 +169,20 @@ class ImportRequest(BaseModel):
 async def import_session(
     agent: str,
     body: ImportRequest,
-    request: Request,
     stores: StoresDep,
     actor: ActorDep,
+    cfg: ConfigDep,
+    rule: EndpointRuleDep,
 ) -> dict:
     _, record = await agent_or_404(stores.agents, agent)
     await require_write(stores, actor, record)
     require_otel(record)
-    source = await resolve_import_source(stores, request.app.state.cfg, body.source)
+    source = await resolve_import_source(stores, body.source, rule=rule)
     client = client_for(
         source.provider,
         source.url,
         source.api_key.get_secret_value() if source.api_key else None,
-        request.app.state.cfg.otel.import_page_traces,
+        cfg.otel.import_page_traces,
     )
     try:
         fetched = await client.session_spans(body.project, body.session_id)

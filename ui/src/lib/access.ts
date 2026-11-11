@@ -14,6 +14,31 @@ export function canWrite(
   return me.is_admin || holds(me, ws.name, "writer");
 }
 
+export function canCreateExperiment(
+  me: Me,
+  ws: Pick<WorkspaceInfo, "name" | "type">,
+): boolean {
+  if (ws.type === "personal") return ws.name === me.personal_workspace;
+  return (
+    me.is_admin ||
+    holds(me, ws.name, "writer") ||
+    holds(me, ws.name, "reviewer")
+  );
+}
+
+export function getReadOnlyReason(
+  me: Me,
+  ws: Pick<WorkspaceInfo, "name" | "type" | "archived">,
+  mayAct: (
+    me: Me,
+    ws: Pick<WorkspaceInfo, "name" | "type">,
+  ) => boolean = canWrite,
+): string | null {
+  if (ws.archived) return "This workspace is archived.";
+  if (!mayAct(me, ws)) return "This workspace is read-only for you.";
+  return null;
+}
+
 export function isReviewerOf(me: Me, workspace: string): boolean {
   return holds(me, workspace, "reviewer");
 }

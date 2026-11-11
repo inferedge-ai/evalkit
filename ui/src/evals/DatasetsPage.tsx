@@ -1,11 +1,19 @@
-import { useEffect, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useState } from "react";
+import { Database, SearchX } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Empty } from "@/components/widgets/Empty";
 import { canWrite } from "../lib/access";
-import { api, qs } from "../lib/api";
+import { qs } from "../lib/api";
+import { useApi } from "../lib/query";
 import { fmtWhen } from "../lib/format";
 import type { Dataset } from "../lib/types";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
+import { PageHeader } from "@/components/widgets/PageHeader";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 function datasetMeta(ds: Dataset): string {
   const parts: string[] = [];
@@ -28,7 +36,7 @@ function DatasetRow({ ds }: { ds: Dataset }) {
       to={`/datasets/${encodeURIComponent(ds.ref)}`}
     >
       <span className="row-strong">{ds.name}</span>
-      <span className="chip muted">{ds.kind}</span>
+      <Badge variant="secondary">{ds.kind}</Badge>
       <span
         className="row-meta num truncate text-right"
         title={datasetMeta(ds)}
@@ -43,24 +51,15 @@ export function DatasetsPage() {
   const me = useMe();
   const { workspace } = useWorkspace();
   const writable = canWrite(me, workspace);
-  const [datasets, setDatasets] = useState<Dataset[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-
-  useEffect(() => {
-    let stale = false;
-    setDatasets(null);
-    setError(null);
-    api<Dataset[]>(`/datasets${qs({ workspace: workspace.name })}`)
-      .then((list) => {
-        if (!stale)
-          setDatasets([...list].sort((a, b) => a.name.localeCompare(b.name)));
-      })
-      .catch((e) => !stale && setError(String(e)));
-    return () => {
-      stale = true;
-    };
-  }, [workspace.name]);
+  const listed = useApi<Dataset[]>(
+    `/datasets${qs({ workspace: workspace.name })}`,
+    {
+      select: (list) => [...list].sort((a, b) => a.name.localeCompare(b.name)),
+    },
+  );
+  const datasets = listed.data ?? null;
+  const error = listed.error ? String(listed.error) : null;
 
   const loading = !datasets && !error;
   const visible = (datasets ?? []).filter((d) =>
@@ -68,66 +67,71 @@ export function DatasetsPage() {
   );
 
   return (
-    <div className="page">
-      <div className="toolbar mb-3">
-        <h1 className="page-title">Datasets</h1>
-        <input
-          className="input w-64"
-          placeholder="Filter datasets"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <span className="row-meta ml-auto">
-          {loading ? "Loading…" : `${visible.length} datasets`}
-        </span>
-      </div>
-      {error && <div className="pane-status error">{error}</div>}
-      {loading && (
-        <div className="card rows">
-          {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="row grid-cols-[1fr_auto]">
-              <span
-                className="skeleton h-4"
-                style={{ width: `${30 + i * 6}%` }}
-              />
-              <span className="skeleton h-3 w-40" />
-            </div>
-          ))}
+    <>
+      <PageHeader title="Datasets" />
+      <div className="page">
+        <div className="toolbar mb-3">
+          <Input
+            className="w-64"
+            placeholder="Filter datasets"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <span className="row-meta ml-auto">
+            {loading ? "Loading…" : `${visible.length} datasets`}
+          </span>
         </div>
-      )}
-      {!loading && (
-        <>
-          {datasets && datasets.length === 0 && !writable && (
-            <div className="card pane-status">
-              No datasets in @{workspace.name}. This workspace is read-only for
-              you.
-            </div>
-          )}
-          {datasets && datasets.length === 0 && writable && (
-            <div className="card pane-status">
-              No datasets in @{workspace.name} — run{" "}
-              <span className="font-mono">
-                {workspace.type === "shared"
-                  ? `evalkit sync <dir> --workspace ${workspace.name}`
-                  : "evalkit run finance --agent <your-agent>"}
-              </span>{" "}
-              from a repo with an evalkit.yaml.
-            </div>
-          )}
-          {datasets && datasets.length > 0 && visible.length === 0 && (
-            <div className="card pane-status">
-              No datasets match this filter.
-            </div>
-          )}
-          {visible.length > 0 && (
-            <div className="card rows">
-              {visible.map((ds) => (
-                <DatasetRow key={ds.ref} ds={ds} />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
+        {error && <div className="pane-status error">{error}</div>}
+        {loading && (
+          <Card className="rows gap-0 py-0">
+            {Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="row grid-cols-[1fr_auto]">
+                <Skeleton className="h-4" style={{ width: `${30 + i * 6}%` }} />
+                <Skeleton className="h-3 w-40" />
+              </div>
+            ))}
+          </Card>
+        )}
+        {!loading && (
+          <>
+            {datasets && datasets.length === 0 && (
+              <Card className="py-8">
+                <Empty
+                  icon={Database}
+                  title={`No datasets in @${workspace.name}`}
+                  description={
+                    writable ? (
+                      <>
+                        Run{" "}
+                        <span className="font-mono">
+                          {workspace.type === "shared"
+                            ? `evalkit sync <dir> --workspace ${workspace.name}`
+                            : "evalkit run finance --agent <your-agent>"}
+                        </span>{" "}
+                        from a repo with an evalkit.yaml.
+                      </>
+                    ) : (
+                      "This workspace is read-only for you."
+                    )
+                  }
+                />
+              </Card>
+            )}
+            {datasets && datasets.length > 0 && visible.length === 0 && (
+              <Card className="py-8">
+                <Empty icon={SearchX} title="No datasets match this filter" />
+              </Card>
+            )}
+            {visible.length > 0 && (
+              <Card className="rows gap-0 py-0">
+                {visible.map((ds) => (
+                  <DatasetRow key={ds.ref} ds={ds} />
+                ))}
+              </Card>
+            )}
+          </>
+        )}
+      </div>
+    </>
   );
 }

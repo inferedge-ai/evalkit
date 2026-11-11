@@ -85,7 +85,7 @@ sequenceDiagram
 
 - **Users:**
   - **`users add NAME`:** prompts for a password, then creates the user and a
-    personal workspace `@NAME` in one step.
+    personal workspace `@NAME` in one step, both in lowercase.
   - **`users list`:** shows the admin and archived flags.
   - **`users promote|demote NAME`:** sets or clears admin.
   - **`users set-password NAME`:** sets the password and signs the user out

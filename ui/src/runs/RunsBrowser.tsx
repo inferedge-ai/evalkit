@@ -1,217 +1,260 @@
 import { useEffect, useMemo, useState } from "react";
+import { ArrowUpRight, Bot } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
-import { api, qs } from "../lib/api";
-import { DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import type { ColDef } from "ag-grid-community";
+import { getReadOnlyReason } from "../lib/access";
+import { qs } from "../lib/api";
+import {
+  ColumnsMenu,
+  DataGrid,
+  compareNullsLast,
+  readValue,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
 import { fmtWhen } from "../lib/format";
+import { useApi } from "../lib/query";
 import type { AgentInfo, RunList, RunListItem } from "../lib/types";
 import { Select } from "../lib/Select";
 import { splitRef } from "../lib/workspace";
+import { useMe } from "../shell/capabilities";
 import { useFollowWorkspace, useWorkspace } from "../shell/workspace";
+import { Empty } from "@/components/widgets/Empty";
+import { PageHeader } from "@/components/widgets/PageHeader";
+import { buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Card } from "@/components/ui/card";
 
 const NO_RUNS: RunListItem[] = [];
 
-function runColumns(agent: string): Column<RunListItem>[] {
+const getRunId = (run: RunListItem) => run.run_id;
+
+function runColumns(agent: string): ColDef<RunListItem>[] {
   const href = (run: RunListItem) =>
     `/runs/${encodeURIComponent(agent)}/${encodeURIComponent(run.run_id)}`;
   return [
     {
-      id: "title",
-      header: "title",
-      accessorFn: (run) => run.title ?? run.run_id,
-      meta: { wrap: true },
-      cell: (c) => (
+      colId: "title",
+      headerName: "title",
+      type: "text",
+      initialFlex: 2,
+      valueGetter: readValue((run) => run.title ?? run.run_id),
+      cellRenderer: renderCell<RunListItem>((run) => (
         <Link
           className="font-medium text-brand hover:underline"
-          to={href(c.row.original)}
+          to={href(run)}
+          title={run.title || run.run_id}
         >
-          {c.row.original.title || (
-            <span className="font-mono">{c.row.original.run_id}</span>
-          )}
+          {run.title || <span className="font-mono">{run.run_id}</span>}
         </Link>
-      ),
+      )),
     },
     {
-      id: "run_id",
-      header: "run id",
-      accessorKey: "run_id",
-      cell: (c) => (
-        <span className="row-meta font-mono text-ink-4">
-          {c.row.original.run_id}
-        </span>
-      ),
+      colId: "run_id",
+      headerName: "run id",
+      type: "text",
+      field: "run_id",
+      cellRenderer: renderCell<RunListItem>((run) => (
+        <span className="row-meta font-mono text-ink-4">{run.run_id}</span>
+      )),
     },
     {
-      id: "experiment",
-      header: "experiment",
-      accessorFn: (run) => run.experiment_number ?? undefined,
-      sortUndefined: "last",
-      meta: { align: "right" },
-      cell: (c) => (
+      colId: "experiment",
+      headerName: "experiment",
+      type: "number",
+      initialWidth: 110,
+      valueGetter: readValue((run) => run.experiment_number),
+      comparator: compareNullsLast,
+      cellRenderer: renderCell<RunListItem>((run) => (
         <span className="row-meta font-mono">
-          {c.row.original.experiment_id != null
-            ? `#${c.row.original.experiment_number ?? "?"}`
-            : ""}
+          {run.experiment_id != null ? `#${run.experiment_number ?? "?"}` : ""}
         </span>
-      ),
+      )),
     },
     {
-      id: "case",
-      header: "case",
-      accessorFn: (run) => run.case_id ?? "",
-      cell: (c) => (
-        <span className="row-meta font-mono">{c.row.original.case_id}</span>
-      ),
+      colId: "case",
+      headerName: "case",
+      type: "text",
+      valueGetter: readValue((run) => run.case_id ?? ""),
+      cellRenderer: renderCell<RunListItem>((run) => (
+        <span className="row-meta font-mono">{run.case_id}</span>
+      )),
     },
     {
-      id: "user",
-      header: "user",
-      accessorFn: (run) => run.user_id ?? "",
-      cell: (c) => (
-        <span className="row-meta font-mono">{c.row.original.user_id}</span>
-      ),
+      colId: "user",
+      headerName: "user",
+      type: "text",
+      valueGetter: readValue((run) => run.user_id ?? ""),
+      cellRenderer: renderCell<RunListItem>((run) => (
+        <span className="row-meta font-mono">{run.user_id}</span>
+      )),
     },
     {
-      id: "created",
-      header: "created",
-      accessorFn: (run) => run.created_at ?? "",
-      meta: { align: "right" },
-      cell: (c) => (
-        <span className="row-meta">
-          {fmtWhen(c.row.original.created_at) ?? ""}
-        </span>
-      ),
+      colId: "created",
+      headerName: "created",
+      type: "rightAligned",
+      initialFlex: 0,
+      initialWidth: 140,
+      valueGetter: readValue((run) => run.created_at ?? ""),
+      cellRenderer: renderCell<RunListItem>((run) => (
+        <span className="row-meta">{fmtWhen(run.created_at) ?? ""}</span>
+      )),
     },
   ];
 }
 
 export function RunsBrowser() {
+  const me = useMe();
   const { workspace, workspaces } = useWorkspace();
   const [params, setParams] = useSearchParams();
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
   const agent = params.get("agent") ?? "";
   const agentWorkspace = splitRef(agent).workspace;
   useFollowWorkspace(agentWorkspace);
   const [query, setQuery] = useState("");
   const [userId, setUserId] = useState("");
-  const [runs, setRuns] = useState<RunList | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [noSession, setNoSession] = useState(false);
+  const following =
+    agentWorkspace !== workspace.name &&
+    workspaces.some((w) => w.name === agentWorkspace);
+  const listedAgents = useApi<AgentInfo[]>(
+    following ? null : `/agents${qs({ workspace: workspace.name })}`,
+    {
+      select: (list) => [...list].sort((a, b) => a.name.localeCompare(b.name)),
+    },
+  );
+  const agents = listedAgents.data ?? [];
+  const listedRuns = useApi<RunList>(
+    agent
+      ? `/agents/${encodeURIComponent(agent)}/runs${qs({
+          query: query || undefined,
+          user_id: userId || undefined,
+          no_session: noSession ? "true" : undefined,
+        })}`
+      : null,
+  );
+  const runs = listedRuns.data ?? null;
+  const error = listedAgents.error
+    ? String(listedAgents.error)
+    : listedRuns.error
+      ? String(listedRuns.error)
+      : null;
+  const noAgents = listedAgents.data?.length === 0;
+  const showGrid = !noAgents && (runs || !error);
   const columns = useMemo(() => runColumns(agent), [agent]);
-  const table = useDataTable({
-    id: "runs",
-    data: runs?.runs ?? NO_RUNS,
-    columns,
-    getRowId: (run) => run.run_id,
-  });
+  const grid = useDataGrid<RunListItem>("runs");
   const otel =
     agents.find((a) => a.ref === agent)?.trajectory_source === "otel";
+  const filtered = !!(query || userId || noSession);
 
+  // Decide on this visit's list, not a cached one that may predate a new agent.
+  const settled = listedAgents.isFetchedAfterMount && !listedAgents.isFetching;
   useEffect(() => {
-    if (
-      agentWorkspace !== workspace.name &&
-      workspaces.some((w) => w.name === agentWorkspace)
-    )
-      return;
-    let stale = false;
-    setError(null);
-    api<AgentInfo[]>(`/agents${qs({ workspace: workspace.name })}`)
-      .then((list) => {
-        if (stale) return;
-        const ordered = [...list].sort((a, b) => a.name.localeCompare(b.name));
-        setAgents(ordered);
-        if (!ordered.some((a) => a.ref === agent))
-          setParams(ordered.length ? { agent: ordered[0].ref } : {}, {
-            replace: true,
-          });
-      })
-      .catch((e) => !stale && setError(String(e)));
-    return () => {
-      stale = true;
-    };
+    const ordered = listedAgents.data;
+    if (settled && ordered && !ordered.some((a) => a.ref === agent))
+      setParams(ordered.length ? { agent: ordered[0].ref } : {}, {
+        replace: true,
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace.name]);
-
-  useEffect(() => {
-    let stale = false;
-    setRuns(null);
-    setError(null);
-    if (!agent) return;
-    api<RunList>(
-      `/agents/${encodeURIComponent(agent)}/runs${qs({
-        query: query || undefined,
-        user_id: userId || undefined,
-        no_session: noSession ? "true" : undefined,
-      })}`,
-    )
-      .then((list) => !stale && setRuns(list))
-      .catch((e) => !stale && setError(String(e)));
-    return () => {
-      stale = true;
-    };
-  }, [agent, query, userId, noSession]);
+  }, [settled, listedAgents.data]);
 
   return (
-    <div className="page">
-      <div className="toolbar mb-3">
-        <h1 className="page-title">Runs</h1>
-        <Select
-          ariaLabel="agent"
-          value={agent}
-          onChange={(a) => setParams({ agent: a })}
-          placeholder="No agents"
-          options={agents.map((a) => ({ value: a.ref, label: a.name }))}
-        />
-        <input
-          className="input w-72"
-          placeholder={otel ? "Session id prefix" : "Search id prefix or title"}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        {!otel && (
-          <input
-            className="input w-44"
-            placeholder="User id"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
+    <>
+      <PageHeader title="Runs" />
+      <div className="page">
+        {noAgents ? (
+          <Card className="py-8">
+            <Empty
+              icon={Bot}
+              title={`No active agents in @${workspace.name}`}
+              description={
+                getReadOnlyReason(me, workspace) === null ? (
+                  <>
+                    Runs are listed per agent. Add one on the{" "}
+                    <Link className="text-brand hover:underline" to="/agents">
+                      Agents
+                    </Link>{" "}
+                    page.
+                  </>
+                ) : (
+                  "Runs are listed per agent."
+                )
+              }
+            />
+          </Card>
+        ) : (
+          <div className="toolbar mb-3">
+            <Select
+              ariaLabel="agent"
+              value={agent}
+              onChange={(a) => setParams({ agent: a })}
+              placeholder="No agents"
+              options={agents.map((a) => ({ value: a.ref, label: a.name }))}
+            />
+            <Input
+              className="w-72"
+              placeholder={
+                otel ? "Session id prefix" : "Search id prefix or title"
+              }
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {!otel && (
+              <Input
+                className="w-44"
+                placeholder="User id"
+                value={userId}
+                onChange={(e) => setUserId(e.target.value)}
+              />
+            )}
+            {otel && (
+              <label className="flex cursor-pointer items-center gap-1.5 text-meta text-muted-foreground select-none">
+                <Checkbox checked={noSession} onCheckedChange={setNoSession} />
+                no session
+              </label>
+            )}
+            {otel && (
+              <Link
+                className={buttonVariants({ variant: "link" })}
+                to={`/agents/${encodeURIComponent(agent)}/mappings`}
+              >
+                Agent <ArrowUpRight size={12} />
+              </Link>
+            )}
+            <span className="row-meta num ml-auto">
+              {runs
+                ? grid.filteredCount !== null
+                  ? `${grid.filteredCount} of the ${runs.runs.length} loaded`
+                  : `${runs.total} runs`
+                : ""}
+            </span>
+            {agent && showGrid && <ColumnsMenu grid={grid} />}
+          </div>
+        )}
+        {error && (
+          <div className="pane-status error">
+            {error}
+            {!listedAgents.error &&
+              !otel &&
+              " — the harness may not implement run listing."}
+          </div>
+        )}
+        {runs?.harness_note && (
+          <div className="pane-status">
+            {runs.harness_note} — showing the runs evalkit stored.
+          </div>
+        )}
+        {showGrid && (
+          <DataGrid
+            grid={grid}
+            rows={runs?.runs ?? NO_RUNS}
+            columns={columns}
+            getRowId={getRunId}
+            loading={!runs}
+            empty={filtered ? "No runs match." : "No runs yet."}
           />
         )}
-        {otel && (
-          <label className="flex items-center gap-1 text-meta text-ink-2">
-            <input
-              type="checkbox"
-              checked={noSession}
-              onChange={(e) => setNoSession(e.target.checked)}
-            />
-            no session
-          </label>
-        )}
-        {otel && (
-          <Link
-            className="btn btn-quiet text-brand"
-            to={`/agents/${encodeURIComponent(agent)}/mappings`}
-          >
-            Agent ↗
-          </Link>
-        )}
-        {runs && (
-          <span className="row-meta num ml-auto">{runs.total} runs</span>
-        )}
       </div>
-      {error && (
-        <div className="pane-status error">
-          {error}
-          {!otel && " — the harness may not implement run listing."}
-        </div>
-      )}
-      {runs?.harness_note && (
-        <div className="pane-status">
-          {runs.harness_note} — showing the runs evalkit stored.
-        </div>
-      )}
-      {agent && !error && (
-        <DataTable table={table} loading={!runs} empty="No runs match." />
-      )}
-    </div>
+    </>
   );
 }

@@ -31,19 +31,28 @@ export function othersPersonal(ws: WorkspaceInfo, me: string | null): boolean {
   return ws.type === "personal" && ws.name !== me;
 }
 
+export function describeOtherWorkspaces(count: number): string {
+  return `Show ${count} other personal workspace${count === 1 ? "" : "s"}`;
+}
+
+export function describePromotion(ws: WorkspaceInfo): string | null {
+  if (ws.promotes_to) return `promotes to @${ws.promotes_to}`;
+  if (ws.promoted_from) return `promoted from @${ws.promoted_from}`;
+  return null;
+}
+
 const SCOPED_SECTIONS = [
   "datasets",
   "experiments",
   "reviews",
   "runs",
   "agents",
-  "workspace",
 ];
 
 export function sectionRoot(pathname: string): string | null {
   const section = pathname.split("/")[1] ?? "";
   if (!SCOPED_SECTIONS.includes(section)) return null;
-  return section === "workspace" ? pathname : `/${section}`;
+  return `/${section}`;
 }
 
 export function gitRevision(value: unknown): GitRevision | null {

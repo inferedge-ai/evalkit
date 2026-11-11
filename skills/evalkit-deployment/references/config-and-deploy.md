@@ -36,7 +36,8 @@ cp <this-skill-dir>/docker-compose.yml .
 # API keys are not in config: the commands below store them in the database.
 # First start: EVALKIT_ADMIN_PASSWORD (8+ characters, at most 72 bytes)
 # creates the admin user; a server with no admin and no
-# EVALKIT_ADMIN_PASSWORD refuses to start. Put these in a .env
+# EVALKIT_ADMIN_PASSWORD refuses to start, unless auth.password_login is
+# none (admins then come from the identity provider). Put these in a .env
 # file next to docker-compose.yml.
 # With db.migrate_on_start: true in config.yaml (see "Migrations on start"),
 # this one command starts everything and migrates:
@@ -134,15 +135,16 @@ indirection, resolved at load time — keep secrets out of the file.
 
 | Section | What it holds |
 |---|---|
-| `server` | `base_url` (used in links the CLI prints), optional `accent_color` (any CSS colour, e.g. `'#dc2626'`; tints the web UI so each environment is told apart at a glance) |
+| `server` | `base_url` (used in links the CLI prints), optional `accent_color` (any CSS colour, e.g. `'#dc2626'`; a strip along the top of every web UI page, so each environment is told apart at a glance) |
 | `db` | Postgres URL (`postgresql+psycopg://…`); optional `migrate_on_start` (default `false`, see below) |
 | `blob` | one blob URL: `fixtures/sha256/<sha256>` (case input files), `trajectories/`, `artifacts/` |
 | `encryption_key` | Fernet key that encrypts the stored API keys of agents, remote evaluators, LLM providers and trace sources. The server refuses to start without it once any exist. `evalkit db rekey --config config.yaml --old-key-env OLD --new-key-env NEW` re-encrypts all of them after a change. |
 | `allow_private_endpoints` | default `false`. The server refuses (400) a harness URL, evaluator endpoint, LLM provider base URL or trace source URL that resolves to a loopback, private, link-local, unspecified, multicast or reserved address, or does not resolve. Set `true` when they run in the same cluster or on `host.docker.internal`. |
+| `trusted_endpoints` | default `[]`. `http` or `https` URLs whose origin (scheme, host, port) is allowed even with `allow_private_endpoints` off, e.g. an in-cluster LLM gateway: `["http://litellm:4000"]`. The path is ignored and the host must be spelled exactly as listed. Every agent, remote evaluator, LLM provider and trace source may use any path on it, so list only services that check their own credentials. |
 | `sentry` | optional: `dsn`, `environment`, `traces_sample_rate` (default `0.0`, errors only), `max_request_body_size` (default `never`; `small` up to 1 KB, `medium` up to 10 KB, `always`; bodies can hold client case and trajectory data). With it, the server reports unhandled errors, 500 responses and error logs to Sentry, tagged with release `evalkit@<version>`. IPs, cookies and sensitive headers are never sent. |
 | `cost_map` | `bundled` (snapshot in the image) or a path/URL override |
 | `auth` | `token_ttl_hours` for UI/CLI tokens |
-| `auth` | `token_ttl_hours`, `password_login` (`admin` or `all`), and optional `oidc`: `issuer`, `client_id`, `audience`, `name`, `scopes`, `authorize_params`, `algorithms`. With `oidc`, `/api` and `/mcp` verify the identity provider's JWT access tokens. The registration and runbook are on [Single sign-on](../../evalkit-docs/sso.md). `mcp.oauth` is removed |
+| `auth` | `token_ttl_hours`, `password_login` (`admin`, `all`, or `none`, which needs `oidc.admin_claim`), and optional `oidc`: `issuer`, `client_id`, `audience`, `name`, `scopes`, `authorize_params`, `algorithms`. With `oidc`, `/api` and `/mcp` verify the identity provider's JWT access tokens. The registration and runbook are on [Single sign-on](../../evalkit-docs/sso.md). `mcp.oauth` is removed |
 | `otel` | collector limits, below |
 | `limits` | request body caps, below |
 
@@ -248,7 +250,8 @@ express a limit (concurrency), evalkit takes the minimum.
 - Without `allow_private_endpoints: true`, the server refuses agent, evaluator,
   LLM provider and trace source URLs that resolve to internal addresses:
   localhost, private ranges, link-local (including `169.254.169.254`), or that
-  don't resolve.
+  don't resolve. A URL on an origin listed in `trusted_endpoints` is allowed
+  either way.
 - The server never calls URLs from personal workspaces.
 - A server run whose agent, evaluator or LLM provider has no stored key calls
   it without a key header. The create, resume or evaluate response carries

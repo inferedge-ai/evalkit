@@ -80,7 +80,7 @@ In the server's `config.yaml`:
 
     auth:
       token_ttl_hours: 720          # password login tokens
-      password_login: admin         # admin (default) or all; ignored without oidc
+      password_login: admin         # admin (default), all or none; ignored without oidc
       oidc:
         issuer: https://id.example.com
         client_id: 0oa1b2c3d4e5f6g7h8
@@ -98,6 +98,13 @@ SSO. `all` runs both side by side. Restart the server and check
 `GET /api/auth/providers`: it lists the IdP's name and endpoints, or answers
 503 while the IdP is unreachable (the server still starts, and admin password
 login keeps working).
+
+`none` turns password login off: everyone signs in through the identity
+provider. It needs `admin_claim` (see below), because the IdP then says who is
+an admin, and the server no longer makes the password-only `admin` account or
+needs `EVALKIT_ADMIN_PASSWORD`. A signed-out visitor goes straight to the
+provider instead of seeing evalkit's login page, and `POST /api/auth/login`
+refuses every password.
 
 ### Requiring a scope
 
@@ -176,23 +183,38 @@ In the web UI, the login page shows **Continue with <provider>** when single
 sign-on is configured. The first sign-in creates your evalkit user from the
 identity provider's account; later sign-ins find it. An admin can still use
 the username and password form behind **Admin sign-in** (or under the button
-when `auth.password_login` is `all`). The account chip shows your email under
-your username. Sign out clears the session in this browser only; your
-identity provider session stays.
+when `auth.password_login` is `all`). With `password_login: none` there is no
+login page to see: evalkit sends you straight to the provider, and back to the
+page you opened. The profile button at the bottom of the sidebar shows your
+email under your username. Sign out clears the session in this browser only;
+your identity provider session stays. With `none`, signing out shows a
+**Sign in again** button rather than sending you back to the provider at once,
+in every tab of that browser, until you next sign in.
 
 ## Admin runbook
 
-1. Start with `EVALKIT_ADMIN_PASSWORD` set, as before; `admin` is a password
-   account.
+1. Start with `EVALKIT_ADMIN_PASSWORD` set; `admin` is a password account.
+   With `password_login: none` there is no password account and no
+   `EVALKIT_ADMIN_PASSWORD`: the IdP names the admins through `admin_claim`.
 2. Ask the first person to sign in; evalkit creates their user on the first
    sign-in. Then `evalkit users promote <username>`.
+   `password_login: none` requires `admin_claim`, so whoever the claim names
+   is an admin from their first sign-in and, as with `admin_claim` in any
+   mode, promoting by hand does not last past the next one. If
+   nobody can sign in as an admin (the claim is missing from the access
+   token, say), switch back to `password_login: admin` and start with
+   `EVALKIT_ADMIN_PASSWORD`: the server creates `admin` when no admin
+   exists.
 3. Bind machine users: `evalkit users add ci-bot --subject <sub>`, then
    `evalkit workspaces members add dev ci-bot --role writer`.
-4. A sign-in that answers 409 `username <x> is taken by a user or workspace`
-   means the derived username (the part before `@` in `preferred_username`,
-   else in `email`) already exists. Link the identity to the account you
-   choose: `evalkit users bind <username> --subject <sub>` (the 409 names the
-   subject). A password account that predates SSO is linked the same way.
+4. The first sign-in names the user after the part before `@` in
+   `preferred_username`, else in `email`, in lowercase. If another SSO user,
+   an archived account or a workspace already has that name, evalkit adds the
+   first free number (`ann1`, `ann2`, ...). If an active password account not
+   yet bound to an identity has it, such as one that predates SSO, the
+   sign-in answers 409 `username <x> is taken by a password account` and
+   names the subject: link it with
+   `evalkit users bind <username> --subject <sub>`.
 5. Revoke: `evalkit users archive <username>` blocks the next request. The
    IdP's own revocation takes effect within one access token lifetime.
 
@@ -209,6 +231,7 @@ identity provider session stays.
 | 401 `SSO is not configured on this server` | A JWT reached a server without `auth.oidc` | Configure `auth.oidc` or use password login |
 | 401 `user is archived` | Archived in evalkit | `evalkit users restore <username>` |
 | 403 `password login is for admins on this server` | `password_login: admin` | Sign in with SSO, or set `password_login: all` |
+| 403 `password login is off on this server` | `password_login: none` | Sign in with SSO; CI uses its machine client |
 | 403 `no tenant for this request` | A wrapper's `resolve_tenant` found no tenant for the token | Have the IdP put the organisation in the token, CI's client credentials tokens included |
 | 403 `access token lacks required scope <scope>` (on `/api` and register; `/mcp` says `insufficient_scope`) | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
 | 503 `identity provider unreachable` | Discovery or the JWKS could not be fetched | Check the issuer URL and network egress from the server; it retries every 30 s |

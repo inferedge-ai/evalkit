@@ -1,33 +1,48 @@
 import type { ReactNode } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Moon, Sun } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { loginPath } from "./capabilities";
-import { BrandLink, navClass } from "./Shell";
+import { BrandLink } from "./Shell";
 import { useTheme } from "./theme";
 
 export function PublicShell({ children }: { children?: ReactNode }) {
   const location = useLocation();
   const { theme, toggle } = useTheme();
+  const next = theme === "dark" ? "light" : "dark";
   return (
     <div className="flex h-dvh flex-col">
-      <header className="flex items-center gap-4 border-b border-line bg-surface px-4 py-2">
+      <header className="flex min-h-12 shrink-0 items-center gap-4 border-b bg-card px-4">
         <BrandLink to="/docs" />
-        <nav className="ml-2 flex items-center gap-0.5">
-          <NavLink to="/docs" className={navClass}>
-            Docs
-          </NavLink>
-        </nav>
+        <NavLink
+          to="/docs"
+          className={({ isActive }) =>
+            cn(
+              buttonVariants({ variant: "ghost", size: "sm" }),
+              isActive && "bg-muted",
+            )
+          }
+        >
+          Docs
+        </NavLink>
         <div className="ml-auto flex items-center gap-2">
-          <button
-            className="btn"
-            title={`switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Switch to ${next} mode`}
+            title={`Switch to ${next} mode`}
             onClick={toggle}
           >
-            {theme === "dark" ? "☀ Light" : "☾ Dark"}
-          </button>
+            {theme === "dark" ? <Sun /> : <Moon />}
+          </Button>
           {!location.pathname.startsWith("/login") && (
-            <NavLink to={loginPath(location)} className="btn btn-primary">
+            <Link
+              to={loginPath(location)}
+              className={buttonVariants({ size: "sm" })}
+            >
               Sign in
-            </NavLink>
+            </Link>
           )}
         </div>
       </header>

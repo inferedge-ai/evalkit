@@ -1,99 +1,96 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { FlaskConical } from "lucide-react";
 import { Link } from "react-router-dom";
-import { api } from "../lib/api";
+import { Empty } from "@/components/widgets/Empty";
+import type { ColDef } from "ag-grid-community";
 import { scoredBucketColumns } from "../lib/bucketColumns";
-import { ColumnsMenu, DataTable, useDataTable } from "../lib/DataTable";
-import type { Column } from "../lib/DataTable";
+import {
+  ColumnsMenu,
+  DataGrid,
+  renderCell,
+  useDataGrid,
+} from "../lib/DataGrid";
 import { EXPERIMENT_LIST_LIMIT, listCapNote } from "../lib/experimentStatus";
+import { useApi } from "../lib/query";
 import type { ExperimentListItem } from "../lib/types";
 import { experimentTailColumns } from "./experimentRow";
+import { Card } from "@/components/ui/card";
 
-const HIDDEN = ["latency", "took", "rev", "judge"];
+const getExperimentId = (exp: ExperimentListItem) => String(exp.id);
 
-const NONE: ExperimentListItem[] = [];
+const NO_EXPERIMENTS: ExperimentListItem[] = [];
 
 export function DatasetExperimentsTab({ dataset }: { dataset: string }) {
-  const [experiments, setExperiments] = useState<ExperimentListItem[] | null>(
-    null,
+  const listed = useApi<ExperimentListItem[]>(
+    `/datasets/${encodeURIComponent(dataset)}/experiments?limit=${EXPERIMENT_LIST_LIMIT}`,
   );
-  const [error, setError] = useState<string | null>(null);
+  const experiments = listed.data ?? null;
+  const error = listed.error ? String(listed.error) : null;
   const buckets = useMemo(
     () => scoredBucketColumns(experiments ?? []),
     [experiments],
   );
-  const columns = useMemo<Column<ExperimentListItem>[]>(
+  const columns = useMemo<ColDef<ExperimentListItem>[]>(
     () => [
       {
-        id: "number",
-        header: "#",
-        accessorKey: "number",
-        meta: { align: "right", title: "number in its dataset" },
-        cell: (c) => (
+        colId: "number",
+        headerName: "#",
+        headerTooltip: "number in its dataset",
+        type: "number",
+        initialWidth: 72,
+        field: "number",
+        cellRenderer: renderCell<ExperimentListItem>((exp) => (
           <Link
             className="font-mono font-medium text-brand hover:underline"
-            to={`/experiments/${c.row.original.id}`}
-            title={`experiment ${c.row.original.id}`}
+            to={`/experiments/${exp.id}`}
+            title={`experiment ${exp.id}`}
           >
-            #{c.row.original.number}
+            #{exp.number}
           </Link>
-        ),
+        )),
       },
       ...experimentTailColumns(buckets),
     ],
     [buckets],
   );
-  const table = useDataTable({
-    id: "dataset-experiments",
-    data: experiments ?? NONE,
-    columns,
-    getRowId: (exp) => String(exp.id),
-    defaultHidden: HIDDEN,
-  });
-
-  useEffect(() => {
-    api<ExperimentListItem[]>(
-      `/datasets/${encodeURIComponent(dataset)}/experiments?limit=${EXPERIMENT_LIST_LIMIT}`,
-    )
-      .then(setExperiments)
-      .catch((e) => setError(String(e)));
-  }, [dataset]);
+  const grid = useDataGrid<ExperimentListItem>("dataset-experiments");
 
   if (error) return <div className="pane-status error">{error}</div>;
-  if (!experiments)
+  if (experiments?.length === 0)
     return (
-      <div className="card rows">
-        {Array.from({ length: 5 }, (_, i) => (
-          <div key={i} className="row grid-cols-[1fr_auto]">
-            <span
-              className="skeleton h-4"
-              style={{ width: `${25 + i * 7}%` }}
-            />
-            <span className="skeleton h-3 w-40" />
-          </div>
-        ))}
-      </div>
-    );
-  if (experiments.length === 0)
-    return (
-      <div className="pane-status">
-        No experiments yet — run one with the button above or{" "}
-        <span className="font-mono">
-          evalkit run {dataset} --agent &lt;agent&gt;
-        </span>
-        .
-      </div>
+      <Card className="py-8">
+        <Empty
+          icon={FlaskConical}
+          title="No experiments on this dataset yet"
+          description={
+            <>
+              Start one with Run experiment, or run{" "}
+              <span className="font-mono">
+                evalkit run {dataset} --agent &lt;agent&gt;
+              </span>
+              .
+            </>
+          }
+        />
+      </Card>
     );
 
-  const capNote = listCapNote(experiments.length);
+  const capNote = experiments ? listCapNote(experiments.length) : null;
   return (
     <>
       <div className="toolbar mb-2">
         {capNote && <p className="row-meta">{capNote}</p>}
         <span className="ml-auto">
-          <ColumnsMenu table={table} defaultHidden={HIDDEN} />
+          <ColumnsMenu grid={grid} />
         </span>
       </div>
-      <DataTable table={table} />
+      <DataGrid
+        grid={grid}
+        rows={experiments ?? NO_EXPERIMENTS}
+        columns={columns}
+        getRowId={getExperimentId}
+        loading={!experiments}
+      />
     </>
   );
 }

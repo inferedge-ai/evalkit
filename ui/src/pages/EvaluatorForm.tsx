@@ -1,10 +1,23 @@
-import { useEffect, useState } from "react";
+import { useId, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiJson } from "../lib/api";
 import { ApiKeyField } from "../lib/ApiKeyField";
 import type { ApiKeyValue } from "../lib/ApiKeyField";
 import { ENDPOINT_NOTE, PERSONAL_KEY_NOTE } from "../lib/endpoint";
+import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { Select } from "../lib/Select";
 import type { RemoteEvaluatorInfo, WorkspaceInfo } from "../lib/types";
+import { Input } from "@/components/ui/input";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 
 export interface EvaluatorFormValues {
   name: string;
@@ -57,6 +70,7 @@ export function EvaluatorForm({
   onSaved: () => void;
   onClose: () => void;
 }) {
+  const formId = useId();
   const [values, setValues] = useState<EvaluatorFormValues>({
     name: evaluator?.name ?? "",
     kind: evaluator?.kind ?? "score",
@@ -71,14 +85,6 @@ export function EvaluatorForm({
     key: K,
     value: EvaluatorFormValues[K],
   ) => setValues((v) => ({ ...v, [key]: value }));
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   const shared = ws.type === "shared";
   const urlClearsKey =
@@ -106,43 +112,32 @@ export function EvaluatorForm({
   };
 
   return (
-    <div className="dialog-backdrop" onMouseDown={onClose}>
-      <div
-        className="dialog w-160"
-        role="dialog"
-        aria-label={evaluator ? "Edit evaluator" : "New evaluator"}
-        onMouseDown={(e) => e.stopPropagation()}
-      >
-        <div className="dialog-head">
-          <span className="font-semibold">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className={FORM_DIALOG}>
+        <DialogHeader>
+          <DialogTitle>
             {evaluator ? "Edit evaluator" : "New evaluator"}
-          </span>
-          <span className="row-meta font-mono">
+          </DialogTitle>
+          <DialogDescription className="font-mono">
             {evaluator ? evaluator.ref : `@${ws.name}`}
-          </span>
-          <button
-            className="btn btn-quiet btn-sm ml-auto"
-            aria-label="close"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-        <div className="dialog-body">
+          </DialogDescription>
+        </DialogHeader>
+        <div className={FORM_DIALOG_BODY}>
           {!evaluator && (
             <>
-              <div className="form-row">
-                <span className="form-label">Name</span>
-                <input
-                  className="input w-72"
+              <Field>
+                <FieldLabel htmlFor={`${formId}-name`}>Name</FieldLabel>
+                <Input
+                  id={`${formId}-name`}
                   aria-label="name"
                   value={values.name}
                   onChange={(e) => set("name", e.target.value)}
                 />
-              </div>
-              <div className="form-row">
-                <span className="form-label">Kind</span>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`${formId}-kind`}>Kind</FieldLabel>
                 <Select
+                  id={`${formId}-kind`}
                   ariaLabel="kind"
                   value={values.kind}
                   onChange={(kind) => set("kind", kind)}
@@ -151,44 +146,45 @@ export function EvaluatorForm({
                     { value: "gauge", label: "gauge" },
                   ]}
                 />
-              </div>
+              </Field>
             </>
           )}
-          <div className="form-row">
-            <span className="form-label">Endpoint</span>
-            <input
-              className="input min-w-0 flex-1"
+          <Field>
+            <FieldLabel htmlFor={`${formId}-endpoint`}>Endpoint</FieldLabel>
+            <Input
+              id={`${formId}-endpoint`}
               aria-label="endpoint"
               placeholder="https://evaluators.example.com/evaluate"
               value={values.endpoint}
               onChange={(e) => set("endpoint", e.target.value)}
             />
-          </div>
-          <p className="row-meta whitespace-normal">{ENDPOINT_NOTE}</p>
-          <div className="form-row">
-            <span className="form-label">Timeout (s)</span>
-            <input
-              className="input w-28"
+            <FieldDescription>{ENDPOINT_NOTE}</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-timeout-s`}>Timeout (s)</FieldLabel>
+            <Input
+              id={`${formId}-timeout-s`}
               aria-label="timeout"
               inputMode="numeric"
               value={values.timeout}
               onChange={(e) => set("timeout", e.target.value)}
             />
-          </div>
+          </Field>
           {shared ? (
-            <div className="form-row">
-              <span className="form-label">API key</span>
+            <Field>
+              <FieldLabel htmlFor={`${formId}-api-key`}>API key</FieldLabel>
               <ApiKeyField
+                id={`${formId}-api-key`}
                 hasKey={evaluator?.has_api_key ?? false}
                 value={values.apiKey}
                 onChange={(apiKey) => set("apiKey", apiKey)}
               />
-            </div>
+            </Field>
           ) : (
-            <p className="row-meta whitespace-normal">{PERSONAL_KEY_NOTE}</p>
+            <p className="text-xs text-muted-foreground">{PERSONAL_KEY_NOTE}</p>
           )}
           {urlClearsKey && (
-            <p className="row-meta whitespace-normal text-err-text">
+            <p className="text-xs text-err-text">
               Saving a new endpoint removes the stored API key. Enter the key
               for the new endpoint above.
             </p>
@@ -200,19 +196,15 @@ export function EvaluatorForm({
           ))}
           {error && <div className="text-meta text-err-text">{error}</div>}
         </div>
-        <div className="dialog-foot">
-          <button className="btn" onClick={onClose}>
+        <DialogFooter>
+          <DialogClose render={<Button variant="outline" />}>
             Cancel
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={busy || errors.length > 0}
-            onClick={save}
-          >
+          </DialogClose>
+          <Button disabled={busy || errors.length > 0} onClick={save}>
             {evaluator ? "Save" : "Create evaluator"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

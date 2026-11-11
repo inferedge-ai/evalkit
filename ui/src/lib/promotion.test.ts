@@ -14,6 +14,7 @@ const ws = (extra: Partial<WorkspaceInfo>): WorkspaceInfo => ({
   archived: false,
   promotes_to: null,
   promoted_from: null,
+  members: 0,
   ...extra,
 });
 
@@ -67,7 +68,7 @@ describe("twinCell", () => {
     expect(twinCell(twin({}), null)).toBeNull();
     expect(twinCell(twin({}), "source")).toEqual({
       label: "Promoted",
-      cls: "chip-pass",
+      variant: "pass",
     });
     expect(twinCell(twin({ state: "differs" }), "source")?.label).toBe(
       "ahead of prod",

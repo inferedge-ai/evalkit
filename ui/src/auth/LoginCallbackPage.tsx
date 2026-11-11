@@ -1,26 +1,34 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { register, signOutLocally } from "../lib/api";
+import { clearSignOut, register, signOutLocally } from "../lib/api";
+import { PublicShell } from "../shell/PublicShell";
 import { completeSignIn } from "./completeSignIn";
+import { SignInCard } from "./LoginPage";
 import { session } from "./oidc";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function CallbackStatus({ error }: { error: string | null }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-canvas">
-      <div className="card w-84 p-6">
-        <h1 className="page-title">Evalkit</h1>
-        {error === null ? (
-          <p className="mt-1 text-meta text-ink-3">Completing sign-in…</p>
-        ) : (
-          <>
-            <p className="mt-1 mb-4 text-meta text-err-text">{error}</p>
-            <Link className="btn w-full justify-center" to="/login">
-              Back to sign-in
-            </Link>
-          </>
-        )}
+    <PublicShell>
+      <div className="flex min-h-full items-center justify-center p-4">
+        <SignInCard>
+          {error === null ? (
+            <p className="text-sm text-muted-foreground">Completing sign-in…</p>
+          ) : (
+            <>
+              <p className="text-sm text-err-text">{error}</p>
+              <Link
+                className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+                to="/login"
+              >
+                Try again
+              </Link>
+            </>
+          )}
+        </SignInCard>
       </div>
-    </div>
+    </PublicShell>
   );
 }
 
@@ -53,6 +61,7 @@ export function LoginCallbackPage() {
     let cancelled = false;
     exchangeOnce().then(
       ({ next }) => {
+        clearSignOut();
         if (!cancelled) navigate(next, { replace: true });
       },
       (err: unknown) => {

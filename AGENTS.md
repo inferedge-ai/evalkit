@@ -157,6 +157,17 @@ then add plain FastAPI routes with `app.include_router(...)`.
   public. `SIGNED_IN` covers path operations (`@router.get` and the like), not
   `router.add_route()` or mounts. A handler that needs the user takes
   `CurrentUser`; an admin-only one takes `AdminUser`.
+- To answer the config per request, for example per tenant, replace `get_config`
+  (`evalkit.api.deps`) in `app.dependency_overrides`. To decide only the
+  private-address rule (`allow_private_endpoints`) per request, replace
+  `get_allow_private_endpoints` from the same module instead: every
+  private-address check reads it, and each runs on a signed-in route, so the
+  replacement may take `CurrentUser`. A URL whose origin is in the config's
+  `trusted_endpoints` passes every check whatever it returns. The list is read
+  through `get_config`, so set it on the `Config` you pass to `create_app`, and
+  on every config a replaced `get_config` returns. `create_app` refuses a bad
+  entry only in the config passed to it, so build any other config with
+  `Config.model_validate`, not `model_copy`.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
@@ -168,12 +179,39 @@ then add plain FastAPI routes with `app.include_router(...)`.
   `tsc -b` checks your pages against evalkit's types. A Vite alias to a module
   outside `ui/` does not work: imports in that module, such as `react`, do not
   resolve.
-- `routes` render for signed-in users inside the app shell. `nav` items join
-  the top bar, `moreNav` the More menu, and `adminNav` the admin part of that
-  menu. `adminNav` only hides the item from non-admins; the page's endpoints
-  must check admin themselves.
-- Keep the folder path, the `extensions` export, `UiExtensions` and
-  `SIGNED_IN` stable: other packages build against them.
+- `routes` render for signed-in users inside the app shell, beside the left
+  sidebar. Start each page with `PageHeader` from
+  `@/components/widgets/PageHeader` (title, description, breadcrumbs,
+  actions), and show an empty state with `Empty` from
+  `@/components/widgets/Empty`.
+- A `NavItem` may set `icon`, a `lucide-react` icon; the collapsed sidebar
+  shows a puzzle piece for one without. `nav` items get a sidebar section of
+  their own after Observe.
+- Settings pages go in `accountSettings` (everyone) and
+  `organizationSettings` (admins only). Each is a `SettingsPage`: `name`,
+  `label`, optional `icon` and `element`. The page renders at
+  `/settings/<name>` inside the Settings area, with its sidebar, after
+  evalkit's own items in that section. A name is lowercase letters, digits
+  and dashes. evalkit drops a page whose name isn't, is one of its own
+  (`workspace`, `users`, `workspaces`, `trace-sources` and
+  `llm-providers`), or is already taken by an earlier page in either list,
+  `accountSettings` first. `organizationSettings` only hides the item from
+  non-admins; the page and its endpoints must check admin themselves.
+- Every `nav` item and every Settings page the person can see is a page in
+  ⌘K search.
+- Keep the folder path, the `extensions` export, `UiExtensions`,
+  `PageHeader`, `Empty`, `SIGNED_IN`, `get_config` and
+  `get_allow_private_endpoints` stable: other packages build against them.
+
+**AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
+(`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,
+whose licence is commercial. A package that extends evalkit can turn
+Enterprise on from its extensions folder: in the clone, install
+`ag-grid-enterprise` at exactly the `ag-grid-community` version evalkit
+installs (`npm ls ag-grid-community`), then in `ui/src/extensions/index.tsx`
+register `AllEnterpriseModule` with `ModuleRegistry.registerModules` and set
+the licence key with `LicenseManager.setLicenseKey`. Features that need
+per-table grid options, such as the side bar or pivoting, aren't exposed yet.
 
 ## CI
 

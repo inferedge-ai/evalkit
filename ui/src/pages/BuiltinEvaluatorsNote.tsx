@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { useApi } from "../lib/query";
 
 export interface BuiltinEvaluatorInfo {
   name: string;
@@ -31,18 +30,16 @@ function Names({ names }: { names: string[] }) {
 }
 
 export function BuiltinEvaluatorsNote() {
-  const [list, setList] = useState<BuiltinEvaluatorInfo[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    api<BuiltinEvaluatorInfo[]>("/builtin-evaluators")
-      .then(setList)
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
-  if (error) return <div className="pane-status error">{error}</div>;
-  if (!list) return null;
-  const { server, local } = splitBuiltins(list);
+  const builtins = useApi<BuiltinEvaluatorInfo[]>("/builtin-evaluators");
+  if (builtins.error)
+    return <div className="pane-status error">{builtins.error.message}</div>;
+  if (!builtins.data) return null;
+  const { server, local } = splitBuiltins(builtins.data);
   return (
-    <p className="row-meta mb-2 whitespace-normal" data-testid="builtin-note">
+    <p
+      className="mb-3 max-w-3xl text-xs text-muted-foreground"
+      data-testid="builtin-note"
+    >
       Built-in evaluators are also available in this workspace:{" "}
       <Names names={server} /> (run on the evalkit server with its judge, or on
       your machine when you bring your own judge key), <Names names={local} />{" "}

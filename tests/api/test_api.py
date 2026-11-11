@@ -86,10 +86,23 @@ async def test_datasets_and_cases(api):
     assert tags == [{"name": "finance", "count": 2}]
 
 
-async def test_meta_reports_accent_color(api):
+async def test_appearance_reports_the_accent_color_signed_out(
+    tmp_path, stub_judges, session_factory
+):
+    env = await seed_env(session_factory, tmp_path, FakeHarness())
+    env.deps.cfg.server.accent_color = "#c62828"
+    async with serve(env, tmp_path) as client:
+        bare = httpx2.AsyncClient(transport=client._transport, base_url="http://test")
+        resp = await bare.get("/api/appearance")
+        await bare.aclose()
+    assert resp.status_code == 200
+    assert resp.json() == {"accent_color": "#c62828"}
+
+
+async def test_meta_reports_agents_and_repos(api):
     client, *_ = api
     meta = (await client.get("/api/meta")).json()
-    assert meta["accent_color"] is None
+    assert "accent_color" not in meta
     assert "timezone" not in meta
     assert meta["agents"] == [AGENT]
     await client.patch(f"/api/agents/{AGENT}", json={"repo_url": "https://git/shared"})
@@ -367,6 +380,20 @@ async def test_harness_check(api):
     assert checks["workspace"]["status"] == "pass"
     assert checks["run_listing"]["status"] == "pass"
     assert checks["stop"]["status"] == "pass"
+
+
+async def test_usernames_match_in_any_case(api):
+    client, *_ = api
+    created = await client.post("/api/users", json={"username": "Bob", "password": "password"})
+    assert created.json()["username"] == "bob"
+    login = await client.post("/api/auth/login", json={"username": "BOB", "password": "password"})
+    assert login.status_code == 200, login.text
+    assert (await client.post("/api/users/Bob/promote")).status_code == 200
+    added = await client.post(
+        "/api/workspaces/canonical/members", json={"username": "Bob", "role": "writer"}
+    )
+    assert added.status_code == 200, added.text
+    assert (await client.delete("/api/workspaces/canonical/members/Bob/writer")).status_code == 200
 
 
 async def test_users_admin(api):

@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, qs } from "../lib/api";
@@ -18,9 +19,12 @@ import type {
   ExperimentListItem,
   RunList,
 } from "../lib/types";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMe } from "./capabilities";
-import { ADMIN_NAV, MORE_NAV, NAV } from "./nav";
+import { DOCS_NAV, getNavSections, getSettingsSections } from "./nav";
 import { useSwitchWorkspace, useWorkspace } from "./workspace";
+import { badgeVariants } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface Loaded {
   dataset: PaletteItem[];
@@ -117,14 +121,22 @@ export function JumpPalette() {
   const [kind, setKind] = useState<SearchKind | null>(null);
   const [value, setValue] = useState("");
   const [hi, setHi] = useState(0);
-  const [local, setLocal] = useState<Loaded | null>(null);
-  const [runs, setRuns] = useState<PaletteItem[] | null>(null);
+  const [runSearch, setRunSearch] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const navigate = useNavigate();
   const pages = useMemo(
-    () => [...NAV, ...MORE_NAV, ...(me.is_admin ? ADMIN_NAV : [])],
-    [me.is_admin],
+    () => [
+      ...getNavSections().flatMap((section) => section.items),
+      ...getSettingsSections(me.is_admin, workspace.name).flatMap((section) =>
+        section.items.map((item) => ({
+          ...item,
+          label: `Settings › ${section.label} › ${item.label}`,
+        })),
+      ),
+      DOCS_NAV,
+    ],
+    [me.is_admin, workspace.name],
   );
 
   useEffect(() => {
@@ -133,7 +145,6 @@ export function JumpPalette() {
         e.preventDefault();
         setOpen((o) => !o);
       }
-      if (e.key === "Escape") setOpen(false);
     };
     const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKey);
@@ -144,29 +155,29 @@ export function JumpPalette() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!open) {
-      setKind(null);
-      setValue("");
-      return;
-    }
-    inputRef.current?.focus();
-    setLocal(null);
-    loadLocal(workspace.name)
-      .then(setLocal)
-      .catch(() => {});
-  }, [open, workspace.name]);
+  const local =
+    useQuery({
+      queryKey: ["palette-local", workspace.name],
+      queryFn: () => loadLocal(workspace.name),
+      enabled: open,
+    }).data ?? null;
 
   useEffect(() => {
+    setRunSearch(null);
     if (!open || kind !== "run") return;
-    setRuns(null);
-    const handle = setTimeout(() => {
-      searchRuns(workspace.name, value.trim())
-        .then(setRuns)
-        .catch(() => setRuns([]));
-    }, 250);
+    const handle = setTimeout(() => setRunSearch(value.trim()), 250);
     return () => clearTimeout(handle);
-  }, [open, kind, value, workspace.name]);
+  }, [open, kind, value]);
+
+  const runs =
+    useQuery({
+      queryKey: ["palette-runs", workspace.name, runSearch],
+      queryFn: () =>
+        searchRuns(workspace.name, runSearch ?? "").catch(
+          (): PaletteItem[] => [],
+        ),
+      enabled: runSearch !== null,
+    }).data ?? null;
 
   useEffect(() => setHi(0), [value, open, kind]);
 
@@ -229,7 +240,6 @@ export function JumpPalette() {
     } else go(row.item.route, newTab);
   };
 
-  if (!open) return null;
   const active = SEARCH_KINDS.find((k) => k.kind === kind);
   const loading =
     kind !== null &&
@@ -237,17 +247,25 @@ export function JumpPalette() {
     (kind === "run" ? runs === null : local === null);
 
   return (
-    <div className="dialog-backdrop" onMouseDown={() => setOpen(false)}>
-      <div
-        className="dialog w-140"
-        role="dialog"
+    <Dialog
+      open={open}
+      onOpenChange={setOpen}
+      onOpenChangeComplete={(isOpen) => {
+        if (isOpen) return;
+        setKind(null);
+        setValue("");
+      }}
+    >
+      <DialogContent
         aria-label="Search"
-        onMouseDown={(e) => e.stopPropagation()}
+        showCloseButton={false}
+        initialFocus={inputRef}
+        className="top-[10vh] flex max-h-[80vh] translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-140"
       >
-        <div className="flex items-center gap-2 border-b border-line px-3">
+        <div className="flex items-center gap-2 border-b px-3">
           {active && (
             <button
-              className="chip shrink-0"
+              className={cn(badgeVariants({ variant: "info" }), "shrink-0")}
               title="back to all types (Backspace)"
               onClick={() => {
                 setKind(null);
@@ -316,13 +334,13 @@ export function JumpPalette() {
             </li>
           ))}
         </ul>
-        <div className="border-t border-line px-3 py-1.5 text-micro text-ink-4">
+        <div className="border-t px-3 py-1.5 text-micro text-muted-foreground">
           {kind === null
             ? "↑↓ choose · Enter or Tab opens a type · Enter on an unknown id opens it as an experiment"
             : "↑↓ choose · Enter opens · ⌘Enter new tab · Backspace on empty goes back"}
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

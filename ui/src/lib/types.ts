@@ -19,6 +19,7 @@ export interface WorkspaceInfo {
   archived: boolean;
   promotes_to: string | null;
   promoted_from: string | null;
+  members: number;
 }
 
 export interface MemberRow {
@@ -240,8 +241,6 @@ export interface CaseScoresResponse {
 
 // ── Server meta (/api/meta) ──────────────────────────────────────────────
 export interface Meta {
-  // A CSS colour from server.accent_color, or null for the default blue.
-  accent_color: string | null;
   // Shared agents, as full refs (name@workspace).
   agents: string[];
   // agent ref (name@workspace) → repo base URL, e.g. https://github.com/inferedge-ai/evalkit

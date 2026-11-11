@@ -14,7 +14,7 @@ to enter on any device.
 Without single sign-on, or with `--username`, the command asks for a username
 and password and stores an evalkit token instead. With single sign-on
 configured, password login is for admins unless the deployer set
-`password_login: all`.
+`password_login: all`, and off for everyone with `password_login: none`.
 
 The CLI talks to one server at a time: logging in again, to the same server
 or another, replaces the stored login. Dev and prod are workspaces on one
@@ -27,9 +27,11 @@ itself; that line is not a reason to log in again. When a command fails with
 `your login has expired`, run `evalkit login` again.
 
 The first sign-in creates your evalkit user, named after the part before `@`
-in your identity provider's username or email. If that name is taken, the
-command says so and names the subject an admin binds with
-`evalkit users bind`; see [Single sign-on](sso.md).
+in your identity provider's username or email, in lowercase. If another user
+or a workspace has that name, evalkit adds the first free number to it
+(`ann1`, `ann2`, ...). If an active password account not yet bound to an
+identity has it, the command says so and names the subject an admin binds
+with `evalkit users bind`; see [Single sign-on](sso.md).
 
 ## Scripts and CI
 

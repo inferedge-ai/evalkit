@@ -1,7 +1,12 @@
-import { useEffect, useState } from "react";
-import { api } from "../lib/api";
+import { useState } from "react";
+import { History } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Empty } from "@/components/widgets/Empty";
 import { fmtWhen } from "../lib/format";
+import { useApi } from "../lib/query";
+import { ToArrow } from "../lib/ui";
 import type { CaseEvent } from "../lib/types";
+import { Card } from "@/components/ui/card";
 
 const KIND_LABEL: Record<CaseEvent["kind"], string> = {
   synced: "synced",
@@ -16,21 +21,17 @@ export function CaseChangelog({
   dataset,
   caseId,
   currentHash,
-  version,
 }: {
   dataset: string;
   caseId: string;
   currentHash: string | undefined;
-  version: number;
 }) {
-  const [events, setEvents] = useState<CaseEvent[] | null>(null);
+  const loaded = useApi<{ events: CaseEvent[] }>(
+    `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/events`,
+  );
+  const events = loaded.data?.events ?? null;
+  const error = loaded.error ? String(loaded.error) : null;
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    api<{ events: CaseEvent[] }>(
-      `/datasets/${encodeURIComponent(dataset)}/cases/${encodeURIComponent(caseId)}/events`,
-    ).then((r) => setEvents(r.events));
-  }, [dataset, caseId, version]);
 
   const all = events ?? [];
   const shown = expanded ? all : all.slice(0, SHOWN_BY_DEFAULT);
@@ -39,7 +40,7 @@ export function CaseChangelog({
   return (
     <>
       <div className="eyebrow">Changelog</div>
-      <div className="card">
+      <Card className="gap-0 py-0">
         <div className="rows">
           {shown.map((e) => {
             const previous =
@@ -55,7 +56,12 @@ export function CaseChangelog({
                   </span>
                   <span className="min-w-0 truncate text-ink-3">
                     {e.actor}
-                    {e.target ? ` → ${e.target}` : ""}
+                    {e.target ? (
+                      <>
+                        {" "}
+                        <ToArrow /> {e.target}
+                      </>
+                    ) : null}
                     {e.dataset !== dataset ? ` · in ${e.dataset}` : ""}
                   </span>
                 </div>
@@ -76,8 +82,22 @@ export function CaseChangelog({
               </div>
             );
           })}
+          {error ? <div className="pane-status error">{error}</div> : null}
+          {events === null && !error
+            ? Array.from({ length: 2 }, (_, i) => (
+                <div key={i} className="flex flex-col gap-1.5 px-3 py-2">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              ))
+            : null}
           {events && events.length === 0 ? (
-            <div className="pane-status">No events yet.</div>
+            <Empty
+              size="sm"
+              icon={History}
+              title="No events yet"
+              className="py-4"
+            />
           ) : null}
           {hidden > 0 || expanded ? (
             <button
@@ -88,7 +108,7 @@ export function CaseChangelog({
             </button>
           ) : null}
         </div>
-      </div>
+      </Card>
     </>
   );
 }

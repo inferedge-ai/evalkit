@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { Check, ChevronDown } from "lucide-react";
 import { filterOptions, nextIndex, typeaheadIndex } from "./selectModel";
 import type { SelectOption } from "./selectModel";
 
@@ -10,6 +10,7 @@ interface CommonProps<T extends string | number> {
   placeholder?: string;
   title?: string;
   ariaLabel?: string;
+  id?: string;
   className?: string;
   searchable?: boolean;
   disabled?: boolean;
@@ -65,6 +66,7 @@ function SelectMenu<T extends string | number>({
   placeholder = "Select…",
   title,
   ariaLabel,
+  id,
   className = "",
   searchable,
   disabled = false,
@@ -156,7 +158,9 @@ function SelectMenu<T extends string | number>({
       if (hi === moreAt) setExpanded(true);
       else pick(shown[hi]);
     } else if (e.key === "Escape") {
+      // A dialog around the select would close on this Escape too.
       e.preventDefault();
+      e.stopPropagation();
       close();
     } else if (e.key === "Tab") {
       setOpen(false);
@@ -170,8 +174,9 @@ function SelectMenu<T extends string | number>({
     <div ref={rootRef} className={`select ${className}`}>
       <button
         ref={triggerRef}
+        id={id}
         type="button"
-        className="input select-trigger"
+        className="flex h-8 w-full min-w-28 items-center gap-1.5 rounded-lg border border-input bg-transparent pr-2 pl-2.5 text-left text-sm transition-colors outline-none hover:border-ring/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-expanded:border-ring aria-expanded:ring-3 aria-expanded:ring-ring/50 dark:bg-input/30"
         title={title}
         aria-label={ariaLabel}
         aria-haspopup="listbox"
@@ -186,10 +191,10 @@ function SelectMenu<T extends string | number>({
           }
         }}
       >
-        <span className={`truncate ${label ? "" : "text-ink-4"}`}>
+        <span className={`truncate ${label ? "" : "text-muted-foreground"}`}>
           {label ?? placeholder}
         </span>
-        <Chevron />
+        <ChevronDown size={12} className="select-chevron" />
       </button>
       {open && (
         <div className="select-menu" onKeyDown={onListKey}>
@@ -227,7 +232,7 @@ function SelectMenu<T extends string | number>({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(option)}
               >
-                <Check on={isSelected(option.value)} />
+                <SelectCheck on={isSelected(option.value)} />
                 <span className="truncate">{option.label}</span>
                 {option.hint != null && (
                   <span className="select-hint">{option.hint}</span>
@@ -245,7 +250,7 @@ function SelectMenu<T extends string | number>({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setExpanded(true)}
               >
-                <Check on={false} />
+                <SelectCheck on={false} />
                 <span className="truncate">{more?.label}</span>
               </li>
             )}
@@ -259,44 +264,12 @@ function SelectMenu<T extends string | number>({
   );
 }
 
-function Chevron() {
+function SelectCheck({ on }: { on: boolean }) {
   return (
-    <svg
-      className="select-chevron"
-      width="10"
-      height="10"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M4 6l4 4 4-4"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function Check({ on }: { on: boolean }): ReactNode {
-  return (
-    <svg
+    <Check
+      size={11}
+      strokeWidth={2.5}
       className={`select-check ${on ? "" : "invisible"}`}
-      width="11"
-      height="11"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-    >
-      <path
-        d="M3 8.5l3.2 3L13 5"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    />
   );
 }

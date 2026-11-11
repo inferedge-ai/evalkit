@@ -44,10 +44,12 @@ async def create_user(
     if (body.password is None) == (body.subject is None):
         raise HTTPException(status_code=400, detail="give exactly one of password or subject")
     if body.subject is not None:
-        await stores.users.create(body.username, issuer=_issuer(request), subject=body.subject)
+        user = await stores.users.create(
+            body.username, issuer=_issuer(request), subject=body.subject
+        )
     else:
-        await stores.users.create(body.username, password=body.password)
-    return {"username": body.username}
+        user = await stores.users.create(body.username, password=body.password)
+    return {"username": user.username}
 
 
 class BindRequest(BaseModel):

@@ -1,3 +1,4 @@
+import type { BadgeVariant } from "@/components/ui/badge";
 import type { AgentInfo, Experiment, ExperimentState, Progress } from "./types";
 
 export const STATUSES: ExperimentState[] = [
@@ -13,11 +14,11 @@ export function isActive(status: ExperimentState): boolean {
   return ACTIVE.includes(status);
 }
 
-export const STATUS_TONE: Record<string, string> = {
-  completed: "chip-pass",
-  running: "chip",
-  evaluating: "chip",
-  failed: "chip-fail",
+export const STATUS_TONE: Record<string, BadgeVariant> = {
+  completed: "pass",
+  running: "info",
+  evaluating: "info",
+  failed: "fail",
 };
 
 export function progressLabel(progress: Progress): string {

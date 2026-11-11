@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { ArrowDown, ListFilter } from "lucide-react";
 import { timingAnalysis } from "../lib/analysis";
 import { errorEntries, toModel } from "../lib/atif";
 import type {
@@ -11,6 +12,9 @@ import { formatElapsed, formatTokens, formatUsd, toYaml } from "../lib/format";
 import type { AtifTrajectory } from "../lib/types";
 import { Collapsible, Tabs } from "../lib/ui";
 import { Markdown, PreBlock } from "../evals/bits";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Empty } from "@/components/widgets/Empty";
 
 function clock(iso: string | null): string | null {
   if (!iso) return null;
@@ -54,9 +58,11 @@ function StepGutter({
       )}
       {completion !== null && (
         <div
+          className="flex items-center justify-end"
           title={`input ${prompt ?? 0} · cache read ${cached ?? 0} · output ${completion}`}
         >
-          ↓{formatTokensShort(completion)}
+          <ArrowDown size={9} />
+          {formatTokensShort(completion)}
         </div>
       )}
       {step.costUsd !== null && (
@@ -155,9 +161,10 @@ function StepCard({
                       {link.name} · not embedded
                     </span>
                   ) : (
-                    <button
+                    <Button
                       key={i}
-                      className="btn btn-sm btn-quiet"
+                      variant="ghost"
+                      size="sm"
                       title="open the subagent's trajectory"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -165,7 +172,7 @@ function StepCard({
                       }}
                     >
                       {link.name} ›
-                    </button>
+                    </Button>
                   ),
                 )}
                 copyText={toYaml(call.args)}
@@ -321,12 +328,11 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
                   : []),
               ] as const
             ).map(([label, value, setter]) => (
-              <label key={label} className="check">
-                <input
-                  type="checkbox"
-                  checked={value}
-                  onChange={(e) => setter(e.target.checked)}
-                />
+              <label
+                key={label}
+                className="flex cursor-pointer items-center gap-1.5 text-meta text-muted-foreground select-none"
+              >
+                <Checkbox checked={value} onCheckedChange={setter} />
                 {label}
               </label>
             ))}
@@ -366,9 +372,12 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
               </div>
             ))}
             {visible.length === 0 && (
-              <div className="pane-status">
-                Nothing to show with these filters.
-              </div>
+              <Empty
+                size="sm"
+                icon={ListFilter}
+                title="Nothing to show with these filters"
+                className="py-8"
+              />
             )}
           </div>
         </div>

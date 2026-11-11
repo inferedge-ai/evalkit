@@ -471,6 +471,9 @@
     },
     "SuiteFile": {
       "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
       "properties": {
         "defaults": {
           "$ref": "#/$defs/SuiteDefaults"

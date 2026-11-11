@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
+import { ProvidersUnavailable } from "../auth/oidc";
 import { api, ApiError } from "../lib/api";
 import { loadMeta } from "../lib/meta";
+import { queryClient } from "../lib/query";
 import type { Me } from "../lib/types";
 
 export const MeContext = createContext<Me | null>(null);
@@ -37,16 +39,22 @@ export function AuthGate() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // The gate mounts once per session (sign-in returns here), so nothing a
+    // previous user loaded in this tab is shown to the next one.
+    queryClient.clear();
     api<Me>("/auth/me")
       // Meta is auth-walled too, so it loads behind the same gate; pages then
-      // read the accent / agent list synchronously.
+      // read the agent list synchronously.
       .then(async (m) => {
         await loadMeta();
         setMe(m);
         setStatus("ok");
       })
       .catch((e) => {
-        if (e instanceof ApiError && e.status === 401) {
+        if (
+          (e instanceof ApiError && e.status === 401) ||
+          e instanceof ProvidersUnavailable
+        ) {
           setStatus("unauthorized");
         } else {
           setError(String(e));

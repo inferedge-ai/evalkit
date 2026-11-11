@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from evalkit.api.access import StoresDep
 from evalkit.api.auth import AdminUser
-from evalkit.api.deps import ConfigDep
+from evalkit.api.deps import EndpointRuleDep
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.endpoints import check_endpoint
 from evalkit.db.llm_providers import LlmProviderStore
@@ -48,9 +48,12 @@ class CreateLlmProvider(BaseModel):
 
 @router.post("/api/llm-providers")
 async def create_llm_provider(
-    body: CreateLlmProvider, stores: StoresDep, cfg: ConfigDep, admin: AdminUser
+    body: CreateLlmProvider,
+    stores: StoresDep,
+    rule: EndpointRuleDep,
+    admin: AdminUser,
 ) -> dict:
-    await check_endpoint(body.base_url, allow_private=cfg.allow_private_endpoints)
+    await check_endpoint(body.base_url, rule=rule)
     created = await stores.providers.create(
         body.name, body.base_url, stores.keys.seal(body.api_key)
     )
@@ -67,12 +70,12 @@ async def edit_llm_provider(
     name: str,
     body: EditLlmProvider,
     stores: StoresDep,
-    cfg: ConfigDep,
+    rule: EndpointRuleDep,
     admin: AdminUser,
 ) -> dict:
     current = await stores.providers.get(name)
     if body.base_url is not None and body.base_url != current.base_url:
-        await check_endpoint(body.base_url, allow_private=cfg.allow_private_endpoints)
+        await check_endpoint(body.base_url, rule=rule)
     edited = await stores.providers.edit(
         name,
         base_url=body.base_url,
