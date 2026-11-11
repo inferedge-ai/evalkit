@@ -1,13 +1,19 @@
 import pytest
 
+from evalkit.api.auth import CurrentUser
 from evalkit.api.deps import get_allow_private_endpoints
 from tests.api.native_api import api_env
 from tests.fake_harness import FakeHarness
 from tests.native import wait_for
 
+LISTED_TENANTS = {99}
 RUN = {"dataset": "finance@canonical", "agent": "fake@canonical"}
 STORED = "http://127.0.0.1:9/v1"
 METADATA = "http://169.254.169.254/"
+
+
+def allow_listed_tenants(user: CurrentUser) -> bool:
+    return user.tenant_id in LISTED_TENANTS
 
 
 @pytest.fixture
@@ -26,7 +32,8 @@ async def test_a_host_refuses_private_addresses_the_server_allows(api):
     moved = await api.patch("/api/agents/fake@canonical", json={"harness_url": STORED})
     assert moved.status_code == 200, moved.text
 
-    api._transport.app.dependency_overrides[get_allow_private_endpoints] = lambda: False  # type: ignore[attr-defined]
+    overrides = api._transport.app.dependency_overrides  # type: ignore[attr-defined]
+    overrides[get_allow_private_endpoints] = allow_listed_tenants
     requests = [
         ("POST", "/api/agents", {"workspace": "canonical", "name": "m", "harness_url": METADATA}),
         ("PATCH", "/api/agents/fake@canonical", {"harness_url": METADATA}),

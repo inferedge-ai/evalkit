@@ -78,8 +78,8 @@ async def create_agent(
     ws = await writable_endpoint(
         stores,
         actor,
-        allow_private,
         body.workspace,
+        allow_private=allow_private,
         api_key="api_key" in body.model_fields_set,
         url=body.harness_url,
     )
@@ -119,8 +119,8 @@ async def edit_agent(
     await writable_endpoint(
         stores,
         actor,
-        allow_private,
         current.workspace,
+        allow_private=allow_private,
         api_key="api_key" in body.model_fields_set,
         url=body.harness_url if url_changes else None,
     )

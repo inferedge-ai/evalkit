@@ -35,7 +35,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 async def resolve_import_source(
-    stores: TenantStores, allow_private: bool, name: str
+    stores: TenantStores, name: str, *, allow_private: bool
 ) -> ResolvedTraceSource:
     source = await stores.sources.resolve(name)
     await check_endpoint(source.url, allow_private=allow_private)
@@ -177,7 +177,7 @@ async def import_session(
     _, record = await agent_or_404(stores.agents, agent)
     await require_write(stores, actor, record)
     require_otel(record)
-    source = await resolve_import_source(stores, allow_private, body.source)
+    source = await resolve_import_source(stores, body.source, allow_private=allow_private)
     client = client_for(
         source.provider,
         source.url,

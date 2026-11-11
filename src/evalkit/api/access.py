@@ -165,9 +165,9 @@ def ensure_active(ws: WorkspaceRef) -> None:
 async def writable_endpoint(
     stores: StoresDep,
     actor: ActorDep,
-    allow_private: bool,
     workspace: str,
     *,
+    allow_private: bool,
     api_key: bool = False,
     url: str | None = None,
 ) -> WorkspaceRef:

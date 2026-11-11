@@ -33,7 +33,7 @@ async def run_check(
             detail=f"the server does not drive {definition.ref}; its owner checks it with "
             f"evalkit harness check {definition.ref}",
         )
-    keys, _ = await server_keys(stores, allow_private, definition, None)
+    keys, _ = await server_keys(stores, definition, None, allow_private=allow_private)
     report = await asyncio.wait_for(
         check_harness(
             definition,

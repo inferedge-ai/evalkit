@@ -42,8 +42,8 @@ async def create_evaluator(
     ws = await writable_endpoint(
         stores,
         actor,
-        allow_private,
         body.workspace,
+        allow_private=allow_private,
         api_key="api_key" in body.model_fields_set,
         url=body.settings.endpoint,
     )
@@ -75,8 +75,8 @@ async def edit_evaluator(
     await writable_endpoint(
         stores,
         actor,
-        allow_private,
         current.workspace,
+        allow_private=allow_private,
         api_key="api_key" in body.model_fields_set,
         url=body.settings.endpoint if moved and body.settings is not None else None,
     )

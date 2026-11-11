@@ -310,7 +310,7 @@ async def create_experiment(
     run_deps = stores.deps
     if server_driven:
         provider = await require_provider_judge(providers, judge) if judge is not None else None
-        keys, warnings = await server_keys(stores, allow_private, agent, provider)
+        keys, warnings = await server_keys(stores, agent, provider, allow_private=allow_private)
         api_key = keys.key_for("agent", agent.ref)
         run_deps = _scoring(request, with_keys(stores.deps, keys), body.evaluation_concurrency)
     holder = task_holder(pod) if server_driven else str(body.holder)
@@ -587,7 +587,7 @@ async def evaluate(
         if exp.config.judge is not None
         else None
     )
-    keys, warnings = await server_keys(stores, allow_private, agent, provider)
+    keys, warnings = await server_keys(stores, agent, provider, allow_private=allow_private)
     holder = task_holder(pod)
     exp = await stores.store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
     _track(
@@ -628,7 +628,7 @@ async def resume(
         if exp.config.judge is not None
         else None
     )
-    keys, warnings = await server_keys(stores, allow_private, agent, provider)
+    keys, warnings = await server_keys(stores, agent, provider, allow_private=allow_private)
     holder = task_holder(pod)
     exp = await stores.store.transition(exp_id, ExperimentStatus.RUNNING, holder)
     _track(

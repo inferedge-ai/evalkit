@@ -11,7 +11,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 async def server_keys(
-    stores: TenantStores, allow_private: bool, agent: AgentDefinition, judge_provider: str | None
+    stores: TenantStores,
+    agent: AgentDefinition,
+    judge_provider: str | None,
+    *,
+    allow_private: bool,
 ) -> tuple[StoredKeys, list[str]]:
     keys = await stores.keys.load(agent, judge_provider)
     judge_url = keys.provider_judge(judge_provider)[0] if judge_provider is not None else None
