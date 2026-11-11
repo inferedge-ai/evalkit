@@ -22,22 +22,20 @@ import { apiJson } from "../lib/api";
 import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { refreshQueries } from "../lib/query";
 import type { WorkspaceInfo } from "../lib/types";
-import { othersPersonal, workspaceHint } from "../lib/workspace";
+import {
+  describeOtherWorkspaces,
+  describePromotion,
+  othersPersonal,
+  workspaceHint,
+} from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 
-const ROW_COLUMNS =
-  "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_6rem_minmax(0,14rem)]";
+const ROW_COLUMNS = "grid-cols-[minmax(0,1fr)_auto_6rem_minmax(0,14rem)]";
 
 function describeMembers(ws: WorkspaceInfo): string {
   if (ws.type === "personal") return "";
   return `${ws.members} member${ws.members === 1 ? "" : "s"}`;
-}
-
-function describePromotion(ws: WorkspaceInfo): string {
-  if (ws.promotes_to) return `promotes to @${ws.promotes_to}`;
-  if (ws.promoted_from) return `promoted from @${ws.promoted_from}`;
-  return "";
 }
 
 function WorkspaceRow({
@@ -52,17 +50,13 @@ function WorkspaceRow({
   return (
     <button
       type="button"
-      className={`row w-full text-left hover:bg-fill ${ROW_COLUMNS}`}
+      className={`row w-full text-left ${ROW_COLUMNS}`}
       onClick={() => onOpen(ws.name)}
     >
-      <span className="row-strong truncate font-mono">@{ws.name}</span>
+      <span className="row-strong">@{ws.name}</span>
       <Badge variant="secondary">{workspaceHint(ws, me)}</Badge>
-      <span className="row-meta num hidden sm:block">
-        {describeMembers(ws)}
-      </span>
-      <span className="row-meta hidden truncate sm:block">
-        {describePromotion(ws)}
-      </span>
+      <span className="row-meta">{describeMembers(ws)}</span>
+      <span className="row-meta truncate">{describePromotion(ws)}</span>
     </button>
   );
 }
@@ -84,7 +78,13 @@ function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
         name: name.trim(),
       });
       await refreshQueries();
-      select(created.name);
+      if (!select(created.name)) {
+        setError(
+          `Created @${created.name}, but the workspace list didn't reload. Reload the page to open it.`,
+        );
+        setBusy(false);
+        return;
+      }
       navigate("/settings/workspace/members");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -93,7 +93,7 @@ function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent className={FORM_DIALOG}>
         <form className="contents" onSubmit={create}>
           <DialogHeader>
@@ -115,7 +115,10 @@ function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
             {error && <div className="text-meta text-err-text">{error}</div>}
           </div>
           <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>
+            <DialogClose
+              disabled={busy}
+              render={<Button variant="outline" disabled={busy} />}
+            >
               Cancel
             </DialogClose>
             <Button type="submit" disabled={busy || !name.trim()}>
@@ -137,7 +140,7 @@ export function WorkspacesPage() {
   const [creating, setCreating] = useState(false);
 
   const mine = me.personal_workspace;
-  const filter = query.trim().toLowerCase();
+  const filter = query.trim().replace(/^@/, "").toLowerCase();
   const others = workspaces.filter((ws) => othersPersonal(ws, mine));
   const folded = !filter && !showOthers && others.length > 0;
   const visible = workspaces.filter(
@@ -147,7 +150,7 @@ export function WorkspacesPage() {
   );
   const open = (name: string) => {
     select(name);
-    navigate("/settings/workspace/evaluators");
+    navigate("/settings/workspace");
   };
 
   return (
@@ -157,7 +160,11 @@ export function WorkspacesPage() {
         description="Click a workspace to switch to it and open its settings."
         actions={
           me.is_admin && (
-            <Button size="sm" onClick={() => setCreating(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCreating(true)}
+            >
               New workspace
             </Button>
           )
@@ -184,11 +191,10 @@ export function WorkspacesPage() {
             {folded && (
               <button
                 type="button"
-                className="row w-full text-left text-meta text-muted-foreground hover:bg-fill"
+                className="row w-full text-left text-meta text-muted-foreground"
                 onClick={() => setShowOthers(true)}
               >
-                Show {others.length} other personal workspace
-                {others.length === 1 ? "" : "s"}
+                {describeOtherWorkspaces(others.length)}
               </button>
             )}
           </Card>

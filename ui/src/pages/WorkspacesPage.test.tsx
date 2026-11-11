@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Route } from "react-router-dom";
+import { Navigate, Route } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
 import type { WorkspaceInfo } from "../lib/types";
 import {
@@ -55,6 +55,10 @@ function openWorkspaces(me = admin) {
     "/settings/workspaces",
     <>
       <Route path="/settings/workspaces" element={<WorkspacesPage />} />
+      <Route
+        path="/settings/workspace"
+        element={<Navigate to="evaluators" replace />}
+      />
       <Route path="/settings/workspace/:tab" element={<WorkspacePage />} />
     </>,
   );
@@ -75,7 +79,7 @@ test("an admin sees their own and the shared workspaces, and other people's afte
   expect(row("akshat")).toHaveTextContent("yours");
   expect(row("dev")).toHaveTextContent("3 members");
   expect(row("dev")).toHaveTextContent("promotes to @prod");
-  expect(row("prod")).toHaveTextContent("1 member");
+  expect(row("prod")).toHaveTextContent(/1 member(?!s)/);
   expect(row("bob")).toBeNull();
 
   await userEvent.click(
@@ -85,14 +89,20 @@ test("an admin sees their own and the shared workspaces, and other people's afte
   expect(row("carol")).toBeInTheDocument();
 });
 
-test("the filter finds other people's personal workspaces too", async () => {
-  serveWorkspaces();
-  openWorkspaces();
-  await screen.findByText("@akshat");
-  await userEvent.type(screen.getByPlaceholderText("Filter workspaces"), "bo");
-  expect(row("bob")).toBeInTheDocument();
-  expect(row("dev")).toBeNull();
-});
+test.each(["bo", "@bo"])(
+  "filtering by %s finds other people's personal workspaces too",
+  async (typed) => {
+    serveWorkspaces();
+    openWorkspaces();
+    await screen.findByText("@akshat");
+    await userEvent.type(
+      screen.getByPlaceholderText("Filter workspaces"),
+      typed,
+    );
+    expect(row("bob")).toBeInTheDocument();
+    expect(row("dev")).toBeNull();
+  },
+);
 
 test("clicking a workspace switches to it and opens its settings", async () => {
   serveWorkspaces();
@@ -156,6 +166,59 @@ test("a name the server refuses shows its error in the dialog", async () => {
   );
   expect(
     await within(dialog).findByText("workspace dev already exists"),
+  ).toBeInTheDocument();
+});
+
+async function createWorkspace(name: string) {
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole("button", { name: "New workspace" }),
+  );
+  const dialog = await screen.findByRole("dialog", { name: "New workspace" });
+  await user.type(within(dialog).getByLabelText("Name"), name);
+  await user.click(
+    within(dialog).getByRole("button", { name: "Create workspace" }),
+  );
+  return { user, dialog };
+}
+
+test("a created workspace the list doesn't reload with stays in the dialog with a reason", async () => {
+  let created = false;
+  serveWorkspaces((url, init) => {
+    if (url.endsWith("/api/workspaces") && init?.method === "POST") {
+      created = true;
+      return Response.json({ ...devWorkspace, id: 6, name: "qa" });
+    }
+    if (created && url.endsWith("/api/workspaces?include_archived=true"))
+      return Response.json({ detail: "database restarting" }, { status: 503 });
+  });
+  openWorkspaces();
+  const { dialog } = await createWorkspace("qa");
+  expect(
+    await within(dialog).findByText(/Created @qa, but the workspace list/),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("tab", { name: "Members" })).toBeNull();
+});
+
+test("the dialog stays open while a workspace is being created", async () => {
+  let answer: (r: Response) => void = () => {};
+  serveWorkspaces((url, init) =>
+    url.endsWith("/api/workspaces") && init?.method === "POST"
+      ? (new Promise<Response>((resolve) => {
+          answer = resolve;
+        }) as unknown as Response)
+      : undefined,
+  );
+  openWorkspaces();
+  const { user, dialog } = await createWorkspace("qa");
+  await user.keyboard("{Escape}");
+  expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+  expect(screen.getByRole("dialog", { name: "New workspace" })).toBeVisible();
+  answer(
+    Response.json({ detail: "workspace qa already exists" }, { status: 409 }),
+  );
+  expect(
+    await within(dialog).findByText("workspace qa already exists"),
   ).toBeInTheDocument();
 });
 

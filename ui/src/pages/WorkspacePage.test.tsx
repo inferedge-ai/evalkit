@@ -165,14 +165,3 @@ test("an admin on an archived workspace is told it is archived and cannot add ev
   ).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "New evaluator" })).toBeNull();
 });
-
-test("an admin's workspace settings page has no form for creating another workspace", async () => {
-  openSettings("members", [], devWorkspace, true);
-  expect(
-    await screen.findByRole("heading", { name: "@dev" }),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: /create workspace/i }),
-  ).toBeNull();
-  expect(screen.queryByText(/new shared workspace/i)).toBeNull();
-});

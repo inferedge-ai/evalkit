@@ -17,7 +17,7 @@ const WORKSPACES = "/workspaces?include_archived=true";
 interface WorkspaceCtx {
   workspace: WorkspaceInfo;
   workspaces: WorkspaceInfo[];
-  select: (name: string) => void;
+  select: (name: string) => boolean;
   // Set when select() moved to a different workspace; the switcher flashes
   // for SWITCH_FLASH_MS after it so a followed link makes the change visible.
   switchedAt: number | null;
@@ -67,12 +67,13 @@ export function WorkspaceGate() {
     // The cache, not this render's list: a caller may select a workspace
     // right after the refetch that added it.
     const known = getApiData<WorkspaceInfo[]>(WORKSPACES);
-    if (!known?.some((w) => w.name === name)) return;
+    if (!known?.some((w) => w.name === name)) return false;
     localStorage.setItem(KEY, name);
     setCurrent((previous) => {
       if (previous !== null && previous !== name) setSwitchedAt(Date.now());
       return name;
     });
+    return true;
   }, []);
 
   if (listed.error && !workspaces)

@@ -19,6 +19,7 @@ import type {
   WorkspaceRole,
 } from "../lib/types";
 import { Tabs } from "../lib/ui";
+import { describePromotion } from "../lib/workspace";
 import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { BuiltinEvaluatorsNote } from "./BuiltinEvaluatorsNote";
@@ -48,8 +49,7 @@ function describeWorkspace(ws: WorkspaceInfo): string {
   return [
     ws.type === "shared" ? "Shared workspace" : "Personal workspace",
     ws.archived && "archived",
-    ws.promotes_to && `promotes to @${ws.promotes_to}`,
-    ws.promoted_from && `promoted from @${ws.promoted_from}`,
+    describePromotion(ws),
   ]
     .filter(Boolean)
     .join(" · ");

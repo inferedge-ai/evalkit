@@ -44,7 +44,12 @@ import { cn } from "@/lib/utils";
 import { logout } from "../lib/api";
 import type { NavItem } from "../lib/extensions";
 import { Select } from "../lib/Select";
-import { othersPersonal, sectionRoot, workspaceHint } from "../lib/workspace";
+import {
+  describeOtherWorkspaces,
+  othersPersonal,
+  sectionRoot,
+  workspaceHint,
+} from "../lib/workspace";
 import type { Me, WorkspaceInfo } from "../lib/types";
 import { useMe } from "./capabilities";
 import { JumpPalette } from "./JumpPalette";
@@ -315,7 +320,7 @@ function WorkspaceSwitcher() {
           .filter((ws) => !othersPersonal(ws, me.personal_workspace))
           .map(option)}
         more={{
-          label: `Show ${others.length} other personal workspace${others.length === 1 ? "" : "s"}`,
+          label: describeOtherWorkspaces(others.length),
           options: others.map(option),
         }}
       />
