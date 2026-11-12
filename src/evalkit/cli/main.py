@@ -762,7 +762,8 @@ def run(
     judge_api_key_env: str | None = typer.Option(
         None,
         "--judge-api-key-env",
-        help="The env var (or .env entry beside evalkit.yaml) holding the key for "
+        help="The env var (or entry in the .env beside evalkit.yaml, or in the current directory "
+        "without one) holding the key for "
         "--judge-base-url. Never stored.",
     ),
     judge_effort: str | None = typer.Option(None, "--judge-effort", help="Judge reasoning effort."),
@@ -887,7 +888,10 @@ def _judge_api_key(
 def _env_value(name: str, local: LocalConfig) -> str:
     environ = local.environ()
     if name not in environ:
-        raise ApiError(f"env var {name} is not set (shell or the .env beside evalkit.yaml)")
+        raise ApiError(
+            f"env var {name} is not set (shell or the .env beside evalkit.yaml, or in the "
+            "current directory without one)"
+        )
     return environ[name]
 
 

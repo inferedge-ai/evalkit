@@ -116,7 +116,7 @@ sequenceDiagram
   - Example: a duplicate case id within the dataset, an overlay whose target no other dataset in the workspace holds, or an unknown remote evaluator.
 - **CLI-side path errors:**
   - "X is not on disk; sync needs a directory or file"
-  - "no dataset directory 'X' under <cases root>; X is in your workspace, so it syncs from disk: put its cases in evalkit/cases/X/, set `cases:` in evalkit.yaml, or pass the dataset's directory" (the cases root is `evalkit/cases` under the current directory when there is no `evalkit.yaml`)
+  - "no dataset directory 'X' under <cases root>; X is in your workspace, so it syncs from disk: put its cases in <cases root>/X/, set `cases:` in evalkit.yaml, or pass the dataset's directory" (the cases root is `evalkit/cases` under the current directory when there is no `evalkit.yaml`)
   - "no YAML files under X" (lint)
 - **`datasets list X --state …`** on a dataset without review: "X has no review state; only suites in shared workspaces do".
 - **`lint --offline --agent`:** "--agent needs the server; drop --offline".

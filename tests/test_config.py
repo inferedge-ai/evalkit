@@ -360,12 +360,3 @@ def test_password_login_is_all_without_an_idp():
 def test_mcp_oauth_moved_to_auth_oidc():
     with pytest.raises(ValidationError, match="mcp.oauth moved to auth.oidc"):
         Config.model_validate({**OIDC_BASE, "mcp": {"oauth": {"issuer": "x", "jwks_uri": "y"}}})
-
-
-def test_local_config_refuses_an_evalkit_folder_that_is_a_package(tmp_path):
-    (tmp_path / "evalkit").mkdir()
-    (tmp_path / "evalkit" / "__init__.py").write_text("")
-    with pytest.raises(ValueError, match="hides the installed evalkit package"):
-        LocalConfig.find_or_default([tmp_path])
-    (tmp_path / "evalkit.yaml").write_text("cases: suites\nfixtures: files\n")
-    assert LocalConfig.find_or_default([tmp_path]).cases == tmp_path / "suites"

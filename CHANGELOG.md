@@ -52,8 +52,8 @@
   Different from before:
   - A missing dataset directory fails with one message that names the cases
     directory it looked in and says to put the cases in
-    `evalkit/cases/<dataset>/`, set `cases:` in `evalkit.yaml`, or pass the
-    dataset's directory.
+    `<cases directory>/<dataset>/`, set `cases:` in `evalkit.yaml`, or pass
+    the dataset's directory.
   - A sync always looks in the fixtures directory for bytes the server does
     not hold. Without `fixtures:` it used to skip the upload, and the server
     answered `E-FIXTURE-MISSING`; now the CLI fails first and names the file
@@ -66,10 +66,11 @@
     holds.
   - `cases:` or `fixtures:` set to an empty value (null) in `evalkit.yaml`
     fails to load; leave the key out instead.
-  - A folder named `evalkit` that holds an `__init__.py` is refused as the
-    place for cases or fixtures: it would hide the installed `evalkit` package
-    from `import evalkit`. The error says to delete the file or set `cases:`
-    and `fixtures:` to another folder.
+  - A sync refuses cases or fixtures that sit inside a folder named
+    `evalkit` holding an `__init__.py`: that folder is a Python package and
+    would hide the installed `evalkit` package from `import evalkit`. The
+    error says to delete the file or set `cases:` and `fixtures:` to another
+    folder. Commands that sync nothing from disk are not affected.
 
 ## 0.5.0
 

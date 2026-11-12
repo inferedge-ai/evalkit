@@ -26,7 +26,7 @@ from evalkit.client.sessions import HttpSessionReader
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.client.summary import summary_lines
 from evalkit.client.sync import git_revision, resolve_dataset, sync_dataset
-from evalkit.config import DEFAULT_CASES_DIR, LocalConfig
+from evalkit.config import LocalConfig
 from evalkit.contracts.atif import TrajectoryValidationError, validate_trajectory
 from evalkit.contracts.enums import ExperimentStatus, RunStatus, TrajectoryStatus
 from evalkit.contracts.settings import JudgeSettings
@@ -609,8 +609,8 @@ async def arun_experiment(
         if own_dataset and not on_disk.is_dir():
             progress(
                 f"no directory {on_disk}; running {slug(dataset_ref)} as the server holds it, "
-                f"without syncing. To sync it first, put its cases in "
-                f"{DEFAULT_CASES_DIR}/{dataset_ref.name}/ or set `cases:` in evalkit.yaml"
+                "without syncing. To sync it first, put its cases in that directory or set "
+                "`cases:` in evalkit.yaml"
             )
         if own_dataset and on_disk.is_dir():
             await asyncio.to_thread(

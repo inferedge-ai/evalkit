@@ -6,11 +6,23 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from evalkit.client.api import SyncApi
-from evalkit.config import DEFAULT_CASES_DIR
 from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml, load_cases_from_yaml
 from evalkit.core.fixtures import load_registries, sha256_hex
 from evalkit.core.workspace import Reference, parse_reference
 from evalkit.store.base import GitRevision, Selection
+
+PACKAGE_NAME = "evalkit"
+
+
+def refuse_package_folder(directory: Path) -> None:
+    for folder in directory.resolve().parents:
+        if folder.name == PACKAGE_NAME and (folder / "__init__.py").is_file():
+            raise ValueError(
+                f"{directory} is inside {folder}, which has an __init__.py: that makes it a "
+                f"Python package named {PACKAGE_NAME} and hides the installed {PACKAGE_NAME} "
+                f"package from `import {PACKAGE_NAME}`; delete that file, or keep cases and "
+                "fixtures in another folder and set `cases:` and `fixtures:` in evalkit.yaml"
+            )
 
 
 @dataclass
@@ -67,7 +79,7 @@ def resolve_path(arg: str, cases_root: Path, my_workspace: str) -> ResolvedPath:
     if own and on_disk is None:
         raise ValueError(
             f"no dataset directory {ref.name!r} under {cases_root}; {ref.name} is in your "
-            f"workspace, so it syncs from disk: put its cases in {DEFAULT_CASES_DIR}/{ref.name}/, "
+            f"workspace, so it syncs from disk: put its cases in {cases_root / ref.name}/, "
             "set `cases:` in evalkit.yaml, or pass the dataset's directory"
         )
     return ResolvedPath(
@@ -191,7 +203,9 @@ def sync_dataset(
             params[key] = value
     if actor is not None:
         params["actor"] = actor
+    refuse_package_folder(dataset_dir)
     files = sync_files(dataset_dir, subpath)
     if fixtures_dir is not None:
+        refuse_package_folder(fixtures_dir)
         upload_fixtures(client, files, fixtures_dir)
     return client.post_files("/api/sync", files, params=params).json()

@@ -239,7 +239,6 @@ class Config(RunnerConfig):
 LOCAL_CONFIG_FILENAME = "evalkit.yaml"
 DEFAULT_CASES_DIR = Path("evalkit/cases")
 DEFAULT_FIXTURES_DIR = Path("evalkit/fixtures")
-PACKAGE_NAME = "evalkit"
 
 
 class LocalConfig(RunnerConfig):
@@ -326,17 +325,9 @@ def load_local_config(path: Path) -> LocalConfig:
 
 def _anchor_paths(cfg: LocalConfig) -> LocalConfig:
     base = cfg.path.parent
-    cases = (base / cfg.cases).resolve()
-    fixtures = (base / cfg.fixtures).resolve()
-    for folder in (cases.parent, fixtures.parent):
-        _refuse_package_folder(folder)
-    return cfg.model_copy(update={"cases": cases, "fixtures": fixtures})
-
-
-def _refuse_package_folder(folder: Path) -> None:
-    if folder.name == PACKAGE_NAME and (folder / "__init__.py").is_file():
-        raise ValueError(
-            f"{folder / '__init__.py'} makes {folder} a Python package named {PACKAGE_NAME}, "
-            f"which hides the installed {PACKAGE_NAME} package from `import {PACKAGE_NAME}`; "
-            "delete that file, or set `cases:` and `fixtures:` in evalkit.yaml to another folder"
-        )
+    return cfg.model_copy(
+        update={
+            "cases": (base / cfg.cases).resolve(),
+            "fixtures": (base / cfg.fixtures).resolve(),
+        }
+    )

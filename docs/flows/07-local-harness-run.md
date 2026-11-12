@@ -134,7 +134,7 @@ sequenceDiagram
 ## Error cases
 
 - Another user's agent: `<agent> belongs to <ws>'s workspace; only its owner can run it`.
-- A dataset in your workspace with no directory under the cases dir (`evalkit/cases/<dataset>/` without `evalkit.yaml`): `no dataset directory '<dataset>' under <cases dir>; <dataset> is in your workspace, so it syncs from disk: put its cases in evalkit/cases/<dataset>/, set `cases:` in evalkit.yaml, or pass the dataset's directory`.
+- A dataset in your workspace with no directory under the cases dir (`evalkit/cases/<dataset>/` without `evalkit.yaml`): `no dataset directory '<dataset>' under <cases dir>; <dataset> is in your workspace, so it syncs from disk: put its cases in <cases dir>/<dataset>/, set `cases:` in evalkit.yaml, or pass the dataset's directory`.
 - Code-driven agent (no `harness_url`): `<agent> is a code-driven agent (no harness_url); run it with evalkit.sdk.run_experiment, or if it serves the Harness API, set its URL: evalkit agents edit <agent> --harness-url URL`.
 - Unknown agent: `unknown agent: <ref> — create it with evalkit agents create`.
 - Nothing left to run (no case matches, or every case needs fixtures the harness can't take): `nothing to run in <dataset>: …`.

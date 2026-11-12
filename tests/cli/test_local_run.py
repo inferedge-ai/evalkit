@@ -8,7 +8,13 @@ import typer
 
 from evalkit.cli.client import ApiClient
 from evalkit.cli.main import _run_selection
-from evalkit.client.sync import git_revision, resolve_path, sync_files, upload_fixtures
+from evalkit.client.sync import (
+    git_revision,
+    refuse_package_folder,
+    resolve_path,
+    sync_files,
+    upload_fixtures,
+)
 from evalkit.core.workspace import Reference
 from evalkit.store.base import GitRevision, Selection
 
@@ -91,7 +97,7 @@ def test_own_workspace_needs_the_dataset_directory(cases_root, tmp_path):
     with pytest.raises(ValueError, match="no dataset directory 'missing'") as raised:
         resolve_path("missing", cases_root, "akshat")
     assert str(cases_root) in str(raised.value)
-    assert "evalkit/cases/missing/" in str(raised.value)
+    assert f"put its cases in {cases_root / 'missing'}/" in str(raised.value)
     assert "set `cases:` in evalkit.yaml" in str(raised.value)
     absent = tmp_path / "absent"
     with pytest.raises(ValueError, match="no dataset directory 'missing-name'") as raised:
@@ -243,3 +249,13 @@ def test_tag_flags_select_any_of_the_tags(cases_root):
     folder = resolve_path("finance/statement-analysis", cases_root, "akshat")
     with pytest.raises(typer.Exit):
         _run_selection(folder, ["ratios"], None)
+
+
+def test_sync_refuses_cases_inside_an_evalkit_package_folder(tmp_path):
+    dataset_dir = tmp_path / "evalkit" / "cases" / "finance"
+    dataset_dir.mkdir(parents=True)
+    refuse_package_folder(dataset_dir)
+    (tmp_path / "evalkit" / "__init__.py").write_text("")
+    with pytest.raises(ValueError, match="hides the installed evalkit package"):
+        refuse_package_folder(dataset_dir)
+    refuse_package_folder(tmp_path / "suites" / "finance")
