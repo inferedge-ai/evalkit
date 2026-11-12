@@ -632,13 +632,21 @@ async def test_validation_errors_before_server(env):
         await aevaluate_experiment(experiment_id=exp_id, evaluators=[nope])
 
 
-async def test_no_local_config(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(
-        sys.modules["__main__"], "__file__", str(tmp_path / "run.py"), raising=False
+async def test_run_without_evalkit_yaml_syncs_from_the_default_cases_dir(env, tmp_path):
+    srv, blob, provider = env
+    (tmp_path / "evalkit.yaml").unlink()
+    dataset_dir = tmp_path / "eval" / "cases" / "defaulted"
+    dataset_dir.mkdir(parents=True)
+    (dataset_dir / "cases.yaml").write_text(
+        "cases:\n- id: defaulted-1\n  input: {question: 'q as of 2024-01-01'}\n"
     )
-    with pytest.raises(FileNotFoundError, match="evalkit.yaml not found"):
-        await arun_experiment(dataset="finance", agent="sdk", task=lambda q: q)
+    result = await arun_experiment(
+        dataset="defaulted",
+        agent="pushed",
+        task=lambda q: RunResult(answer="x", trajectory=DEFAULT_TRAJECTORY),
+        trajectory_wait_seconds=0,
+    )
+    assert [run.status for run in result.runs] == ["completed"]
 
 
 def test_local_config_is_found_beside_the_script(tmp_path, monkeypatch):
@@ -651,8 +659,9 @@ def test_local_config_is_found_beside_the_script(tmp_path, monkeypatch):
     monkeypatch.setattr(sys.modules["__main__"], "__file__", str(project / "run.py"), raising=False)
     assert _local_config().path == project / "evalkit.yaml"
     monkeypatch.delattr(sys.modules["__main__"], "__file__", raising=False)
-    with pytest.raises(FileNotFoundError, match="evalkit.yaml not found"):
-        _local_config()
+    fallback = _local_config()
+    assert fallback.path == elsewhere / "evalkit.yaml"
+    assert fallback.cases == elsewhere / "eval" / "cases"
 
 
 def test_run_experiment_refuses_a_running_loop():
@@ -715,7 +724,8 @@ async def test_own_dataset_without_cases_runs_the_server_copy(env, tmp_path):
             task=lambda q: RunResult(answer="x", trajectory=DEFAULT_TRAJECTORY),
             progress=lines.append,
         )
-    assert any("no cases: directory" in line for line in lines)
+    missing = str(tmp_path / "eval" / "cases" / "finance")
+    assert any(f"no directory {missing}" in line for line in lines)
 
 
 async def test_dry_run_session_lists_with_case_title_and_id(env):

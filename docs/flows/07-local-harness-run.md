@@ -134,7 +134,7 @@ sequenceDiagram
 ## Error cases
 
 - Another user's agent: `<agent> belongs to <ws>'s workspace; only its owner can run it`.
-- No `evalkit.yaml` above the current dir: `no evalkit.yaml found above the current directory`.
+- No `evalkit.yaml` above the current dir: not an error. The run reads cases from `eval/cases/<dataset>/` under the current dir and calls the agent without a key.
 - Code-driven agent (no `harness_url`): `<agent> is a code-driven agent (no harness_url); run it with evalkit.sdk.run_experiment, or if it serves the Harness API, set its URL: evalkit agents edit <agent> --harness-url URL`.
 - Unknown agent: `unknown agent: <ref> — create it with evalkit agents create`.
 - Nothing left to run (no case matches, or every case needs fixtures the harness can't take): `nothing to run in <dataset>: …`.

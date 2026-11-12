@@ -525,6 +525,8 @@ def _capture_post_files(monkeypatch, response: dict):
     sent: dict = {}
 
     class StubResponse:
+        status_code = 200
+
         def __init__(self, body):
             self._body = body
 
@@ -541,6 +543,9 @@ def _capture_post_files(monkeypatch, response: dict):
 
         def get(self, path, **kwargs):
             return StubResponse({"username": "admin"})
+
+        def head(self, path, **kwargs):
+            return StubResponse({})
 
     monkeypatch.setenv("EVALKIT_SERVER_URL", "http://stub")
     monkeypatch.setenv("EVALKIT_TOKEN", "stub-token")
@@ -1279,12 +1284,26 @@ def test_canonical_local_run_without_cases_or_fixtures(
     args = ["run", "shared@canonical", "--agent", "fake", "--case-id", "shared-1"]
     result = runner.invoke(cli_app, args)
     assert result.exit_code == 0, result.output
-    own = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
-    assert own.exit_code == 1 and "set `cases:` in evalkit.yaml" in own.output
+    missing = runner.invoke(cli_app, ["sync", "ghost"])
+    assert missing.exit_code == 1 and "set `cases:` in evalkit.yaml" in missing.output
+    assert str(tmp_path / "eval" / "cases") in missing.output.replace("\n", "")
     synced = runner.invoke(cli_app, ["sync", "finance"])
-    assert synced.exit_code == 1 and "set `cases:` in evalkit.yaml" in synced.output
-    on_disk = runner.invoke(cli_app, ["sync", "eval/cases/finance"])
-    assert on_disk.exit_code == 0, on_disk.output
+    assert synced.exit_code == 0, synced.output
+    own = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
+    assert own.exit_code == 0, own.output
+
+
+def test_sync_and_local_run_without_evalkit_yaml(env, tmp_path, monkeypatch, harness_url):
+    write_local_config(tmp_path, harness_url)
+    (tmp_path / "evalkit.yaml").unlink()
+    monkeypatch.chdir(tmp_path)
+    missing = runner.invoke(cli_app, ["sync", "ghost"])
+    assert missing.exit_code == 1 and "no dataset directory 'ghost'" in missing.output
+    synced = runner.invoke(cli_app, ["sync", "finance"])
+    assert synced.exit_code == 0, synced.output
+    keyless = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
+    assert "no evalkit.yaml" not in keyless.output
+    assert "harness returned 401" in str(keyless.exception)
 
 
 def test_local_run_with_failed_scoring_says_how_to_finish(env, tmp_path, monkeypatch, harness_url):

@@ -26,7 +26,7 @@ from evalkit.client.sessions import HttpSessionReader
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.client.summary import summary_lines
 from evalkit.client.sync import git_revision, resolve_dataset, sync_dataset
-from evalkit.config import LocalConfig
+from evalkit.config import DEFAULT_CASES_DIR, LocalConfig
 from evalkit.contracts.atif import TrajectoryValidationError, validate_trajectory
 from evalkit.contracts.enums import ExperimentStatus, RunStatus, TrajectoryStatus
 from evalkit.contracts.settings import JudgeSettings
@@ -154,15 +154,7 @@ def _config_search_starts() -> list[Path]:
 
 
 def _local_config() -> LocalConfig:
-    starts = _config_search_starts()
-    for start in starts:
-        local = LocalConfig.find(start)
-        if local is not None:
-            return local
-    raise FileNotFoundError(
-        f"evalkit.yaml not found above {' or '.join(str(s) for s in starts)}; "
-        "it holds your cases, fixtures and credentials"
-    )
+    return LocalConfig.find_or_default(_config_search_starts())
 
 
 async def _agent_definition(api: AsyncApi, agent: str, me: str) -> AgentDefinition:
@@ -616,14 +608,15 @@ async def arun_experiment(
             else definition.settings.trajectory_wait_seconds
         )
         provider = tracer_provider if tracer_provider is not None else trace.get_tracer_provider()
-        on_disk = local.cases / dataset_ref.name if local.cases is not None else None
+        on_disk = local.cases / dataset_ref.name
         own_dataset = dataset_ref.workspace == me and resume is None
-        if own_dataset and on_disk is None:
+        if own_dataset and not on_disk.is_dir():
             progress(
-                f"no cases: directory in {local.path}; running {slug(dataset_ref)} as the "
-                "server holds it, without syncing"
+                f"no directory {on_disk}; running {slug(dataset_ref)} as the server holds it, "
+                f"without syncing. To sync it first, put its cases in "
+                f"{DEFAULT_CASES_DIR}/{dataset_ref.name}/ or set `cases:` in evalkit.yaml"
             )
-        if own_dataset and on_disk is not None and on_disk.is_dir():
+        if own_dataset and on_disk.is_dir():
             await asyncio.to_thread(
                 sync_dataset,
                 SyncApi(active.url, oidc.build_auth(active)),
@@ -876,11 +869,14 @@ def run_experiment(
 
     Scoring uses the judge, the remote evaluators of the agent's workspace and the
     Python `evaluators` you pass. Reads `evalkit.yaml` (cases, fixtures, credentials)
-    from the current directory or a parent, and the login from `evalkit login`.
+    from the current directory or a parent, and the login from `evalkit login`. The
+    file is optional: without it, cases are read from `eval/cases/<dataset>/` and
+    fixtures from `eval/fixtures/` under the current directory, with no credentials.
 
     Args:
         dataset: The dataset to run. A bare name means your personal workspace; if it
-            is also a directory under `cases` in `evalkit.yaml`, it is synced first.
+            is also a directory under the cases root (`cases` in `evalkit.yaml`,
+            `eval/cases` by default), it is synced first.
             `name@workspace` runs a shared dataset, every review state included.
         agent: The code-driven agent on the server that the runs belong to, created once
             with `evalkit agents create`. A bare name means your personal workspace.

@@ -101,7 +101,7 @@ sequenceDiagram
 
 ## Error cases
 
-- No `evalkit.yaml` above the working dir: `evalkit.yaml not found above <dir>; it holds your cases, fixtures and credentials`.
+- No `evalkit.yaml` above the working dir: not an error. The run reads cases from `eval/cases/<dataset>/` under the working dir, with no credentials.
 - Unknown agent: `unknown agent: <ref> — create it with evalkit agents create`.
 - Agent has a `harness_url`: `<agent> has a harness_url, so evalkit drives it through its Harness API: run it with evalkit run <dataset> --agent <agent>`.
 - Python evaluator name that clashes with a remote evaluator: `python evaluator(s) <names> are also remote evaluators in @<workspace>`.

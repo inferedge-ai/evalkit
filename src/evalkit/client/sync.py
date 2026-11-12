@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from evalkit.client.api import SyncApi
+from evalkit.config import DEFAULT_CASES_DIR
 from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml, load_cases_from_yaml
 from evalkit.core.fixtures import load_registries, sha256_hex
 from evalkit.core.workspace import Reference, parse_reference
@@ -39,9 +40,9 @@ def _selection_for(subpath: str, dataset_dir: Path | None) -> Selection:
     )
 
 
-def _on_disk(candidate: Path, cases_root: Path | None) -> tuple[Path, str]:
+def _on_disk(candidate: Path, cases_root: Path) -> tuple[Path, str]:
     resolved = candidate.resolve()
-    if cases_root is not None and resolved.is_relative_to(cases_root.resolve()):
+    if resolved.is_relative_to(cases_root.resolve()):
         relative = resolved.relative_to(cases_root.resolve())
         if not relative.parts:
             raise ValueError(f"{candidate} is the cases root; pass a dataset directory under it")
@@ -51,7 +52,7 @@ def _on_disk(candidate: Path, cases_root: Path | None) -> tuple[Path, str]:
     return resolved.parent, resolved.name
 
 
-def resolve_path(arg: str, cases_root: Path | None, my_workspace: str) -> ResolvedPath:
+def resolve_path(arg: str, cases_root: Path, my_workspace: str) -> ResolvedPath:
     candidate = Path(arg)
     if candidate.exists():
         dataset_dir, subpath = _on_disk(candidate, cases_root)
@@ -62,16 +63,13 @@ def resolve_path(arg: str, cases_root: Path | None, my_workspace: str) -> Resolv
     ref_text, _, subpath = arg.partition("/")
     ref = parse_reference(ref_text, my_workspace)
     own = ref.workspace == my_workspace
-    if own and cases_root is None:
-        raise ValueError(
-            f"{ref.name} is in your workspace, so it syncs from disk: set `cases:` in "
-            "evalkit.yaml, or pass the dataset's directory"
-        )
-    on_disk = cases_root / ref.name if cases_root is not None else None
-    if on_disk is not None and not on_disk.is_dir():
-        on_disk = None
+    on_disk = cases_root / ref.name if (cases_root / ref.name).is_dir() else None
     if own and on_disk is None:
-        raise ValueError(f"no dataset directory {ref.name!r} under {cases_root}")
+        raise ValueError(
+            f"no dataset directory {ref.name!r} under {cases_root}; {ref.name} is in your "
+            f"workspace, so it syncs from disk: put its cases in {DEFAULT_CASES_DIR}/{ref.name}/, "
+            "set `cases:` in evalkit.yaml, or pass the dataset's directory"
+        )
     return ResolvedPath(
         ref, on_disk if own else None, _selection_for(subpath, on_disk), subpath or None
     )

@@ -2,9 +2,11 @@
 
 `evalkit.yaml` sits at the root of the repository that holds your eval cases or your agent. The CLI and the SDK look for it above the current directory. It names the case and fixture directories and the API keys the runs from this machine use.
 
+The file is optional. Without one, the CLI and the SDK act as if an `evalkit.yaml` sat in the current directory with `cases: eval/cases`, `fixtures: eval/fixtures` and no credentials. So with your cases in `eval/cases/<dataset>/`, `evalkit sync <dataset>`, `evalkit run <dataset>` and `run_experiment` work with no file. You need the file to keep cases or fixtures somewhere else, or to give an agent or evaluator an API key.
+
 ```yaml
-cases: eval/cases # optional: directory whose children are datasets
-fixtures: eval/fixtures # optional: fixture bytes, flat, keyed by filename
+cases: eval/cases # optional, this is the default: directory whose children are datasets
+fixtures: eval/fixtures # optional, this is the default: fixture bytes, flat, keyed by filename
 
 credentials: # values are env:NAME, read when a run needs them
   agents:
@@ -15,7 +17,7 @@ credentials: # values are env:NAME, read when a run needs them
 
 Only your personal Harness API agents use `credentials.agents` here. The server drives shared agents (`ouragent@dev`) with the keys stored in its database, so an entry for one in `evalkit.yaml` is never read. The same holds for shared remote evaluators.
 
-Put the values in a `.env` file next to `evalkit.yaml` (and keep it out of git), or in your shell. A variable set in the shell wins over `.env`.
+Put the values in a `.env` file next to `evalkit.yaml` (and keep it out of git), or in your shell. A variable set in the shell wins over `.env`. Without an `evalkit.yaml`, the `.env` in the current directory is read.
 
 Agents, remote evaluators and the judge are not configured here:
 
@@ -31,8 +33,8 @@ Rules:
 - `env:NAME` values are read only when a command needs them. A missing variable is an error that names it.
 - An agent or evaluator with no `credentials` entry is called without a key, and the run prints one line saying so.
 - `credentials` holds agent and evaluator keys only. A file with `credentials.llm_providers` (or the older `credentials.judges`) fails to load: pass your own judge's key with the run instead.
-- `cases` and `fixtures` are optional. Leave them out when you only run shared datasets, for example from `run_experiment`. Commands that need them say so:
-  - `evalkit sync <name>` and `evalkit run <name>` on a dataset in your workspace need `cases` to find `<cases>/<name>`. Passing the dataset's directory instead (`evalkit sync eval/cases/finance`) works without it.
-  - A sync uploads fixture bytes from `fixtures`. Without it, a case whose fixture the server does not already hold fails the sync with `E-FIXTURE-MISSING`.
-  - `run_experiment` on a dataset in your workspace skips the sync without `cases` and runs the copy the server holds.
-  - Fixtures a run downloads go to `fixtures`, or to a temporary directory when it is not set.
+- `cases` and `fixtures` are optional. When left out they are `eval/cases` and `eval/fixtures`, relative to the directory of `evalkit.yaml`, or to the current directory when there is no file. Neither directory has to exist; a command fails only when it needs something that is not there:
+  - `evalkit sync <name>` and `evalkit run <name>` on a dataset in your workspace read `<cases>/<name>`. When that directory is missing, the error names the cases directory it looked in. Passing the dataset's directory instead (`evalkit sync datasets/finance`) works from anywhere.
+  - A directory under the cases root always belongs to the dataset named after its first folder: `evalkit sync eval/cases/finance/statements` patches the `statements` folder of `finance`.
+  - A sync uploads the fixture bytes the server does not hold yet from `fixtures`. When a registered fixture is neither on the server nor in that directory, the sync fails and names the file it looked for.
+  - `run_experiment` on a dataset in your workspace syncs `<cases>/<name>` first. When that directory is missing it says so, skips the sync and runs the copy the server holds.
