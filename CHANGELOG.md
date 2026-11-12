@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- New `GET /api/mapping-presets` returns the span mapping presets the package
+  ships, as `[{"name", "document"}]`, to any signed-in user. In the web UI, the
+  new-agent and edit-agent forms have a preset picker above "Span mapping": a
+  pick fills the field with the preset's JSON, which stays editable. When the
+  pick replaces text you typed or pasted, the form says so and offers Undo. An
+  OTel agent's Mappings tab with no mapping can save a preset as a draft
+  mapping.
 - With `auth.password_login: none`, evalkit makes no password accounts:
   `POST /api/users` with a password (`evalkit users add <name>`) and
   `POST /api/users/{name}/password` (`evalkit users set-password`) answer 400.

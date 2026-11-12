@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import AsyncIterator
 from typing import Literal
@@ -23,6 +24,7 @@ from evalkit.core.access import can_write
 from evalkit.core.agents import AgentDefinition, UnknownAgent, explicit
 from evalkit.core.endpoints import EndpointRule, check_endpoint
 from evalkit.core.traces.mapping import session_id_of
+from evalkit.core.traces.presets import list_preset_names, read_preset
 from evalkit.core.traces.raw import RawSpan
 from evalkit.core.traces.sessions import SessionTrajectory
 from evalkit.core.traces.sources import client_for
@@ -114,6 +116,19 @@ async def session_spans(agent: str, session_id: str, stores: StoresDep) -> Strea
     return StreamingResponse(
         _json_array(stores.sessions.raw(record, session_id)), media_type="application/json"
     )
+
+
+class MappingPreset(BaseModel):
+    name: str
+    document: dict
+
+
+@router.get("/mapping-presets")
+async def list_mapping_presets() -> list[MappingPreset]:
+    return [
+        MappingPreset(name=name, document=json.loads(read_preset(name)))
+        for name in list_preset_names()
+    ]
 
 
 @router.get("/agents/{agent}/mappings")

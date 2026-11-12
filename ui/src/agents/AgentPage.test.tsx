@@ -142,6 +142,36 @@ test("a traced agent without a mapping or sessions says how to push a mapping an
   expect(screen.queryByRole("button", { name: "session" })).toBeNull();
 });
 
+test("a traced agent without a mapping can save a preset as its draft mapping", async () => {
+  Element.prototype.scrollIntoView = () => {};
+  const preset = {
+    schema_version: "1",
+    model: { attribute: "llm.model_name" },
+  };
+  const drafts: unknown[] = [];
+  stubServer((url, init) => {
+    if (url.endsWith("/api/mapping-presets"))
+      return Response.json([{ name: "openinference", document: preset }]);
+    if (url.endsWith(`${AGENT_URL}/mappings/draft`)) {
+      drafts.push(JSON.parse(String(init?.body)));
+      return Response.json({ ...activeMapping, status: "draft" });
+    }
+    if (url.endsWith(AGENT_URL)) return Response.json(traced);
+    if (url.includes(`${AGENT_URL}/runs?`))
+      return Response.json({ runs: [], total: 0 });
+  });
+  const user = userEvent.setup();
+  openAgent("mappings");
+  const picker = await screen.findByRole("button", { name: "mapping preset" });
+  await waitFor(() => expect(picker).toBeEnabled());
+  await user.click(picker);
+  await user.click(
+    await screen.findByRole("option", { name: "openinference" }),
+  );
+  await user.click(screen.getByRole("button", { name: "Save as draft" }));
+  await waitFor(() => expect(drafts).toEqual([preset]));
+});
+
 test("a traced agent with an active mapping shows its rules", async () => {
   stubServer((url) => {
     if (url.endsWith(`${AGENT_URL}/mappings`))

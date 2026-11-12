@@ -24,6 +24,7 @@ import { ENDPOINT_NOTE, PERSONAL_KEY_NOTE } from "../lib/endpoint";
 import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import type { AgentFormValues } from "../lib/agentForm";
 import { Select } from "../lib/Select";
+import { MappingPresetPicker } from "./MappingPresetPicker";
 import type { AgentInfo } from "../lib/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -153,14 +154,18 @@ export function AgentForm({
                 <FieldLabel htmlFor={`${formId}-span-mapping`}>
                   Span mapping
                 </FieldLabel>
+                <MappingPresetPicker
+                  value={values.mapping}
+                  onChange={(text) => set("mapping", text)}
+                />
                 <Textarea
                   id={`${formId}-span-mapping`}
                   className="max-h-80 font-mono"
                   rows={6}
                   placeholder={
                     agent
-                      ? "Paste the mapping JSON, or leave empty to reuse the agent's last active mapping"
-                      : "Paste the mapping JSON (start from the connect-traces skill's gen_ai.json or openinference.json)"
+                      ? "Pick a preset, paste the mapping JSON, or leave empty to reuse the agent's last active mapping"
+                      : "Pick a preset, or paste the mapping JSON"
                   }
                   value={values.mapping}
                   onChange={(e) => set("mapping", e.target.value)}
