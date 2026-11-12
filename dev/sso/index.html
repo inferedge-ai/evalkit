@@ -1536,7 +1536,8 @@ in every tab of that browser, until you next sign in.</p>
 <ol>
 <li>Start with <code>EVALKIT_ADMIN_PASSWORD</code> set; <code>admin</code> is a password account.
    With <code>password_login: none</code> there is no password account and no
-   <code>EVALKIT_ADMIN_PASSWORD</code>: the IdP names the admins through <code>admin_claim</code>.</li>
+   <code>EVALKIT_ADMIN_PASSWORD</code>: the IdP names the admins through <code>admin_claim</code>,
+   and evalkit refuses to make a password account or set a password.</li>
 <li>Ask the first person to sign in; evalkit creates their user on the first
    sign-in. Then <code>evalkit users promote &lt;username&gt;</code>.
    <code>password_login: none</code> requires <code>admin_claim</code>, so whoever the claim names
@@ -1618,6 +1619,11 @@ in every tab of that browser, until you next sign in.</p>
 <td>403 <code>password login is off on this server</code></td>
 <td><code>password_login: none</code></td>
 <td>Sign in with SSO; CI uses its machine client</td>
+</tr>
+<tr>
+<td>400 <code>password login is off on this server; people join by signing in with &lt;provider&gt;</code></td>
+<td><code>users add</code> without <code>--subject</code>, or <code>users set-password</code>, under <code>password_login: none</code></td>
+<td>People join by signing in; add CI as a machine user with <code>--subject</code></td>
 </tr>
 <tr>
 <td>403 <code>no tenant for this request</code></td>
