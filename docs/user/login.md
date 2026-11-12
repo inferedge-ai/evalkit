@@ -11,8 +11,7 @@ evalkit, `https://evalkit.inferedge.com`, and prints that first:
 logging in to https://evalkit.inferedge.com; pass --url to log in to another server
 ```
 
-The command never asks for a URL, so on a self-hosted server always pass
-`--url`.
+On a self-hosted server, always pass `--url`.
 
 With single sign-on configured on the server, the command opens your browser
 at your identity provider. Sign in there; the browser comes back to the CLI
