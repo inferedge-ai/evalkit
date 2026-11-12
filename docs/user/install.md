@@ -70,7 +70,7 @@ The skills teach a coding agent to write cases, connect traces and run evals. Co
 evalkit skills install
 ```
 
-They go to `.claude/skills/` when `.claude/` exists, else `.agents/skills/`; `--target DIR` picks another directory. The user docs they link to go to `evalkit-docs/` beside them. The span mapping presets are not part of the skills: they ship in the package (`evalkit traces mapping presets`).
+They go to `.claude/skills/` when `.claude/` exists, else `.agents/skills/`; `--target DIR` picks another directory. The user docs they link to go to `evalkit-docs/` beside them.
 
 `skills install` also writes outside the repo: it appends the target directory to `~/.evalkit/skills-targets`, so that `evalkit update` can refresh it later.
 

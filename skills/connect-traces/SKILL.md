@@ -25,9 +25,8 @@ spans do not carry. If the developer wants that tab, the agent needs a
 Harness API with those endpoints (see the evalkit-usage skill).
 
 Every OTel agent has its own mapping, set when the agent is created.
-evalkit ships mapping **presets** inside the package, so there is no file to
-copy from this skill: `evalkit traces mapping presets` lists them and
-`--mapping <preset>` uses one by name. There is one per popular framework:
+evalkit ships mapping **presets**: `evalkit traces mapping presets` lists them
+and `--mapping <preset>` uses one by name. There is one per popular framework:
 `langchain`, `crewai`, `agno`, `llamaindex`, `google-adk`,
 `claude-agent-sdk` and `mastra`. Pick the agent's framework first;
 [Framework mappings](../evalkit-docs/framework-mappings.md) lists which preset
