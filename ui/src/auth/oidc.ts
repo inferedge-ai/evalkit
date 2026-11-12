@@ -34,6 +34,7 @@ export interface OidcSession {
   getUser(): Promise<SessionUser | null>;
   signinRedirect(args: {
     state: unknown;
+    prompt?: string;
     redirectMethod?: "replace" | "assign";
   }): Promise<void>;
   signinCallback(): Promise<SessionUser | undefined>;

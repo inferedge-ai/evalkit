@@ -273,6 +273,15 @@ describe("401 redirect", () => {
     expect(assign).toHaveBeenCalledWith("/login?next=%2Fx%3Fa%3D1");
   });
 
+  it("signing out with a password token the server already revoked stays on the page", async () => {
+    setSessionForTest(fakeSession(null));
+    setToken("revoked");
+    stub401();
+    const assign = stubWindow("/datasets");
+    await logout();
+    expect(assign).not.toHaveBeenCalled();
+  });
+
   it.each(["/auth/me", "/auth/oidc/register"])(
     "does not navigate on a 401 from %s but clears credentials",
     async (path) => {
