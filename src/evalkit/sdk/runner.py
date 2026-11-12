@@ -153,10 +153,6 @@ def _config_search_starts() -> list[Path]:
     return starts
 
 
-def _local_config() -> LocalConfig:
-    return LocalConfig.find_or_default(_config_search_starts())
-
-
 async def _agent_definition(api: AsyncApi, agent: str, me: str) -> AgentDefinition:
     definition = await HttpAgents(api).get(explicit(parse_reference(agent, me)))
     if definition.harness_url is not None:
@@ -586,7 +582,7 @@ async def arun_experiment(
     Same arguments and result as `run_experiment`. The arguments after
     `evaluation_concurrency` exist for tests.
     """
-    local = _local_config().resolve_env(scoring=not dry_run)
+    local = LocalConfig.find_or_default(_config_search_starts()).resolve_env(scoring=not dry_run)
     spec = inspect_task(task)
     if model is not None and ignores_model(spec):
         progress(
@@ -775,7 +771,7 @@ async def aevaluate_experiment(
     Same arguments and result as `evaluate_experiment`. The arguments after
     `judge` exist for tests.
     """
-    local = _local_config().resolve_env(scoring=True)
+    local = LocalConfig.find_or_default(_config_search_starts()).resolve_env(scoring=True)
     active = connection.active()
     api = AsyncApi(active.url, oidc.build_auth(active), transport=api_transport)
     try:

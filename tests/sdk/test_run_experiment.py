@@ -18,7 +18,7 @@ from evalkit.api import experiments as experiments_api
 from evalkit.api.app import create_app
 from evalkit.client import connection
 from evalkit.client.api import ApiRequestError
-from evalkit.config import OtelConfig
+from evalkit.config import LocalConfig, OtelConfig
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource
 from evalkit.contracts.settings import AgentSettings, JudgeSettings, RemoteEvaluatorSettings
 from evalkit.core.blob import tenant_prefix
@@ -41,7 +41,7 @@ from evalkit.sdk import (
     tracing,
 )
 from evalkit.sdk import runner as sdk_runner
-from evalkit.sdk.runner import _local_config
+from evalkit.sdk.runner import _config_search_starts
 from evalkit.store.base import Experiment, RunDetail
 from tests.cli.test_cli import _serve
 from tests.fake_agents import reference_mapping
@@ -657,9 +657,9 @@ def test_local_config_is_found_beside_the_script(tmp_path, monkeypatch):
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
     monkeypatch.setattr(sys.modules["__main__"], "__file__", str(project / "run.py"), raising=False)
-    assert _local_config().path == project / "evalkit.yaml"
+    assert LocalConfig.find_or_default(_config_search_starts()).path == project / "evalkit.yaml"
     monkeypatch.delattr(sys.modules["__main__"], "__file__", raising=False)
-    fallback = _local_config()
+    fallback = LocalConfig.find_or_default(_config_search_starts())
     assert fallback.path == elsewhere / "evalkit.yaml"
     assert fallback.cases == elsewhere / "evalkit" / "cases"
 
