@@ -11,8 +11,12 @@ import {
   Users,
   Waypoints,
 } from "lucide-react";
+import { useMemo } from "react";
+import { usePasswordLogin } from "../auth/oidc";
 import { extensions } from "../extensions";
 import type { NavItem, SettingsPage } from "../lib/extensions";
+import { useMe } from "./capabilities";
+import { useWorkspace } from "./workspace";
 
 export interface NavSection {
   label?: string;
@@ -53,8 +57,14 @@ const WORKSPACE_SETTINGS: NavItem = {
   icon: Boxes,
 };
 
+const USERS_SETTINGS: NavItem = {
+  to: "/settings/users",
+  label: "Users",
+  icon: Users,
+};
+
 const ORGANIZATION_SETTINGS: NavItem[] = [
-  { to: "/settings/users", label: "Users", icon: Users },
+  USERS_SETTINGS,
   { to: "/settings/workspaces", label: "Workspaces", icon: Layers },
   { to: "/settings/trace-sources", label: "Trace sources", icon: Waypoints },
   { to: "/settings/llm-providers", label: "LLM providers", icon: BrainCircuit },
@@ -85,9 +95,20 @@ function toSettingsItem(page: SettingsPage): NavItem {
   return { to: `/settings/${page.name}`, label: page.label, icon: page.icon };
 }
 
-export function getSettingsSections(
+export function useSettingsSections(): NavSection[] {
+  const me = useMe();
+  const { workspace } = useWorkspace();
+  const usersPage = usePasswordLogin() !== "none";
+  return useMemo(
+    () => getSettingsSections(me.is_admin, workspace.name, usersPage),
+    [me.is_admin, workspace.name, usersPage],
+  );
+}
+
+function getSettingsSections(
   isAdmin: boolean,
   workspace: string,
+  usersPage: boolean,
 ): NavSection[] {
   const wrapperSettings = getWrapperSettings();
   const sections: NavSection[] = [
@@ -104,7 +125,9 @@ export function getSettingsSections(
     sections.push({
       label: "Organization",
       items: [
-        ...ORGANIZATION_SETTINGS,
+        ...ORGANIZATION_SETTINGS.filter(
+          (item) => usersPage || item !== USERS_SETTINGS,
+        ),
         ...wrapperSettings.organization.map(toSettingsItem),
       ],
     });
