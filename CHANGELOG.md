@@ -106,13 +106,18 @@
     would hide the installed `evalkit` package from `import evalkit`. The
     error says to delete the file or set `cases:` and `fixtures:` to another
     folder. Commands that sync nothing from disk are not affected.
-- The web UI's sign-in page (`/login`) has a footer with a link to the GitHub
-  repository and the version the server runs (`evalkit-py v0.5.0`, from
-  `GET /api/cli`), which opens that version's GitHub release. A development
-  build (`0.5.0.dev12`) shows its version without a link. When `GET /api/cli`
-  fails, the footer leaves the version out. On a self-hosted server the
-  sign-in page is where visitors land; the header's Docs link stays the way
-  to the docs.
+- The web UI's sign-in pages (`/login` and `/login/callback`) no longer show
+  the public navbar, so they have no theme switch; the theme follows the one
+  saved in the browser or the system's. The card shows the Evalkit wordmark
+  centred at its top. `/login` has a footer: **Docs** opens the in-app docs
+  at `/docs`, **GitHub** opens the repository in a new tab, and the version
+  the server runs (`evalkit-py v0.5.0`, from `GET /api/cli`) opens that
+  version's GitHub release in a new tab. A development build (`0.5.0.dev12`)
+  shows its version without a link, and when `GET /api/cli` fails the footer
+  leaves the version out. The footer reads the version without signing in, so
+  it shows even while the identity provider is unreachable. Every other
+  signed-out page, such as the docs and a wrapper's landing page and public
+  routes, keeps the navbar.
 
 ## 0.5.0
 

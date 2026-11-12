@@ -72,10 +72,16 @@ export function BrandLink({
 }) {
   return (
     <NavLink to={to} className="flex items-baseline" onClick={onClick}>
-      <span className="font-mono text-head font-semibold tracking-tight text-brand">
-        Evalkit
-      </span>
+      <Wordmark />
     </NavLink>
+  );
+}
+
+export function Wordmark() {
+  return (
+    <span className="font-mono text-head font-semibold tracking-tight text-brand">
+      Evalkit
+    </span>
   );
 }
 

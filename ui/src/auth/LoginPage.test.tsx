@@ -243,25 +243,31 @@ describe("LoginPage", () => {
     return within(document.querySelector("footer")!);
   }
 
-  it("links the footer to GitHub and the release the server runs, and nothing else", async () => {
+  it("links the footer to the in-app docs, GitHub and the release the server runs", async () => {
     const footer = openWithServer(() =>
       Response.json({ version: "0.5.0", package: "evalkit-py" }),
     );
-    expect(
-      await footer.findByRole("link", { name: "evalkit-py v0.5.0" }),
-    ).toHaveAttribute(
-      "href",
-      "https://github.com/inferedge-ai/evalkit/releases/tag/v0.5.0",
-    );
-    expect(footer.getByRole("link", { name: "GitHub" })).toHaveAttribute(
-      "href",
-      "https://github.com/inferedge-ai/evalkit",
-    );
+    const release = await footer.findByRole("link", {
+      name: "evalkit-py v0.5.0",
+    });
     expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Docs",
       "GitHub",
       "evalkit-py v0.5.0",
     ]);
-    for (const link of footer.getAllByRole("link")) {
+    const docs = footer.getByRole("link", { name: "Docs" });
+    expect(docs).toHaveAttribute("href", "/docs");
+    expect(docs).not.toHaveAttribute("target");
+    const github = footer.getByRole("link", { name: "GitHub" });
+    expect(github).toHaveAttribute(
+      "href",
+      "https://github.com/inferedge-ai/evalkit",
+    );
+    expect(release).toHaveAttribute(
+      "href",
+      "https://github.com/inferedge-ai/evalkit/releases/tag/v0.5.0",
+    );
+    for (const link of [github, release]) {
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", "noreferrer");
     }
@@ -273,6 +279,7 @@ describe("LoginPage", () => {
     );
     expect(await footer.findByText("evalkit-py v0.5.0.dev42")).toBeTruthy();
     expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Docs",
       "GitHub",
     ]);
   });
@@ -299,6 +306,7 @@ describe("LoginPage", () => {
       expect(queryClient.getQueryState(["/cli"])?.status).toBe("error"),
     );
     expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Docs",
       "GitHub",
     ]);
     expect(footer.queryByText(/evalkit-py/)).toBeNull();

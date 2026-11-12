@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { isSignedOut, login } from "../lib/api";
-import { PublicShell } from "../shell/PublicShell";
+import { Wordmark } from "../shell/Shell";
 import { safeNext } from "./next";
 import { SignInFooter } from "./SignInFooter";
 import type { SignInState } from "./SignInLink";
@@ -32,8 +32,10 @@ export function SignInCard({
 }) {
   return (
     <Card className="w-full max-w-sm">
-      <CardHeader>
-        <h1 className="text-base font-semibold">Evalkit</h1>
+      <CardHeader className="text-center">
+        <h1>
+          <Wordmark />
+        </h1>
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">{children}</CardContent>
@@ -246,29 +248,27 @@ export function LoginPage() {
   const fallback: Providers = { password: fallbackPassword, oidc: null };
 
   return (
-    <PublicShell>
-      <div className="flex min-h-full flex-col">
-        <div className="flex flex-1 items-center justify-center p-4">
-          {providers === null && error === null ? (
-            <div className="pane-status">Loading sign-in options…</div>
-          ) : (
-            <div className="flex w-full max-w-sm flex-col gap-3">
-              {error !== null && (
-                <Card size="sm" className="text-sm text-err-text">
-                  <CardContent>{error}</CardContent>
-                </Card>
-              )}
-              <LoginChoices
-                providers={providers ?? fallback}
-                next={next}
-                signedOut={isSignedOut() && !clicked}
-                onSso={startSso}
-              />
-            </div>
-          )}
-        </div>
-        <SignInFooter />
-      </div>
-    </PublicShell>
+    <div className="flex min-h-dvh flex-col">
+      <main className="flex flex-1 items-center justify-center p-4">
+        {providers === null && error === null ? (
+          <div className="pane-status">Loading sign-in options…</div>
+        ) : (
+          <div className="flex w-full max-w-sm flex-col gap-3">
+            {error !== null && (
+              <Card size="sm" className="text-sm text-err-text">
+                <CardContent>{error}</CardContent>
+              </Card>
+            )}
+            <LoginChoices
+              providers={providers ?? fallback}
+              next={next}
+              signedOut={isSignedOut() && !clicked}
+              onSso={startSso}
+            />
+          </div>
+        )}
+      </main>
+      <SignInFooter />
+    </div>
   );
 }
