@@ -3,6 +3,8 @@ import {
   UserManager,
   WebStorageStateStore,
   type RefreshState,
+  type SigninSilentArgs,
+  type User,
   type UserManagerSettings,
 } from "oidc-client-ts";
 
@@ -54,6 +56,15 @@ export interface OidcSession {
 }
 
 class EvalkitUserManager extends UserManager {
+  // With ui_resources the sign-in names several APIs, so evalkit's own
+  // refresh names evalkit's (userManagerSettings puts it in extraTokenParams).
+  override signinSilent(args: SigninSilentArgs = {}): Promise<User | null> {
+    return super.signinSilent({
+      extraTokenParams: this.settings.extraTokenParams,
+      ...args,
+    });
+  }
+
   // Refreshes for another API without replacing the stored evalkit token, and
   // keeps the rotated refresh token: the provider revokes a reused one.
   async requestApiToken(resource: string): Promise<ApiToken | null> {
@@ -69,10 +80,17 @@ class EvalkitUserManager extends UserManager {
       profile: user.profile,
       data: user.state,
     };
-    const response = await this._client.useRefreshToken({ state, resource });
+    const response = await this._client.useRefreshToken({
+      state,
+      resource,
+      timeoutInSeconds: this.settings.silentRequestTimeoutInSeconds,
+    });
+    // A sign-out in another tab while the request ran must stay signed out.
+    const current = await this.getUser();
+    if (current?.refresh_token !== user.refresh_token) return null;
     if (response.refresh_token) {
-      user.refresh_token = response.refresh_token;
-      await this.storeUser(user);
+      current.refresh_token = response.refresh_token;
+      await this.storeUser(current);
     }
     return {
       access_token: response.access_token,
@@ -143,6 +161,8 @@ export function userManagerSettings(
     scope: oidc.scopes.join(" "),
     response_type: "code",
     resource: resource ? [resource, ...oidc.ui_resources] : undefined,
+    extraTokenParams:
+      resource && oidc.ui_resources.length > 0 ? { resource } : undefined,
     extraQueryParams: authorizeParams,
     userStore:
       store === undefined ? undefined : new WebStorageStateStore({ store }),

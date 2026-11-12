@@ -104,6 +104,50 @@ describe("userManagerSettings", () => {
     ]);
   });
 
+  async function codeExchange(oidc: OidcProviders): Promise<URLSearchParams> {
+    const bodies: URLSearchParams[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.endsWith("/.well-known/openid-configuration"))
+          return Response.json({
+            issuer: oidc.issuer,
+            authorization_endpoint: oidc.authorization_endpoint,
+            token_endpoint: oidc.token_endpoint,
+          });
+        bodies.push(new URLSearchParams(String(init?.body)));
+        return Response.json({ error: "invalid_grant" }, { status: 400 });
+      }),
+    );
+    const client = new OidcClient({
+      ...userManagerSettings(oidc, "https://evalkit.example.com"),
+      stateStore: new WebStorageStateStore({ store: new InMemoryWebStorage() }),
+    });
+    const request = await client.createSigninRequest({ state: "/" });
+    const id = new URL(request.url).searchParams.get("state");
+    await client
+      .processSigninResponse(
+        `https://evalkit.example.com/login/callback?code=abc&state=${id}`,
+      )
+      .catch(() => {});
+    return bodies[0];
+  }
+
+  it("names evalkit's API on the code exchange when it signs in for other APIs too", async () => {
+    const body = await codeExchange({
+      ...okta,
+      ui_resources: ["https://api.example.com"],
+    });
+    expect(body.get("grant_type")).toBe("authorization_code");
+    expect(body.getAll("resource")).toEqual(["https://evalkit.example.com"]);
+  });
+
+  it("names no API on the code exchange when it signs in for evalkit's alone", async () => {
+    const body = await codeExchange(okta);
+    expect(body.get("grant_type")).toBe("authorization_code");
+    expect(body.getAll("resource")).toEqual([]);
+  });
+
   it("names evalkit's API first, then each API in ui_resources", async () => {
     const url = await authorizeUrl({
       ...okta,

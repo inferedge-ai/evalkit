@@ -4,6 +4,14 @@ import { loadProviders, session } from "./oidc";
 
 const EXPIRY_MARGIN_MS = 60_000;
 
+// The provider's answers that mean this session can't get the token; signing
+// in again fixes them. Any other error is thrown to the page.
+const SESSION_REFUSALS = new Set([
+  "invalid_target",
+  "invalid_grant",
+  "invalid_scope",
+]);
+
 type CachedToken = { token: string; sub: string; expiresAt: number };
 
 const cached = new Map<string, CachedToken>();
@@ -19,9 +27,10 @@ export async function getApiToken(resource: string): Promise<string | null> {
   if (!providers.oidc?.ui_resources.includes(resource))
     throw new Error(`${resource} is not one of auth.oidc.ui_resources`);
   const s = await session();
-  const sub = (await s?.getUser())?.profile?.sub;
-  if (!s || !sub) return null;
+  if (!s) return null;
   return withRefreshLock(async () => {
+    const sub = (await s.getUser())?.profile?.sub;
+    if (!sub) return null;
     const hit = cachedToken(resource, sub);
     if (hit) return hit;
     try {
@@ -35,7 +44,8 @@ export async function getApiToken(resource: string): Promise<string | null> {
       });
       return got.access_token;
     } catch (e: unknown) {
-      if (e instanceof ErrorResponse) return null;
+      if (e instanceof ErrorResponse && SESSION_REFUSALS.has(e.error ?? ""))
+        return null;
       throw e;
     }
   });

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { User, type UserManager } from "oidc-client-ts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { bearer } from "../lib/api";
 import { getApiToken, resetApiTokensForTest } from "./apiToken";
 import {
   resetProvidersForTest,
@@ -30,6 +31,8 @@ let tokenRequests: URLSearchParams[];
 let heldLocks: string[];
 let lockedDuringRequest: string[][];
 let answer: TokenAnswer;
+let stall: boolean;
+let beforeAnswer: () => Promise<void>;
 
 function serveIdp() {
   vi.stubGlobal(
@@ -46,6 +49,13 @@ function serveIdp() {
       if (url === idp.token_endpoint) {
         tokenRequests.push(new URLSearchParams(String(init?.body)));
         lockedDuringRequest.push([...heldLocks]);
+        if (stall)
+          return new Promise((_, reject) =>
+            init?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          );
+        await beforeAnswer();
         return Response.json(answer.body, { status: answer.status });
       }
       throw new Error(`unexpected fetch ${url}`);
@@ -69,7 +79,7 @@ async function manager(): Promise<UserManager> {
   return (await session()) as unknown as UserManager;
 }
 
-async function signIn(sub: string, refreshToken: string) {
+async function signIn(sub: string, refreshToken: string, expiresIn = 3600) {
   const now = Math.floor(Date.now() / 1000);
   await (
     await manager()
@@ -79,7 +89,7 @@ async function signIn(sub: string, refreshToken: string) {
       refresh_token: refreshToken,
       token_type: "Bearer",
       profile: { sub, iss: idp.issuer, aud: idp.client_id, exp: now, iat: now },
-      expires_at: now + 3600,
+      expires_at: now + expiresIn,
     }),
   );
 }
@@ -100,6 +110,8 @@ beforeEach(() => {
   tokenRequests = [];
   heldLocks = [];
   lockedDuringRequest = [];
+  stall = false;
+  beforeAnswer = async () => {};
   localStorage.clear();
   setSessionForTest(undefined);
   resetProvidersForTest();
@@ -110,6 +122,19 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+describe("evalkit's own refresh", () => {
+  it("names evalkit's API when the sign-in named other APIs too", async () => {
+    await signIn("ann", "refresh-1", 30);
+    grant("evalkit-token-2", "refresh-2");
+
+    expect(await bearer()).toBe("evalkit-token-2");
+
+    expect(tokenRequests).toHaveLength(1);
+    expect(tokenRequests[0].get("refresh_token")).toBe("refresh-1");
+    expect(tokenRequests[0].getAll("resource")).toEqual([EVALKIT]);
+  });
 });
 
 describe("getApiToken", () => {
@@ -168,12 +193,42 @@ describe("getApiToken", () => {
     expect(stored?.refresh_token).toBe("refresh-1");
   });
 
+  it("throws when the identity provider is down, rather than asking the person to sign in again", async () => {
+    await signIn("ann", "refresh-1");
+    answer = { status: 503, body: { error: "temporarily_unavailable" } };
+
+    await expect(getApiToken(API)).rejects.toThrow();
+    expect((await (await manager()).getUser())?.refresh_token).toBe(
+      "refresh-1",
+    );
+  });
+
   it("refuses an API outside ui_resources without asking the identity provider", async () => {
     await signIn("ann", "refresh-1");
     await expect(getApiToken("https://other.example.com")).rejects.toThrow(
       "not one of auth.oidc.ui_resources",
     );
     expect(tokenRequests).toEqual([]);
+  });
+
+  it("keeps a sign-out in another tab while the request runs", async () => {
+    await signIn("ann", "refresh-1");
+    grant("api-token", "refresh-2");
+    beforeAnswer = async () => (await manager()).removeUser();
+
+    expect(await getApiToken(API)).toBeNull();
+    expect(await (await manager()).getUser()).toBeNull();
+  });
+
+  it("gives up on a stalled identity provider and frees the refresh lock", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await signIn("ann", "refresh-1");
+    stall = true;
+
+    const settled = expect(getApiToken(API)).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(10_000);
+    await settled;
+    expect(heldLocks).toEqual([]);
   });
 
   it("never hands one person's token to whoever signs in next", async () => {
