@@ -164,7 +164,7 @@ def test_kit_server_migrates_on_start_and_run_py_is_pinned_on_copy(monkeypatch):
     assert load_config(KIT / "config.yaml").db.migrate_on_start is True
     assert "migrate:" not in (KIT / "docker-compose.yml").read_text()
     header = (KIT / "run.py").read_text().split("# ///\n")[0]
-    assert 'dependencies = ["evalkit-py[otel]"]' in header
+    assert 'dependencies = ["evalkit-py"]' in header
     assert "tool.uv" not in header
 
 

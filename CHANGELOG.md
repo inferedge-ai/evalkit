@@ -9,6 +9,17 @@
   (`evalkit users add <name> --subject <sub>`) are added as before. The Users
   page under Settings › Organization says how people join in place of its
   username and password form.
+- The `otel` extra is gone: `opentelemetry-sdk` and
+  `opentelemetry-exporter-otlp-proto-http` are now base dependencies of
+  `evalkit-py`, so `evalkit.sdk.tracing.register` and SDK runs with traces work
+  on a plain `uv add evalkit-py`. `evalkit-py[otel]` no longer names an extra:
+  pip and uv still install the package but warn about an unknown extra, so drop
+  `[otel]` from your pins. The base install, the CLI included, now also pulls in
+  the OpenTelemetry SDK, the OTLP HTTP exporter and what they need
+  (`opentelemetry-proto`, `protobuf`, `requests` and others). `evalkit
+  init-server` writes `evalkit-py==<version>` into the try-it kit's `run.py`,
+  and the vendored-wheel hint from `evalkit update` names `evalkit-py==<version>`.
+  The `evalkit tracing needs the otel extra` error no longer exists.
 
 ## 0.5.0
 

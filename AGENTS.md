@@ -103,7 +103,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - `api → core → store`; `db` may import `core`, `store/base.py` and `contracts`; `cli → client → core`; `sdk → client → core`. Arrows never reverse; `core` imports neither `sdk`, `client` nor `api`; `sdk` imports nothing from `cli`. `core/traces` has no database or HTTP-server imports; the runner reaches sessions only through the `SessionReader` on `RunnerDeps`.
 - Only `store/blob.py` imports obstore. `store/` never imports `core` or `db`. `client` and `cli` may import `store/base.py` (pure models and the `Store` protocol) but never `db`, `store/blob`, or any server-only package (server-only commands live behind the `evalkit[server]` extra boundary in `cli/server_commands.py`).
 - The CLI never holds database or blob credentials: local runs reach the store and blob through the evalkit API. The server's API keys are stored keys, encrypted in the database with `encryption_key`; the CLI's keys live in `evalkit.yaml` `credentials:` and env.
-- The base package depends on `opentelemetry-api` only; the OTel SDK and the OTLP exporter are the `evalkit[otel]` extra, `opentelemetry-proto` is in `server`.
+- The base package depends on `opentelemetry-api`, the OTel SDK and the OTLP HTTP exporter; `opentelemetry-proto` is in `server`.
 - evalkit code has zero knowledge of any client's agent internals: no client tool names, paths, buckets, or env vars.
 
 ## Commands
