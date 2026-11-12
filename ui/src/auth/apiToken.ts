@@ -28,6 +28,9 @@ export async function getApiToken(resource: string): Promise<string | null> {
     throw new Error(`${resource} is not one of auth.oidc.ui_resources`);
   const s = await session();
   if (!s) return null;
+  const signedIn = (await s.getUser())?.profile?.sub;
+  const ready = signedIn ? cachedToken(resource, signedIn) : null;
+  if (ready) return ready;
   return withRefreshLock(async () => {
     const sub = (await s.getUser())?.profile?.sub;
     if (!sub) return null;

@@ -12,6 +12,12 @@
   `GET /api/auth/providers` returns it in `oidc.ui_resources`. `evalkit login`
   doesn't send it. A page gets a token for one of these APIs with
   `getApiToken(resource)` from `@/auth/apiToken`.
+- On every server with single sign-on, the web UI now gives up on the
+  identity provider after 10 seconds. This covers discovery, the code
+  exchange at sign-in and refreshes. Before, these had no time limit: 10
+  seconds is oidc-client-ts's own default for refreshes, which its silent
+  refresh skipped. An identity provider slower than that now fails sign-in or
+  refresh instead of hanging. oidc-client-ts is pinned to exactly 3.5.0.
 - New `GET /api/mapping-presets` returns the span mapping presets the package
   ships, as `[{"name", "document"}]`, to any signed-in user. In the web UI, the
   new-agent and edit-agent forms have a preset picker above "Span mapping": a

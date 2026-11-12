@@ -32,6 +32,7 @@ let heldLocks: string[];
 let lockedDuringRequest: string[][];
 let answer: TokenAnswer;
 let stall: boolean;
+let lockBusy: Promise<void> | null;
 let beforeAnswer: () => Promise<void>;
 
 function serveIdp() {
@@ -64,6 +65,7 @@ function serveIdp() {
   vi.stubGlobal("navigator", {
     locks: {
       request: async (name: string, run: () => Promise<unknown>) => {
+        await lockBusy;
         heldLocks.push(name);
         try {
           return await run();
@@ -111,6 +113,7 @@ beforeEach(() => {
   heldLocks = [];
   lockedDuringRequest = [];
   stall = false;
+  lockBusy = null;
   beforeAnswer = async () => {};
   localStorage.clear();
   setSessionForTest(undefined);
@@ -186,6 +189,19 @@ describe("getApiToken", () => {
       "refresh-1",
       "refresh-2",
     ]);
+  });
+
+  it("hands back a cached token while another tab holds the refresh lock", async () => {
+    await signIn("ann", "refresh-1");
+    grant("api-token", "refresh-2");
+    await getApiToken(API);
+    lockBusy = new Promise(() => {});
+
+    const answered = await Promise.race([
+      getApiToken(API),
+      new Promise((resolve) => setTimeout(() => resolve("waited"), 200)),
+    ]);
+    expect(answered).toBe("api-token");
   });
 
   it("is null when nobody is signed in through the identity provider", async () => {
