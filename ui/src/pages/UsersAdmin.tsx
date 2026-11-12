@@ -1,6 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import type { FormEvent } from "react";
+import type { Providers } from "../auth/oidc";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
@@ -18,6 +19,10 @@ const ROW_COLUMNS = "grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]";
 export function UsersAdminPage() {
   const listed = useApi<UserRow[]>("/users");
   const users = listed.data;
+  const providers = useApi<Providers>("/auth/providers");
+  const passwordsOff = providers.data?.password === "none";
+  const showForm =
+    !passwordsOff && (providers.data !== undefined || providers.error !== null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -52,27 +57,43 @@ export function UsersAdminPage() {
         description="Users are archived, never deleted: archiving revokes their tokens, blocks login and archives their personal workspace."
       />
       <div className="page">
-        <form className="mb-3 flex flex-wrap items-center gap-2" onSubmit={add}>
-          <Input
-            className="w-full sm:w-48"
-            placeholder="username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-          />
-          <Input
-            className="w-full sm:w-48"
-            type="password"
-            placeholder="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <Button type="submit">Add user</Button>
-          {actionError && (
-            <span className="text-meta text-err-text">{actionError}</span>
-          )}
-        </form>
+        {passwordsOff && (
+          <p className="mb-3 text-meta text-muted-foreground">
+            People join by signing in with{" "}
+            {providers.data?.oidc?.name ?? "the identity provider"}. For CI, add
+            a machine user:{" "}
+            <code className="font-mono">
+              evalkit users add &lt;name&gt; --subject &lt;sub&gt;
+            </code>
+            .
+          </p>
+        )}
+        {showForm && (
+          <form
+            className="mb-3 flex flex-wrap items-center gap-2"
+            onSubmit={add}
+          >
+            <Input
+              className="w-full sm:w-48"
+              placeholder="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
+            <Input
+              className="w-full sm:w-48"
+              type="password"
+              placeholder="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <Button type="submit">Add user</Button>
+          </form>
+        )}
+        {actionError && (
+          <div className="mb-3 text-meta text-err-text">{actionError}</div>
+        )}
         {listed.error && (
           <div className="pane-status error">{listed.error.message}</div>
         )}

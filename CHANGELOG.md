@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- With `auth.password_login: none`, evalkit makes no password accounts:
+  `POST /api/users` with a password (`evalkit users add <name>`) and
+  `POST /api/users/{name}/password` (`evalkit users set-password`) answer 400.
+  Before, they made accounts that could never sign in. Machine users
+  (`evalkit users add <name> --subject <sub>`) are added as before. The Users
+  page under Settings › Organization says how people join in place of its
+  username and password form.
+
 ## 0.5.0
 
 - An SSO first sign-in derives the username more loosely: it is the part before
