@@ -27,7 +27,7 @@ sequenceDiagram
   D->>T: docker compose up -d --wait [--build]
   T-->>D: server healthy at http://localhost:${EVALKIT_PORT}
   D->>T: uv tool install evalkit from the server's index, evalkit login
-  D->>T: evalkit agents create analyst --trajectory-source otel --mapping mapping.json
+  D->>T: evalkit agents create analyst --trajectory-source otel --mapping gen_ai
   D->>T: uv run run.py --dry-run
   T->>L: sample agent answers one case
   T->>E: spans
@@ -51,7 +51,7 @@ sequenceDiagram
 
 - `docker compose up -d --wait` needs the four variables in `.env`, plus `--build` in a checkout or `EVALKIT_IMAGE` outside one.
 - `up --wait` returns once the server is healthy. Running it again changes nothing.
-- `agents create` makes `analyst` in admin's workspace with `trajectory_source: otel` and `mapping.json` as its active mapping (v1).
+- `agents create` makes `analyst` in admin's workspace with `trajectory_source: otel` and the `gen_ai` preset as its active mapping (v1).
 - `traces check` on the dry-run session has a ✓ on every line: `llm` and `tool` spans, non-zero tokens, and no unmapped attributes (`session.id`, which the SDK sets itself, is not reported).
 - The dry run prints an answer and a trajectory with at least one `lookup_financials` call and its result.
 - The full run prints the scorecard and the experiment URL, and creates an experiment on `acme@admin` with five runs, each with answer rubric scores and, for the four cases that ask for it, `required_tools_called`.

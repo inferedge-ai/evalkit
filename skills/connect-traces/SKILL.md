@@ -25,18 +25,20 @@ spans do not carry. If the developer wants that tab, the agent needs a
 Harness API with those endpoints (see the evalkit-usage skill).
 
 Every OTel agent has its own mapping, set when the agent is created.
-`references/` ships one per popular framework: `langchain.json`,
-`crewai.json`, `agno.json`, `llamaindex.json`, `google-adk.json`,
-`claude-agent-sdk.json` and `mastra.json`. Pick the agent's framework first;
-[Framework mappings](../evalkit-docs/framework-mappings.md) lists which file
+evalkit ships mapping **presets**: `evalkit traces mapping presets` lists them
+and `--mapping <preset>` uses one by name. There is one per popular framework:
+`langchain`, `crewai`, `agno`, `llamaindex`, `google-adk`,
+`claude-agent-sdk` and `mastra`. Pick the agent's framework first;
+[Framework mappings](../evalkit-docs/framework-mappings.md) lists which preset
 fits which framework (LangGraph, OpenAI Agents SDK and Pydantic AI use the
-generic files as they are) and the agent-side changes each one still needs.
+generic presets as they are) and the agent-side changes each one still needs.
 (`evalkit-docs/` sits beside the installed skills; in the evalkit
 repository the page is `docs/user/framework-mappings.md`.)
-Otherwise fall back to the two generic files: `openinference.json` for spans
-with `openinference.span.kind`, and `gen_ai.json` for spans with
-`gen_ai.operation.name`. Copy the one that fits and change it if the agent's
-attributes differ. The mapping also holds
+Otherwise fall back to the two generic presets: `openinference` for spans
+with `openinference.span.kind`, and `gen_ai` for spans with
+`gen_ai.operation.name`. Use the preset by name when it fits. When the
+agent's attributes differ, print the preset to a file, edit the file and push
+it as a draft (step 6). The mapping also holds
 two run-level settings:
 
 - `answer`: where the run's answer comes from. `root` (the usual value), a
@@ -78,14 +80,17 @@ lacks it. That is what a wrong mapping looks like in the check.
    (its Loop 2).
    To export only eval runs, see "Choosing what a shared worker exports"
    below.
-2. **Create the agent with a mapping.** Copy the framework's file (or the
-   generic starting point from step 1) into the repo and create the agent with it. Add `--harness-url`
+2. **Create the agent with a mapping.** Pass the framework's preset (or the
+   generic one from step 1) by name. `--mapping` also takes the path of a
+   mapping JSON file; use that when the repo already holds one for this
+   agent. A value that names an existing file is read as the file, even when
+   a preset has the same name. Add `--harness-url`
    when the agent also has a Harness API; leave it out for a code-driven
    agent.
 
    ```bash
-   cp <this skill>/references/openinference.json eval/span-mapping.json
-   evalkit agents create <agent> --trajectory-source otel --mapping eval/span-mapping.json
+   evalkit traces mapping presets
+   evalkit agents create <agent> --trajectory-source otel --mapping openinference
    ```
 
    The agent must exist before any span arrives: the collector refuses spans
@@ -182,13 +187,16 @@ lacks it. That is what a wrong mapping looks like in the check.
    server's memory.
 
    When the lines look right, stop.
-6. **Fix the mapping** when they do not. Edit `eval/span-mapping.json` (it is
+6. **Fix the mapping** when they do not. Print the preset the agent was
+   created with into a file in the repo (skip this when the repo already
+   holds the agent's mapping file), then edit `eval/span-mapping.json` (it is
    JSON, one rule per ESF field) and change the attribute keys to the ones in
    `spans.json`.
    `references/span-mapping-schema.md` explains every rule shape and the
    three message formats. Push it as a draft and check with it:
 
    ```bash
+   evalkit traces mapping presets openinference > eval/span-mapping.json
    evalkit traces mapping push <agent> eval/span-mapping.json
    evalkit traces check <agent> <session id> --mapping draft
    ```
