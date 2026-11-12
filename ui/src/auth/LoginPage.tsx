@@ -1,9 +1,16 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
+import { extensions } from "../extensions";
 import { isSignedOut, login } from "../lib/api";
-import { PublicShell } from "../shell/PublicShell";
+import { Wordmark } from "../shell/Shell";
 import { safeNext } from "./next";
+import { SignInFooter } from "./SignInFooter";
 import type { SignInState } from "./SignInLink";
 import {
   loadProviders,
@@ -31,8 +38,16 @@ export function SignInCard({
 }) {
   return (
     <Card className="w-full max-w-sm">
-      <CardHeader>
-        <h1 className="text-base font-semibold">Evalkit</h1>
+      <CardHeader className="text-center">
+        <h1>
+          {extensions.landingPage ? (
+            <Link to="/">
+              <Wordmark />
+            </Link>
+          ) : (
+            <Wordmark />
+          )}
+        </h1>
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">{children}</CardContent>
@@ -245,8 +260,8 @@ export function LoginPage() {
   const fallback: Providers = { password: fallbackPassword, oidc: null };
 
   return (
-    <PublicShell>
-      <div className="flex min-h-full items-center justify-center p-4">
+    <div className="flex min-h-dvh flex-col">
+      <main className="flex flex-1 items-center justify-center p-4">
         {providers === null && error === null ? (
           <div className="pane-status">Loading sign-in options…</div>
         ) : (
@@ -264,7 +279,8 @@ export function LoginPage() {
             />
           </div>
         )}
-      </div>
-    </PublicShell>
+      </main>
+      <SignInFooter />
+    </div>
   );
 }

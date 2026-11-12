@@ -165,6 +165,48 @@ test("a signed-in person at / gets the workspace list, not the landing page", as
   expect(screen.queryByText("Evals for your agents")).toBeNull();
 });
 
+test("the sign-in page has no navbar, while the docs pages keep it", async () => {
+  serve(null);
+  openApp("/login");
+  expect(
+    await screen.findByRole("heading", { name: "Evalkit" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("banner")).toBeNull();
+  expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /^Switch to/ })).toBeNull();
+  closePage();
+
+  serve(null);
+  openApp("/docs/quickstart");
+  const navbar = within(await screen.findByRole("banner"));
+  expect(navbar.getByRole("link", { name: "Sign in" })).toBeVisible();
+  expect(
+    navbar.getByRole("button", { name: "Switch to dark mode" }),
+  ).toBeVisible();
+});
+
+test("the sign-in card's wordmark leads back to the wrapper's landing page", async () => {
+  await logout();
+  serve(null);
+  openApp("/login");
+  const heading = await screen.findByRole("heading", { name: "Evalkit" });
+
+  await userEvent
+    .setup()
+    .click(within(heading).getByRole("link", { name: "Evalkit" }));
+
+  expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
+  expect(where()).toBe("/");
+});
+
+test("without a landing page, the sign-in card's wordmark is not a link", async () => {
+  wrapper.landingPage = null;
+  serve(null);
+  openApp("/login");
+  const heading = await screen.findByRole("heading", { name: "Evalkit" });
+  expect(within(heading).queryByRole("link")).toBeNull();
+});
+
 test("a public page opens under the public navbar when signed out and in the app shell when signed in", async () => {
   wrapper.publicRoutes = [{ path: "/terms", element: <h1>Terms of use</h1> }];
   serve(null);
