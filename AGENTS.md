@@ -273,12 +273,8 @@ and bodies, whoever writes them:
 - Describe behaviour as a flow: who does what, on which page, command or
   endpoint, and what they see after. Not "the write is refused" but "an
   admin runs `evalkit users add bob` and the server answers 400".
-- Could someone who hasn't read the code act on this sentence? A term
-  invented while working on the change, or an internal label, means no:
-  name the thing, using the vocabulary in Terms.
-- Title check, for headings, PR titles and changelog bullets: delete the
-  first comma and everything after it. If what's left says what changed,
-  that was the title.
+- Name things with the vocabulary in Terms, never a label invented while
+  working on the change.
 - Docs and code comments describe the current state: no "used to", no
   migration story, no PR, review round or issue id. History goes in the
   changelog, commits and PRs.
