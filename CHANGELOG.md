@@ -20,8 +20,11 @@
   (`evalkit users demote`) still works for them: evalkit reads the claim at
   sign-in, not when a token renews, so demote is how an admin removes admin
   before that person next signs in, and it lasts while the identity provider
-  agrees. Password accounts, including ones bound to a subject with
-  `evalkit users bind`, and machine users are unchanged.
+  agrees. A password account bound to a subject with `evalkit users bind` can
+  still be promoted, because it can sign in with its password, where the claim
+  never runs; the promotion lasts only until its next sign-in through the
+  identity provider, and under `password_login: none` that is the only way it
+  signs in. Other password accounts and machine users are unchanged.
 - The `otel` extra is gone: `opentelemetry-sdk` and
   `opentelemetry-exporter-otlp-proto-http` are now base dependencies of
   `evalkit-py`, so `evalkit.sdk.tracing.register` and SDK runs with traces work
