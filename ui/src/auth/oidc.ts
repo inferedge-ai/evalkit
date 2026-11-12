@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import {
   UserManager,
   WebStorageStateStore,
@@ -71,6 +72,19 @@ export function loadProviders(): Promise<Providers> {
     });
   }
   return providersPromise;
+}
+
+// undefined while loading, null when the server didn't say.
+export function usePasswordLogin(): Providers["password"] | null | undefined {
+  const providers = useQuery({
+    queryKey: ["auth-providers"],
+    queryFn: loadProviders,
+  });
+  if (providers.isPending) return undefined;
+  if (providers.data) return providers.data.password;
+  return providers.error instanceof ProvidersUnavailable
+    ? providers.error.password
+    : null;
 }
 
 export function resetProvidersForTest(): void {

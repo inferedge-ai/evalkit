@@ -4,6 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { resetProvidersForTest, setSessionForTest } from "../auth/oidc";
 import { SIDEBAR_COOKIE_NAME } from "../components/ui/sidebar";
 import type { SettingsPage } from "../lib/extensions";
 import { queryClient } from "../lib/query";
@@ -17,6 +18,7 @@ import {
   devWorkspace,
   failure,
   member,
+  stubPasswordLogin,
   stubServer,
 } from "../testFixtures";
 import { MeContext } from "./capabilities";
@@ -101,6 +103,8 @@ beforeEach(() => {
 
 afterEach(() => {
   closePage();
+  setSessionForTest(undefined);
+  resetProvidersForTest();
   localStorage.clear();
   document.cookie = `${SIDEBAR_COOKIE_NAME}=; path=/; max-age=0`;
 });
@@ -305,4 +309,59 @@ test("⌘K offers a member no admin Settings pages", async () => {
   expect(
     within(search).queryByText("Go to Settings › Organization › LLM providers"),
   ).toBeNull();
+});
+
+async function searchPages(text: string) {
+  const user = userEvent.setup();
+  await user.keyboard("{Meta>}k{/Meta}");
+  const search = await screen.findByRole("dialog", { name: "Search" });
+  await user.type(
+    within(search).getByPlaceholderText(
+      "Pick a type, go to a page, or type an id",
+    ),
+    text,
+  );
+  return search;
+}
+
+test.each([
+  [200, "/settings/users"],
+  [503, "/users"],
+])(
+  "with password login off (providers %i), an admin finds no Users page at %s, in the sidebar or in ⌘K",
+  async (status, path) => {
+    stubPasswordLogin(status, "none");
+    openApp(admin, path);
+    expect(
+      await screen.findByRole("heading", { name: "Not found" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Users" })).toBeNull();
+    expect(where()).toBe("/settings/users");
+    expect(links("Organization")).toEqual([
+      "Workspaces",
+      "Trace sources",
+      "LLM providers",
+      "Team",
+    ]);
+    const search = await searchPages("Settings");
+    expect(
+      within(search).getByText("Go to Settings › Organization › Workspaces"),
+    ).toBeInTheDocument();
+    expect(
+      within(search).queryByText("Go to Settings › Organization › Users"),
+    ).toBeNull();
+  },
+);
+
+test("with password login for admins, an admin opens the Users page from the sidebar and ⌘K", async () => {
+  stubPasswordLogin(200, "admin");
+  openApp(admin, "/settings/users");
+  expect(
+    await screen.findByRole("heading", { name: "Users" }),
+  ).toBeInTheDocument();
+  expect(links("Organization")).toContain("Users");
+  const search = await searchPages("Users");
+  expect(
+    within(search).getByText("Go to Settings › Organization › Users"),
+  ).toBeInTheDocument();
 });

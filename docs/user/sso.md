@@ -167,10 +167,19 @@ With `admin_claim` set, every registration (each sign-in) sets the person's
 admin flag from the access token: admin when the claim equals the value, or
 is a list that contains it; not an admin otherwise. A person the IdP stops
 naming as an admin loses admin at their next sign-in, even when they are the
-tenant's last admin: the IdP owns admins once this is on, so `evalkit users
-demote`'s last-admin check does not apply. Unset (the default),
-registration never changes the flag, and admins are promoted with
-`evalkit users promote`. An admin's powers stay inside their tenant: users,
+tenant's last admin: the IdP owns admins once this is on, and a sign-in that
+removes admin does not apply the last-admin check that `evalkit users demote`
+has. For the same reason, `evalkit users promote` answers 400 for anyone
+bound to the IdP (a user with a subject, whether or not they also have a
+password, as after `evalkit users bind`): their next sign-in through the IdP
+would undo it. `evalkit users demote` still works for them, last-admin check
+included. evalkit reads the claim when someone signs in, not when their token
+renews, so demote is how an admin takes admin away before that person next
+signs in; it lasts while the IdP agrees, and a claim that still names them
+makes them an admin again at their next sign-in. Password accounts with no
+subject are promoted and demoted as before. Unset (the default),
+registration never changes the flag, and admins are promoted with `evalkit
+users promote`. An admin's powers stay inside their tenant: users,
 workspaces and members, LLM providers and the default judge, trace sources
 and agent tokens of that tenant only.
 
@@ -191,6 +200,12 @@ your identity provider session stays. With `none`, signing out shows a
 **Sign in again** button rather than sending you back to the provider at once,
 in every tab of that browser, until you next sign in.
 
+With `password_login: none`, Settings has no Users page: everyone who signs in
+comes from the identity provider, which also decides who is an admin. Admins
+list users with `evalkit users list`, archive one with `evalkit users
+archive`, and add the machine user CI signs in as with `evalkit users add
+<name> --subject <sub>`.
+
 ## Admin runbook
 
 1. Start with `EVALKIT_ADMIN_PASSWORD` set; `admin` is a password account.
@@ -198,14 +213,15 @@ in every tab of that browser, until you next sign in.
    `EVALKIT_ADMIN_PASSWORD`: the IdP names the admins through `admin_claim`,
    and evalkit refuses to make a password account or set a password.
 2. Ask the first person to sign in; evalkit creates their user on the first
-   sign-in. Then `evalkit users promote <username>`.
-   `password_login: none` requires `admin_claim`, so whoever the claim names
-   is an admin from their first sign-in and, as with `admin_claim` in any
-   mode, promoting by hand does not last past the next one. If
-   nobody can sign in as an admin (the claim is missing from the access
-   token, say), switch back to `password_login: admin` and start with
-   `EVALKIT_ADMIN_PASSWORD`: the server creates `admin` when no admin
-   exists.
+   sign-in. Then, unless `admin_claim` is set, `evalkit users promote
+   <username>`. `password_login: none` requires `admin_claim`, so whoever the
+   claim names is an admin from their first sign-in. As with `admin_claim` in
+   any mode, the server refuses to promote by hand anyone bound to the IdP (a
+   user with a subject, password or not). Demoting works, until the claim
+   names the person again at their next sign-in. If nobody can sign in as an
+   admin (the claim is missing from the access token, say), switch back to
+   `password_login: admin` and start with `EVALKIT_ADMIN_PASSWORD`: the server
+   creates `admin` when no admin exists.
 3. Bind machine users: `evalkit users add ci-bot --subject <sub>`, then
    `evalkit workspaces members add dev ci-bot --role writer`.
 4. The first sign-in names the user after the part before `@` in

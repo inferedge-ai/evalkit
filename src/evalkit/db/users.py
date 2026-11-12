@@ -70,6 +70,14 @@ class MachineUser(Exception):
         super().__init__(f"{username} is a machine user and cannot be an admin")
 
 
+class AdminFromIdentityProvider(Exception):
+    def __init__(self, username: str, claim: str):
+        super().__init__(
+            f"{username} signs in through the identity provider, which decides who is an "
+            f"admin on this server from its {claim} claim"
+        )
+
+
 class UserArchived(Exception):
     def __init__(self, username: str):
         super().__init__("user is archived")
@@ -341,9 +349,16 @@ class UserStore:
             )
             await s.commit()
 
-    async def set_admin(self, username: str, value: bool) -> None:
+    async def set_admin(self, username: str, value: bool, admin_claim: str | None = None) -> None:
         async with self._session() as s:
             user = await self._get(s, username)
+            if (
+                value
+                and admin_claim is not None
+                and user.subject is not None
+                and user.kind == "human"
+            ):
+                raise AdminFromIdentityProvider(username, admin_claim)
             if not value:
                 await self._ensure_other_admin(s, user)
             if value and user.kind == "machine":

@@ -21,9 +21,22 @@
   `POST /api/users` with a password (`evalkit users add <name>`) and
   `POST /api/users/{name}/password` (`evalkit users set-password`) answer 400.
   Before, they made accounts that could never sign in. Machine users
-  (`evalkit users add <name> --subject <sub>`) are added as before. The Users
-  page under Settings › Organization says how people join in place of its
-  username and password form.
+  (`evalkit users add <name> --subject <sub>`) are added as before.
+- With `auth.password_login: none`, the web UI has no Users page: Settings ›
+  Organization and ⌘K search no longer list it, and `/settings/users` shows
+  the not-found page. Every person comes from the identity provider, so the
+  page's actions did not stick. `evalkit users list`, `evalkit users archive`
+  and `evalkit users add <name> --subject <sub>` work as before.
+- With `auth.oidc.admin_claim` set, `POST /api/users/{name}/promote`
+  (`evalkit users promote`, **make admin** on the Users page) answers 400 for a
+  person bound to the identity provider (a user with a subject), whether or not
+  they also have a password: each sign-in through the identity provider sets
+  their admin flag from the claim, so a promotion by hand was lost at their
+  next one. `POST /api/users/{name}/demote` (`evalkit users demote`) still
+  works for them: evalkit reads the claim at sign-in, not when a token renews,
+  so demote is how an admin removes admin before that person next signs in,
+  and it lasts while the identity provider agrees. Password accounts with no
+  subject and machine users are unchanged.
 - The `otel` extra is gone: `opentelemetry-sdk` and
   `opentelemetry-exporter-otlp-proto-http` are now base dependencies of
   `evalkit-py`, so `evalkit.sdk.tracing.register` and SDK runs with traces work
