@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { render as renderDom, screen } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { render as renderDom, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { logout } from "../lib/api";
+import { queryClient } from "../lib/query";
 import { LoginCallbackPage } from "./LoginCallbackPage";
 import { LoginChoices, LoginPage, runSso } from "./LoginPage";
 import {
@@ -109,6 +111,7 @@ describe("LoginPage", () => {
     vi.unstubAllGlobals();
     setSessionForTest(undefined);
     resetProvidersForTest();
+    queryClient.clear();
     localStorage.clear();
   });
 
@@ -142,9 +145,11 @@ describe("LoginPage", () => {
 
   function openLogin(path: string) {
     renderDom(
-      <MemoryRouter initialEntries={[path]}>
-        <LoginPage />
-      </MemoryRouter>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[path]}>
+          <LoginPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
   }
 
@@ -216,16 +221,75 @@ describe("LoginPage", () => {
         ),
       ),
     );
-    renderDom(
-      <MemoryRouter initialEntries={["/login"]}>
-        <LoginPage />
-      </MemoryRouter>,
-    );
+    openLogin("/login");
     expect(
       await screen.findByText("identity provider unreachable"),
     ).toBeTruthy();
     expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
     expect(screen.queryByLabelText("Username")).toBeNull();
+  });
+
+  function openWithServer(cli: () => Response) {
+    setSessionForTest(null);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.endsWith("/api/cli")
+          ? cli()
+          : Response.json({ password: "all", oidc: null }),
+      ),
+    );
+    openLogin("/login");
+    return within(document.querySelector("footer")!);
+  }
+
+  it("links the footer to the docs, GitHub and the release the server runs", async () => {
+    const footer = openWithServer(() =>
+      Response.json({ version: "0.5.0", package: "evalkit-py" }),
+    );
+    expect(
+      await footer.findByRole("link", { name: "evalkit-py v0.5.0" }),
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/inferedge-ai/evalkit/releases/tag/v0.5.0",
+    );
+    expect(footer.getByRole("link", { name: "Documentation" })).toHaveAttribute(
+      "href",
+      "https://inferedge-ai.github.io/evalkit/",
+    );
+    expect(footer.getByRole("link", { name: "GitHub" })).toHaveAttribute(
+      "href",
+      "https://github.com/inferedge-ai/evalkit",
+    );
+    for (const link of footer.getAllByRole("link")) {
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noreferrer");
+    }
+  });
+
+  it("shows a development build's version as text, since it has no release", async () => {
+    const footer = openWithServer(() =>
+      Response.json({ version: "0.5.0.dev42", package: "evalkit-py" }),
+    );
+    expect(await footer.findByText("evalkit-py v0.5.0.dev42")).toBeTruthy();
+    expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Documentation",
+      "GitHub",
+    ]);
+  });
+
+  it("leaves the version out when the server does not say which it runs", async () => {
+    const footer = openWithServer(() =>
+      Response.json({ detail: "unavailable" }, { status: 503 }),
+    );
+    await vi.waitFor(() =>
+      expect(queryClient.getQueryState(["/cli"])?.status).toBe("error"),
+    );
+    expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Documentation",
+      "GitHub",
+    ]);
+    expect(footer.queryByText(/evalkit-py/)).toBeNull();
   });
 });
 

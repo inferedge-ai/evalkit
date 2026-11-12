@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { isSignedOut, login } from "../lib/api";
 import { PublicShell } from "../shell/PublicShell";
 import { safeNext } from "./next";
+import { SignInFooter } from "./SignInFooter";
 import {
   loadProviders,
   ProvidersUnavailable,
@@ -244,24 +245,27 @@ export function LoginPage() {
 
   return (
     <PublicShell>
-      <div className="flex min-h-full items-center justify-center p-4">
-        {providers === null && error === null ? (
-          <div className="pane-status">Loading sign-in options…</div>
-        ) : (
-          <div className="flex w-full max-w-sm flex-col gap-3">
-            {error !== null && (
-              <Card size="sm" className="text-sm text-err-text">
-                <CardContent>{error}</CardContent>
-              </Card>
-            )}
-            <LoginChoices
-              providers={providers ?? fallback}
-              next={next}
-              signedOut={isSignedOut()}
-              onSso={startSso}
-            />
-          </div>
-        )}
+      <div className="flex min-h-full flex-col">
+        <div className="flex flex-1 items-center justify-center p-4">
+          {providers === null && error === null ? (
+            <div className="pane-status">Loading sign-in options…</div>
+          ) : (
+            <div className="flex w-full max-w-sm flex-col gap-3">
+              {error !== null && (
+                <Card size="sm" className="text-sm text-err-text">
+                  <CardContent>{error}</CardContent>
+                </Card>
+              )}
+              <LoginChoices
+                providers={providers ?? fallback}
+                next={next}
+                signedOut={isSignedOut()}
+                onSso={startSso}
+              />
+            </div>
+          )}
+        </div>
+        <SignInFooter />
       </div>
     </PublicShell>
   );
