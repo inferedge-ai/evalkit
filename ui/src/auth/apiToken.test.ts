@@ -135,6 +135,17 @@ describe("evalkit's own refresh", () => {
     expect(tokenRequests[0].get("refresh_token")).toBe("refresh-1");
     expect(tokenRequests[0].getAll("resource")).toEqual([EVALKIT]);
   });
+
+  it("gives up on a stalled identity provider and frees the refresh lock", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await signIn("ann", "refresh-1", 30);
+    stall = true;
+
+    const settled = expect(bearer()).rejects.toThrow();
+    await vi.advanceTimersByTimeAsync(10_000);
+    await settled;
+    expect(heldLocks).toEqual([]);
+  });
 });
 
 describe("getApiToken", () => {

@@ -10,6 +10,9 @@ import {
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "";
 
+// Discovery and the code exchange run while sign-in or the refresh lock waits.
+const IDP_REQUEST_TIMEOUT_SECONDS = 10;
+
 export type OidcProviders = {
   name: string;
   issuer: string;
@@ -61,6 +64,8 @@ class EvalkitUserManager extends UserManager {
   override signinSilent(args: SigninSilentArgs = {}): Promise<User | null> {
     return super.signinSilent({
       extraTokenParams: this.settings.extraTokenParams,
+      silentRequestTimeoutInSeconds:
+        this.settings.silentRequestTimeoutInSeconds,
       ...args,
     });
   }
@@ -167,6 +172,7 @@ export function userManagerSettings(
     userStore:
       store === undefined ? undefined : new WebStorageStateStore({ store }),
     automaticSilentRenew: false,
+    requestTimeoutInSeconds: IDP_REQUEST_TIMEOUT_SECONDS,
   };
 }
 
