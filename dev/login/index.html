@@ -1046,6 +1046,11 @@
 <h1 id="login">Login<a class="headerlink" href="#login" title="Permanent link">&para;</a></h1>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020
 </code></pre></div>
+<p><code>--url</code> names the server. Without it, <code>evalkit login</code> logs in to hosted
+evalkit, <code>https://evalkit.inferedge.com</code>, and prints that first:</p>
+<div class="highlight"><pre><span></span><code>logging in to https://evalkit.inferedge.com; pass --url to log in to another server
+</code></pre></div>
+<p>On a self-hosted server, always pass <code>--url</code>.</p>
 <p>With single sign-on configured on the server, the command opens your browser
 at your identity provider. Sign in there; the browser comes back to the CLI
 on a local port, and the CLI stores the identity provider's tokens in
@@ -1063,7 +1068,7 @@ server (<code>finance@dev</code>, <code>finance@prod</code>), not separate login
 <code>client credentials</code>) and when the current token expires, and exits 1 if the
 server rejects it. An SSO access token expires within the hour and renews
 itself; that line is not a reason to log in again. When a command fails with
-<code>your login has expired</code>, run <code>evalkit login</code> again.</p>
+<code>your login has expired</code>, run the <code>evalkit login</code> command it prints.</p>
 <p>The first sign-in creates your evalkit user, named after the part before <code>@</code>
 in your identity provider's username or email, in lowercase. If another user
 or a workspace has that name, evalkit adds the first free number to it
