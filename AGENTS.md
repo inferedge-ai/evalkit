@@ -243,13 +243,14 @@ path-filtered against the PR base) and on pushes to those branches:
   `uv version` before building the image and the wheel, so both share one
   version. Feature PRs never bump it: `develop` builds carry the last
   released semver plus `.devN`.
-- Releasing: a PR into `develop` bumps `pyproject.toml` and renames the
-  `## Unreleased` changelog section to the new version; then a
-  `develop → main` PR (merge commit, not squash) ships it. CI's `version`
-  job blocks a PR into `main` unless the version was bumped above `main`'s
-  and the changelog has that section. Entries that land under
-  `## Unreleased` while the release PR is open ship in that release without
-  notes; move them into the version's section if they matter. Bump MAJOR
+- Releasing: a PR into `develop` bumps `pyproject.toml` and rewrites the
+  `## Unreleased` changelog section into the new version's release notes
+  (see Changelog); then a `develop → main` PR (merge commit, not squash)
+  ships it. CI's `version` job blocks a PR into `main` unless the version
+  was bumped above `main`'s and the changelog has that section. Entries that
+  land under `## Unreleased` while the release PR is open ship in that
+  release without notes; work them into the version's section if they
+  matter. Bump MAJOR
   when the CLI and server can no longer talk, MINOR for new commands,
   endpoints or fields, PATCH otherwise.
   While evalkit is on `0.x`, a MINOR difference also counts as incompatible:
@@ -262,17 +263,79 @@ path-filtered against the PR base) and on pushes to those branches:
   `publish.yml`'s `docs` job deploys it with `mike` to the `gh-pages` branch,
   `dev` from `develop` and `X.Y.Z` (alias `latest`) from `main`.
 
+## Writing
+
+For docs, the changelog, help text, UI copy, error messages and PR titles
+and bodies, whoever writes them:
+
+- Plain language. Lead with what changed or what to do. No epigrams, and no
+  sentence built for effect.
+- Describe behaviour as a flow: who does what, on which page, command or
+  endpoint, and what they see after. Not "the write is refused" but "an
+  admin runs `evalkit users add bob` and the server answers 400".
+- Name things with the vocabulary in Terms, never a label invented while
+  working on the change.
+- Docs and code comments describe the current state: no "used to", no
+  migration story, no PR, review round or issue id. History goes in the
+  changelog, commits and PRs.
+- This repo is public: name no customer, organisation, private repository
+  or person.
+
 ## Changelog
 
-`CHANGELOG.md` has one section per released version plus `## Unreleased` at
-the top. It is a general record of what changed in each version, for anyone
-reading it: users, operators, contributors. Every PR that changes behaviour,
-an interface, a dependency, the schema, packaging or the build adds its
-entry under `## Unreleased`, in the same PR; the release PR renames that
-section. An entry says what changed and, when it is not obvious, why; name
-the command, flag, endpoint, field or config key so a reader can find it.
-Note anything refused or different from before in the same entry. Test-only
-changes and refactors with no visible effect do not need an entry.
+`CHANGELOG.md` is evalkit's release notes: one section per released version,
+newest first, plus `## Unreleased` at the top. The GitHub release `vX.Y.Z`
+uses the version's section as its notes, word for word.
+
+**While developing.** Every PR that changes behaviour, an interface, a
+dependency, the schema, packaging or the build adds an entry under
+`## Unreleased`, in the same PR. An entry says what changed and, when it is
+not obvious, why; it names the command, flag, endpoint, field or config key,
+and anything refused or different from before. These entries are notes for
+whoever writes the release. Test-only changes and refactors with no visible
+effect need none.
+
+**At release.** The release PR replaces `## Unreleased` with the version's
+section, written for the people who use and run evalkit rather than for
+its reviewers:
+
+```markdown
+## X.Y.Z
+
+_Released YYYY-MM-DD._ One or two sentences on what the release is about.
+
+### Before you upgrade
+
+### Features
+
+### Improvements
+
+### Fixes
+```
+
+- **Before you upgrade:** only what a reader must do: `evalkit update`
+  (every 0.x minor release), a migration to run before the server starts,
+  a removed flag, config key, field or extra, a renamed endpoint, a change
+  a package extending evalkit must follow. Leave the heading out when there
+  is nothing to do.
+- **Features:** what people can do that they could not before.
+- **Improvements:** what already existed and now works better or
+  differently.
+- **Fixes:** what was broken and now works, as "Fixed <what went wrong>",
+  naming the version that broke it when it was a regression.
+- One bullet per change a user would notice, one or two sentences, starting
+  with a bold area: **Web UI**, **CLI**, **SDK**, **Server**, **Sign-in**,
+  **Tracing**, **Evaluators**, **Review**, **Docs**, **Packaging** or
+  **Extending evalkit**. The PRs of one piece of work are one bullet: a
+  redesign is one bullet, not one per page.
+- Name what a reader finds and uses (a command, flag, page, endpoint or
+  config key); leave out how it is built (libraries, file paths, internal
+  names) unless the reader installs, imports or configures it.
+- Leave out test-only changes, refactors and small doc edits. Every
+  breaking change, removal and security fix stays in.
+- Leave out an empty part. The heading line stays exactly `## X.Y.Z`: CI's
+  `version` job and `publish.yml` match it, so the date goes on the line
+  under it.
 
 ## Specs and plans
 
