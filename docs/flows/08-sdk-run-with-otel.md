@@ -111,7 +111,6 @@ sequenceDiagram
 - Task returns another type: run error `task protocol violation: …`.
 - Task raises: the run is recorded as failed with the exception text; other runs continue.
 - No spans settle in time: `trajectory_status` `unavailable` (or `partial`); scoring goes on without a trajectory.
-- OTel extra missing: `evalkit tracing needs the otel extra: uv add 'evalkit[otel]'`.
 - Spans for an unknown agent: the collector answers 404 `unknown agent: <ref> — create it with evalkit agents create`.
 - A second resume or evaluate on an experiment whose lease is live: 409.
 - Scoring fails: the exception carries `experiment <id> is not fully scored; finish it with evalkit.sdk.evaluate_experiment(experiment_id=<id>, evaluators=[...]) passing <names>`. With no Python evaluators it ends ``evalkit.sdk.evaluate_experiment(experiment_id=<id>) or `evalkit evaluate <id>` ``.
