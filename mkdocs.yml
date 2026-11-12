@@ -36,6 +36,7 @@ theme:
     - toc.follow
 
 extra_css:
+  - stylesheets/tokens.css
   - stylesheets/evalkit.css
 
 extra_javascript:

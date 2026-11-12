@@ -249,38 +249,57 @@ button {
 .md-body th {
   background: var(--muted);
 }
-.docs-body h1 {
-  font-size: 1.6em;
+.docs-body :is(h1, h2, h3, h4) {
+  color: var(--color-ink);
   font-weight: 600;
-  margin: 0 0 0.6em;
+}
+.docs-body h1 {
+  font-size: var(--text-title);
+  line-height: var(--text-title--line-height);
+  margin: 0 0 0.75rem;
 }
 .docs-body h2 {
-  font-size: 1.2em;
-  font-weight: 600;
-  margin: 1.6em 0 0.5em;
+  font-size: var(--text-head);
+  line-height: var(--text-head--line-height);
+  margin: 2rem 0 0.5rem;
 }
 .docs-body h3 {
-  font-size: 1.05em;
-  font-weight: 600;
-  margin: 1.2em 0 0.4em;
+  font-size: var(--text-lede);
+  line-height: var(--text-lede--line-height);
+  margin: 1.5rem 0 0.375rem;
 }
 .docs-body h4 {
-  font-size: 1em;
-  font-weight: 600;
-  margin: 1em 0 0.4em;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  margin: 1rem 0 0.375rem;
 }
 .docs-body img {
   max-width: 100%;
   height: auto;
-  margin: 0.8em 0;
-  border-radius: 6px;
+  margin: 0.75rem 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+}
+.docs-body table {
+  margin: 0.75rem 0;
+}
+.docs-body th,
+.docs-body td {
+  padding: 6px 10px;
+  vertical-align: top;
+}
+.docs-body th {
+  font-weight: 600;
+}
+.docs-body tbody tr:hover {
+  background: color-mix(in oklab, var(--muted) 50%, transparent);
 }
 .docs-body :is(h1, h2, h3, h4, h5, h6) {
   scroll-margin-top: 4rem;
 }
 .docs-body tr {
   scroll-margin-top: 4rem;
-  transition: background-color 0.6s;
+  transition: background-color var(--duration-medium) var(--ease-standard);
 }
 .docs-body tr[data-targeted] {
   background: var(--muted);

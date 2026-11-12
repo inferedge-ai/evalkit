@@ -10,6 +10,13 @@
   row) on load and when the hash changes. `evalkit skills install` leaves
   `images/` out of `evalkit-docs/`. Concepts has rows for App run, Trace
   source, Preset and Hosted evalkit; see CONTRIBUTING.md for the markers.
+- The docs site uses the web UI's design tokens: the build generates
+  `stylesheets/tokens.css` from `ui/src/styles/tokens/`, and the site's
+  colours (light and dark), Roboto and JetBrains Mono fonts, radii, header,
+  sidebar, search, tables, code blocks, content tabs, admonitions and version
+  selector follow them. The web UI's docs page sets its headings, images and
+  tables from the same tokens, and its mobile page menu is the shared
+  `Button`.
 - With `auth.password_login: none`, evalkit makes no password accounts:
   `POST /api/users` with a password (`evalkit users add <name>`) and
   `POST /api/users/{name}/password` (`evalkit users set-password`) answer 400.

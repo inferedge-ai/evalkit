@@ -7,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Highlight, themes } from "prism-react-renderer";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { ApiError } from "../lib/api";
@@ -154,12 +155,12 @@ function DocsMenu({ tab }: { tab: string }) {
       className="md:sticky md:top-4 md:w-44 md:shrink-0 md:self-start"
       aria-label="Docs"
     >
-      <button
-        type="button"
+      <Button
+        variant="outline"
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => setOpenOn(open ? null : tab)}
-        className="flex w-full items-center gap-2 rounded-md border bg-card px-3 py-2 text-left text-sm md:hidden"
+        className="h-9 w-full justify-start gap-2 bg-card px-3 text-left font-normal md:hidden"
       >
         <span className="text-muted-foreground">{current?.group}</span>
         <span aria-hidden className="text-muted-foreground">
@@ -172,7 +173,7 @@ function DocsMenu({ tab }: { tab: string }) {
           aria-hidden
           className={cn("size-4 transition-transform", open && "rotate-180")}
         />
-      </button>
+      </Button>
       <div
         id={listId}
         className={cn(

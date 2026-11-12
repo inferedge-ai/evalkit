@@ -5,6 +5,7 @@ from pathlib import Path
 
 from markers import anchor_rows, convert_tabs
 from mkdocs.structure.files import File, Files
+from tokens import render_site_tokens
 
 SITE = Path(__file__).parent
 ROOT = SITE.parent.parent
@@ -22,9 +23,10 @@ GITHUB_ONLY = "On GitHub, `{{origin}}` in the docs stands for your server's URL.
 
 
 def _version() -> str:
-    return os.environ.get("DOCS_VERSION") or tomllib.loads(
-        (ROOT / "pyproject.toml").read_text()
-    )["project"]["version"]
+    return (
+        os.environ.get("DOCS_VERSION")
+        or tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    )
 
 
 def _site_link(target: str) -> str:
@@ -42,6 +44,13 @@ def on_files(files: Files, config) -> Files:
     for name, source in GENERATED.items():
         files.append(File.generated(config, name, abs_src_path=str(source)))
     files.append(File.generated(config, "index.md", content=_home_page()))
+    files.append(
+        File.generated(
+            config,
+            "stylesheets/tokens.css",
+            content=render_site_tokens(ROOT / "ui" / "src" / "styles" / "tokens"),
+        )
+    )
     return files
 
 
