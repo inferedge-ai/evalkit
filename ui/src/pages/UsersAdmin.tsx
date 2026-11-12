@@ -1,12 +1,12 @@
 import { Skeleton } from "@/components/ui/skeleton";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { loadProviders, ProvidersUnavailable } from "../auth/oidc";
+import { usePasswordLogin } from "../auth/oidc";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
 import type { UserRow } from "../lib/types";
+import { NotFound } from "../shell/NotFound";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,20 +18,16 @@ type UserAction = "archive" | "restore" | "promote" | "demote";
 const ROW_COLUMNS = "grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]";
 
 export function UsersAdminPage() {
+  const passwordLogin = usePasswordLogin();
+  if (passwordLogin === undefined) return null;
+  if (passwordLogin === "none")
+    return <NotFound what="page" up={{ label: "Home", to: "/" }} />;
+  return <UserList />;
+}
+
+function UserList() {
   const listed = useApi<UserRow[]>("/users");
   const users = listed.data;
-  const providers = useQuery({
-    queryKey: ["auth-providers"],
-    queryFn: loadProviders,
-  });
-  const passwordLogin =
-    providers.data?.password ??
-    (providers.error instanceof ProvidersUnavailable
-      ? providers.error.password
-      : null);
-  const passwordsOff = passwordLogin === "none";
-  const showForm =
-    !passwordsOff && (providers.data !== undefined || providers.error !== null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -67,40 +63,24 @@ export function UsersAdminPage() {
         description="Users are archived, never deleted: archiving revokes their tokens, blocks login and archives their personal workspace."
       />
       <div className="page">
-        {passwordsOff && (
-          <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
-            People join by signing in with{" "}
-            {providers.data?.oidc?.name ?? "the identity provider"}. For CI, add
-            a machine user:{" "}
-            <code className="font-mono">
-              evalkit users add &lt;name&gt; --subject &lt;sub&gt;
-            </code>
-            .
-          </p>
-        )}
-        {showForm && (
-          <form
-            className="mb-3 flex flex-wrap items-center gap-2"
-            onSubmit={add}
-          >
-            <Input
-              className="w-full sm:w-48"
-              placeholder="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-            <Input
-              className="w-full sm:w-48"
-              type="password"
-              placeholder="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <Button type="submit">Add user</Button>
-          </form>
-        )}
+        <form className="mb-3 flex flex-wrap items-center gap-2" onSubmit={add}>
+          <Input
+            className="w-full sm:w-48"
+            placeholder="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            required
+          />
+          <Input
+            className="w-full sm:w-48"
+            type="password"
+            placeholder="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+          <Button type="submit">Add user</Button>
+        </form>
         {error && <div className="pane-status error">{error}</div>}
         {users === undefined && !listed.error && (
           <Card className="rows gap-0 py-0">

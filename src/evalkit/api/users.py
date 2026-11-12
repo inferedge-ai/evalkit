@@ -25,6 +25,11 @@ def require_password_login(request: Request) -> None:
         )
 
 
+def _get_admin_claim_name(request: Request) -> str | None:
+    oidc = request.app.state.cfg.auth.oidc
+    return None if oidc is None or oidc.admin_claim is None else oidc.admin_claim.name
+
+
 @router.get("")
 async def list_users(stores: StoresDep, admin: AdminUser) -> list[dict]:
     return [
@@ -106,12 +111,14 @@ async def set_password(
 
 
 @router.post("/{username}/promote")
-async def promote_user(username: str, stores: StoresDep, admin: AdminUser) -> dict:
-    await stores.users.set_admin(username, True)
+async def promote_user(
+    username: str, request: Request, stores: StoresDep, admin: AdminUser
+) -> dict:
+    await stores.users.set_admin(username, True, _get_admin_claim_name(request))
     return {"promoted": username}
 
 
 @router.post("/{username}/demote")
-async def demote_user(username: str, stores: StoresDep, admin: AdminUser) -> dict:
-    await stores.users.set_admin(username, False)
+async def demote_user(username: str, request: Request, stores: StoresDep, admin: AdminUser) -> dict:
+    await stores.users.set_admin(username, False, _get_admin_claim_name(request))
     return {"demoted": username}

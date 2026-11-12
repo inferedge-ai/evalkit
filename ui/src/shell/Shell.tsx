@@ -56,8 +56,8 @@ import { JumpPalette } from "./JumpPalette";
 import {
   DOCS_NAV,
   getNavSections,
-  getSettingsSections,
   type NavSection,
+  useSettingsSections,
 } from "./nav";
 import { useTheme } from "./theme";
 import { SWITCH_FLASH_MS, useSwitchWorkspace, useWorkspace } from "./workspace";
@@ -131,8 +131,7 @@ function SideNav() {
 }
 
 function SettingsNav({ backTo }: { backTo: string }) {
-  const me = useMe();
-  const { workspace } = useWorkspace();
+  const sections = useSettingsSections();
   const { isMobile, setOpenMobile } = useSidebar();
   return (
     <Sidebar collapsible="icon">
@@ -156,9 +155,7 @@ function SettingsNav({ backTo }: { backTo: string }) {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
-        <NavSections
-          sections={getSettingsSections(me.is_admin, workspace.name)}
-        />
+        <NavSections sections={sections} />
       </SidebarContent>
       <NavFooter />
     </Sidebar>

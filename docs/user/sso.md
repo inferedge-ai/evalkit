@@ -168,11 +168,13 @@ admin flag from the access token: admin when the claim equals the value, or
 is a list that contains it; not an admin otherwise. A person the IdP stops
 naming as an admin loses admin at their next sign-in, even when they are the
 tenant's last admin: the IdP owns admins once this is on, so `evalkit users
-demote`'s last-admin check does not apply. Unset (the default),
-registration never changes the flag, and admins are promoted with
-`evalkit users promote`. An admin's powers stay inside their tenant: users,
-workspaces and members, LLM providers and the default judge, trace sources
-and agent tokens of that tenant only.
+demote`'s last-admin check does not apply. For the same reason, `evalkit
+users promote` and `evalkit users demote` answer 400 for anyone who signs in
+through the IdP; password accounts are promoted and demoted as before. Unset
+(the default), registration never changes the flag, and admins are promoted
+with `evalkit users promote`. An admin's powers stay inside their tenant:
+users, workspaces and members, LLM providers and the default judge, trace
+sources and agent tokens of that tenant only.
 
 `mcp.oauth` is gone: `/mcp` verifies tokens with the same settings as `/api`,
 and an IdP token is an evalkit user there too.
@@ -191,6 +193,12 @@ your identity provider session stays. With `none`, signing out shows a
 **Sign in again** button rather than sending you back to the provider at once,
 in every tab of that browser, until you next sign in.
 
+With `password_login: none`, Settings has no Users page: everyone who signs in
+comes from the identity provider, which also decides who is an admin. Admins
+list users with `evalkit users list`, archive one with `evalkit users
+archive`, and add the machine user CI signs in as with `evalkit users add
+<name> --subject <sub>`.
+
 ## Admin runbook
 
 1. Start with `EVALKIT_ADMIN_PASSWORD` set; `admin` is a password account.
@@ -201,7 +209,7 @@ in every tab of that browser, until you next sign in.
    sign-in. Then `evalkit users promote <username>`.
    `password_login: none` requires `admin_claim`, so whoever the claim names
    is an admin from their first sign-in and, as with `admin_claim` in any
-   mode, promoting by hand does not last past the next one. If
+   mode, the server refuses to promote or demote them by hand. If
    nobody can sign in as an admin (the claim is missing from the access
    token, say), switch back to `password_login: admin` and start with
    `EVALKIT_ADMIN_PASSWORD`: the server creates `admin` when no admin

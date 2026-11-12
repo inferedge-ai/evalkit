@@ -423,6 +423,50 @@ async def test_admin_adds_a_machine_user_and_its_token_is_served(env, idp):
         assert promote.status_code == 400 and "machine user" in promote.json()["detail"]
 
 
+def get_admin_names(rows: list[dict]) -> set[str]:
+    return {row["username"] for row in rows if row["is_admin"]}
+
+
+async def test_with_an_admin_claim_admins_cannot_promote_or_demote_identity_provider_people(
+    env, idp
+):
+    async with sso_app(env, idp, admin_claim=ADMINS) as client:
+        await register(client, idp, "sub-ann", "ann@example.com", "ann")
+        await register(
+            client, idp, "sub-bob", "bob@example.com", "bob", extra={"roles": ["evalkit-admin"]}
+        )
+        promote = await client.post("/api/users/ann/promote")
+        demote = await client.post("/api/users/bob/demote")
+        admins = get_admin_names((await client.get("/api/users")).json())
+    assert promote.status_code == 400
+    assert promote.json()["detail"] == (
+        "ann signs in through the identity provider, which decides who is an admin "
+        "on this server from its roles claim"
+    )
+    assert demote.status_code == 400 and "from its roles claim" in demote.json()["detail"]
+    assert admins == {"admin", "bob"}
+
+
+async def test_with_an_admin_claim_password_accounts_and_machine_users_are_unchanged(env, idp):
+    async with sso_app(env, idp, admin_claim=ADMINS) as client:
+        promote = await client.post("/api/users/akshat/promote")
+        demote = await client.post("/api/users/akshat/demote")
+        await client.post("/api/users", json={"username": "ci-bot", "subject": "client-ci-sub"})
+        machine = await client.post("/api/users/ci-bot/promote")
+    assert promote.status_code == 200 and demote.status_code == 200
+    assert machine.status_code == 400
+    assert machine.json()["detail"] == "ci-bot is a machine user and cannot be an admin"
+
+
+async def test_without_an_admin_claim_admins_promote_identity_provider_people(env, idp):
+    async with sso_app(env, idp) as client:
+        await register(client, idp, "sub-ann", "ann@example.com", "ann")
+        promote = await client.post("/api/users/ann/promote")
+        admins = get_admin_names((await client.get("/api/users")).json())
+    assert promote.status_code == 200
+    assert admins == {"admin", "ann"}
+
+
 async def test_admin_binds_an_existing_user(env, idp):
     async with sso_app(env, idp) as client:
         resp = await client.post("/api/users/akshat/identity", json={"subject": "sub-akshat"})
