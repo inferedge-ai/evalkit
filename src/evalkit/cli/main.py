@@ -1158,8 +1158,8 @@ def users_add(
 
     With --subject the user is a machine user bound to that subject at the identity
     provider: no password, no browser login. Without it, a password user; with SSO
-    configured and password_login admin, that user can only sign in once made admin,
-    and with password_login none, never.
+    configured and password_login admin, that user can only sign in once made admin;
+    with password_login none the server refuses it, so add machine users with --subject.
 
     Examples: evalkit users add alice · evalkit users add ci-bot --subject 0oa...
     """
