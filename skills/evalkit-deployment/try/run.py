@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["evalkit-py[otel]"]
+# dependencies = ["evalkit-py"]
 # ///
 import argparse
 from pathlib import Path

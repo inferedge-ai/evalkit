@@ -1,6 +1,6 @@
 # SDK reference
 
-The Python SDK runs experiments from your own code. Install it with the `otel` extra at your server's version (see [Install](install.md)) and import from `evalkit.sdk`. [SDK runs](sdk-runs.md) walks through it.
+The Python SDK runs experiments from your own code. Install `evalkit-py` at your server's version (see [Install](install.md)) and import from `evalkit.sdk`. [SDK runs](sdk-runs.md) walks through it.
 
 ## Running experiments
 

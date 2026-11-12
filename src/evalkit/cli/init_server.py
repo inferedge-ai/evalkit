@@ -17,7 +17,7 @@ DEFAULT_DIR = Path("evalkit-try")
 ENCRYPTION_KEY_ENV = "EVALKIT_ENCRYPTION_KEY"
 DEFAULT_DATABASE_URL = "postgresql+psycopg://localhost/evalkit"
 DEFAULT_ADMIN_PASSWORD = "evalkit-admin"
-KIT_REQUIREMENT = '"evalkit-py[otel]"'
+KIT_REQUIREMENT = '"evalkit-py"'
 KIT_LEAVES_OUT = ("*.whl", "__pycache__", "*.pyc", ".env")
 DOCKER_ONLY = ("docker-compose.yml", ".env.example")
 LOCAL_DB_POOL = {"pool_size": 5, "max_overflow": 5}
@@ -127,8 +127,8 @@ def _direct_url() -> dict:
 def pinned_requirement() -> str:
     direct = _direct_url()
     if direct.get("dir_info", {}).get("editable"):
-        return f"evalkit-py[otel] @ {direct['url']}"
-    return f"evalkit-py[otel]=={version.current()}"
+        return f"evalkit-py @ {direct['url']}"
+    return f"evalkit-py=={version.current()}"
 
 
 def kit_files_in(target: Path) -> list[str]:
