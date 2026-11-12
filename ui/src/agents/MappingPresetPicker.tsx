@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   formatPreset,
   FRAMEWORK_MAPPINGS_DOC,
-  restorableAfterPick,
+  getUndoText,
 } from "../lib/mappingPresets";
 import { useApi } from "../lib/query";
 import { Select } from "../lib/Select";
@@ -26,7 +26,7 @@ export function MappingPresetPicker({
     const preset = presets.data?.find((p) => p.name === name);
     if (!preset) return;
     const text = formatPreset(preset.document);
-    setReplaced(restorableAfterPick(value, picked?.text ?? null, replaced));
+    setReplaced(getUndoText(value, picked?.text ?? null, replaced));
     setPicked({ name, text });
     onChange(text);
   };

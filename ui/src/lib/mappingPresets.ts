@@ -4,7 +4,7 @@ export function formatPreset(document: Record<string, unknown>): string {
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 
-export function restorableAfterPick(
+export function getUndoText(
   current: string,
   pickedText: string | null,
   restorable: string | null,
