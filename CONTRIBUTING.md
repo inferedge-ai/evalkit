@@ -39,7 +39,7 @@ You need [uv](https://docs.astral.sh/uv/), Docker (the tests start
 Postgres in a container) and Node.js 24 for the UI.
 
 ```bash
-uv sync --extra server --extra otel
+uv sync --extra server
 uv run pytest              # tests
 uv run ruff check          # lint
 uv run ruff format         # format

@@ -53,7 +53,7 @@ def test_active_prefers_env_over_the_file(tmp_path, monkeypatch):
 def test_active_without_anything_raises(tmp_path, monkeypatch):
     monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
     monkeypatch.delenv("EVALKIT_TOKEN", raising=False)
-    with pytest.raises(LookupError, match="evalkit login --url"):
+    with pytest.raises(LookupError, match="`evalkit login --url <url>` for another server"):
         connection.active(path=tmp_path / "missing.toml")
 
 

@@ -107,7 +107,7 @@ lacks it. That is what a wrong mapping looks like in the check.
 
    `register` adds an exporter to the provider that exists; placed before the
    client's setup it creates a second provider and the agent's spans never
-   reach it. It needs the `otel` extra (`uv add "evalkit-py[otel]==<server version>"`).
+   reach it.
    When the client builds its own pipeline and should not touch the global
    provider, use the parts `register` is made of:
    `tracing.processor(agent=...)` returns evalkit's batch processor (it also

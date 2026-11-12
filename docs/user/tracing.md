@@ -16,7 +16,7 @@ from evalkit.sdk import tracing
 tracing.register(agent="myagent-sdk")
 ```
 
-`register` adds an exporter for this server to your global tracer provider, creating one if none is set. Your existing exporters keep running. The exporter carries an `X-Evalkit-Agent` header, which names the agent on the server; the `evalkit.agent` resource attribute is only set when `register` creates the provider itself. It reads the server URL from `EVALKIT_SERVER_URL` or your `evalkit login`, and the token from `EVALKIT_OTEL_TOKEN`, an agent token (`evalkit tokens create --agent <agent>`); a login token is not accepted, because it expires under a long-running process. It needs the `otel` extra.
+`register` adds an exporter for this server to your global tracer provider, creating one if none is set. Your existing exporters keep running. The exporter carries an `X-Evalkit-Agent` header, which names the agent on the server; the `evalkit.agent` resource attribute is only set when `register` creates the provider itself. It reads the server URL from `EVALKIT_SERVER_URL` or your `evalkit login`, and the token from `EVALKIT_OTEL_TOKEN`, an agent token (`evalkit tokens create --agent <agent>`); a login token is not accepted, because it expires under a long-running process.
 
 ### An existing span pipeline
 

@@ -126,7 +126,7 @@ export EVALKIT_TOKEN=$(curl -fsSL -X POST {{origin}}/api/auth/login \
 `uv run run.py` installs what it needs on the first run. The kit pins evalkit
 to the server's version when `evalkit init-server` copies it. In an evalkit
 checkout, run the kit's scripts with the checkout instead:
-`uv run --project ../../.. --extra otel python run.py`.
+`uv run --project ../../.. python run.py`.
 
 ## 2. Connect the agent's traces
 
@@ -210,7 +210,7 @@ Do the same in your own repository:
    evalkit server, with the LLM provider configured there as the default
    judge. To judge with your own key instead, see [Config](config.md).
 4. **Script.** Copy `run.py`. Pin evalkit in its header to your evalkit
-   server's version (`evalkit-py[otel]==<version>`), call
+   server's version (`evalkit-py==<version>`), call
    `tracing.register(agent="myagent")`, and write a `task` that calls your
    agent with the case input. `uv run run.py` builds an environment from the
    header alone, so add your agent's packages to its `dependencies`. If your
@@ -271,8 +271,8 @@ docker compose down -v     # stop and delete all data
 - `uv run run.py` cannot find `evalkit-py==<version>`: that version is not
   on PyPI yet (a source build, or a build whose publish job has not finished).
   Run it with the wheel you installed instead:
-  `uv run --no-project --with "<path to the wheel>[otel]" python run.py`, or
-  from an evalkit checkout: `uv run --project <checkout> --extra otel python run.py`.
+  `uv run --no-project --with "<path to the wheel>" python run.py`, or
+  from an evalkit checkout: `uv run --project <checkout> python run.py`.
   Or wait for the publish.
 - `init-server` cannot connect: start Postgres (`brew services start
   postgresql@17`, `sudo systemctl start postgresql`, or Postgres.app), or

@@ -83,6 +83,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Subject | The pair `(issuer, sub)` identifying one identity at one IdP; keys the `users` row with the tenant. |
 | Machine user | A `users` row bound to a machine client's subject: no password, no email, `kind` is `machine`. CI authenticates as one with the client credentials grant. |
 | Tenant | One organisation's slice of the database; the public repo has exactly one, id 1. |
+| Hosted evalkit | The evalkit server InferEdge runs for any organisation to sign up to, at `https://evalkit.inferedge.com`. `evalkit login` uses it unless `--url` names another server. A server someone else runs is self-hosted, never hosted evalkit. |
 
 ## Layout
 
@@ -103,7 +104,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - `api → core → store`; `db` may import `core`, `store/base.py` and `contracts`; `cli → client → core`; `sdk → client → core`. Arrows never reverse; `core` imports neither `sdk`, `client` nor `api`; `sdk` imports nothing from `cli`. `core/traces` has no database or HTTP-server imports; the runner reaches sessions only through the `SessionReader` on `RunnerDeps`.
 - Only `store/blob.py` imports obstore. `store/` never imports `core` or `db`. `client` and `cli` may import `store/base.py` (pure models and the `Store` protocol) but never `db`, `store/blob`, or any server-only package (server-only commands live behind the `evalkit[server]` extra boundary in `cli/server_commands.py`).
 - The CLI never holds database or blob credentials: local runs reach the store and blob through the evalkit API. The server's API keys are stored keys, encrypted in the database with `encryption_key`; the CLI's keys live in `evalkit.yaml` `credentials:` and env.
-- The base package depends on `opentelemetry-api` only; the OTel SDK and the OTLP exporter are the `evalkit[otel]` extra, `opentelemetry-proto` is in `server`.
+- The base package depends on `opentelemetry-api`, the OTel SDK and the OTLP HTTP exporter; `opentelemetry-proto` is in `server`.
 - evalkit code has zero knowledge of any client's agent internals: no client tool names, paths, buckets, or env vars.
 
 ## Commands

@@ -142,7 +142,7 @@ def test_vendored_wheel_prints_the_move_to_pypi(monkeypatch, tmp_path, capsys):
         'dependencies = ["evalkit[otel] @ ./vendor/evalkit-0.1.0-py3-none-any.whl"]\n'
     )
     run_update(client(), prefix=UV_PREFIX, run=lambda c: None, cwd=tmp_path, server_extra=False)
-    assert f'uv remove evalkit && uv add "evalkit-py[otel]=={REMOTE}"' in capsys.readouterr().out
+    assert f'uv remove evalkit && uv add "evalkit-py=={REMOTE}"' in capsys.readouterr().out
 
 
 def test_reinstall_refreshes_installed_skills(stale, tmp_path):
