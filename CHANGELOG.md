@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- New `GET /api/mapping-presets` returns the span mapping presets the package
+  ships, as `[{"name", "document"}]`, to any signed-in user. In the web UI, the
+  new-agent and edit-agent forms have a preset picker above "Span mapping": a
+  pick fills the field with the preset's JSON, which stays editable. When the
+  pick replaces text you typed or pasted, the form says so and offers Undo,
+  which brings that text back even after several picks.
 - A package extending evalkit's UI can add pages signed-out visitors open and
   a page for `/`. `UiExtensions` has two new required fields, so a wrapper's
   `ui/src/extensions/index.tsx` must set both:
