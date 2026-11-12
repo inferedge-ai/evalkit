@@ -245,3 +245,11 @@
 .md-typeset .highlight .cm {
   font-style: italic;
 }
+
+tr:has(.ek-row-anchor:target) {
+  background-color: var(--ek-fill);
+}
+
+.ek-row-anchor {
+  scroll-margin-top: 4rem;
+}

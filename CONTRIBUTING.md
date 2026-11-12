@@ -54,6 +54,25 @@ in [AGENTS.md](AGENTS.md).
 [AGENTS.md](AGENTS.md) also holds the project's terms, code layout,
 layering rules and code style. Please follow them.
 
+## Writing the user docs
+
+The pages in `docs/user/` render in the web UI's docs page, on the docs site
+(MkDocs) and as plain markdown on GitHub. Three markers work in both
+renderers:
+
+- **Tabs.** Put `<!-- tabs -->` and `<!-- /tabs -->` on their own lines around
+  the block. Inside it, each `#### Label` heading starts a tab, and its body
+  runs to the next `####` or the closing marker. The first tab is selected.
+  Outside the markers, `####` is an ordinary heading.
+- **Row anchors.** Put `<!-- anchor-rows -->` on the line right before a table.
+  Each body row gets an id from its first cell: lowercase, every run of
+  characters that is not a letter or digit becomes one `-`, and leading and
+  trailing `-` are removed. `App run` becomes `app-run`, `` `evalkit.yaml` ``
+  becomes `evalkit-yaml`. Link to a row as `concepts.md#app-run`.
+- **Images.** Put them in `docs/user/images/` and write
+  `![alt text](images/<file>.png)`. `evalkit skills install` leaves the folder
+  out of the copy it makes for coding agents.
+
 ## Code of conduct
 
 Everyone taking part follows our [Code of Conduct](CODE_OF_CONDUCT.md).

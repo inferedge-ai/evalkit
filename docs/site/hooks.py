@@ -3,6 +3,7 @@ import re
 import tomllib
 from pathlib import Path
 
+from markers import anchor_rows, convert_tabs
 from mkdocs.structure.files import File, Files
 
 SITE = Path(__file__).parent
@@ -21,9 +22,10 @@ GITHUB_ONLY = "On GitHub, `{{origin}}` in the docs stands for your server's URL.
 
 
 def _version() -> str:
-    return os.environ.get("DOCS_VERSION") or tomllib.loads(
-        (ROOT / "pyproject.toml").read_text()
-    )["project"]["version"]
+    return (
+        os.environ.get("DOCS_VERSION")
+        or tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    )
 
 
 def _site_link(target: str) -> str:
@@ -47,6 +49,7 @@ def on_files(files: Files, config) -> Files:
 def on_page_markdown(markdown: str, page, config, files) -> str:
     if page.file.src_uri == "index.md":
         return markdown
+    markdown = anchor_rows(convert_tabs(markdown))
     values = {"origin": "http://localhost:8020", "version": _version()}
     return PLACEHOLDER.sub(lambda match: values[match.group(1)], markdown)
 

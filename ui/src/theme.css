@@ -264,6 +264,24 @@ button {
   font-weight: 600;
   margin: 1.2em 0 0.4em;
 }
+.docs-body h4 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 1em 0 0.4em;
+}
+.docs-body img {
+  max-width: 100%;
+  height: auto;
+  margin: 0.8em 0;
+  border-radius: 6px;
+}
+.docs-body tr {
+  scroll-margin-top: 4rem;
+  transition: background-color 0.6s;
+}
+.docs-body tr[data-targeted] {
+  background: var(--muted);
+}
 .md-body blockquote {
   border-left: 3px solid var(--border);
   margin: 0.6em 0;
