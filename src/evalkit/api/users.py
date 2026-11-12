@@ -119,6 +119,6 @@ async def promote_user(
 
 
 @router.post("/{username}/demote")
-async def demote_user(username: str, request: Request, stores: StoresDep, admin: AdminUser) -> dict:
-    await stores.users.set_admin(username, False, _get_admin_claim_name(request))
+async def demote_user(username: str, stores: StoresDep, admin: AdminUser) -> dict:
+    await stores.users.set_admin(username, False)
     return {"demoted": username}

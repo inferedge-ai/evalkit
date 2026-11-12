@@ -357,7 +357,6 @@ class UserStore:
                 and admin_claim is not None
                 and user.subject is not None
                 and user.kind == "human"
-                and user.password_hash is None
             ):
                 raise AdminFromIdentityProvider(username, admin_claim)
             if not value:

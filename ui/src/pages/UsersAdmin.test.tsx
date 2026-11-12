@@ -2,7 +2,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { resetProvidersForTest, setSessionForTest } from "../auth/oidc";
 import {
   closePage,
@@ -55,6 +55,20 @@ test("with password login on, the page shows the username and password form", as
     await screen.findByRole("button", { name: "Add user" }),
   ).toBeInTheDocument();
   expect(document.querySelector("input[type=password]")).not.toBeNull();
+});
+
+test("while the sign-in options load, the page shows placeholder rows", async () => {
+  setSessionForTest(null);
+  stubServer((url) =>
+    url.endsWith("/api/auth/providers")
+      ? new Promise<Response>(() => {})
+      : undefined,
+  );
+  renderUsersPage();
+  await vi.waitFor(() =>
+    expect(document.querySelector("[data-slot=skeleton]")).not.toBeNull(),
+  );
+  expect(screen.queryByRole("button", { name: "Add user" })).toBeNull();
 });
 
 test("a refused row action shows its error", async () => {

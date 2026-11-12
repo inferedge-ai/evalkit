@@ -14,17 +14,14 @@
   and `evalkit users add <name> --subject <sub>` work as before.
 - With `auth.oidc.admin_claim` set, `POST /api/users/{name}/promote`
   (`evalkit users promote`, **make admin** on the Users page) answers 400 for a
-  person who signs in only through the identity provider (a subject and no
-  password): the claim sets their admin flag at each sign-in, so a promotion
-  by hand was overwritten at their next one. `POST /api/users/{name}/demote`
-  (`evalkit users demote`) still works for them: evalkit reads the claim at
-  sign-in, not when a token renews, so demote is how an admin removes admin
-  before that person next signs in, and it lasts while the identity provider
-  agrees. A password account bound to a subject with `evalkit users bind` can
-  still be promoted, because it can sign in with its password, where the claim
-  never runs; the promotion lasts only until its next sign-in through the
-  identity provider, and under `password_login: none` that is the only way it
-  signs in. Other password accounts and machine users are unchanged.
+  person bound to the identity provider (a user with a subject), whether or not
+  they also have a password: each sign-in through the identity provider sets
+  their admin flag from the claim, so a promotion by hand was lost at their
+  next one. `POST /api/users/{name}/demote` (`evalkit users demote`) still
+  works for them: evalkit reads the claim at sign-in, not when a token renews,
+  so demote is how an admin removes admin before that person next signs in,
+  and it lasts while the identity provider agrees. Password accounts with no
+  subject and machine users are unchanged.
 - The `otel` extra is gone: `opentelemetry-sdk` and
   `opentelemetry-exporter-otlp-proto-http` are now base dependencies of
   `evalkit-py`, so `evalkit.sdk.tracing.register` and SDK runs with traces work

@@ -169,25 +169,19 @@ is a list that contains it; not an admin otherwise. A person the IdP stops
 naming as an admin loses admin at their next sign-in, even when they are the
 tenant's last admin: the IdP owns admins once this is on, and a sign-in that
 removes admin does not apply the last-admin check that `evalkit users demote`
-has. For the same reason, `evalkit users promote` answers 400 for anyone who
-signs in only through the IdP (a subject and no password): their next sign-in
+has. For the same reason, `evalkit users promote` answers 400 for anyone
+bound to the IdP (a user with a subject, whether or not they also have a
+password, as after `evalkit users bind`): their next sign-in through the IdP
 would undo it. `evalkit users demote` still works for them, last-admin check
 included. evalkit reads the claim when someone signs in, not when their token
 renews, so demote is how an admin takes admin away before that person next
 signs in; it lasts while the IdP agrees, and a claim that still names them
-makes them an admin again at their next sign-in.
-
-A password account bound to a subject with `evalkit users bind` can still be
-promoted, but the promotion lasts only until the account's next sign-in
-through the IdP, which sets the flag from the claim as for anyone else. The
-server allows it because the account can still sign in with its password,
-where the claim never runs. Under `password_login: none` a bound account
-signs in only through the IdP, so its promotion lasts until that next
-sign-in. Password accounts without a subject are promoted and demoted as
-before. Unset (the default), registration never changes the flag, and admins
-are promoted with `evalkit users promote`. An admin's powers stay inside
-their tenant: users, workspaces and members, LLM providers and the default
-judge, trace sources and agent tokens of that tenant only.
+makes them an admin again at their next sign-in. Password accounts with no
+subject are promoted and demoted as before. Unset (the default),
+registration never changes the flag, and admins are promoted with `evalkit
+users promote`. An admin's powers stay inside their tenant: users,
+workspaces and members, LLM providers and the default judge, trace sources
+and agent tokens of that tenant only.
 
 `mcp.oauth` is gone: `/mcp` verifies tokens with the same settings as `/api`,
 and an IdP token is an evalkit user there too.
@@ -219,17 +213,15 @@ archive`, and add the machine user CI signs in as with `evalkit users add
    `EVALKIT_ADMIN_PASSWORD`: the IdP names the admins through `admin_claim`,
    and evalkit refuses to make a password account or set a password.
 2. Ask the first person to sign in; evalkit creates their user on the first
-   sign-in. Then `evalkit users promote <username>`.
-   `password_login: none` requires `admin_claim`, so whoever the claim names
-   is an admin from their first sign-in. As with `admin_claim` in any mode,
-   the server refuses to promote by hand anyone who signs in only through the
-   IdP (a subject and no password); a password account bound to a subject is
-   the one exception, and its promotion lasts only until its next sign-in
-   through the IdP. Demoting works, until the claim names the person again at
-   their next sign-in. If nobody can sign in as an admin (the claim is missing
-   from the access token, say), switch back to `password_login: admin` and
-   start with `EVALKIT_ADMIN_PASSWORD`: the server creates `admin` when no
-   admin exists.
+   sign-in. Then, unless `admin_claim` is set, `evalkit users promote
+   <username>`. `password_login: none` requires `admin_claim`, so whoever the
+   claim names is an admin from their first sign-in. As with `admin_claim` in
+   any mode, the server refuses to promote by hand anyone bound to the IdP (a
+   user with a subject, password or not). Demoting works, until the claim
+   names the person again at their next sign-in. If nobody can sign in as an
+   admin (the claim is missing from the access token, say), switch back to
+   `password_login: admin` and start with `EVALKIT_ADMIN_PASSWORD`: the server
+   creates `admin` when no admin exists.
 3. Bind machine users: `evalkit users add ci-bot --subject <sub>`, then
    `evalkit workspaces members add dev ci-bot --role writer`.
 4. The first sign-in names the user after the part before `@` in

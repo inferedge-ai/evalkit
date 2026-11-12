@@ -1231,8 +1231,8 @@ def users_set_password(
 def users_promote(username: str):
     """Make a user an admin (admin only). Example: evalkit users promote alice
 
-    With auth.oidc.admin_claim set, the server refuses this for people who sign in
-    only through the identity provider (no password): its claim decides who is an admin.
+    With auth.oidc.admin_claim set, the server refuses this for people bound to the
+    identity provider: its claim decides who is an admin.
     """
     _client().post(f"/api/users/{username}/promote")
     typer.echo(f"{username} is an admin")

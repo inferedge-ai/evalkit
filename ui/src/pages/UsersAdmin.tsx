@@ -19,10 +19,29 @@ const ROW_COLUMNS = "grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]";
 
 export function UsersAdminPage() {
   const passwordLogin = usePasswordLogin();
-  if (passwordLogin === undefined) return null;
+  if (passwordLogin === undefined)
+    return (
+      <div className="page">
+        <UserRowsSkeleton />
+      </div>
+    );
   if (passwordLogin === "none")
     return <NotFound what="page" up={{ label: "Home", to: "/" }} />;
   return <UserList />;
+}
+
+function UserRowsSkeleton() {
+  return (
+    <Card className="rows gap-0 py-0">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className={`row ${ROW_COLUMNS}`}>
+          <Skeleton className="h-4" style={{ width: `${20 + i * 8}%` }} />
+          <Skeleton className="h-4 w-12" />
+          <Skeleton className="h-3 w-28" />
+        </div>
+      ))}
+    </Card>
+  );
 }
 
 function UserList() {
@@ -82,17 +101,7 @@ function UserList() {
           <Button type="submit">Add user</Button>
         </form>
         {error && <div className="pane-status error">{error}</div>}
-        {users === undefined && !listed.error && (
-          <Card className="rows gap-0 py-0">
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className={`row ${ROW_COLUMNS}`}>
-                <Skeleton className="h-4" style={{ width: `${20 + i * 8}%` }} />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-3 w-28" />
-              </div>
-            ))}
-          </Card>
-        )}
+        {users === undefined && !listed.error && <UserRowsSkeleton />}
         {users && (
           <Card className="rows gap-0 py-0">
             {users.map((user) => (
