@@ -18,12 +18,11 @@ from evalkit.contracts.atif import validate_trajectory
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.convert import to_atif
 from evalkit.core.traces.mapping import to_esf
+from evalkit.core.traces.presets import read_preset
 from evalkit.core.traces.raw import RawSpan
 
 ROOT = Path(__file__).parent.parent
 KIT = ROOT / "skills" / "evalkit-deployment" / "try"
-GEN_AI = ROOT / "skills" / "connect-traces" / "references" / "gen_ai.json"
-KIT_MAPPING = KIT / "mapping.json"
 LLM_ENV = {"LLM_BASE_URL": "https://llm.test/v1", "LLM_API_KEY": "k", "LLM_MODEL": "m"}
 
 
@@ -100,7 +99,7 @@ def test_sample_agent_spans_convert_to_a_trajectory_with_its_tool_call(monkeypat
         "tool_call_id": "call_1",
         "content": "48.2 million",
     }
-    mapping = MappingDocument.model_validate_json(KIT_MAPPING.read_text())
+    mapping = MappingDocument.model_validate_json(read_preset("gen_ai"))
     spans = [to_esf(raw(s), mapping) for s in exporter.get_finished_spans()]
     trajectory = validate_trajectory(
         to_atif(spans, mapping, agent_name="analyst", session_id="s", mapping_version=1).model_dump(
@@ -155,8 +154,10 @@ def test_kit_cases_lint_clean():
     assert result.exit_code == 0, result.output
 
 
-def test_kit_mapping_starts_as_the_connect_traces_gen_ai_mapping():
-    assert json.loads(KIT_MAPPING.read_text()) == json.loads(GEN_AI.read_text())
+def test_kit_ships_no_mapping_and_uses_the_gen_ai_preset():
+    assert not (KIT / "mapping.json").exists()
+    walkthrough = (ROOT / "docs" / "user" / "try-locally.md").read_text()
+    assert "--trajectory-source otel --mapping gen_ai\n" in walkthrough
 
 
 def test_kit_server_migrates_on_start_and_run_py_is_pinned_on_copy(monkeypatch):

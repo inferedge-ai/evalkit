@@ -139,10 +139,10 @@ evalkit agents list --workspace dev
 - `agents create|edit|show|list|archive|restore` and
   `evaluators create|edit|list|archive`. Creating one in a shared workspace
   needs the writer role there.
-- An OTel agent (`--trajectory-source otel`) needs `--mapping <file.json>`
+- An OTel agent (`--trajectory-source otel`) needs `--mapping <preset or file.json>`
   when you create it (see the **connect-traces** skill).
 - `agents edit <agent> --trajectory-source otel|atif` switches an existing
-  agent. Switching to `otel` takes `--mapping <file.json>`, or reuses the
+  agent. Switching to `otel` takes `--mapping <preset or file.json>`, or reuses the
   agent's last active mapping. It's refused while one of the agent's
   experiments is running; finished experiments keep the source they ran with.
 - A run scores with the remote evaluators in the agent's workspace.
@@ -256,8 +256,7 @@ if __name__ == "__main__":
 
 ```bash
 # no --harness-url: a code-driven agent. Trajectories come from its spans.
-cp <skills>/connect-traces/references/openinference.json eval/mapping.json
-evalkit agents create myagent --trajectory-source otel --mapping eval/mapping.json
+evalkit agents create myagent --trajectory-source otel --mapping openinference
 ```
 
 Rules of the road:

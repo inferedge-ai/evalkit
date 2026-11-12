@@ -127,9 +127,10 @@ decided: who invokes the agent, and where trajectories come from.
 | **3c. Harness API + traces** | evalkit's server, through the Harness API minus the trajectory endpoint | OpenTelemetry spans exported to the collector | runs must be started by the server (UI, schedules) rather than by client code |
 
 Traces work for any instrumentation. Every OTel agent needs a span
-mapping: the **connect-traces** skill ships starting points for
-OpenInference and GenAI semantic conventions and writes one for anything
-else. Pass it with `--mapping` when you create the agent.
+mapping: evalkit ships presets for the OpenInference and GenAI semantic
+conventions and for popular frameworks (`evalkit traces mapping presets`),
+and the **connect-traces** skill writes one for anything else. Pass a preset
+name or a file with `--mapping` when you create the agent.
 
 ## 3a. SDK + traces
 
