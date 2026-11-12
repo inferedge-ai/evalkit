@@ -2,7 +2,7 @@ import { ErrorResponse } from "oidc-client-ts";
 import { session, type OidcSession, type SessionUser } from "../auth/oidc";
 import type { Me } from "./types";
 
-const API = import.meta.env.VITE_API_BASE_URL ?? "";
+export const API = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const TOKEN_KEY = "evalkit.token";
 const SIGNED_OUT_KEY = "evalkit.signed_out";

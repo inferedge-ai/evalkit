@@ -37,14 +37,12 @@ export function PublicShell({ children }: { children?: ReactNode }) {
           >
             {theme === "dark" ? <Sun /> : <Moon />}
           </Button>
-          {!location.pathname.startsWith("/login") && (
-            <SignInLink
-              next={location.pathname + location.search}
-              className={buttonVariants({ size: "sm" })}
-            >
-              Sign in
-            </SignInLink>
-          )}
+          <SignInLink
+            next={location.pathname + location.search}
+            className={buttonVariants({ size: "sm" })}
+          >
+            Sign in
+          </SignInLink>
         </div>
       </header>
       <main className="min-h-0 flex-1 overflow-auto">
