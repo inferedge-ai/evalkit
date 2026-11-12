@@ -1,4 +1,3 @@
-import json
 import re
 from pathlib import Path
 
@@ -7,7 +6,7 @@ from typer.testing import CliRunner
 
 from evalkit.cli import main as main_module
 from evalkit.cli.main import app
-from evalkit.contracts.esf import MappingDocument
+from evalkit.core.traces.presets import list_preset_names
 
 SKILLS = Path(__file__).parent.parent / "skills"
 # Agent Skills spec limits (agentskills.io/specification), enforced by Claude Code.
@@ -65,80 +64,9 @@ def test_skill_links_to_installed_docs_resolve(tmp_path):
             assert (path.parent / href).resolve().is_file(), f"{path} links {href}"
 
 
-def test_connect_traces_ships_the_reference_mappings():
-    for name in ("openinference.json", "gen_ai.json"):
-        assert (SKILLS / "connect-traces" / "references" / name).is_file()
-    for path in (SKILLS / "connect-traces" / "references").glob("*.json"):
-        MappingDocument.model_validate_json(path.read_text())
-    assert not (
-        Path(__file__).parent.parent / "src" / "evalkit" / "core" / "traces" / "mappings"
-    ).exists()
-
-
-FRAMEWORK_MAPPINGS = {
-    "langchain.json": (
-        "openinference.json",
-        ["input.value", "output.value", "llm.input_messages.*", "llm.output_messages.*"],
-        {},
-    ),
-    "crewai.json": (
-        "openinference.json",
-        [
-            "agent.backstory",
-            "agent.goal",
-            "agent.tools",
-            "conversation.turn_index",
-            "tool.cache_function",
-            "tool.current_usage_count",
-            "tool.description_updated",
-            "tool.result_as_answer",
-        ],
-        {},
-    ),
-    "agno.json": ("openinference.json", ["agno.*"], {}),
-    "llamaindex.json": (
-        "openinference.json",
-        ["input.value", "output.value"],
-        {
-            "rekind_spans": [
-                {"name": "*.astream_chat", "attribute": "llm.finish_reason", "kind": "llm"},
-                {"name": "*.astream_chat", "kind": "chain"},
-                {"name": "*._prepare_chat_with_tools", "kind": "chain"},
-            ]
-        },
-    ),
-    "google-adk.json": (
-        "gen_ai.json",
-        ["gcp.vertex.agent.*", "input.value", "output.value", "session.id"],
-        {"exclude_spans": ["execute_tool (merged)"]},
-    ),
-    "claude-agent-sdk.json": (
-        "gen_ai.json",
-        ["mcp.*", "jsonrpc.*"],
-        {"exclude_spans": [{"scope": "mcp-python-sdk"}]},
-    ),
-    "mastra.json": (
-        "gen_ai.json",
-        ["mastra.*", "gen_ai.usage.reasoning_tokens", "gen_ai.tool.call.id"],
-        {
-            "answer": "invoke_agent <agent name>.text",
-            "exclude_spans": [
-                {"attribute": "mastra.span.type", "equals": kind}
-                for kind in ("processor_run", "memory_operation", "model_chunk")
-            ],
-        },
-    ),
-}
-
-
-def test_framework_mappings_are_their_base_plus_the_listed_changes():
-    references = SKILLS / "connect-traces" / "references"
-    shipped = {p.name for p in references.glob("*.json")} - {"openinference.json", "gen_ai.json"}
-    assert shipped == set(FRAMEWORK_MAPPINGS)
-    for name, (base_name, known, overrides) in FRAMEWORK_MAPPINGS.items():
-        base = json.loads((references / base_name).read_text())
-        expected = base | {"known_attributes": base["known_attributes"] + known} | overrides
-        assert json.loads((references / name).read_text()) == expected, name
+def test_connect_traces_ships_no_mapping_json():
+    assert not list((SKILLS / "connect-traces").rglob("*.json"))
+    assert set(list_preset_names()) >= {"openinference", "gen_ai"}
 
 
 def test_skills_install_drops_files_a_shipped_skill_no_longer_has(tmp_path):

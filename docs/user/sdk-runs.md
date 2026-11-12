@@ -120,7 +120,7 @@ result = await arun_experiment(dataset="finance", agent="myagent-sdk", task=task
 `agent="myagent-sdk"` names an agent on the server; a bare name means your own workspace. Create it once:
 
 ```bash
-evalkit agents create myagent-sdk --trajectory-source otel --mapping openinference.json \
+evalkit agents create myagent-sdk --trajectory-source otel --mapping openinference \
   --max-concurrent-runs 4 --provides thinking=true
 ```
 

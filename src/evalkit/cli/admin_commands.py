@@ -6,6 +6,7 @@ from pathlib import Path
 import typer
 
 from evalkit.cli.client import ApiClient, ApiError
+from evalkit.cli.traces_commands import MAPPING_HELP, load_mapping
 from evalkit.client.api import encode
 from evalkit.contracts.notes import ENDPOINT_NOTE
 from evalkit.core.agents import explicit
@@ -379,12 +380,10 @@ def register(
             help=f"Omit for a code-driven agent (SDK runs only). {ENDPOINT_NOTE}",
         ),
         trajectory_source: str = typer.Option("atif", "--trajectory-source", help="atif or otel."),
-        mapping: Path | None = typer.Option(
+        mapping: str | None = typer.Option(
             None,
             "--mapping",
-            exists=True,
-            dir_okay=False,
-            help="Span mapping JSON; required with --trajectory-source otel.",
+            help=f"Span mapping; required with --trajectory-source otel. {MAPPING_HELP}",
         ),
         repo_url: str | None = typer.Option(None, "--repo-url"),
         max_concurrent_runs: int | None = typer.Option(None, "--max-concurrent-runs"),
@@ -400,7 +399,8 @@ def register(
         (--api-key-env); in your personal workspace it goes in evalkit.yaml
         credentials.agents.
 
-        Example: evalkit agents create ouragent --workspace dev --harness-url https://agent/evalkit/v1
+        Examples: evalkit agents create ouragent --workspace dev --harness-url https://agent/evalkit/v1;
+        evalkit agents create myagent --trajectory-source otel --mapping openinference
         """
         settings = _settings(
             {
@@ -420,12 +420,12 @@ def register(
             "trajectory_source": trajectory_source,
             "repo_url": repo_url,
             "settings": settings,
-            "mapping": json.loads(mapping.read_text()) if mapping else None,
+            "mapping": load_mapping(mapping) if mapping else None,
             **key_change(api_key_env, False),
         }
         _print_agent(client_factory().post("/api/agents", json=body).json())
         if mapping:
-            typer.echo(f"  mapping            v1, active (from {mapping.name})")
+            typer.echo(f"  mapping            v1, active (from {Path(mapping).name})")
 
     @agents_app.command("edit")
     def agents_edit(
@@ -435,13 +435,11 @@ def register(
         trajectory_source: str | None = typer.Option(
             None, "--trajectory-source", help="atif or otel."
         ),
-        mapping: Path | None = typer.Option(
+        mapping: str | None = typer.Option(
             None,
             "--mapping",
-            exists=True,
-            dir_okay=False,
-            help="Span mapping JSON, made the active version. Needed to switch to otel "
-            "unless the agent already has an active mapping.",
+            help="Span mapping, made the active version. Needed to switch to otel "
+            f"unless the agent already has an active mapping. {MAPPING_HELP}",
         ),
         max_concurrent_runs: int | None = typer.Option(None, "--max-concurrent-runs"),
         run_timeout: int | None = typer.Option(None, "--run-timeout"),
@@ -462,7 +460,7 @@ def register(
         the agent's experiments is running; experiments that already ran keep the source
         they ran with.
 
-        Example: evalkit agents edit mybot --trajectory-source otel --mapping gen_ai.json
+        Example: evalkit agents edit mybot --trajectory-source otel --mapping gen_ai
         """
         path = f"/api/agents/{encode(ref_of(ref))}"
         client = client_factory()
@@ -490,7 +488,7 @@ def register(
         if trajectory_source is not None:
             body["trajectory_source"] = trajectory_source
         if mapping is not None:
-            body["mapping"] = json.loads(mapping.read_text())
+            body["mapping"] = load_mapping(mapping)
         body.update(key_change(api_key_env, clear_api_key))
         _print_agent(client.patch(path, json=body).json())
 

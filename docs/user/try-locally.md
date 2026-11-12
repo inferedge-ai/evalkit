@@ -97,7 +97,6 @@ every start.
 | -- | -- |
 | `agent.py` | The sample agent. It answers questions about Acme Widgets, a made-up company, by calling your LLM with one tool, `lookup_financials`. It records each model call and tool call as an OpenTelemetry span, using the GenAI semantic conventions. |
 | `run.py` | The SDK run: `tracing.register` sends the spans to evalkit, and `run_experiment` calls the agent once per case and scores the answers. |
-| `mapping.json` | The span mapping: which span attribute holds the model, the messages, the tokens and each tool call. It starts as the connect-traces skill's `gen_ai.json`. |
 | `cases/acme/` | Five cases in two folders (tags), with answer rubrics and a tool check. |
 | `evalkit.yaml`, `.env` | Where the cases are. |
 | `config.yaml` | The server's config. |
@@ -131,11 +130,13 @@ checkout, run the kit's scripts with the checkout instead:
 
 ## 2. Connect the agent's traces
 
-Create the agent. Its trajectories come from its spans, read with
-`mapping.json`:
+Create the agent. Its trajectories come from its spans, read with a span
+mapping: which span attribute holds the model, the messages, the tokens and
+each tool call. The sample agent's spans follow the GenAI semantic
+conventions, so evalkit's `gen_ai` mapping preset reads them as it is:
 
 ```bash
-evalkit agents create analyst --trajectory-source otel --mapping mapping.json
+evalkit agents create analyst --trajectory-source otel --mapping gen_ai
 ```
 
 Run one case without creating an experiment:
@@ -219,15 +220,17 @@ Do the same in your own repository:
 4. **Cases.** Add a folder under your cases directory, for example
    `mine/`, and run with `dataset="mine"`. The authoring-eval-cases skill
    covers the format. See [Concepts](concepts.md) for the terms.
-5. **Agent and mapping.** Copy this kit's `mapping.json` into your
-   repository, or `openinference.json` from the connect-traces skill if your
-   spans follow OpenInference, and create the agent with it:
+5. **Agent and mapping.** Pick the mapping preset for your framework
+   ([Framework mappings](framework-mappings.md); `evalkit traces mapping
+   presets` lists them), or `openinference` if your spans follow
+   OpenInference, and create the agent with it:
    `evalkit agents create myagent --trajectory-source otel --mapping
-   my-mapping.json`. Do a dry run with your script and `evalkit traces check`
-   on its session, as in step 2. For each `!` line, edit your copy, upload it
-   as a draft and preview the same session:
+   openinference`. Do a dry run with your script and `evalkit traces check`
+   on its session, as in step 2. For each `!` line, save the preset to a
+   file, edit it, upload it as a draft and preview the same session:
 
    ```bash
+   evalkit traces mapping presets openinference > my-mapping.json
    evalkit traces mapping push myagent my-mapping.json
    evalkit traces check myagent <session id> --mapping draft
    ```

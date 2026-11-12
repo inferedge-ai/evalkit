@@ -11,6 +11,7 @@ import typer
 from evalkit.cli.client import ApiClient, ApiError
 from evalkit.client.api import encode
 from evalkit.core.traces.check import render_check
+from evalkit.core.traces.presets import list_preset_names, read_preset
 
 traces_app = typer.Typer(
     no_args_is_help=True, help="Check, map and import OpenTelemetry sessions for an agent."
@@ -21,6 +22,25 @@ traces_app.add_typer(mapping_app, name="mapping")
 DUMPS = ("spans.json", "esf.json", "trajectory.json")
 FOLLOW_SECONDS = 2
 ACTIVE_IMPORT = ("running", "stopping")
+
+
+MAPPING_HELP = (
+    "A preset name (evalkit traces mapping presets) or a mapping JSON file; a file wins "
+    "when both match."
+)
+
+
+def read_mapping(value: str) -> str:
+    if Path(value).is_file():
+        return Path(value).read_text()
+    names = list_preset_names()
+    if value in names:
+        return read_preset(value)
+    raise ApiError(f"{value} is neither a file nor a mapping preset; presets: {', '.join(names)}")
+
+
+def load_mapping(value: str) -> dict:
+    return json.loads(read_mapping(value))
 
 
 def utc(value: str) -> datetime:
@@ -208,13 +228,13 @@ def register(
     @mapping_app.command("push")
     def mapping_push(
         agent: str,
-        file: Path = typer.Argument(..., exists=True, dir_okay=False, help="Mapping JSON file."),
+        mapping: str = typer.Argument(..., metavar="MAPPING", help=MAPPING_HELP),
     ):
         """Upload a mapping document as the agent's draft. Activate it with mapping activate.
 
         Example: evalkit traces mapping push research-agent eval/span-mapping.json
         """
-        document = json.loads(file.read_text())
+        document = load_mapping(mapping)
         body = (
             client_factory()
             .put(f"/api/agents/{encode(agent_slug(agent))}/mappings/draft", json=document)
@@ -224,6 +244,26 @@ def register(
             typer.echo(f"draft v{body['version']} for {agent} is unchanged")
             return
         typer.echo(f"draft v{body['version']} for {agent}")
+
+    @mapping_app.command("presets")
+    def mapping_presets(
+        name: str | None = typer.Argument(
+            None, help="Print this preset's JSON. Leave out to list the preset names."
+        ),
+    ):
+        """List the mapping presets that ship with evalkit, or print one as JSON to save and edit.
+
+        Examples: evalkit traces mapping presets;
+        evalkit traces mapping presets langchain > eval/span-mapping.json
+        """
+        names = list_preset_names()
+        if name is None:
+            for preset in names:
+                typer.echo(preset)
+            return
+        if name not in names:
+            raise ApiError(f"{name} is not a mapping preset; presets: {', '.join(names)}")
+        typer.echo(read_preset(name), nl=False)
 
     @mapping_app.command("activate")
     def mapping_activate(

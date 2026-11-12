@@ -11,8 +11,8 @@ A developer checks how one OTel session of their agent turns into a trajectory, 
 
 Terms:
 - **Session:** the spans of one run.
-- **Mapping:** a JSON document that says which span attribute holds each ESF field, plus `answer` and `exclude_spans`. Every OTel agent has its own mapping, created with the agent (`evalkit agents create … --trajectory-source otel --mapping file.json` stores v1 as active). Versions are `draft`, `active` or `retired`. An agent has at most one draft and one active version.
-- **Starting points:** the `connect-traces` skill ships `gen_ai.json` and `openinference.json`. They hold the common session id attributes (`session.id`, `gen_ai.conversation.id`, `langfuse.session.id`).
+- **Mapping:** a JSON document that says which span attribute holds each ESF field, plus `answer` and `exclude_spans`. Every OTel agent has its own mapping, created with the agent (`evalkit agents create … --trajectory-source otel --mapping <preset or file.json>` stores v1 as active). Versions are `draft`, `active` or `retired`. An agent has at most one draft and one active version.
+- **Starting points:** the package ships mapping presets (`evalkit traces mapping presets` lists them, `evalkit traces mapping presets NAME` prints one), among them `gen_ai` and `openinference`. They hold the common session id attributes (`session.id`, `gen_ai.conversation.id`, `langfuse.session.id`).
 - **Agent references:** the API and UI always use `name@workspace` (`research-agent@dev`). The CLI also takes a bare name, meaning your personal workspace.
 
 ## Sequence

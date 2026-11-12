@@ -20,6 +20,26 @@
   `evalkit login` prompted `Server URL`. The "no server configured" and old
   profiles-file errors now name both forms. `EVALKIT_SERVER_URL` works as
   before and does not change where `evalkit login` logs in.
+- The span mapping presets now ship in the package, so creating an OTel agent
+  no longer needs `evalkit skills install` first. `--mapping` on
+  `evalkit agents create` and `evalkit agents edit`, and the mapping argument
+  of `evalkit traces mapping push`, take a preset name (`openinference`,
+  `gen_ai`, `langchain`, `llamaindex`, `crewai`, `google-adk`, `mastra`,
+  `agno`, `claude-agent-sdk`) or the path of a mapping JSON file. A value that
+  names an existing file is read as the file; otherwise it must be a preset
+  name, compared exactly (`gen_ai`, not `gen_ai.json`). Anything else is
+  refused with a message that lists the presets; before, a missing file was a
+  usage error with exit code 2, now it exits 1.
+- New command `evalkit traces mapping presets [NAME]`: with no argument it
+  lists the preset names, with a name it prints that preset as JSON, to save,
+  edit and push as a draft
+  (`evalkit traces mapping presets langchain > eval/span-mapping.json`).
+- The preset JSON files moved from the connect-traces skill's `references/`
+  folder to `src/evalkit/core/traces/mapping_presets/`, the only copy.
+  `evalkit skills install` no longer copies them, and removes the old copies
+  from a folder it installed into before. The try-it stack's `mapping.json`
+  is gone: its walkthrough creates the sample agent with `--mapping gen_ai`.
+  The connect-traces skill and the user docs now use presets by name.
 - `evalkit.yaml` is optional. Without one, the CLI and `run_experiment` act as
   if the file sat in the current directory with `cases: evalkit/cases`,
   `fixtures: evalkit/fixtures` and no credentials, and read the `.env` there. A
