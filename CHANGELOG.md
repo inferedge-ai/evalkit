@@ -21,31 +21,35 @@
   profiles-file errors now name both forms. `EVALKIT_SERVER_URL` works as
   before and does not change where `evalkit login` logs in.
 - `evalkit.yaml` is optional. Without one, the CLI and `run_experiment` act as
-  if the file sat in the current directory with `cases: eval/cases`,
-  `fixtures: eval/fixtures` and no credentials, and read the `.env` there. A
+  if the file sat in the current directory with `cases: evalkit/cases`,
+  `fixtures: evalkit/fixtures` and no credentials, and read the `.env` there. A
   file that leaves out `cases` or `fixtures` gets the same defaults, relative
   to its own directory. So `evalkit sync <dataset>`, `evalkit run <dataset>`
-  and `run_experiment` work with only `eval/cases/<dataset>/` on disk. Before,
+  and `run_experiment` work with only `evalkit/cases/<dataset>/` on disk. Before,
   `evalkit run` and the other commands that drive a personal agent failed with
   `no evalkit.yaml found above the current directory`, `run_experiment` raised
   `FileNotFoundError`, and a bare dataset name needed `cases:` to be set.
   Different from before:
   - A missing dataset directory fails with one message that names the cases
     directory it looked in and says to put the cases in
-    `eval/cases/<dataset>/`, set `cases:` in `evalkit.yaml`, or pass the
+    `evalkit/cases/<dataset>/`, set `cases:` in `evalkit.yaml`, or pass the
     dataset's directory.
   - A sync always looks in the fixtures directory for bytes the server does
     not hold. Without `fixtures:` it used to skip the upload, and the server
     answered `E-FIXTURE-MISSING`; now the CLI fails first and names the file
     it looked for.
-  - With no file or no `cases:`, a path under `eval/cases/<dataset>/` now
-    syncs into `<dataset>` (`evalkit sync eval/cases/finance/statements`
+  - With no file or no `cases:`, a path under `evalkit/cases/<dataset>/` now
+    syncs into `<dataset>` (`evalkit sync evalkit/cases/finance/statements`
     patches `finance`); it used to become a dataset named after the folder.
   - `run_experiment` on a dataset in your workspace whose directory is
     missing prints the path it looked in, then runs the copy the server
     holds.
   - `cases:` or `fixtures:` set to an empty value (null) in `evalkit.yaml`
     fails to load; leave the key out instead.
+  - A folder named `evalkit` that holds an `__init__.py` is refused as the
+    place for cases or fixtures: it would hide the installed `evalkit` package
+    from `import evalkit`. The error says to delete the file or set `cases:`
+    and `fixtures:` to another folder.
 
 ## 0.5.0
 

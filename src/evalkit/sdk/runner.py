@@ -870,13 +870,13 @@ def run_experiment(
     Scoring uses the judge, the remote evaluators of the agent's workspace and the
     Python `evaluators` you pass. Reads `evalkit.yaml` (cases, fixtures, credentials)
     from the current directory or a parent, and the login from `evalkit login`. The
-    file is optional: without it, cases are read from `eval/cases/<dataset>/` and
-    fixtures from `eval/fixtures/` under the current directory, with no credentials.
+    file is optional: without it, cases are read from `evalkit/cases/<dataset>/` and
+    fixtures from `evalkit/fixtures/` under the current directory, with no credentials.
 
     Args:
         dataset: The dataset to run. A bare name means your personal workspace; if it
             is also a directory under the cases root (`cases` in `evalkit.yaml`,
-            `eval/cases` by default), it is synced first.
+            `evalkit/cases` by default), it is synced first.
             `name@workspace` runs a shared dataset, every review state included.
         agent: The code-driven agent on the server that the runs belong to, created once
             with `evalkit agents create`. A bare name means your personal workspace.

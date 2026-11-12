@@ -218,9 +218,9 @@ def test_local_config_without_cases_or_fixtures_uses_the_defaults(tmp_path):
     nested.mkdir()
     cfg = LocalConfig.find(nested)
     assert cfg is not None
-    assert cfg.cases == tmp_path / "eval" / "cases"
-    assert cfg.fixtures == tmp_path / "eval" / "fixtures"
-    assert cfg.resolve_env().cases == tmp_path / "eval" / "cases"
+    assert cfg.cases == tmp_path / "evalkit" / "cases"
+    assert cfg.fixtures == tmp_path / "evalkit" / "fixtures"
+    assert cfg.resolve_env().cases == tmp_path / "evalkit" / "cases"
 
 
 def test_local_config_without_a_file_defaults_to_the_first_start(tmp_path, monkeypatch):
@@ -232,11 +232,11 @@ def test_local_config_without_a_file_defaults_to_the_first_start(tmp_path, monke
     (cwd / ".env").write_text("RESEARCH_AGENT_KEY=from-dotenv\n")
     cfg = LocalConfig.find_or_default([cwd, script_dir])
     assert cfg.path == cwd / "evalkit.yaml"
-    assert cfg.cases == cwd / "eval" / "cases"
-    assert cfg.fixtures == cwd / "eval" / "fixtures"
+    assert cfg.cases == cwd / "evalkit" / "cases"
+    assert cfg.fixtures == cwd / "evalkit" / "fixtures"
     assert cfg.credentials.agents == {} and cfg.credentials.evaluators == {}
     assert cfg.environ()["RESEARCH_AGENT_KEY"] == "from-dotenv"
-    assert cfg.resolve_env().cases == cwd / "eval" / "cases"
+    assert cfg.resolve_env().cases == cwd / "evalkit" / "cases"
 
 
 def test_local_config_file_beside_a_later_start_wins_over_the_default(tmp_path):
@@ -248,7 +248,7 @@ def test_local_config_file_beside_a_later_start_wins_over_the_default(tmp_path):
     cfg = LocalConfig.find_or_default([cwd, script_dir])
     assert cfg.path == script_dir / "evalkit.yaml"
     assert cfg.cases == script_dir / "suites"
-    assert cfg.fixtures == script_dir / "eval" / "fixtures"
+    assert cfg.fixtures == script_dir / "evalkit" / "fixtures"
 
 
 def test_the_moved_to_db_hint_names_env_refs_as_shell_variables(tmp_path, monkeypatch):
@@ -360,3 +360,12 @@ def test_password_login_is_all_without_an_idp():
 def test_mcp_oauth_moved_to_auth_oidc():
     with pytest.raises(ValidationError, match="mcp.oauth moved to auth.oidc"):
         Config.model_validate({**OIDC_BASE, "mcp": {"oauth": {"issuer": "x", "jwks_uri": "y"}}})
+
+
+def test_local_config_refuses_an_evalkit_folder_that_is_a_package(tmp_path):
+    (tmp_path / "evalkit").mkdir()
+    (tmp_path / "evalkit" / "__init__.py").write_text("")
+    with pytest.raises(ValueError, match="hides the installed evalkit package"):
+        LocalConfig.find_or_default([tmp_path])
+    (tmp_path / "evalkit.yaml").write_text("cases: suites\nfixtures: files\n")
+    assert LocalConfig.find_or_default([tmp_path]).cases == tmp_path / "suites"

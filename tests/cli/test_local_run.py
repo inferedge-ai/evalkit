@@ -91,7 +91,7 @@ def test_own_workspace_needs_the_dataset_directory(cases_root, tmp_path):
     with pytest.raises(ValueError, match="no dataset directory 'missing'") as raised:
         resolve_path("missing", cases_root, "akshat")
     assert str(cases_root) in str(raised.value)
-    assert "eval/cases/missing/" in str(raised.value)
+    assert "evalkit/cases/missing/" in str(raised.value)
     assert "set `cases:` in evalkit.yaml" in str(raised.value)
     absent = tmp_path / "absent"
     with pytest.raises(ValueError, match="no dataset directory 'missing-name'") as raised:

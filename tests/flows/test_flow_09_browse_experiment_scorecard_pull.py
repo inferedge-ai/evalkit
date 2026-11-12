@@ -112,7 +112,7 @@ def test_flow_09_run_page_trajectory_files_and_pinned_case(env, tmp_path, monkey
     assert zipped.status_code == 200 and zipped.content[:2] == b"PK"
 
     pinned = {c["case_id"]: c["content_hash"] for c in api_get(f"/api/experiments/{exp_id}/cases")}
-    cases_yaml = tmp_path / "eval" / "cases" / "flow09p" / "cases.yaml"
+    cases_yaml = tmp_path / "evalkit" / "cases" / "flow09p" / "cases.yaml"
     cases_yaml.write_text(cases_yaml.read_text().replace("q flow09p-1", "q flow09p-1 edited"))
     run_cli("sync", "flow09p", "--workspace", "canonical")
     current = {

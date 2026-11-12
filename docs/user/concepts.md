@@ -24,6 +24,6 @@ The words you need before your first scorecard. Everything else is explained on 
 | Scorecard                  | The table of scores for an experiment, per case and per bucket (content, trajectory, presentation, efficiency, custom). [Case schema](case-schema.md#evaluators) maps each bucket to its YAML key, e.g. presentation → `evaluators.output.presentation_judge`. |
 | Unreviewed                 | A case in a shared dataset with no review decision at its current content. It runs like any other case; review decides promotion.  |
 | Promotion                  | An admin links a shared workspace to a target (`evalkit workspaces promote-to dev prod`). Approving a case in `dev` adds it, approved, to the same-named dataset in `prod`. Datasets in `prod` are fed only that way. |
-| `evalkit.yaml`             | The optional file in your repo that says where your cases are and which environment variables hold API keys. Without it, cases are read from `eval/cases/<dataset>/` and fixtures from `eval/fixtures/`. |
+| `evalkit.yaml`             | The optional file in your repo that says where your cases are and which environment variables hold API keys. Without it, cases are read from `evalkit/cases/<dataset>/` and fixtures from `evalkit/fixtures/`. |
 
 Next: [Try locally](try-locally.md) to see these on a running server, or the [Quickstart](quickstart.md) to connect your own agent.

@@ -132,9 +132,9 @@ def env(server, tmp_path, monkeypatch, module_db_url):
     monkeypatch.setenv("EVALKIT_TOKEN", token)
     cost_map = tmp_path / "cost_map.json"
     cost_map.write_text("{}")
-    (tmp_path / "eval" / "fixtures").mkdir(parents=True)
+    (tmp_path / "evalkit" / "fixtures").mkdir(parents=True)
     (tmp_path / "evalkit.yaml").write_text(
-        f"cases: eval/cases\nfixtures: eval/fixtures\ncost_map:\n  source: {cost_map}\n"
+        f"cases: evalkit/cases\nfixtures: evalkit/fixtures\ncost_map:\n  source: {cost_map}\n"
         "credentials:\n  evaluators:\n    http_eval: env:SDK_EVAL_KEY\n"
     )
     (tmp_path / ".env").write_text("SDK_EVAL_KEY=k\nSDK_JUDGE_KEY=jk\n")
@@ -635,7 +635,7 @@ async def test_validation_errors_before_server(env):
 async def test_run_without_evalkit_yaml_syncs_from_the_default_cases_dir(env, tmp_path):
     srv, blob, provider = env
     (tmp_path / "evalkit.yaml").unlink()
-    dataset_dir = tmp_path / "eval" / "cases" / "defaulted"
+    dataset_dir = tmp_path / "evalkit" / "cases" / "defaulted"
     dataset_dir.mkdir(parents=True)
     (dataset_dir / "cases.yaml").write_text(
         "cases:\n- id: defaulted-1\n  input: {question: 'q as of 2024-01-01'}\n"
@@ -661,7 +661,7 @@ def test_local_config_is_found_beside_the_script(tmp_path, monkeypatch):
     monkeypatch.delattr(sys.modules["__main__"], "__file__", raising=False)
     fallback = _local_config()
     assert fallback.path == elsewhere / "evalkit.yaml"
-    assert fallback.cases == elsewhere / "eval" / "cases"
+    assert fallback.cases == elsewhere / "evalkit" / "cases"
 
 
 def test_run_experiment_refuses_a_running_loop():
@@ -696,7 +696,7 @@ async def test_run_warns_when_the_token_expires_within_a_day(env, monkeypatch):
 async def test_canonical_run_needs_no_cases_or_fixtures_in_evalkit_yaml(env, tmp_path):
     srv, blob, provider = env
     config = tmp_path / "evalkit.yaml"
-    paths = "cases: eval/cases\nfixtures: eval/fixtures\n"
+    paths = "cases: evalkit/cases\nfixtures: evalkit/fixtures\n"
     config.write_text(config.read_text().replace(paths, ""))
     created = await arun_experiment(
         dataset="finance",
@@ -714,7 +714,7 @@ async def test_canonical_run_needs_no_cases_or_fixtures_in_evalkit_yaml(env, tmp
 async def test_own_dataset_without_cases_runs_the_server_copy(env, tmp_path):
     srv, blob, provider = env
     config = tmp_path / "evalkit.yaml"
-    paths = "cases: eval/cases\nfixtures: eval/fixtures\n"
+    paths = "cases: evalkit/cases\nfixtures: evalkit/fixtures\n"
     config.write_text(config.read_text().replace(paths, ""))
     lines: list[str] = []
     with pytest.raises(ApiRequestError, match="finance@admin"):
@@ -724,7 +724,7 @@ async def test_own_dataset_without_cases_runs_the_server_copy(env, tmp_path):
             task=lambda q: RunResult(answer="x", trajectory=DEFAULT_TRAJECTORY),
             progress=lines.append,
         )
-    missing = str(tmp_path / "eval" / "cases" / "finance")
+    missing = str(tmp_path / "evalkit" / "cases" / "finance")
     assert any(f"no directory {missing}" in line for line in lines)
 
 

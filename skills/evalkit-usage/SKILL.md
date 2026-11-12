@@ -162,8 +162,8 @@ read from the `fixtures` directory and uploaded by sha256 on every run or
 sync.
 
 ```yaml
-cases: eval/cases            # optional: directory whose children are datasets
-fixtures: eval/fixtures      # optional: fixture bytes, flat, keyed by filename
+cases: evalkit/cases            # optional: directory whose children are datasets
+fixtures: evalkit/fixtures      # optional: fixture bytes, flat, keyed by filename
 credentials:                 # env:NAME references only, never the key itself
   agents:
     myagent: env:MYAGENT_API_KEY             # bare name = your workspace

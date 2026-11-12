@@ -524,7 +524,7 @@ def sync(
     ),
 ):
     """Import a dataset into a workspace. The dataset is the directory under the cases
-    root (`cases:` in evalkit.yaml, eval/cases by default), or the directory itself
+    root (`cases:` in evalkit.yaml, evalkit/cases by default), or the directory itself
     when it is outside the cases root; a whole dataset prunes cases no
     longer on disk, a subfolder or file patches just its cases. Uploads case YAML plus the
     nearest fixtures.yaml.
