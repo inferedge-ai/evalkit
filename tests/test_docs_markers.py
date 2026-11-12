@@ -1,4 +1,5 @@
 import importlib.util
+import re
 from pathlib import Path
 
 import pytest
@@ -92,3 +93,29 @@ def test_anchor_rows_adds_an_id_to_each_body_row():
             "| Plain | Table |",
         ]
     )
+
+
+@pytest.mark.parametrize(
+    ("cell", "slug"),
+    [
+        ("[App run](runs.md#x)", "app-run"),
+        ("*Trace* **source**", "trace-source"),
+        ("`evalkit.yaml`", "evalkit-yaml"),
+    ],
+)
+def test_anchor_rows_slugs_the_rendered_text_of_the_first_cell(cell, slug):
+    source = f"<!-- anchor-rows -->\n| A | B |\n| -- | -- |\n| {cell} | x |"
+    assert f'id="{slug}"' in markers.anchor_rows(source)
+
+
+@pytest.mark.parametrize("rows", [["| Case | a |", "| case | b |"], ["| `` | a |"]])
+def test_anchor_rows_refuses_repeated_or_empty_ids(rows):
+    source = "\n".join(["<!-- anchor-rows -->", "| A | B |", "| -- | -- |", *rows])
+    with pytest.raises(ValueError):
+        markers.anchor_rows(source)
+
+
+def test_concepts_rows_have_unique_ids():
+    concepts = (Path(__file__).parent.parent / "docs" / "user" / "concepts.md").read_text()
+    ids = re.findall(r'<span id="([^"]+)"', markers.anchor_rows(concepts))
+    assert {"app-run", "trace-source", "preset", "hosted-evalkit", "evalkit-yaml"} <= set(ids)

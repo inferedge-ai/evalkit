@@ -64,6 +64,7 @@ type CodeProps = { className?: string; children?: ReactNode };
 function DocLink({ href, children }: { href?: string; children?: ReactNode }) {
   const route = docRoute(href);
   if (route) return <Link to={route}>{children}</Link>;
+  if (href?.startsWith("#")) return <Link to={href}>{children}</Link>;
   return <a href={href}>{children}</a>;
 }
 
@@ -128,8 +129,9 @@ function useScrollToHash(tab: string | undefined) {
     const id = decodeURIComponent(hash.slice(1));
     const target = id ? document.getElementById(id) : null;
     if (!target) return;
-    target.scrollIntoView({ block: "center" });
-    if (target.tagName !== "TR") return;
+    const isRow = target.tagName === "TR";
+    target.scrollIntoView({ block: isRow ? "center" : "start" });
+    if (!isRow) return;
     target.setAttribute("data-targeted", "");
     const timer = window.setTimeout(
       () => target.removeAttribute("data-targeted"),

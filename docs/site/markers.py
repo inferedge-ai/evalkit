@@ -5,6 +5,8 @@ TABS_CLOSE = "<!-- /tabs -->"
 ANCHOR_ROWS = "<!-- anchor-rows -->"
 TAB_HEADING = re.compile(r"^#### (.+?)\s*$")
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
+MARKDOWN_LINK = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+HTML_TAG = re.compile(r"<[^>]+>")
 NOT_SLUG = re.compile(r"[^a-z0-9]+")
 TABLE_DIVIDER = re.compile(r"^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
 
@@ -54,6 +56,10 @@ def _first_cell(row: str) -> str:
     return row.strip().removeprefix("|").split("|", 1)[0]
 
 
+def _read_cell_text(cell: str) -> str:
+    return MARKDOWN_LINK.sub(r"\1", HTML_TAG.sub("", cell))
+
+
 def anchor_rows(markdown: str) -> str:
     lines = markdown.split("\n")
     out: list[str] = []
@@ -70,9 +76,13 @@ def anchor_rows(markdown: str) -> str:
         if len(lines) < index + 3 or not TABLE_DIVIDER.match(lines[index + 2]):
             raise ValueError(f"{ANCHOR_ROWS} must sit right before a table")
         index += 3
+        seen: set[str] = set()
         while index < len(lines) and lines[index].strip().startswith("|"):
             row = lines[index]
-            slug = slugify_row(re.sub(r"<[^>]+>", "", _first_cell(row)))
+            slug = slugify_row(_read_cell_text(_first_cell(row)))
+            if not slug or slug in seen:
+                raise ValueError(f"{ANCHOR_ROWS}: empty or repeated row id {slug!r} in {row!r}")
+            seen.add(slug)
             lead, rest = row.split("|", 1)
             out.append(f'{lead}| <span id="{slug}" class="ek-row-anchor"></span>{rest}')
             index += 1

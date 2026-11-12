@@ -68,7 +68,11 @@ renderers:
   Each body row gets an id from its first cell: lowercase, every run of
   characters that is not a letter or digit becomes one `-`, and leading and
   trailing `-` are removed. `App run` becomes `app-run`, `` `evalkit.yaml` ``
-  becomes `evalkit-yaml`. Link to a row as `concepts.md#app-run`.
+  becomes `evalkit-yaml`. Link to a row as `concepts.md#app-run`. A repeated
+  or empty id fails the docs build.
+- **Heading links.** Headings get the ids MkDocs makes: `## The CLI, as a
+  global tool` is `#the-cli-as-a-global-tool`. Link as `install.md#...`, or
+  `#...` on the same page. Tab labels have no id.
 - **Images.** Put them in `docs/user/images/` and write
   `![alt text](images/<file>.png)`. `evalkit skills install` leaves the folder
   out of the copy it makes for coding agents.

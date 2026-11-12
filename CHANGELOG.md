@@ -5,8 +5,9 @@
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a
   table) and images in `docs/user/images/`, in the web UI's docs page and on
-  the docs site. The web UI's docs page scrolls to a `#fragment` target on
-  load and when the hash changes. `evalkit skills install` leaves
+  the docs site. In the web UI's docs page, headings get the same ids as on
+  the docs site, and the page scrolls to a `#fragment` target (heading or
+  row) on load and when the hash changes. `evalkit skills install` leaves
   `images/` out of `evalkit-docs/`. Concepts has rows for App run, Trace
   source, Preset and Hosted evalkit; see CONTRIBUTING.md for the markers.
 - With `auth.password_login: none`, evalkit makes no password accounts:

@@ -3,7 +3,12 @@ import { render } from "@testing-library/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { describe, expect, it } from "vitest";
-import { remarkDocMarkers, resolveDocImage, slugifyRow } from "./docMarkdown";
+import {
+  remarkDocMarkers,
+  resolveDocImage,
+  slugifyHeading,
+  slugifyRow,
+} from "./docMarkdown";
 
 function renderDoc(markdown: string) {
   return render(
@@ -24,7 +29,62 @@ describe("slugifyRow", () => {
   });
 });
 
+describe("slugifyHeading", () => {
+  it.each([
+    ["No trace history?", "no-trace-history"],
+    ["An agent in another process", "an-agent-in-another-process"],
+    ["The CLI, as a global tool", "the-cli-as-a-global-tool"],
+    ["Config: evalkit.yaml", "config-evalkityaml"],
+    ["required_tools_called", "required_tools_called"],
+    [
+      "1. Pick how evalkit reaches your agent",
+      "1-pick-how-evalkit-reaches-your-agent",
+    ],
+  ])("%s → %s", (text, slug) => {
+    expect(slugifyHeading(text)).toBe(slug);
+  });
+});
+
+describe("heading ids", () => {
+  it("gives headings MkDocs ids, numbers repeats and skips tab labels", () => {
+    const container = renderDoc(
+      [
+        "## Config: `evalkit.yaml`",
+        "## Setup",
+        "## Setup",
+        "<!-- tabs -->",
+        "#### CLI",
+        "",
+        "text",
+        "<!-- /tabs -->",
+      ].join("\n"),
+    );
+    expect([...container.querySelectorAll("h2")].map((h) => h.id)).toEqual([
+      "config-evalkityaml",
+      "setup",
+      "setup_1",
+    ]);
+    expect(container.querySelectorAll("[id='cli']")).toHaveLength(0);
+  });
+});
+
 describe("remarkDocMarkers", () => {
+  it("slugs the rendered text of a first cell with a link or emphasis", () => {
+    const container = renderDoc(
+      [
+        "<!-- anchor-rows -->",
+        "| A | B |",
+        "| -- | -- |",
+        "| [App run](runs.md#x) | 1 |",
+        "| *Trace* **source** | 2 |",
+      ].join("\n"),
+    );
+    expect([...container.querySelectorAll("tr[id]")].map((r) => r.id)).toEqual([
+      "app-run",
+      "trace-source",
+    ]);
+  });
+
   it("groups each #### heading between the markers into a tab", () => {
     const container = renderDoc(
       [

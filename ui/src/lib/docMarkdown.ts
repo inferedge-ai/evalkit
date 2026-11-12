@@ -19,6 +19,16 @@ export function slugifyRow(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+export function slugifyHeading(text: string): string {
+  return text
+    .normalize("NFKD")
+    .replace(/[^\x00-\x7f]/g, "")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-\s]+/g, "-");
+}
+
 function readText(node: MdNode): string {
   if (node.value !== undefined && node.type !== "html") return node.value;
   return (node.children ?? []).map(readText).join("");
@@ -86,8 +96,27 @@ function transform(parent: MdNode) {
   parent.children = out;
 }
 
+function addHeadingIds(node: MdNode, seen: Map<string, number>) {
+  for (const child of node.children ?? []) {
+    if (child.type === "heading") {
+      const base = slugifyHeading(readText(child));
+      const count = seen.get(base) ?? 0;
+      seen.set(base, count + 1);
+      child.data = {
+        ...child.data,
+        hProperties: { id: count ? `${base}_${count}` : base },
+      };
+    } else {
+      addHeadingIds(child, seen);
+    }
+  }
+}
+
 export function remarkDocMarkers() {
-  return (tree: MdNode) => transform(tree);
+  return (tree: MdNode) => {
+    transform(tree);
+    addHeadingIds(tree, new Map());
+  };
 }
 
 const IMAGE_PREFIX = "../../../docs/user/images/";
