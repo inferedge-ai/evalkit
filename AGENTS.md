@@ -83,6 +83,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Subject | The pair `(issuer, sub)` identifying one identity at one IdP; keys the `users` row with the tenant. |
 | Machine user | A `users` row bound to a machine client's subject: no password, no email, `kind` is `machine`. CI authenticates as one with the client credentials grant. |
 | Tenant | One organisation's slice of the database; the public repo has exactly one, id 1. |
+| Hosted evalkit | The evalkit server InferEdge runs for any organisation to sign up to, at `https://evalkit.inferedge.com`. `evalkit login` uses it unless `--url` names another server. Not this repo's code alone: a self-hosted server is never "hosted evalkit". |
 
 ## Layout
 
