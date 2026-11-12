@@ -3,7 +3,7 @@
 `run_experiment` runs an experiment from your own code: it calls your task once per case and repetition, stores the runs on this server, and scores them with the judge, the remote evaluators of the agent's workspace and any Python evaluators you pass. The agent is a code-driven agent on the server (no harness URL), created once with `evalkit agents create`. Invoking the agent, timeouts and stopping are your code.
 
 ```python
-# eval/run.py — uv run python eval/run.py
+# evalkit/run.py — uv run python evalkit/run.py
 from evalkit.sdk import run_experiment, RunResult, evaluator, tracing
 from myagent import MyAgent, setup_tracing
 

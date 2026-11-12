@@ -78,7 +78,7 @@ same cases.
 ## It's that simple
 
 ```yaml
-# eval/cases/smoke/cases.yaml
+# evalkit/cases/smoke/cases.yaml
 cases:
   - id: store-count
     input:
@@ -92,7 +92,7 @@ cases:
 ```
 
 ```python
-# eval/run.py
+# evalkit/run.py
 from evalkit.sdk import run_experiment, tracing
 from myagent import ask
 

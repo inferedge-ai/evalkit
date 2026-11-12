@@ -27,13 +27,13 @@ uv add "evalkit-py=={{version}}"
 uv run evalkit --help
 ```
 
-If you give evalkit its own uv project in a folder of your agent's uv project (say `eval/`), create it with `uv init --no-workspace`:
+If you give evalkit its own uv project in the `evalkit/` folder of your agent's uv project, create it with `uv init --bare --no-workspace` and a name other than `evalkit`:
 
 ```bash
-cd eval && uv init --no-workspace && uv add "evalkit-py=={{version}}"
+cd evalkit && uv init --bare --no-workspace --name evals && uv add "evalkit-py=={{version}}"
 ```
 
-Without the flag, uv silently adds `eval/` to your agent project's workspace, so it shares your agent's lockfile.
+Without `--no-workspace`, uv silently adds `evalkit/` to your agent project's workspace, so it shares your agent's lockfile. `--bare` writes only `pyproject.toml`: a project named `evalkit`, or a Python package in that folder, would hide the installed `evalkit` package. Run the script from your agent project's root: `uv run --project evalkit python evalkit/run.py`.
 
 ## The SDK, into a project
 
@@ -48,7 +48,7 @@ With pip instead: `pip install "evalkit-py=={{version}}"`.
 To keep evalkit out of the app's dependencies, run the eval script with it instead:
 
 ```bash
-uv run --with "evalkit-py=={{version}}" python eval/run.py
+uv run --with "evalkit-py=={{version}}" python evalkit/run.py
 ```
 
 ## The server

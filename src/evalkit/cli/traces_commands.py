@@ -232,7 +232,7 @@ def register(
     ):
         """Upload a mapping document as the agent's draft. Activate it with mapping activate.
 
-        Example: evalkit traces mapping push research-agent eval/span-mapping.json
+        Example: evalkit traces mapping push research-agent evalkit/span-mapping.json
         """
         document = load_mapping(mapping)
         body = (
@@ -254,7 +254,7 @@ def register(
         """List the mapping presets that ship with evalkit, or print one as JSON to save and edit.
 
         Examples: evalkit traces mapping presets;
-        evalkit traces mapping presets langchain > eval/span-mapping.json
+        evalkit traces mapping presets langchain > evalkit/span-mapping.json
         """
         names = list_preset_names()
         if name is None:

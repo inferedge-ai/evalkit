@@ -189,15 +189,15 @@ lacks it. That is what a wrong mapping looks like in the check.
    When the lines look right, stop.
 6. **Fix the mapping** when they do not. Print the preset the agent was
    created with into a file in the repo (skip this when the repo already
-   holds the agent's mapping file), then edit `eval/span-mapping.json` (it is
+   holds the agent's mapping file), then edit `evalkit/span-mapping.json` (it is
    JSON, one rule per ESF field) and change the attribute keys to the ones in
    `spans.json`.
    `references/span-mapping-schema.md` explains every rule shape and the
    three message formats. Push it as a draft and check with it:
 
    ```bash
-   evalkit traces mapping presets openinference > eval/span-mapping.json
-   evalkit traces mapping push <agent> eval/span-mapping.json
+   evalkit traces mapping presets openinference > evalkit/span-mapping.json
+   evalkit traces mapping push <agent> evalkit/span-mapping.json
    evalkit traces check <agent> <session id> --mapping draft
    ```
 
