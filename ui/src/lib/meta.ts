@@ -14,7 +14,6 @@ const EMPTY: Meta = {
 let meta: Meta | null = null;
 
 export async function loadMeta(): Promise<void> {
-  if (meta) return;
   meta = await api<Meta>("/meta").catch(() => EMPTY);
 }
 

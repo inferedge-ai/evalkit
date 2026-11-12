@@ -189,7 +189,8 @@ then add plain FastAPI routes with `app.include_router(...)`.
   the public navbar (Evalkit, Docs, the theme switch and Sign in) for a
   signed-out visitor, and inside the app shell for a signed-in person. They
   suit pages such as terms of use or pricing; their data must come from
-  public endpoints. evalkit's own pages, `/` included, win a path clash.
+  public endpoints. A public route with the same path as one of evalkit's,
+  `/` included, loses to evalkit's page.
 - `landingPage` is what a signed-out visitor sees at `/`, under the public
   navbar, whose Evalkit link then goes to `/`. Signing out lands there. A
   signed-in person at `/` still gets the workspace
