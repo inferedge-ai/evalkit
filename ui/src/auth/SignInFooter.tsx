@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Separator } from "@/components/ui/separator";
-import { useApi } from "../lib/query";
+import { API, readApiError } from "../lib/api";
 import type { CliInfo } from "../lib/types";
 
-const DOCS_SITE_URL = "https://inferedge-ai.github.io/evalkit/";
 const REPO_URL = "https://github.com/inferedge-ai/evalkit";
 
 function FooterLink({ href, children }: { href: string; children: ReactNode }) {
@@ -29,12 +29,18 @@ function VersionLabel({ cli }: { cli: CliInfo }) {
   );
 }
 
+// No bearer: getting one loads the sign-in options, which fail while the
+// identity provider is down, and may start a token refresh.
+async function fetchCliInfo(): Promise<CliInfo> {
+  const resp = await fetch(`${API}/api/cli`);
+  if (!resp.ok) throw await readApiError(resp);
+  return resp.json();
+}
+
 export function SignInFooter() {
-  const cli = useApi<CliInfo>("/cli");
+  const cli = useQuery({ queryKey: ["/cli"], queryFn: fetchCliInfo });
   return (
     <footer className="flex flex-wrap items-center justify-center gap-3 p-4 text-xs text-muted-foreground">
-      <FooterLink href={DOCS_SITE_URL}>Documentation</FooterLink>
-      <Separator orientation="vertical" />
       <FooterLink href={REPO_URL}>GitHub</FooterLink>
       {cli.data && (
         <>

@@ -78,13 +78,13 @@
     would hide the installed `evalkit` package from `import evalkit`. The
     error says to delete the file or set `cases:` and `fixtures:` to another
     folder. Commands that sync nothing from disk are not affected.
-- The web UI's sign-in page (`/login`) has a footer with links to the
-  documentation site, the GitHub repository and the version the server runs
-  (`evalkit-py v0.5.0`, from `GET /api/cli`), which opens that version's GitHub
-  release. A development build (`0.5.0.dev12`) shows its version without a
-  link. When `GET /api/cli` fails, the footer leaves the version out. On a
-  self-hosted server the sign-in page is where visitors land, so this gives
-  them a way to the docs and the source.
+- The web UI's sign-in page (`/login`) has a footer with a link to the GitHub
+  repository and the version the server runs (`evalkit-py v0.5.0`, from
+  `GET /api/cli`), which opens that version's GitHub release. A development
+  build (`0.5.0.dev12`) shows its version without a link. When `GET /api/cli`
+  fails, the footer leaves the version out. On a self-hosted server the
+  sign-in page is where visitors land; the header's Docs link stays the way
+  to the docs.
 
 ## 0.5.0
 

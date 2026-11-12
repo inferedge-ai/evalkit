@@ -229,21 +229,21 @@ describe("LoginPage", () => {
     expect(screen.queryByLabelText("Username")).toBeNull();
   });
 
-  function openWithServer(cli: () => Response) {
-    setSessionForTest(null);
+  function openWithServer(
+    cli: () => Response,
+    providers = () => Response.json({ password: "all", oidc: null }),
+  ) {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) =>
-        url.endsWith("/api/cli")
-          ? cli()
-          : Response.json({ password: "all", oidc: null }),
+        url.endsWith("/api/cli") ? cli() : providers(),
       ),
     );
     openLogin("/login");
     return within(document.querySelector("footer")!);
   }
 
-  it("links the footer to the docs, GitHub and the release the server runs", async () => {
+  it("links the footer to GitHub and the release the server runs, and nothing else", async () => {
     const footer = openWithServer(() =>
       Response.json({ version: "0.5.0", package: "evalkit-py" }),
     );
@@ -253,14 +253,14 @@ describe("LoginPage", () => {
       "href",
       "https://github.com/inferedge-ai/evalkit/releases/tag/v0.5.0",
     );
-    expect(footer.getByRole("link", { name: "Documentation" })).toHaveAttribute(
-      "href",
-      "https://inferedge-ai.github.io/evalkit/",
-    );
     expect(footer.getByRole("link", { name: "GitHub" })).toHaveAttribute(
       "href",
       "https://github.com/inferedge-ai/evalkit",
     );
+    expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "GitHub",
+      "evalkit-py v0.5.0",
+    ]);
     for (const link of footer.getAllByRole("link")) {
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", "noreferrer");
@@ -273,9 +273,22 @@ describe("LoginPage", () => {
     );
     expect(await footer.findByText("evalkit-py v0.5.0.dev42")).toBeTruthy();
     expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
-      "Documentation",
       "GitHub",
     ]);
+  });
+
+  it("shows the version even when the identity provider is unreachable", async () => {
+    const footer = openWithServer(
+      () => Response.json({ version: "0.5.0", package: "evalkit-py" }),
+      () =>
+        Response.json(
+          { detail: "identity provider unreachable", password: "admin" },
+          { status: 503 },
+        ),
+    );
+    expect(
+      await footer.findByRole("link", { name: "evalkit-py v0.5.0" }),
+    ).toBeTruthy();
   });
 
   it("leaves the version out when the server does not say which it runs", async () => {
@@ -286,7 +299,6 @@ describe("LoginPage", () => {
       expect(queryClient.getQueryState(["/cli"])?.status).toBe("error"),
     );
     expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
-      "Documentation",
       "GitHub",
     ]);
     expect(footer.queryByText(/evalkit-py/)).toBeNull();
