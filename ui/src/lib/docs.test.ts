@@ -5,6 +5,7 @@ describe("docs", () => {
   it("lists the pages in order, grouped", () => {
     expect(DOC_TABS.map((t) => t.id)).toEqual([
       "quickstart",
+      "beyond-quickstart",
       "concepts",
       "try-locally",
       "install",
