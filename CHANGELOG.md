@@ -50,919 +50,385 @@
 
 ## 0.5.0
 
-- An SSO first sign-in derives the username more loosely: it is the part before
-  `@` in lowercase, and may hold any character except whitespace, `@`, `/`,
-  `\`, `?`, `#` and `%`, as long as it is not just `.` or `..`. So
-  `ann+evals@example.com` becomes `ann+evals`; before, anything outside
-  lowercase letters, digits, `.`, `_` and `-` was refused. `evalkit users add`
-  follows the same rule and stores the name in lowercase (`Bob` becomes
-  `bob`) where it used to refuse it, and the password login and the user and
-  workspace member commands match a username in any case; workspace and
-  dataset names keep the strict rule. When another SSO user, an archived
-  account or a workspace already has the name, the sign-in now creates the
-  user with the first free number appended (`ann1`, `ann2`, ...) instead of
-  answering 409. An active password account not yet bound to an identity
-  still gets the 409, which names the subject for `evalkit users bind`.
-- A case file's mapping shape accepts top-level keys starting with `x-` (for
-  example `x-shared`) and ignores them, so they can hold YAML anchors that cases
-  reuse. In 0.4.0, `evalkit lint` and `evalkit sync` refused such files with
-  `E-SCHEMA ... x-shared: Extra inputs are not permitted`; 0.3.0 accepted them.
-  The server parses synced and linted files itself, so `evalkit sync` and online
-  `evalkit lint` accept them once the server runs this release.
-- Every private-address check reads `allow_private_endpoints` through a new
-  dependency, `get_allow_private_endpoints` in `evalkit.api.deps`, which reads the
-  server config through `get_config`. A package that serves evalkit can replace it
-  in `app.dependency_overrides` to decide the rule per request, for example per
-  tenant, without replacing the whole config; replacing `get_config` still decides
-  it too. The checks are on saving an agent, remote evaluator, LLM provider or
-  trace source; on starting, evaluating or resuming a server run; on
-  `POST /api/agents/{agent}/check`; and on trace import
-  (`POST /api/agents/{agent}/sessions/import`, `.../imports` and
-  `.../imports/{id}/continue`). Before, trace import read the server's own config
-  and ignored a replaced `get_config`.
-- New server config `trusted_endpoints`: a list of `http` or `https` URLs whose
-  origin (scheme, host and port) every private-address check lets through, even
-  when `allow_private_endpoints` is off or a package decides it per request. Use
-  it for a service every tenant may reach on a private address, such as an
-  in-cluster LLM gateway that checks its own credentials: any path on a listed
-  origin is open to every agent, remote evaluator, LLM provider and trace source.
-  The path is ignored, the host must be spelled exactly as listed, default ports
-  match either spelling, and the server (or `create_app`) refuses to start on an
-  entry that isn't an `http` or `https` URL with a host and no user. The refusal
-  for a private address now names `trusted_endpoints` beside
-  `allow_private_endpoints`.
-- The web UI uses InferEdge's design tokens and shadcn's setup
-  (`ui/components.json`, the `@/` import alias): Roboto at 14px (was the
-  system font at 13px), new light and dark colours with a white page in light
-  mode and slightly darker borders, and a larger corner radius (`rounded-md`
-  is 8px, was 6px). Dark mode is the `dark` class on `<html>` instead of
-  `data-theme="dark"`. UI tests can render components with jsdom and Testing
-  Library.
-- A deploy's `server.accent_color` no longer recolours the web UI's buttons and
-  links, which stay the brand blue. It draws a 3px strip along the top of
-  every page, the login page included. The colour comes from the new public
-  `GET /api/appearance` (`{"accent_color": ...}`), and `GET /api/meta` no
-  longer returns `accent_color`. Before, the colour loaded only after sign-in,
-  so the login page was blue and signed-in pages took the accent.
-- The web UI header shows only "Evalkit"; the InferEdge lockup beside it is
-  gone.
-- `ui/package.json` overrides the KaTeX that `rehype-katex` and `remark-math`
-  bring in (0.16.47) with the UI's own KaTeX (0.19.1), which fixes
-  GHSA-238p-pmpm-9mq7 (KaTeX below 0.18.2 can read polluted object
-  prototypes).
-- The web UI loads its data with TanStack Query (`ui/src/lib/query.ts`). A
-  page you come back to shows its last data at once and refreshes it in the
-  background. After a save, archive, comment or other change, every page on
-  screen refetches, so the change shows without a reload. A running
-  experiment's page and the trace import panel still poll until they finish,
-  and pause while the browser tab is in the background. Failed loads are not
-  retried. Signing in clears everything loaded earlier in the tab, so the next
-  user never sees the previous user's pages.
-- The web UI's forms for launching a run, creating or editing an agent, a
-  remote evaluator or an LLM provider open in a shadcn dialog: focus stays
-  inside it, and Esc or a click outside closes it without saving. Archiving an
-  agent and re-evaluating an experiment whose runs have not all completed ask
-  in a confirmation dialog instead of the browser's `confirm()` box. Going
-  Back or Forward to another experiment, agent or dataset closes any dialog
-  left open on the previous one. The UI gains shadcn's components under
-  `ui/src/components/ui/` and the
-  `@base-ui/react`, `class-variance-authority` and `lucide-react`
-  dependencies.
-- The web UI's tables (experiments, a dataset's cases and experiments, an
-  experiment's and a comparison's case matrix, a case's score history, reviews,
-  runs) are AG Grid Community grids (`ag-grid-community`, `ag-grid-react`) in
-  place of `@tanstack/react-table`. Rows are 28px and a cell's content stays on
-  one line, cut off with its full text on hover where it was wrapped before.
-  Columns can be resized, dragged to a new order, sorted, hidden, and filtered
-  where they hold text; a page's row count follows those filters. The Reviews,
-  Runs and score history tables gain the Columns menu. Each table still
-  remembers its sort, column order, widths and hidden columns in the browser,
-  in a new format, so layouts saved before this release are dropped once. On a
-  dataset's Cases tab, select all ticks the cases the column filters leave, and
-  the search box and review-state filter drop the cases they hide from the
-  selection. The experiments list's second `cases` column (which cases ran) is
-  headed `selection`. In the case matrix, the case column fits its content on
-  every load, and picking a score card scrolls the matrix to that evaluator's
-  column.
-- The web UI's icons come from `lucide-react` instead of hand-drawn SVGs and
-  text characters: the ⓘ beside a score, gauge or evaluator name, the select
-  menus' chevron and check mark, the copy and user icons, the arrow on links
-  to another page, the buttons that clear a selection or remove a tag or role,
-  the Columns menu's move up and down buttons, the download and Approve
-  icons, the arrows that open a folder or section, the rubric verdict marks
-  (satisfied, partial, absent, incorrect), the agent check's pass, warn, fail
-  and skipped marks, the up and down marks on a case's score change, and the
-  arrows in links and between two values ("0.50 → 0.75", "→ alice"). A screen
-  reader reads each rubric verdict mark by its verdict, a score change mark as
-  "up" or "down", and an arrow between two values as "to". The ⓘ shows its
-  description in a tooltip drawn above the page, so a table no longer cuts it
-  off: on hover, on keyboard focus, or on a tap, which also hides it again. A
-  screen reader reads it as "definition" with the description. Each case
-  matrix column whose evaluator has a description shows the ⓘ in its header,
-  with the evaluator's full name on the label's hover text: Tab from the
-  header moves to it, and clicking, tapping or pressing Enter on it does not
-  sort the column. A score named like a JavaScript object property (such as
-  `constructor`) no longer breaks the page that shows its ⓘ.
-- The web UI's top bar and its More menu are replaced by a left sidebar. Its
-  header has the Evalkit wordmark, the workspace switcher and Search (⌘K); its
-  sections are Evaluate (Datasets, Experiments, Reviews), Observe (Runs,
-  Agents), Workspace (Settings) and, for admins, Admin (Users, Trace sources,
-  LLM providers); its footer has Docs and a menu with your name, the light or
-  dark mode switch and Sign out. The sidebar collapses to icons (its button,
-  or ⌘B), and the `sidebar_state` cookie keeps it collapsed across reloads for
-  a week after the last toggle. Collapsed, it shows the workspace's initials,
-  which expand it again. On a phone it opens as a sheet from the button in a
-  slim bar at the top of the screen. Each page starts with a header holding
-  its title, the pages above it as links, and its main actions. The ⌘K search
-  opens in a shadcn dialog. Signed-out pages (sign-in, docs) keep a top bar
-  with the wordmark, Docs, the theme switch and Sign in. For a package
-  extending the UI, a `NavItem` takes an optional lucide `icon`, and `nav`
-  items get a sidebar section of their own after Observe and stay in ⌘K.
-- The web UI draws its buttons, badges, inputs, cards, tabs, form fields,
-  checkboxes and loading placeholders with the shadcn components, and
-  evalkit's own CSS classes for them are removed: `btn` and its variants,
-  `chip` and its variants, `input`, `card`, `card-head`, `tab-button`,
-  `form-row`, `form-label`, `check` and `skeleton`. A page in a package that
-  extends the UI and uses one of them must move to the component. Buttons come
-  in three heights (28, 32 and 36px) and line up with the 32px inputs and
-  selects beside them; badges gain pass, partial, fail and info colours. List
-  rows are 36px, with names at 14px and details at 12px, and on a phone a
-  row's details wrap under its name instead of squeezing it to nothing.
-  Toolbars wrap on a narrow screen instead of running off it, and tab bars
-  scroll sideways. Cards have 14px corners. Forms put each label above its
-  control, with its hint underneath. Table checkboxes are square with 4px
-  corners instead of round. Secondary text uses the components' muted grey,
-  one shade darker than before in light mode.
-- `auth.password_login` takes `none`, for servers where everyone signs in
-  through the identity provider:
-  - Config: `none` needs `auth.oidc.admin_claim`, so the identity provider
-    says who is an admin. The server makes no password-only `admin` account
-    and starts without `EVALKIT_ADMIN_PASSWORD`. Because `none` requires
-    `admin_claim`, an admin promoted by hand loses it at their next sign-in
-    unless the claim names them.
-  - Sign-in: a signed-out visitor goes straight to the provider instead of
-    evalkit's login page and comes back to the page they opened.
-    `POST /api/auth/login` refuses every password with 403 `password login
-    is off on this server`, `evalkit login --username` included. While the
-    provider is unreachable, the 503 from `GET /api/auth/providers` also
-    carries `password`, so the login page offers Retry and no password form.
-  - Sign-out: every open tab stops at a **Sign in again** button until the
-    next sign-in, rather than restarting the provider sign-in, so a live
-    provider session does not sign the person straight back in.
-- In every `password_login` mode, a signed-out visitor who opens a page
-  while the identity provider is unreachable reaches the login page, and so
-  does someone whose password session expires mid-visit, so with `admin` an
-  admin can still use the password form. Before, they saw an error. A
-  provider session that needs refreshing while the provider is unreachable
-  still shows the error.
-- The web UI's home, datasets, dataset, case and reviews pages are laid out
-  on the design system:
-  - An empty home page, datasets list, dataset tab or changelog shows an
-    icon, a title and, where there is one, the command to run. Empty tables
-    keep their one-line message.
-  - Loading placeholders have the shape of what loads. A case's page keeps its
-    header and breadcrumbs while it loads, keeps the case on screen when a
-    refresh fails, and its changelog and comments show their error instead of
-    loading forever.
-  - A dataset's sync line (workspace, branch, commit, who synced it and when)
-    sits under its name in the page header, on up to two lines on a phone.
-  - The reviews page switches between its three queues with tabs instead of
-    radio buttons, and the queue is in the URL (`/reviews?view=all`,
-    `?view=changes`), so Back from a case returns to it.
-  - A case's page offers "Full evaluator config" once instead of twice, and
-    says when its YAML sets no evaluators (overlays can still add some).
-  - Every page's content has 16px of padding (was 18 to 28px).
-  - For a package extending the UI, `PageHeader` takes an optional
-    `description` line, and `Empty` (`@/components/widgets/Empty`) draws an
-    empty state.
-- The web UI's settings move into one Settings area, opened from Settings in
-  the account menu, with its own sidebar in place of the main one:
-  - Workspace › ‹@workspace› is the current workspace's settings, at
-    `/settings/workspace/evaluators` and `/members` (was `/workspace/...`).
-    The workspace switcher stays at the top of the Settings sidebar.
-  - Organization, for admins: Users (`/settings/users`, was `/users`), Trace
-    sources (`/settings/trace-sources`, was `/admin/trace-sources`) and LLM
-    providers (`/settings/llm-providers`, was `/admin/llm-providers`).
-  - `/settings` opens the first page the person can see. The old paths
-    redirect to the new ones. Back to evalkit, at the top of the Settings
-    sidebar, returns to the page Settings was opened from.
-  - The main sidebar no longer has Workspace and Admin sections. Settings
-    pages the person can see are in ⌘K search, as "Settings › Organization ›
-    LLM providers".
-  - Members who open Trace sources see the list without the add form and
-    archive buttons, which only admins can use; LLM providers already worked
-    this way.
-  - For a package extending the UI, `UiExtensions` drops `moreNav` and
-    `adminNav` and gains `accountSettings` (everyone) and
-    `organizationSettings` (admins): pages rendered at `/settings/<name>`
-    inside the Settings area. A package that set `moreNav` or `adminNav` must
-    move those pages. A page's name is lowercase letters, digits and dashes;
-    evalkit drops a page whose name isn't, is one it uses itself
-    (`workspace`, `users`, `trace-sources` and `llm-providers`), or is
-    already taken by an earlier page in either list, `accountSettings` first.
-- The web UI's runs and agents pages are laid out on the design system:
-  - Runs: a workspace without active agents says so and links to the Agents
-    page instead of showing empty filters. The table shows its loading state
-    while the agents load, says "No runs yet." when the agent has none ("No
-    runs match." only under a filter), and stays on screen with the error
-    above it when a refresh fails. An agent list that fails to load no
-    longer blames the harness's run listing.
-  - A run's page: "Experiment run" moves into the page header, and the
-    "Runs" link, which led where the agent breadcrumb does, is gone. Its
-    tabs load with placeholders shaped like them and keep their content,
-    with the error above it, when a refresh fails. A trajectory without step
-    times, an empty workspace, a trajectory filtered to nothing and the file
-    viewer before a file is picked show an icon and a title. The timing and
-    cost tables scroll sideways on a phone.
-  - Agents list: the agent count sits in the page header, and an empty
-    workspace says how to add an agent, or why you can't: it is archived,
-    or read-only for you. When the workspace has agents but you can't add
-    one, that reason sits where the New agent button would be.
-  - An agent's page: how evalkit reaches the agent and where its
-    trajectories come from sits under its name in the page header. Without a
-    mapping, the Mappings tab says how to push one
-    (`evalkit traces mapping push`) and hides the empty rules table; without
-    sessions, it says there is nothing to preview. Without a trace source,
-    the Import tab says how an admin adds one
-    (`evalkit trace-sources create`), and no longer says so while the
-    sources are still loading or when they fail to load. An import's row
-    wraps on a phone. On both tabs, each list that fails to load (trace
-    sources, range imports, mapping versions, sessions, each preview) shows
-    its error in its own section instead of loading forever.
-  - The agents list, an agent's page, its tabs and a running harness check
-    load with placeholder rows.
-  - The agent form's note about changing the trajectory source wraps
-    instead of running past the dialog's edge.
-- The web UI's experiments, experiment, run and compare pages and the run
-  launcher are laid out on the design system:
-  - A workspace with no experiments shows an icon, a title and the command
-    to run instead of an empty table, or why you can't start one: the
-    workspace is archived, or you can't start experiments there (only the
-    owner can in a personal workspace, and admins, writers and reviewers in
-    a shared one). When the list fails to load, the page
-    shows the error alone instead of an empty table.
-  - An experiment's page keeps the shape of its scores and case table while
-    it loads; the case table shows the grid's own loading state and leaves
-    the table's saved column layout alone. It says when the experiment
-    pinned no cases, and shows the error when its cases fail to load instead
-    of an empty case table. A running experiment retries a failed case list
-    every 3 seconds, as it polls its scores.
-  - A run's page and the compare page keep their header and breadcrumbs
-    while they load and when they fail to load, and keep their content on
-    screen when a refresh fails. A run's page shows its tabs while it loads,
-    with the open tab selected.
-  - A case that has not run yet says so under its run page's header, with a
-    link back to the experiment. Before, it could show "Not found" while the
-    experiment's cases were loading or after they failed to load; a failed
-    case list now shows its error, also beside a run that has loaded, and
-    above "This case has not run yet" when a refresh fails.
-  - A run whose case sets no evaluators for the agent, even through
-    overlays, says so on its Scores tab.
-  - The compare page opened without two experiments says how to pick them.
-  - On a phone, long agent, model, judge and case-selection chips on an
-    experiment's and a run's page end in an ellipsis instead of running off
-    the screen.
-  - The run launcher's case picker shows placeholder rows while the cases
-    load, says when the dataset has no cases or its filter matches none, and
-    stops showing placeholders and "Loading cases…" when the cases fail to
-    load.
-- The web UI's settings, docs, sign-in and not-found pages are laid out on
-  the design system:
-  - Workspace settings: the page header says whether the workspace is shared
-    or personal, archived, and where it promotes to or from. An admin's
-    "Promotes to" picker sits above the tabs, and the "Create workspace"
-    form moves below them, under "New shared workspace", since it makes
-    another workspace; a name it refuses shows its error under that form.
-    Without remote evaluators, the Evaluators tab says how
-    to add one (`evalkit evaluators create`), or why you can't: the
-    workspace is archived or read-only for you. A workspace without members,
-    or a personal one, says so on the Members tab.
-  - Users, Trace sources and LLM providers: the page's description sits
-    under its title in the page header, and wraps on a phone instead of
-    running off the screen. LLM providers splits into Default judge and
-    Providers sections. Without trace sources or LLM providers, the page
-    says how to add one (`evalkit trace-sources create`,
-    `evalkit llm-providers create`), or that an admin does. A user list that
-    fails to load shows the error instead of placeholder rows.
-  - The add forms on Users, Trace sources and the Members tab put each field
-    on its own line on a phone. Lists show placeholder rows while they load.
-  - Docs: on a phone the page list folds under a button naming the current
-    page, above the page, and folds again after you pick one; wide tables
-    scroll sideways inside their own box.
-  - Markdown everywhere in the UI (docs, case questions, run answers, agent
-    messages in trajectories and workspace file previews) takes the design
-    system's colours for code blocks, inline code, tables and quotes.
-  - Sign-in: the sign-in card is 384px wide (was 336px) with labelled
-    fields that password managers fill, and a failed provider sign-in
-    (`/login/callback`) shows the same header bar as `/login`.
-  - A missing page shows an icon, what is missing and a button back.
-- A failed API request whose response carries no error message, such as a
-  proxy's 502 page, shows `HTTP <status>` instead of an empty error.
-- A file on a run's Workspace tab that fails to load says why, in the source
-  view and in image, PDF, SVG and HTML previews alike: the server's message
-  (`harness error` when the harness fails), or else the response's status
-  text, which is empty over HTTP/2, so `HTTP <status>` there. Before, the
-  source view showed "Failed to load file: " with nothing after it over
-  HTTP/2, and previews showed `Error`. Previews now also explain a harness
-  that no longer has the file, as the source view did.
-  `GET /api/agents/{agent}/runs/{run_id}/files`, `.../files/{path}` and
-  `.../zip` answer 502 `harness unreachable` when they can't reach the
-  harness, the words the runs list's note uses, and the MCP tools
-  `get_run_files` and `download_run_file` return `upstream_failed: harness
-  unreachable`; before, the error escaped as a plain-text 500.
-- The web UI has a Workspaces page under Settings › Organization
-  (`/settings/workspaces`) listing the workspaces as the sidebar's workspace
-  switcher does: yours and the shared ones, with other people's personal
-  workspaces behind "Show N other personal workspaces". Each row shows the
-  workspace's member count and promotion link, a filter narrows the list,
-  and clicking a row switches to that workspace and opens its settings.
-  Admins create shared workspaces there with New workspace, then land on the
-  new workspace's Members tab. The "New shared workspace" form is gone from
-  the workspace settings page. `workspaces` is now one of evalkit's own
-  Settings page names, so a wrapper's `organizationSettings` or
-  `accountSettings` page named `workspaces` is dropped.
-- `GET /api/workspaces` and the other workspace endpoints return `members`:
-  how many users hold a writer or reviewer grant on the workspace, each
-  counted once (0 for a personal workspace).
+_Released 2026-11-11._ A redesigned web UI, sign-in through your identity
+provider alone, and finer control over which private addresses a server may
+call.
+
+### Before you upgrade
+
+- **CLI:** Run `evalkit update --server <url>` once the server is on 0.5.0;
+  a 0.4 CLI refuses every other command against it.
+- **Server:** `GET /api/meta` no longer returns `accent_color`; read it from
+  the new public `GET /api/appearance`.
+- **Extending evalkit:** `UiExtensions` drops `moreNav` and `adminNav`; move
+  those pages to `accountSettings` (everyone) or `organizationSettings`
+  (admins), named in lowercase letters, digits and dashes, and not
+  `workspace`, `users`, `workspaces`, `trace-sources` or `llm-providers`
+  (evalkit drops a page whose name breaks this or is already taken).
+- **Extending evalkit:** evalkit's CSS classes for buttons, badges, inputs,
+  cards, tabs, form rows, checkboxes and loading placeholders (`btn`, `chip`,
+  `input`, `card`, `card-head`, `tab-button`, `form-row`, `form-label`,
+  `check`, `skeleton`) are gone, so a page that uses them moves to the shadcn
+  components. Dark mode is the `dark` class on `<html>` instead of
+  `data-theme="dark"`.
+
+### Features
+
+- **Sign-in:** `auth.password_login: none` sends a signed-out visitor
+  straight to your identity provider, refuses every password and needs no
+  `EVALKIT_ADMIN_PASSWORD`. It requires `auth.oidc.admin_claim`, so the
+  provider says who is an admin, and signing out stops every tab at
+  **Sign in again** rather than signing you straight back in.
+- **Server:** `trusted_endpoints` lists `http` or `https` origins that every
+  private-address check lets through, for a service every tenant may reach,
+  such as an in-cluster LLM gateway that checks its own credentials.
+- **Web UI:** A Workspaces page (Settings › Organization) lists every
+  workspace with its member count and promotion link, and admins create
+  shared workspaces there. `GET /api/workspaces` returns `members`.
+- **Extending evalkit:** A package serving evalkit can decide the
+  private-address rule per request, for example per tenant, by replacing
+  `get_allow_private_endpoints` from `evalkit.api.deps`.
+
+### Improvements
+
+- **Web UI:** A new design: a left sidebar that collapses to icons (⌘B) and
+  opens as a sheet on a phone, Roboto at 14px in new light and dark colours,
+  and new buttons, forms, dialogs and icons. Every page is laid out again,
+  with loading placeholders shaped like what loads, empty pages that say what
+  to run, and errors shown where the data failed.
+- **Web UI:** One Settings area, opened from the account menu, holds the
+  current workspace's settings and, for admins, Users, Workspaces, Trace
+  sources and LLM providers. Old URLs redirect.
+- **Web UI:** Tables let you resize, reorder, sort and hide columns and
+  filter text columns, and each table remembers its layout in the browser.
+  Layouts saved before 0.5.0 are dropped once.
+- **Web UI:** A page you come back to shows its last data at once and
+  refreshes in the background, and a save, archive or comment shows without
+  a reload.
+- **Web UI:** A deploy's `server.accent_color` draws a strip along the top of
+  every page, sign-in included, instead of recolouring buttons and links.
+- **Web UI:** The reviews queue you picked is in the URL
+  (`/reviews?view=all`), so Back from a case returns to it.
+- **Sign-in:** A first SSO sign-in whose name another SSO user, an archived
+  account or a workspace already has gets the next free number (`ann1`,
+  `ann2`) instead of a 409. A name held by an active password account not yet
+  linked to SSO still gets the 409, which names the subject for
+  `evalkit users bind`.
+- **Sign-in:** Usernames match in any case: `evalkit users add Bob` creates
+  `bob`, and the password login and the user and member commands accept
+  `Bob`.
+
+### Fixes
+
+- **Sign-in:** Fixed a first SSO sign-in refusing anyone whose email or
+  `preferred_username` has a `+` or another character outside lowercase
+  letters, digits, `.`, `_` and `-`. Usernames now take any character except
+  whitespace, `@`, `/`, `\`, `?`, `#` and `%`, and can't be just `.` or `..`.
+- **Sign-in:** Fixed a signed-out visitor or an expired password session
+  getting an error instead of the login page while the identity provider is
+  unreachable, so an admin can still sign in with a password.
+- **CLI:** Fixed `evalkit lint` and `evalkit sync` refusing a case file with
+  top-level `x-` keys (such as `x-shared`, to hold YAML anchors), broken in
+  0.4.0. The server parses these files, so the fix needs a 0.5.0 server.
+- **Web UI:** Fixed a file on a run's Workspace tab failing to load with no
+  reason, or just `Error`: it shows the server's message, or `HTTP <status>`.
+  The run file endpoints answer 502 `harness unreachable` instead of a
+  plain-text 500 when the harness is down.
+- **Web UI:** Fixed an API error with no message, such as a proxy's 502
+  page, showing as an empty error; it shows `HTTP <status>`.
+- **Web UI:** Fixed a score named like a JavaScript object property (such as
+  `constructor`) breaking the page that shows its ⓘ.
+- **Web UI:** Fixed GHSA-238p-pmpm-9mq7 (KaTeX below 0.18.2 reads polluted
+  object prototypes) by using KaTeX 0.19.1 throughout.
+- **Extending evalkit:** Fixed trace import checking private addresses
+  against the server's own config instead of a package's replaced
+  `get_config`.
 
 ## 0.4.0
 
-- evalkit is now licensed under Apache-2.0 instead of AGPL-3.0 (`LICENSE`).
-- The server serves the web UI with FastAPI's `app.frontend()` instead of a
-  catch-all route, so API routes another package adds with
-  `app.include_router()` after `create_app` answer GET.
-  `evalkit.api.auth.SIGNED_IN` puts such a route behind evalkit's sign-in. The
-  web UI takes extra pages and nav items from `ui/src/extensions/`, empty in
-  evalkit. See "Extending evalkit" in `AGENTS.md`. Responses that change:
-  - A page path such as `/datasets` returns the UI only to a browser
-    navigating to it (`Accept: text/html`); other clients get 404. `/`
-    returns it to every client, and `HEAD /` answers 200 instead of 405.
-  - A request to an unknown path with a method other than GET or HEAD
-    answers 404 instead of 405, `/api` paths included. A GET to an API path
-    that only takes other methods (`GET /api/auth/login`) answers 405
-    instead of 404.
-  - A path that differs from an API route only by a trailing slash
-    (`/api/agents/`) gets a 307 redirect to the route instead of 404 or 405.
-  - A page path containing an encoded NUL byte answers 404 instead of 500.
-- New docs page, Framework mappings (`docs/user/framework-mappings.md`): a
-  ready-to-use span mapping per agent framework (LangGraph, LangChain,
-  CrewAI, Agno, OpenAI Agents SDK, LlamaIndex, Google ADK, Pydantic AI,
-  Claude Agent SDK, Mastra), with the agent-side changes a mapping cannot
-  make. The `connect-traces` skill ships the files under `references/`
-  (`langchain.json`, `crewai.json`, `agno.json`, `llamaindex.json`,
-  `google-adk.json`, `claude-agent-sdk.json`, `mastra.json`) and tells
-  coding agents to pick the framework's file first.
-- `evalkit traces check` (and the SDK's dry run) warns on a new `answer`
-  line when the mapping's `answer` rule names a span the session does not
-  have, for example a copied `<agent name>` placeholder or a typo. Before,
-  the trajectory silently had no answer. The trajectory's `extra` carries
-  the name as `answer_span_missing`.
-- An evaluator that raises an exception without a message (an httpx
-  timeout, say) now records the exception type, e.g. `ReadTimeout`,
-  instead of an empty error, in the CLI, `evaluations.json` and the
-  server log. Builtin, remote and Python evaluators all do this.
-- A re-score (`evalkit evaluate`, SDK `evaluate_experiment`) now retries
-  an evaluator that errored after an earlier success. Before, the old
-  success rows stayed next to the error row, so the evaluator counted as
-  done and the error never cleared. An evaluator with any row marked as an
-  error (an `error` or the label `error`) is never done. Publishing an
-  evaluator's rows now replaces every row it wrote for that run.
-- The collector stores each span's `dropped_attributes_count` (the
-  attributes the OTel SDK dropped past its limit) in a new `spans` column
-  (migration 0018). `GET /api/agents/<ref>/sessions/<id>/spans` returns it,
-  ESF spans carry it as `dropped_attributes`, and `evalkit traces check`
-  warns on its `llm` line when an LLM span lost attributes, which usually
-  means lost messages. The Tracing page and the connect-traces skill explain
-  how to raise `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT` (default 128).
-- The collector now gives each span the session of its outermost ancestor
-  that carries one, not only the trace root's. An agent behind FastAPI or
-  another instrumented HTTP server no longer loses its spans when the
-  server's request span (`POST /chat`) is the root: put the session id on
-  your own turn span and the agent's spans join it. A root span with a
-  session still sets the session for the whole trace. `evalkit traces check`
-  now warns, instead of failing, when the trace root is outside the session,
-  and names the top span. The Tracing page has an "Agent behind an HTTP
-  server" recipe.
-- Local and SDK runs now score the judge-using built-in evaluators
-  (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) on the evalkit
-  server by default, with the server's LLM provider and its stored key. You no
-  longer need a judge key in `evalkit.yaml` for these runs.
-  - A judge now names exactly one of `provider` (a registered LLM provider, by
-    name) or `base_url`. `Judge(provider="openai", model="gpt-5")` or
-    `evalkit run --judge-provider openai` picks another provider, still scored
-    on the server.
-  - To bring your own judge, pass `Judge(base_url=..., model=..., api_key=...)`
-    or `evalkit run --judge-base-url URL --judge-api-key-env NAME` (the env
-    var or `.env` entry holding the key); those evaluators then run on your
-    machine. The key is never stored, so re-scoring and resuming need it
-    again: `evalkit evaluate <id> --judge-api-key-env NAME`,
-    `evalkit run … --resume <id> --judge-api-key-env NAME`, or
-    `evaluate_experiment(..., judge=Judge(...))` with the same judge (a
-    different judge is refused). `--judge-provider` with
-    `--judge-base-url` is refused, and so is `--judge-base-url` without
-    `--judge-api-key-env`.
-  - `credentials.llm_providers` is gone from `evalkit.yaml`: a file that still
-    has it (or `credentials.judges`) fails to load. Move the key to
-    `--judge-api-key-env` or `Judge(api_key=...)`.
-  - `tool_trajectory_match`, `required_tools_called` and `max_response_time`
-    always run on your machine.
-  - Each evaluation records `scored_on` (`local` or `server`); the run page
-    shows it beside each score.
-  - New endpoints: `POST /api/experiment-runs/<id>/server-evaluations/<name>`
-    (for the CLI and SDK; only users who may change the experiment) and
-    `GET /api/builtin-evaluators`. A proxy in front of the server must let
-    the server-evaluations call run for minutes; the CLI and SDK wait up to
-    900 s (`EVALKIT_SERVER_EVALUATOR_TIMEOUT`).
-  - The default judge is stored by provider name: `GET`/`PUT`/`PATCH
-    /api/judge-default` use `provider`, and a `base_url` is refused. Server
-    runs refuse a `base_url` judge. Changing the default judge's provider URL
-    is now allowed; archiving it is still refused.
-  - Starting an experiment with no judge and no default judge is refused only
-    when a selected case uses a judge-using evaluator.
-  - A remote evaluator can no longer take a built-in's name.
-  - The workspace Evaluators page lists the built-in evaluators.
-  - Migration `0017` adds `evaluations.scored_on` (`server` for server runs,
-    that is shared agents with a harness URL; `local` otherwise, including SDK
-    runs of shared code-driven agents) and rewrites the default judge, and server runs'
-    recorded judges, from base URL to provider name. It fails if the default
-    judge's base URL matches no provider: register one or clear the default
-    judge first.
+_Released 2026-11-07._ Single sign-on through any OIDC identity provider,
+judge-using evaluators scored on the server, packages that extend evalkit,
+and an Apache-2.0 licence (was AGPL-3.0).
 
-- The web UI's docs pages (`/docs/...`, `/cli`) no longer need a sign-in.
-  Signed-out visitors see them under a public navbar (logo, Docs, theme
-  toggle, Sign in); signed-in users still see them inside the full app. The
-  login page now carries the same public navbar, with a link to the docs.
-- Trace source URLs are now checked like LLM provider URLs. Without
-  `allow_private_endpoints: true`, `POST /api/trace-sources` and
-  `PATCH /api/trace-sources/<name>` (`evalkit trace-sources create` and
-  `edit --url`) answer 400 when the URL resolves to a loopback, private,
-  link-local or reserved address, or does not resolve. Editing only the key
-  is not checked. Importing from a source whose stored URL is such an address
-  (`evalkit traces import`, `POST /api/agents/<ref>/imports` and
-  `evalkit traces imports <agent> <id> --continue`) answers the same 400 and
-  fetches nothing, so a source saved before this release stops importing until
-  an admin points it at a public address.
-- With `allow_private_endpoints` off, a malformed URL in an agent, evaluator,
-  LLM provider or trace source now answers 400 instead of a server error:
-  `<url> is not a valid URL: …` when it cannot be parsed (`http://[::1`), and
-  `<url>: cannot resolve <host>` when its host name has an empty or overlong
-  label (`http://a..b.com/`).
-- `auth.oidc.admin_claim` (`name`, `value`): when set, every SSO sign-in
-  sets the person's admin flag from the access token (equal to the value, or
-  a list containing it), so the IdP grants and revokes evalkit admin. Unset,
-  sign-in never changes the flag, as before.
-- `create_app(resolve_tenant=...)` is now async, returns the tenant id as
-  text, and may return `None`: the request then answers 403 `no tenant for
-  this request` on `/api`, the collector, registration and password login,
-  and `/mcp` refuses the token (401), as it does a tenant id that isn't 1-64
-  letters, digits, `-` or `_`. Without a wrapper every request is in
-  `default`, as before.
-- `auth.oidc.required_scopes` (default empty) makes the server refuse IdP
-  access tokens that lack a scope, read from the `scope` and `scp` claims:
-  `POST /api/auth/oidc/register` (no user is created) and every `/api` request
-  answer 403 `access token lacks required scope <scope>`, and `/mcp` answers
-  403 `insufficient_scope`. Password
-  login and agent tokens are not checked. Every required scope must also be in
-  `auth.oidc.scopes`, or the config fails to load. `GET /api/auth/providers`
-  lists them as `required_scopes`, and the CLI sends them as `scope` on the
-  client credentials request. `/mcp` no longer stamps `evalkit:read`
-  on every token it accepts, and its tools no longer carry a per-tool scope.
-- evalkit now uses `httpx2` instead of `httpx` and `httpx-retries`. The
-  CLI, the SDK and the server make their HTTP calls through `httpx2`, with a
-  small retry transport of evalkit's own (`evalkit.client.retry`). Code that
-  embeds `evalkit.sdk` now installs `httpx2`, not `httpx`. A request whose
-  body is a one-shot stream is now sent once and never retried (the old
-  library retried it, and the second send of a spent stream failed). The
-  try-it stack's sample agent (`try/agent.py`) and the SDK-runs doc sample
-  import `httpx2`.
-- The web UI signs in through the configured identity provider: the login
-  page shows "Continue with <name>" when the server has `auth.oidc`, with an
-  "Admin sign-in" link to the password form (or the form open under the
-  button when `auth.password_login` is `all`). The new `/login/callback`
-  route completes the sign-in. The account chip shows the SSO email under
-  the username, and sign out clears the SSO session locally. The IdP must
-  allow evalkit's origin through CORS.
-- The UI's history fallback answers 404 for `/.well-known/*`, so an MCP client
-  probing `/.well-known/oauth-protected-resource/mcp` on a server without SSO
-  no longer gets the UI's `index.html`.
-- When `auth.oidc` is set, the `Content-Security-Policy` `connect-src` also allows
-  the origins of the IdP's issuer and its token endpoint, so the web UI can
-  sign in. Without `auth.oidc` the header is unchanged.
-- The database gains a `tenant_id` on `users`, `workspaces`, `cases`,
-  `llm_providers`, `trace_sources` and `fixture_blobs`: text, the
-  organisation's id, `default` for existing rows and for a server without a
-  multi-org wrapper. Usernames, workspace names, case ids, provider names and
-  trace source names are now unique per tenant. evalkit keeps no tenants
-  table. The default judge moved from `server_settings` to a new
-  `tenant_settings` table keyed by tenant id. Migration `0016`; no behaviour
-  change for a single installation, and its blob layout is unchanged (only
-  tenants other than `default` store objects under `tenants/<id>/`). Stop the
-  old server before `evalkit db upgrade`: 0016 drops `server_settings`.
-- `GET /api/workspaces/...` payloads include `tenant_id`.
-- Single sign-on through any OIDC identity provider that issues JWT access
-  tokens: set `auth.oidc` (`issuer`, `client_id`, `audience`, `name`) in the
-  server config. `evalkit login` then opens the browser at the identity
-  provider and stores its tokens, which refresh themselves;
-  `--no-browser` uses the device authorization grant. The CLI makes its
-  OAuth requests with Authlib (its httpx2 `OAuth2Client`). The first sign-in
-  creates the user; `GET /api/auth/providers` reports what the server
-  offers and `POST /api/auth/oidc/register` creates the user from the ID
-  token. See `docs/user/sso.md`.
-- `auth.password_login` (`admin` by default when `auth.oidc` is set, or
-  `all`) governs `POST /api/auth/login`; non-admins get 403 under `admin`.
-  Stored password tokens keep working until they expire.
-- CI authenticates as a machine client with `EVALKIT_OIDC_CLIENT_ID` and
-  `EVALKIT_OIDC_CLIENT_SECRET` (client credentials grant). An admin binds
-  the client's subject with `evalkit users add <name> --subject <sub>`;
-  `evalkit users add` also takes `--password` for a password user.
-  `evalkit users bind <name> --subject <sub>` links an existing user
-  (`POST /api/users/{username}/identity`). `users list` shows `kind` and
-  `email`; `users promote` refuses a machine user. If only one of the two
-  variables is set, the CLI now stops with an error naming the missing one
-  instead of falling back to `EVALKIT_TOKEN`.
-- `/mcp` verifies tokens with the same settings as `/api`; a token for the
-  configured audience or for `<base_url>/mcp` is its evalkit user, and
-  archiving the user cuts off MCP. `mcp.oauth` is removed: a config that
-  still has it fails to load and names `auth.oidc`. `create_app` no longer
-  takes `mcp_jwt_verifier`. While the identity provider is unreachable,
-  `/mcp` answers 503 (as `/api` does) instead of 401, so MCP clients keep
-  their tokens and retry. The token's expiry now comes from its `exp` claim.
-- During `evalkit login`, a browser callback with the wrong `state` is
-  answered with 400 and ignored; the login keeps waiting for the real
-  callback until it times out. A body from the identity provider that is
-  not valid discovery or JWKS JSON counts as the provider being unreachable.
-- `tracing.register`, `tracing.exporter` and `tracing.processor` require
-  `EVALKIT_OTEL_TOKEN` (an agent token); the fallback to a login token is
-  removed.
-- `SyncApi` and `AsyncApi` take an `httpx2.Auth` instead of a token string;
-  `evalkit.client.oidc.static_auth(token)` wraps a token.
-- Dependencies: `authlib` (with `joserfc` and `cryptography`) is now a base
-  dependency; `pyjwt[crypto]` is in the `server` extra.
-- Only releases (`X.Y.Z` from `main`) are published to PyPI. `develop`
-  builds (`X.Y.Z.devN`) are no longer on PyPI; get them from the workflow
-  artifact or the GHCR image.
-- `evalkit summary <id> --baseline <id>` now prints a `Δmean` for each
-  gauge (tokens, cost, duration, tool calls). Cases that ran in the
-  baseline but not in the newer experiment (a `--tag` or `--case-id` run)
-  are counted on one line, "not run here (in the baseline only)", instead
-  of being listed as "removed".
-- New `evalkit experiments list [--agent A] [--dataset D] [--limit N]`
-  prints id, dataset, agent, status, start time and bucket scores, newest
-  first. `GET /api/experiments` takes `agent` and `dataset` filters.
-- `evalkit review approve` takes several case ids, or `--all-waiting` for
-  every case in the dataset waiting on you.
-- `evalkit review queue` takes a dataset (`evalkit review queue
-  finance@dev`) to list only that dataset's cases. `GET /api/review/queue`
-  takes a `dataset` filter.
-- `evalkit review resolve <comment-id>` resolves a comment by its id alone;
-  the older `resolve <dataset> <case> <comment-id>` form still works. New
-  `PATCH /api/review/comments/{comment_id}`.
-- `evalkit review show` prints the case's evaluators without filled-in
-  defaults (`source: null`, `args_mode: subset`, ...), closer to what the
-  author wrote. Its changelog, and the case page's, include the promotion
-  source's events for a case in a promotion target, limited to the
-  versions promoted there, so a promoted case shows its sync and review
-  history from `@dev`, not only the promotion.
-- The Reviews page in a personal workspace lists the queue across every
-  workspace instead of "Personal datasets have no review state".
+### Before you upgrade
 
-- A code-driven agent can set its own input schema:
-  `evalkit agents create|edit <name> --input-schema schema.json`, and
-  `evalkit agents edit <name> --clear-input-schema` goes back to the
-  default (an object with a required string `question`). `agents show`
-  prints the schema, or the default. An agent with a `harness_url` is
-  refused: its harness declares the schema in `GET /capabilities`.
-  `run_experiment(dry_run=...)` now checks case inputs against the schema,
-  as the real run does. `evalkit lint --agent` on a code-driven agent lints
-  against its schema instead of failing with an `AssertionError`. The Case
-  schema, Harness API and SDK runs pages document the default schema and
-  how each kind of agent sets its own.
-- New docs page "Server config" lists every key of the server's
-  `config.yaml` with its default, including the database pool
-  (`db.pool_size` 20, `db.max_overflow` 10, `db.pool_timeout_seconds` 5) and
-  `runner.evaluation_concurrency` (16), and how to size them against
-  Postgres `max_connections`. `evalkit init-server` now writes
-  `db.pool_size: 5`, `db.max_overflow: 5` and
-  `runner.evaluation_concurrency: 4` into the `config.yaml` it creates, with
-  a comment naming the server defaults, so several local servers can share
-  one Postgres.
-- The Install page shows how to run the CLI from inside a uv project
-  (`uv add "evalkit-py==…"`, then `uv run evalkit`), how to get the
-  skills (`evalkit skills install`, and where the span mappings land), and
-  that `skills install` records its target in `~/.evalkit/skills-targets`.
-  The server install lines on Install and Try locally now pin the version,
-  and Workspaces shows `evalkit users add`.
-- The docs site root (`https://inferedge-ai.github.io/evalkit/`) now serves
-  the latest release's pages directly, version switcher included, instead of
-  a JavaScript redirect to `latest/`, so `curl`, `wget` and agents' fetch
-  tools read real pages there. The "older or unreleased version" banner text
-  appears only on older or `dev` pages and links to the same page under
-  `latest/`. Every release still keeps its own version folder.
-- New `evalkit traces mapping activate <agent> <version>` makes that
-  version the active mapping and prints the version it replaced. Pass the
-  version `mapping push` printed, so the draft you checked is the one that
-  goes live even if someone pushes another draft meanwhile; an older
-  version rolls back. `mapping push --activate` is removed: push uploads
-  the draft, activate makes it live. The `activate` query parameter on
-  `PUT /api/agents/{agent}/mappings/draft` is removed too, and
-  `POST /api/agents/{agent}/mappings/{version}/activate` now returns
-  `replaced_version`.
-- `evalkit traces mapping push` with a document equal to the current draft
-  keeps the draft's version and says it is unchanged, instead of minting a
-  new version. The endpoint's response has a new `unchanged` field.
-- `evalkit datasets list --workspace dev` lists only the datasets in `@dev`,
-  and `evalkit review queue --workspace dev` only the cases waiting there.
-  Without the flag both still cover every workspace you can see. `@dev` works
-  too; an unknown workspace is an error, not an empty list (the same 404
-  applies to `GET /api/datasets?workspace=` and `GET /api/review/queue?workspace=`). Passing
-  `--workspace` together with a dataset is refused: name it as `finance@dev`.
-- `evalkit datasets show finance@dev` prints one dataset's kind, last sync
-  (time, author, sha, branch), case count, cases per review state (reviewable
-  suites only) and tag counts.
-- `evalkit workspaces list` now shows promotion links: `promotes to prod` on
-  the source row and `promoted from dev` on the target row.
-- Review CLI fixes:
-  - `evalkit review show <dataset> <case>` prints the case (id, input,
-    expected, evaluators with overlays applied, file names, tags) as YAML
-    above the changelog. `--yaml` prints only the case.
-  - `evalkit review queue --changes-requested` names the author the case went
-    back to: "by <reviewer> to <author>". The author is the last person who
-    asked for review; a re-sync does not change it. The queue API returns it
-    as `author`.
-  - `evalkit sync` says that edited cases under review are back in review and
-    need no second `review request`.
-  - `evalkit review request` skips cases already waiting on the same reviewer
-    and lists them, instead of adding a duplicate changelog event. The API
-    returns them as `already_requested`.
-  - `evalkit review comment` takes `--comment "text"` like `approve` and
-    `request-changes`. The positional form still works.
-- `evalkit runs pull` now writes `started_at` in every `run.json`. A run with
-  no agent-run record (most app runs) takes it from the run's listed
-  `created_at`; before, the field was missing. It is `null` when the harness
-  listing gives no creation time.
-- The eval-driven-development skill gives both run forms: `evalkit run` for
-  a Harness API agent, and the client's `run_experiment(..., case_ids=[...])`
-  script for a code-driven agent. Loop 2 groups runs by `question_kind` (free
-  text) instead of a `task_type` no skill defined.
-- Traces from Google ADK / Gemini and LangChain-style instrumentors now keep
-  the model's messages and tool calls. evalkit reads the message roles
-  `model`, `ai` and `bot` as `assistant`, `human` as `user`, `developer` as
-  `system` and `function` as `tool`, in any letter case. Before, it dropped
-  those messages from the trajectory without a warning, so tool evaluators
-  scored 0.
-  - `evalkit traces check` now warns on the `llm` line when any output
-    message has a role other than `assistant`, `user`, `system` or `tool`,
-    and lists those roles: the trajectory drops such messages.
-- Trajectories built from OTel spans are right for more agent shapes, and
-  `evalkit traces check` and the SDK dry run say when one looks wrong.
-  - An AGENT span becomes a subagent trajectory only when it sits under a
-    tool span or carries the `tool_call_id` that started it. Other AGENT
-    spans are merged into the main agent: outer wrapper spans (OpenAI
-    Agents, LangChain, CrewAI), graph nodes tagged AGENT (LangGraph) and one
-    root span per chat turn. **Changed:** sibling agents that hand over
-    without a tool call (e.g. CrewAI sequential tasks) are now one
-    trajectory instead of one subagent each; list them in the mapping's
-    `subagent_spans` to keep them apart.
-  - Each new user message shows up as a `user` step, so a chat's later turns
-    are in the trajectory, not only the first message. With one root span
-    per turn, the answer comes from the last turn.
-  - Mapping fields: `exclude_spans` entries may be a name glob
-    (`"OpenAILike.*"`), an attribute match (`{"attribute": K, "equals": V}`)
-    or an instrumentation scope (`{"scope": "mcp"}`). New `rekind_spans`
-    (`[{"name": "agent", "kind": "chain"}]`), `main_agent` and
-    `subagent_spans` use the same matches.
-  - `evalkit traces check` warns (`!`) when tool spans exist but the
-    trajectory has no tool calls, when there are more LLM spans than LLM
-    steps, and when subagents hold every LLM call and the main agent none.
-    A missing root span now says how to fix it. Excluded spans no longer
-    count as "without messages".
-  - `run_experiment(dry_run=...)` prints the same check lines.
-  - The collector stores each span's instrumentation scope. **Migration
-    0015** adds the `spans.scope` column; run `evalkit db upgrade` before
-    starting the new server.
+- **CLI:** Run `evalkit update --server <url>` once the server is on 0.4.0;
+  a 0.3 CLI refuses every other command against it.
+- **Server:** Stop the old server, then run `evalkit db upgrade` before
+  starting the new one. One migration fails if the default judge's base URL
+  matches no LLM provider: register one or clear the default judge first.
+- **Server:** Each server now opens up to 30 database connections
+  (`db.pool_size` 20 plus `db.max_overflow` 10). Keep that times your
+  replicas well under Postgres `max_connections`, or lower them in
+  `config.yaml`.
+- **Server:** The server config no longer takes `mcp.oauth`; a config that
+  has it fails to load. Configure `auth.oidc` instead.
+- **Server:** Trace sources are checked against private addresses like LLM
+  providers. Without `allow_private_endpoints: true`, a source on a private
+  address stops importing until an admin points it at a public one.
+- **Server:** A proxy in front of the server must let
+  `POST /api/experiment-runs/<id>/server-evaluations/<name>` run for
+  minutes; the CLI and SDK wait up to 900 s
+  (`EVALKIT_SERVER_EVALUATOR_TIMEOUT`).
+- **Server:** A harness that declares `run_listing` names the tenant
+  `org_id` instead of `client_id`, in the `GET /runs` filter and on each
+  run. The run browser's filter and the MCP `find_runs` tool say `org_id`
+  too.
+- **Evaluators:** The default judge is set by provider name: `GET`, `PUT`
+  and `PATCH /api/judge-default` use `provider`, and a `base_url` judge is
+  refused there and on server runs.
+- **Evaluators:** `evalkit judge-default set --concurrency` is gone and
+  `Judge(concurrency=...)` is ignored; set `evaluation_concurrency` instead.
+- **SDK:** `evalkit.yaml` no longer takes `credentials.llm_providers` (or
+  `credentials.judges`); a file that has it fails to load. Pass the judge key
+  with `--judge-api-key-env` or `Judge(api_key=...)`.
+- **SDK:** "Split" is "tag" everywhere: `run_experiment(split="x")` is
+  `run_experiment(tags=["x"])`, the API's `selection` takes `tags` (a request
+  with `tag` is refused), and `GET /api/datasets/{ref}/splits` is
+  `GET /api/datasets/{ref}/tags`.
+- **SDK:** Code that embeds `evalkit.sdk` installs `httpx2` instead of
+  `httpx`, and `SyncApi` and `AsyncApi` take an `httpx2.Auth`
+  (`evalkit.client.oidc.static_auth(token)` wraps a token).
+- **CLI:** `evalkit run finance/<name>` no longer falls back to a tag when
+  `<name>` is not a folder or file of the dataset: pass `--tag <name>`.
+- **CLI:** `evalkit traces mapping push --activate` is gone, and so is the
+  `activate` query parameter on `PUT /api/agents/{agent}/mappings/draft`:
+  push the draft, then run `evalkit traces mapping activate <agent>
+  <version>`.
+- **CLI:** A case file with `cases:` or `overlays:` refuses any other
+  top-level key besides `defaults`, where it used to ignore it (a typo such
+  as `defualts:` dropped your defaults silently), and both must be lists.
+- **Tracing:** `tracing.register`, `tracing.exporter` and
+  `tracing.processor` need `EVALKIT_OTEL_TOKEN` (an agent token); they no
+  longer fall back to a login token.
+- **Tracing:** Sibling agents that hand over without a tool call (CrewAI
+  sequential tasks, say) now make one trajectory; list them in the mapping's
+  `subagent_spans` to keep them apart.
+- **Packaging:** Only releases are published to PyPI; get a `develop` build
+  (`X.Y.Z.devN`) from the workflow artifact or the GHCR image.
+- **Extending evalkit:** `create_app` no longer takes `mcp_jwt_verifier`;
+  `/mcp` verifies tokens with the `auth.oidc` settings.
 
-- Scoring experiments of more than about 40 runs no longer fails with `500`s
-  on `POST /api/experiment-runs/{id}/evaluations`.
-  - A run (or `evalkit evaluate`) now scores at most 16 runs at once instead
-    of all of them. Change it with `--evaluation-concurrency N` on `evalkit
-    run` and `evalkit evaluate`, `evaluation_concurrency=N` in the SDK's
-    `run_experiment` and `evaluate_experiment`, or the **Evaluation
-    concurrency** field in the web UI's run dialog.
-  - A server run uses `runner.evaluation_concurrency` from the server's
-    `config.yaml` (default 16). The CLI flag, the run dialog and the
-    `evaluation_concurrency` field on `POST /api/experiments`, `/resume` and
-    `/evaluate` may ask for that much or less; more is refused with `400`.
-    The experiment keeps the value it was started with, so a resume or
-    re-evaluate without one (such as the UI's **Re-evaluate** and **Resume**
-    buttons) uses it again.
-  - Each scoring request uses one database connection instead of two, and
-    the server's connection pool is bigger by default. Set it in
-    `config.yaml` with `db.pool_size` (default 20), `db.max_overflow`
-    (default 10) and `db.pool_timeout_seconds` (default 5). Keep
-    `(pool_size + max_overflow) × replicas` well under Postgres
-    `max_connections`.
-  - When no connection frees up within `pool_timeout_seconds`, the server
-    answers `503` with `Retry-After`, and the CLI and SDK retry instead of
-    failing the experiment. Server runs write straight to the database, so
-    they get no retry: a server run that cannot get a connection still
-    fails, and `evalkit evaluate` finishes it.
-- The judge no longer has a `concurrency` setting: `evaluation_concurrency`
-  replaces it. `evalkit judge-default set --concurrency` is gone, and the SDK's
-  `Judge(concurrency=...)`, the API and saved experiments and default judges
-  ignore the field.
-- `evalkit summary <N> --baseline <M>` now shows what changed since the
-  baseline: a `vs experiment M` header, a Δ next to every bucket and
-  evaluator, and a `changed cases:` block listing improved, regressed, new
-  and removed cases (base → current score and Δ), unscored cases (no
-  overall score on one side), plus a count of unchanged ones. When the two
-  runs scored an evaluator on different case counts, its line shows the
-  base's count too (`(3 cases, base 2)`). It reads the same compare data as the web UI's compare page.
-- The summary's failing-cases list now also includes cases where any single
-  evaluator scored below 0.80, naming those evaluators, even when the case's
-  overall score is above 0.80.
-- The case YAML schema is published. A new **Case schema** docs page (also in
-  the web UI's docs) lists every key with one example per evaluator, and maps
-  each scorecard bucket to its YAML key. `evalkit contracts export` now also
-  writes `cases-v1.json`.
-- `evalkit lint` schema errors are easier to act on. They print the file path
-  and the case id, list the valid keys where an unknown key was found, and say
-  where a misplaced evaluator belongs (e.g. "`presentation_judge` goes under
-  `evaluators.output`"). `evalkit lint --offline` now reports these as findings
-  instead of stopping with a traceback.
-  Lint reports every broken case in a file, not just the first.
-- Stricter case files: in a file with `cases:` or `overlays:`, any other
-  top-level key besides `defaults` is now an error (it used to be ignored, so
-  a typo like `defualts:` dropped your defaults silently). `cases:` and
-  `overlays:` must be lists. Fix: remove or rename the stray key.
-- `ScoreItem`, `EvalCase` and `EvalRun` can be imported from `evalkit.sdk`.
-- `evalkit init-server --port 9500` writes `server.base_url` with that port and
-  prints the matching `evalkit login` command. `evalkit serve` now defaults
-  `--port` to the port in `server.base_url` (8020 when it has none). In
-  the Docker try stack, set `EVALKIT_PORT` in `.env` to publish the server on
-  another host port. Try it locally says how to change the port once and its
-  examples use the server's own URL in the web UI.
-- evalkit now runs on Python 3.12 as well as 3.13 (`requires-python` was
-  `>=3.13`). Projects on 3.12 can `uv add "evalkit-py[otel]"` without
-  upgrading Python. The install docs and skills state the minimum version.
-- Run several tags in one experiment. `evalkit run finance --tag ratios --tag
-  statements --agent ouragent@dev` runs every case carrying any of the given
-  tags. In the web UI's run dialog, the **Tags** choice is now a multi-select
-  (type to search, pick several). The picked tags show as removable chips
-  under it, and the CLI preview prints `--tag` flags.
-  `evalkit review request --tag` is repeatable too.
-- Datasets in a personal workspace now have a **Run experiment** button too.
-  The dialog lists your own agents first. In place of starting the run, it has
-  a **Copy CLI command** button: set the options in the UI, then paste the
-  `evalkit run …` command into your terminal.
-- The experiment page's case table has a tag filter: pick one or more tags to
-  show only the cases carrying any of them.
-- "Split" is now called "tag" everywhere:
-  - The SDK's `run_experiment(split="x")` is now `run_experiment(tags=["x"])`.
-  - The API's `selection` takes `tags: [...]` instead of `tag`. A request that
-    still sends `tag` is refused.
-  - `GET /api/datasets/{ref}/splits` moved to `GET /api/datasets/{ref}/tags`.
-  - The dataset page's Splits tab is now Tags, and ⌘K searches Tags.
-- `evalkit run finance/<name>` no longer falls back to selecting a tag when
-  `<name>` is not a folder or file of the dataset on disk. It fails and tells
-  you to pass `--tag <name>`. Folders and case files still work.
-- Migration `0014` rewrites the stored selection of existing experiments from
-  `tag` to `tags`. Run `evalkit db upgrade` before starting the new server.
+### Features
 
-- New docs page **CI sync** (`/docs/ci-sync`): how to lint eval cases on
-  PRs and sync them into a shared workspace on merge, with a GitHub Actions
-  example. The Workspaces page has a new section, **Example setup:
-  personal → dev → prod**, with the commands to set it up and the day-to-day
-  flow of a case.
+- **Sign-in:** Single sign-on through any OIDC identity provider that
+  issues JWT access tokens (`auth.oidc`): the web UI offers "Continue with
+  <provider>", `evalkit login` opens the browser (or uses the device flow
+  with `--no-browser`), and the first sign-in creates the user.
+  `auth.password_login` (`admin` or `all`) decides who may still use a
+  password.
+- **Sign-in:** CI signs in as a machine client with `EVALKIT_OIDC_CLIENT_ID`
+  and `EVALKIT_OIDC_CLIENT_SECRET`; an admin adds it with
+  `evalkit users add <name> --subject <sub>`, and `evalkit users bind` links
+  an existing user to an identity.
+- **Sign-in:** `auth.oidc.admin_claim` lets the identity provider grant and
+  revoke evalkit admin at each sign-in, and `auth.oidc.required_scopes`
+  refuses access tokens that lack a scope.
+- **Evaluators:** Local and SDK runs score the judge-using built-ins
+  (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) on the
+  server with its LLM provider, so they need no judge key; each score
+  records where it ran. To bring your own judge, pass `--judge-base-url` and
+  `--judge-api-key-env`, or `Judge(base_url=..., api_key=...)`.
+- **Extending evalkit:** Another package can serve evalkit with API routes
+  of its own (`app.include_router()` after `create_app`, behind sign-in with
+  `SIGNED_IN`) and UI pages of its own (`ui/src/extensions/`), and can split
+  the data by organisation with `create_app(resolve_tenant=...)`, an async
+  function that returns the tenant id or `None` to refuse the request. See
+  "Extending evalkit" in `AGENTS.md`.
+- **CLI:** `evalkit run --tag` takes several tags and runs the cases
+  carrying any of them; the run dialog's Tags is a multi-select, and an
+  experiment's case table filters by tag.
+- **CLI:** `evalkit traces mapping activate <agent> <version>` makes a
+  pushed draft live, or rolls back to an older version.
+- **CLI:** New commands `evalkit experiments list` and
+  `evalkit datasets show <dataset>`: the first filters by `--agent`,
+  `--dataset` and `--limit`; the second prints a dataset's last sync, case
+  counts per review state and tags.
+- **Review:** `evalkit review approve` takes several cases or
+  `--all-waiting`, `evalkit review queue finance@dev` lists one dataset's
+  cases, and `evalkit review resolve <comment-id>` needs only the comment id.
+- **Web UI:** Datasets in a personal workspace have Run experiment too; set
+  the options and copy the `evalkit run` command it builds.
+- **SDK:** A code-driven agent can set its own input schema with
+  `evalkit agents create|edit <name> --input-schema schema.json`.
+- **Docs:** New pages: Framework mappings (a ready-to-use span mapping for
+  ten agent frameworks), Server config (every key and its default), Case
+  schema, and CI sync (lint cases on PRs, sync on merge). Docs pages in the
+  web UI need no sign-in.
 
-- `evalkit runs pull` no longer fails the whole batch with a 500 when a
-  run's stored trajectory is missing from the blob store. That run comes
-  back in `index.json` with a `pull_error`, and the other runs are pulled.
+### Improvements
 
-- The install page says what to do when `evalkit update` fails with
-  `KeyError: 'filename'`: a CLI older than 0.3.0 cannot update itself, so
-  run `uv tool install --reinstall "evalkit-py==<version>"` once.
-- The Harness API's run list names the tenant `org_id` instead of
-  `client_id`: evalkit sends `GET /runs?org_id=…` and reads `org_id` on each
-  listed run. A harness that declares `run_listing` renames both, or its
-  tenant filter is ignored and its runs show no tenant. The run browser's
-  filter and the MCP `find_runs` tool's filter and rows say `org_id` too.
+- **CLI:** `evalkit summary <id> --baseline <id>` shows the change in every
+  bucket, evaluator and gauge, and lists improved, regressed, new and
+  removed cases. Its failing cases include any case where one evaluator
+  scored below 0.80.
+- **Tracing:** Trajectories built from OTel spans fit more agent shapes:
+  subagents only where a tool started them, a user step for every message in
+  a chat, and mapping rules `rekind_spans`, `main_agent` and
+  `subagent_spans`. `evalkit traces check` and the SDK dry run warn when a
+  trajectory looks wrong: no answer span, LLM spans that lost attributes,
+  tool spans without tool calls, messages with an unknown role.
+- **Evaluators:** Scoring runs at most 16 runs at once; change it with
+  `--evaluation-concurrency` on `evalkit run` and `evalkit evaluate`, in the
+  SDK, or in the run dialog. Server runs take `runner.evaluation_concurrency`
+  from the server config.
+- **CLI:** `evalkit lint` errors name the file, the case and the valid keys,
+  say where a misplaced evaluator belongs, and cover every broken case in a
+  file. `evalkit lint --offline` reports them as findings instead of a
+  traceback.
+- **Review:** The review queue names the author a case went back to,
+  `evalkit sync` says edited cases are back in review, `review request`
+  skips cases already waiting on that reviewer, and a promoted case's
+  changelog includes its history from the source workspace.
+- **CLI:** `evalkit datasets list` and `evalkit review queue` take
+  `--workspace`, and `evalkit workspaces list` shows promotion links.
+- **CLI:** `evalkit init-server --port` sets the server's port, and
+  `evalkit serve` defaults to the port in `server.base_url`.
+- **Packaging:** evalkit runs on Python 3.12 as well as 3.13.
+- **Server:** A page path returns the web UI only to a browser
+  (`Accept: text/html`); other clients get 404.
+- **Docs:** The docs site root serves the latest release's pages directly,
+  and the Install page covers running the CLI inside a uv project and
+  installing the skills.
+
+### Fixes
+
+- **Evaluators:** Fixed scoring an experiment of more than about 40 runs
+  failing with 500s: each scoring request uses one database connection, and
+  a server out of connections answers 503 with `Retry-After`, which the CLI
+  and SDK retry.
+- **Evaluators:** Fixed a re-score treating an evaluator that errored after
+  an earlier success as done; it retries it.
+- **Evaluators:** Fixed an evaluator that raised an exception without a
+  message recording an empty error; it records the exception type, such as
+  `ReadTimeout`.
+- **Tracing:** Fixed Google ADK, Gemini and LangChain-style traces losing
+  the model's messages and tool calls (roles such as `model`, `ai` and
+  `human`), which made tool evaluators score 0.
+- **Tracing:** Fixed an agent behind FastAPI or another instrumented HTTP
+  server losing its spans when the server's request span is the trace root,
+  once the session id is on the agent's own turn span.
+- **CLI:** Fixed `evalkit runs pull` failing the whole batch with a 500 when
+  one run's trajectory is missing from the blob store; that run gets a
+  `pull_error` and the others are pulled. Every `run.json` has a
+  `started_at` field, `null` when the harness gives no creation time.
+- **CLI:** Fixed `evalkit lint --agent` failing with an `AssertionError` on a
+  code-driven agent.
+- **Server:** Fixed a malformed URL in an agent, evaluator, LLM provider or
+  trace source answering a server error instead of 400 when
+  `allow_private_endpoints` is off.
+- **Server:** Fixed an MCP client probing `/.well-known/` on a server
+  without SSO getting the web UI's page.
 
 ## 0.3.0
 
-- evalkit is on PyPI as **`evalkit-py`** (the command and the Python module
-  are still `evalkit`). Install the version your server runs:
-  `uv tool install --reinstall "evalkit-py==<version>"`; `curl <server>/api/cli`
-  prints it. `develop` builds publish `X.Y.Z.devN` pre-releases, `main`
-  builds `X.Y.Z`. CLIs older than this cannot update themselves: run that
-  command once.
-- The server no longer serves its own wheel: `/api/cli/wheel`,
-  `/api/cli/simple` and `/api/cli/files/…` are gone, and `GET /api/cli`
-  returns only `{"version", "package"}`. `EVALKIT_WHEEL_DIR` is ignored.
-- `evalkit update` reinstalls the CLI from PyPI at the server's version and
-  moves an `evalkit-py==…` pin in `./pyproject.toml` (then runs `uv sync`).
-  `--vendor` is removed. A project with a vendored wheel moves once:
-  `uv remove evalkit && uv add "evalkit-py[otel]==<version>"`.
-- `pip install "evalkit-py[server]"` installs a working server, web UI
-  included. New `evalkit init-server` sets one up on this machine against a
-  Postgres you already run: it creates the database, copies the try kit,
-  writes `config.yaml` and `.env`, migrates, registers your LLM as the LLM
-  provider `try` and makes it the default judge. It prompts for anything not
-  given as a flag or env var; `--yes` never prompts, `--kit-only` only copies
-  the kit. See Try locally.
-- `evalkit serve` and `evalkit db upgrade` read a `.env` beside
-  `config.yaml`; variables already in the environment win.
-- The try kit's `run.py` installs `evalkit-py` from PyPI; `evalkit init-server`
-  pins it to the installed version when it copies the kit.
-- The docs and an SDK API reference are published at
-  https://inferedge-ai.github.io/evalkit/, one version per release plus `dev`.
-- API keys and the default judge moved from the server config into the
-  database, so adding an agent, evaluator or LLM provider needs no restart.
-  - The server config no longer takes `credentials:` or `judge_default:`.
-    If it has either, the server refuses to start and prints the commands
-    that set the same values. Remove them, start the server, then run those
-    commands with each key in your shell env.
-  - Shared agents and remote evaluators keep their key on the server:
-    `evalkit agents create|edit <ref> --api-key-env NAME` (and
-    `--clear-api-key`), the same flags on `evalkit evaluators create|edit`,
-    or the API key field in the UI. Keys are encrypted with
-    `encryption_key` and never returned; reads show `has_api_key`.
-    Personal agents and evaluators still read their key from `evalkit.yaml`.
-  - Writers of a shared workspace can now set an agent's `harness_url` and
-    an evaluator's endpoint, not only admins. Changing a URL removes the
-    stored key unless the same call sets a new one.
-  - Admins register LLM providers with `evalkit llm-providers
-    create|edit|list|show|archive|restore` (or Admin → LLM providers in
-    the UI) and set the default judge with `evalkit judge-default set
-    --provider <name> --model <model>` (options you leave out keep their
-    current value). Server runs, resumes and re-evaluations only judge with
-    a registered provider; another base URL is refused with 400.
-  - A server run whose agent, evaluator or provider has no key no longer
-    fails with 400: it calls without a key, and the response lists
-    `warnings`. Local runs print one line per agent or evaluator without
-    an `evalkit.yaml` entry.
-  - The server refuses shared agent, evaluator and LLM provider URLs that
-    resolve to private, loopback, link-local or other non-public addresses.
-    Personal agents and evaluators are not checked: your CLI calls them. Set `allow_private_endpoints: true` in the
-    server config when your harness, evaluator or LLM runs in the same
-    cluster or on `host.docker.internal`.
-  - `evalkit.yaml`: `credentials.judges` is now
-    `credentials.llm_providers`; the old name fails to load.
-  - `evalkit trace-sources rekey` is now `evalkit db rekey`, and
-    re-encrypts every stored key.
-  - New `evalkit evaluators show` and `evalkit evaluators restore`.
-  - The UI's Settings → Evaluators tab can now edit an evaluator (endpoint,
-    timeout, API key) and restore an archived one, in a modal like the
-    agent form.
-  - Run `evalkit db upgrade` for migration `0013`.
+_Released 2026-10-30._ evalkit is on PyPI as `evalkit-py`, a server is one
+`pip install` away, and API keys live in the database.
 
-- The server can report errors to Sentry. Add a `sentry:` block to the
-  server config with `dsn` (e.g. `env:SENTRY_DSN`), and optionally
-  `environment`, `traces_sample_rate` (default `0.0`) and
-  `max_request_body_size` (default `never`). Without the block,
-  nothing is sent.
+### Before you upgrade
+
+- **CLI:** A CLI older than 0.3.0 can't update itself: run
+  `uv tool install --reinstall "evalkit-py==<version>"` once, with the
+  version `curl <server>/api/cli` prints. A project with a vendored wheel
+  moves once: `uv remove evalkit && uv add "evalkit-py[otel]==<version>"`.
+- **Server:** Remove `credentials:` and `judge_default:` from the server
+  config; a server that still has them refuses to start and prints the
+  commands that set the same values. Start it, then run those commands with
+  each key in your shell.
+- **Server:** Run `evalkit db upgrade` for migration 0013.
+- **Server:** Shared agent, evaluator and LLM provider URLs on a private,
+  loopback or link-local address are refused. Set
+  `allow_private_endpoints: true` when they run in the same cluster or on
+  `host.docker.internal`.
+- **Server:** Server runs, resumes and re-evaluations judge only with a
+  registered LLM provider; another base URL is refused with 400. Register
+  one with `evalkit llm-providers create`.
+- **Server:** The server no longer serves its own wheel:
+  `/api/cli/wheel`, `/api/cli/simple` and `/api/cli/files/...` are gone,
+  `GET /api/cli` returns only `version` and `package`, `EVALKIT_WHEEL_DIR`
+  is ignored and `evalkit update --vendor` is removed.
+- **SDK:** In `evalkit.yaml`, `credentials.judges` is now
+  `credentials.llm_providers`.
+- **CLI:** `evalkit trace-sources rekey` is now `evalkit db rekey`, and
+  re-encrypts every stored key.
+
+### Features
+
+- **Packaging:** evalkit is on PyPI as `evalkit-py` (the command and module
+  are still `evalkit`). `evalkit update` installs the server's version and
+  moves an `evalkit-py==...` pin in `./pyproject.toml`.
+- **Server:** `pip install "evalkit-py[server]"` installs a working server,
+  web UI included, and `evalkit init-server` sets one up against a Postgres
+  you already run: it creates the database, writes `config.yaml` and `.env`,
+  migrates, and registers your LLM as the default judge.
+- **Server:** API keys and the default judge are stored in the database, so
+  adding an agent, evaluator or LLM provider needs no restart; keys are
+  encrypted and never returned. Set keys with `--api-key-env` on
+  `evalkit agents` and `evalkit evaluators`, providers with
+  `evalkit llm-providers`, and the judge with `evalkit judge-default set`.
+- **Server:** The server reports errors to Sentry when the config has a
+  `sentry:` block.
+- **Docs:** The docs and an SDK API reference are published at
+  https://inferedge-ai.github.io/evalkit/, one version per release plus
+  `dev`.
+- **CLI:** New `evalkit evaluators show` and `evalkit evaluators restore`;
+  the web UI can edit an evaluator and restore an archived one.
+
+### Improvements
+
+- **Server:** Writers of a shared workspace can set an agent's harness URL
+  and an evaluator's endpoint, not only admins. Changing a URL drops the
+  stored key unless the same call sets a new one.
+- **Server:** A server run whose agent, evaluator or provider has no key
+  calls without one and lists `warnings`, instead of failing with 400.
+- **Server:** `evalkit serve` and `evalkit db upgrade` read a `.env` beside
+  `config.yaml`; variables already in the environment win.
 
 ## 0.2.0
 
-- Review state no longer filters runs. `evalkit run`, `run_experiment` and
-  the UI's Run experiment dialog execute every selected case of a shared
-  dataset, whatever its review state; review decides what gets promoted.
-  `--include-drafts` and `include_drafts=` are removed: drop them from
-  scripts and CI, or the command fails. The launcher's Drafts checkbox and
-  the experiment page's "approved only" / "includes drafts" chip are gone.
-- The Draft review state is now **Unreviewed** (`unreviewed` in the API and
-  `datasets list --state`). The sync report field
-  `review.now_draft` is now `review.now_unreviewed`.
+_Released 2026-10-27._ Review no longer decides which cases run, and
+experiment lists show only the scores they have.
 
-- `evalkit lint <dir>` (server-side) now uploads the nearest `fixtures.yaml`
-  and checks fixture keys the way `--offline` does: an undeclared key is an
-  error, and an unused registry entry warns when the registry sits in the
-  linted directory. CI can drop the separate `evalkit lint --offline` step.
-- Experiment lists show a score column only for buckets some experiment in
-  the list was scored on, and add `eff` (efficiency) and `custom` (mean of
-  custom-evaluator scores) when present. Unconfigured answer, presentation
-  and trajectory columns no longer show empty.
-- The experiment page shows the judge model and reasoning effort (hover for
-  base URL, max tokens and concurrency); the case run page links to it, and
-  experiment lists have an optional `judge` column (Columns menu).
-- The Agents page lists archived agents in a collapsed **Archived (N)**
-  section, so you can reach an archived agent's page and restore it.
-- An empty workspace you cannot write to no longer suggests running
-  `evalkit run` or `evalkit sync` into it; it says the workspace is read-only.
-- Reviews and Runs clear an old error once a later fetch succeeds. Reviews
-  shows the error below the view toggle, so you can still switch views.
+### Before you upgrade
 
-- `evalkit traces check` (and `--dump`) on an unknown agent now says
-  `unknown agent: <ref> — create it with evalkit agents create`, like the
-  other commands.
+- **CLI:** Run `evalkit update --server <url>` once the server is on 0.2.0;
+  a 0.1 CLI refuses every other command against it.
+- **CLI:** `--include-drafts` and `include_drafts=` are removed; drop them
+  from scripts and CI, or the command fails.
+- **Review:** The Draft review state is now Unreviewed: `unreviewed` in the
+  API and `evalkit datasets list --state`, and the sync report's
+  `review.now_draft` is `review.now_unreviewed`.
 
-- With `mcp.oauth` set, `/mcp`'s protected-resource metadata now lists the
-  identity provider's issuer exactly as configured. It used to add a trailing
-  slash (`https://id.example.com/`), which OAuth clients such as Claude could
-  not match to the provider's issuer, so connecting failed.
+### Improvements
+
+- **Review:** `evalkit run`, `run_experiment` and the run dialog run every
+  selected case of a shared dataset, whatever its review state; review
+  decides what gets promoted.
+- **CLI:** `evalkit lint <dir>` checks fixture keys like `--offline` does,
+  so CI can drop its separate offline lint.
+- **Web UI:** Experiment lists show a score column only for buckets some
+  experiment was scored on, plus `eff` and `custom` when present.
+- **Web UI:** An experiment shows its judge model and reasoning effort, and
+  experiment lists have an optional `judge` column.
+- **Web UI:** The Agents page lists archived agents under Archived (N), so
+  you can open one and restore it.
+- **Web UI:** An empty workspace you can't write to says it's read-only
+  instead of suggesting `evalkit run` or `evalkit sync`.
+
+### Fixes
+
+- **Web UI:** Fixed Reviews and Runs keeping an old error after a later
+  load succeeds.
+- **CLI:** Fixed `evalkit traces check` on an unknown agent not saying how
+  to create it.
+- **Sign-in:** Fixed OAuth clients such as Claude failing to connect to
+  `/mcp` with `mcp.oauth` set, because the protected-resource metadata added
+  a trailing slash to the issuer.
 
 ## 0.1.0
 
-The first public release of evalkit, a self-hosted system for improving AI
-agents: mine failures from real runs into eval cases, have domain experts
-review them, run them against your agent, and fix what fails. See the
-[README](README.md) to self-host it or to connect to an existing server.
+_Released 2026-10-26._ The first public release of evalkit, a self-hosted
+system for improving AI agents: mine failures from real runs into eval
+cases, have domain experts review them, run them against your agent, and fix
+what fails. See the [README](README.md) to self-host it or to connect to an
+existing server.
