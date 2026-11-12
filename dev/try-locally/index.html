@@ -1325,7 +1325,7 @@ same.</p>
 <h3 id="without-docker">Without Docker<a class="headerlink" href="#without-docker" title="Permanent link">&para;</a></h3>
 <p>evalkit is on PyPI as <code>evalkit-py</code> and needs Python 3.12 or newer. Install it with the server extra, then
 let <code>evalkit init-server</code> set up the rest:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py[server]==0.5.0.dev85"</span><span class="w">   </span><span class="c1"># or: pip install "evalkit-py[server]==0.5.0.dev85"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py[server]==0.5.0.dev87"</span><span class="w">   </span><span class="c1"># or: pip install "evalkit-py[server]==0.5.0.dev87"</span>
 evalkit<span class="w"> </span>init-server
 <span class="nb">cd</span><span class="w"> </span>evalkit-try
 evalkit<span class="w"> </span>serve
@@ -1410,10 +1410,10 @@ every start.</p>
 </tbody>
 </table>
 <h2 id="1-install-the-cli-and-log-in">1. Install the CLI and log in<a class="headerlink" href="#1-install-the-cli-and-log-in" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev85"</span><span class="w">   </span><span class="c1"># with Docker only</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev87"</span><span class="w">   </span><span class="c1"># with Docker only</span>
 evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020<span class="w"> </span>--username<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span>evalkit-admin
 </code></pre></div>
-<p><code>0.5.0.dev85</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
+<p><code>0.5.0.dev87</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
 prints it.</p>
 <p><code>evalkit login</code> replaces any login you already saved. To keep it, skip
 <code>evalkit login</code> and give this shell a token for the try-it server instead
@@ -1426,7 +1426,7 @@ prints it.</p>
 <code>uv run run.py</code> installs what it needs on the first run. The kit pins evalkit
 to the server's version when <code>evalkit init-server</code> copies it. In an evalkit
 checkout, run the kit's scripts with the checkout instead:
-<code>uv run --project ../../.. --extra otel python run.py</code>.</p>
+<code>uv run --project ../../.. python run.py</code>.</p>
 <h2 id="2-connect-the-agents-traces">2. Connect the agent's traces<a class="headerlink" href="#2-connect-the-agents-traces" title="Permanent link">&para;</a></h2>
 <p>Create the agent. Its trajectories come from its spans, read with
 <code>mapping.json</code>:</p>
@@ -1487,7 +1487,7 @@ raw sessions.</p>
    evalkit server, with the LLM provider configured there as the default
    judge. To judge with your own key instead, see <a href="../config/">Config</a>.</li>
 <li><strong>Script.</strong> Copy <code>run.py</code>. Pin evalkit in its header to your evalkit
-   server's version (<code>evalkit-py[otel]==&lt;version&gt;</code>), call
+   server's version (<code>evalkit-py==&lt;version&gt;</code>), call
    <code>tracing.register(agent="myagent")</code>, and write a <code>task</code> that calls your
    agent with the case input. <code>uv run run.py</code> builds an environment from the
    header alone, so add your agent's packages to its <code>dependencies</code>. If your
@@ -1535,8 +1535,8 @@ docker<span class="w"> </span>compose<span class="w"> </span>down<span class="w"
 <li><code>uv run run.py</code> cannot find <code>evalkit-py==&lt;version&gt;</code>: that version is not
   on PyPI yet (a source build, or a build whose publish job has not finished).
   Run it with the wheel you installed instead:
-  <code>uv run --no-project --with "&lt;path to the wheel&gt;[otel]" python run.py</code>, or
-  from an evalkit checkout: <code>uv run --project &lt;checkout&gt; --extra otel python run.py</code>.
+  <code>uv run --no-project --with "&lt;path to the wheel&gt;" python run.py</code>, or
+  from an evalkit checkout: <code>uv run --project &lt;checkout&gt; python run.py</code>.
   Or wait for the publish.</li>
 <li><code>init-server</code> cannot connect: start Postgres (<code>brew services start
   postgresql@17</code>, <code>sudo systemctl start postgresql</code>, or Postgres.app), or

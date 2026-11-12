@@ -1389,7 +1389,7 @@
 
 
 <h1 id="sdk-reference">SDK reference<a class="headerlink" href="#sdk-reference" title="Permanent link">&para;</a></h1>
-<p>The Python SDK runs experiments from your own code. Install it with the <code>otel</code> extra at your server's version (see <a href="../install/">Install</a>) and import from <code>evalkit.sdk</code>. <a href="../sdk-runs/">SDK runs</a> walks through it.</p>
+<p>The Python SDK runs experiments from your own code. Install <code>evalkit-py</code> at your server's version (see <a href="../install/">Install</a>) and import from <code>evalkit.sdk</code>. <a href="../sdk-runs/">SDK runs</a> walks through it.</p>
 <h2 id="running-experiments">Running experiments<a class="headerlink" href="#running-experiments" title="Permanent link">&para;</a></h2>
 
 
@@ -1841,8 +1841,7 @@ different judge is refused.</p>
 Call it after your own tracing setup, so it joins your provider. Spans go to the
 server you logged in to (or <code>EVALKIT_SERVER_URL</code>) with the agent token in
 <code>EVALKIT_OTEL_TOKEN</code> (<code>evalkit tokens create --agent &lt;agent&gt;</code>); a person's login
-is not accepted, because it expires under a long-running process. Needs the
-<code>otel</code> extra.</p>
+is not accepted, because it expires under a long-running process.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
