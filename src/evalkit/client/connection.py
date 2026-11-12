@@ -9,6 +9,10 @@ from typing import NamedTuple
 
 CONFIG_PATH = Path.home() / ".evalkit" / "config.toml"
 
+DEFAULT_SERVER_URL = "https://evalkit.inferedge.com"
+
+LOGIN_HINT = "`evalkit login` for hosted evalkit, `evalkit login --url <url>` for another server"
+
 TOKEN_WARNING_WINDOW = timedelta(days=1)
 
 
@@ -49,7 +53,7 @@ def load(path: Path | None = None) -> Connection | None:
         if "profiles" in data:
             raise LookupError(
                 f"{target} holds server profiles, which evalkit no longer supports; "
-                "run `evalkit login --url <url>` to replace it"
+                f"log in again to replace it: {LOGIN_HINT}"
             )
         return None
     oidc = None
@@ -103,9 +107,7 @@ def active(path: Path | None = None) -> Connection:
         return Connection(env_url, os.environ.get("EVALKIT_TOKEN"), None, from_env=True)
     stored = load(path or CONFIG_PATH)
     if stored is None:
-        raise LookupError(
-            "no server configured — run `evalkit login --url <url>` or set EVALKIT_SERVER_URL"
-        )
+        raise LookupError(f"no server configured — run {LOGIN_HINT}, or set EVALKIT_SERVER_URL")
     return stored
 
 

@@ -13,6 +13,13 @@
   init-server` writes `evalkit-py==<version>` into the try-it kit's `run.py`,
   and the vendored-wheel hint from `evalkit update` names `evalkit-py==<version>`.
   The `evalkit tracing needs the otel extra` error no longer exists.
+- `evalkit login` no longer asks for a server URL. Without `--url` it logs in
+  to hosted evalkit, `https://evalkit.inferedge.com`, and first prints
+  `logging in to https://evalkit.inferedge.com; pass --url to log in to another
+  server`. Self-hosted users must pass `--url <url>`; before, a bare
+  `evalkit login` prompted `Server URL`. The "no server configured" and old
+  profiles-file errors now name both forms. `EVALKIT_SERVER_URL` works as
+  before and does not change where `evalkit login` logs in.
 
 ## 0.5.0
 
