@@ -1,10 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { isSignedOut, login } from "../lib/api";
 import { PublicShell } from "../shell/PublicShell";
 import { safeNext } from "./next";
 import { SignInFooter } from "./SignInFooter";
+import type { SignInState } from "./SignInLink";
 import {
   loadProviders,
   ProvidersUnavailable,
@@ -139,9 +140,7 @@ function ProviderSignIn({
           Retry
         </Button>
       ) : busy ? (
-        <p className="text-sm text-muted-foreground">
-          Taking you to {oidc.name}…
-        </p>
+        <p className="text-sm text-muted-foreground">Signing you in…</p>
       ) : error !== null ? (
         <>
           <p className="text-sm text-err-text">{error}</p>
@@ -223,6 +222,8 @@ export function LoginPage() {
     useState<Providers["password"]>("all");
 
   const next = safeNext(params.get("next"));
+  const prompt = params.get("prompt") || undefined;
+  const clicked = (useLocation().state as SignInState | null)?.signIn === true;
 
   useEffect(() => {
     loadProviders().then(setProviders, (e) => {
@@ -237,6 +238,7 @@ export function LoginPage() {
     if (s === null) throw new Error("Single sign-on is not configured.");
     await s.signinRedirect({
       state: next,
+      prompt,
       redirectMethod: replace ? "replace" : "assign",
     });
   };
@@ -259,7 +261,7 @@ export function LoginPage() {
               <LoginChoices
                 providers={providers ?? fallback}
                 next={next}
-                signedOut={isSignedOut()}
+                signedOut={isSignedOut() && !clicked}
                 onSso={startSso}
               />
             </div>

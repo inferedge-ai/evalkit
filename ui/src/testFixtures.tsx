@@ -3,6 +3,7 @@ import { cleanup, render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
+import { setSessionForTest } from "./auth/oidc";
 import { queryClient } from "./lib/query";
 import type { ExperimentInfo, Me, Report, WorkspaceInfo } from "./lib/types";
 import { MeContext } from "./shell/capabilities";
@@ -105,6 +106,24 @@ export function stubServer(route: Route) {
       return Response.json([]);
     }),
   );
+}
+
+export function stubPasswordLogin(
+  status: number,
+  password: string,
+  route: Route = () => undefined,
+) {
+  setSessionForTest(null);
+  stubServer((url, init) => {
+    if (url.endsWith("/api/auth/providers"))
+      return Response.json(
+        status === 200
+          ? { password, oidc: { name: "Okta" } }
+          : { detail: "identity provider unreachable", password },
+        { status },
+      );
+    return route(url, init);
+  });
 }
 
 export function renderPage(me: Me, path: string, routes: ReactNode) {

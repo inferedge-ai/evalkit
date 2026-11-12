@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { LoginCallbackPage } from "./auth/LoginCallbackPage";
 import { LoginPage } from "./auth/LoginPage";
 import { Home } from "./pages/Home";
@@ -6,7 +6,12 @@ import { DocsPage } from "./pages/DocsPage";
 import { AgentPage } from "./agents/AgentPage";
 import { AgentsPage } from "./agents/AgentsPage";
 import { ReviewsPage } from "./pages/ReviewsPage";
-import { AuthGate, RequireMe } from "./shell/capabilities";
+import {
+  AuthGate,
+  loginPath,
+  RequireMe,
+  useOptionalMe,
+} from "./shell/capabilities";
 import { ShellOrBare, WorkspaceOrPublic } from "./shell/layout";
 import { CasePage } from "./evals/CasePage";
 import { NotFound } from "./shell/NotFound";
@@ -23,6 +28,14 @@ import {
   renderMovedSettingsRoutes,
   renderSettingsRoutes,
 } from "./settingsRoutes";
+
+function HomeOrLanding() {
+  const location = useLocation();
+  if (useOptionalMe()) return <Home />;
+  return (
+    extensions.landingPage ?? <Navigate to={loginPath(location)} replace />
+  );
+}
 
 export function App() {
   return (
@@ -42,8 +55,8 @@ export function App() {
               path="/cli"
               element={<Navigate to="/docs/install" replace />}
             />
+            <Route path="/" element={<HomeOrLanding />} />
             <Route element={<RequireMe />}>
-              <Route path="/" element={<Home />} />
               <Route path="/datasets" element={<DatasetsPage />} />
               <Route
                 path="/datasets/:ref"
@@ -88,6 +101,9 @@ export function App() {
                 }
               />
             </Route>
+            {extensions.publicRoutes.map((r) => (
+              <Route key={r.path} path={r.path} element={r.element} />
+            ))}
           </Route>
         </Route>
       </Route>

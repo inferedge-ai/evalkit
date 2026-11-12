@@ -33,7 +33,11 @@ const REFRESH_LOCK = "evalkit-oidc-refresh";
 
 let refreshing: Promise<SessionUser | null> | null = null;
 
-const NO_REDIRECT = new Set(["/auth/me", "/auth/oidc/register"]);
+const NO_REDIRECT = new Set([
+  "/auth/me",
+  "/auth/oidc/register",
+  "/auth/logout",
+]);
 
 function needsRefresh(user: SessionUser): boolean {
   return (
