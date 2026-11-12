@@ -211,6 +211,9 @@ test("signing out lands on the landing page, and Back stops at Sign in again", a
 
   expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
   expect(where()).toBe("/");
+  await vi.waitFor(() =>
+    expect(queryClient.getQueryCache().getAll()).toEqual([]),
+  );
 
   await user.click(screen.getByRole("button", { name: "Back" }));
   expect(
