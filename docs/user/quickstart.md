@@ -1,146 +1,194 @@
 # Quickstart
 
-From nothing to a scored experiment on an evalkit server your team already runs. Each step links to its full page; [Concepts](concepts.md) explains the terms.
+Connect your agent, turn its real traces into eval cases, and ship a measured improvement. It takes about 15 minutes, and your coding agent does most of it.
 
-No server yet? [Try locally](try-locally.md) runs one on your machine with a sample agent and your own LLM, and ends with how to deploy one for your team.
+You need:
 
-## 1. Pick how evalkit reaches your agent
+- An agent that already sends traces to Arize Phoenix. No traces yet? See [No trace history?](#no-trace-history)
+- Python 3.12 or newer and [uv](https://docs.astral.sh/uv/).
+- A coding agent, such as Claude Code or Codex.
 
-| Path                 | What you build                                                                                    | Pick it when                                                                                                     |
-| -------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| SDK run + traces     | A Python script that calls your agent once per case, and an OpenTelemetry exporter to this server | The default: start here. Runs start from your machine or CI                                                     |
-| Harness API          | An HTTP service: start a run, report its status, serve its ATIF trajectory                        | A deployed agent the server should drive (shared agents, runs started from the UI), or you need the Workspace tab |
-| Harness API + traces | The same service minus the trajectory endpoint; the trajectory comes from your spans              | You want the Harness API but your agent already emits OpenTelemetry spans                                        |
+## Let your coding agent drive
 
-The Workspace tab on a run lists the files the agent wrote. evalkit reads them through the Harness API files endpoints, so only the two Harness API paths have it. See [Harness API](harness-api.md) for what each endpoint enables.
-
-## 2. Install and log in
-
-evalkit needs Python 3.12 or newer.
+In your agent's project folder, install evalkit:
 
 ```bash
-uv tool install --reinstall "evalkit-py=={{version}}"
+uv tool install evalkit-py
+```
+
+Then tell your coding agent:
+
+```text
+Run `evalkit skills install`, then use the getting-started skill to set up evalkit for this agent.
+```
+
+It runs every step below. It stops only when it needs you: the sign-in in your browser, and your trace store's URL and API key.
+
+Prefer to do it by hand? The steps are the same.
+
+## 1. Log in
+
+```bash
+evalkit login
+```
+
+Your browser opens. Sign up or sign in to [hosted evalkit](concepts.md#hosted-evalkit). There is no server to run and no LLM key to add: the [judge](concepts.md#judge) is ready.
+
+On a server you run yourself:
+
+```bash
 evalkit login --url {{origin}}
 ```
 
-More in [Install](install.md) and [Login](login.md).
+## 2. Connect your agent
 
-## 3. Write `evalkit.yaml` and one case
+Tell evalkit where your traces live. This makes a [trace source](concepts.md#trace-source), and it needs an admin.
 
-At the root of the repository that holds your eval cases:
-
-```yaml
-cases: evalkit/cases
-fixtures: evalkit/fixtures
-
-credentials:
-  agents:
-    myagent: env:MYAGENT_API_KEY # only for a Harness API agent that needs a key
-```
-
-The file holds no judge key. By default the evaluators that use a judge run on the evalkit server, with the LLM provider configured there. To judge with your own key instead, see [Config](config.md).
-
-Put the keys in a `.env` next to `evalkit.yaml`. Then create your agent on the server once:
+<!-- tabs -->
+#### CLI
 
 ```bash
-# SDK path: a code-driven agent whose trajectory comes from its traces
-evalkit agents create myagent --trajectory-source otel --mapping openinference
-# Harness API path
-evalkit agents create myagent --harness-url http://localhost:8080/evalkit/v1
+evalkit trace-sources create phoenix --url <your Phoenix URL> --api-key-env PHOENIX_API_KEY
 ```
 
-`openinference` (or `gen_ai`) is a mapping preset that ships with evalkit; `evalkit traces mapping presets` lists them. There is also one per popular framework (LangChain, CrewAI, LlamaIndex, Google ADK, Mastra, …); see [Framework mappings](framework-mappings.md).
+#### UI
 
-Each directory under `cases` is a dataset. Add `evalkit/cases/smoke/cases.yaml`:
+Open Settings › Organization › Trace sources and add one named `phoenix`.
+<!-- /tabs -->
 
-```yaml
-cases:
-  - id: store-count
-    input:
-      question: "How many company-operated stores did Starbucks have at FY2021 year-end?"
-    evaluators:
-      output:
-        answer_rubrics:
-          rubrics:
-            - rubric: "States 17,133 company-operated stores at FY2021 year-end."
-              type: factual_retrieval
+Create your [agent](concepts.md#agent) with the [preset](concepts.md#preset) for your framework. A preset is a ready-made [mapping](concepts.md#mapping): it tells evalkit how to read your spans. List the presets:
+
+```bash
+evalkit traces mapping presets
 ```
 
-More in [Config](config.md).
+<!-- tabs -->
+#### CLI
 
-## 4. Run it
+```bash
+evalkit agents create myagent --trajectory-source otel --mapping langchain
+```
 
-SDK path: install the SDK into your project (see [Install](install.md)). Mint an agent token and export it: `evalkit tokens create --agent myagent`, then `export EVALKIT_OTEL_TOKEN=<token>`. Then write `evalkit/run.py`:
+#### UI
+
+Open Agents › New agent, set Trajectories to "From traces (OTel spans)" and pick the preset.
+<!-- /tabs -->
+
+Check that evalkit reads your traces. Import one [session](concepts.md#trace-span-session) from your Phoenix project:
+
+```bash
+evalkit traces import myagent <session id> --source phoenix --project <project>
+```
+
+Every line should have a ✓. If one has a `!`, your spans differ from the preset: the connect-traces skill adjusts the mapping. See [Framework mappings](framework-mappings.md) and [Mappings](mappings.md).
+
+## 3. Mine cases from real runs
+
+Bring in your recent history:
+
+```bash
+evalkit traces import myagent --source phoenix --project <project> --since <date>
+```
+
+Each imported session is an [app run](concepts.md#app-run). Tell your coding agent:
+
+```text
+Use the eval-driven-development skill to mine cases from myagent's 30 most recent app runs into a dataset named mined.
+```
+
+It reads each run, groups the ones that failed or ran slow, shows you a plan, and writes the [cases](concepts.md#case) to `evalkit/cases/mined/`. That folder is your first [dataset](concepts.md#dataset), built from real questions. [Case schema](case-schema.md) has the format.
+
+## 4. Run the baseline
+
+Add evalkit to your project:
+
+```bash
+uv add evalkit-py
+```
+
+Write `evalkit/run.py`. The [task](concepts.md#task) calls your agent once per case:
 
 ```python
-from evalkit.sdk import run_experiment, tracing
+from evalkit.sdk import run_experiment
 from myagent import ask
 
-tracing.register(agent="myagent")
 
 def task(input: dict) -> str:
     return ask(input["question"])
 
+
 if __name__ == "__main__":
-    run_experiment(dataset="smoke", agent="myagent", task=task, dry_run=True)
+    run_experiment(dataset="mined", agent="myagent", task=task)
 ```
 
-`dry_run=True` runs one case without creating an experiment and prints what the server made of the spans. When it looks right, drop `dry_run`; `run_experiment` then returns a result whose `url` is the experiment page. More in [SDK runs](sdk-runs.md) and [Tracing](tracing.md).
-
-Harness API path:
+Run it from your project's root:
 
 ```bash
-evalkit harness check myagent    # exercises every capability the harness declares
-evalkit run smoke --agent myagent
+uv run python evalkit/run.py
 ```
 
-A run executes every case it selects, whether the dataset is in your own workspace (`smoke`) or a shared one (`smoke@dev`). Review state never filters a run.
+Your agent runs as usual and keeps sending traces to Phoenix. evalkit picks up each run's [trajectory](concepts.md#trajectory) from there, scores it, and prints the [scorecard](concepts.md#scorecard) and a link to the [experiment](concepts.md#experiment).
 
-## 5. Read the results
+Some cases fail. Good: they came from runs that went wrong. Is your agent not in Python, or behind HTTP? See [SDK runs](sdk-runs.md#an-agent-in-another-process).
 
-`evalkit run` prints the scorecard when it finishes. On this server, open the dataset under Datasets and pick the experiment. The experiment page has the scorecard; each run opens its trajectory, scores and, on the Harness API paths, its workspace files. If converted spans look wrong (missing messages, wrong span kinds), check one session with `evalkit traces check myagent <session id>` and see [Mappings](mappings.md).
+## 5. Improve
 
-## 6. Attach a file to a case
+Tell your coding agent:
 
-Drop the file in the `fixtures` directory from your `evalkit.yaml`, register it once in `fixtures.yaml` at the root of your `cases` directory, and name it in the case. The `context` line is what the agent is told about the file.
+```text
+Use the eval-driven-development skill to fix the failing cases in the mined dataset, then run it again.
+```
+
+It pulls the failed [runs](concepts.md#run), finds the cause of each, fixes your agent and runs the dataset again. Then compare the two experiments:
 
 ```bash
-cp ~/Downloads/meridian-balance-sheet.csv <fixtures>/
-shasum -a 256 <fixtures>/meridian-balance-sheet.csv       # sha256 for the registry
+evalkit experiments list --dataset mined
 ```
-
-```yaml
-# <cases>/fixtures.yaml
-fixtures:
-  - key: meridian-balance-sheet.csv
-    sha256: 652d32…eece7
-    context: Meridian's FY2025 balance sheet, USD thousands.
-```
-
-```yaml
-# in the case
-- id: net-debt-fy2025
-  fixtures: [meridian-balance-sheet.csv]
-  input:
-    question: Using only the attached file, what was net debt at FY2025 year-end?
-```
-
-A run or sync uploads any fixture whose sha256 the server doesn't hold yet, and the server keeps one copy per sha256. So you only need the files you touch, and if the bytes on disk don't match the registry the run stops and shows both hashes.
-
-## 7. Iterate and promote
 
 ```bash
-evalkit experiments list --dataset smoke       # experiment ids, newest first
-evalkit summary <new-id> --baseline <old-id>    # compare two experiments: fixed, broken, gauge deltas
-evalkit evaluate <experiment-id>        # re-score the same runs after an evaluator change; no agent calls
-evalkit runs pull --experiment <experiment-id>   # download every run (trajectory, case, scores) to diagnose failures
+evalkit summary <new id> --baseline <old id>
 ```
 
-Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as `dev`, where they start Unreviewed; a reviewer of that workspace approves them, and if `dev` is linked to `prod`, approval promotes them there. [CI sync](ci-sync.md) shows how to set up that CI job.
+You see which cases it fixed, and how response time, cost and tokens moved.
+
+## What you just did
+
+- Set up evalkit with no server and no LLM key.
+- Mapped your agent's spans.
+- Built a dataset from your own traces.
+- Ran an experiment and got a scorecard.
+- Found what went wrong, fixed it, and measured the gain.
+
+In the words of DHH:
+
+![Look at all the things I'm not doing](images/look-at-all-the-things-im-not-doing.png)
+
+## No trace history?
+
+Send your agent's traces straight to evalkit instead. Create the agent as in step 2, then make it a token:
 
 ```bash
-evalkit review request finance@dev --case-id net-debt-fy2025 --reviewer <user>
-evalkit review approve finance@dev net-debt-fy2025   # reviewers only
+evalkit tokens create --agent myagent
 ```
 
-If an admin linked `dev` to a promotion target (`evalkit workspaces promote-to dev prod`), that approval also lands the case in `finance@prod`, approved. `prod` takes cases only that way: no sync, no separate review. The case page in either workspace shows the other's version and links to it.
+Export the token, or add it to your project's `.env`:
+
+```bash
+export EVALKIT_OTEL_TOKEN=<token>
+```
+
+Add one line to `evalkit/run.py`, before your agent runs:
+
+```python
+from evalkit.sdk import tracing
+
+tracing.register(agent="myagent")
+```
+
+Use your agent a few times, then carry on from step 3 without the import. [Tracing](tracing.md) has the details.
+
+## Where next
+
+- [Beyond the quickstart](beyond-quickstart.md): write a case by hand, attach files, drive your agent through the Harness API, share cases with your team.
+- [Concepts](concepts.md): every term on this page.
+- [Try locally](try-locally.md): run evalkit on your own machine with a sample agent.

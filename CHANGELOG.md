@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- The Quickstart page (`docs/user/quickstart.md`) is a short tutorial for
+  hosted evalkit: connect an agent to its trace store, mine cases from its
+  real runs, run a baseline experiment and let the eval-driven-development
+  skill improve the agent. What the old page covered beyond that (the Harness
+  API path, hand-written cases, fixtures, comparing experiments, review and
+  promotion) is on the new page Beyond the quickstart
+  (`docs/user/beyond-quickstart.md`).
+- New skill `getting-started`: walks a coding agent through the quickstart in
+  the developer's agent project. `evalkit skills install` copies it with the
+  others.
 - With `auth.password_login: none`, evalkit makes no password accounts:
   `POST /api/users` with a password (`evalkit users add <name>`) and
   `POST /api/users/{name}/password` (`evalkit users set-password`) answer 400.

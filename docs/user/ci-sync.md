@@ -106,4 +106,4 @@ The same steps work in any CI: install, authenticate, lint or sync.
 - If `dev` is linked to `prod` for promotion, sync only into `dev`. `prod`
   refuses sync; approved cases reach it through promotion.
 - Synced cases start Unreviewed. Reviewers of the workspace approve them; see
-  the [Quickstart](quickstart.md).
+  [Beyond the quickstart](beyond-quickstart.md).
