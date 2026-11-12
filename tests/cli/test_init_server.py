@@ -95,13 +95,13 @@ def test_kit_only_copies_the_kit_and_pins_run_py(tmp_path):
 
 
 def test_the_pin_follows_an_editable_checkout():
-    assert init_server.pinned_requirement() == f"evalkit-py[otel] @ {ROOT.resolve().as_uri()}"
+    assert init_server.pinned_requirement() == f"evalkit-py @ {ROOT.resolve().as_uri()}"
 
 
 def test_the_pin_follows_a_release(monkeypatch):
     monkeypatch.setattr(init_server, "_direct_url", lambda: {})
     monkeypatch.setattr(version, "current", lambda: "0.3.0.dev57")
-    assert init_server.pinned_requirement() == "evalkit-py[otel]==0.3.0.dev57"
+    assert init_server.pinned_requirement() == "evalkit-py==0.3.0.dev57"
 
 
 def test_an_existing_config_is_kept_without_force(tmp_path, monkeypatch):

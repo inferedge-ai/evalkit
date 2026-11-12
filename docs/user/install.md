@@ -37,18 +37,18 @@ Without the flag, uv silently adds `eval/` to your agent project's workspace, so
 
 ## The SDK, into a project
 
-`run_experiment` and `tracing.register` live in the same package as the CLI. The `otel` extra brings the OpenTelemetry SDK and the OTLP exporter. Pin the server's version; `uv.lock` records it:
+`run_experiment` and `tracing.register` live in the same package as the CLI, which includes the OpenTelemetry SDK and the OTLP exporter. Pin the server's version; `uv.lock` records it:
 
 ```bash
-uv add "evalkit-py[otel]=={{version}}"
+uv add "evalkit-py=={{version}}"
 ```
 
-With pip instead: `pip install "evalkit-py[otel]=={{version}}"`.
+With pip instead: `pip install "evalkit-py=={{version}}"`.
 
 To keep evalkit out of the app's dependencies, run the eval script with it instead:
 
 ```bash
-uv run --with "evalkit-py[otel]=={{version}}" python eval/run.py
+uv run --with "evalkit-py=={{version}}" python eval/run.py
 ```
 
 ## The server
@@ -86,6 +86,6 @@ It reinstalls the CLI at the server's version and, when `pyproject.toml` pins `e
 
 A CLI older than 0.3.0 cannot update itself: `evalkit update` fails with `KeyError: 'filename'`. Run the [global tool install](#the-cli-as-a-global-tool) command once instead; `evalkit update` works from then on.
 
-A project that vendored an evalkit wheel before evalkit was on PyPI moves to PyPI once: `uv remove evalkit && uv add "evalkit-py[otel]=={{version}}"`.
+A project that vendored an evalkit wheel before evalkit was on PyPI moves to PyPI once: `uv remove evalkit && uv add "evalkit-py=={{version}}"`.
 
 Next: [Login](login.md).

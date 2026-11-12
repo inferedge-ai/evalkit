@@ -6,11 +6,14 @@ from collections import OrderedDict
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from importlib.util import find_spec
 from typing import Any
 
 from opentelemetry import trace
 from opentelemetry.context import Context
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor, TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 
 from evalkit.client import connection
 from evalkit.credentials import MissingCredential
@@ -25,73 +28,64 @@ OTEL_TOKEN_HINT = (
     "set EVALKIT_OTEL_TOKEN to an agent token (evalkit tokens create --agent <agent>) "
     "before exporting traces; a login token is not accepted here"
 )
-INSTALL_HINT = "evalkit tracing needs the otel extra: uv add 'evalkit-py[otel]'"
 
 CURRENT_RUN: ContextVar[dict[str, Any] | None] = ContextVar("evalkit_current_run", default=None)
 
 SpanFilter = Callable[[Any], bool]
 
-HAS_OTEL_SDK = bool(
-    find_spec("opentelemetry.sdk") and find_spec("opentelemetry.exporter.otlp.proto.http")
-)
 
-if HAS_OTEL_SDK:
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-    from opentelemetry.sdk.resources import Resource
-    from opentelemetry.sdk.trace import ReadableSpan, SpanProcessor, TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
+class EvalkitSpanProcessor(SpanProcessor):
+    def __init__(self, exporter: SpanExporter, only: SpanFilter | None = None) -> None:
+        self.batch = BatchSpanProcessor(exporter)
+        self.only = only
+        self.max_traces = MAX_EVAL_TRACES
+        self.kept_traces: OrderedDict[int, None] = OrderedDict()
+        self.lock = threading.Lock()
 
-    class EvalkitSpanProcessor(SpanProcessor):
-        def __init__(self, exporter: SpanExporter, only: SpanFilter | None = None) -> None:
-            self.batch = BatchSpanProcessor(exporter)
-            self.only = only
-            self.max_traces = MAX_EVAL_TRACES
-            self.kept_traces: OrderedDict[int, None] = OrderedDict()
-            self.lock = threading.Lock()
+    def on_start(self, span: Any, parent_context: Context | None = None) -> None:
+        attributes = CURRENT_RUN.get()
+        if attributes:
+            for key in STAMPED:
+                if key in attributes:
+                    span.set_attribute(key, attributes[key])
+        if self.only is not None and self.only(span):
+            self.keep_trace(trace_of(span))
 
-        def on_start(self, span: Any, parent_context: Context | None = None) -> None:
-            attributes = CURRENT_RUN.get()
-            if attributes:
-                for key in STAMPED:
-                    if key in attributes:
-                        span.set_attribute(key, attributes[key])
-            if self.only is not None and self.only(span):
-                self.keep_trace(trace_of(span))
+    def on_end(self, span: ReadableSpan) -> None:
+        if self.only is None:
+            self.batch.on_end(span)
+            return
+        trace_id = trace_of(span)
+        if self.only(span):
+            self.keep_trace(trace_id)
+        if self.is_kept(trace_id):
+            self.batch.on_end(span)
 
-        def on_end(self, span: ReadableSpan) -> None:
-            if self.only is None:
-                self.batch.on_end(span)
-                return
-            trace_id = trace_of(span)
-            if self.only(span):
-                self.keep_trace(trace_id)
-            if self.is_kept(trace_id):
-                self.batch.on_end(span)
+    def is_kept(self, trace_id: int) -> bool:
+        with self.lock:
+            if trace_id not in self.kept_traces:
+                return False
+            self.kept_traces.move_to_end(trace_id)
+            return True
 
-        def is_kept(self, trace_id: int) -> bool:
-            with self.lock:
-                if trace_id not in self.kept_traces:
-                    return False
-                self.kept_traces.move_to_end(trace_id)
-                return True
+    def keep_trace(self, trace_id: int) -> None:
+        with self.lock:
+            self.kept_traces[trace_id] = None
+            self.kept_traces.move_to_end(trace_id)
+            while len(self.kept_traces) > self.max_traces:
+                self.kept_traces.popitem(last=False)
 
-        def keep_trace(self, trace_id: int) -> None:
-            with self.lock:
-                self.kept_traces[trace_id] = None
-                self.kept_traces.move_to_end(trace_id)
-                while len(self.kept_traces) > self.max_traces:
-                    self.kept_traces.popitem(last=False)
+    def shutdown(self) -> None:
+        self.batch.shutdown()
 
-        def shutdown(self) -> None:
-            self.batch.shutdown()
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return self.batch.force_flush(timeout_millis)
 
-        def force_flush(self, timeout_millis: int = 30000) -> bool:
-            return self.batch.force_flush(timeout_millis)
 
-    def configure(
-        provider: TracerProvider, exporter: SpanExporter, only: SpanFilter | None = None
-    ) -> None:
-        provider.add_span_processor(EvalkitSpanProcessor(exporter, only))
+def configure(
+    provider: TracerProvider, exporter: SpanExporter, only: SpanFilter | None = None
+) -> None:
+    provider.add_span_processor(EvalkitSpanProcessor(exporter, only))
 
 
 def trace_of(span: Any) -> int:
@@ -116,8 +110,6 @@ def headers(agent: str) -> dict[str, str]:
 
 
 def exporter(agent: str) -> OTLPSpanExporter:
-    if not HAS_OTEL_SDK:
-        raise RuntimeError(INSTALL_HINT)
     url, _ = resolve_destination()
     return OTLPSpanExporter(endpoint=collector_url(url), headers=headers(agent))
 
@@ -152,8 +144,7 @@ def register(agent: str, only: SpanFilter | None = None) -> None:
     Call it after your own tracing setup, so it joins your provider. Spans go to the
     server you logged in to (or `EVALKIT_SERVER_URL`) with the agent token in
     `EVALKIT_OTEL_TOKEN` (`evalkit tokens create --agent <agent>`); a person's login
-    is not accepted, because it expires under a long-running process. Needs the
-    `otel` extra.
+    is not accepted, because it expires under a long-running process.
 
     Args:
         agent: The agent the spans belong to, e.g. `myagent` or `myagent@dev`.

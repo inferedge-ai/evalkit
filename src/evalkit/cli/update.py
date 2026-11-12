@@ -47,7 +47,7 @@ def update_project_pin(cwd: Path, target: str, run: Callable[[list[str]], object
             return True
     elif VENDORED.search(text):
         typer.echo("this project uses a vendored evalkit wheel; move it to PyPI:")
-        typer.echo(f'  uv remove evalkit && uv add "{version.DISTRIBUTION}[otel]=={target}"')
+        typer.echo(f'  uv remove evalkit && uv add "{version.DISTRIBUTION}=={target}"')
     return False
 
 
