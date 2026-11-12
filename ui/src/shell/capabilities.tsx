@@ -8,6 +8,12 @@ import type { Me } from "../lib/types";
 
 export const MeContext = createContext<Me | null>(null);
 
+const ClearMeContext = createContext<() => void>(() => {});
+
+export function useClearMe(): () => void {
+  return useContext(ClearMeContext);
+}
+
 export function useMe(): Me {
   const me = useContext(MeContext);
   if (!me) throw new Error("useMe outside AuthGate");
@@ -72,8 +78,10 @@ export function AuthGate() {
   if (status === "error")
     return <div className="pane-status error">{error}</div>;
   return (
-    <MeContext.Provider value={me}>
-      <Outlet />
-    </MeContext.Provider>
+    <ClearMeContext.Provider value={() => setMe(null)}>
+      <MeContext.Provider value={me}>
+        <Outlet />
+      </MeContext.Provider>
+    </ClearMeContext.Provider>
   );
 }

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { clearSignOut } from "../lib/api";
+
+export type SignInState = { signIn: true };
 
 export function SignInLink({
   next = "/",
@@ -15,12 +16,9 @@ export function SignInLink({
 }) {
   const params = new URLSearchParams({ next });
   if (prompt) params.set("prompt", prompt);
+  const state: SignInState = { signIn: true };
   return (
-    <Link
-      to={`/login?${params}`}
-      className={className}
-      onClick={() => clearSignOut()}
-    >
+    <Link to={`/login?${params}`} state={state} className={className}>
       {children}
     </Link>
   );

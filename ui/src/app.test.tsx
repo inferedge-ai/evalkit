@@ -3,12 +3,12 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { App } from "./app";
 import { SignInLink } from "./auth/SignInLink";
 import { resetProvidersForTest, setSessionForTest } from "./auth/oidc";
-import { logout } from "./lib/api";
+import { isSignedOut, logout } from "./lib/api";
 import type { ExtensionRoute } from "./lib/extensions";
 import { queryClient } from "./lib/query";
 import type { Me } from "./lib/types";
@@ -52,7 +52,15 @@ function Landing() {
 
 function Where() {
   const { pathname, search } = useLocation();
-  return <output aria-label="location">{pathname + search}</output>;
+  const navigate = useNavigate();
+  return (
+    <>
+      <output aria-label="location">{pathname + search}</output>
+      <button type="button" onClick={() => navigate(-1)}>
+        Back
+      </button>
+    </>
+  );
 }
 
 const where = () => screen.getByLabelText("location").textContent;
@@ -190,17 +198,44 @@ test("Sign up on the landing page after a sign-out opens the provider's sign-up 
       { state: "/", prompt: "create", redirectMethod: "replace" },
     ]),
   );
+  expect(isSignedOut()).toBe(true);
 });
 
-test("signing out with a landing page loads /", async () => {
-  const assign = vi.fn();
-  vi.stubGlobal("location", { ...window.location, assign });
+test("signing out lands on the landing page, and Back stops at Sign in again", async () => {
   serve(writer);
-  openApp("/");
+  openApp("/experiments");
   const user = userEvent.setup();
 
   await user.click(await screen.findByRole("button", { name: "akshat" }));
   await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
 
-  await vi.waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+  expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
+  expect(where()).toBe("/");
+
+  await user.click(screen.getByRole("button", { name: "Back" }));
+  expect(
+    await screen.findByRole("button", { name: "Sign in again" }),
+  ).toBeInTheDocument();
+  expect(where()).toBe("/login?next=%2Fexperiments");
+});
+
+test("evalkit's own pages win over a wrapper's public route at the same path", async () => {
+  wrapper.publicRoutes = [
+    { path: "/", element: <p>Wrapper home</p> },
+    { path: "/datasets", element: <p>Wrapper datasets</p> },
+  ];
+  serve(writer);
+  openApp("/");
+  expect(
+    await screen.findByRole("link", { name: /All datasets/ }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Wrapper home")).toBeNull();
+  closePage();
+
+  serve(writer);
+  openApp("/datasets");
+  expect(
+    await screen.findByRole("heading", { name: "Datasets" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Wrapper datasets")).toBeNull();
 });

@@ -55,9 +55,6 @@ export function App() {
               path="/cli"
               element={<Navigate to="/docs/install" replace />}
             />
-            {extensions.publicRoutes.map((r) => (
-              <Route key={r.path} path={r.path} element={r.element} />
-            ))}
             <Route path="/" element={<HomeOrLanding />} />
             <Route element={<RequireMe />}>
               <Route path="/datasets" element={<DatasetsPage />} />
@@ -104,6 +101,9 @@ export function App() {
                 }
               />
             </Route>
+            {extensions.publicRoutes.map((r) => (
+              <Route key={r.path} path={r.path} element={r.element} />
+            ))}
           </Route>
         </Route>
       </Route>

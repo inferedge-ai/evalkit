@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import {
   NavLink,
   Outlet,
@@ -52,7 +52,7 @@ import {
   workspaceHint,
 } from "../lib/workspace";
 import type { Me, WorkspaceInfo } from "../lib/types";
-import { useMe } from "./capabilities";
+import { useClearMe, useMe } from "./capabilities";
 import { JumpPalette } from "./JumpPalette";
 import {
   DOCS_NAV,
@@ -331,6 +331,7 @@ function WorkspaceSwitcher() {
 
 function ProfileMenu({ me }: { me: Me }) {
   const navigate = useNavigate();
+  const clearMe = useClearMe();
   const { theme, toggle } = useTheme();
   const initials = me.username.slice(0, 2).toUpperCase();
   return (
@@ -385,11 +386,11 @@ function ProfileMenu({ me }: { me: Me }) {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() =>
-              // `/` sits inside AuthGate, which keeps the old user until a full load.
               logout().finally(() =>
-                extensions.landingPage
-                  ? window.location.assign("/")
-                  : navigate("/login"),
+                startTransition(() => {
+                  clearMe();
+                  navigate(extensions.landingPage ? "/" : "/login");
+                }),
               )
             }
           >
