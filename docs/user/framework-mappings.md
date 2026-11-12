@@ -10,8 +10,8 @@ evalkit agents create myagent --trajectory-source otel --mapping <preset>
 To change a preset, print it to a file, edit the file and push it as a draft (see [The loop](mappings.md#the-loop)):
 
 ```bash
-evalkit traces mapping presets <preset> > eval/span-mapping.json
-evalkit traces mapping push myagent eval/span-mapping.json
+evalkit traces mapping presets <preset> > evalkit/span-mapping.json
+evalkit traces mapping push myagent evalkit/span-mapping.json
 ```
 
 Then run one session and check it with `evalkit traces check myagent <session id>` (see [Tracing](tracing.md)). Each line of the check output starts with `✓` (fine), `!` (a warning: the check still exits 0, but the trajectory is likely wrong) or `✗` (a failure). Instrumentors change between versions, so read every warning line even when you start from a preset below.

@@ -47,6 +47,37 @@
   from a folder it installed into before. The try-it stack's `mapping.json`
   is gone: its walkthrough creates the sample agent with `--mapping gen_ai`.
   The connect-traces skill and the user docs now use presets by name.
+- `evalkit.yaml` is optional. Without one, the CLI and `run_experiment` act as
+  if the file sat in the current directory with `cases: evalkit/cases`,
+  `fixtures: evalkit/fixtures` and no credentials, and read the `.env` there. A
+  file that leaves out `cases` or `fixtures` gets the same defaults, relative
+  to its own directory. So `evalkit sync <dataset>`, `evalkit run <dataset>`
+  and `run_experiment` work with only `evalkit/cases/<dataset>/` on disk. Before,
+  `evalkit run` and the other commands that drive a personal agent failed with
+  `no evalkit.yaml found above the current directory`, `run_experiment` raised
+  `FileNotFoundError`, and a bare dataset name needed `cases:` to be set.
+  Different from before:
+  - A missing dataset directory fails with one message that names the cases
+    directory it looked in and says to put the cases in
+    `<cases directory>/<dataset>/`, set `cases:` in `evalkit.yaml`, or pass
+    the dataset's directory.
+  - A sync always looks in the fixtures directory for bytes the server does
+    not hold. Without `fixtures:` it used to skip the upload, and the server
+    answered `E-FIXTURE-MISSING`; now the CLI fails first and names the file
+    it looked for.
+  - With no file or no `cases:`, a path under `evalkit/cases/<dataset>/` now
+    syncs into `<dataset>` (`evalkit sync evalkit/cases/finance/statements`
+    patches `finance`); it used to become a dataset named after the folder.
+  - `run_experiment` on a dataset in your workspace whose directory is
+    missing prints the path it looked in, then runs the copy the server
+    holds.
+  - `cases:` or `fixtures:` set to an empty value (null) in `evalkit.yaml`
+    fails to load; leave the key out instead.
+  - A sync refuses cases or fixtures that sit inside a folder named
+    `evalkit` holding an `__init__.py`: that folder is a Python package and
+    would hide the installed `evalkit` package from `import evalkit`. The
+    error says to delete the file or set `cases:` and `fixtures:` to another
+    folder. Commands that sync nothing from disk are not affected.
 
 ## 0.5.0
 

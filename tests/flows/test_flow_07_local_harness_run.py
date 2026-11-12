@@ -184,8 +184,8 @@ def test_flow_07_harness_without_file_support_drops_fixture_cases(env, tmp_path,
         run_cli("agents", "create", "nofiles", "--harness-url", url)
         data = b"a,b\n1,2\n"
         digest = hashlib.sha256(data).hexdigest()
-        (tmp_path / "eval" / "fixtures" / "nf.csv").write_bytes(data)
-        (tmp_path / "eval" / "cases" / "fixtures.yaml").write_text(
+        (tmp_path / "evalkit" / "fixtures" / "nf.csv").write_bytes(data)
+        (tmp_path / "evalkit" / "cases" / "fixtures.yaml").write_text(
             f"fixtures:\n- key: nf.csv\n  sha256: {digest}\n  context: ctx\n"
         )
         directory = write_cases(tmp_path, "flow07f", "plain-1")

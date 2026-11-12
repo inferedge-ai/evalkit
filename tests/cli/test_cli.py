@@ -525,6 +525,8 @@ def _capture_post_files(monkeypatch, response: dict):
     sent: dict = {}
 
     class StubResponse:
+        status_code = 200
+
         def __init__(self, body):
             self._body = body
 
@@ -541,6 +543,9 @@ def _capture_post_files(monkeypatch, response: dict):
 
         def get(self, path, **kwargs):
             return StubResponse({"username": "admin"})
+
+        def head(self, path, **kwargs):
+            return StubResponse({})
 
     monkeypatch.setenv("EVALKIT_SERVER_URL", "http://stub")
     monkeypatch.setenv("EVALKIT_TOKEN", "stub-token")
@@ -611,15 +616,15 @@ def test_dir_sync_uploads_registry_from_parent(tmp_path, monkeypatch):
 
 def test_subfolder_sync_keeps_dataset_name_and_relative_paths(tmp_path, monkeypatch):
     sent = _capture_post_files(monkeypatch, SYNC_OK)
-    root = tmp_path / "eval" / "cases"
+    root = tmp_path / "evalkit" / "cases"
     (root / "finance" / "equity").mkdir(parents=True)
-    (tmp_path / "evalkit.yaml").write_text("cases: eval/cases\nfixtures: eval/fixtures\n")
+    (tmp_path / "evalkit.yaml").write_text("cases: evalkit/cases\nfixtures: evalkit/fixtures\n")
     (root / "finance" / "equity" / "tcs.yaml").write_text(
         "- id: tcs-1\n  input: {question: 'q as of 2024-01-01'}\n"
     )
     (root / "finance" / "mf.yaml").write_text("- id: mf-1\n  input: {question: 'q 2024'}\n")
     monkeypatch.chdir(tmp_path)
-    result = runner.invoke(cli_app, ["sync", "eval/cases/finance/equity"])
+    result = runner.invoke(cli_app, ["sync", "evalkit/cases/finance/equity"])
     assert result.exit_code == 0, result.output
     assert sent["params"] == {"dataset": "finance", "workspace": "admin", "prune": False}
     assert sent["names"] == ["equity/tcs.yaml"]
@@ -632,7 +637,7 @@ def test_subfolder_sync_keeps_dataset_name_and_relative_paths(tmp_path, monkeypa
     result = runner.invoke(cli_app, ["sync", "finance/only-a-tag"])
     assert result.exit_code == 1
     assert "not a folder or file" in result.output
-    result = runner.invoke(cli_app, ["sync", "eval/cases"])
+    result = runner.invoke(cli_app, ["sync", "evalkit/cases"])
     assert result.exit_code == 1
     assert "cases root" in result.output
 
@@ -640,10 +645,11 @@ def test_subfolder_sync_keeps_dataset_name_and_relative_paths(tmp_path, monkeypa
 def test_sync_ignores_unset_env_vars_in_local_config(tmp_path, monkeypatch):
     sent = _capture_post_files(monkeypatch, SYNC_OK)
     monkeypatch.delenv("UNSET_COST_MAP", raising=False)
-    root = tmp_path / "eval" / "cases"
+    root = tmp_path / "evalkit" / "cases"
     (root / "finance").mkdir(parents=True)
     (tmp_path / "evalkit.yaml").write_text(
-        "cases: eval/cases\nfixtures: eval/fixtures\ncost_map:\n  source: env:UNSET_COST_MAP\n"
+        "cases: evalkit/cases\nfixtures: evalkit/fixtures\n"
+        "cost_map:\n  source: env:UNSET_COST_MAP\n"
     )
     (root / "finance" / "mf.yaml").write_text("- id: mf-1\n  input: {question: 'q 2024'}\n")
     monkeypatch.chdir(tmp_path)
@@ -866,18 +872,18 @@ def test_lint_agent_with_offline_is_a_usage_error(tmp_path):
 
 
 def write_local_config(tmp_path, harness_url: str) -> Path:
-    cases = tmp_path / "eval" / "cases" / "finance"
+    cases = tmp_path / "evalkit" / "cases" / "finance"
     cases.mkdir(parents=True)
     (cases / "cases.yaml").write_text(
         "cases:\n- id: local-1\n  tags: [local]\n  input: {question: 'q local'}\n"
         "  evaluators:\n    output:\n      answer_rubrics:\n        rubrics:\n"
         "        - rubric: 'Says 42.'\n          type: factual_retrieval\n"
     )
-    (tmp_path / "eval" / "fixtures").mkdir()
+    (tmp_path / "evalkit" / "fixtures").mkdir()
     cost_map = tmp_path / "cost_map.json"
     cost_map.write_text("{}")
     (tmp_path / "evalkit.yaml").write_text(
-        "cases: eval/cases\nfixtures: eval/fixtures\n"
+        "cases: evalkit/cases\nfixtures: evalkit/fixtures\n"
         f"cost_map:\n  source: {cost_map}\n"
         "credentials:\n  agents:\n    fake: env:CLI_AGENT_KEY\n"
     )
@@ -951,7 +957,7 @@ def test_local_run_against_canonical_dataset_does_not_sync(env, tmp_path, monkey
 
 def test_sync_command_targets_workspace(env, tmp_path, monkeypatch, harness_url):
     write_local_config(tmp_path, harness_url)
-    (tmp_path / "eval" / "cases" / "finance").rename(tmp_path / "eval" / "cases" / "synced")
+    (tmp_path / "evalkit" / "cases" / "finance").rename(tmp_path / "evalkit" / "cases" / "synced")
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(cli_app, ["sync", "synced"])
     assert result.exit_code == 0, result.output
@@ -981,7 +987,7 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     write_local_config(tmp_path, harness_url)
     monkeypatch.delenv("CLI_AGENT_KEY", raising=False)
     monkeypatch.delenv("CLI_JUDGE_KEY", raising=False)
-    envcheck = tmp_path / "eval" / "cases" / "envcheck"
+    envcheck = tmp_path / "evalkit" / "cases" / "envcheck"
     envcheck.mkdir()
     (envcheck / "c.yaml").write_text("cases:\n- id: env-1\n  input: {question: 'q 2024'}\n")
     dotenv = tmp_path / ".env"
@@ -1014,18 +1020,18 @@ def test_canonical_sync_reuses_bytes_already_uploaded(env, tmp_path, monkeypatch
     monkeypatch.chdir(tmp_path)
     data = b"k,v\n1,2\n"
     digest = hashlib.sha256(data).hexdigest()
-    (tmp_path / "eval" / "fixtures" / "promo.csv").write_bytes(data)
-    (tmp_path / "eval" / "cases" / "fixtures.yaml").write_text(
+    (tmp_path / "evalkit" / "fixtures" / "promo.csv").write_bytes(data)
+    (tmp_path / "evalkit" / "cases" / "fixtures.yaml").write_text(
         f"fixtures:\n- key: promo.csv\n  sha256: {digest}\n  context: ctx\n"
     )
-    promo = tmp_path / "eval" / "cases" / "promo"
+    promo = tmp_path / "evalkit" / "cases" / "promo"
     promo.mkdir()
     (promo / "p.yaml").write_text(
         "cases:\n- id: promo-1\n  fixtures: [promo.csv]\n  input: {question: 'q 2024-01-01'}\n"
     )
     result = runner.invoke(cli_app, ["sync", "promo"])
     assert result.exit_code == 0, result.output
-    (tmp_path / "eval" / "fixtures" / "promo.csv").unlink()
+    (tmp_path / "evalkit" / "fixtures" / "promo.csv").unlink()
     result = runner.invoke(cli_app, ["sync", "promo", "--workspace", "canonical"])
     assert result.exit_code == 0, result.output
     assert "promoted" not in result.output
@@ -1093,12 +1099,12 @@ def test_local_run_uploads_fixtures_and_sends_them_to_the_agent(
 ):
     write_local_config(tmp_path, harness_url)
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "eval" / "fixtures" / "bs.csv").write_bytes(b"a,b\n1,2\n")
+    (tmp_path / "evalkit" / "fixtures" / "bs.csv").write_bytes(b"a,b\n1,2\n")
     digest = hashlib.sha256(b"a,b\n1,2\n").hexdigest()
-    (tmp_path / "eval" / "cases" / "fixtures.yaml").write_text(
+    (tmp_path / "evalkit" / "cases" / "fixtures.yaml").write_text(
         f"fixtures:\n- key: bs.csv\n  sha256: {digest}\n  context: Balance sheet.\n"
     )
-    (tmp_path / "eval" / "cases" / "finance" / "fx.yaml").write_text(
+    (tmp_path / "evalkit" / "cases" / "finance" / "fx.yaml").write_text(
         "cases:\n- id: local-fx\n  fixtures: [bs.csv]\n"
         "  input: {question: 'Net debt as of 2024-01-01?'}\n"
         "  evaluators:\n    output:\n      answer_rubrics:\n        rubrics:\n"
@@ -1249,11 +1255,11 @@ def test_datasets_list_shows_a_workspace_datasets_fixtures(env, tmp_path, monkey
     write_local_config(tmp_path, harness_url)
     monkeypatch.chdir(tmp_path)
     data = b"a,b\n1,2\n"
-    (tmp_path / "eval" / "fixtures" / "bs.csv").write_bytes(data)
-    (tmp_path / "eval" / "cases" / "fixtures.yaml").write_text(
+    (tmp_path / "evalkit" / "fixtures" / "bs.csv").write_bytes(data)
+    (tmp_path / "evalkit" / "cases" / "fixtures.yaml").write_text(
         f"fixtures:\n- key: bs.csv\n  sha256: {hashlib.sha256(data).hexdigest()}\n  context: c\n"
     )
-    listing = tmp_path / "eval" / "cases" / "listing"
+    listing = tmp_path / "evalkit" / "cases" / "listing"
     listing.mkdir()
     (listing / "l.yaml").write_text(
         "cases:\n- id: listed-1\n  tags: [mine]\n  fixtures: [bs.csv]\n"
@@ -1272,19 +1278,33 @@ def test_canonical_local_run_without_cases_or_fixtures(
 ):
     write_local_config(tmp_path, harness_url)
     config = tmp_path / "evalkit.yaml"
-    paths = "cases: eval/cases\nfixtures: eval/fixtures\n"
+    paths = "cases: evalkit/cases\nfixtures: evalkit/fixtures\n"
     config.write_text(config.read_text().replace(paths, ""))
     monkeypatch.chdir(tmp_path)
     _seed_canonical(module_db_url, "shared")
     args = ["run", "shared@canonical", "--agent", "fake", "--case-id", "shared-1"]
     result = runner.invoke(cli_app, args)
     assert result.exit_code == 0, result.output
-    own = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
-    assert own.exit_code == 1 and "set `cases:` in evalkit.yaml" in own.output
+    missing = runner.invoke(cli_app, ["sync", "ghost"])
+    assert missing.exit_code == 1 and "set `cases:` in evalkit.yaml" in missing.output
+    assert str(tmp_path / "evalkit" / "cases") in missing.output.replace("\n", "")
     synced = runner.invoke(cli_app, ["sync", "finance"])
-    assert synced.exit_code == 1 and "set `cases:` in evalkit.yaml" in synced.output
-    on_disk = runner.invoke(cli_app, ["sync", "eval/cases/finance"])
-    assert on_disk.exit_code == 0, on_disk.output
+    assert synced.exit_code == 0, synced.output
+    own = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
+    assert own.exit_code == 0, own.output
+
+
+def test_sync_and_local_run_without_evalkit_yaml(env, tmp_path, monkeypatch, harness_url):
+    write_local_config(tmp_path, harness_url)
+    (tmp_path / "evalkit.yaml").unlink()
+    monkeypatch.chdir(tmp_path)
+    missing = runner.invoke(cli_app, ["sync", "ghost"])
+    assert missing.exit_code == 1 and "no dataset directory 'ghost'" in missing.output
+    synced = runner.invoke(cli_app, ["sync", "finance"])
+    assert synced.exit_code == 0, synced.output
+    keyless = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
+    assert "no evalkit.yaml" not in keyless.output
+    assert "harness returned 401" in str(keyless.exception)
 
 
 def test_local_run_with_failed_scoring_says_how_to_finish(env, tmp_path, monkeypatch, harness_url):

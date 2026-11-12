@@ -30,8 +30,8 @@ More in [Install](install.md) and [Login](login.md).
 At the root of the repository that holds your eval cases:
 
 ```yaml
-cases: eval/cases
-fixtures: eval/fixtures
+cases: evalkit/cases
+fixtures: evalkit/fixtures
 
 credentials:
   agents:
@@ -51,7 +51,7 @@ evalkit agents create myagent --harness-url http://localhost:8080/evalkit/v1
 
 `openinference` (or `gen_ai`) is a mapping preset that ships with evalkit; `evalkit traces mapping presets` lists them. There is also one per popular framework (LangChain, CrewAI, LlamaIndex, Google ADK, Mastra, …); see [Framework mappings](framework-mappings.md).
 
-Each directory under `cases` is a dataset. Add `eval/cases/smoke/cases.yaml`:
+Each directory under `cases` is a dataset. Add `evalkit/cases/smoke/cases.yaml`:
 
 ```yaml
 cases:
@@ -70,7 +70,7 @@ More in [Config](config.md).
 
 ## 4. Run it
 
-SDK path: install the SDK into your project (see [Install](install.md)). Mint an agent token and export it: `evalkit tokens create --agent myagent`, then `export EVALKIT_OTEL_TOKEN=<token>`. Then write `eval/run.py`:
+SDK path: install the SDK into your project (see [Install](install.md)). Mint an agent token and export it: `evalkit tokens create --agent myagent`, then `export EVALKIT_OTEL_TOKEN=<token>`. Then write `evalkit/run.py`:
 
 ```python
 from evalkit.sdk import run_experiment, tracing

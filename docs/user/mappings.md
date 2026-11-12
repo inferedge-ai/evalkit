@@ -145,9 +145,9 @@ Every mapping is complete on its own; there is no inheritance. The schema ships 
 ## The loop
 
 ```bash
-evalkit traces mapping presets openinference > eval/span-mapping.json   # start from a preset
+evalkit traces mapping presets openinference > evalkit/span-mapping.json   # start from a preset
 evalkit traces check myagent <session id> --dump spans.json   # read the raw attributes
-evalkit traces mapping push myagent eval/span-mapping.json    # upload a draft
+evalkit traces mapping push myagent evalkit/span-mapping.json    # upload a draft
 evalkit traces check myagent <session id> --mapping draft     # preview with the draft
 evalkit traces mapping list myagent
 evalkit traces mapping activate myagent 2                     # make version 2 active

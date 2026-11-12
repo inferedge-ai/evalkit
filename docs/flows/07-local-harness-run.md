@@ -5,7 +5,7 @@ A developer runs their own agent, served by a harness on their machine, against 
 ## Actors
 
 - **Developer**: runs `evalkit run`, `evalkit status`, `evalkit evaluate`.
-- **CLI**: the `evalkit` command on the developer's machine. It reads `evalkit.yaml` (`cases` / `fixtures` dirs and the `credentials` map; a `.env` beside it is loaded).
+- **CLI**: the `evalkit` command on the developer's machine. It reads `evalkit.yaml` (`cases` / `fixtures` dirs and the `credentials` map; a `.env` beside it is loaded). Without the file, `cases` is `evalkit/cases` and `fixtures` is `evalkit/fixtures` under the current dir, and there are no credentials.
 - **Harness**: the developer's agent behind the Harness API. The agent lives in the developer's personal workspace (`evalkit agents create research-agent --harness-url http://localhost:8000`); its `harness_url` is often `localhost`.
 - **Custom evaluator**: optional, a remote evaluator in the agent's workspace (`evalkit evaluators create`).
 - **Judge**: the LLM used by built-in evaluators. The experiment uses the server's default judge unless the run sets one with `--judge-*` flags (`evalkit judge-default show` prints the default).
@@ -134,7 +134,7 @@ sequenceDiagram
 ## Error cases
 
 - Another user's agent: `<agent> belongs to <ws>'s workspace; only its owner can run it`.
-- No `evalkit.yaml` above the current dir: `no evalkit.yaml found above the current directory`.
+- A dataset in your workspace with no directory under the cases dir (`evalkit/cases/<dataset>/` without `evalkit.yaml`): `no dataset directory '<dataset>' under <cases dir>; <dataset> is in your workspace, so it syncs from disk: put its cases in <cases dir>/<dataset>/, set `cases:` in evalkit.yaml, or pass the dataset's directory`.
 - Code-driven agent (no `harness_url`): `<agent> is a code-driven agent (no harness_url); run it with evalkit.sdk.run_experiment, or if it serves the Harness API, set its URL: evalkit agents edit <agent> --harness-url URL`.
 - Unknown agent: `unknown agent: <ref> — create it with evalkit agents create`.
 - Nothing left to run (no case matches, or every case needs fixtures the harness can't take): `nothing to run in <dataset>: …`.

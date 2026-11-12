@@ -69,7 +69,7 @@ sequenceDiagram
 - **Another user's personal agent:** the CLI refuses before any harness call: `<ref> belongs to <user>'s workspace; only its owner can check it`. The server endpoint returns 403 `only the owner of @<workspace> can check <ref>`.
 - **Archived agent:** `agent <ref> is archived` (409 from the server).
 - **Code-driven agent (no `harness_url`):** `<ref> is a code-driven agent (no harness_url); use evalkit traces check AGENT SESSION_ID`.
-- **No `evalkit.yaml` for a local check:** `no evalkit.yaml found above the current directory`.
+- **No `evalkit.yaml` for a local check:** not an error. The harness is called without a key.
 - **A credentials entry names an unset env var:** `credentials.agents['<ref>'] needs env var <NAME>`.
 - **The server-side check takes over 120 s:** the request errors with no report.
 - **Harness errors** (HTTP errors, timeouts, invalid ATIF): reported as `fail` entries, not as command errors.

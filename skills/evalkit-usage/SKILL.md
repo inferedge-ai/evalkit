@@ -43,7 +43,7 @@ and how case review works.
    For SDK runs, add evalkit to the project at the same version:
    `uv add "evalkit-py==<version>"`; `uv.lock` pins it. To keep evalkit
    out of the app's dependencies, run the eval script with
-   `uv run --with "evalkit-py==<version>" python eval/run.py` instead.
+   `uv run --with "evalkit-py==<version>" python evalkit/run.py` instead.
    After a server deploy, local and SDK runs refuse to start until the
    versions match: run `evalkit update` from the project root, which
    reinstalls the CLI, moves the `evalkit-py` pin in `pyproject.toml` (and
@@ -162,8 +162,8 @@ read from the `fixtures` directory and uploaded by sha256 on every run or
 sync.
 
 ```yaml
-cases: eval/cases            # optional: directory whose children are datasets
-fixtures: eval/fixtures      # optional: fixture bytes, flat, keyed by filename
+cases: evalkit/cases            # optional: directory whose children are datasets
+fixtures: evalkit/fixtures      # optional: fixture bytes, flat, keyed by filename
 credentials:                 # env:NAME references only, never the key itself
   agents:
     myagent: env:MYAGENT_API_KEY             # bare name = your workspace
@@ -229,7 +229,7 @@ while a login token runs out under a long-running process and the export
 would fail silently.
 
 ```python
-# eval/run.py — uv run python eval/run.py
+# evalkit/run.py — uv run python evalkit/run.py
 from evalkit.sdk import run_experiment, evaluator, tracing
 from myagent import MyAgent, setup_tracing
 

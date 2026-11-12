@@ -158,25 +158,18 @@ def _parse(text: str, workspace: str) -> Reference:
         raise ApiError(str(exc)) from exc
 
 
-def _resolve(arg: str, cases_root: Path | None, workspace: str):
+def _resolve(arg: str, cases_root: Path, workspace: str):
     try:
         return resolve_path(arg, cases_root, workspace)
     except ValueError as exc:
         raise ApiError(str(exc)) from exc
 
 
-def _find_local() -> LocalConfig | None:
+def _local_config() -> LocalConfig:
     try:
-        return LocalConfig.find(Path.cwd())
+        return LocalConfig.find_or_default([Path.cwd()])
     except ValueError as exc:
         raise ApiError(str(exc)) from exc
-
-
-def _local_config() -> LocalConfig:
-    local = _find_local()
-    if local is None:
-        raise ApiError("no evalkit.yaml found above the current directory")
-    return local
 
 
 def _with_secrets(local: LocalConfig, *, scoring: bool) -> LocalConfig:
@@ -531,7 +524,8 @@ def sync(
     ),
 ):
     """Import a dataset into a workspace. The dataset is the directory under the cases
-    root (or the directory itself without an evalkit.yaml); a whole dataset prunes cases no
+    root (`cases:` in evalkit.yaml, evalkit/cases by default), or the directory itself
+    when it is outside the cases root; a whole dataset prunes cases no
     longer on disk, a subfolder or file patches just its cases. Uploads case YAML plus the
     nearest fixtures.yaml.
 
@@ -541,8 +535,8 @@ def sync(
     conn = _connection()
     me = conn.username or ""
     target = workspace or me
-    local = _find_local()
-    resolved = _resolve(path, local.cases if local else None, me)
+    local = _local_config()
+    resolved = _resolve(path, local.cases, me)
     if resolved.dataset_dir is None:
         raise ApiError(f"{path} is not on disk; sync needs a directory or file")
     detected = git_revision(resolved.dataset_dir)
@@ -557,7 +551,7 @@ def sync(
         workspace=target,
         revision=revision,
         subpath=resolved.subpath,
-        fixtures_dir=local.fixtures if local else None,
+        fixtures_dir=local.fixtures,
         actor=actor,
     )
 
@@ -768,7 +762,8 @@ def run(
     judge_api_key_env: str | None = typer.Option(
         None,
         "--judge-api-key-env",
-        help="The env var (or .env entry beside evalkit.yaml) holding the key for "
+        help="The env var (or entry in the .env beside evalkit.yaml, or in the current directory "
+        "without one) holding the key for "
         "--judge-base-url. Never stored.",
     ),
     judge_effort: str | None = typer.Option(None, "--judge-effort", help="Judge reasoning effort."),
@@ -807,11 +802,11 @@ def run(
             f"{definition.ref} belongs to {definition.workspace}'s workspace; "
             "only its owner can run it"
         )
-    local = _find_local()
-    if local is not None and route is Driver.CLI:
+    local = _local_config()
+    if route is Driver.CLI:
         local = _with_secrets(local, scoring=True)
         _require_agent_key(local, conn, definition)
-    resolved = _resolve(dataset, local.cases if local else None, me)
+    resolved = _resolve(dataset, local.cases, me)
     selection = _run_selection(resolved, tag, case_id)
     revision = git_revision(resolved.dataset_dir) if resolved.dataset_dir else GitRevision()
     if resolved.dataset_dir is not None and resume is None:
@@ -820,7 +815,7 @@ def run(
             name=resolved.ref.name,
             workspace=me,
             revision=revision,
-            fixtures_dir=local.fixtures if local else None,
+            fixtures_dir=local.fixtures,
         )
     dataset_slug = slug(resolved.ref)
     judge = _judge_override(judge_model, judge_provider, judge_base_url, judge_effort)
@@ -838,8 +833,6 @@ def run(
             evaluation_concurrency,
         )
     else:
-        if local is None:
-            raise ApiError("no evalkit.yaml found above the current directory")
         progress = _Progress()
         try:
             exp_id = asyncio.run(
@@ -880,7 +873,7 @@ def run(
 
 
 def _judge_api_key(
-    judge: dict | None, env_name: str | None, local: LocalConfig | None, *, resuming: bool
+    judge: dict | None, env_name: str | None, local: LocalConfig, *, resuming: bool
 ) -> str | None:
     own = judge is not None and judge.get("base_url") is not None
     if env_name is None:
@@ -892,10 +885,13 @@ def _judge_api_key(
     return _env_value(env_name, local)
 
 
-def _env_value(name: str, local: LocalConfig | None) -> str:
-    environ = local.environ() if local is not None else dict(os.environ)
+def _env_value(name: str, local: LocalConfig) -> str:
+    environ = local.environ()
     if name not in environ:
-        raise ApiError(f"env var {name} is not set (shell or the .env beside evalkit.yaml)")
+        raise ApiError(
+            f"env var {name} is not set (shell or the .env beside evalkit.yaml, or in the "
+            "current directory without one)"
+        )
     return environ[name]
 
 

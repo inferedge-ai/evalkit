@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -237,13 +237,15 @@ class Config(RunnerConfig):
 
 
 LOCAL_CONFIG_FILENAME = "evalkit.yaml"
+DEFAULT_CASES_DIR = Path("evalkit/cases")
+DEFAULT_FIXTURES_DIR = Path("evalkit/fixtures")
 
 
 class LocalConfig(RunnerConfig):
     path: Path
     credentials: CredentialsConfig = CredentialsConfig()
-    cases: Path | None = None
-    fixtures: Path | None = None
+    cases: Path = DEFAULT_CASES_DIR
+    fixtures: Path = DEFAULT_FIXTURES_DIR
 
     @classmethod
     def find(cls, start: Path) -> LocalConfig | None:
@@ -253,6 +255,14 @@ class LocalConfig(RunnerConfig):
             if candidate.is_file():
                 return load_local_config(candidate)
         return None
+
+    @classmethod
+    def find_or_default(cls, starts: Sequence[Path]) -> LocalConfig:
+        for start in starts:
+            found = cls.find(start)
+            if found is not None:
+                return found
+        return _anchor_paths(cls(path=starts[0].resolve() / LOCAL_CONFIG_FILENAME))
 
     def environ(self) -> dict[str, str]:
         return load_dotenv_beside(self.path)
@@ -310,11 +320,14 @@ def load_config(path: Path) -> Config:
 def load_local_config(path: Path) -> LocalConfig:
     data = yaml.safe_load(path.read_text()) or {}
     assert isinstance(data, dict)
-    base = path.resolve().parent
-    cfg = LocalConfig.model_validate({**data, "path": path.resolve()})
+    return _anchor_paths(LocalConfig.model_validate({**data, "path": path.resolve()}))
+
+
+def _anchor_paths(cfg: LocalConfig) -> LocalConfig:
+    base = cfg.path.parent
     return cfg.model_copy(
         update={
-            "cases": (base / cfg.cases).resolve() if cfg.cases is not None else None,
-            "fixtures": (base / cfg.fixtures).resolve() if cfg.fixtures is not None else None,
+            "cases": (base / cfg.cases).resolve(),
+            "fixtures": (base / cfg.fixtures).resolve(),
         }
     )

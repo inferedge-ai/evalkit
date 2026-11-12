@@ -3,7 +3,7 @@
 `run_experiment` runs an experiment from your own code: it calls your task once per case and repetition, stores the runs on this server, and scores them with the judge, the remote evaluators of the agent's workspace and any Python evaluators you pass. The agent is a code-driven agent on the server (no harness URL), created once with `evalkit agents create`. Invoking the agent, timeouts and stopping are your code.
 
 ```python
-# eval/run.py — uv run python eval/run.py
+# evalkit/run.py — uv run python evalkit/run.py
 from evalkit.sdk import run_experiment, RunResult, evaluator, tracing
 from myagent import MyAgent, setup_tracing
 
@@ -124,7 +124,7 @@ evalkit agents create myagent-sdk --trajectory-source otel --mapping openinferen
   --max-concurrent-runs 4 --provides thinking=true
 ```
 
-Its `answer` rule and `exclude_spans` live in its span mapping. `evalkit.yaml` is still required; it holds the cases, fixtures and credentials.
+Its `answer` rule and `exclude_spans` live in its span mapping. `evalkit.yaml` still holds the cases and fixtures directories and the credentials; it is optional when your cases are in `evalkit/cases/<dataset>/` and you need no keys.
 
 The judge is the server's default unless you pass one. An admin sets the default with `evalkit judge-default set`. With the default, or any other judge served by an LLM provider configured on the server (`Judge(provider=...)`), the evaluators that use a judge (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) run on the evalkit server with its stored key; your machine needs no judge key:
 
