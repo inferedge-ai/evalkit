@@ -12,12 +12,16 @@
   the not-found page. Every person comes from the identity provider, so the
   page's actions did not stick. `evalkit users list`, `evalkit users archive`
   and `evalkit users add <name> --subject <sub>` work as before.
-- With `auth.oidc.admin_claim` set, `POST /api/users/{name}/promote` and
-  `POST /api/users/{name}/demote` (`evalkit users promote`, `evalkit users
-  demote`, **make admin** on the Users page) answer 400 for a person who signs
-  in through the identity provider: the claim decides their admin flag at each
-  sign-in, so a change by hand was overwritten at their next one. Password
-  accounts and machine users are unchanged.
+- With `auth.oidc.admin_claim` set, `POST /api/users/{name}/promote`
+  (`evalkit users promote`, **make admin** on the Users page) answers 400 for a
+  person who signs in only through the identity provider (a subject and no
+  password): the claim sets their admin flag at each sign-in, so a promotion
+  by hand was overwritten at their next one. `POST /api/users/{name}/demote`
+  (`evalkit users demote`) still works for them: evalkit reads the claim at
+  sign-in, not when a token renews, so demote is how an admin removes admin
+  before that person next signs in, and it lasts while the identity provider
+  agrees. Password accounts, including ones bound to a subject with
+  `evalkit users bind`, and machine users are unchanged.
 - The `otel` extra is gone: `opentelemetry-sdk` and
   `opentelemetry-exporter-otlp-proto-http` are now base dependencies of
   `evalkit-py`, so `evalkit.sdk.tracing.register` and SDK runs with traces work

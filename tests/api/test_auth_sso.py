@@ -427,7 +427,7 @@ def get_admin_names(rows: list[dict]) -> set[str]:
     return {row["username"] for row in rows if row["is_admin"]}
 
 
-async def test_with_an_admin_claim_admins_cannot_promote_or_demote_identity_provider_people(
+async def test_with_an_admin_claim_admins_demote_but_cannot_promote_identity_provider_people(
     env, idp
 ):
     async with sso_app(env, idp, admin_claim=ADMINS) as client:
@@ -443,8 +443,18 @@ async def test_with_an_admin_claim_admins_cannot_promote_or_demote_identity_prov
         "ann signs in through the identity provider, which decides who is an admin "
         "on this server from its roles claim"
     )
-    assert demote.status_code == 400 and "from its roles claim" in demote.json()["detail"]
-    assert admins == {"admin", "bob"}
+    assert demote.status_code == 200, demote.text
+    assert admins == {"admin"}
+
+
+async def test_with_an_admin_claim_admins_promote_a_password_account_bound_to_a_subject(env, idp):
+    async with sso_app(env, idp, admin_claim=ADMINS) as client:
+        bound = await client.post("/api/users/akshat/identity", json={"subject": "sub-akshat"})
+        promote = await client.post("/api/users/akshat/promote")
+        admins = get_admin_names((await client.get("/api/users")).json())
+    assert bound.status_code == 200, bound.text
+    assert promote.status_code == 200, promote.text
+    assert admins == {"admin", "akshat"}
 
 
 async def test_with_an_admin_claim_password_accounts_and_machine_users_are_unchanged(env, idp):

@@ -1232,7 +1232,7 @@ def users_promote(username: str):
     """Make a user an admin (admin only). Example: evalkit users promote alice
 
     With auth.oidc.admin_claim set, the server refuses this for people who sign in
-    through the identity provider: its claim decides who is an admin.
+    only through the identity provider (no password): its claim decides who is an admin.
     """
     _client().post(f"/api/users/{username}/promote")
     typer.echo(f"{username} is an admin")
@@ -1242,8 +1242,8 @@ def users_promote(username: str):
 def users_demote(username: str):
     """Remove a user's admin flag; the last admin stays. Example: evalkit users demote alice
 
-    With auth.oidc.admin_claim set, the server refuses this for people who sign in
-    through the identity provider: its claim decides who is an admin.
+    With auth.oidc.admin_claim set, a person who signs in through the identity provider
+    is an admin again at their next sign-in if the claim still names them.
     """
     _client().post(f"/api/users/{username}/demote")
     typer.echo(f"{username} is no longer an admin")

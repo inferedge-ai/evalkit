@@ -169,10 +169,16 @@ is a list that contains it; not an admin otherwise. A person the IdP stops
 naming as an admin loses admin at their next sign-in, even when they are the
 tenant's last admin: the IdP owns admins once this is on, so `evalkit users
 demote`'s last-admin check does not apply. For the same reason, `evalkit
-users promote` and `evalkit users demote` answer 400 for anyone who signs in
-through the IdP; password accounts are promoted and demoted as before. Unset
-(the default), registration never changes the flag, and admins are promoted
-with `evalkit users promote`. An admin's powers stay inside their tenant:
+users promote` answers 400 for anyone who signs in only through the IdP (a
+subject and no password): their next sign-in would undo it. `evalkit users
+demote` still works for them, last-admin check included. evalkit reads the
+claim when someone signs in, not when their token renews, so demote is how an
+admin takes admin away before that person next signs in; it lasts while the
+IdP agrees, and a claim that still names them makes them an admin again at
+their next sign-in. Password accounts, including ones bound to a subject with
+`evalkit users bind`, are promoted and demoted as before. Unset (the
+default), registration never changes the flag, and admins are promoted with
+`evalkit users promote`. An admin's powers stay inside their tenant:
 users, workspaces and members, LLM providers and the default judge, trace
 sources and agent tokens of that tenant only.
 
@@ -209,7 +215,8 @@ archive`, and add the machine user CI signs in as with `evalkit users add
    sign-in. Then `evalkit users promote <username>`.
    `password_login: none` requires `admin_claim`, so whoever the claim names
    is an admin from their first sign-in and, as with `admin_claim` in any
-   mode, the server refuses to promote or demote them by hand. If
+   mode, the server refuses to promote them by hand. Demoting them works,
+   until the claim names them again at their next sign-in. If
    nobody can sign in as an admin (the claim is missing from the access
    token, say), switch back to `password_login: admin` and start with
    `EVALKIT_ADMIN_PASSWORD`: the server creates `admin` when no admin

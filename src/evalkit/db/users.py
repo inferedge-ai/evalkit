@@ -352,7 +352,13 @@ class UserStore:
     async def set_admin(self, username: str, value: bool, admin_claim: str | None = None) -> None:
         async with self._session() as s:
             user = await self._get(s, username)
-            if admin_claim is not None and user.subject is not None and user.kind == "human":
+            if (
+                value
+                and admin_claim is not None
+                and user.subject is not None
+                and user.kind == "human"
+                and user.password_hash is None
+            ):
                 raise AdminFromIdentityProvider(username, admin_claim)
             if not value:
                 await self._ensure_other_admin(s, user)
