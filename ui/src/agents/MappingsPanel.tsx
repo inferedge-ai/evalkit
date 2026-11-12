@@ -7,13 +7,7 @@ import { Select } from "../lib/Select";
 import { ToArrow } from "../lib/ui";
 import { messageCounts } from "../lib/esfSummary";
 import { mappingRows, ruleNotes, sameRule } from "../lib/mappingRules";
-import { FRAMEWORK_MAPPINGS_DOC } from "../lib/mappingPresets";
-import type {
-  MappingPreset,
-  MappingRecord,
-  RunList,
-  SessionTrajectory,
-} from "../lib/types";
+import type { MappingRecord, RunList, SessionTrajectory } from "../lib/types";
 import { TrajectoryViewer } from "../runs/TrajectoryViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -186,10 +180,6 @@ export function MappingsPanel({ agent }: { agent: string }) {
 
   const listedVersions = useApi<MappingRecord[]>(`${base}/mappings`);
   const versions = listedVersions.data ?? null;
-  const presets = useApi<MappingPreset[]>(
-    versions?.length === 0 ? "/mapping-presets" : null,
-  );
-  const [preset, setPreset] = useState("");
   const hasDraft = versions?.some((v) => v.status === "draft") ?? false;
   const listedRuns = useApi<RunList>(`${base}/runs?limit=10`);
   const sessions = listedRuns.data?.runs.map((r) => r.run_id) ?? [];
@@ -243,21 +233,6 @@ export function MappingsPanel({ agent }: { agent: string }) {
     }
   };
 
-  const saveDraftFromPreset = async () => {
-    const document = presets.data?.find((p) => p.name === preset)?.document;
-    if (!document) return;
-    setBusy(true);
-    setActionError(null);
-    try {
-      await apiJson(`${base}/mappings/draft`, "PUT", document);
-      await refreshQueries();
-    } catch (e) {
-      setActionError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-4">
       {actionError && <div className="pane-status error">{actionError}</div>}
@@ -275,44 +250,13 @@ export function MappingsPanel({ agent }: { agent: string }) {
               title="No mapping yet"
               description={
                 <>
-                  This agent&apos;s spans are stored without a session id. Save
-                  a preset as a draft mapping, or push a mapping with{" "}
+                  This agent&apos;s spans are stored without a session id. Push
+                  a mapping with{" "}
                   <span className="font-mono">evalkit traces mapping push</span>
-                  .
+                  , giving a preset name or a mapping file.
                 </>
               }
             />
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <Select
-                  ariaLabel="mapping preset"
-                  placeholder="Choose a preset…"
-                  searchable
-                  disabled={!presets.data}
-                  value={preset}
-                  onChange={setPreset}
-                  options={(presets.data ?? []).map((p) => ({
-                    value: p.name,
-                    label: p.name,
-                  }))}
-                />
-                <Button
-                  size="sm"
-                  disabled={busy || !preset}
-                  onClick={saveDraftFromPreset}
-                >
-                  Save as draft
-                </Button>
-              </div>
-              <a
-                className="row-meta underline"
-                href={FRAMEWORK_MAPPINGS_DOC}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Which preset fits your framework
-              </a>
-            </div>
           </Card>
         ) : (
           !versionsFailed && (

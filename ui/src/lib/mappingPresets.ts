@@ -4,9 +4,11 @@ export function formatPreset(document: Record<string, unknown>): string {
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 
-export function replacedByPick(
+export function restorableAfterPick(
   current: string,
-  lastPicked: string | null,
+  pickedText: string | null,
+  restorable: string | null,
 ): string | null {
-  return current.trim() === "" || current === lastPicked ? null : current;
+  if (current === pickedText) return restorable;
+  return current.trim() === "" ? null : current;
 }

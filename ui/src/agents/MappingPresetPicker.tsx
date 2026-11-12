@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
   formatPreset,
   FRAMEWORK_MAPPINGS_DOC,
-  replacedByPick,
+  restorableAfterPick,
 } from "../lib/mappingPresets";
 import { useApi } from "../lib/query";
 import { Select } from "../lib/Select";
@@ -26,7 +26,7 @@ export function MappingPresetPicker({
     const preset = presets.data?.find((p) => p.name === name);
     if (!preset) return;
     const text = formatPreset(preset.document);
-    setReplaced(replacedByPick(value, picked?.text ?? null));
+    setReplaced(restorableAfterPick(value, picked?.text ?? null, replaced));
     setPicked({ name, text });
     onChange(text);
   };
@@ -45,7 +45,7 @@ export function MappingPresetPicker({
         placeholder="Start from a preset…"
         searchable
         disabled={!presets.data}
-        value={picked?.name ?? ""}
+        value={picked && value === picked.text ? picked.name : ""}
         onChange={pick}
         options={(presets.data ?? []).map((p) => ({
           value: p.name,
@@ -66,7 +66,7 @@ export function MappingPresetPicker({
           Which preset fits your framework
         </a>
       </p>
-      {replaced !== null && picked && (
+      {replaced !== null && picked && value === picked.text && (
         <div className="row-meta flex flex-wrap items-center gap-2 whitespace-normal">
           The {picked.name} preset replaced your edits.
           <Button variant="outline" size="sm" onClick={undo}>

@@ -98,3 +98,31 @@ test("a pasted mapping is kept until a preset is picked, and Undo brings it back
   expect(field().value).toBe('{"schema_version": "1"}');
   expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
 });
+
+test("editing a picked preset by hand clears the preset name from the picker", async () => {
+  const user = userEvent.setup();
+  renderPicker();
+  await pick(user, "gen_ai");
+  const picker = screen.getByRole("button", { name: "mapping preset" });
+  expect(picker).toHaveTextContent("gen_ai");
+  await user.type(field(), " ");
+  expect(picker).toHaveTextContent("Start from a preset…");
+  await pick(user, "openinference");
+  expect(
+    screen.getByText(/The openinference preset replaced your edits/),
+  ).toBeInTheDocument();
+});
+
+test("a pasted mapping stays restorable across several preset picks", async () => {
+  const user = userEvent.setup();
+  renderPicker();
+  await user.click(field());
+  await user.paste('{"schema_version": "1"}');
+  await pick(user, "gen_ai");
+  await pick(user, "openinference");
+  expect(
+    screen.getByText(/The openinference preset replaced your edits/),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Undo" }));
+  expect(field().value).toBe('{"schema_version": "1"}');
+});
