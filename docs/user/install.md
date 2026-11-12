@@ -20,7 +20,7 @@ uv tool install --reinstall "evalkit-py==$(curl -fsSL {{origin}}/api/cli | jq -r
 
 ## The CLI, inside a project
 
-To keep evalkit out of your global tools, add it to a uv project and run it with `uv run`. The CLI needs no extra; add `otel` if the same project uses `tracing.register` or SDK runs, and `server` if you also run the server from there:
+To keep evalkit out of your global tools, add it to a uv project and run it with `uv run`. The CLI, the SDK and `tracing.register` need no extra; add `server` only if you also run the server from there:
 
 ```bash
 uv add "evalkit-py=={{version}}"

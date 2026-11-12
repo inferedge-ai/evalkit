@@ -5,7 +5,8 @@
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a
   table) and images in `docs/user/images/`, in the web UI's docs page and on
-  the docs site. In the web UI's docs page, headings get the same ids as on
+  the docs site. The web UI's docs page renders admonitions (`!!! note`,
+  `!!! tip "Title"`, …) as the docs site does. In the web UI's docs page, headings get the same ids as on
   the docs site, and the page scrolls to a `#fragment` target (heading or
   row) on load and when the hash changes. `evalkit skills install` leaves
   `images/` out of `evalkit-docs/`. Concepts has rows for App run, Trace

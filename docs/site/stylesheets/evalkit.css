@@ -552,3 +552,95 @@ tr:has(.ek-row-anchor:target),
 .doc-signature {
   font-family: var(--md-code-font-family);
 }
+
+/* Admonition kinds use the web UI Admonition's colours: brand, ok, warn, destructive. */
+.md-typeset .admonition.note,
+.md-typeset .admonition.info,
+.md-typeset .admonition.todo,
+.md-typeset .admonition.abstract,
+.md-typeset .admonition.summary,
+.md-typeset .admonition.tldr,
+.md-typeset .admonition.question,
+.md-typeset .admonition.help,
+.md-typeset .admonition.faq,
+.md-typeset .admonition.example,
+.md-typeset .admonition.quote,
+.md-typeset .admonition.cite {
+  border-left-color: var(--primary);
+}
+
+.md-typeset .admonition.note > .admonition-title::before,
+.md-typeset .admonition.info > .admonition-title::before,
+.md-typeset .admonition.todo > .admonition-title::before,
+.md-typeset .admonition.abstract > .admonition-title::before,
+.md-typeset .admonition.summary > .admonition-title::before,
+.md-typeset .admonition.tldr > .admonition-title::before,
+.md-typeset .admonition.question > .admonition-title::before,
+.md-typeset .admonition.help > .admonition-title::before,
+.md-typeset .admonition.faq > .admonition-title::before,
+.md-typeset .admonition.example > .admonition-title::before,
+.md-typeset .admonition.quote > .admonition-title::before,
+.md-typeset .admonition.cite > .admonition-title::before {
+  background-color: var(--primary);
+}
+
+.md-typeset .admonition.tip,
+.md-typeset .admonition.hint,
+.md-typeset .admonition.important,
+.md-typeset .admonition.success,
+.md-typeset .admonition.check,
+.md-typeset .admonition.done {
+  border-left-color: var(--color-ok);
+}
+
+.md-typeset .admonition.tip > .admonition-title::before,
+.md-typeset .admonition.hint > .admonition-title::before,
+.md-typeset .admonition.important > .admonition-title::before,
+.md-typeset .admonition.success > .admonition-title::before,
+.md-typeset .admonition.check > .admonition-title::before,
+.md-typeset .admonition.done > .admonition-title::before {
+  background-color: var(--color-ok);
+}
+
+.md-typeset .admonition.warning,
+.md-typeset .admonition.caution,
+.md-typeset .admonition.attention {
+  border-left-color: var(--color-warn);
+}
+
+.md-typeset .admonition.warning > .admonition-title::before,
+.md-typeset .admonition.caution > .admonition-title::before,
+.md-typeset .admonition.attention > .admonition-title::before {
+  background-color: var(--color-warn);
+}
+
+.md-typeset .admonition.danger,
+.md-typeset .admonition.error,
+.md-typeset .admonition.failure,
+.md-typeset .admonition.fail,
+.md-typeset .admonition.missing,
+.md-typeset .admonition.bug {
+  border-left-color: var(--destructive);
+}
+
+.md-typeset .admonition.danger > .admonition-title::before,
+.md-typeset .admonition.error > .admonition-title::before,
+.md-typeset .admonition.failure > .admonition-title::before,
+.md-typeset .admonition.fail > .admonition-title::before,
+.md-typeset .admonition.missing > .admonition-title::before,
+.md-typeset .admonition.bug > .admonition-title::before {
+  background-color: var(--destructive);
+}
+
+.md-typeset .admonition[class] > .admonition-title {
+  background-color: transparent;
+  margin-bottom: 0;
+}
+
+.md-typeset .admonition > :not(.admonition-title) {
+  margin-left: 1.4rem;
+}
+
+.md-typeset .admonition > .admonition-title + * {
+  margin-top: 0.3em;
+}

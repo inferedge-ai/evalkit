@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import { Highlight, themes } from "prism-react-renderer";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
+import { Admonition } from "@/components/widgets/Admonition";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { ApiError } from "../lib/api";
@@ -19,7 +20,12 @@ import {
   fillTemplate,
   isDocTab,
 } from "../lib/docs";
-import { remarkDocMarkers, resolveDocImage } from "../lib/docMarkdown";
+import {
+  prepareDocMarkdown,
+  readAdmonitionKind,
+  remarkDocMarkers,
+  resolveDocImage,
+} from "../lib/docMarkdown";
 import type { CliInfo } from "../lib/types";
 import { CopyButton } from "../lib/ui";
 import { useOptionalMe } from "../shell/capabilities";
@@ -99,6 +105,17 @@ function DocDiv({
   children,
   ...props
 }: ComponentProps<"div"> & ExtraProps) {
+  const admonition = node?.properties.dataAdmonition;
+  if (admonition !== undefined)
+    return (
+      <Admonition
+        kind={readAdmonitionKind(String(node?.properties.dataType ?? ""))}
+        type={String(node?.properties.dataType ?? "")}
+        title={String(node?.properties.dataTitle ?? "")}
+      >
+        {children}
+      </Admonition>
+    );
   if (!("data-doc-tabs" in props)) return <div {...props}>{children}</div>;
   const labels = (node?.children ?? []).flatMap((child) =>
     child.type === "element" ? [String(child.properties.dataDocTab ?? "")] : [],
@@ -249,7 +266,7 @@ export function DocsPage() {
                   img: DocImage,
                 }}
               >
-                {fillTemplate(body, values)}
+                {prepareDocMarkdown(fillTemplate(body, values))}
               </ReactMarkdown>
             </div>
           </article>

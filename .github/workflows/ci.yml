@@ -66,7 +66,7 @@ jobs:
           else
             echo "needs_py_ci=false" >> "$GITHUB_OUTPUT"
           fi
-          if changed | grep -qE '^(ui|docs/user)/'; then
+          if changed | grep -qE '^((ui|docs/user)/|docs/site/tokens\.py$)'; then
             echo "needs_ts_ci=true" >> "$GITHUB_OUTPUT"
           else
             echo "needs_ts_ci=false" >> "$GITHUB_OUTPUT"

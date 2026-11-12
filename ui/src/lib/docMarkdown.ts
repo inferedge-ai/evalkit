@@ -3,6 +3,96 @@
 const TABS_OPEN = "<!-- tabs -->";
 const TABS_CLOSE = "<!-- /tabs -->";
 const ANCHOR_ROWS = "<!-- anchor-rows -->";
+const ADMONITION_START = /^!!!\s+([\w-]+)(?:\s+"(.*)")?\s*$/;
+const ADMONITION_OPEN = /^<!-- admonition (\S+) (\S+) "(.*)" -->$/;
+const ADMONITION_CLOSE = "<!-- /admonition -->";
+const FENCE = /^\s*(`{3,}|~{3,})/;
+
+export type AdmonitionKind = "note" | "info" | "tip" | "warning" | "danger";
+
+const ADMONITION_KINDS: Record<string, AdmonitionKind> = {
+  note: "note",
+  info: "info",
+  todo: "info",
+  abstract: "info",
+  summary: "info",
+  tldr: "info",
+  question: "info",
+  help: "info",
+  faq: "info",
+  example: "info",
+  quote: "info",
+  cite: "info",
+  tip: "tip",
+  hint: "tip",
+  important: "tip",
+  success: "tip",
+  check: "tip",
+  done: "tip",
+  warning: "warning",
+  caution: "warning",
+  attention: "warning",
+  danger: "danger",
+  error: "danger",
+  failure: "danger",
+  fail: "danger",
+  missing: "danger",
+  bug: "danger",
+};
+
+export function readAdmonitionKind(type: string): AdmonitionKind {
+  return ADMONITION_KINDS[type.toLowerCase()] ?? "note";
+}
+
+function toggleFence(line: string, fence: string | null): string | null {
+  const match = FENCE.exec(line);
+  if (!match) return fence;
+  if (fence === null) return match[1];
+  return match[1].startsWith(fence) ? null : fence;
+}
+
+function isIndented(line: string): boolean {
+  return line.startsWith("    ") || line.startsWith("\t");
+}
+
+function dedent(line: string): string {
+  return line.startsWith("\t") ? line.slice(1) : line.slice(4);
+}
+
+export function prepareDocMarkdown(markdown: string): string {
+  const lines = markdown.split("\n");
+  const out: string[] = [];
+  let fence: string | null = null;
+  for (let i = 0; i < lines.length; i++) {
+    const start = fence === null ? ADMONITION_START.exec(lines[i]) : null;
+    if (!start) {
+      fence = toggleFence(lines[i], fence);
+      out.push(lines[i]);
+      continue;
+    }
+    const body: string[] = [];
+    while (
+      i + 1 < lines.length &&
+      (lines[i + 1].trim() === "" || isIndented(lines[i + 1]))
+    ) {
+      body.push(dedent(lines[++i]));
+    }
+    while (body.length && body.at(-1)?.trim() === "") body.pop();
+    const [, type, title] = start;
+    const shown =
+      title ?? type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+    out.push(
+      "",
+      `<!-- admonition ${type} ${readAdmonitionKind(type)} "${shown}" -->`,
+      "",
+      prepareDocMarkdown(body.join("\n")),
+      "",
+      ADMONITION_CLOSE,
+      "",
+    );
+  }
+  return out.join("\n");
+}
 
 type MdNode = {
   type: string;
@@ -69,7 +159,52 @@ function anchorRows(table: MdNode) {
   }
 }
 
+function groupAdmonitions(children: MdNode[]): MdNode[] {
+  const out: MdNode[] = [];
+  for (let i = 0; i < children.length; i++) {
+    const open = ADMONITION_OPEN.exec(
+      children[i].type === "html" ? (children[i].value?.trim() ?? "") : "",
+    );
+    if (!open) {
+      out.push(children[i]);
+      continue;
+    }
+    let depth = 0;
+    let end = -1;
+    for (let j = i + 1; j < children.length; j++) {
+      if (
+        children[j].type === "html" &&
+        ADMONITION_OPEN.test(children[j].value?.trim() ?? "")
+      )
+        depth++;
+      if (isMarker(children[j], ADMONITION_CLOSE)) {
+        if (depth === 0) {
+          end = j;
+          break;
+        }
+        depth--;
+      }
+    }
+    if (end === -1) {
+      out.push(children[i]);
+      continue;
+    }
+    const [, type, kind, title] = open;
+    out.push({
+      type: "docAdmonition",
+      data: {
+        hName: "div",
+        hProperties: { dataAdmonition: kind, dataType: type, dataTitle: title },
+      },
+      children: groupAdmonitions(children.slice(i + 1, end)),
+    });
+    i = end;
+  }
+  return out;
+}
+
 function transform(parent: MdNode) {
+  parent.children = groupAdmonitions(parent.children ?? []);
   const out: MdNode[] = [];
   const children = parent.children ?? [];
   for (let i = 0; i < children.length; i++) {

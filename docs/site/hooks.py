@@ -23,10 +23,9 @@ GITHUB_ONLY = "On GitHub, `{{origin}}` in the docs stands for your server's URL.
 
 
 def _version() -> str:
-    return (
-        os.environ.get("DOCS_VERSION")
-        or tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
-    )
+    return os.environ.get("DOCS_VERSION") or tomllib.loads(
+        (ROOT / "pyproject.toml").read_text()
+    )["project"]["version"]
 
 
 def _site_link(target: str) -> str:
