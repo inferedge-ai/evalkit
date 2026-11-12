@@ -78,7 +78,7 @@ describe("with passwords off", () => {
   it("hands over to the provider at once, with no password form", async () => {
     const onSso = vi.fn(() => new Promise<void>(() => {}));
     showLogin(onSso);
-    expect(await screen.findByText("Taking you to Okta…")).toBeTruthy();
+    expect(await screen.findByText("Signing you in…")).toBeTruthy();
     expect(onSso).toHaveBeenCalledTimes(1);
     expect(screen.queryByLabelText("Username")).toBeNull();
     expect(screen.queryByText("Admin sign-in")).toBeNull();
@@ -92,7 +92,7 @@ describe("with passwords off", () => {
     await userEvent
       .setup()
       .click(screen.getByRole("button", { name: "Sign in again" }));
-    expect(screen.getByText("Taking you to Okta…")).toBeTruthy();
+    expect(screen.getByText("Signing you in…")).toBeTruthy();
   });
 
   it("stops on the provider's error with Try again instead of starting over", async () => {

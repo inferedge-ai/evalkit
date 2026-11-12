@@ -1,0 +1,206 @@
+// @vitest-environment jsdom
+import { QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
+import { MemoryRouter, useLocation } from "react-router-dom";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { App } from "./app";
+import { SignInLink } from "./auth/SignInLink";
+import { resetProvidersForTest, setSessionForTest } from "./auth/oidc";
+import { logout } from "./lib/api";
+import type { ExtensionRoute } from "./lib/extensions";
+import { queryClient } from "./lib/query";
+import type { Me } from "./lib/types";
+import { ThemeProvider } from "./shell/theme";
+import { closePage, member, stubServer } from "./testFixtures";
+
+const wrapper = vi.hoisted(() => ({
+  routes: [],
+  publicRoutes: [] as ExtensionRoute[],
+  landingPage: null as ReactElement | null,
+  nav: [],
+  accountSettings: [],
+  organizationSettings: [],
+}));
+vi.mock("./extensions", () => ({ extensions: wrapper }));
+
+Element.prototype.scrollIntoView = () => {};
+
+const okta = {
+  name: "Okta",
+  issuer: "https://id.example.com",
+  client_id: "0oa1b2c3",
+  scopes: ["openid", "profile", "email"],
+  authorize_params: {},
+  authorization_endpoint: "https://id.example.com/oauth2/v1/authorize",
+  token_endpoint: "https://id.example.com/oauth2/v1/token",
+  device_authorization_endpoint: null,
+};
+
+const writer = member({ dev: ["writer"] });
+
+function Landing() {
+  return (
+    <>
+      <h1>Evals for your agents</h1>
+      <SignInLink>Log in</SignInLink>
+      <SignInLink prompt="create">Sign up</SignInLink>
+    </>
+  );
+}
+
+function Where() {
+  const { pathname, search } = useLocation();
+  return <output aria-label="location">{pathname + search}</output>;
+}
+
+const where = () => screen.getByLabelText("location").textContent;
+
+let redirects: unknown[];
+
+function serve(me: Me | null) {
+  stubServer(async (url) => {
+    if (url.endsWith("/api/auth/me"))
+      return me
+        ? Response.json(me)
+        : Response.json({ detail: "not signed in" }, { status: 401 });
+    if (url.endsWith("/api/auth/providers"))
+      return Response.json({ password: "none", oidc: okta });
+    if (url.endsWith("/api/meta"))
+      return Response.json({ detail: "no meta" }, { status: 404 });
+    return undefined;
+  });
+}
+
+function openApp(path: string) {
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <App />
+          <Where />
+        </MemoryRouter>
+      </ThemeProvider>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  localStorage.setItem("devtools.theme", "light");
+  redirects = [];
+  setSessionForTest({
+    getUser: async () => null,
+    signinRedirect: async (args) => {
+      redirects.push(args);
+      await new Promise(() => {});
+    },
+    signinCallback: async () => undefined,
+    signinSilent: async () => null,
+    removeUser: async () => {},
+  });
+  wrapper.landingPage = <Landing />;
+  wrapper.publicRoutes = [];
+});
+
+afterEach(() => {
+  closePage();
+  setSessionForTest(undefined);
+  resetProvidersForTest();
+  localStorage.clear();
+});
+
+test("a signed-out visitor at / sees the wrapper's landing page under the public navbar", async () => {
+  serve(null);
+  openApp("/");
+
+  expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
+  const navbar = screen.getByRole("banner");
+  expect(within(navbar).getByRole("link", { name: "Docs" })).toBeVisible();
+  expect(within(navbar).getByRole("link", { name: "Evalkit" })).toHaveAttribute(
+    "href",
+    "/",
+  );
+  expect(where()).toBe("/");
+  expect(redirects).toEqual([]);
+});
+
+test("without a landing page, / sends a signed-out visitor to sign in", async () => {
+  wrapper.landingPage = null;
+  serve(null);
+  openApp("/");
+
+  expect(await screen.findByText("Signing you in…")).toBeInTheDocument();
+  expect(where()).toBe("/login?next=%2F");
+});
+
+test("a signed-out deep link goes straight to sign-in and back, not to the landing page", async () => {
+  serve(null);
+  openApp("/experiments/12");
+
+  expect(await screen.findByText("Signing you in…")).toBeInTheDocument();
+  expect(screen.queryByText("Evals for your agents")).toBeNull();
+  await vi.waitFor(() =>
+    expect(redirects).toEqual([
+      { state: "/experiments/12", redirectMethod: "replace" },
+    ]),
+  );
+});
+
+test("a signed-in person at / gets the workspace list, not the landing page", async () => {
+  serve(writer);
+  openApp("/");
+
+  expect(
+    await screen.findByRole("link", { name: /All datasets/ }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Evals for your agents")).toBeNull();
+});
+
+test("a public page opens under the public navbar when signed out and in the app shell when signed in", async () => {
+  wrapper.publicRoutes = [{ path: "/terms", element: <h1>Terms of use</h1> }];
+  serve(null);
+  openApp("/terms");
+
+  expect(await screen.findByText("Terms of use")).toBeInTheDocument();
+  expect(
+    within(screen.getByRole("banner")).getByRole("link", { name: "Sign in" }),
+  ).toBeVisible();
+  expect(redirects).toEqual([]);
+  closePage();
+
+  serve(writer);
+  openApp("/terms");
+  expect(await screen.findByText("Terms of use")).toBeInTheDocument();
+  expect(screen.getByRole("group", { name: "Evaluate" })).toBeVisible();
+});
+
+test("Sign up on the landing page after a sign-out opens the provider's sign-up at once", async () => {
+  await logout();
+  serve(null);
+  openApp("/");
+
+  await userEvent
+    .setup()
+    .click(await screen.findByRole("link", { name: "Sign up" }));
+
+  expect(await screen.findByText("Signing you in…")).toBeInTheDocument();
+  await vi.waitFor(() =>
+    expect(redirects).toEqual([
+      { state: "/", prompt: "create", redirectMethod: "replace" },
+    ]),
+  );
+});
+
+test("signing out with a landing page loads /", async () => {
+  const assign = vi.fn();
+  vi.stubGlobal("location", { ...window.location, assign });
+  serve(writer);
+  openApp("/");
+  const user = userEvent.setup();
+
+  await user.click(await screen.findByRole("button", { name: "akshat" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Sign out" }));
+
+  await vi.waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+});

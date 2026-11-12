@@ -138,9 +138,7 @@ function ProviderSignIn({
           Retry
         </Button>
       ) : busy ? (
-        <p className="text-sm text-muted-foreground">
-          Taking you to {oidc.name}…
-        </p>
+        <p className="text-sm text-muted-foreground">Signing you in…</p>
       ) : error !== null ? (
         <>
           <p className="text-sm text-err-text">{error}</p>
@@ -222,6 +220,7 @@ export function LoginPage() {
     useState<Providers["password"]>("all");
 
   const next = safeNext(params.get("next"));
+  const prompt = params.get("prompt") ?? undefined;
 
   useEffect(() => {
     loadProviders().then(setProviders, (e) => {
@@ -236,6 +235,7 @@ export function LoginPage() {
     if (s === null) throw new Error("Single sign-on is not configured.");
     await s.signinRedirect({
       state: next,
+      prompt,
       redirectMethod: replace ? "replace" : "assign",
     });
   };

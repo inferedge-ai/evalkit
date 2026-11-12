@@ -41,6 +41,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import { extensions } from "../extensions";
 import { logout } from "../lib/api";
 import type { NavItem } from "../lib/extensions";
 import { Select } from "../lib/Select";
@@ -383,7 +384,14 @@ function ProfileMenu({ me }: { me: Me }) {
             {theme === "dark" ? "Light mode" : "Dark mode"}
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() => logout().finally(() => navigate("/login"))}
+            onClick={() =>
+              // `/` sits inside AuthGate, which keeps the old user until a full load.
+              logout().finally(() =>
+                extensions.landingPage
+                  ? window.location.assign("/")
+                  : navigate("/login"),
+              )
+            }
           >
             <LogOut />
             Sign out
