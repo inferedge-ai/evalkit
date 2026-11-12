@@ -956,8 +956,9 @@
 
 <h1 id="config-evalkityaml">Config: <code>evalkit.yaml</code><a class="headerlink" href="#config-evalkityaml" title="Permanent link">&para;</a></h1>
 <p><code>evalkit.yaml</code> sits at the root of the repository that holds your eval cases or your agent. The CLI and the SDK look for it above the current directory. It names the case and fixture directories and the API keys the runs from this machine use.</p>
-<div class="highlight"><pre><span></span><code><span class="nt">cases</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">eval/cases</span><span class="w"> </span><span class="c1"># optional: directory whose children are datasets</span>
-<span class="nt">fixtures</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">eval/fixtures</span><span class="w"> </span><span class="c1"># optional: fixture bytes, flat, keyed by filename</span>
+<p>The file is optional. Without one, the CLI and the SDK act as if an <code>evalkit.yaml</code> sat in the current directory with <code>cases: evalkit/cases</code>, <code>fixtures: evalkit/fixtures</code> and no credentials. So with your cases in <code>evalkit/cases/&lt;dataset&gt;/</code>, <code>evalkit sync &lt;dataset&gt;</code>, <code>evalkit run &lt;dataset&gt;</code> and <code>run_experiment</code> work with no file. You need the file to keep cases or fixtures somewhere else, or to give an agent or evaluator an API key.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">cases</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">evalkit/cases</span><span class="w"> </span><span class="c1"># optional, this is the default: directory whose children are datasets</span>
+<span class="nt">fixtures</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">evalkit/fixtures</span><span class="w"> </span><span class="c1"># optional, this is the default: fixture bytes, flat, keyed by filename</span>
 
 <span class="nt">credentials</span><span class="p">:</span><span class="w"> </span><span class="c1"># values are env:NAME, read when a run needs them</span>
 <span class="w">  </span><span class="nt">agents</span><span class="p">:</span>
@@ -966,7 +967,7 @@
 <span class="w">    </span><span class="nt">citation_check</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">env:EVALUATOR_KEY</span>
 </code></pre></div>
 <p>Only your personal Harness API agents use <code>credentials.agents</code> here. The server drives shared agents (<code>ouragent@dev</code>) with the keys stored in its database, so an entry for one in <code>evalkit.yaml</code> is never read. The same holds for shared remote evaluators.</p>
-<p>Put the values in a <code>.env</code> file next to <code>evalkit.yaml</code> (and keep it out of git), or in your shell. A variable set in the shell wins over <code>.env</code>.</p>
+<p>Put the values in a <code>.env</code> file next to <code>evalkit.yaml</code> (and keep it out of git), or in your shell. A variable set in the shell wins over <code>.env</code>. Without an <code>evalkit.yaml</code>, the <code>.env</code> in the current directory is read.</p>
 <p>Agents, remote evaluators and the judge are not configured here:</p>
 <ul>
 <li><strong>Agents</strong> are created once on the server with <code>evalkit agents create</code> (or on the Agents page). A personal agent runs from your machine; a shared one is driven by the server. An agent without a harness URL is code-driven: only <code>run_experiment</code> can run it. See <a href="../sdk-runs/">SDK runs</a>.</li>
@@ -981,11 +982,12 @@
 <li><code>env:NAME</code> values are read only when a command needs them. A missing variable is an error that names it.</li>
 <li>An agent or evaluator with no <code>credentials</code> entry is called without a key, and the run prints one line saying so.</li>
 <li><code>credentials</code> holds agent and evaluator keys only. A file with <code>credentials.llm_providers</code> (or the older <code>credentials.judges</code>) fails to load: pass your own judge's key with the run instead.</li>
-<li><code>cases</code> and <code>fixtures</code> are optional. Leave them out when you only run shared datasets, for example from <code>run_experiment</code>. Commands that need them say so:</li>
-<li><code>evalkit sync &lt;name&gt;</code> and <code>evalkit run &lt;name&gt;</code> on a dataset in your workspace need <code>cases</code> to find <code>&lt;cases&gt;/&lt;name&gt;</code>. Passing the dataset's directory instead (<code>evalkit sync eval/cases/finance</code>) works without it.</li>
-<li>A sync uploads fixture bytes from <code>fixtures</code>. Without it, a case whose fixture the server does not already hold fails the sync with <code>E-FIXTURE-MISSING</code>.</li>
-<li><code>run_experiment</code> on a dataset in your workspace skips the sync without <code>cases</code> and runs the copy the server holds.</li>
-<li>Fixtures a run downloads go to <code>fixtures</code>, or to a temporary directory when it is not set.</li>
+<li><code>cases</code> and <code>fixtures</code> are optional. When left out they are <code>evalkit/cases</code> and <code>evalkit/fixtures</code>, relative to the directory of <code>evalkit.yaml</code>, or to the current directory when there is no file, so without a file run commands and scripts from the root of your repository. Neither directory has to exist; a command fails only when it needs something that is not there:</li>
+<li><code>evalkit sync &lt;name&gt;</code> and <code>evalkit run &lt;name&gt;</code> on a dataset in your workspace read <code>&lt;cases&gt;/&lt;name&gt;</code>. When that directory is missing, the error names the cases directory it looked in. Passing the dataset's directory instead (<code>evalkit sync datasets/finance</code>) works from anywhere.</li>
+<li>A directory under the cases root always belongs to the dataset named after its first folder: <code>evalkit sync evalkit/cases/finance/statements</code> patches the <code>statements</code> folder of <code>finance</code>.</li>
+<li>A sync uploads the fixture bytes the server does not hold yet from <code>fixtures</code>. When a registered fixture is neither on the server nor in that directory, the sync fails and names the file it looked for.</li>
+<li><code>run_experiment</code> on a dataset in your workspace syncs <code>&lt;cases&gt;/&lt;name&gt;</code> first. When that directory is missing it says so, skips the sync and runs the copy the server holds.</li>
+<li>Keep <code>__init__.py</code> out of a folder named <code>evalkit</code>. With that file the folder is a Python package that hides the installed <code>evalkit</code> package from <code>import evalkit</code>, so a sync refuses cases or fixtures inside it.</li>
 </ul>
 
 

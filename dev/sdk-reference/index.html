@@ -1427,7 +1427,9 @@
 the server and score them.</p>
 <p>Scoring uses the judge, the remote evaluators of the agent's workspace and the
 Python <code>evaluators</code> you pass. Reads <code>evalkit.yaml</code> (cases, fixtures, credentials)
-from the current directory or a parent, and the login from <code>evalkit login</code>.</p>
+from the current directory or a parent, and the login from <code>evalkit login</code>. The
+file is optional: without it, cases are read from <code>evalkit/cases/&lt;dataset&gt;/</code> and
+fixtures from <code>evalkit/fixtures/</code> under the current directory, with no credentials.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1438,7 +1440,8 @@ from the current directory or a parent, and the login from <code>evalkit login</
           –
           <div class="doc-md-description">
             <p>The dataset to run. A bare name means your personal workspace; if it
-is also a directory under <code>cases</code> in <code>evalkit.yaml</code>, it is synced first.
+is also a directory under the cases root (<code>cases</code> in <code>evalkit.yaml</code>,
+<code>evalkit/cases</code> by default), it is synced first.
 <code>name@workspace</code> runs a shared dataset, every review state included.</p>
           </div>
         </li>

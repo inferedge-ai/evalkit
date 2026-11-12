@@ -1247,8 +1247,8 @@
 evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>myagent<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>&lt;preset&gt;
 </code></pre></div>
 <p>To change a preset, print it to a file, edit the file and push it as a draft (see <a href="../mappings/#the-loop">The loop</a>):</p>
-<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>presets<span class="w"> </span>&lt;preset&gt;<span class="w"> </span>&gt;<span class="w"> </span>eval/span-mapping.json
-evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>push<span class="w"> </span>myagent<span class="w"> </span>eval/span-mapping.json
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>presets<span class="w"> </span>&lt;preset&gt;<span class="w"> </span>&gt;<span class="w"> </span>evalkit/span-mapping.json
+evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>push<span class="w"> </span>myagent<span class="w"> </span>evalkit/span-mapping.json
 </code></pre></div>
 <p>Then run one session and check it with <code>evalkit traces check myagent &lt;session id&gt;</code> (see <a href="../tracing/">Tracing</a>). Each line of the check output starts with <code>✓</code> (fine), <code>!</code> (a warning: the check still exits 0, but the trajectory is likely wrong) or <code>✗</code> (a failure). Instrumentors change between versions, so read every warning line even when you start from a preset below.</p>
 <table>
