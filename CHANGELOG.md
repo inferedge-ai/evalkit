@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- With `auth.password_login: none`, evalkit makes no password accounts:
+  `POST /api/users` with a password (`evalkit users add <name>`) and
+  `POST /api/users/{name}/password` (`evalkit users set-password`) answer 400.
+  Before, they made accounts that could never sign in. Machine users
+  (`evalkit users add <name> --subject <sub>`) are added as before. The Users
+  page under Settings › Organization says how people join in place of its
+  username and password form.
 - The `otel` extra is gone: `opentelemetry-sdk` and
   `opentelemetry-exporter-otlp-proto-http` are now base dependencies of
   `evalkit-py`, so `evalkit.sdk.tracing.register` and SDK runs with traces work

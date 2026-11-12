@@ -195,7 +195,8 @@ in every tab of that browser, until you next sign in.
 
 1. Start with `EVALKIT_ADMIN_PASSWORD` set; `admin` is a password account.
    With `password_login: none` there is no password account and no
-   `EVALKIT_ADMIN_PASSWORD`: the IdP names the admins through `admin_claim`.
+   `EVALKIT_ADMIN_PASSWORD`: the IdP names the admins through `admin_claim`,
+   and evalkit refuses to make a password account or set a password.
 2. Ask the first person to sign in; evalkit creates their user on the first
    sign-in. Then `evalkit users promote <username>`.
    `password_login: none` requires `admin_claim`, so whoever the claim names
@@ -232,6 +233,7 @@ in every tab of that browser, until you next sign in.
 | 401 `user is archived` | Archived in evalkit | `evalkit users restore <username>` |
 | 403 `password login is for admins on this server` | `password_login: admin` | Sign in with SSO, or set `password_login: all` |
 | 403 `password login is off on this server` | `password_login: none` | Sign in with SSO; CI uses its machine client |
+| 400 `password login is off on this server; people join by signing in with <provider>` | `users add` without `--subject`, or `users set-password`, under `password_login: none` | People join by signing in; add CI as a machine user with `--subject` |
 | 403 `no tenant for this request` | A wrapper's `resolve_tenant` found no tenant for the token | Have the IdP put the organisation in the token, CI's client credentials tokens included |
 | 403 `access token lacks required scope <scope>` (on `/api` and register; `/mcp` says `insufficient_scope`) | `auth.oidc.required_scopes` names a scope the token does not carry | Grant the scope to the person or machine client at the IdP and add it to `auth.oidc.scopes`; sign in again |
 | 503 `identity provider unreachable` | Discovery or the JWKS could not be fetched | Check the issuer URL and network egress from the server; it retries every 30 s |

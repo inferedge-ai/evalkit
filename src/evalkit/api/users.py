@@ -14,6 +14,17 @@ def _issuer(request: Request) -> str:
     return oidc.cfg.issuer
 
 
+def require_password_login(request: Request) -> None:
+    cfg = request.app.state.cfg
+    if cfg.auth.resolve_password_login() == "none":
+        assert cfg.auth.oidc is not None
+        raise HTTPException(
+            status_code=400,
+            detail="password login is off on this server; people join by signing in with "
+            f"{cfg.auth.oidc.name}, and a machine user is added with a subject",
+        )
+
+
 @router.get("")
 async def list_users(stores: StoresDep, admin: AdminUser) -> list[dict]:
     return [
@@ -48,6 +59,7 @@ async def create_user(
             body.username, issuer=_issuer(request), subject=body.subject
         )
     else:
+        require_password_login(request)
         user = await stores.users.create(body.username, password=body.password)
     return {"username": user.username}
 
@@ -82,8 +94,13 @@ class SetPasswordRequest(BaseModel):
 
 @router.post("/{username}/password")
 async def set_password(
-    username: str, body: SetPasswordRequest, stores: StoresDep, admin: AdminUser
+    username: str,
+    body: SetPasswordRequest,
+    request: Request,
+    stores: StoresDep,
+    admin: AdminUser,
 ) -> dict:
+    require_password_login(request)
     await stores.users.set_password(username, body.password)
     return {"password_set": username}
 

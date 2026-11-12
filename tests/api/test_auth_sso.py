@@ -150,6 +150,31 @@ async def test_password_sign_in_is_refused_when_passwords_are_off(env, idp):
     assert providers["password"] == "none"
 
 
+async def test_password_accounts_are_refused_when_passwords_are_off(env, idp):
+    admin_role = {"extra": {"roles": ["evalkit-admin"]}}
+    async with sso_app(env, idp, password_login="none", admin_claim=ADMINS) as client:
+        await register(client, idp, "sub-ann", "ann@example.com", "ann", **admin_role)
+        admin = bearer(idp.access_token("sub-ann", **admin_role))
+        added = await client.post(
+            "/api/users", headers=admin, json={"username": "bob", "password": "password"}
+        )
+        reset = await client.post(
+            "/api/users/alice/password", headers=admin, json={"password": "new-password"}
+        )
+        machine = await client.post(
+            "/api/users", headers=admin, json={"username": "ci-bot", "subject": "client-ci"}
+        )
+        names = {u["username"] for u in (await client.get("/api/users", headers=admin)).json()}
+    refusal = (
+        "password login is off on this server; people join by signing in with Fake, "
+        "and a machine user is added with a subject"
+    )
+    assert added.status_code == 400 and added.json()["detail"] == refusal
+    assert reset.status_code == 400 and reset.json()["detail"] == refusal
+    assert machine.status_code == 200, machine.text
+    assert "ci-bot" in names and "bob" not in names
+
+
 async def test_providers_says_passwords_are_off_while_discovery_is_down(env, idp):
     def down(request: httpx2.Request) -> httpx2.Response:
         raise httpx2.ConnectError("down")
