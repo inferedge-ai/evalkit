@@ -1242,17 +1242,21 @@
 
 
 <h1 id="framework-mappings">Framework mappings<a class="headerlink" href="#framework-mappings" title="Permanent link">&para;</a></h1>
-<p>Ready-to-use <a href="../mappings/">mappings</a> for popular agent frameworks. Pick your framework, copy its file, and create the agent with it. Each one is the <code>connect-traces</code> skill's <code>openinference.json</code> or <code>gen_ai.json</code> plus a few changes, and ships beside them in the skill's <code>references/</code> folder (<code>evalkit skills install</code> copies it to <code>.claude/skills/connect-traces/references/</code> or <code>.agents/skills/…</code>).</p>
-<div class="highlight"><pre><span></span><code>cp<span class="w"> </span>.claude/skills/connect-traces/references/&lt;framework&gt;.json<span class="w"> </span>eval/span-mapping.json
-evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>myagent<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>eval/span-mapping.json
+<p>Ready-to-use <a href="../mappings/">mappings</a> for popular agent frameworks. They ship in the evalkit package as presets: pick your framework and create the agent with the preset's name. Each one is the <code>openinference</code> or <code>gen_ai</code> preset plus a few changes.</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>presets<span class="w">          </span><span class="c1"># list the preset names</span>
+evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>myagent<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>&lt;preset&gt;
 </code></pre></div>
-<p>Then run one session and check it with <code>evalkit traces check myagent &lt;session id&gt;</code> (see <a href="../tracing/">Tracing</a>). Each line of the check output starts with <code>✓</code> (fine), <code>!</code> (a warning: the check still exits 0, but the trajectory is likely wrong) or <code>✗</code> (a failure). Instrumentors change between versions, so read every warning line even when you start from a file below.</p>
+<p>To change a preset, print it to a file, edit the file and push it as a draft (see <a href="../mappings/#the-loop">The loop</a>):</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>presets<span class="w"> </span>&lt;preset&gt;<span class="w"> </span>&gt;<span class="w"> </span>eval/span-mapping.json
+evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>push<span class="w"> </span>myagent<span class="w"> </span>eval/span-mapping.json
+</code></pre></div>
+<p>Then run one session and check it with <code>evalkit traces check myagent &lt;session id&gt;</code> (see <a href="../tracing/">Tracing</a>). Each line of the check output starts with <code>✓</code> (fine), <code>!</code> (a warning: the check still exits 0, but the trajectory is likely wrong) or <code>✗</code> (a failure). Instrumentors change between versions, so read every warning line even when you start from a preset below.</p>
 <table>
 <thead>
 <tr>
 <th>Framework</th>
 <th>Instrumentation</th>
-<th>File</th>
+<th>Preset</th>
 <th>Verified with</th>
 </tr>
 </thead>
@@ -1260,61 +1264,61 @@ evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="
 <tr>
 <td>LangGraph</td>
 <td>OpenInference LangChain</td>
-<td><code>openinference.json</code></td>
+<td><code>openinference</code></td>
 <td>LangGraph 1.2</td>
 </tr>
 <tr>
 <td>LangChain <code>create_agent</code></td>
 <td>OpenInference LangChain</td>
-<td><code>langchain.json</code></td>
+<td><code>langchain</code></td>
 <td>LangChain 1.4</td>
 </tr>
 <tr>
 <td>CrewAI</td>
 <td>OpenInference CrewAI + OpenAI</td>
-<td><code>crewai.json</code></td>
+<td><code>crewai</code></td>
 <td>CrewAI 1.15</td>
 </tr>
 <tr>
 <td>Agno</td>
 <td>OpenInference Agno</td>
-<td><code>agno.json</code></td>
+<td><code>agno</code></td>
 <td>Agno 3.1</td>
 </tr>
 <tr>
 <td>OpenAI Agents SDK</td>
 <td>OpenInference openai-agents</td>
-<td><code>openinference.json</code></td>
+<td><code>openinference</code></td>
 <td>openai-agents 0.24</td>
 </tr>
 <tr>
 <td>LlamaIndex <code>FunctionAgent</code></td>
 <td>OpenInference LlamaIndex</td>
-<td><code>llamaindex.json</code></td>
+<td><code>llamaindex</code></td>
 <td>LlamaIndex 0.14</td>
 </tr>
 <tr>
 <td>Google ADK</td>
 <td>ADK's own GenAI spans</td>
-<td><code>google-adk.json</code></td>
+<td><code>google-adk</code></td>
 <td>ADK 2.13</td>
 </tr>
 <tr>
 <td>Pydantic AI</td>
 <td>built-in GenAI spans</td>
-<td><code>gen_ai.json</code></td>
+<td><code>gen_ai</code></td>
 <td>Pydantic AI 2.65</td>
 </tr>
 <tr>
 <td>Claude Agent SDK</td>
 <td>hand-built GenAI spans + the <code>mcp</code> library</td>
-<td><code>claude-agent-sdk.json</code></td>
+<td><code>claude-agent-sdk</code></td>
 <td>claude-agent-sdk 0.2.177</td>
 </tr>
 <tr>
 <td>Mastra (TypeScript)</td>
 <td><code>@mastra/otel-exporter</code> GenAI spans</td>
-<td><code>mastra.json</code></td>
+<td><code>mastra</code></td>
 <td>Mastra 1.81</td>
 </tr>
 </tbody>
@@ -1325,34 +1329,34 @@ evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="
 <p>When the agent runs inside the process that calls <code>run_experiment</code>, the SDK's <code>evalkit.run</code> span carries the session id and this is already done.</p>
 <p>Tool spans from most OpenInference instrumentors carry no <code>tool.id</code>. The check then reports "0 matched to calls by id", and evalkit matches tool results to calls by time and order. That is expected; nothing to fix.</p>
 <h2 id="langgraph">LangGraph<a class="headerlink" href="#langgraph" title="Permanent link">&para;</a></h2>
-<p><code>openinference.json</code> as it is.</p>
+<p><code>openinference</code> as it is.</p>
 <ul>
 <li>A graph node named <code>agent</code> (the tutorial's default) is emitted as an AGENT span. If every model step shows up as a subagent, rename the node, or add <code>"rekind_spans": [{"name": "agent", "kind": "chain"}]</code>.</li>
 </ul>
 <h2 id="langchain">LangChain<a class="headerlink" href="#langchain" title="Permanent link">&para;</a></h2>
-<p><code>langchain.json</code>: <code>openinference.json</code> with <code>input.value</code>, <code>output.value</code>, <code>llm.input_messages.*</code> and <code>llm.output_messages.*</code> in <code>known_attributes</code>. LangChain's CHAIN spans carry flattened messages that the trajectory does not need.</p>
+<p><code>langchain</code>: <code>openinference</code> with <code>input.value</code>, <code>output.value</code>, <code>llm.input_messages.*</code> and <code>llm.output_messages.*</code> in <code>known_attributes</code>. LangChain's CHAIN spans carry flattened messages that the trajectory does not need.</p>
 <ul>
 <li>Put the session id on a span of your own around each turn (see above).</li>
 </ul>
 <h2 id="crewai">CrewAI<a class="headerlink" href="#crewai" title="Permanent link">&para;</a></h2>
-<p><code>crewai.json</code>: <code>openinference.json</code> with CrewAI's agent and tool attributes (<code>agent.backstory</code>, <code>agent.goal</code>, <code>agent.tools</code>, <code>conversation.turn_index</code>, <code>tool.cache_function</code>, <code>tool.current_usage_count</code>, <code>tool.description_updated</code>, <code>tool.result_as_answer</code>) in <code>known_attributes</code>.</p>
+<p><code>crewai</code>: <code>openinference</code> with CrewAI's agent and tool attributes (<code>agent.backstory</code>, <code>agent.goal</code>, <code>agent.tools</code>, <code>conversation.turn_index</code>, <code>tool.cache_function</code>, <code>tool.current_usage_count</code>, <code>tool.description_updated</code>, <code>tool.result_as_answer</code>) in <code>known_attributes</code>.</p>
 <ul>
 <li>Pass <code>provider="openai"</code> (or your provider) to the LLM, or the OpenAI instrumentor does not see the calls.</li>
 <li>If you wrap each turn in your own span, give it kind CHAIN, not AGENT.</li>
 </ul>
 <h2 id="agno">Agno<a class="headerlink" href="#agno" title="Permanent link">&para;</a></h2>
-<p><code>agno.json</code>: <code>openinference.json</code> with <code>agno.*</code> in <code>known_attributes</code>.</p>
+<p><code>agno</code>: <code>openinference</code> with <code>agno.*</code> in <code>known_attributes</code>.</p>
 <ul>
 <li>Set <code>OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096</code>. The default of 128 attributes per span drops the system prompt from the flattened messages. <code>evalkit traces check</code> warns on its <code>llm</code> line when a span lost attributes this way.</li>
 </ul>
 <h2 id="openai-agents-sdk">OpenAI Agents SDK<a class="headerlink" href="#openai-agents-sdk" title="Permanent link">&para;</a></h2>
-<p><code>openinference.json</code> as it is.</p>
+<p><code>openinference</code> as it is.</p>
 <ul>
 <li>Wrap each turn in OpenInference's <code>using_session(session_id)</code>, so the agent's spans carry the session id.</li>
 <li>The workflow trace is an AGENT span named after <code>workflow_name</code>. If the real agent shows up as a subagent of it, add <code>"exclude_spans": ["&lt;workflow name&gt;"]</code>.</li>
 </ul>
 <h2 id="llamaindex">LlamaIndex<a class="headerlink" href="#llamaindex" title="Permanent link">&para;</a></h2>
-<p><code>llamaindex.json</code>: <code>openinference.json</code> with <code>input.value</code> and <code>output.value</code> in <code>known_attributes</code>, and three <code>rekind_spans</code> rules. LlamaIndex emits three LLM-kind spans per model call (an empty <code>_prepare_chat_with_tools</code> span and an outer <code>astream_chat</code> span around the real one), each named after the LLM class (<code>OpenAI.astream_chat</code>, <code>OpenAILike.astream_chat</code>, …). The rules keep the <code>astream_chat</code> span that carries <code>llm.finish_reason</code> as the LLM call and make the other two chains, whatever the class:</p>
+<p><code>llamaindex</code>: <code>openinference</code> with <code>input.value</code> and <code>output.value</code> in <code>known_attributes</code>, and three <code>rekind_spans</code> rules. LlamaIndex emits three LLM-kind spans per model call (an empty <code>_prepare_chat_with_tools</code> span and an outer <code>astream_chat</code> span around the real one), each named after the LLM class (<code>OpenAI.astream_chat</code>, <code>OpenAILike.astream_chat</code>, …). The rules keep the <code>astream_chat</code> span that carries <code>llm.finish_reason</code> as the LLM call and make the other two chains, whatever the class:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">"rekind_spans"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 <span class="w">  </span><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"*.astream_chat"</span><span class="p">,</span><span class="w"> </span><span class="nt">"attribute"</span><span class="p">:</span><span class="w"> </span><span class="s2">"llm.finish_reason"</span><span class="p">,</span><span class="w"> </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"llm"</span><span class="p">},</span>
 <span class="w">  </span><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"*.astream_chat"</span><span class="p">,</span><span class="w"> </span><span class="nt">"kind"</span><span class="p">:</span><span class="w"> </span><span class="s2">"chain"</span><span class="p">},</span>
@@ -1365,27 +1369,27 @@ evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="
 <li>Put the session id on a span of your own around each turn (see above).</li>
 </ul>
 <h2 id="google-adk">Google ADK<a class="headerlink" href="#google-adk" title="Permanent link">&para;</a></h2>
-<p><code>google-adk.json</code>: <code>gen_ai.json</code> with <code>"exclude_spans": ["execute_tool (merged)"]</code> (ADK emits a merged copy of parallel tool calls) and ADK's own attributes (<code>gcp.vertex.agent.*</code>, <code>input.value</code>, <code>output.value</code>, <code>session.id</code>) in <code>known_attributes</code>.</p>
+<p><code>google-adk</code>: <code>gen_ai</code> with <code>"exclude_spans": ["execute_tool (merged)"]</code> (ADK emits a merged copy of parallel tool calls) and ADK's own attributes (<code>gcp.vertex.agent.*</code>, <code>input.value</code>, <code>output.value</code>, <code>session.id</code>) in <code>known_attributes</code>.</p>
 <ul>
 <li>Set <code>OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=SPAN_ONLY</code>. On ADK 2.13, <code>true</code> gives spans without messages.</li>
 <li>Put the session id on a span of your own around each turn (see above), or create the app with <code>FastAPI(telemetry={"tracing": False})</code>.</li>
 <li>ADK's <code>execute_tool</code> spans carry no <code>gen_ai.conversation.id</code>; they join the session through the turn span above them.</li>
 </ul>
 <h2 id="pydantic-ai">Pydantic AI<a class="headerlink" href="#pydantic-ai" title="Permanent link">&para;</a></h2>
-<p><code>gen_ai.json</code> as it is.</p>
+<p><code>gen_ai</code> as it is.</p>
 <ul>
 <li>Pydantic AI sets <code>gen_ai.conversation.id</code> to a new id per <code>agent.run</code>. Your turn span's session id wins over it (see above); passing <code>agent.run(..., conversation_id=session_id)</code> as well is optional and keeps the ids the same in other trace tools.</li>
 <li>If you use Logfire, add the attributes <code>traces check</code> lists as unmapped to <code>known_attributes</code>.</li>
 </ul>
 <h2 id="claude-agent-sdk">Claude Agent SDK<a class="headerlink" href="#claude-agent-sdk" title="Permanent link">&para;</a></h2>
-<p><code>claude-agent-sdk.json</code>: <code>gen_ai.json</code> with <code>"exclude_spans": [{"scope": "mcp-python-sdk"}]</code> and <code>mcp.*</code> and <code>jsonrpc.*</code> in <code>known_attributes</code>. The <code>mcp</code> library emits its own <code>execute_tool</code> spans for every <code>tools/call</code>, which would count each tool call twice. Excluded spans still report their attributes as unmapped, hence the <code>known_attributes</code>.</p>
+<p><code>claude-agent-sdk</code>: <code>gen_ai</code> with <code>"exclude_spans": [{"scope": "mcp-python-sdk"}]</code> and <code>mcp.*</code> and <code>jsonrpc.*</code> in <code>known_attributes</code>. The <code>mcp</code> library emits its own <code>execute_tool</code> spans for every <code>tools/call</code>, which would count each tool call twice. Excluded spans still report their attributes as unmapped, hence the <code>known_attributes</code>.</p>
 <ul>
 <li>The SDK has no OTel instrumentation of its own; the agent builds GenAI spans by hand.</li>
 <li>The SDK reports token usage per turn only: put the totals on the turn's last <code>chat</code> span.</li>
 <li>Add your own app's attribute prefixes to <code>known_attributes</code>.</li>
 </ul>
 <h2 id="mastra">Mastra<a class="headerlink" href="#mastra" title="Permanent link">&para;</a></h2>
-<p><code>mastra.json</code>: <code>gen_ai.json</code> with these changes:</p>
+<p><code>mastra</code>: <code>gen_ai</code> with these changes:</p>
 <ul>
 <li><code>exclude_spans</code> drops Mastra's internal spans by <code>mastra.span.type</code>: <code>processor_run</code>, <code>memory_operation</code> and <code>model_chunk</code>.</li>
 <li><code>answer</code> is <code>invoke_agent &lt;agent name&gt;.text</code>. Replace <code>&lt;agent name&gt;</code> with your agent's name. If you don't, <code>evalkit traces check</code> warns on its <code>answer</code> line that no span has that name, and the trajectory has no answer. The rule splits on the first <code>.</code>, so this form does not work for an agent name with a dot in it; rename the agent or use <code>root</code>.</li>

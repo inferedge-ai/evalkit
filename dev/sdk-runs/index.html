@@ -1311,7 +1311,7 @@
 </code></pre></div>
 <h2 id="the-agent-and-the-judge">The agent and the judge<a class="headerlink" href="#the-agent-and-the-judge" title="Permanent link">&para;</a></h2>
 <p><code>agent="myagent-sdk"</code> names an agent on the server; a bare name means your own workspace. Create it once:</p>
-<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>myagent-sdk<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>openinference.json<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>myagent-sdk<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>openinference<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--max-concurrent-runs<span class="w"> </span><span class="m">4</span><span class="w"> </span>--provides<span class="w"> </span><span class="nv">thinking</span><span class="o">=</span><span class="nb">true</span>
 </code></pre></div>
 <p>Its <code>answer</code> rule and <code>exclude_spans</code> live in its span mapping. <code>evalkit.yaml</code> is still required; it holds the cases, fixtures and credentials.</p>

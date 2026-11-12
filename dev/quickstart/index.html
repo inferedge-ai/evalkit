@@ -1186,7 +1186,7 @@
 <p>The Workspace tab on a run lists the files the agent wrote. evalkit reads them through the Harness API files endpoints, so only the two Harness API paths have it. See <a href="../harness-api/">Harness API</a> for what each endpoint enables.</p>
 <h2 id="2-install-and-log-in">2. Install and log in<a class="headerlink" href="#2-install-and-log-in" title="Permanent link">&para;</a></h2>
 <p>evalkit needs Python 3.12 or newer.</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev88"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev89"</span>
 evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020
 </code></pre></div>
 <p>More in <a href="../install/">Install</a> and <a href="../login/">Login</a>.</p>
@@ -1202,11 +1202,11 @@ evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"
 <p>The file holds no judge key. By default the evaluators that use a judge run on the evalkit server, with the LLM provider configured there. To judge with your own key instead, see <a href="../config/">Config</a>.</p>
 <p>Put the keys in a <code>.env</code> next to <code>evalkit.yaml</code>. Then create your agent on the server once:</p>
 <div class="highlight"><pre><span></span><code><span class="c1"># SDK path: a code-driven agent whose trajectory comes from its traces</span>
-evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>myagent<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>openinference.json
+evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>myagent<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>openinference
 <span class="c1"># Harness API path</span>
 evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>myagent<span class="w"> </span>--harness-url<span class="w"> </span>http://localhost:8080/evalkit/v1
 </code></pre></div>
-<p><code>openinference.json</code> (or <code>gen_ai.json</code>) comes from the <code>connect-traces</code> skill: <code>evalkit skills install</code> copies it to <code>.claude/skills/connect-traces/references/</code> (or <code>.agents/skills/…</code>). See <a href="../install/#the-skills">Install</a>. The skill also ships a mapping per popular framework (LangChain, CrewAI, LlamaIndex, Google ADK, Mastra, …); see <a href="../framework-mappings/">Framework mappings</a>.</p>
+<p><code>openinference</code> (or <code>gen_ai</code>) is a mapping preset that ships with evalkit; <code>evalkit traces mapping presets</code> lists them. There is also one per popular framework (LangChain, CrewAI, LlamaIndex, Google ADK, Mastra, …); see <a href="../framework-mappings/">Framework mappings</a>.</p>
 <p>Each directory under <code>cases</code> is a dataset. Add <code>eval/cases/smoke/cases.yaml</code>:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">cases</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">store-count</span>

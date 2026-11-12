@@ -1325,7 +1325,7 @@ same.</p>
 <h3 id="without-docker">Without Docker<a class="headerlink" href="#without-docker" title="Permanent link">&para;</a></h3>
 <p>evalkit is on PyPI as <code>evalkit-py</code> and needs Python 3.12 or newer. Install it with the server extra, then
 let <code>evalkit init-server</code> set up the rest:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py[server]==0.5.0.dev88"</span><span class="w">   </span><span class="c1"># or: pip install "evalkit-py[server]==0.5.0.dev88"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py[server]==0.5.0.dev89"</span><span class="w">   </span><span class="c1"># or: pip install "evalkit-py[server]==0.5.0.dev89"</span>
 evalkit<span class="w"> </span>init-server
 <span class="nb">cd</span><span class="w"> </span>evalkit-try
 evalkit<span class="w"> </span>serve
@@ -1388,10 +1388,6 @@ every start.</p>
 <td>The SDK run: <code>tracing.register</code> sends the spans to evalkit, and <code>run_experiment</code> calls the agent once per case and scores the answers.</td>
 </tr>
 <tr>
-<td><code>mapping.json</code></td>
-<td>The span mapping: which span attribute holds the model, the messages, the tokens and each tool call. It starts as the connect-traces skill's <code>gen_ai.json</code>.</td>
-</tr>
-<tr>
 <td><code>cases/acme/</code></td>
 <td>Five cases in two folders (tags), with answer rubrics and a tool check.</td>
 </tr>
@@ -1410,10 +1406,10 @@ every start.</p>
 </tbody>
 </table>
 <h2 id="1-install-the-cli-and-log-in">1. Install the CLI and log in<a class="headerlink" href="#1-install-the-cli-and-log-in" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev88"</span><span class="w">   </span><span class="c1"># with Docker only</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev89"</span><span class="w">   </span><span class="c1"># with Docker only</span>
 evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020<span class="w"> </span>--username<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span>evalkit-admin
 </code></pre></div>
-<p><code>0.5.0.dev88</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
+<p><code>0.5.0.dev89</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
 prints it.</p>
 <p><code>evalkit login</code> replaces any login you already saved. To keep it, skip
 <code>evalkit login</code> and give this shell a token for the try-it server instead
@@ -1428,9 +1424,11 @@ to the server's version when <code>evalkit init-server</code> copies it. In an e
 checkout, run the kit's scripts with the checkout instead:
 <code>uv run --project ../../.. python run.py</code>.</p>
 <h2 id="2-connect-the-agents-traces">2. Connect the agent's traces<a class="headerlink" href="#2-connect-the-agents-traces" title="Permanent link">&para;</a></h2>
-<p>Create the agent. Its trajectories come from its spans, read with
-<code>mapping.json</code>:</p>
-<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>analyst<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>mapping.json
+<p>Create the agent. Its trajectories come from its spans, read with a span
+mapping: which span attribute holds the model, the messages, the tokens and
+each tool call. The sample agent's spans follow the GenAI semantic
+conventions, so evalkit's <code>gen_ai</code> mapping preset reads them as it is:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>analyst<span class="w"> </span>--trajectory-source<span class="w"> </span>otel<span class="w"> </span>--mapping<span class="w"> </span>gen_ai
 </code></pre></div>
 <p>Run one case without creating an experiment:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>run.py<span class="w"> </span>--dry-run
@@ -1497,15 +1495,17 @@ raw sessions.</p>
 <li><strong>Cases.</strong> Add a folder under your cases directory, for example
    <code>mine/</code>, and run with <code>dataset="mine"</code>. The authoring-eval-cases skill
    covers the format. See <a href="../concepts/">Concepts</a> for the terms.</li>
-<li><strong>Agent and mapping.</strong> Copy this kit's <code>mapping.json</code> into your
-   repository, or <code>openinference.json</code> from the connect-traces skill if your
-   spans follow OpenInference, and create the agent with it:
+<li><strong>Agent and mapping.</strong> Pick the mapping preset for your framework
+   (<a href="../framework-mappings/">Framework mappings</a>; <code>evalkit traces mapping
+   presets</code> lists them), or <code>openinference</code> if your spans follow
+   OpenInference, and create the agent with it:
    <code>evalkit agents create myagent --trajectory-source otel --mapping
-   my-mapping.json</code>. Do a dry run with your script and <code>evalkit traces check</code>
-   on its session, as in step 2. For each <code>!</code> line, edit your copy, upload it
-   as a draft and preview the same session:</li>
+   openinference</code>. Do a dry run with your script and <code>evalkit traces check</code>
+   on its session, as in step 2. For each <code>!</code> line, save the preset to a
+   file, edit it, upload it as a draft and preview the same session:</li>
 </ol>
-<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>push<span class="w"> </span>myagent<span class="w"> </span>my-mapping.json
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>presets<span class="w"> </span>openinference<span class="w"> </span>&gt;<span class="w"> </span>my-mapping.json
+evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class="w"> </span>push<span class="w"> </span>myagent<span class="w"> </span>my-mapping.json
 evalkit<span class="w"> </span>traces<span class="w"> </span>check<span class="w"> </span>myagent<span class="w"> </span>&lt;session<span class="w"> </span>id&gt;<span class="w"> </span>--mapping<span class="w"> </span>draft
 </code></pre></div>
 <p>When it reads right, activate it with the version push printed:
