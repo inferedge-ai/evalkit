@@ -1770,6 +1770,54 @@ def test_login_falls_back_to_the_password_path_without_an_idp(server, tmp_path, 
     assert "token = " in config_path.read_text()
 
 
+def test_login_without_url_names_hosted_evalkit_and_never_prompts(tmp_path, monkeypatch):
+    asked: list[str] = []
+
+    def fetch(url, transport=None):
+        asked.append(url)
+        return {"oidc": None}
+
+    posted: list[str] = []
+
+    class StubClient:
+        def __init__(self, url):
+            posted.append(url)
+
+        def post(self, path, json):
+            return httpx2.Response(200, json={"token": "tok", "username": "ann"})
+
+    monkeypatch.setattr(client_oidc, "fetch_providers", fetch)
+    monkeypatch.setattr(main_module, "ApiClient", StubClient)
+    config_path = tmp_path / "login.toml"
+    monkeypatch.setattr(connection, "CONFIG_PATH", config_path)
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login"], input="ann\npw\n")
+    assert result.exit_code == 0, result.output
+    first_line = result.output.splitlines()[0]
+    assert first_line == (
+        "logging in to https://evalkit.inferedge.com; pass --url to log in to another server"
+    )
+    assert "Server URL" not in result.output
+    assert asked == posted == [connection.DEFAULT_SERVER_URL]
+    saved = connection.load(config_path)
+    assert saved is not None and saved.url == "https://evalkit.inferedge.com"
+
+
+def test_login_url_overrides_hosted_evalkit(tmp_path, monkeypatch):
+    asked: list[str] = []
+
+    def fetch(url, transport=None):
+        asked.append(url)
+        raise httpx2.ConnectError("stop here")
+
+    monkeypatch.setattr(client_oidc, "fetch_providers", fetch)
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "https://env.test")
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert asked == ["https://evalkit.test"]
+    assert "logging in to" not in result.output and "inferedge.com" not in result.output
+
+
 def test_login_runs_the_loopback_flow_and_registers(tmp_path, monkeypatch):
     idp = FakeIdp()
     idp.next_login = ("sub-ann", "ann@example.com", "ann")

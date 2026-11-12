@@ -229,7 +229,12 @@ def _print_findings(findings: list[dict]) -> None:
 
 @app.command()
 def login(
-    url: str = typer.Option(None, "--url", help="Server base URL, e.g. https://evalkit.internal"),
+    url: str | None = typer.Option(
+        None,
+        "--url",
+        help=f"Server base URL, for a server other than hosted evalkit "
+        f"({connection.DEFAULT_SERVER_URL}), e.g. https://evalkit.internal",
+    ),
     username: str = typer.Option(
         None,
         "--username",
@@ -244,15 +249,17 @@ def login(
         "(device authorization grant).",
     ),
 ):
-    """Log in to a server and store the login in ~/.evalkit/config.toml, replacing any
-    earlier one.
+    """Log in to hosted evalkit, or to the server --url names, and store the login in
+    ~/.evalkit/config.toml, replacing any earlier one.
 
     With single sign-on configured on the server, the command opens your browser at
     the identity provider and stores the IdP's tokens; they refresh themselves. Pass
     --username for a password login instead.
-    Example: evalkit login --url https://evalkit.example.com
+    Example: evalkit login · evalkit login --url https://evalkit.example.com
     """
-    url = url or typer.prompt("Server URL")
+    if url is None:
+        url = connection.DEFAULT_SERVER_URL
+        typer.echo(f"logging in to {url}; pass --url to log in to another server")
     providers_oidc = None if username is not None else oidc.fetch_providers(url)["oidc"]
     if providers_oidc is None:
         username = username or typer.prompt("Username")
@@ -327,7 +334,9 @@ def whoami():
 @app.command()
 def update(
     server: str = typer.Option(
-        None, "--server", help="Server base URL; defaults to the one you logged in to."
+        None,
+        "--server",
+        help="Server base URL; defaults to the one you logged in to (or EVALKIT_SERVER_URL).",
     ),
     skills: bool = typer.Option(
         True,

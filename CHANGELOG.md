@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- The `otel` extra is gone: `opentelemetry-sdk` and
+  `opentelemetry-exporter-otlp-proto-http` are now base dependencies of
+  `evalkit-py`, so `evalkit.sdk.tracing.register` and SDK runs with traces work
+  on a plain `uv add evalkit-py`. `evalkit-py[otel]` no longer names an extra:
+  pip and uv still install the package but warn about an unknown extra, so drop
+  `[otel]` from your pins. The base install, the CLI included, now also pulls in
+  the OpenTelemetry SDK, the OTLP HTTP exporter and what they need
+  (`opentelemetry-proto`, `protobuf`, `requests` and others). `evalkit
+  init-server` writes `evalkit-py==<version>` into the try-it kit's `run.py`,
+  and the vendored-wheel hint from `evalkit update` names `evalkit-py==<version>`.
+  The `evalkit tracing needs the otel extra` error no longer exists.
+- `evalkit login` no longer asks for a server URL. Without `--url` it logs in
+  to hosted evalkit, `https://evalkit.inferedge.com`, and first prints
+  `logging in to https://evalkit.inferedge.com; pass --url to log in to another
+  server`. Self-hosted users must pass `--url <url>`; before, a bare
+  `evalkit login` prompted `Server URL`. The "no server configured" and old
+  profiles-file errors now name both forms. `EVALKIT_SERVER_URL` works as
+  before and does not change where `evalkit login` logs in.
 - `evalkit.yaml` is optional. Without one, the CLI and `run_experiment` act as
   if the file sat in the current directory with `cases: eval/cases`,
   `fixtures: eval/fixtures` and no credentials, and read the `.env` there. A

@@ -41,16 +41,18 @@ and how case review works.
    version filled in. `evalkit --version` prints what you have.
 
    For SDK runs, add evalkit to the project at the same version:
-   `uv add "evalkit-py[otel]==<version>"`; `uv.lock` pins it. To keep evalkit
+   `uv add "evalkit-py==<version>"`; `uv.lock` pins it. To keep evalkit
    out of the app's dependencies, run the eval script with
-   `uv run --with "evalkit-py[otel]==<version>" python eval/run.py` instead.
+   `uv run --with "evalkit-py==<version>" python eval/run.py` instead.
    After a server deploy, local and SDK runs refuse to start until the
    versions match: run `evalkit update` from the project root, which
    reinstalls the CLI, moves the `evalkit-py` pin in `pyproject.toml` (and
    runs `uv sync`) and refreshes the skills `evalkit skills install` put in
    your repos, in one step.
-2. `evalkit login --url <url>` with your username, e.g. `evalkit login
-   --url https://evalkit.internal`. The login is stored in
+2. `evalkit login` logs in to hosted evalkit, `https://evalkit.inferedge.com`,
+   and prints that server first. For any other server pass `--url`, e.g.
+   `evalkit login --url https://evalkit.internal`.
+   The login is stored in
    `~/.evalkit/config.toml`. The CLI talks to one server at a time; logging
    in again replaces the stored login. Dev and prod are shared workspaces on
    that server (`@dev`, `@prod`), not separate logins. With single sign-on
@@ -217,8 +219,7 @@ of several tags. Local runs require the CLI and server versions to match.
 
 An agent that is a library, a notebook, or a service with its own job runner
 does not need a Harness API. Install the SDK into the project (the web UI's
-Docs → Install page has the exact command for your server; it is
-`evalkit-py` with the `otel` extra), create a code-driven agent (no `--harness-url`),
+Docs → Install page has the exact command for your server), create a code-driven agent (no `--harness-url`),
 and run the experiment from your own code. A local run uses
 your own login for the API calls (the one from `evalkit login`, or
 `EVALKIT_SERVER_URL` and the machine client variables). The exported traces
@@ -401,7 +402,7 @@ Harness API page has the full table.
 | Move cases through review | `evalkit review` (subcommands below) |
 | Ask about runs, failures, usage or experiments from Claude, Cursor or Codex | the MCP server at `{{origin}}/mcp` (below) |
 | Update the CLI and a project's `evalkit-py` pin to the server's version | `evalkit update` |
-| Add the SDK to a project | `uv add "evalkit-py[otel]==<server version>"` |
+| Add the SDK to a project | `uv add "evalkit-py==<server version>"` |
 | Vendor these skills into a repo | `evalkit skills install` |
 
 Read `evalkit <command> --help` before you run a command. It is the source of
