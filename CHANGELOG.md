@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- A package extending evalkit's UI can add pages signed-out visitors open and
+  a page for `/`. `UiExtensions` has two new required fields, so a wrapper's
+  `ui/src/extensions/index.tsx` must set both:
+  - `publicRoutes` render under the public navbar for a signed-out visitor
+    and inside the app shell for a signed-in person, as `/docs` does.
+  - `landingPage` (or `null`) is what a signed-out visitor sees at `/`;
+    signing out then lands on `/` instead of `/login`. A signed-out deep link
+    still goes straight to sign-in.
+  - The new `SignInLink` (`@/auth/SignInLink`) starts sign-in at once, even
+    right after a sign-out; the public navbar's Sign in button uses it, so
+    it no longer stops at "You're signed out · Sign in again".
+  - `/login?prompt=<value>` passes `prompt` to the identity provider's
+    authorize request, e.g. `prompt=create` for its sign-up form.
+  - While evalkit hands sign-in to the identity provider, the page says
+    "Signing you in…" instead of "Taking you to <provider>…".
 - With `auth.password_login: none`, evalkit makes no password accounts:
   `POST /api/users` with a password (`evalkit users add <name>`) and
   `POST /api/users/{name}/password` (`evalkit users set-password`) answer 400.
