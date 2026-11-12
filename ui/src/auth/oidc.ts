@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   UserManager,
   WebStorageStateStore,
+  type RefreshState,
   type UserManagerSettings,
 } from "oidc-client-ts";
 
@@ -13,6 +14,7 @@ export type OidcProviders = {
   client_id: string;
   scopes: string[];
   authorize_params: Record<string, string>;
+  ui_resources: string[];
   authorization_endpoint: string;
   token_endpoint: string;
   device_authorization_endpoint: string | null;
@@ -29,7 +31,14 @@ export interface SessionUser {
   refresh_token?: string;
   expires_in?: number;
   state?: unknown;
+  profile?: { sub: string };
 }
+
+export type ApiToken = {
+  access_token: string;
+  expires_in?: number;
+  sub: string;
+};
 
 export interface OidcSession {
   getUser(): Promise<SessionUser | null>;
@@ -41,6 +50,36 @@ export interface OidcSession {
   signinCallback(): Promise<SessionUser | undefined>;
   signinSilent(): Promise<SessionUser | null>;
   removeUser(): Promise<void>;
+  requestApiToken(resource: string): Promise<ApiToken | null>;
+}
+
+class EvalkitUserManager extends UserManager {
+  // Refreshes for another API without replacing the stored evalkit token, and
+  // keeps the rotated refresh token: the provider revokes a reused one.
+  async requestApiToken(resource: string): Promise<ApiToken | null> {
+    const user = await this.getUser();
+    if (user?.refresh_token === undefined) return null;
+    // oidc-client-ts types RefreshState as exported but doesn't export it; this
+    // is the object it builds from a User.
+    const state: RefreshState = {
+      refresh_token: user.refresh_token,
+      id_token: user.id_token,
+      session_state: user.session_state,
+      scope: user.scope,
+      profile: user.profile,
+      data: user.state,
+    };
+    const response = await this._client.useRefreshToken({ state, resource });
+    if (response.refresh_token) {
+      user.refresh_token = response.refresh_token;
+      await this.storeUser(user);
+    }
+    return {
+      access_token: response.access_token,
+      expires_in: response.expires_in,
+      sub: user.profile.sub,
+    };
+  }
 }
 
 let providersPromise: Promise<Providers> | null = null;
@@ -96,13 +135,15 @@ export function userManagerSettings(
   origin: string,
 ): UserManagerSettings {
   const store = typeof localStorage !== "undefined" ? localStorage : undefined;
+  const { resource, ...authorizeParams } = oidc.authorize_params;
   return {
     authority: oidc.issuer,
     client_id: oidc.client_id,
     redirect_uri: `${origin}/login/callback`,
     scope: oidc.scopes.join(" "),
     response_type: "code",
-    extraQueryParams: oidc.authorize_params,
+    resource: resource ? [resource, ...oidc.ui_resources] : undefined,
+    extraQueryParams: authorizeParams,
     userStore:
       store === undefined ? undefined : new WebStorageStateStore({ store }),
     automaticSilentRenew: false,
@@ -119,7 +160,7 @@ export async function session(): Promise<OidcSession | null> {
     manager =
       providers.oidc === null
         ? null
-        : new UserManager(
+        : new EvalkitUserManager(
             userManagerSettings(providers.oidc, window.location.origin),
           );
   }

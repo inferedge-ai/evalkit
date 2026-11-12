@@ -205,6 +205,16 @@ then add plain FastAPI routes with `app.include_router(...)`.
   passes `prompt` to the identity provider's authorize request, so
   `<SignInLink prompt="create">` opens the provider's sign-up form where it
   supports OpenID Connect Prompt Create.
+- To call another API as the signed-in person, list it in the server's
+  `auth.oidc.ui_resources`; the web UI's sign-in then names it after
+  evalkit's own API. A page gets a token for it with
+  `getApiToken(resource)` from `@/auth/apiToken`. It returns `null` when
+  nobody is signed in through the identity provider or the provider refuses,
+  for example a session from before the setting; offer `SignInLink` then. It
+  throws for an API not in `ui_resources`. It refreshes with the person's
+  refresh token under the same cross-tab lock as evalkit's own refresh,
+  stores the rotated refresh token, keeps evalkit's access token, and reuses
+  the token until a minute before it expires.
 - Pages may use the shadcn components in `@/components/ui/` (`Button`,
   `buttonVariants`, `Card` and the rest), which keep shadcn's names and
   props.
@@ -225,7 +235,7 @@ then add plain FastAPI routes with `app.include_router(...)`.
   ⌘K search.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
   `PageHeader`, `Empty`, `SignInLink`, `/login`'s `next` and `prompt`,
-  `SIGNED_IN`, `get_config` and
+  `getApiToken`, `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config` and
   `get_allow_private_endpoints` stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
