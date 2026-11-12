@@ -4,6 +4,16 @@
 evalkit login --url {{origin}}
 ```
 
+`--url` names the server. Without it, `evalkit login` logs in to hosted
+evalkit, `https://evalkit.inferedge.com`, and prints that first:
+
+```text
+logging in to https://evalkit.inferedge.com; pass --url to log in to another server
+```
+
+The command never asks for a URL, so on a self-hosted server always pass
+`--url`.
+
 With single sign-on configured on the server, the command opens your browser
 at your identity provider. Sign in there; the browser comes back to the CLI
 on a local port, and the CLI stores the identity provider's tokens in
@@ -24,7 +34,7 @@ server (`finance@dev`, `finance@prod`), not separate logins.
 `client credentials`) and when the current token expires, and exits 1 if the
 server rejects it. An SSO access token expires within the hour and renews
 itself; that line is not a reason to log in again. When a command fails with
-`your login has expired`, run `evalkit login` again.
+`your login has expired`, run the `evalkit login` command it prints.
 
 The first sign-in creates your evalkit user, named after the part before `@`
 in your identity provider's username or email, in lowercase. If another user

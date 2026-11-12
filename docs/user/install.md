@@ -88,4 +88,4 @@ A CLI older than 0.3.0 cannot update itself: `evalkit update` fails with `KeyErr
 
 A project that vendored an evalkit wheel before evalkit was on PyPI moves to PyPI once: `uv remove evalkit && uv add "evalkit-py[otel]=={{version}}"`.
 
-Next: [Login](login.md).
+Next: [Login](login.md). `evalkit login` logs in to hosted evalkit, `https://evalkit.inferedge.com`; for any other server, pass its URL: `evalkit login --url {{origin}}`.

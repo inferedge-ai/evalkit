@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- `evalkit login` no longer asks for a server URL. Without `--url` it logs in
+  to hosted evalkit, `https://evalkit.inferedge.com`, and first prints
+  `logging in to https://evalkit.inferedge.com; pass --url to log in to another
+  server`. Self-hosted users must pass `--url <url>`; before, a bare
+  `evalkit login` prompted `Server URL`. The "no server configured" and old
+  profiles-file errors now name both forms. `EVALKIT_SERVER_URL` works as
+  before and does not change where `evalkit login` logs in.
+
 ## 0.5.0
 
 - An SSO first sign-in derives the username more loosely: it is the part before

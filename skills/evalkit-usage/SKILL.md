@@ -49,8 +49,10 @@ and how case review works.
    reinstalls the CLI, moves the `evalkit-py` pin in `pyproject.toml` (and
    runs `uv sync`) and refreshes the skills `evalkit skills install` put in
    your repos, in one step.
-2. `evalkit login --url <url>` with your username, e.g. `evalkit login
-   --url https://evalkit.internal`. The login is stored in
+2. `evalkit login` logs in to hosted evalkit, `https://evalkit.inferedge.com`,
+   and prints that server first. It never asks for a URL: for any other
+   server pass `--url`, e.g. `evalkit login --url https://evalkit.internal`.
+   The login is stored in
    `~/.evalkit/config.toml`. The CLI talks to one server at a time; logging
    in again replaces the stored login. Dev and prod are shared workspaces on
    that server (`@dev`, `@prod`), not separate logins. With single sign-on
