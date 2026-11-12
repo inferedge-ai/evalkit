@@ -5,12 +5,19 @@
 - New server setting `auth.oidc.ui_resources`: other APIs the web UI signs
   in for, so pages a package extending evalkit adds can call them as the
   signed-in person. The web UI's sign-in names `authorize_params.resource`
-  first and these after, as repeated `resource` parameters, and evalkit's own
-  calls keep the token for evalkit's API. The setting needs
+  first and these after, as repeated `resource` parameters. Its code exchange
+  and its own refreshes then name `authorize_params.resource`, so evalkit's
+  calls keep a token for evalkit's API. The setting needs
   `authorize_params.resource`; the server refuses to start without it.
   `GET /api/auth/providers` returns it in `oidc.ui_resources`. `evalkit login`
   doesn't send it. A page gets a token for one of these APIs with
   `getApiToken(resource)` from `@/auth/apiToken`.
+- New `GET /api/mapping-presets` returns the span mapping presets the package
+  ships, as `[{"name", "document"}]`, to any signed-in user. In the web UI, the
+  new-agent and edit-agent forms have a preset picker above "Span mapping": a
+  pick fills the field with the preset's JSON, which stays editable. When the
+  pick replaces text you typed or pasted, the form says so and offers Undo,
+  which brings that text back even after several picks.
 - A package extending evalkit's UI can add pages signed-out visitors open and
   a page for `/`. `UiExtensions` has two new required fields, so a wrapper's
   `ui/src/extensions/index.tsx` must set both:
