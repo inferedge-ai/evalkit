@@ -107,9 +107,12 @@
     error says to delete the file or set `cases:` and `fixtures:` to another
     folder. Commands that sync nothing from disk are not affected.
 - The web UI's sign-in pages (`/login` and `/login/callback`) no longer show
-  the public navbar, so they have no theme switch; the theme follows the one
-  saved in the browser or the system's. The card shows the Evalkit wordmark
-  centred at its top. `/login` has a footer: **Docs** opens the in-app docs
+  the public navbar, so they have no theme switch. They use the theme last
+  chosen in that browser (the system's on a browser's first visit); to change
+  it, use the switch on any other page. The card shows the Evalkit wordmark
+  centred at its top; when a package extending evalkit sets a landing page,
+  the wordmark links to `/`, so a visitor can go back to it. `/login` has a
+  footer: **Docs** opens the in-app docs
   at `/docs`, **GitHub** opens the repository in a new tab, and the version
   the server runs (`evalkit-py v0.5.0`, from `GET /api/cli`) opens that
   version's GitHub release in a new tab. A development build (`0.5.0.dev12`)

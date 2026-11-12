@@ -271,6 +271,7 @@ describe("LoginPage", () => {
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", "noreferrer");
     }
+    expect(footer.queryByRole("separator")).toBeNull();
   });
 
   it("shows a development build's version as text, since it has no release", async () => {
@@ -303,7 +304,9 @@ describe("LoginPage", () => {
       Response.json({ detail: "unavailable" }, { status: 503 }),
     );
     await vi.waitFor(() =>
-      expect(queryClient.getQueryState(["/cli"])?.status).toBe("error"),
+      expect(queryClient.getQueryState(["cli", "public"])?.status).toBe(
+        "error",
+      ),
     );
     expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
       "Docs",

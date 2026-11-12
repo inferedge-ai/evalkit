@@ -1,6 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
+import { extensions } from "../extensions";
 import { isSignedOut, login } from "../lib/api";
 import { Wordmark } from "../shell/Shell";
 import { safeNext } from "./next";
@@ -34,7 +40,13 @@ export function SignInCard({
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
         <h1>
-          <Wordmark />
+          {extensions.landingPage ? (
+            <Link to="/">
+              <Wordmark />
+            </Link>
+          ) : (
+            <Wordmark />
+          )}
         </h1>
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>

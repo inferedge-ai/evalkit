@@ -185,6 +185,28 @@ test("the sign-in page has no navbar, while the docs pages keep it", async () =>
   ).toBeVisible();
 });
 
+test("the sign-in card's wordmark leads back to the wrapper's landing page", async () => {
+  await logout();
+  serve(null);
+  openApp("/login");
+  const heading = await screen.findByRole("heading", { name: "Evalkit" });
+
+  await userEvent
+    .setup()
+    .click(within(heading).getByRole("link", { name: "Evalkit" }));
+
+  expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
+  expect(where()).toBe("/");
+});
+
+test("without a landing page, the sign-in card's wordmark is not a link", async () => {
+  wrapper.landingPage = null;
+  serve(null);
+  openApp("/login");
+  const heading = await screen.findByRole("heading", { name: "Evalkit" });
+  expect(within(heading).queryByRole("link")).toBeNull();
+});
+
 test("a public page opens under the public navbar when signed out and in the app shell when signed in", async () => {
   wrapper.publicRoutes = [{ path: "/terms", element: <h1>Terms of use</h1> }];
   serve(null);

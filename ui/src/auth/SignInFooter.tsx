@@ -9,7 +9,8 @@ const REPO_URL = "https://github.com/inferedge-ai/evalkit";
 const LINK_CLASS =
   "inline-flex items-center gap-1 underline-offset-2 hover:text-foreground hover:underline";
 
-// mark-github-16 from Primer Octicons 19.42.0, MIT licence.
+// mark-github-16 from Primer Octicons 19.42.0.
+// Copyright (c) 2026 GitHub Inc., MIT licence.
 function GitHubMark() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3 fill-current">
@@ -45,20 +46,20 @@ async function fetchCliInfo(): Promise<CliInfo> {
 }
 
 export function SignInFooter() {
-  const cli = useQuery({ queryKey: ["/cli"], queryFn: fetchCliInfo });
+  const cli = useQuery({ queryKey: ["cli", "public"], queryFn: fetchCliInfo });
   return (
     <footer className="flex flex-wrap items-center justify-center gap-3 p-4 text-xs text-muted-foreground">
       <Link to="/docs" className={LINK_CLASS}>
         Docs
       </Link>
-      <Separator orientation="vertical" />
+      <Separator orientation="vertical" aria-hidden />
       <FooterLink href={REPO_URL}>
         <GitHubMark />
         GitHub
       </FooterLink>
       {cli.data && (
         <>
-          <Separator orientation="vertical" />
+          <Separator orientation="vertical" aria-hidden />
           <VersionLabel cli={cli.data} />
         </>
       )}
