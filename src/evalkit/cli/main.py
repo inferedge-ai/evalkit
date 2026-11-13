@@ -699,7 +699,8 @@ def _run_on_server(
         created = client.post("/api/experiments", json=payload).json()
         exp_id = int(created["id"])
         _warn_dropped(created.get("dropped_cases") or [])
-    typer.echo(f"experiment {exp_id}: {_experiment_url(exp_id)}")
+    typer.echo(f"experiment {exp_id}")
+    _echo_link(exp_id)
     last = None
     while True:
         body = client.get(f"/api/experiments/{exp_id}").json()
@@ -1092,7 +1093,7 @@ def experiments_list(
             f"{exp['id']:>5}  {exp['dataset']:<28} {exp['agent']:<24} {exp['status']:<10} "
             f"{exp['started_at'][:16].replace('T', ' ')}  {scores or '-'}"
         )
-    typer.echo("one experiment with its link: evalkit status <id>")
+    typer.echo("evalkit status <id> shows one experiment and its link")
 
 
 def _fmt_score(value: float | None) -> str:

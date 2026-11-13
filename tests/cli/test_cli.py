@@ -313,7 +313,7 @@ def test_run_prints_summary(env):
     )
     assert result.exit_code == 0, result.output
     exp_id = _exp_id(result.output)
-    assert f"experiment {exp_id}: {base_url}/experiments/{exp_id}" in result.output
+    assert f"experiment {exp_id}\nlink: {base_url}/experiments/{exp_id}\n" in result.output
     assert "completed (2/2 ran, 2/2 evaluated)" in result.output
     assert "buckets:" in result.output
     assert "answer_rubric_score" in result.output
@@ -1958,7 +1958,9 @@ def test_experiments_list_filters_by_dataset(env):
         header, first = listed.output.splitlines()[:2]
         assert header.split()[:2] == ["id", "dataset"]
         assert first.split()[0] == str(rows[0]["id"])
-        assert listed.output.rstrip().endswith("one experiment with its link: evalkit status <id>")
+        assert listed.output.rstrip().endswith(
+            "evalkit status <id> shows one experiment and its link"
+        )
     else:
         assert "no experiments" in listed.output
     missing = runner.invoke(cli_app, ["experiments", "list", "--dataset", "nope@canonical"])
