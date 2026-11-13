@@ -9,8 +9,15 @@ export interface AgentFormValues {
   repo_url: string;
   mapping: string;
   api_key: ApiKeyValue;
-  settings: Record<keyof Omit<AgentSettings, "provides">, string>;
+  trace_source: string;
+  project: string;
+  settings: Record<NumericSetting, string>;
 }
+
+type NumericSetting = keyof Omit<
+  AgentSettings,
+  "provides" | "trace_source" | "project"
+>;
 
 export const SETTING_FIELDS: {
   key: keyof AgentFormValues["settings"];
@@ -24,12 +31,23 @@ export const SETTING_FIELDS: {
   { key: "trajectory_wait_seconds", label: "Trajectory wait (s)", min: 0 },
 ];
 
+export const IMPORT_FIELDS: {
+  key: keyof AgentFormValues["settings"];
+  label: string;
+  min: number;
+}[] = [
+  { key: "import_settle_seconds", label: "Import settle (s)", min: 0 },
+  { key: "import_wait_seconds", label: "Import wait (s)", min: 0 },
+];
+
 const DEFAULTS: AgentFormValues["settings"] = {
   max_concurrent_runs: "4",
   run_timeout_seconds: "840",
   poll_interval_seconds: "5",
   stop_grace_seconds: "120",
   trajectory_wait_seconds: "60",
+  import_settle_seconds: "15",
+  import_wait_seconds: "120",
 };
 
 export function emptyAgentForm(workspace: string): AgentFormValues {
@@ -41,14 +59,16 @@ export function emptyAgentForm(workspace: string): AgentFormValues {
     repo_url: "",
     mapping: "",
     api_key: { key: "", clear: false },
+    trace_source: "",
+    project: "",
     settings: { ...DEFAULTS },
   };
 }
 
 export function agentFormFrom(agent: AgentInfo): AgentFormValues {
   const settings = { ...DEFAULTS };
-  for (const { key } of SETTING_FIELDS)
-    settings[key] = String(agent.settings[key]);
+  for (const { key } of [...SETTING_FIELDS, ...IMPORT_FIELDS])
+    settings[key] = String(agent.settings[key] ?? DEFAULTS[key]);
   return {
     workspace: agent.workspace,
     name: agent.name,
@@ -57,6 +77,8 @@ export function agentFormFrom(agent: AgentInfo): AgentFormValues {
     repo_url: agent.repo_url ?? "",
     mapping: "",
     api_key: { key: "", clear: false },
+    trace_source: agent.settings.trace_source ?? "",
+    project: agent.settings.project ?? "",
     settings,
   };
 }
@@ -95,7 +117,16 @@ export function agentFormErrors(
   ) {
     errors.push("The span mapping is not a JSON object.");
   }
-  for (const { key, label, min } of SETTING_FIELDS) {
+  if (values.trace_source && values.trajectory_source !== "otel")
+    errors.push(
+      "Only an agent whose trajectories come from traces takes a trace source.",
+    );
+  if (values.trace_source && !values.project.trim())
+    errors.push("A trace source needs the agent's project in it.");
+  const numeric = values.trace_source
+    ? [...SETTING_FIELDS, ...IMPORT_FIELDS]
+    : SETTING_FIELDS;
+  for (const { key, label, min } of numeric) {
     const raw = values.settings[key].trim();
     const n = Number(raw);
     if (!raw || !Number.isInteger(n) || n < min)
@@ -105,9 +136,15 @@ export function agentFormErrors(
 }
 
 function settingsOf(values: AgentFormValues): Omit<AgentSettings, "provides"> {
-  const out = {} as Omit<AgentSettings, "provides">;
-  for (const { key } of SETTING_FIELDS) out[key] = Number(values.settings[key]);
-  return out;
+  const numbers = {} as Record<NumericSetting, number>;
+  for (const { key } of [...SETTING_FIELDS, ...IMPORT_FIELDS])
+    numbers[key] = Number(values.settings[key]);
+  const source = values.trace_source || null;
+  return {
+    ...numbers,
+    trace_source: source,
+    project: source ? values.project.trim() : null,
+  };
 }
 
 export function urlClearsKey(

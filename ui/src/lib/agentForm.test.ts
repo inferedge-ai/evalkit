@@ -33,6 +33,33 @@ describe("agent form", () => {
     expect(createAgentBody(ok).mapping).toEqual({ schema_version: "1" });
   });
 
+  it("sends a trace source with its project and import timings", () => {
+    const otel = {
+      ...emptyAgentForm("dev"),
+      name: "traced",
+      trajectory_source: "otel" as const,
+      mapping: '{"schema_version": "1"}',
+      trace_source: "phx",
+    };
+    expect(agentFormErrors(otel, "create")).toEqual([
+      "A trace source needs the agent's project in it.",
+    ]);
+    const ok = { ...otel, project: " ra " };
+    expect(agentFormErrors(ok, "create")).toEqual([]);
+    expect(createAgentBody(ok).settings).toMatchObject({
+      trace_source: "phx",
+      project: "ra",
+      import_settle_seconds: 15,
+      import_wait_seconds: 120,
+    });
+    const atif = { ...ok, trajectory_source: "atif" as const };
+    expect(agentFormErrors(atif, "create")).toContain(
+      "Only an agent whose trajectories come from traces takes a trace source.",
+    );
+    const none = createAgentBody({ ...ok, trace_source: "" }).settings;
+    expect(none).toMatchObject({ trace_source: null, project: null });
+  });
+
   it("rejects settings that are not whole numbers", () => {
     const values = { ...emptyAgentForm("dev"), name: "a" };
     values.settings.max_concurrent_runs = "2.5";

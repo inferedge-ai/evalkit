@@ -247,6 +247,14 @@ export function RunPage() {
       {header}
       <div className="page flex min-h-0 flex-1 flex-col">
         {error && <div className="pane-status error">{error}</div>}
+        {record?.trajectory_note && (
+          <div
+            className="pane-status mb-2 whitespace-normal"
+            title="why the trajectory is partial or unavailable, or what its mapping missed"
+          >
+            Trajectory {trajectoryStatus}: {record.trajectory_note}
+          </div>
+        )}
         <div className="toolbar mb-2">
           {harnessRunId && (
             <span
