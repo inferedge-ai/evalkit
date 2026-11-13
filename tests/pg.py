@@ -30,13 +30,36 @@ def _database(server_url: str, template: str | None) -> Iterator[str]:
     _admin(server_url, f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
 
 
+def _reset(url: str) -> None:
+    engine = create_engine(url, isolation_level="AUTOCOMMIT")
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity"
+                " WHERE datname = current_database() AND pid <> pg_backend_pid()"
+            )
+        )
+        tables = conn.execute(
+            text(
+                "SELECT quote_ident(tablename) FROM pg_tables"
+                " WHERE schemaname = 'public' AND tablename <> 'alembic_version'"
+            )
+        ).scalars()
+        conn.execute(text(f"TRUNCATE {', '.join(tables)} RESTART IDENTITY CASCADE"))
+    engine.dispose()
+
+
 @pytest.fixture(scope="session")
 def pg_server_url() -> Iterator[str]:
     url = os.environ.get("EVALKIT_TEST_PG_URL")
     if url:
         yield url
         return
-    with PostgresContainer("postgres:17", driver="psycopg") as container:
+    container = PostgresContainer("postgres:17", driver="psycopg").with_command(
+        "postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off"
+        " -c authentication_timeout=5s"
+    )
+    with container:
         yield container.get_connection_url()
 
 
@@ -54,13 +77,30 @@ def fresh_db_url(pg_server_url: str) -> Iterator[str]:
     yield from _database(pg_server_url, None)
 
 
-@pytest.fixture
-def db_url(pg_server_url: str, pg_template: str) -> Iterator[str]:
+@pytest.fixture(scope="session")
+def worker_db_url(pg_server_url: str, pg_template: str) -> Iterator[str]:
     yield from _database(pg_server_url, pg_template)
 
 
+@pytest.fixture(scope="session")
+def worker_module_db_url(pg_server_url: str, pg_template: str) -> Iterator[str]:
+    yield from _database(pg_server_url, pg_template)
+
+
+@pytest.fixture
+def db_url(worker_db_url: str) -> Iterator[str]:
+    yield worker_db_url
+    _reset(worker_db_url)
+
+
 @pytest.fixture(scope="module")
-def module_db_url(pg_server_url: str, pg_template: str) -> Iterator[str]:
+def module_db_url(worker_module_db_url: str) -> Iterator[str]:
+    yield worker_module_db_url
+    _reset(worker_module_db_url)
+
+
+@pytest.fixture
+def scratch_db_url(pg_server_url: str, pg_template: str) -> Iterator[str]:
     yield from _database(pg_server_url, pg_template)
 
 

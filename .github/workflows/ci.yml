@@ -97,6 +97,16 @@ jobs:
           python-version: "3.12"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
+      - name: Tune Postgres for throwaway test data
+        env:
+          PGPASSWORD: postgres
+        run: >-
+          psql -h localhost -U postgres
+          -c "ALTER SYSTEM SET fsync = off"
+          -c "ALTER SYSTEM SET synchronous_commit = off"
+          -c "ALTER SYSTEM SET full_page_writes = off"
+          -c "ALTER SYSTEM SET authentication_timeout = '5s'"
+          -c "SELECT pg_reload_conf()"
       - run: uv sync --frozen --extra server
       - run: uv run ruff check .
       - run: uv run ruff format --check .
