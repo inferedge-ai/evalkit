@@ -12,8 +12,8 @@
 - **Extending evalkit** (before you upgrade): a `landingPage` and
   `publicRoutes` render with no evalkit bar for a signed-out visitor, so a
   package must draw its own header and way home on them, inside a scroll container that fills
-  the window, so the package draws its own header. `useOptionalMe` and
-  `useTheme` are now stable names.
+  the window, so the package draws its own header. `useOptionalMe`,
+  `useTheme`, `Lockup` (the logo) and `/favicon.svg` are now stable names.
 - **CLI**, **SDK**: the `env:` references in `evalkit.yaml` and `evalkit run --judge-api-key-env` read only the environment. The CLI and SDK no longer read the `.env` beside `evalkit.yaml` (or in the current directory). Export the variables in your shell instead. `evalkit serve` still reads the `.env` beside `config.yaml`.
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a

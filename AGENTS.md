@@ -196,7 +196,11 @@ then add plain FastAPI routes with `app.include_router(...)`.
   stays put. `useOptionalMe` from
   `@/shell/capabilities` returns `null` for a signed-out visitor, so a page
   can draw its header only then; `useTheme` from `@/shell/theme` (`theme`,
-  `toggle`) gives it a theme switch.
+  `toggle`) gives it a theme switch. `Lockup` from
+  `@/components/widgets/Logo` is evalkit's logo; size it with `className`
+  (default `h-6`). Its colours follow the `dark` class, so it renders the
+  dark version inside any element with that class. The favicon is served at
+  `/favicon.svg`.
 - `landingPage` is what a signed-out visitor sees at `/`; the evalkit link on
   the sign-in card and the signed-out docs page then goes to `/`. Signing
   out lands there. A signed-in person at `/` still gets the workspace
@@ -241,9 +245,9 @@ then add plain FastAPI routes with `app.include_router(...)`.
   ⌘K search.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
   `PageHeader`, `Empty`, `SignInLink`, `useOptionalMe`, `useTheme`,
-  `/login`'s `next` and `prompt`, `getApiToken`, `auth.oidc.ui_resources`,
-  `SIGNED_IN`, `get_config` and `get_allow_private_endpoints` stable: other
-  packages build against them.
+  `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
+  `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config` and
+  `get_allow_private_endpoints` stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
 (`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,
