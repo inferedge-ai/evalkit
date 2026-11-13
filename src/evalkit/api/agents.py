@@ -134,12 +134,17 @@ async def edit_agent(
         api_key="api_key" in body.model_fields_set,
         url=body.harness_url if url_changes else None,
     )
-    otel = (body.trajectory_source or current.trajectory_source) == TrajectorySource.OTEL
-    if body.settings is not None:
+    source = body.trajectory_source or current.trajectory_source
+    settings = body.settings or current.settings
+    moved = (settings.trace_source, settings.project) != (
+        current.settings.trace_source,
+        current.settings.project,
+    )
+    if moved or source != current.trajectory_source:
         await check_trace_source(
             stores,
-            body.settings,
-            otel=otel,
+            settings,
+            otel=source == TrajectorySource.OTEL,
             rule=rule,
             page_traces=cfg.otel.import_page_traces,
         )

@@ -6,8 +6,11 @@ from cryptography.fernet import Fernet
 from respx import MockResponse, Route, Router
 from sqlalchemy import func, select
 
+from evalkit.api.access import build_tenant_stores
 from evalkit.api.deps import get_allow_private_endpoints, get_config
+from evalkit.api.session_pull import ServerSessionPuller
 from evalkit.cli.traces_commands import render_check
+from evalkit.core.traces.session_import import SessionPullFailed
 from evalkit.db.crypto import SecretBox
 from evalkit.db.models import Span
 from tests.api.native_api import login_as
@@ -371,3 +374,36 @@ async def test_flow_14_agent_settings_refuse_a_bad_source(httpx2_mock, api):
     )
     assert atif.status_code == 400
     assert "only an OTel agent" in atif.json()["detail"]
+
+
+async def test_flow_14_unrelated_edits_skip_the_store_and_atif_drops_the_source(httpx2_mock, api):
+    project = httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    saved = await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})
+    assert saved.status_code == 200 and project.call_count == 1
+    project.mock(side_effect=httpx2.ConnectError("refused"))
+    settings = {**saved.json()["settings"], "poll_interval_seconds": 3}
+    unrelated = await api.patch(f"/api/agents/{AGENT}", json={"settings": settings})
+    assert unrelated.status_code == 200, unrelated.text
+    atif = await api.patch(f"/api/agents/{AGENT}", json={"trajectory_source": "atif"})
+    assert atif.status_code == 400 and "only an OTel agent" in atif.json()["detail"]
+
+
+async def test_flow_14_server_puller_pulls_only_for_an_agent_with_a_source(httpx2_mock, api):
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    traces = httpx2_mock.get(TRACES).mock(
+        return_value=MockResponse(200, json={"data": [phoenix_trace(9)]})
+    )
+    serve_spans(httpx2_mock)
+    stores = build_tenant_stores(api.app.state, "default")
+    puller = ServerSessionPuller(stores.agents, stores.sources, stores.mappings, stores.spans, 25)
+    await puller(AGENT, "sess-9")
+    assert traces.call_count == 0
+    assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200
+    await puller(AGENT, "sess-9")
+    assert traces.call_count == 1 and [r[0] for r in await span_rows(api)] == ["sess-9"]
+    traces.mock(side_effect=httpx2.ConnectError("refused"))
+    with pytest.raises(SessionPullFailed, match="trace source phx"):
+        await puller(AGENT, "sess-9")
+    await stores.sources.archive("phx")
+    with pytest.raises(SessionPullFailed, match="trace source phx not found"):
+        await puller(AGENT, "sess-9")

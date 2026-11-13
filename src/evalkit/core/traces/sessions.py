@@ -145,8 +145,9 @@ class SessionBuilder:
         if every and all(head.attributes.get(SDK_ROOT_ATTRIBUTE) for head in every):
             self._spans = []
             self._texts = {}
+            waiting = any(head.attributes.get(TASK_SESSION_ATTRIBUTE) for head in every)
             return SessionTrajectory(
-                settled=settled(every, now, settle_seconds),
+                settled=not waiting and settled(every, now, settle_seconds),
                 root_present=root_present(every),
                 span_count=len(every),
                 mapping_version=mapping_version,

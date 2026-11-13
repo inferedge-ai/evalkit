@@ -37,11 +37,17 @@ def budget_for(settings: AgentSettings, override: int | None = None) -> PollBudg
     )
 
 
-def describe_not_found(session_id: str, origin: str, deadline_seconds: float) -> str:
+TASK_HINT = (
+    'pass metadata["session_id"] to the agent as its session id, or return the agent\'s own '
+    "id with RunResult(session_id=...)"
+)
+HARNESS_HINT = "the harness must put the run id it returned on its spans as their session id"
+
+
+def describe_not_found(session_id: str, origin: str, deadline_seconds: float, hint: str) -> str:
     return (
         f"session {session_id} not found {origin} after {deadline_seconds:g} s. The agent's spans "
-        f'must carry session id {session_id}: pass metadata["session_id"] to the agent as its '
-        "session id, or return the agent's own id with RunResult(session_id=...)"
+        f"must carry session id {session_id}: {hint}"
     )
 
 
@@ -54,6 +60,7 @@ async def poll_trajectory(
     poll_interval: float = DEFAULT_POLL_INTERVAL,
     wait_setting: str = "trajectory_wait_seconds",
     origin: str = COLLECTOR,
+    hint: str = TASK_HINT,
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> tuple[dict[str, Any] | None, str, str | None]:
@@ -85,5 +92,9 @@ async def poll_trajectory(
                 return last.trajectory, "partial", last_error or arriving
             if last is not None and last.span_count > 0:
                 return None, "unavailable", arriving
-            return None, "unavailable", describe_not_found(session_id, origin, deadline_seconds)
+            return (
+                None,
+                "unavailable",
+                describe_not_found(session_id, origin, deadline_seconds, hint),
+            )
         await sleep(poll_interval)

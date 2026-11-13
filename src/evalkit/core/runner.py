@@ -79,7 +79,7 @@ from evalkit.core.server_evaluators import (
     needs_judge,
     resolve_location,
 )
-from evalkit.core.traces.poll import budget_for, poll_trajectory
+from evalkit.core.traces.poll import HARNESS_HINT, TASK_HINT, budget_for, poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
 from evalkit.core.trajectory import (
     RunMetrics,
@@ -451,6 +451,7 @@ async def _record_one(
             budget.seconds,
             wait_setting=budget.setting,
             origin=budget.origin,
+            hint=HARNESS_HINT,
         )
         driven.trajectory_status = TrajectoryStatus(status)
         if doc is not None:
@@ -1060,6 +1061,7 @@ async def _refetch(
             budget.seconds,
             wait_setting=budget.setting,
             origin=budget.origin,
+            hint=HARNESS_HINT if agent.harness_url else TASK_HINT,
         )
         if doc is None:
             return

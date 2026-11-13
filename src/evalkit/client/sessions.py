@@ -28,6 +28,8 @@ class HttpSessionPuller:
         try:
             await self._api.post(path, json={"session_id": session_id})
         except ApiRequestError as exc:
+            if exc.status != 502:
+                raise
             raise SessionPullFailed(exc.detail) from exc
 
 

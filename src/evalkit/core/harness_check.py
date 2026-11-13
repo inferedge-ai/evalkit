@@ -17,7 +17,7 @@ from evalkit.core.agents import AgentDefinition
 from evalkit.core.blob import BlobStore
 from evalkit.core.harness import HarnessClient, RunTimeout
 from evalkit.core.paths import UnsafePathError
-from evalkit.core.traces.poll import budget_for, poll_trajectory
+from evalkit.core.traces.poll import HARNESS_HINT, budget_for, poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
 
 CHECK_INPUT = {"question": "Hi. Reply with one word."}
@@ -128,6 +128,7 @@ async def check_harness(
                     budget.seconds,
                     wait_setting=budget.setting,
                     origin=budget.origin,
+                    hint=HARNESS_HINT,
                 )
                 session = await sessions.trajectory(agent_slug or agent.ref, run_id)
                 detail = f"{session_status}: session {run_id}, {session.span_count} spans"

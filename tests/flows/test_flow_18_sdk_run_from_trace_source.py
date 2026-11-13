@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import UTC, datetime
 
 import httpx2
@@ -15,7 +16,7 @@ from evalkit.contracts.enums import TraceProvider, TrajectorySource
 from evalkit.contracts.settings import AgentSettings
 from evalkit.db.session import make_session_factory
 from evalkit.db.trace_sources import TraceSourceStore
-from evalkit.sdk import arun_experiment
+from evalkit.sdk import RunResult, aevaluate_experiment, arun_experiment
 from evalkit.sdk.runner import NO_SESSION_ERROR
 from tests.cli.test_cli import _serve, stub_judges_module
 from tests.fake_agents import reference_mapping
@@ -64,6 +65,22 @@ class FakePhoenix(SpanExporter):
             )
         return SpanExportResult.SUCCESS
 
+    def add_harness_run(self, session_id: str) -> None:
+        n = len(self.spans) + 1
+        self.spans.append(
+            {
+                "name": "harness turn",
+                "context": {"trace_id": f"{n:032x}", "span_id": f"{n:016x}"},
+                "parent_id": None,
+                "span_kind": "INTERNAL",
+                "start_time": "2026-11-13T00:00:00+00:00",
+                "end_time": "2026-11-13T00:00:01+00:00",
+                "status_code": "OK",
+                "attributes": {**LLM_ATTRS, "session.id": session_id},
+                "events": [],
+            }
+        )
+
     def shutdown(self) -> None:
         return None
 
@@ -73,6 +90,10 @@ class FakePhoenix(SpanExporter):
         return {"data": {"name": project}}
 
     def traces(self, project: str, session_identifier: str) -> dict:
+        if session_identifier.startswith("sess-") and not any(
+            s["attributes"].get("session.id") == session_identifier for s in self.spans
+        ):
+            self.add_harness_run(session_identifier)
         roots = [
             s
             for s in self.spans
@@ -113,6 +134,16 @@ def server(tmp_path_factory, stub_judges_module, module_db_url, phoenix):
             AGENT,
             "admin",
             harness_url=None,
+            trajectory_source=TrajectorySource.OTEL,
+            settings=AgentSettings(
+                trace_source="phx", project=PROJECT, import_settle_seconds=0, import_wait_seconds=3
+            ),
+            mapping=reference_mapping(),
+        )
+        await seed_agent(
+            factory,
+            "harnessed",
+            "canonical",
             trajectory_source=TrajectorySource.OTEL,
             settings=AgentSettings(
                 trace_source="phx", project=PROJECT, import_settle_seconds=0, import_wait_seconds=3
@@ -251,3 +282,47 @@ async def test_flow_18_no_run_span_and_no_way_to_name_the_session_fails_at_once(
     errors = {r.case_id: r.agent_run.error for r in runs}
     assert errors["case-1"] == NO_SESSION_ERROR
     assert "task blew up" in errors["case-2"]
+
+
+async def test_flow_18_a_task_that_returns_its_own_session_and_a_refetch(env):
+    _, provider = env
+    tracer = provider.get_tracer("agent")
+    counter = iter(range(100))
+
+    def task(input: dict) -> RunResult:
+        session_id = f"own-{next(counter)}"
+        attributes = {**LLM_ATTRS, "session.id": session_id}
+        with tracer.start_as_current_span("llm", context=Context(), attributes=attributes):
+            pass
+        return RunResult(answer="42", session_id=session_id)
+
+    result, _ = await run(provider, task)
+    assert [r.trajectory_status for r in result.runs] == ["valid", "valid"]
+    assert {r.session_id for r in result.runs} == {"own-0", "own-1"}
+    again = await aevaluate_experiment(
+        experiment_id=result.experiment_id, refetch_trajectories=True, progress=lambda line: None
+    )
+    assert [r.trajectory_status for r in again.runs] == ["valid", "valid"]
+
+
+def test_flow_18_a_server_run_of_a_harness_agent_pulls_from_the_store(env):
+    srv, _ = env
+    token = httpx2.post(
+        f"{srv.base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
+    ).json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    started = httpx2.post(
+        f"{srv.base_url}/api/experiments",
+        json={"dataset": "finance@canonical", "agent": "harnessed@canonical"},
+        headers=headers,
+    )
+    assert started.status_code == 200, started.text
+    exp_id = started.json()["id"]
+    for _ in range(200):
+        body = httpx2.get(f"{srv.base_url}/api/experiments/{exp_id}", headers=headers).json()
+        if body["status"] in ("completed", "failed") and body["lease_holder"] is None:
+            break
+        time.sleep(0.05)
+    assert body["status"] == "completed", body
+    runs = httpx2.get(f"{srv.base_url}/api/experiments/{exp_id}/runs", headers=headers).json()
+    assert {r["agent_run"]["trajectory_status"] for r in runs} == {"valid"}

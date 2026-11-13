@@ -1,4 +1,4 @@
-from evalkit.core.traces.poll import poll_trajectory
+from evalkit.core.traces.poll import HARNESS_HINT, poll_trajectory
 from evalkit.core.traces.session_import import SessionPullFailed
 from evalkit.core.traces.sessions import SessionTooLarge, SessionTrajectory
 
@@ -125,3 +125,13 @@ async def test_oversized_session_is_unavailable_without_retrying(caplog):
     )
     assert (doc, status) == (None, "unavailable") and reader.calls == 1
     assert "900.0 MiB" in caplog.text and "900.0 MiB" in reason
+
+
+async def test_a_lone_run_span_at_the_deadline_is_unavailable_with_its_reason():
+    result, _ = await poll([session(root_present=True, only_run_span=True, reason="only run span")])
+    assert result == (None, "unavailable", "only run span")
+
+
+async def test_the_not_found_hint_comes_from_the_caller():
+    result, _ = await poll([session(span_count=0)], hint=HARNESS_HINT)
+    assert result[2].endswith(HARNESS_HINT)
