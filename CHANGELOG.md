@@ -17,8 +17,12 @@
   6 cases)` to a bucket that covers fewer cases than the experiment selected.
   `evalkit experiments list` puts `3 of 6 cases errored` before the bucket
   scores, and `evalkit status` adds `3 errored`. The web UI shows the same
-  counts above the bucket cards, on each bucket card, on the compare page and
-  in the cases column of the experiments list.
+  counts above the bucket cards, on each bucket card (`2 of 3 cases scored`,
+  and `1/3` beside an evaluator that scored fewer cases), on the compare page
+  and in the cases column of the experiments list. On the experiment page a
+  case with errored runs gets an `errored` or `partly errored` badge and
+  counts as failing, whether or not its runs carry error text. `evalkit
+  summary` lists error text under `run and evaluator errors:`.
 - **Scoring**: which runs are scored follows the run's status and answer, not
   its error text. A `completed` run that has an answer and also carries a
   non-fatal `error` is now scored; before, it was left out unless it had an
@@ -31,7 +35,8 @@
   status `ERROR` or an `error.type` attribute. Otherwise it is `running`
   until it settles (no new span for `otel.settle_seconds`, or the agent's
   `import_settle_seconds` for a trace source) and `completed` after that. Its
-  duration runs from its first span's start to its last span's end. The run
+  duration runs from its first span's start to its last span's end. A trace
+  without a session gets its status and duration the same way. The run
   list API has a new field `duration_ms`.
 
 - **CLI**, **SDK**: the `env:` references in `evalkit.yaml` and `evalkit run --judge-api-key-env` read only the environment. The CLI and SDK no longer read the `.env` beside `evalkit.yaml` (or in the current directory). Export the variables in your shell instead. `evalkit serve` still reads the `.env` beside `config.yaml`.

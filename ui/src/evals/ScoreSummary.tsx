@@ -35,7 +35,6 @@ export function BucketCards({
   report: Report;
   onPick?: (evaluator: string) => void;
 }) {
-  const total = report.cases.length;
   const cards = bucketCards(report);
   const selected = selectedCases(report);
   const note = erroredNote(report);
@@ -59,7 +58,7 @@ export function BucketCards({
               </div>
               {covered < selected && (
                 <div className="tile-sub num text-right text-warn">
-                  {covered} of {selected} cases
+                  {covered} of {selected} cases scored
                 </div>
               )}
               <ul className="bucket-members">
@@ -73,9 +72,12 @@ export function BucketCards({
                       <span className="member-name truncate font-mono">
                         {m.name}
                       </span>
-                      {m.cases < total && (
-                        <span className="text-ink-4">
-                          n={m.cases}/{total}
+                      {m.cases < selected && (
+                        <span
+                          className="text-ink-4"
+                          title={`${m.cases} of ${selected} cases scored`}
+                        >
+                          {m.cases}/{selected}
                         </span>
                       )}
                       {m.errors > 0 && (
