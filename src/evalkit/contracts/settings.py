@@ -60,6 +60,21 @@ class AgentSettings(BaseModel):
     stop_grace_seconds: int = Field(default=120, ge=0)
     provides: dict[str, bool] | None = None
     input_schema: dict | None = None
+    trace_source: str | None = None
+    project: str | None = None
+    import_settle_seconds: int = Field(default=15, ge=0)
+    import_wait_seconds: int = Field(default=120, ge=0)
+
+    @model_validator(mode="after")
+    def _check_trace_source(self) -> "AgentSettings":
+        if (self.trace_source is None) != (self.project is None):
+            raise ValueError("trace_source and project go together: set both or neither")
+        return self
+
+    def wait_seconds(self) -> int:
+        if self.trace_source is not None:
+            return self.import_wait_seconds
+        return self.trajectory_wait_seconds
 
     @field_validator("input_schema")
     @classmethod

@@ -7,7 +7,7 @@ from typing import Any
 import httpx2
 
 from evalkit.core.traces.raw import RawSpan
-from evalkit.core.traces.sources.base import TracePage
+from evalkit.core.traces.sources.base import TracePage, UnknownProject
 
 
 def flatten_attributes(nested: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -67,16 +67,26 @@ class PhoenixClient:
         self._page_traces = page_traces
         self._transport = transport
 
-    async def _pages(
-        self, path: str, params: dict[str, str | list[str]]
-    ) -> AsyncIterator[list[dict[str, Any]]]:
-        cursor: str | None = None
-        async with httpx2.AsyncClient(
+    def _client(self) -> httpx2.AsyncClient:
+        return httpx2.AsyncClient(
             base_url=self._url,
             headers={"Authorization": f"Bearer {self._api_key}"} if self._api_key else {},
             timeout=120,
             transport=self._transport,
-        ) as client:
+        )
+
+    async def check_project(self, project: str) -> None:
+        async with self._client() as client:
+            resp = await client.get(f"/v1/projects/{project}")
+        if resp.status_code == 404:
+            raise UnknownProject(f"project {project} not found")
+        resp.raise_for_status()
+
+    async def _pages(
+        self, path: str, params: dict[str, str | list[str]]
+    ) -> AsyncIterator[list[dict[str, Any]]]:
+        cursor: str | None = None
+        async with self._client() as client:
             while True:
                 resp = await client.get(
                     path, params={**params, **({"cursor": cursor} if cursor else {})}

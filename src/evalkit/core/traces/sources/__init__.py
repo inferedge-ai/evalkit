@@ -1,10 +1,10 @@
 import httpx2
 
 from evalkit.contracts.enums import TraceProvider
-from evalkit.core.traces.sources.base import TracePage, TraceSourceClient
+from evalkit.core.traces.sources.base import TracePage, TraceSourceClient, UnknownProject
 from evalkit.core.traces.sources.phoenix import PhoenixClient
 
-__all__ = ["TracePage", "TraceSourceClient", "client_for"]
+__all__ = ["TracePage", "TraceSourceClient", "UnknownProject", "client_for"]
 
 
 def client_for(
