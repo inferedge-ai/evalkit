@@ -16,44 +16,65 @@ installed skills; in the evalkit repository the page is
 `docs/user/quickstart.md`.) Read it first and follow it in order. This skill
 only adds what you need to run it for someone.
 
-## Ask one thing first
+## Ask two things first
 
-Before anything else, ask the developer which pace they want:
+Before anything else, ask the developer:
 
-- **Just set it up.** Run straight through and explain at the end.
-- **Walk me through it.** Say what each step does as you do it.
+- **Which pace.** "Just set it up": run straight through and explain at the
+  end. "Walk me through it": say what each step does as you do it, from the
+  quickstart and the pages it links to (`../evalkit-docs/concepts.md` first).
+- **Which path** (the tabs of the quickstart's step 4). "My agent sends
+  traces to Phoenix": evalkit imports its history. "No traces yet": the agent
+  sends its traces straight to evalkit. Read the agent's code first and
+  suggest the path it fits.
 
-For the second pace, explain from the quickstart and the pages it links to
-(`../evalkit-docs/concepts.md` first). Either way, stop for the developer only
-at the points under "When to stop".
+After that, stop for the developer only at the points under "When to stop".
 
 ## Rules
 
 - Work from the root of the developer's agent project. Cases go in
   `evalkit/cases/<dataset>/` and the run script is `evalkit/run.py`. Never put
-  an `__init__.py` in the `evalkit/` folder.
+  an `__init__.py` in the `evalkit/` folder. Add `evalkit-runs/` to
+  `.gitignore` before the first pull.
 - Log in with a bare `evalkit login`: it uses hosted evalkit. Pass `--url`
   only when the developer names another server.
 - Find exact command shapes with `evalkit --help` and `--help` on any
   subcommand; do not guess flags.
+- `uv add evalkit-py` fails when the project allows Python below 3.12 or has
+  no `pyproject.toml`. Ask before raising `requires-python`; otherwise give
+  evalkit its own uv project in `evalkit/` as `../evalkit-docs/install.md`
+  says.
+- On the "No traces yet" path, tracing goes in the agent's own start-up code,
+  never only in `evalkit/run.py`: app runs do not go through `run.py`. Add the
+  framework's instrumentor (the Instrumentation column of
+  `../evalkit-docs/framework-mappings.md`) and one session per run. Keep the
+  agent token out of files the repo tracks.
+- An async agent gets an `async def task`. Never wrap it in `asyncio.run`.
 - Hand over to the other skills where the quickstart does:
-  - Step 2, a `!` line from `evalkit traces import` or `evalkit traces check`:
+  - Step 4, a `!` line from `evalkit traces import` or `evalkit traces check`:
     the **connect-traces** skill.
-  - Step 3, mining cases: the **eval-driven-development** skill, Loop 2.
-  - Step 5, fixing the agent: the **eval-driven-development** skill, Loop 1.
-- Mine a small first batch: the 30 most recent app runs, not the mining
-  loop's default window. Import no more history than that needs.
+  - Step 5, mining cases: the **eval-driven-development** skill, Loop 2.
+  - Step 7, fixing the agent: the **eval-driven-development** skill, Loop 1,
+    with `--apply`.
+- Mine a small first batch: pick the window so it holds 30 app runs or
+  fewer, and narrow it if `evalkit runs list` shows more. On the Phoenix path,
+  import only that window.
 - The cases stay in the developer's own workspace. Skip the review steps of
   the mining loop.
+- An agent that runs as a service: restart it after each fix, before the
+  next run.
 
 ## When to stop
 
 Stop and ask only for what you cannot do yourself:
 
 - The sign-in in the browser that `evalkit login` opens.
-- The trace store's URL, project name and API key. Ask for the name of the
-  environment variable that holds the key; never ask for the key itself.
-  Creating the trace source needs an admin: if it is refused, say so and stop.
+- Phoenix path: the trace store's URL, project name and API key. Ask for the
+  name of the environment variable that holds the key; never ask for the key
+  itself. Creating the trace source needs an admin: if it is refused, say so
+  and stop.
+- "No traces yet" path: 5 to 10 real questions to ask the agent, if the
+  developer wants to pick them.
 - The case plan from the mining loop, before any case is written.
 
 Do not ask about the mapping preset: read the agent's code, pick the preset
@@ -64,22 +85,21 @@ session.
 
 Do not move on until each holds:
 
-1. After step 2: every line of the one-session import has a ✓.
-2. After the range import: `evalkit runs list <agent> --source app` returns
-   runs. With none, the agent has no history in the trace store: take the
-   quickstart's "No trace history?" path.
-3. After step 4: every run has a trajectory. A run with none says why in its
+1. After step 4: `evalkit runs list <agent> --source app` returns runs, and
+   one session checked with `evalkit traces import` (Phoenix) or
+   `evalkit traces check` (no traces yet) has a ✓ on every line.
+2. After step 6: every run has a trajectory. A run with none says why in its
    trajectory note; follow the session id rule in
-   `../evalkit-docs/sdk-runs.md` ("An agent with its own trace store"),
-   change the task and run again.
-4. Before step 5: the baseline has at least one case that fails or runs slow.
+   `../evalkit-docs/sdk-runs.md` ("An agent with its own trace store" or "An
+   agent in another process"), change the task and run again.
+3. Before step 7: the baseline has at least one case that fails or runs slow.
    If every case passes, mine a wider window or add cases for the slowest
    runs.
-5. After step 5: a second experiment exists for the same dataset.
+4. After step 7: a second experiment of the whole dataset exists.
 
 ## Finish
 
-Print the two experiment URLs and the output of
-`evalkit summary <new id> --baseline <old id>`. Then say in a few lines what
-was set up, which cases were fixed, and how response time, cost and tokens
-moved. Point at the quickstart's "Where next" links.
+Print both experiment links (each run of `evalkit/run.py` prints one) and
+the output of `evalkit summary <new id> --baseline <old id>`. Then say in a
+few lines what was set up, which cases were fixed, and how response time,
+cost and tokens moved. Point at the quickstart's "Where next" links.

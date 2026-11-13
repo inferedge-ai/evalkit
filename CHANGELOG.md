@@ -3,7 +3,8 @@
 ## Unreleased
 
 - The Quickstart page (`docs/user/quickstart.md`) is a short tutorial for
-  hosted evalkit: connect an agent to its trace store, mine cases from its
+  hosted evalkit: connect an agent, either by importing its history from
+  Phoenix or by sending its traces straight to evalkit, mine cases from its
   real runs, run a baseline experiment and let the eval-driven-development
   skill improve the agent. What the old page covered beyond that (the Harness
   API path, hand-written cases, fixtures, comparing experiments, review and
