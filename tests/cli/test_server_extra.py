@@ -1,7 +1,13 @@
+import importlib.metadata
 import subprocess
 import sys
 
-from evalkit.cli.server_extra import has_server_extra, list_server_requirements
+from evalkit import version
+from evalkit.cli.server_extra import (
+    _SERVER_MARKER,
+    _list_server_requirements,
+    has_server_extra,
+)
 
 WITHOUT_BCRYPT = """
 import importlib.metadata
@@ -27,7 +33,7 @@ print(serve_result.output)
 
 
 def test_server_requirements_come_from_the_extra() -> None:
-    names = list_server_requirements()
+    names = _list_server_requirements()
     assert {"bcrypt", "uvicorn", "sqlalchemy", "fastapi"} <= set(names)
     assert "typer" not in names
 
@@ -46,3 +52,20 @@ def test_base_cli_runs_with_uvicorn_and_sqlalchemy_but_no_bcrypt() -> None:
     assert "help 0" in result.stdout
     assert "serve 1" in result.stdout
     assert "evalkit-py[server]" in result.stdout
+
+
+def test_full_dev_install_has_the_server_extra() -> None:
+    assert _list_server_requirements()
+    assert has_server_extra()
+
+
+def test_server_requirements_carry_only_the_extra_marker() -> None:
+    requires = importlib.metadata.requires(version.DISTRIBUTION) or []
+    markers = [r.partition(";")[2].strip() for r in requires if "extra ==" in r]
+    server = [m for m in markers if _SERVER_MARKER.search(m)]
+    assert server
+    others = [m for m in server if _SERVER_MARKER.sub("", m).strip()]
+    assert not others, (
+        f"server requirements carry other markers {others}; switch _list_server_requirements to "
+        'packaging.requirements.Requirement(...).marker.evaluate({"extra": "server"})'
+    )
