@@ -93,10 +93,23 @@ async def test_providers_with_an_idp(env, idp):
         "scopes": ["openid", "profile", "email", "offline_access"],
         "required_scopes": [],
         "authorize_params": {},
+        "ui_resources": [],
         "authorization_endpoint": f"{idp.issuer}/authorize",
         "token_endpoint": f"{idp.issuer}/token",
         "device_authorization_endpoint": f"{idp.issuer}/device",
     }
+
+
+async def test_providers_lists_the_other_apis_the_web_ui_signs_in_for(env, idp):
+    async with sso_app(
+        env,
+        idp,
+        authorize_params={"resource": idp.audience},
+        ui_resources=["https://api.example.com"],
+    ) as client:
+        oidc = (await client.get("/api/auth/providers")).json()["oidc"]
+    assert oidc["authorize_params"] == {"resource": idp.audience}
+    assert oidc["ui_resources"] == ["https://api.example.com"]
 
 
 async def test_providers_lists_the_required_scopes(env, idp):

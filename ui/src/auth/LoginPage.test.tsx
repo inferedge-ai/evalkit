@@ -24,6 +24,7 @@ const okta = {
   authorization_endpoint: "https://id.example.com/oauth2/v1/authorize",
   token_endpoint: "https://id.example.com/oauth2/v1/token",
   device_authorization_endpoint: null,
+  ui_resources: [],
 };
 
 function render(providers: Providers): string {
@@ -131,6 +132,7 @@ describe("LoginPage", () => {
       }),
       signinSilent: async () => null,
       removeUser,
+      requestApiToken: async () => null,
     });
     vi.stubGlobal(
       "fetch",

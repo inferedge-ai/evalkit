@@ -3,20 +3,31 @@
 ## Unreleased
 
 - New optional setting `auth.oidc.cli_client_id`: an OAuth client of
-  `evalkit login`'s own. When it's set, `evalkit login` uses it for the
-  browser sign-in, the device flow (`--no-browser`), the code exchange and
-  every later refresh. The server accepts an ID token issued to either client
-  when someone first signs in. `GET /api/auth/providers` returns it in
-  `oidc.cli_client_id`, or `client_id` when it isn't set, so servers that
-  don't set it work as before. Set it when the identity provider skips the
-  approval step for evalkit's web client and gives a person the same `sub`
-  in every client (not Entra ID); [Single sign-on](docs/user/sso.md) says
-  why and how to register the CLI's client. A CLI logged in before the change
-  keeps refreshing with the client it signed in with until it logs in again.
-  An older CLI still signs in with the web client, so people need
-  `evalkit update` before an operator removes the web client's loopback
-  redirect. `evalkit login` against a server it can't talk to now says to
-  run `evalkit update --server <url>`.
+  `evalkit login`'s own, for identity providers that skip the approval step
+  for evalkit's web client. When it's set, `evalkit login` uses it for the
+  browser sign-in, the device flow, the code exchange and later refreshes, and
+  the server accepts an ID token issued to either client. Unset, it defaults
+  to `client_id` and nothing changes. `GET /api/auth/providers` returns it in
+  `oidc.cli_client_id`. An older CLI still signs in with the web client, so
+  people need `evalkit update` before an operator removes the web client's
+  loopback redirect. `evalkit login` against a server it can't talk to now
+  says to run `evalkit update --server <url>`.
+- New server setting `auth.oidc.ui_resources`: other APIs the web UI signs
+  in for, so pages a package extending evalkit adds can call them as the
+  signed-in person. The web UI's sign-in names `authorize_params.resource`
+  first and these after, as repeated `resource` parameters. Its code exchange
+  and its own refreshes then name `authorize_params.resource`, so evalkit's
+  calls keep a token for evalkit's API. The setting needs
+  `authorize_params.resource`; the server refuses to start without it.
+  `GET /api/auth/providers` returns it in `oidc.ui_resources`. `evalkit login`
+  doesn't send it. A page gets a token for one of these APIs with
+  `getApiToken(resource)` from `@/auth/apiToken`.
+- On every server with single sign-on, the web UI now gives up on the
+  identity provider after 10 seconds. This covers discovery, the code
+  exchange at sign-in and refreshes. Before, these had no time limit: 10
+  seconds is oidc-client-ts's own default for refreshes, which its silent
+  refresh skipped. An identity provider slower than that now fails sign-in or
+  refresh instead of hanging. oidc-client-ts is pinned to exactly 3.5.0.
 - New `GET /api/mapping-presets` returns the span mapping presets the package
   ships, as `[{"name", "document"}]`, to any signed-in user. In the web UI, the
   new-agent and edit-agent forms have a preset picker above "Span mapping": a

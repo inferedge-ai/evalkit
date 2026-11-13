@@ -26,6 +26,7 @@ auth:
   #   name: Okta # the login button's label
   #   scopes: [openid, profile, email, offline_access] # default
   #   authorize_params: {} # extra authorize-request parameters, e.g. {resource: https://evalkit.example.com} or {audience: ...}
+  #   ui_resources: [] # other APIs the web UI signs in for, after authorize_params.resource (which it needs)
   #   algorithms: [RS256] # default
   #   required_scopes: [] # scopes every IdP access token must carry; list them in scopes too
   #   admin_claim: {name: roles, value: evalkit-admin} # admin flag set from this claim at each sign-in

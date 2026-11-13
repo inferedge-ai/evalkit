@@ -262,6 +262,7 @@ async def providers(request: Request, response: Response) -> dict:
         "scopes": oidc.cfg.scopes,
         "required_scopes": oidc.cfg.required_scopes,
         "authorize_params": oidc.cfg.authorize_params,
+        "ui_resources": oidc.cfg.ui_resources,
         "authorization_endpoint": oidc.discovery.authorization_endpoint,
         "token_endpoint": oidc.discovery.token_endpoint,
         "device_authorization_endpoint": oidc.discovery.device_authorization_endpoint,
