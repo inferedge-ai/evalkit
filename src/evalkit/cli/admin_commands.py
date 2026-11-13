@@ -7,6 +7,7 @@ import typer
 
 from evalkit.cli.client import ApiClient, ApiError
 from evalkit.cli.traces_commands import MAPPING_HELP, load_mapping
+from evalkit.client import links
 from evalkit.client.api import encode
 from evalkit.contracts.notes import ENDPOINT_NOTE
 from evalkit.core.agents import explicit
@@ -103,7 +104,7 @@ def _settings(
     return settings
 
 
-def _print_agent(agent: dict) -> None:
+def _print_agent(agent: dict, server_url: str, mapping_note: str | None = None) -> None:
     typer.echo(f"{agent['ref']}  ({agent['workspace_type']}, driven by {agent['driver']})")
     typer.echo(f"  harness_url        {agent['harness_url'] or '-'}")
     typer.echo(f"  trajectory_source  {agent['trajectory_source']}")
@@ -118,6 +119,9 @@ def _print_agent(agent: dict) -> None:
         typer.echo(f"  api key            {'set' if agent['has_api_key'] else 'not set'}")
     if agent["archived"]:
         typer.echo("  archived")
+    if mapping_note is not None:
+        typer.echo(f"  mapping            {mapping_note}")
+    typer.echo(f"link: {links.build_agent_url(server_url, agent['ref'])}")
 
 
 def register(
@@ -448,9 +452,9 @@ def register(
             "mapping": load_mapping(mapping) if mapping else None,
             **key_change(api_key_env, False),
         }
-        _print_agent(client_factory().post("/api/agents", json=body).json())
-        if mapping:
-            typer.echo(f"  mapping            v1, active (from {Path(mapping).name})")
+        client = client_factory()
+        note = f"v1, active (from {Path(mapping).name})" if mapping else None
+        _print_agent(client.post("/api/agents", json=body).json(), client.server_url, note)
 
     @agents_app.command("edit")
     def agents_edit(
@@ -532,12 +536,13 @@ def register(
         if mapping is not None:
             body["mapping"] = load_mapping(mapping)
         body.update(key_change(api_key_env, clear_api_key))
-        _print_agent(client.patch(path, json=body).json())
+        _print_agent(client.patch(path, json=body).json(), client.server_url)
 
     @agents_app.command("show")
     def agents_show(ref: str):
         """Show an agent's settings. Example: evalkit agents show ouragent@dev"""
-        _print_agent(client_factory().get(f"/api/agents/{encode(ref_of(ref))}").json())
+        client = client_factory()
+        _print_agent(client.get(f"/api/agents/{encode(ref_of(ref))}").json(), client.server_url)
 
     @agents_app.command("list")
     def agents_list(
@@ -548,12 +553,15 @@ def register(
         params: dict = {"include_archived": archived}
         if workspace:
             params["workspace"] = workspace
-        for agent in client_factory().get("/api/agents", params=params).json():
+        found = client_factory().get("/api/agents", params=params).json()
+        for agent in found:
             state = "archived" if agent["archived"] else ""
             typer.echo(
                 f"{agent['ref']:<32} {agent['driver']:<7} {agent['trajectory_source']:<5} "
                 f"{agent['harness_url'] or '-'} {state}"
             )
+        if found:
+            typer.echo("evalkit agents show <agent> shows one agent and its link")
 
     @agents_app.command("archive")
     def agents_archive(ref: str):
@@ -563,8 +571,10 @@ def register(
         Example: evalkit agents archive ouragent@dev
         """
         resolved = ref_of(ref)
-        client_factory().post(f"/api/agents/{encode(resolved)}/archive")
+        client = client_factory()
+        client.post(f"/api/agents/{encode(resolved)}/archive")
         typer.echo(f"archived {resolved}")
+        typer.echo(f"link: {links.build_agent_url(client.server_url, resolved)}")
 
     @agents_app.command("restore")
     def agents_restore(ref: str):
@@ -573,8 +583,10 @@ def register(
         Example: evalkit agents restore ouragent@dev
         """
         resolved = ref_of(ref)
-        client_factory().post(f"/api/agents/{encode(resolved)}/restore")
+        client = client_factory()
+        client.post(f"/api/agents/{encode(resolved)}/restore")
         typer.echo(f"restored {resolved}")
+        typer.echo(f"link: {links.build_agent_url(client.server_url, resolved)}")
 
     @workspaces_app.command("list")
     def workspaces_list(

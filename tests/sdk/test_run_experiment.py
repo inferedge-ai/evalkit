@@ -197,6 +197,7 @@ async def test_sdk_run_with_traces_records_runs_after_settle(env):
     def cite(case, run):
         return 1.0 if run.trajectory else 0.0
 
+    lines: list[str] = []
     result = await arun_experiment(
         dataset="finance",
         workspace="canonical",
@@ -205,9 +206,12 @@ async def test_sdk_run_with_traces_records_runs_after_settle(env):
         evaluators=[cite],
         tracer_provider=provider,
         poll_interval=0.2,
+        progress=lines.append,
     )
     assert isinstance(result.experiment_id, int)
     assert result.url.endswith(f"/experiments/{result.experiment_id}")
+    assert lines[-1] == f"link: {result.url}"
+    assert [r.url for r in result.runs] == [f"{result.url}/{r.case_id}" for r in result.runs]
     assert sorted(seen[0]) == ["case_id", "experiment_id", "repetition", "session_id", "tags"]
     assert seen[0]["experiment_id"] == result.experiment_id
     assert {m["session_id"] for m in seen} == {r.session_id for r in result.runs}
@@ -504,7 +508,12 @@ async def test_deadline_gives_partial_then_refetch_rescored(env):
             models.Evaluation.name == "gauge_input_tokens",
         )
     )
-    await aevaluate_experiment(experiment_id=result.experiment_id, refetch_trajectories=True)
+    lines: list[str] = []
+    rescored = await aevaluate_experiment(
+        experiment_id=result.experiment_id, refetch_trajectories=True, progress=lines.append
+    )
+    assert lines[-1] == f"link: {rescored.url}" and rescored.url == result.url
+    assert rescored.runs[0].url == f"{result.url}/{rescored.runs[0].case_id}"
     exp, [run] = await srv.experiment(result.experiment_id)
     scores = {e.name: e for e in run.evaluations}
     assert scores["gauge_input_tokens"].value == 9
@@ -524,7 +533,9 @@ async def test_dry_run_creates_nothing_and_prints(env, capsys):
     )
     assert result.experiment_id is None and await srv.count() == before
     assert len(result.runs) == 1
-    assert "dry" in capsys.readouterr().out
+    printed = capsys.readouterr().out
+    assert "dry" in printed
+    assert result.runs[0].url is None and "link:" not in printed
 
 
 async def test_dry_run_and_real_run_check_inputs_against_the_agent_schema(env):
@@ -774,6 +785,10 @@ async def test_dry_run_reports_a_trajectory_read_failure_and_goes_on(env, monkey
         ("case-1", "unavailable"),
         ("case-2", "unavailable"),
     ]
+    assert result.url is None and not any(line.startswith("link:") for line in lines)
+    run_links = [line for line in lines if line.startswith("  link: ")]
+    assert run_links == [f"  link: {r.url}" for r in result.runs]
+    assert result.runs[0].url.endswith("/runs/sdk%40admin/s-q1")
     failures = [line for line in lines if "trajectory read failed" in line]
     assert len(failures) == 2 and "502" in failures[0] and "s-q1" in failures[0]
 
