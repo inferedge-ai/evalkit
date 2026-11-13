@@ -19,13 +19,7 @@ from evalkit.db.experiments import (
 from evalkit.db.models import Case, ExperimentCase, TenantSettings
 from evalkit.db.models import Experiment as ExperimentRow
 from evalkit.db.runs import record_run
-from evalkit.db.session import (
-    ALL_TENANTS,
-    downgrade_migrations,
-    make_session_factory,
-    run_migrations,
-    tenant_session,
-)
+from evalkit.db.session import ALL_TENANTS, downgrade_migrations, run_migrations, tenant_session
 from evalkit.db.store import PgStore
 from evalkit.store.base import (
     AgentRunRecord,
@@ -38,7 +32,6 @@ from evalkit.store.base import (
     UnknownExperiment,
 )
 from tests.identity import seed_agent
-from tests.pg import TenantFactory
 from tests.seed import World, incoming, overlay, seed_world, sync
 
 RUNNING, EVALUATING, COMPLETED, FAILED = (
@@ -58,10 +51,6 @@ CONFIG = ExperimentConfig(
 
 @pytest.fixture
 async def world(session_factory) -> World:
-    return await seed_experiment_world(session_factory)
-
-
-async def seed_experiment_world(session_factory) -> World:
     world = await seed_world(session_factory)
     await seed_agent(session_factory, "ouragent", "dev")
     await seed_agent(session_factory, "support-bot", "dev")
@@ -321,10 +310,7 @@ async def _selection_of(session_factory, exp_id: int) -> dict:
     return config["selection"]
 
 
-async def test_migration_0014_moves_a_stored_tag_into_tags(scratch_db_url):
-    db_url = scratch_db_url
-    session_factory = TenantFactory(make_session_factory(db_url), "default")
-    await seed_experiment_world(session_factory)
+async def test_migration_0014_moves_a_stored_tag_into_tags(session_factory, world, db_url):
     async with session_factory() as s:
         experiment = await new(s)
         tagged = experiment.model_copy(
@@ -338,7 +324,6 @@ async def test_migration_0014_moves_a_stored_tag_into_tags(scratch_db_url):
     assert before == {"all": False, "tag": "fy24", "case_ids": None}
     await asyncio.to_thread(run_migrations, db_url)
     after = await _selection_of(session_factory, exp.id)
-    await session_factory.kw["bind"].dispose()
     assert after == {"all": False, "tags": ["fy24"], "case_ids": None}
 
 
