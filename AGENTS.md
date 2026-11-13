@@ -201,8 +201,10 @@ then add plain FastAPI routes with `app.include_router(...)`.
 - `publicHeader` replaces the public navbar on every page a signed-out
   visitor sees under it: the landing page, `/docs` and `publicRoutes`. It
   sits above the page and stays in place while the page scrolls. It brings
-  its own links: sign-in through `SignInLink`, and the theme switch through
-  `useTheme` from `@/shell/theme` (`theme`, `toggle`). The sign-in page has
+  its own links: sign-in through `SignInLink`, with `next` set from
+  `useLocation()` (`pathname + search`) so signing in returns to the page,
+  and the theme switch through `useTheme` from `@/shell/theme` (`theme`,
+  `toggle`). The sign-in page has
   no navbar either way, and a signed-in person keeps the app shell. With
   `publicHeader: null`, the navbar is evalkit's.
 - Link to sign-in with `SignInLink` from `@/auth/SignInLink` (`next`,

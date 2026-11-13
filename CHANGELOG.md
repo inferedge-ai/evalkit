@@ -3,10 +3,12 @@
 ## Unreleased
 
 - A package extending evalkit can replace the public navbar with its own
-  header: `UiExtensions.publicHeader` (default `null`) renders in its place
-  on the landing page, `/docs` and the wrapper's public routes for a
-  signed-out visitor. `useTheme` from `@/shell/theme` is now a stable name
-  for its theme switch.
+  header. `UiExtensions` has a new required field, `publicHeader`, so a
+  wrapper's `ui/src/extensions/index.tsx` must set it: a header renders in
+  place of evalkit's navbar on the landing page, `/docs` and the wrapper's
+  public routes for a signed-out visitor, and `null` keeps evalkit's
+  navbar. `useTheme` from `@/shell/theme` is now a stable name for the
+  header's theme switch.
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a
   table) and images in `docs/user/images/`, in the web UI's docs page and on

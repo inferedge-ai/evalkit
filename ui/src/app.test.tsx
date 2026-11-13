@@ -195,7 +195,8 @@ test("a wrapper's header replaces the public navbar on signed-out pages only", a
       <a href="/#pricing">Pricing</a>
     </header>
   );
-  for (const path of ["/", "/docs/quickstart"]) {
+  wrapper.publicRoutes = [{ path: "/terms", element: <h1>Terms of use</h1> }];
+  for (const path of ["/", "/docs/quickstart", "/terms"]) {
     serve(null);
     openApp(path);
     const navbar = within(await screen.findByRole("banner"));
