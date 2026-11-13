@@ -797,6 +797,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#an-agent-with-its-own-trace-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An agent with its own trace store
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#datasets-and-workspaces" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1103,6 +1114,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#an-agent-with-its-own-trace-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        An agent with its own trace store
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#datasets-and-workspaces" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1223,7 +1245,7 @@
     <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="the-task">The task<a class="headerlink" href="#the-task" title="Permanent link">&para;</a></h2>
-<p>A sync or async callable. Parameters bind <strong>by name</strong> from this set, so their order does not matter; any other required parameter is an error before the first call, and an optional one keeps its default.</p>
+<p><code>run_experiment</code> calls the task once per case and repetition; each call is one run, with its own session id. A sync or async callable. Parameters bind <strong>by name</strong> from this set, so their order does not matter; any other required parameter is an error before the first call, and an optional one keeps its default.</p>
 <table>
 <thead>
 <tr>
@@ -1298,6 +1320,27 @@
 </code></pre></div>
 <p>Either way the Runs page links the session to its experiment and case.</p>
 <p>The agent's exporter needs its own token in <code>EVALKIT_OTEL_TOKEN</code>. Mint one with <code>evalkit tokens create --agent &lt;name&gt;</code>; it never expires. A login token is not accepted: it expires, and an exporter that holds it would drop every span with nothing but a line in its own log.</p>
+<h2 id="an-agent-with-its-own-trace-store">An agent with its own trace store<a class="headerlink" href="#an-agent-with-its-own-trace-store" title="Permanent link">&para;</a></h2>
+<p>An OTel agent whose settings name a trace source (<code>evalkit agents edit myagent --trace-source phoenix --project myagent</code>, see <a href="../tracing/#experiments-that-read-a-trace-source">Tracing</a>) needs no <code>tracing.register</code>: each run's session is imported from the store.</p>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">evalkit.sdk</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_experiment</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">myagent</span><span class="w"> </span><span class="kn">import</span> <span class="n">MyAgent</span>
+
+<span class="n">agent</span> <span class="o">=</span> <span class="n">MyAgent</span><span class="p">()</span>            <span class="c1"># exports to its own trace store, e.g. Phoenix</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">task</span><span class="p">(</span><span class="nb">input</span><span class="p">:</span> <span class="nb">dict</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>   <span class="c1"># in-process agent on the global provider: no session id to pass</span>
+    <span class="k">return</span> <span class="n">agent</span><span class="o">.</span><span class="n">ask</span><span class="p">(</span><span class="nb">input</span><span class="p">[</span><span class="s2">"question"</span><span class="p">])</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">run_experiment</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="s2">"finance"</span><span class="p">,</span> <span class="n">agent</span><span class="o">=</span><span class="s2">"myagent"</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
+</code></pre></div>
+<p>The session id follows one rule, here and with the collector:</p>
+<ul>
+<li>An agent that runs in the task's process, on the process's global tracer provider, and continues the current trace needs nothing: its spans join the SDK's <code>evalkit.run</code> span.</li>
+<li>Any other agent takes <code>metadata["session_id"]</code> as its session id, or the task returns the agent's own id with <code>RunResult(session_id=...)</code>.</li>
+<li>An agent in another process that cannot receive the trace context and whose framework cannot put a session id on its spans cannot be linked to its runs.</li>
+</ul>
+<p><code>evalkit.run</code> shows in your store as the root of each eval run's trace. A run whose session holds only that span ends <code>unavailable</code> with a <code>trajectory_note</code> saying so; a task with no tracer provider that neither takes <code>metadata</code> nor returns a session id fails at once.</p>
 <h2 id="datasets-and-workspaces">Datasets and workspaces<a class="headerlink" href="#datasets-and-workspaces" title="Permanent link">&para;</a></h2>
 <ul>
 <li><code>dataset="finance"</code> runs your own workspace's copy; if <code>finance</code> is a directory under <code>cases</code> it is synced first.</li>
