@@ -1,5 +1,5 @@
 /* The web UI's design tokens (tokens.css, generated from ui/src/styles/tokens) mapped onto
-   Material's variables, with the UI's roles from ui/src/theme.css. */
+   Material's variables. */
 @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap");
 
 :root {
@@ -440,7 +440,21 @@ tr:has(.ek-row-anchor:target),
 .md-typeset .tabbed-set > input:nth-child(3):checked ~ .tabbed-labels > :nth-child(3),
 .md-typeset .tabbed-set > input:nth-child(4):checked ~ .tabbed-labels > :nth-child(4),
 .md-typeset .tabbed-set > input:nth-child(5):checked ~ .tabbed-labels > :nth-child(5),
-.md-typeset .tabbed-set > input:nth-child(6):checked ~ .tabbed-labels > :nth-child(6) {
+.md-typeset .tabbed-set > input:nth-child(6):checked ~ .tabbed-labels > :nth-child(6),
+.md-typeset .tabbed-set > input:nth-child(7):checked ~ .tabbed-labels > :nth-child(7),
+.md-typeset .tabbed-set > input:nth-child(8):checked ~ .tabbed-labels > :nth-child(8),
+.md-typeset .tabbed-set > input:nth-child(9):checked ~ .tabbed-labels > :nth-child(9),
+.md-typeset .tabbed-set > input:nth-child(10):checked ~ .tabbed-labels > :nth-child(10),
+.md-typeset .tabbed-set > input:nth-child(11):checked ~ .tabbed-labels > :nth-child(11),
+.md-typeset .tabbed-set > input:nth-child(12):checked ~ .tabbed-labels > :nth-child(12),
+.md-typeset .tabbed-set > input:nth-child(13):checked ~ .tabbed-labels > :nth-child(13),
+.md-typeset .tabbed-set > input:nth-child(14):checked ~ .tabbed-labels > :nth-child(14),
+.md-typeset .tabbed-set > input:nth-child(15):checked ~ .tabbed-labels > :nth-child(15),
+.md-typeset .tabbed-set > input:nth-child(16):checked ~ .tabbed-labels > :nth-child(16),
+.md-typeset .tabbed-set > input:nth-child(17):checked ~ .tabbed-labels > :nth-child(17),
+.md-typeset .tabbed-set > input:nth-child(18):checked ~ .tabbed-labels > :nth-child(18),
+.md-typeset .tabbed-set > input:nth-child(19):checked ~ .tabbed-labels > :nth-child(19),
+.md-typeset .tabbed-set > input:nth-child(20):checked ~ .tabbed-labels > :nth-child(20) {
   background-color: var(--background);
   color: var(--foreground);
   box-shadow: var(--md-shadow-z1);
@@ -455,7 +469,21 @@ tr:has(.ek-row-anchor:target),
 [data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(3):checked ~ .tabbed-labels > :nth-child(3),
 [data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(4):checked ~ .tabbed-labels > :nth-child(4),
 [data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(5):checked ~ .tabbed-labels > :nth-child(5),
-[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(6):checked ~ .tabbed-labels > :nth-child(6) {
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(6):checked ~ .tabbed-labels > :nth-child(6),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(7):checked ~ .tabbed-labels > :nth-child(7),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(8):checked ~ .tabbed-labels > :nth-child(8),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(9):checked ~ .tabbed-labels > :nth-child(9),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(10):checked ~ .tabbed-labels > :nth-child(10),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(11):checked ~ .tabbed-labels > :nth-child(11),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(12):checked ~ .tabbed-labels > :nth-child(12),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(13):checked ~ .tabbed-labels > :nth-child(13),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(14):checked ~ .tabbed-labels > :nth-child(14),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(15):checked ~ .tabbed-labels > :nth-child(15),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(16):checked ~ .tabbed-labels > :nth-child(16),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(17):checked ~ .tabbed-labels > :nth-child(17),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(18):checked ~ .tabbed-labels > :nth-child(18),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(19):checked ~ .tabbed-labels > :nth-child(19),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(20):checked ~ .tabbed-labels > :nth-child(20) {
   border-color: var(--input);
   background-color: var(--background);
 }
@@ -465,7 +493,21 @@ tr:has(.ek-row-anchor:target),
 [data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(3):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(3),
 [data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(4):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(4),
 [data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(5):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(5),
-[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(6):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(6) {
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(6):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(6),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(7):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(7),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(8):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(8),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(9):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(9),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(10):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(10),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(11):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(11),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(12):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(12),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(13):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(13),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(14):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(14),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(15):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(15),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(16):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(16),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(17):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(17),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(18):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(18),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(19):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(19),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(20):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(20) {
   border-color: var(--ring);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
 }
