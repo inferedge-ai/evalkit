@@ -13,8 +13,10 @@
         <link rel="canonical" href="https://inferedge-ai.github.io/evalkit/sdk-reference/">
       
       
-        <link rel="prev" href="../mcp/">
+        <link rel="prev" href="../sdk-runs/">
       
+      
+        <link rel="next" href="../tracing/">
       
       
         
@@ -45,7 +47,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../stylesheets/tokens.css">
     
       <link rel="stylesheet" href="../stylesheets/evalkit.css">
     
@@ -104,7 +106,12 @@
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
     <a href=".." title="Evalkit" class="md-header__button md-logo" aria-label="Evalkit" data-md-component="logo">
-      <span class="ek-lockup" aria-label="InferEdge"><span class="ek-infer">Infer</span><span class="ek-slash" aria-hidden="true">/</span><span class="ek-edge">Edge</span></span>
+      <svg class="ek-lockup" overflow="visible" viewBox="0 0 405.01 80" role="img" aria-label="evalkit">
+  <rect class="ek-mark" x="0.5" y="0.5" width="79" height="79" rx="17.5" vector-effect="non-scaling-stroke"/>
+  <path fill="#6B9AE8" d="M26.25 59.78 38.24 25.81H33.1L21.11 59.78Z"/>
+  <path fill="#F9FAFB" d="M54.24 57.52Q57.62 57.52 60.06 56.2Q62.49 54.88 63.63 53.22L60.78 50.28Q59.72 51.63 58.07 52.34Q56.41 53.05 54.59 53.05Q53.26 53.05 52.15 52.62Q51.04 52.19 50.18 51.42Q49.37 50.67 48.88 49.72Q48.4 48.78 48.12 47.32V47.23H64.08V44.87Q64.08 42.33 63.4 40.21Q62.71 38.1 61.38 36.59Q60.02 35.09 58.08 34.25Q56.13 33.42 53.62 33.42Q51.28 33.42 49.25 34.29Q47.22 35.16 45.71 36.72Q44.21 38.31 43.36 40.52Q42.51 42.72 42.51 45.42V46.28Q42.51 48.65 43.35 50.7Q44.19 52.75 45.74 54.25Q47.28 55.78 49.44 56.65Q51.6 57.52 54.24 57.52ZM53.58 37.93Q54.8 37.93 55.72 38.32Q56.63 38.72 57.27 39.39Q57.9 40.05 58.25 40.98Q58.61 41.9 58.61 42.87V43.3H48.25Q48.46 42.05 48.93 41.06Q49.39 40.08 50.08 39.37Q50.74 38.66 51.63 38.29Q52.53 37.93 53.58 37.93Z"/>
+  <path class="ek-name" d="M128.6 70.26Q134.43 70.26 138.64 67.98Q142.85 65.7 144.82 62.84L139.88 57.76Q138.07 60.09 135.21 61.32Q132.35 62.54 129.2 62.54Q126.9 62.54 124.99 61.8Q123.07 61.06 121.59 59.72Q120.18 58.42 119.34 56.79Q118.51 55.16 118.03 52.64V52.49H145.6V48.41Q145.6 44.03 144.41 40.37Q143.22 36.72 140.92 34.12Q138.59 31.52 135.23 30.07Q131.87 28.63 127.53 28.63Q123.48 28.63 119.98 30.13Q116.47 31.63 113.87 34.34Q111.27 37.09 109.81 40.89Q108.34 44.69 108.34 49.37V50.85Q108.34 54.94 109.79 58.48Q111.24 62.02 113.91 64.62Q116.58 67.26 120.31 68.76Q124.04 70.26 128.6 70.26ZM127.45 36.42Q129.57 36.42 131.15 37.11Q132.72 37.79 133.84 38.94Q134.91 40.09 135.52 41.69Q136.14 43.28 136.14 44.95V45.7H118.25Q118.62 43.54 119.42 41.84Q120.22 40.13 121.4 38.91Q122.55 37.68 124.09 37.05Q125.63 36.42 127.45 36.42Z M165.01 69.52H173.77L189.24 29.37H179.26L169.98 58.09L169.39 60.84L168.83 58.09L159.41 29.37H149.42Z M219.97 69.52H229.77V68.89Q228.99 67.33 228.6 65.2Q228.21 63.06 228.21 60.09V42.58Q228.21 39.09 226.91 36.47Q225.61 33.86 223.39 32.11Q221.09 30.37 218.01 29.5Q214.93 28.63 211.33 28.63Q207.36 28.63 204.26 29.65Q201.16 30.67 199.01 32.41Q196.85 34.16 195.72 36.4Q194.59 38.65 194.59 41.13H204.2Q204.2 40.02 204.57 39.07Q204.94 38.13 205.72 37.46Q206.54 36.72 207.82 36.31Q209.1 35.9 210.81 35.9Q212.74 35.9 214.2 36.38Q215.67 36.86 216.67 37.75Q217.63 38.61 218.12 39.8Q218.6 40.98 218.6 42.5V45.03H212.48Q208.1 45.03 204.67 45.83Q201.23 46.62 198.89 48.18Q196.33 49.85 195.04 52.41Q193.74 54.97 193.74 58.31Q193.74 60.87 194.76 63.08Q195.78 65.29 197.63 66.89Q199.45 68.48 202.03 69.37Q204.61 70.26 207.73 70.26Q209.62 70.26 211.29 69.89Q212.96 69.52 214.37 68.89Q215.74 68.26 216.89 67.42Q218.04 66.59 218.93 65.62Q219.08 66.74 219.34 67.76Q219.6 68.78 219.97 69.52ZM209.66 62.69Q208.1 62.69 206.91 62.3Q205.72 61.91 204.94 61.28Q204.13 60.58 203.72 59.59Q203.31 58.61 203.31 57.46Q203.31 56.05 203.85 54.86Q204.39 53.67 205.46 52.82Q206.65 51.89 208.54 51.41Q210.44 50.93 213.11 50.93H218.6V58.09Q218.12 58.94 217.28 59.78Q216.45 60.61 215.3 61.25Q214.15 61.91 212.74 62.3Q211.33 62.69 209.66 62.69Z M239.12 12.52V20.42H251.48V61.65H239.12V69.52H273V61.65H261.17V12.52Z M294.23 52.49 306.3 69.52H318.13L300.58 46.1L315.94 29.37H304.4L292.86 41.76L289.45 45.58V12.52H279.87V69.52H289.45V56.94Z M324.7 29.37V37.27H336.62V61.65H324.7V69.52H357.66V61.65H346.3V29.37ZM335.84 19.05Q335.84 20.31 336.39 21.35Q336.95 22.39 337.99 22.95Q339.03 23.54 340.12 23.63Q341.22 23.73 342.26 23.36Q344.45 23.17 345.65 21.8Q346.86 20.42 346.75 18.42Q346.64 16.38 345.21 15.12Q343.78 13.86 341.4 13.86Q340.14 13.86 339.12 14.23Q338.1 14.6 337.4 15.27Q336.65 15.97 336.25 16.94Q335.84 17.9 335.84 19.05Z M383.27 19.57H373.65V29.37H364.19V36.49H373.65V55.49Q373.65 59.43 374.68 62.21Q375.7 64.99 377.59 66.77Q379.44 68.59 382.06 69.45Q384.68 70.3 387.83 70.3Q389.54 70.3 391.26 70.13Q392.99 69.97 394.58 69.67Q396.18 69.37 397.57 68.93Q398.96 68.48 400 67.89L399 61.25Q398.33 61.43 397.35 61.62Q396.37 61.8 395.25 61.95Q394.1 62.14 392.86 62.27Q391.62 62.4 390.47 62.4Q388.87 62.4 387.53 62.02Q386.2 61.65 385.23 60.73Q384.3 59.87 383.79 58.41Q383.27 56.94 383.27 54.71V36.49H398.3V29.37H383.27Z"/>
+</svg>
     </a>
     <label class="md-header__button md-icon" for="__drawer">
       
@@ -237,7 +244,12 @@
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
     <a href=".." title="Evalkit" class="md-nav__button md-logo" aria-label="Evalkit" data-md-component="logo">
-      <span class="ek-lockup" aria-label="InferEdge"><span class="ek-infer">Infer</span><span class="ek-slash" aria-hidden="true">/</span><span class="ek-edge">Edge</span></span>
+      <svg class="ek-lockup" overflow="visible" viewBox="0 0 405.01 80" role="img" aria-label="evalkit">
+  <rect class="ek-mark" x="0.5" y="0.5" width="79" height="79" rx="17.5" vector-effect="non-scaling-stroke"/>
+  <path fill="#6B9AE8" d="M26.25 59.78 38.24 25.81H33.1L21.11 59.78Z"/>
+  <path fill="#F9FAFB" d="M54.24 57.52Q57.62 57.52 60.06 56.2Q62.49 54.88 63.63 53.22L60.78 50.28Q59.72 51.63 58.07 52.34Q56.41 53.05 54.59 53.05Q53.26 53.05 52.15 52.62Q51.04 52.19 50.18 51.42Q49.37 50.67 48.88 49.72Q48.4 48.78 48.12 47.32V47.23H64.08V44.87Q64.08 42.33 63.4 40.21Q62.71 38.1 61.38 36.59Q60.02 35.09 58.08 34.25Q56.13 33.42 53.62 33.42Q51.28 33.42 49.25 34.29Q47.22 35.16 45.71 36.72Q44.21 38.31 43.36 40.52Q42.51 42.72 42.51 45.42V46.28Q42.51 48.65 43.35 50.7Q44.19 52.75 45.74 54.25Q47.28 55.78 49.44 56.65Q51.6 57.52 54.24 57.52ZM53.58 37.93Q54.8 37.93 55.72 38.32Q56.63 38.72 57.27 39.39Q57.9 40.05 58.25 40.98Q58.61 41.9 58.61 42.87V43.3H48.25Q48.46 42.05 48.93 41.06Q49.39 40.08 50.08 39.37Q50.74 38.66 51.63 38.29Q52.53 37.93 53.58 37.93Z"/>
+  <path class="ek-name" d="M128.6 70.26Q134.43 70.26 138.64 67.98Q142.85 65.7 144.82 62.84L139.88 57.76Q138.07 60.09 135.21 61.32Q132.35 62.54 129.2 62.54Q126.9 62.54 124.99 61.8Q123.07 61.06 121.59 59.72Q120.18 58.42 119.34 56.79Q118.51 55.16 118.03 52.64V52.49H145.6V48.41Q145.6 44.03 144.41 40.37Q143.22 36.72 140.92 34.12Q138.59 31.52 135.23 30.07Q131.87 28.63 127.53 28.63Q123.48 28.63 119.98 30.13Q116.47 31.63 113.87 34.34Q111.27 37.09 109.81 40.89Q108.34 44.69 108.34 49.37V50.85Q108.34 54.94 109.79 58.48Q111.24 62.02 113.91 64.62Q116.58 67.26 120.31 68.76Q124.04 70.26 128.6 70.26ZM127.45 36.42Q129.57 36.42 131.15 37.11Q132.72 37.79 133.84 38.94Q134.91 40.09 135.52 41.69Q136.14 43.28 136.14 44.95V45.7H118.25Q118.62 43.54 119.42 41.84Q120.22 40.13 121.4 38.91Q122.55 37.68 124.09 37.05Q125.63 36.42 127.45 36.42Z M165.01 69.52H173.77L189.24 29.37H179.26L169.98 58.09L169.39 60.84L168.83 58.09L159.41 29.37H149.42Z M219.97 69.52H229.77V68.89Q228.99 67.33 228.6 65.2Q228.21 63.06 228.21 60.09V42.58Q228.21 39.09 226.91 36.47Q225.61 33.86 223.39 32.11Q221.09 30.37 218.01 29.5Q214.93 28.63 211.33 28.63Q207.36 28.63 204.26 29.65Q201.16 30.67 199.01 32.41Q196.85 34.16 195.72 36.4Q194.59 38.65 194.59 41.13H204.2Q204.2 40.02 204.57 39.07Q204.94 38.13 205.72 37.46Q206.54 36.72 207.82 36.31Q209.1 35.9 210.81 35.9Q212.74 35.9 214.2 36.38Q215.67 36.86 216.67 37.75Q217.63 38.61 218.12 39.8Q218.6 40.98 218.6 42.5V45.03H212.48Q208.1 45.03 204.67 45.83Q201.23 46.62 198.89 48.18Q196.33 49.85 195.04 52.41Q193.74 54.97 193.74 58.31Q193.74 60.87 194.76 63.08Q195.78 65.29 197.63 66.89Q199.45 68.48 202.03 69.37Q204.61 70.26 207.73 70.26Q209.62 70.26 211.29 69.89Q212.96 69.52 214.37 68.89Q215.74 68.26 216.89 67.42Q218.04 66.59 218.93 65.62Q219.08 66.74 219.34 67.76Q219.6 68.78 219.97 69.52ZM209.66 62.69Q208.1 62.69 206.91 62.3Q205.72 61.91 204.94 61.28Q204.13 60.58 203.72 59.59Q203.31 58.61 203.31 57.46Q203.31 56.05 203.85 54.86Q204.39 53.67 205.46 52.82Q206.65 51.89 208.54 51.41Q210.44 50.93 213.11 50.93H218.6V58.09Q218.12 58.94 217.28 59.78Q216.45 60.61 215.3 61.25Q214.15 61.91 212.74 62.3Q211.33 62.69 209.66 62.69Z M239.12 12.52V20.42H251.48V61.65H239.12V69.52H273V61.65H261.17V12.52Z M294.23 52.49 306.3 69.52H318.13L300.58 46.1L315.94 29.37H304.4L292.86 41.76L289.45 45.58V12.52H279.87V69.52H289.45V56.94Z M324.7 29.37V37.27H336.62V61.65H324.7V69.52H357.66V61.65H346.3V29.37ZM335.84 19.05Q335.84 20.31 336.39 21.35Q336.95 22.39 337.99 22.95Q339.03 23.54 340.12 23.63Q341.22 23.73 342.26 23.36Q344.45 23.17 345.65 21.8Q346.86 20.42 346.75 18.42Q346.64 16.38 345.21 15.12Q343.78 13.86 341.4 13.86Q340.14 13.86 339.12 14.23Q338.1 14.6 337.4 15.27Q336.65 15.97 336.25 16.94Q335.84 17.9 335.84 19.05Z M383.27 19.57H373.65V29.37H364.19V36.49H373.65V55.49Q373.65 59.43 374.68 62.21Q375.7 64.99 377.59 66.77Q379.44 68.59 382.06 69.45Q384.68 70.3 387.83 70.3Q389.54 70.3 391.26 70.13Q392.99 69.97 394.58 69.67Q396.18 69.37 397.57 68.93Q398.96 68.48 400 67.89L399 61.25Q398.33 61.43 397.35 61.62Q396.37 61.8 395.25 61.95Q394.1 62.14 392.86 62.27Q391.62 62.4 390.47 62.4Q388.87 62.4 387.53 62.02Q386.2 61.65 385.23 60.73Q384.3 59.87 383.79 58.41Q383.27 56.94 383.27 54.71V36.49H398.3V29.37H383.27Z"/>
+</svg>
     </a>
     Evalkit
   </label>
@@ -350,6 +362,34 @@
     
   
     Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../beyond-quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beyond the quickstart
   
 
     
@@ -654,8 +694,10 @@
       
   
   
+    
   
   
+  
     
     
     
@@ -666,11 +708,11 @@
       
     
     
-    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
           <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
@@ -691,7 +733,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -725,6 +767,303 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#running-experiments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running experiments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running experiments">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#run_experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        run_experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#arun_experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        arun_experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluate_experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        evaluate_experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#aevaluate_experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        aevaluate_experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tracing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tracing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tracingregister" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        tracing.register
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluators" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluators
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Evaluators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evaluator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        evaluator
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evalcase" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EvalCase
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evalrun" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EvalRun
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scoreitem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScoreItem
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#judge" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Judge
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#experimentresult" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ExperimentResult
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runsummary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunSummary
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -875,278 +1214,6 @@
   
 
     
-      
-      
-  
-  
-    
-  
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    SDK reference
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    SDK reference
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#running-experiments" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Running experiments
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.run_experiment" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        run_experiment
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.arun_experiment" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        arun_experiment
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.evaluate_experiment" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        evaluate_experiment
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.aevaluate_experiment" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        aevaluate_experiment
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#tracing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Tracing
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.tracing.register" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        register
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evaluators" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Evaluators
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.evaluator" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        evaluator
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#types" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Types
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.EvalCase" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        EvalCase
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.EvalRun" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        EvalRun
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.ScoreItem" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ScoreItem
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.RunResult" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RunResult
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.Fixture" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Fixture
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.Judge" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Judge
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.ExperimentResult" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        ExperimentResult
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.RunSummary" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        RunSummary
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
-    </li>
-  
-
-    
   </ul>
 </nav>
                   </div>
@@ -1182,10 +1249,11 @@
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.run_experiment" class="md-nav__link">
+    <nav class="md-nav" aria-label="Running experiments">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#run_experiment" class="md-nav__link">
     <span class="md-ellipsis">
       
         run_experiment
@@ -1194,9 +1262,9 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.arun_experiment" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#arun_experiment" class="md-nav__link">
     <span class="md-ellipsis">
       
         arun_experiment
@@ -1205,9 +1273,9 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.evaluate_experiment" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#evaluate_experiment" class="md-nav__link">
     <span class="md-ellipsis">
       
         evaluate_experiment
@@ -1216,15 +1284,20 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.aevaluate_experiment" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#aevaluate_experiment" class="md-nav__link">
     <span class="md-ellipsis">
       
         aevaluate_experiment
       
     </span>
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1237,16 +1310,22 @@
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.tracing.register" class="md-nav__link">
+    <nav class="md-nav" aria-label="Tracing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tracingregister" class="md-nav__link">
     <span class="md-ellipsis">
       
-        register
+        tracing.register
       
     </span>
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1259,16 +1338,22 @@
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.evaluator" class="md-nav__link">
+    <nav class="md-nav" aria-label="Evaluators">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evaluator" class="md-nav__link">
     <span class="md-ellipsis">
       
         evaluator
       
     </span>
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1281,10 +1366,11 @@
     </span>
   </a>
   
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.EvalCase" class="md-nav__link">
+    <nav class="md-nav" aria-label="Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evalcase" class="md-nav__link">
     <span class="md-ellipsis">
       
         EvalCase
@@ -1293,9 +1379,9 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.EvalRun" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#evalrun" class="md-nav__link">
     <span class="md-ellipsis">
       
         EvalRun
@@ -1304,9 +1390,9 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.ScoreItem" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#scoreitem" class="md-nav__link">
     <span class="md-ellipsis">
       
         ScoreItem
@@ -1315,9 +1401,9 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.RunResult" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#runresult" class="md-nav__link">
     <span class="md-ellipsis">
       
         RunResult
@@ -1326,9 +1412,9 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.Fixture" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#fixture" class="md-nav__link">
     <span class="md-ellipsis">
       
         Fixture
@@ -1337,9 +1423,9 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.Judge" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#judge" class="md-nav__link">
     <span class="md-ellipsis">
       
         Judge
@@ -1348,9 +1434,9 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.ExperimentResult" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#experimentresult" class="md-nav__link">
     <span class="md-ellipsis">
       
         ExperimentResult
@@ -1359,15 +1445,20 @@
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#evalkit.sdk.RunSummary" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#runsummary" class="md-nav__link">
     <span class="md-ellipsis">
       
         RunSummary
       
     </span>
   </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -1387,25 +1478,19 @@
                   
 
 
+  
+  
+
 
 <h1 id="sdk-reference">SDK reference<a class="headerlink" href="#sdk-reference" title="Permanent link">&para;</a></h1>
-<p>The Python SDK runs experiments from your own code. Install it with the <code>otel</code> extra at your server's version (see <a href="../install/">Install</a>) and import from <code>evalkit.sdk</code>. <a href="../sdk-runs/">SDK runs</a> walks through it.</p>
+<p>The Python SDK runs experiments from your own code. Install <code>evalkit-py</code> at your server's version (see <a href="../install/">Install</a>) and import from <code>evalkit.sdk</code>. <a href="../sdk-runs/">SDK runs</a> walks through it.</p>
 <h2 id="running-experiments">Running experiments<a class="headerlink" href="#running-experiments" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="evalkit.sdk.run_experiment" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">run_experiment</span>
-
-
-<a href="#evalkit.sdk.run_experiment" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">run_experiment</span><span class="p">(</span>
+<h3 id="run_experiment">run_experiment<a class="headerlink" href="#run_experiment" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">run_experiment</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">dataset</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">agent</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">task</span><span class="p">:</span> <span class="n">Task</span><span class="p">,</span>
+    <span class="n">task</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
     <span class="n">workspace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">evaluators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PythonEvaluator</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">repetitions</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
@@ -1416,231 +1501,50 @@
     <span class="n">resume</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">trajectory_wait_seconds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">judge</span><span class="p">:</span> <span class="n">JudgeSettings</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">EVALUATION_CONCURRENCY</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span>
+    <span class="n">judge</span><span class="p">:</span> <span class="n">Judge</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span><span class="p">:</span>
 </code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Run an experiment: call <code>task</code> once per case and repetition, store the runs on
+<p>Run an experiment: call <code>task</code> once per case and repetition, store the runs on
 the server and score them.</p>
 <p>Scoring uses the judge, the remote evaluators of the agent's workspace and the
 Python <code>evaluators</code> you pass. Reads <code>evalkit.yaml</code> (cases, fixtures, credentials)
-from the current directory or a parent, and the login from <code>evalkit login</code>.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-            <b><code>dataset</code></b>
-              (<code><span title="str">str</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>The dataset to run. A bare name means your personal workspace; if it
-is also a directory under <code>cases</code> in <code>evalkit.yaml</code>, it is synced first.
-<code>name@workspace</code> runs a shared dataset, every review state included.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>agent</code></b>
-              (<code><span title="str">str</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>The code-driven agent on the server that the runs belong to, created once
-with <code>evalkit agents create</code>. A bare name means your personal workspace.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>task</code></b>
-              (<code><span title="evalkit.sdk.runner.Task">Task</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>Your function, called once per case and repetition, sync or async. Its
-parameters bind by name from <code>input</code> (the case input), <code>files</code>
-(<code>list[Fixture]</code>), <code>model</code> and <code>metadata</code> (<code>session_id</code>, <code>experiment_id</code>,
-<code>case_id</code>, <code>repetition</code>, <code>tags</code>). A task with one parameter of another name
-receives the input. Return a <code>str</code> (the answer), a <code>dict</code> (the structured
-output) or a <code>RunResult</code>. A task that raises records a failed run.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>workspace</code></b>
-              (<code><span title="str">str</span> | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>The workspace of <code>dataset</code> when it is a bare name.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>evaluators</code></b>
-              (<code><span title="collections.abc.Sequence">Sequence</span>[<span title="evalkit.core.python_eval.PythonEvaluator">PythonEvaluator</span>]</code>, default:
-                  <code>()</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>Python evaluators made with <code>evaluator</code>. A case selects one by name
-under <code>evaluators.custom</code>, like an HTTP evaluator.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>repetitions</code></b>
-              (<code><span title="int">int</span></code>, default:
-                  <code>1</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>How many times each case runs.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>concurrency</code></b>
-              (<code><span title="int">int</span> | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>How many tasks run at once. Defaults to the agent's
-<code>max_concurrent_runs</code>.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>case_ids</code></b>
-              (<code><span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>] | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>Run only these cases.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>tags</code></b>
-              (<code><span title="collections.abc.Sequence">Sequence</span>[<span title="str">str</span>] | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>Run only the cases carrying any of these tags.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>model</code></b>
-              (<code><span title="str">str</span> | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>Passed to the task's <code>model</code> parameter and recorded on the experiment.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>resume</code></b>
-              (<code><span title="int">int</span> | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>An experiment id to resume: runs only the cases it has not finished.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>dry_run</code></b>
-              (<code><span title="bool">bool</span> | <span title="int">int</span></code>, default:
-                  <code>False</code>
-)
-          –
-          <div class="doc-md-description">
-            <p><code>True</code> runs one case without creating an experiment and prints the
-answer and what the server made of the session; an int runs that many.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>trajectory_wait_seconds</code></b>
-              (<code><span title="int">int</span> | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>How long to wait for a run's spans to settle into a
-trajectory. Defaults to the agent's setting.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>judge</code></b>
-              (<code><a class="autorefs autorefs-internal" title="Judge (evalkit.contracts.settings.JudgeSettings)" href="#evalkit.sdk.Judge">JudgeSettings</a> | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>The judge for LLM-graded built-in evaluators. Defaults to the server's
-default judge. <code>Judge(provider=...)</code> names an LLM provider configured on
-the server: they run on the server with its stored key.
-<code>Judge(base_url=..., api_key=...)</code> brings your own judge: they run on this
-machine. The key is never stored.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>evaluation_concurrency</code></b>
-              (<code><span title="int">int</span></code>, default:
-                  <code><span title="evalkit.core.runner.EVALUATION_CONCURRENCY">EVALUATION_CONCURRENCY</span></code>
-)
-          –
-          <div class="doc-md-description">
-            <p>How many runs are scored at once.</p>
-          </div>
-        </li>
-    </ul>
-
-
-<p><span class="doc-section-title">Returns:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-              <code><a class="autorefs autorefs-internal" title="ExperimentResult (evalkit.sdk.runner.ExperimentResult)" href="#evalkit.sdk.ExperimentResult">ExperimentResult</a></code>
-          –
-          <div class="doc-md-description">
-            <p>The experiment id, its URL and one summary per run.</p>
-          </div>
-        </li>
-    </ul>
-
-
-<p><span class="doc-section-title">Raises:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-              <code><span title="RuntimeError">RuntimeError</span></code>
-            –
-          <div class="doc-md-description">
-            <p>When called from a running event loop; await <code>arun_experiment</code>
-there instead.</p>
-          </div>
-        </li>
-    </ul>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="evalkit.sdk.arun_experiment" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">arun_experiment</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#evalkit.sdk.arun_experiment" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">arun_experiment</span><span class="p">(</span>
+from the current directory or a parent, and the login from <code>evalkit login</code>. The
+file is optional: without it, cases are read from <code>evalkit/cases/&lt;dataset&gt;/</code> and
+fixtures from <code>evalkit/fixtures/</code> under the current directory, with no credentials.
+Prints the scorecard, then <code>link: &lt;url&gt;</code>, the experiment's page in the web UI.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>dataset</code> (<code>str</code>): The dataset to run. A bare name means your personal workspace; if it is also a directory under the cases root (<code>cases</code> in <code>evalkit.yaml</code>, <code>evalkit/cases</code> by default), it is synced first. <code>name@workspace</code> runs a shared dataset, every review state included.</li>
+<li><code>agent</code> (<code>str</code>): The code-driven agent on the server that the runs belong to, created once with <code>evalkit agents create</code>. A bare name means your personal workspace.</li>
+<li><code>task</code> (<code>Callable[..., Any]</code>): Your function, called once per case and repetition, sync or async. Its parameters bind by name from <code>input</code> (the case input), <code>files</code> (<code>list[Fixture]</code>), <code>model</code> and <code>metadata</code> (<code>session_id</code>, <code>experiment_id</code>, <code>case_id</code>, <code>repetition</code>, <code>tags</code>). A task with one parameter of another name receives the input. Return a <code>str</code> (the answer), a <code>dict</code> (the structured output) or a <code>RunResult</code>. A task that raises records a failed run.</li>
+<li><code>workspace</code> (<code>str | None</code>): The workspace of <code>dataset</code> when it is a bare name.</li>
+<li><code>evaluators</code> (<code>Sequence[PythonEvaluator]</code>): Python evaluators made with <code>evaluator</code>. A case selects one by name under <code>evaluators.custom</code>, like an HTTP evaluator.</li>
+<li><code>repetitions</code> (<code>int</code>): How many times each case runs.</li>
+<li><code>concurrency</code> (<code>int | None</code>): How many tasks run at once. Defaults to the agent's <code>max_concurrent_runs</code>.</li>
+<li><code>case_ids</code> (<code>Sequence[str] | None</code>): Run only these cases.</li>
+<li><code>tags</code> (<code>Sequence[str] | None</code>): Run only the cases carrying any of these tags.</li>
+<li><code>model</code> (<code>str | None</code>): Passed to the task's <code>model</code> parameter and recorded on the experiment.</li>
+<li><code>resume</code> (<code>int | None</code>): An experiment id to resume: runs only the cases it has not finished.</li>
+<li><code>dry_run</code> (<code>bool | int</code>): <code>True</code> runs one case without creating an experiment and prints the answer and what the server made of the session; an int runs that many.</li>
+<li><code>trajectory_wait_seconds</code> (<code>int | None</code>): How long to wait for a run's spans to settle into a trajectory. Defaults to the agent's setting.</li>
+<li><code>judge</code> (<code>Judge | None</code>): The judge for LLM-graded built-in evaluators. Defaults to the server's default judge. <code>Judge(provider=...)</code> names an LLM provider configured on the server: they run on the server with its stored key. <code>Judge(base_url=..., api_key=...)</code> brings your own judge: they run on this machine. The key is never stored.</li>
+<li><code>evaluation_concurrency</code> (<code>int</code>): How many runs are scored at once.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<ul>
+<li><code>ExperimentResult</code>: The experiment id, its URL and one summary per run.</li>
+</ul>
+<p><strong>Raises</strong></p>
+<ul>
+<li><code>RuntimeError</code>: When called from a running event loop; await <code>arun_experiment</code> there instead.</li>
+</ul>
+<h3 id="arun_experiment">arun_experiment<a class="headerlink" href="#arun_experiment" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">arun_experiment</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">dataset</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
     <span class="n">agent</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
-    <span class="n">task</span><span class="p">:</span> <span class="n">Task</span><span class="p">,</span>
+    <span class="n">task</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
     <span class="n">workspace</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">evaluators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PythonEvaluator</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">repetitions</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
@@ -1651,915 +1555,243 @@ there instead.</p>
     <span class="n">resume</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">trajectory_wait_seconds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">judge</span><span class="p">:</span> <span class="n">JudgeSettings</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">EVALUATION_CONCURRENCY</span><span class="p">,</span>
-    <span class="n">api_transport</span><span class="p">:</span> <span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">custom_eval_transport</span><span class="p">:</span> <span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">progress</span><span class="p">:</span> <span class="n">Progress</span> <span class="o">=</span> <span class="nb">print</span><span class="p">,</span>
+    <span class="n">judge</span><span class="p">:</span> <span class="n">Judge</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span><span class="p">,</span>
+    <span class="n">api_transport</span><span class="p">:</span> <span class="n">httpx2</span><span class="o">.</span><span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">custom_eval_transport</span><span class="p">:</span> <span class="n">httpx2</span><span class="o">.</span><span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">progress</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="nb">print</span><span class="p">,</span>
     <span class="n">poll_interval</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">5.0</span><span class="p">,</span>
     <span class="n">tracer_provider</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span><span class="p">:</span>
 </code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>The async form of <code>run_experiment</code>, for code already in an event loop (a notebook).</p>
+<p>The async form of <code>run_experiment</code>, for code already in an event loop (a notebook).</p>
 <p>Same arguments and result as <code>run_experiment</code>. The arguments after
 <code>evaluation_concurrency</code> exist for tests.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="evalkit.sdk.evaluate_experiment" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">evaluate_experiment</span>
-
-
-<a href="#evalkit.sdk.evaluate_experiment" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">evaluate_experiment</span><span class="p">(</span>
+<h3 id="evaluate_experiment">evaluate_experiment<a class="headerlink" href="#evaluate_experiment" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">evaluate_experiment</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">experiment_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">evaluators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PythonEvaluator</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">refetch_trajectories</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">EVALUATION_CONCURRENCY</span><span class="p">,</span>
-    <span class="n">judge</span><span class="p">:</span> <span class="n">JudgeSettings</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span>
+    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span><span class="p">,</span>
+    <span class="n">judge</span><span class="p">:</span> <span class="n">Judge</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span><span class="p">:</span>
 </code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Re-score an experiment that used Python evaluators.</p>
+<p>Re-score an experiment that used Python evaluators.</p>
 <p><code>evalkit evaluate</code> refuses such experiments, because the evaluators live in your
-script; call this from the script instead. Exported as <code>evaluate_experiment</code>.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-            <b><code>experiment_id</code></b>
-              (<code><span title="int">int</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>The experiment to re-score.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>evaluators</code></b>
-              (<code><span title="collections.abc.Sequence">Sequence</span>[<span title="evalkit.core.python_eval.PythonEvaluator">PythonEvaluator</span>]</code>, default:
-                  <code>()</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>The Python evaluators the experiment ran with. Each must have been
-part of the experiment.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>refetch_trajectories</code></b>
-              (<code><span title="bool">bool</span></code>, default:
-                  <code>False</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>Read the trajectories of runs whose trajectory was
-<code>partial</code> or <code>unavailable</code> again before scoring.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>evaluation_concurrency</code></b>
-              (<code><span title="int">int</span></code>, default:
-                  <code><span title="evalkit.core.runner.EVALUATION_CONCURRENCY">EVALUATION_CONCURRENCY</span></code>
-)
-          –
-          <div class="doc-md-description">
-            <p>How many runs are scored at once.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>judge</code></b>
-              (<code><a class="autorefs autorefs-internal" title="Judge (evalkit.contracts.settings.JudgeSettings)" href="#evalkit.sdk.Judge">JudgeSettings</a> | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>The experiment's judge again, for an experiment that brought its own
-(<code>Judge(base_url=..., api_key=...)</code>): keys are never stored, so re-scoring
-asks for it again. It must be the judge the experiment recorded; a
-different judge is refused.</p>
-          </div>
-        </li>
-    </ul>
-
-
-<p><span class="doc-section-title">Returns:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-              <code><a class="autorefs autorefs-internal" title="ExperimentResult (evalkit.sdk.runner.ExperimentResult)" href="#evalkit.sdk.ExperimentResult">ExperimentResult</a></code>
-          –
-          <div class="doc-md-description">
-            <p>The experiment id, its URL and one summary per run.</p>
-          </div>
-        </li>
-    </ul>
-
-
-<p><span class="doc-section-title">Raises:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-              <code><span title="RuntimeError">RuntimeError</span></code>
-            –
-          <div class="doc-md-description">
-            <p>When called from a running event loop; await
-<code>aevaluate_experiment</code> there instead.</p>
-          </div>
-        </li>
-    </ul>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="evalkit.sdk.aevaluate_experiment" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">aevaluate_experiment</span>
-
-
-  <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-async"><code>async</code></small>
-  </span>
-
-<a href="#evalkit.sdk.aevaluate_experiment" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">aevaluate_experiment</span><span class="p">(</span>
+script; call this from the script instead. Exported as <code>evaluate_experiment</code>.
+Ends with <code>link: &lt;url&gt;</code>, the experiment's page in the web UI.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>experiment_id</code> (<code>int</code>): The experiment to re-score.</li>
+<li><code>evaluators</code> (<code>Sequence[PythonEvaluator]</code>): The Python evaluators the experiment ran with. Each must have been part of the experiment.</li>
+<li><code>refetch_trajectories</code> (<code>bool</code>): Read the trajectories of runs whose trajectory was <code>partial</code> or <code>unavailable</code> again before scoring.</li>
+<li><code>evaluation_concurrency</code> (<code>int</code>): How many runs are scored at once.</li>
+<li><code>judge</code> (<code>Judge | None</code>): The experiment's judge again, for an experiment that brought its own (<code>Judge(base_url=..., api_key=...)</code>): keys are never stored, so re-scoring asks for it again. It must be the judge the experiment recorded; a different judge is refused.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<ul>
+<li><code>ExperimentResult</code>: The experiment id, its URL and one summary per run.</li>
+</ul>
+<p><strong>Raises</strong></p>
+<ul>
+<li><code>RuntimeError</code>: When called from a running event loop; await <code>aevaluate_experiment</code> there instead.</li>
+</ul>
+<h3 id="aevaluate_experiment">aevaluate_experiment<a class="headerlink" href="#aevaluate_experiment" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">aevaluate_experiment</span><span class="p">(</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">experiment_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">evaluators</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PythonEvaluator</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
     <span class="n">refetch_trajectories</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">EVALUATION_CONCURRENCY</span><span class="p">,</span>
-    <span class="n">judge</span><span class="p">:</span> <span class="n">JudgeSettings</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">api_transport</span><span class="p">:</span> <span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">custom_eval_transport</span><span class="p">:</span> <span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">progress</span><span class="p">:</span> <span class="n">Progress</span> <span class="o">=</span> <span class="nb">print</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span>
+    <span class="n">evaluation_concurrency</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span><span class="p">,</span>
+    <span class="n">judge</span><span class="p">:</span> <span class="n">Judge</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">api_transport</span><span class="p">:</span> <span class="n">httpx2</span><span class="o">.</span><span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">custom_eval_transport</span><span class="p">:</span> <span class="n">httpx2</span><span class="o">.</span><span class="n">AsyncBaseTransport</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">progress</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">str</span><span class="p">],</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="nb">print</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ExperimentResult</span><span class="p">:</span>
 </code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>The async form of <code>evaluate_experiment</code>, for code already in an event loop.</p>
+<p>The async form of <code>evaluate_experiment</code>, for code already in an event loop.</p>
 <p>Same arguments and result as <code>evaluate_experiment</code>. The arguments after
 <code>judge</code> exist for tests.</p>
-
-
-    </div>
-
-</div><h2 id="tracing">Tracing<a class="headerlink" href="#tracing" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="evalkit.sdk.tracing.register" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">register</span>
-
-
-<a href="#evalkit.sdk.tracing.register" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">register</span><span class="p">(</span>
-    <span class="n">agent</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">only</span><span class="p">:</span> <span class="n">SpanFilter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span>
+<h2 id="tracing">Tracing<a class="headerlink" href="#tracing" title="Permanent link">&para;</a></h2>
+<h3 id="tracingregister">tracing.register<a class="headerlink" href="#tracingregister" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">register</span><span class="p">(</span>
+    <span class="n">agent</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">only</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="nb">bool</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 </code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Send this process's OpenTelemetry spans to the evalkit server.</p>
+<p>Send this process's OpenTelemetry spans to the evalkit server.</p>
 <p>Adds an exporter to the global tracer provider, or creates one when none is set.
 Call it after your own tracing setup, so it joins your provider. Spans go to the
 server you logged in to (or <code>EVALKIT_SERVER_URL</code>) with the agent token in
 <code>EVALKIT_OTEL_TOKEN</code> (<code>evalkit tokens create --agent &lt;agent&gt;</code>); a person's login
-is not accepted, because it expires under a long-running process. Needs the
-<code>otel</code> extra.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-            <b><code>agent</code></b>
-              (<code><span title="str">str</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>The agent the spans belong to, e.g. <code>myagent</code> or <code>myagent@dev</code>.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>only</code></b>
-              (<code><span title="evalkit.sdk.tracing.SpanFilter">SpanFilter</span> | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>Export only the spans this function returns <code>True</code> for.</p>
-          </div>
-        </li>
-    </ul>
-
-
-    </div>
-
-</div><h2 id="evaluators">Evaluators<a class="headerlink" href="#evaluators" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="evalkit.sdk.evaluator" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">evaluator</span>
-
-
-<a href="#evalkit.sdk.evaluator" class="headerlink" title="Permanent link">&para;</a></h2>
-          <div class="doc-overloads">
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">evaluator</span><span class="p">(</span><span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">PythonEvaluator</span>
-</code></pre></div><div class="doc-signature highlight"><pre><span></span><code><span class="nf">evaluator</span><span class="p">(</span>
-    <span class="o">*</span><span class="p">,</span>
-    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">kind</span><span class="p">:</span> <span class="n">Kind</span> <span class="o">=</span> <span class="s2">"evaluator"</span><span class="p">,</span>
-    <span class="n">requires_trajectory</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="n">PythonEvaluator</span><span class="p">]</span>
-</code></pre></div>          </div>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">evaluator</span><span class="p">(</span>
+is not accepted, because it expires under a long-running process.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>agent</code> (<code>str</code>): The agent the spans belong to, e.g. <code>myagent</code> or <code>myagent@dev</code>.</li>
+<li><code>only</code> (<code>Callable[[Any], bool] | None</code>): Export only the spans this function returns <code>True</code> for.</li>
+</ul>
+<h2 id="evaluators">Evaluators<a class="headerlink" href="#evaluators" title="Permanent link">&para;</a></h2>
+<h3 id="evaluator">evaluator<a class="headerlink" href="#evaluator" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">def</span><span class="w"> </span><span class="nf">evaluator</span><span class="p">(</span>
     <span class="n">fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="o">/</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">kind</span><span class="p">:</span> <span class="n">Kind</span> <span class="o">=</span> <span class="s2">"evaluator"</span><span class="p">,</span>
+    <span class="n">kind</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s1">'evaluator'</span><span class="p">,</span> <span class="s1">'gauge'</span><span class="p">]</span> <span class="o">=</span> <span class="s1">'evaluator'</span><span class="p">,</span>
     <span class="n">requires_trajectory</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="p">(</span>
-    <span class="n">PythonEvaluator</span>
-    <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="n">PythonEvaluator</span><span class="p">]</span>
-<span class="p">)</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PythonEvaluator</span> <span class="o">|</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Callable</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="n">PythonEvaluator</span><span class="p">]:</span>
 </code></pre></div>
-
-    <div class="doc doc-contents first">
-
-        <p>Turn a function into a Python evaluator for <code>run_experiment</code>.</p>
+<p>Turn a function into a Python evaluator for <code>run_experiment</code>.</p>
 <p>Use it bare (<code>@evaluator</code>) or with options (<code>@evaluator(name=...)</code>). The function
 receives the same <code>EvalCase</code> and <code>EvalRun</code> the Custom Evaluator API sends: the
 case id, input, expected block and this evaluator's config from the case YAML
 (<code>case.config</code>); the answer, structured output and ATIF trajectory as a dict.
 It returns a float, a <code>ScoreItem</code>, or a list of them.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-            <b><code>fn</code></b>
-              (<code><span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>] | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>The function, when used bare.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>name</code></b>
-              (<code><span title="str">str</span> | None</code>, default:
-                  <code>None</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>The name cases use under <code>evaluators.custom</code>. Defaults to the
-function's name.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>kind</code></b>
-              (<code><span title="evalkit.sdk.evaluators.Kind">Kind</span></code>, default:
-                  <code>&#39;evaluator&#39;</code>
-)
-          –
-          <div class="doc-md-description">
-            <p><code>evaluator</code> for a score, <code>gauge</code> for a measurement.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-            <b><code>requires_trajectory</code></b>
-              (<code><span title="bool">bool</span></code>, default:
-                  <code>False</code>
-)
-          –
-          <div class="doc-md-description">
-            <p>Skip runs that have no trajectory.</p>
-          </div>
-        </li>
-    </ul>
-
-
-<p><span class="doc-section-title">Returns:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-              <code><span title="evalkit.core.python_eval.PythonEvaluator">PythonEvaluator</span> | <span title="collections.abc.Callable">Callable</span>[[<span title="collections.abc.Callable">Callable</span>[..., <span title="typing.Any">Any</span>]], <span title="evalkit.core.python_eval.PythonEvaluator">PythonEvaluator</span>]</code>
-          –
-          <div class="doc-md-description">
-            <p>The evaluator, or a decorator that makes one.</p>
-          </div>
-        </li>
-    </ul>
-
-
-    </div>
-
-</div><h2 id="types">Types<a class="headerlink" href="#types" title="Permanent link">&para;</a></h2>
-
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="evalkit.sdk.EvalCase" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">EvalCase</span>
-
-
-<a href="#evalkit.sdk.EvalCase" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-
-
-        <p>The case an evaluator scores.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="evalkit.sdk.EvalRun" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">EvalRun</span>
-
-
-<a href="#evalkit.sdk.EvalRun" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-
-
-        <p>The run an evaluator scores.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="evalkit.sdk.ScoreItem" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">ScoreItem</span>
-
-
-<a href="#evalkit.sdk.ScoreItem" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-
-
-        <p>One named score an evaluator returns.</p>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="evalkit.sdk.RunResult" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">RunResult</span>
-
-
-<a href="#evalkit.sdk.RunResult" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-
-
-        <p>What a task can return instead of a plain answer.</p>
-
-
-<p><span class="doc-section-title">Attributes:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunResult.answer">answer</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>The agent's answer text.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunResult.output">output</span></code></b>
-              (<code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>The agent's structured output.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunResult.model">model</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>The model the agent used, recorded on the run.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunResult.error">error</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>An error message; the run is recorded as failed.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunResult.session_id">session_id</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>The agent's own session id, when its spans do not continue the
-SDK's trace. The SDK reads the trajectory from that session.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunResult.trajectory">trajectory</span></code></b>
-              (<code><span title="dict">dict</span>[<span title="str">str</span>, <span title="typing.Any">Any</span>] | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>An ATIF document to store as the trajectory, instead of building
-one from spans.</p>
-          </div>
-        </li>
-    </ul>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="evalkit.sdk.Fixture" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">Fixture</span>
-
-
-<a href="#evalkit.sdk.Fixture" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-
-
-        <p>A case's fixture file, downloaded before the task is called.</p>
-
-
-<p><span class="doc-section-title">Attributes:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.Fixture.name">name</span></code></b>
-              (<code><span title="str">str</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>The fixture key the case names.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.Fixture.path">path</span></code></b>
-              (<code><span title="pathlib.Path">Path</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>Where the file sits on this machine.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.Fixture.context">context</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>The file's description from the fixture registry, or <code>None</code>.</p>
-          </div>
-        </li>
-    </ul>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="evalkit.sdk.Judge" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">Judge</span>
-
-
-<a href="#evalkit.sdk.Judge" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-
-
-        <p>The LLM judge an experiment uses; exported from <code>evalkit.sdk</code> as <code>Judge</code>.</p>
+<p><strong>Args</strong></p>
+<ul>
+<li><code>fn</code> (<code>Callable[..., Any] | None</code>): The function, when used bare.</li>
+<li><code>name</code> (<code>str | None</code>): The name cases use under <code>evaluators.custom</code>. Defaults to the function's name.</li>
+<li><code>kind</code> (<code>Literal['evaluator', 'gauge']</code>): <code>evaluator</code> for a score, <code>gauge</code> for a measurement.</li>
+<li><code>requires_trajectory</code> (<code>bool</code>): Skip runs that have no trajectory.</li>
+</ul>
+<p><strong>Returns</strong></p>
+<ul>
+<li><code>PythonEvaluator | Callable[[Callable[..., Any]], PythonEvaluator]</code>: The evaluator, or a decorator that makes one.</li>
+</ul>
+<h2 id="types">Types<a class="headerlink" href="#types" title="Permanent link">&para;</a></h2>
+<h3 id="evalcase">EvalCase<a class="headerlink" href="#evalcase" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">EvalCase</span><span class="p">:</span>
+    <span class="nb">id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="nb">input</span><span class="p">:</span> <span class="nb">dict</span>
+    <span class="n">expected</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">config</span><span class="p">:</span> <span class="nb">dict</span>
+</code></pre></div>
+<p>The case an evaluator scores.</p>
+<p><strong>Attributes</strong></p>
+<ul>
+<li><code>id</code> (<code>str</code>): Case id.</li>
+<li><code>input</code> (<code>dict</code>): Case input, verbatim.</li>
+<li><code>expected</code> (<code>dict | None</code>): Case expected block, if any.</li>
+<li><code>config</code> (<code>dict</code>): This case's YAML config for this evaluator. Opaque to evalkit — passed through untouched.</li>
+</ul>
+<h3 id="evalrun">EvalRun<a class="headerlink" href="#evalrun" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">EvalRun</span><span class="p">:</span>
+    <span class="n">answer</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">output</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">trajectory</span><span class="p">:</span> <span class="nb">dict</span>
+</code></pre></div>
+<p>The run an evaluator scores.</p>
+<p><strong>Attributes</strong></p>
+<ul>
+<li><code>answer</code> (<code>str</code>): The agent's final answer. When the harness sent only a structured output, this is that output as canonical JSON (sorted keys).</li>
+<li><code>output</code> (<code>dict | None</code>): The agent's structured output, parsed, or null when the harness sent none.</li>
+<li><code>trajectory</code> (<code>dict</code>): The persisted ATIF trajectory document.</li>
+</ul>
+<h3 id="scoreitem">ScoreItem<a class="headerlink" href="#scoreitem" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ScoreItem</span><span class="p">:</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">score</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">explanation</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+<p>One named score an evaluator returns.</p>
+<p><strong>Attributes</strong></p>
+<ul>
+<li><code>name</code> (<code>str</code>): Score name. Multi-score is first-class: one call may return several named scores.</li>
+<li><code>score</code> (<code>float | None</code>): null means 'no reading' — recorded but excluded from aggregates.</li>
+<li><code>label</code> (<code>str | None</code>): Optional short label.</li>
+<li><code>explanation</code> (<code>str | None</code>): Optional. Shown in the UI and EDD bundles.</li>
+</ul>
+<h3 id="runresult">RunResult<a class="headerlink" href="#runresult" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">RunResult</span><span class="p">:</span>
+    <span class="n">answer</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">output</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">error</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">trajectory</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+<p>What a task can return instead of a plain answer.</p>
+<p><strong>Attributes</strong></p>
+<ul>
+<li><code>answer</code> (<code>str | None</code>): The agent's answer text.</li>
+<li><code>output</code> (<code>dict[str, Any] | None</code>): The agent's structured output.</li>
+<li><code>model</code> (<code>str | None</code>): The model the agent used, recorded on the run.</li>
+<li><code>error</code> (<code>str | None</code>): An error message. With no answer and no output the run is recorded as failed and gets no score; with one, the run is scored and keeps the message.</li>
+<li><code>session_id</code> (<code>str | None</code>): The agent's own session id, when its spans do not continue the SDK's trace. The SDK reads the trajectory from that session.</li>
+<li><code>trajectory</code> (<code>dict[str, Any] | None</code>): An ATIF document to store as the trajectory, instead of building one from spans.</li>
+</ul>
+<h3 id="fixture">Fixture<a class="headerlink" href="#fixture" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Fixture</span><span class="p">:</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">context</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+<p>A case's fixture file, downloaded before the task is called.</p>
+<p><strong>Attributes</strong></p>
+<ul>
+<li><code>name</code> (<code>str</code>): The fixture key the case names.</li>
+<li><code>path</code> (<code>Path</code>): Where the file sits on this machine.</li>
+<li><code>context</code> (<code>str | None</code>): The file's description from the fixture registry, or <code>None</code>.</li>
+</ul>
+<h3 id="judge">Judge<a class="headerlink" href="#judge" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">Judge</span><span class="p">:</span>
+    <span class="n">provider</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">base_url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">api_key</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">reasoning_effort</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'high'</span>
+    <span class="n">max_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">32768</span>
+</code></pre></div>
+<p>The LLM judge an experiment uses; exported from <code>evalkit.sdk</code> as <code>Judge</code>.</p>
 <p>Set exactly one of <code>provider</code> or <code>base_url</code>. With <code>provider</code>, the judge is served
 by an LLM provider configured on the evalkit server: judge-using built-in
 evaluators run on the server with its stored key. With <code>base_url</code>, you bring your
 own judge: those evaluators run on your machine, with <code>api_key</code>.</p>
-
-
-<p><span class="doc-section-title">Attributes:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.Judge.provider">provider</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>The name of an LLM provider configured on the server.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.Judge.base_url">base_url</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>An OpenAI-compatible endpoint that supports structured output.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.Judge.api_key">api_key</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>The key for <code>base_url</code>. Sent only to <code>base_url</code>; never stored on the
-evalkit server or shown.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.Judge.model">model</span></code></b>
-              (<code><span title="str">str</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>The model name at that endpoint.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.Judge.reasoning_effort">reasoning_effort</span></code></b>
-              (<code><span title="str">str</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>Passed to the model as <code>reasoning_effort</code>.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.Judge.max_tokens">max_tokens</span></code></b>
-              (<code><span title="int">int</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>The most tokens one judge reply may use.</p>
-          </div>
-        </li>
-    </ul>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="evalkit.sdk.ExperimentResult" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">ExperimentResult</span>
-
-
-<a href="#evalkit.sdk.ExperimentResult" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-
-
-        <p>The result of <code>run_experiment</code> or <code>evaluate_experiment</code>.</p>
-
-
-<p><span class="doc-section-title">Attributes:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.ExperimentResult.experiment_id">experiment_id</span></code></b>
-              (<code><span title="int">int</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>The experiment, or <code>None</code> after a dry run.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.ExperimentResult.url">url</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>The experiment's page in the web UI, or <code>None</code> after a dry run.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.ExperimentResult.runs">runs</span></code></b>
-              (<code><span title="list">list</span>[<a class="autorefs autorefs-internal" title="RunSummary (evalkit.sdk.runner.RunSummary)" href="#evalkit.sdk.RunSummary">RunSummary</a>]</code>)
-          –
-          <div class="doc-md-description">
-            <p>One entry per case and repetition.</p>
-          </div>
-        </li>
-    </ul>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-class">
-
-
-
-<h2 id="evalkit.sdk.RunSummary" class="doc doc-heading">
-            <span class="doc doc-object-name doc-class-name">RunSummary</span>
-
-
-<a href="#evalkit.sdk.RunSummary" class="headerlink" title="Permanent link">&para;</a></h2>
-
-
-    <div class="doc doc-contents first">
-
-
-
-        <p>One run of an experiment.</p>
-
-
-<p><span class="doc-section-title">Attributes:</span></p>
-    <ul>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunSummary.case_id">case_id</span></code></b>
-              (<code><span title="str">str</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>The case.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunSummary.repetition">repetition</span></code></b>
-              (<code><span title="int">int</span></code>)
-          –
-          <div class="doc-md-description">
-            <p>1 for the first repetition, 2 for the second, and so on.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunSummary.status">status</span></code></b>
-              (<code><span title="str">str</span></code>)
-          –
-          <div class="doc-md-description">
-            <p><code>completed</code>, <code>failed</code>, <code>cancelled</code> or <code>timeout</code>.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunSummary.trajectory_status">trajectory_status</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p><code>valid</code>, <code>partial</code>, <code>invalid</code> or <code>unavailable</code>, or <code>None</code>
-when no trajectory was read.</p>
-          </div>
-        </li>
-        <li class="doc-section-item field-body">
-          <b><code><span title="evalkit.sdk.RunSummary.session_id">session_id</span></code></b>
-              (<code><span title="str">str</span> | None</code>)
-          –
-          <div class="doc-md-description">
-            <p>The session the run's spans belong to.</p>
-          </div>
-        </li>
-    </ul>
-
-
-
-
-
-
-
-
-
-
-
-<div class="doc doc-children">
-
-
-
-
-
-
-
-
-
-
-
-
-  </div>
-
-    </div>
-
-</div>
+<p><strong>Attributes</strong></p>
+<ul>
+<li><code>provider</code> (<code>str | None</code>): The name of an LLM provider configured on the server.</li>
+<li><code>base_url</code> (<code>str | None</code>): An OpenAI-compatible endpoint that supports structured output.</li>
+<li><code>api_key</code> (<code>str | None</code>): The key for <code>base_url</code>. Sent only to <code>base_url</code>; never stored on the evalkit server or shown.</li>
+<li><code>model</code> (<code>str</code>): The model name at that endpoint.</li>
+<li><code>reasoning_effort</code> (<code>str</code>): Passed to the model as <code>reasoning_effort</code>.</li>
+<li><code>max_tokens</code> (<code>int</code>): The most tokens one judge reply may use.</li>
+</ul>
+<h3 id="experimentresult">ExperimentResult<a class="headerlink" href="#experimentresult" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">ExperimentResult</span><span class="p">:</span>
+    <span class="n">experiment_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">runs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">RunSummary</span><span class="p">]</span>
+</code></pre></div>
+<p>The result of <code>run_experiment</code> or <code>evaluate_experiment</code>.</p>
+<p><strong>Attributes</strong></p>
+<ul>
+<li><code>experiment_id</code> (<code>int | None</code>): The experiment, or <code>None</code> after a dry run.</li>
+<li><code>url</code> (<code>str | None</code>): The experiment's page in the web UI, or <code>None</code> after a dry run.</li>
+<li><code>runs</code> (<code>list[RunSummary]</code>): One entry per case and repetition.</li>
+</ul>
+<h3 id="runsummary">RunSummary<a class="headerlink" href="#runsummary" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">RunSummary</span><span class="p">:</span>
+    <span class="n">case_id</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">repetition</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">status</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">trajectory_status</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">trajectory_note</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+</code></pre></div>
+<p>One run of an experiment.</p>
+<p><strong>Attributes</strong></p>
+<ul>
+<li><code>case_id</code> (<code>str</code>): The case.</li>
+<li><code>repetition</code> (<code>int</code>): 1 for the first repetition, 2 for the second, and so on.</li>
+<li><code>status</code> (<code>str</code>): <code>completed</code>, <code>failed</code>, <code>cancelled</code> or <code>timeout</code>.</li>
+<li><code>trajectory_status</code> (<code>str | None</code>): <code>valid</code>, <code>partial</code>, <code>invalid</code> or <code>unavailable</code>, or <code>None</code> when no trajectory was read.</li>
+<li><code>session_id</code> (<code>str | None</code>): The session the run's spans belong to.</li>
+<li><code>trajectory_note</code> (<code>str | None</code>): Why the trajectory is partial or unavailable, or a note on a valid one whose mapping read no LLM or tool steps; <code>None</code> otherwise.</li>
+<li><code>url</code> (<code>str | None</code>): The run's page in the web UI: the experiment's page for its case, or after a dry run the agent run's page; <code>None</code> when a dry run pushed its trajectory or has no session id, because the server then holds no run.</li>
+</ul>
 
 
 
@@ -2595,7 +1827,7 @@ when no trajectory was read.</p>
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../mcp/" class="md-footer__link md-footer__link--prev" aria-label="Previous: MCP">
+          <a href="../sdk-runs/" class="md-footer__link md-footer__link--prev" aria-label="Previous: SDK runs">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -2605,11 +1837,27 @@ when no trajectory was read.</p>
                 Previous
               </span>
               <div class="md-ellipsis">
-                MCP
+                SDK runs
               </div>
             </div>
           </a>
         
+        
+          
+          <a href="../tracing/" class="md-footer__link md-footer__link--next" aria-label="Next: Tracing">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Tracing
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
         
       </nav>
     

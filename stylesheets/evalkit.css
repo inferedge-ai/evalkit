@@ -1,67 +1,77 @@
-/* The web UI's tokens (ui/src/theme.css) mapped onto Material's variables. */
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap");
+/* The web UI's design tokens (tokens.css, generated from ui/src/styles/tokens) mapped onto
+   Material's variables. */
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap");
 
 :root {
-  --md-text-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --md-text-font-family: "Roboto", system-ui, sans-serif;
   --md-code-font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
-}
-
-[data-md-color-scheme="default"] {
-  --ek-brand: rgb(46 103 200);
-  --ek-brand-hover: rgb(32 72 140);
-  --ek-surface: rgb(255 255 255);
-  --ek-canvas: rgb(249 250 251);
-  --ek-fill: rgb(243 244 246);
-  --ek-line: rgb(229 231 235);
-  --ek-ink: rgb(17 24 39);
-  --ek-ink-2: rgb(75 85 99);
-  --ek-ink-3: rgb(107 114 128);
+  --ek-radius-sm: calc(var(--radius) * 0.6);
+  --ek-radius-md: calc(var(--radius) * 0.8);
+  --ek-radius-lg: var(--radius);
+  --ek-ink-2: var(--color-gray-600);
+  --ek-ink-4: var(--color-gray-400);
 }
 
 [data-md-color-scheme="slate"] {
-  --ek-brand: rgb(107 154 232);
-  --ek-brand-hover: rgb(144 181 243);
-  --ek-surface: rgb(23 30 44);
-  --ek-canvas: rgb(15 21 33);
-  --ek-fill: rgb(33 42 58);
-  --ek-line: rgb(50 61 80);
-  --ek-ink: rgb(241 245 249);
-  --ek-ink-2: rgb(190 200 215);
-  --ek-ink-3: rgb(148 161 182);
-  --md-hue: 220;
+  --ek-ink-2: var(--color-gray-300);
+  --ek-ink-4: var(--color-gray-500);
 }
 
 [data-md-color-scheme="default"],
 [data-md-color-scheme="slate"] {
-  --md-primary-fg-color: var(--ek-surface);
-  --md-primary-fg-color--light: var(--ek-surface);
-  --md-primary-fg-color--dark: var(--ek-surface);
-  --md-primary-bg-color: var(--ek-ink);
+  --ek-brand-hover: color-mix(in oklab, var(--primary) 80%, var(--foreground));
+  --md-hue: 220;
+
+  --md-primary-fg-color: var(--card);
+  --md-primary-fg-color--light: var(--card);
+  --md-primary-fg-color--dark: var(--card);
+  --md-primary-bg-color: var(--foreground);
   --md-primary-bg-color--light: var(--ek-ink-2);
   --md-accent-fg-color: var(--ek-brand-hover);
-  --md-accent-fg-color--transparent: color-mix(in srgb, var(--ek-brand) 10%, transparent);
+  --md-accent-fg-color--transparent: color-mix(in oklab, var(--primary) 10%, transparent);
+  --md-accent-bg-color: var(--primary-foreground);
 
-  --md-default-bg-color: var(--ek-canvas);
-  --md-default-fg-color: var(--ek-ink);
+  --md-default-bg-color: var(--background);
+  --md-default-fg-color: var(--foreground);
   --md-default-fg-color--light: var(--ek-ink-2);
-  --md-default-fg-color--lighter: var(--ek-ink-3);
-  --md-default-fg-color--lightest: var(--ek-line);
+  --md-default-fg-color--lighter: var(--muted-foreground);
+  --md-default-fg-color--lightest: var(--border);
 
-  --md-typeset-color: var(--ek-ink);
-  --md-typeset-a-color: var(--ek-brand);
-  --md-code-bg-color: var(--ek-fill);
-  --md-code-hl-color: color-mix(in srgb, var(--ek-brand) 15%, transparent);
-  --md-code-fg-color: var(--ek-ink);
-  --md-typeset-table-color: var(--ek-line);
-  --md-footer-bg-color: var(--ek-canvas);
-  --md-footer-bg-color--dark: var(--ek-canvas);
+  --md-typeset-color: var(--foreground);
+  --md-typeset-a-color: var(--primary);
+  --md-code-bg-color: var(--muted);
+  --md-code-fg-color: var(--foreground);
+  --md-code-hl-color: color-mix(in oklab, var(--primary) 15%, transparent);
+  --md-typeset-table-color: var(--border);
+  --md-typeset-table-color--light: color-mix(in oklab, var(--border) 50%, transparent);
+  --md-footer-bg-color: var(--background);
+  --md-footer-bg-color--dark: var(--background);
   --md-footer-fg-color: var(--ek-ink-2);
-  --md-footer-fg-color--light: var(--ek-ink-3);
+  --md-footer-fg-color--light: var(--muted-foreground);
+  --md-footer-fg-color--lighter: var(--ek-ink-4);
+  --md-shadow-z1: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --md-shadow-z2: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --md-shadow-z3: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+/* Header and tabs: the UI's top bar, a card surface over a hairline. */
 .md-header {
-  border-bottom: 1px solid var(--ek-line);
+  height: var(--height-top-bar);
+  background-color: var(--card);
+  border-bottom: 1px solid var(--border);
   box-shadow: none;
+}
+
+.md-header__inner {
+  height: 100%;
 }
 
 .md-header[data-md-state="shadow"],
@@ -70,120 +80,220 @@
 }
 
 .md-tabs {
-  background-color: var(--ek-surface);
+  background-color: var(--card);
   color: var(--ek-ink-2);
+  border-bottom: 1px solid var(--border);
 }
 
-.md-search__input {
-  background-color: var(--ek-fill);
-  color: var(--ek-ink);
-}
-
-.md-search__input::placeholder,
-.md-search__icon {
-  color: var(--ek-ink-3);
-}
-
-.md-nav__link--active,
-.md-nav__item .md-nav__link--active {
-  color: var(--ek-brand);
-}
-
-.md-typeset {
-  font-size: 0.7rem;
-  line-height: 1.55;
-}
-
-.md-typeset h1 {
-  color: var(--ek-ink);
-  font-weight: 600;
-  font-size: 1.5rem;
-}
-
-.md-typeset h2,
-.md-typeset h3 {
-  font-weight: 600;
-}
-
-.md-typeset code {
-  border-radius: 4px;
-  font-size: 0.85em;
-}
-
-.md-typeset pre > code {
-  border: 1px solid var(--ek-line);
-  border-radius: 6px;
-}
-
-.md-typeset table:not([class]) {
-  border: 1px solid var(--ek-line);
-  border-radius: 6px;
-  font-size: 0.68rem;
-}
-
-.md-typeset table:not([class]) th {
-  background-color: var(--ek-fill);
-  color: var(--ek-ink-2);
-}
-
-.md-banner {
-  background-color: color-mix(in srgb, var(--ek-brand) 12%, var(--ek-surface));
-  color: var(--ek-ink);
-}
-
-.md-banner a {
-  color: var(--ek-brand);
-}
-
-.doc-signature {
-  font-family: var(--md-code-font-family);
-}
-
-/* The web UI's header: the InferEdge lockup, then "Evalkit" in the brand colour. */
 .md-header__button.md-logo {
   margin-right: 0.4rem;
   padding: 0.4rem 0;
 }
 
-.ek-lockup {
-  font-family: var(--md-code-font-family);
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
+.ek-mark {
+  fill: #111827;
+  stroke: transparent;
 }
 
-.ek-infer {
-  color: var(--ek-ink-3);
+.ek-name {
+  fill: #111827;
 }
 
-.ek-slash {
-  color: var(--ek-brand);
+[data-md-color-scheme="slate"] .ek-mark {
+  fill: #1f2937;
+  stroke: #374151;
 }
 
-.ek-edge {
-  color: var(--ek-ink);
-  font-weight: 700;
+[data-md-color-scheme="slate"] .ek-name {
+  fill: #ffffff;
+}
+
+/* The lockup already says evalkit: hide the site name beside it in the drawer,
+   and in the header on wide screens, where Material shows the logo. */
+.md-nav--primary > .md-nav__title {
+  font-size: 0;
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-header__topic:first-child {
+    visibility: hidden;
+  }
 }
 
 .md-header__topic:first-child {
   font-family: var(--md-code-font-family);
   font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--ek-brand);
+  letter-spacing: -0.04em;
+  text-transform: lowercase;
+  color: var(--foreground);
 }
 
 .md-header__topic .md-ellipsis {
   font-size: 0.8rem;
 }
 
-/* Links, inline code and code blocks as the UI's markdown renders them. */
+.md-header__button.md-icon:hover,
+.md-source:hover {
+  opacity: 1;
+  color: var(--primary);
+}
+
+/* Search: the UI's input, a muted field with a hairline and the brand focus ring. */
+.md-search__form {
+  background-color: var(--muted);
+  border: 1px solid var(--input);
+  border-radius: var(--ek-radius-md);
+  box-shadow: none;
+}
+
+.md-search__form:hover {
+  background-color: var(--muted);
+}
+
+[data-md-toggle="search"]:checked ~ .md-header .md-search__form {
+  background-color: var(--popover);
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 24%, transparent);
+  border-radius: var(--ek-radius-md) var(--ek-radius-md) 0 0;
+}
+
+.md-search__input {
+  background-color: transparent;
+  color: var(--foreground);
+}
+
+.md-search__input::placeholder,
+.md-search__icon {
+  color: var(--muted-foreground);
+}
+
+.md-search__output {
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--ek-radius-md) var(--ek-radius-md);
+  box-shadow: var(--md-shadow-z2);
+}
+
+.md-search__scrollwrap,
+.md-search-result__meta {
+  background-color: var(--popover);
+}
+
+.md-search-result__meta {
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+}
+
+.md-search-result__link:is(:focus, :hover),
+.md-search-result__more > summary:is(:focus, :hover) {
+  background-color: var(--muted);
+}
+
+.md-search-result mark {
+  color: var(--primary);
+}
+
+/* Sidebar and table of contents: the UI's docs menu, a muted pill on the current page. */
+.md-nav {
+  font-size: 0.7rem;
+}
+
+.md-nav__title {
+  color: var(--muted-foreground);
+  font-weight: 500;
+}
+
+.md-nav__item--section > .md-nav__link {
+  color: var(--muted-foreground);
+  font-size: 0.6rem;
+  font-weight: 500;
+}
+
+.md-sidebar--primary .md-nav__link {
+  margin-top: 0.1rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--ek-radius-md);
+  color: var(--muted-foreground);
+  transition: background-color var(--duration-medium) var(--ease-standard),
+    color var(--duration-medium) var(--ease-standard);
+}
+
+.md-sidebar--primary .md-nav__item--section > .md-nav__link {
+  padding-bottom: 0.1rem;
+}
+
+.md-sidebar--primary .md-nav__link[href]:hover {
+  background-color: var(--muted);
+  color: var(--foreground);
+}
+
+.md-sidebar--primary .md-nav__link--active,
+.md-sidebar--primary .md-nav__link--active:hover {
+  background-color: var(--muted);
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.md-sidebar--secondary .md-nav__link {
+  color: var(--muted-foreground);
+}
+
+.md-sidebar--secondary .md-nav__link--active,
+.md-sidebar--secondary .md-nav__link:hover {
+  color: var(--primary);
+}
+
+/* Body text and headings at the UI docs page's sizes. */
+.md-typeset {
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3,
+.md-typeset h4 {
+  color: var(--foreground);
+  font-weight: 600;
+  letter-spacing: normal;
+}
+
+.md-typeset h1 {
+  font-size: 1.6em;
+  margin: 0 0 0.6em;
+}
+
+.md-typeset h2 {
+  font-size: 1.2em;
+  margin: 1.6em 0 0.5em;
+}
+
+.md-typeset h3 {
+  font-size: 1.05em;
+  margin: 1.2em 0 0.4em;
+}
+
+.md-typeset h4 {
+  font-size: 1em;
+  margin: 1em 0 0.4em;
+}
+
+.md-typeset .headerlink {
+  color: var(--muted-foreground);
+}
+
+.md-typeset .headerlink:is(:focus, :hover),
+.md-typeset :target > .headerlink {
+  color: var(--primary);
+}
+
 .md-typeset a {
+  color: var(--primary);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.md-typeset a:hover {
+.md-typeset a:is(:focus, :hover) {
   color: var(--ek-brand-hover);
 }
 
@@ -193,17 +303,33 @@
   text-decoration: none;
 }
 
+/* Inline code and code blocks as the UI's markdown renders them. */
 .md-typeset :not(pre) > code {
-  border: 1px solid var(--ek-line);
-  border-radius: 3px;
+  background-color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--ek-radius-sm);
   padding: 0 0.2em;
+  font-size: 0.85em;
 }
 
-/* Code blocks use the app's highlighting: prism's `github` theme in light,
-   `nightOwl` in dark (ui/src/pages/DocsPage.tsx). */
+.md-typeset pre > code {
+  background-color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: var(--ek-radius-md);
+}
+
+.md-typeset .md-code__nav,
+.md-typeset .md-clipboard {
+  color: var(--muted-foreground);
+}
+
+.md-typeset .md-clipboard:is(:focus, :hover) {
+  color: var(--primary);
+}
+
+/* Prism's `github` theme in light and `nightOwl` in dark, the themes the UI's code blocks
+   use (ui/src/pages/DocsPage.tsx), over the muted token background. */
 [data-md-color-scheme="default"] {
-  --ek-pre-bg: #f6f8fa;
-  --ek-pre-fg: #393a34;
   --md-code-hl-comment-color: #999988;
   --md-code-hl-string-color: #e3116c;
   --md-code-hl-number-color: #36acaa;
@@ -219,8 +345,6 @@
 }
 
 [data-md-color-scheme="slate"] {
-  --ek-pre-bg: #011627;
-  --ek-pre-fg: #d6deeb;
   --md-code-hl-comment-color: rgb(99 119 119);
   --md-code-hl-string-color: rgb(173 219 103);
   --md-code-hl-number-color: rgb(247 140 108);
@@ -235,13 +359,224 @@
   --md-code-hl-generic-color: #d6deeb;
 }
 
-.md-typeset pre > code {
-  background-color: var(--ek-pre-bg);
-  color: var(--ek-pre-fg);
-}
-
 .md-typeset .highlight .c,
 .md-typeset .highlight .c1,
 .md-typeset .highlight .cm {
   font-style: italic;
+}
+
+/* Tables: hairline borders, a muted header row, the UI's radius. */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--border);
+  border-radius: var(--ek-radius-md);
+  font-size: 0.7rem;
+  box-shadow: none;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--muted);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.md-typeset table:not([class]) :is(th, td) {
+  border-top: 1px solid var(--border);
+  padding: 0.5em 0.8em;
+}
+
+.md-typeset table:not([class]) tbody tr:hover {
+  background-color: color-mix(in oklab, var(--muted) 50%, transparent);
+  box-shadow: none;
+}
+
+tr:has(.ek-row-anchor:target),
+.md-typeset table:not([class]) tbody tr:has(.ek-row-anchor:target) {
+  background-color: var(--muted);
+}
+
+.ek-row-anchor {
+  scroll-margin-top: 4rem;
+}
+
+/* Content tabs: the UI's TabsList, a muted track with the selected tab raised on it. */
+.md-typeset .tabbed-set {
+  margin: 0.75em 0;
+}
+
+.md-typeset .tabbed-labels {
+  display: inline-flex;
+  gap: 0;
+  max-width: 100%;
+  padding: 3px;
+  border-radius: var(--ek-radius-lg);
+  background-color: var(--muted);
+  box-shadow: none;
+}
+
+.md-typeset .tabbed-labels::before,
+.js .md-typeset .tabbed-labels::before {
+  display: none;
+}
+
+.md-typeset .tabbed-labels {
+  width: fit-content;
+}
+
+.md-typeset .tabbed-labels > label > a {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.md-typeset .tabbed-labels > label {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--ek-radius-md);
+  color: color-mix(in oklab, var(--foreground) 60%, transparent);
+  font-size: 0.7rem;
+  font-weight: 500;
+  transition: color var(--duration-medium) var(--ease-standard),
+    background-color var(--duration-medium) var(--ease-standard);
+}
+
+.md-typeset .tabbed-labels > label:hover {
+  color: var(--foreground);
+}
+
+.md-typeset .tabbed-set > input:nth-child(1):checked ~ .tabbed-labels > :nth-child(1),
+.md-typeset .tabbed-set > input:nth-child(2):checked ~ .tabbed-labels > :nth-child(2),
+.md-typeset .tabbed-set > input:nth-child(3):checked ~ .tabbed-labels > :nth-child(3),
+.md-typeset .tabbed-set > input:nth-child(4):checked ~ .tabbed-labels > :nth-child(4),
+.md-typeset .tabbed-set > input:nth-child(5):checked ~ .tabbed-labels > :nth-child(5),
+.md-typeset .tabbed-set > input:nth-child(6):checked ~ .tabbed-labels > :nth-child(6),
+.md-typeset .tabbed-set > input:nth-child(7):checked ~ .tabbed-labels > :nth-child(7),
+.md-typeset .tabbed-set > input:nth-child(8):checked ~ .tabbed-labels > :nth-child(8),
+.md-typeset .tabbed-set > input:nth-child(9):checked ~ .tabbed-labels > :nth-child(9),
+.md-typeset .tabbed-set > input:nth-child(10):checked ~ .tabbed-labels > :nth-child(10),
+.md-typeset .tabbed-set > input:nth-child(11):checked ~ .tabbed-labels > :nth-child(11),
+.md-typeset .tabbed-set > input:nth-child(12):checked ~ .tabbed-labels > :nth-child(12),
+.md-typeset .tabbed-set > input:nth-child(13):checked ~ .tabbed-labels > :nth-child(13),
+.md-typeset .tabbed-set > input:nth-child(14):checked ~ .tabbed-labels > :nth-child(14),
+.md-typeset .tabbed-set > input:nth-child(15):checked ~ .tabbed-labels > :nth-child(15),
+.md-typeset .tabbed-set > input:nth-child(16):checked ~ .tabbed-labels > :nth-child(16),
+.md-typeset .tabbed-set > input:nth-child(17):checked ~ .tabbed-labels > :nth-child(17),
+.md-typeset .tabbed-set > input:nth-child(18):checked ~ .tabbed-labels > :nth-child(18),
+.md-typeset .tabbed-set > input:nth-child(19):checked ~ .tabbed-labels > :nth-child(19),
+.md-typeset .tabbed-set > input:nth-child(20):checked ~ .tabbed-labels > :nth-child(20) {
+  background-color: var(--background);
+  color: var(--foreground);
+  box-shadow: var(--md-shadow-z1);
+}
+
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:checked ~ .tabbed-labels > label {
+  box-shadow: none;
+}
+
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(1):checked ~ .tabbed-labels > :nth-child(1),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(2):checked ~ .tabbed-labels > :nth-child(2),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(3):checked ~ .tabbed-labels > :nth-child(3),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(4):checked ~ .tabbed-labels > :nth-child(4),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(5):checked ~ .tabbed-labels > :nth-child(5),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(6):checked ~ .tabbed-labels > :nth-child(6),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(7):checked ~ .tabbed-labels > :nth-child(7),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(8):checked ~ .tabbed-labels > :nth-child(8),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(9):checked ~ .tabbed-labels > :nth-child(9),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(10):checked ~ .tabbed-labels > :nth-child(10),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(11):checked ~ .tabbed-labels > :nth-child(11),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(12):checked ~ .tabbed-labels > :nth-child(12),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(13):checked ~ .tabbed-labels > :nth-child(13),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(14):checked ~ .tabbed-labels > :nth-child(14),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(15):checked ~ .tabbed-labels > :nth-child(15),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(16):checked ~ .tabbed-labels > :nth-child(16),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(17):checked ~ .tabbed-labels > :nth-child(17),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(18):checked ~ .tabbed-labels > :nth-child(18),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(19):checked ~ .tabbed-labels > :nth-child(19),
+[data-md-color-scheme="slate"] .md-typeset .tabbed-set > input:nth-child(20):checked ~ .tabbed-labels > :nth-child(20) {
+  border-color: var(--input);
+  background-color: var(--background);
+}
+
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(1):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(1),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(2):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(2),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(3):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(3),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(4):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(4),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(5):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(5),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(6):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(6),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(7):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(7),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(8):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(8),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(9):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(9),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(10):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(10),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(11):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(11),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(12):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(12),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(13):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(13),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(14):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(14),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(15):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(15),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(16):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(16),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(17):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(17),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(18):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(18),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(19):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(19),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(20):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(20) {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
+}
+
+.md-typeset .tabbed-content {
+  padding-top: 0.25rem;
+}
+
+/* Images: never wider than the column, the UI's radius and hairline. */
+.md-typeset img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--ek-radius-md);
+}
+
+/* Footer, banner and the version selector. */
+.md-footer {
+  border-top: 1px solid var(--border);
+}
+
+.md-footer-meta {
+  background-color: var(--background);
+}
+
+.md-banner {
+  background-color: color-mix(in oklab, var(--primary) 12%, var(--card));
+  color: var(--foreground);
+}
+
+.md-banner a {
+  color: var(--primary);
+}
+
+.md-version__current {
+  color: var(--muted-foreground);
+  font-family: var(--md-code-font-family);
+}
+
+.md-version__list {
+  background-color: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: var(--ek-radius-md);
+  box-shadow: var(--md-shadow-z2);
+  color: var(--popover-foreground);
+}
+
+.md-version__link:is(:focus, :hover) {
+  background-color: var(--muted);
+  color: var(--foreground);
+}
+
+.md-top {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: var(--md-shadow-z1);
+  color: var(--foreground);
+}
+
+.doc-signature {
+  font-family: var(--md-code-font-family);
 }
