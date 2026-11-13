@@ -34,7 +34,7 @@ from evalkit.cli.skill_targets import record as record_skill_target
 from evalkit.cli.tokens_commands import register as register_tokens
 from evalkit.cli.traces_commands import register as register_traces
 from evalkit.cli.update import run_update
-from evalkit.client import connection, oidc
+from evalkit.client import connection, links, oidc
 from evalkit.client.agents import definition_of
 from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
@@ -65,6 +65,7 @@ else:
     server_commands = None  # type: ignore[assignment]
 
 RUN_POLL_SECONDS = 2.0
+CASE_HINT = "evalkit review show <dataset> <case-id> shows one case and its link"
 
 app = typer.Typer(
     name="evalkit",
@@ -500,6 +501,7 @@ def _sync_and_report(
             "(no need to run `review request` again): "
             + ", ".join(f"{c['case_id']} ({c['reviewer']})" for c in review["carried"])
         )
+    _echo_link(links.build_dataset_url(_server_url(), slug(Reference(name, workspace))))
 
 
 @app.command()
@@ -568,6 +570,7 @@ def datasets_create(
     ref = _parse(dataset, _connection().username or "")
     _client().post("/api/datasets", json={"name": ref.name, "workspace": ref.workspace})
     typer.echo(f"created {slug(ref)}")
+    _echo_link(links.build_dataset_url(_server_url(), slug(ref)))
 
 
 @datasets_app.command("list")
@@ -595,10 +598,13 @@ def datasets_list(
         if state is not None or tag is not None:
             raise ApiError("--state and --tag filter a dataset's cases; pass a dataset")
         params = {"workspace": workspace.removeprefix("@")} if workspace is not None else {}
-        for ds in _client().get("/api/datasets", params=params).json():
+        found = _client().get("/api/datasets", params=params).json()
+        for ds in found:
             last = ds.get("last_sync") or {}
             sha = (last.get("detail") or {}).get("sha") or "-"
             typer.echo(f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}")
+        if found:
+            typer.echo("evalkit datasets show <dataset> shows one dataset and its link")
         return
     if workspace is not None:
         raise ApiError("--workspace filters the dataset list; name the dataset as finance@dev")
@@ -617,6 +623,8 @@ def datasets_list(
             f"fixtures={','.join(fixtures) or '-'}"
         )
     typer.echo(f"{len(shown)} case(s) in {dataset_slug}")
+    if shown:
+        typer.echo(CASE_HINT)
 
 
 @datasets_app.command("show")
@@ -652,6 +660,7 @@ def datasets_show(
             states[state] = states.get(state, 0) + 1
         typer.echo("review: " + (", ".join(f"{k} {v}" for k, v in sorted(states.items())) or "-"))
     typer.echo("tags: " + (", ".join(f"{t['name']} {t['count']}" for t in tags) or "-"))
+    _echo_link(links.build_dataset_url(_server_url(), ds["ref"]))
 
 
 class _Progress:
@@ -700,7 +709,7 @@ def _run_on_server(
         exp_id = int(created["id"])
         _warn_dropped(created.get("dropped_cases") or [])
     typer.echo(f"experiment {exp_id}")
-    _echo_link(exp_id)
+    _echo_experiment_link(exp_id)
     last = None
     while True:
         body = client.get(f"/api/experiments/{exp_id}").json()
@@ -869,7 +878,7 @@ def run(
         ) as exc:
             raise ApiError(str(exc)) from exc
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
-    _echo_link(exp_id)
+    _echo_experiment_link(exp_id)
 
 
 def _judge_api_key(judge: dict | None, env_name: str | None, *, resuming: bool) -> str | None:
@@ -992,7 +1001,7 @@ def evaluate(
     ) as exc:
         raise ApiError(str(exc)) from exc
     typer.echo(f"evaluated {experiment_id}")
-    _echo_link(experiment_id)
+    _echo_experiment_link(experiment_id)
 
 
 def _progress_text(progress: dict) -> str:
@@ -1000,12 +1009,16 @@ def _progress_text(progress: dict) -> str:
     return f"{progress['ran']}/{total} ran, {progress['evaluated']}/{total} evaluated"
 
 
-def _experiment_url(exp_id: int) -> str:
-    return connection.build_experiment_url(_active_connection().url, exp_id)
+def _server_url() -> str:
+    return _active_connection().url
 
 
-def _echo_link(exp_id: int) -> None:
-    typer.echo(f"link: {_experiment_url(exp_id)}")
+def _echo_link(url: str) -> None:
+    typer.echo(f"link: {url}")
+
+
+def _echo_experiment_link(exp_id: int) -> None:
+    _echo_link(links.build_experiment_url(_server_url(), exp_id))
 
 
 def _lease_text(body: dict) -> str:
@@ -1033,7 +1046,7 @@ def status(experiment_id: int):
     )
     if body.get("status_error"):
         typer.secho(f"  error: {body['status_error']}", fg="red")
-    typer.echo(f"  link: {_experiment_url(body['id'])}")
+    typer.echo(f"  link: {links.build_experiment_url(_server_url(), body['id'])}")
 
 
 def _render_summary(report: dict, base: dict | None = None) -> None:
@@ -1059,7 +1072,7 @@ def summary(
             .json()
         )
         _render_summary(reports["compare"], reports["base"])
-    _echo_link(experiment_id)
+    _echo_experiment_link(experiment_id)
 
 
 @experiments_app.command("list")
@@ -1580,10 +1593,17 @@ def _case_yaml(case: dict) -> str:
     )
 
 
+def _case_url(dataset: str, case_id: str) -> str:
+    return links.build_case_url(
+        _server_url(), slug(_parse(dataset, _connection().username or "")), case_id
+    )
+
+
 def _post_decision(dataset: str, case_id: str, action: str, comment: str | None) -> None:
     body = {"action": action, "comment": comment}
     result = _client().post(f"{_case_path(dataset, case_id)}/review", json=body).json()
     typer.echo(f"{case_id}: {result['state']}")
+    _echo_link(_case_url(dataset, case_id))
 
 
 @review_app.command("request")
@@ -1631,6 +1651,7 @@ def review_show(
                 f"{ex['case_id']:<40} {review.get('state', '-'):<18} "
                 f"{review.get('requested_to') or ''}"
             )
+        typer.echo(CASE_HINT)
         return
     match = client.get(_case_path(dataset, case_id)).json()
     case_yaml = _case_yaml(match)
@@ -1656,6 +1677,7 @@ def review_show(
         typer.echo(_fmt_comment(thread, indent=2))
         for reply in thread["replies"]:
             typer.echo(_fmt_comment(reply, indent=6))
+    _echo_link(links.build_case_url(_server_url(), shown_ref, case_id))
 
 
 @review_app.command("approve")
@@ -1716,6 +1738,7 @@ def review_comment(
     body = {"body": text if comment is None else comment, "parent_id": reply_to}
     stored = _client().post(f"{_case_path(dataset, case_id)}/comments", json=body).json()
     typer.echo(f"comment {stored['id']} on {case_id}")
+    _echo_link(_case_url(dataset, case_id))
 
 
 @review_app.command("resolve")
@@ -1740,6 +1763,7 @@ def review_resolve(
     )
     result = _client().patch(path, json={"resolved": not undo}).json()
     typer.echo(f"comment {result['id']} {'resolved' if result['resolved'] else 'unresolved'}")
+    _echo_link(links.build_case_url(_server_url(), result["dataset"], result["case_id"]))
 
 
 def _queue_items(client: ApiClient, dataset: str | None, params: dict) -> list[dict]:
@@ -1785,3 +1809,4 @@ def review_queue(
             f"{item['dataset']:<20} {item['case_id']:<40} by {item['requested_by']:<16} "
             f"to {to or '-':<16} {item['input'][:60]}"
         )
+    typer.echo(CASE_HINT)

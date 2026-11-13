@@ -404,6 +404,23 @@ Harness API page has the full table.
 | Add the SDK to a project | `uv add "evalkit-py==<server version>"` |
 | Vendor these skills into a repo | `evalkit skills install` |
 
+Commands that show, create or change one item with a page in the web UI end
+with `link: <url>`, that page. Give the developer the link.
+
+| Item | Page | Commands that print its link |
+|---|---|---|
+| Experiment | `/experiments/<id>` | `run`, `evaluate`, `status`, `summary`, `runs pull --experiment` |
+| Dataset | `/datasets/<dataset>` | `sync` (and `run`, which syncs first), `datasets create`, `datasets show` |
+| Case | `/datasets/<dataset>/cases/<case id>` | `review show <dataset> <case id>`, `review approve` (one link per case), `review request-changes`, `review comment`, `review resolve` |
+| Agent | `/agents/<agent>` | `agents create`, `agents edit`, `agents show`, `agents archive`, `agents restore` |
+| Agent run | `/runs/<agent>/<run id>` | `traces check`, `traces import <agent> <session id>`; `runs pull --run-id` and `runs list --json` (each row's `url`), except for a personal agent with a harness, whose runs the server cannot reach |
+
+`experiments list`, `datasets list`, `agents list` and the commands that list
+cases (`datasets list <dataset>`, `review show <dataset>`, `review queue`) end
+with a line naming the command that shows one item and its link. Remote
+evaluators, workspaces, trace sources and LLM providers have no page of their
+own, so their commands print no link.
+
 Read `evalkit <command> --help` before you run a command. It is the source of
 truth for how the command behaves: for example, `run` executes only Approved
 cases on shared datasets (personal datasets run every case) and checks

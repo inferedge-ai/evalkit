@@ -111,10 +111,6 @@ def active(path: Path | None = None) -> Connection:
     return stored
 
 
-def build_experiment_url(server_url: str, exp_id: int) -> str:
-    return f"{server_url.rstrip('/')}/experiments/{exp_id}"
-
-
 def renew_hint(connection: Connection) -> str:
     if connection.machine is not None:
         return "check EVALKIT_OIDC_CLIENT_ID and EVALKIT_OIDC_CLIENT_SECRET"
