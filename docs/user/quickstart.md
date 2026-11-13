@@ -63,7 +63,7 @@ Run every `evalkit` command below in that environment: with the virtualenv activ
 evalkit login
 ```
 
-Your browser opens. Sign up or sign in to [hosted evalkit](concepts.md#hosted-evalkit).
+Your browser opens. Sign up or sign in to [hosted evalkit](https://evalkit.inferedge.com).
 
 On a server you run yourself:
 
