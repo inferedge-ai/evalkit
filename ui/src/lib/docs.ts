@@ -8,6 +8,7 @@ import serverConfig from "../../../docs/user/server-config.md?raw";
 import workspaces from "../../../docs/user/workspaces.md?raw";
 import ciSync from "../../../docs/user/ci-sync.md?raw";
 import sdkRuns from "../../../docs/user/sdk-runs.md?raw";
+import sdkReference from "../../../docs/user/sdk-reference.md?raw";
 import tracing from "../../../docs/user/tracing.md?raw";
 import mappings from "../../../docs/user/mappings.md?raw";
 import frameworkMappings from "../../../docs/user/framework-mappings.md?raw";
@@ -61,6 +62,12 @@ export const DOC_TABS = [
     body: caseSchema,
   },
   { id: "sdk-runs", label: "SDK runs", group: "Traces", body: sdkRuns },
+  {
+    id: "sdk-reference",
+    label: "SDK reference",
+    group: "Traces",
+    body: sdkReference,
+  },
   { id: "tracing", label: "Tracing", group: "Traces", body: tracing },
   { id: "mappings", label: "Mappings", group: "Traces", body: mappings },
   {

@@ -18,6 +18,19 @@
 - New skill `getting-started`: walks a coding agent through the quickstart in
   the developer's agent project. `evalkit skills install` copies it with the
   others.
+- **Docs**: the SDK reference is now a page in the web UI's docs (under
+  Traces, after SDK runs), and `evalkit skills install` copies it to
+  `evalkit-docs/sdk-reference.md` for coding agents. The docs site shows the
+  same page. `scripts/gen_sdk_reference.py` writes it from the `evalkit.sdk`
+  docstrings; the docs site no longer uses mkdocstrings.
+
+- **CLI** (Fixes): Fixed every `evalkit` command crashing with `No module
+  named 'bcrypt'` in a project that has uvicorn and SQLAlchemy but not the
+  server extra. The CLI now loads `serve`, `db upgrade`, `db rekey` and
+  `init-server` only when every package of `evalkit-py[server]` is
+  installed, and otherwise says to install the extra. `evalkit update` uses
+  the same check to decide whether to reinstall with `[server]`.
+
 - **Scorecard**: errored runs show in every scorecard (ENG-14621). A run is
   errored when it ended without completing with an answer: it has no `output`,
   and it either did not end `completed` or has no `answer`. An errored run

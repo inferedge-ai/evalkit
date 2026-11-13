@@ -17,6 +17,7 @@ describe("docs", () => {
       "ci-sync",
       "case-schema",
       "sdk-runs",
+      "sdk-reference",
       "tracing",
       "mappings",
       "framework-mappings",
