@@ -1,6 +1,6 @@
 ---
 name: getting-started
-description: Use when a developer wants to set up evalkit for their agent for the first time, try evalkit, or follow the evalkit quickstart — takes them from an installed CLI to a connected agent, a dataset mined from the agent's real traces, a baseline experiment and one measured improvement. Not for a team that already runs experiments (use evalkit-usage) or for deploying a server (use evalkit-deployment).
+description: Use when a developer wants to set up evalkit for their agent for the first time, try evalkit, or follow the evalkit quickstart — takes them from installing evalkit-py to a connected agent, a dataset mined from the agent's real traces, a baseline experiment and one measured improvement. Not for a team that already runs experiments (use evalkit-usage) or for deploying a server (use evalkit-deployment).
 ---
 
 # Getting started
@@ -48,7 +48,11 @@ After that, stop for the developer only at the points under "When to stop".
 - Find exact command shapes with `evalkit --help` and `--help` on any
   subcommand; do not guess flags.
 - Install `evalkit-py` into the agent's own project with the tool it already
-  uses (pip in its active virtualenv, uv or poetry). evalkit needs Python
+  uses (pip in its active virtualenv, uv or poetry), pinned to the server's
+  version: `evalkit-py==<version>`, where `curl <server url>/api/cli` prints
+  `<version>` (hosted evalkit: `https://evalkit.inferedge.com`). Runs refuse
+  to start when the versions differ; after a server upgrade, `evalkit update`
+  moves the pin. evalkit needs Python
   3.12 or newer; if the project cannot use it, say so and stop. Run every
   `evalkit` command in that environment (active virtualenv, `uv run` or
   `poetry run`); there is no separate global install.

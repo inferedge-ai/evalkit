@@ -26,16 +26,18 @@ This quickstart assumes a Python agent. Is yours in another language, or does it
 Open your coding agent in your agent's project folder and tell it:
 
 ```text
-Install evalkit-py into this project, run `evalkit skills install`, then use the getting-started skill to set up evalkit for this agent.
+Install evalkit-py=={{version}} into this project, run `evalkit skills install`, then use the getting-started skill to set up evalkit for this agent.
 ```
 
-It runs every step below. It stops only when it needs you: the sign-in in your browser, which path you take, and your trace store's URL and API key.
+On a server you run yourself, add: `Log in to {{origin}}.`
+
+It runs every step below. It stops only when it needs you: how fast to go, which path you take, the sign-in in your browser, your trace store's URL and project and the name of the environment variable that holds its API key, and your OK on the plan for the cases.
 
 Prefer to do it by hand? The steps are the same.
 
 ## 1. Install and log in
 
-Install `evalkit-py` into your agent's own project. evalkit needs Python 3.12 or newer.
+Install `evalkit-py` into your agent's own project, at the version of the evalkit server you use: runs refuse to start when the two differ. evalkit needs Python 3.12 or newer.
 
 <!-- tabs -->
 #### pip
@@ -43,19 +45,19 @@ Install `evalkit-py` into your agent's own project. evalkit needs Python 3.12 or
 In the virtualenv your agent uses:
 
 ```bash
-pip install evalkit-py
+pip install "evalkit-py=={{version}}"
 ```
 
 #### uv
 
 ```bash
-uv add evalkit-py
+uv add "evalkit-py=={{version}}"
 ```
 
 #### poetry
 
 ```bash
-poetry add evalkit-py
+poetry add "evalkit-py=={{version}}"
 ```
 <!-- /tabs -->
 
