@@ -32,6 +32,9 @@ After that, stop for the developer only at the points under "When to stop".
 
 ## Rules
 
+- When a step fails and the linked docs do not cover it, show the developer
+  the exact command and error, and point them to
+  https://github.com/inferedge-ai/evalkit/issues to report it.
 - Work from the root of the developer's agent project. Cases go in
   `evalkit/cases/<dataset>/` and the run script is `run_evals.py` at the
   project root (in `evalkit/`, `from myagent import ...` fails). Never put

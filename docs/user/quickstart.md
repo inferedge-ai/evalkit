@@ -8,6 +8,8 @@ You need:
 - Python 3.12 or newer in your agent's project.
 - A coding agent, such as Claude Code or Codex.
 
+Stuck at a step? Read the page that step links to, or [open an issue on GitHub](https://github.com/inferedge-ai/evalkit/issues).
+
 There are two paths. They differ only in step 3, which has a tab for each:
 
 - **My agent sends traces to Phoenix.** evalkit imports your trace history.
@@ -293,3 +295,4 @@ In the UI: open the new experiment and pick the old one under Compare with.
 - [Beyond the quickstart](beyond-quickstart.md): write a case by hand, attach files, drive your agent through the Harness API, share cases with your team.
 - [Concepts](concepts.md): every term on this page.
 - [Try locally](try-locally.md): run evalkit on your own machine with a sample agent.
+- [GitHub issues](https://github.com/inferedge-ai/evalkit/issues): report a problem or ask a question.
