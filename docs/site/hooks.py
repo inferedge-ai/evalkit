@@ -10,7 +10,6 @@ from tokens import render_site_tokens
 SITE = Path(__file__).parent
 ROOT = SITE.parent.parent
 GENERATED = {
-    "sdk-reference.md": SITE / "sdk-reference.md",
     "stylesheets/evalkit.css": SITE / "stylesheets" / "evalkit.css",
     "javascripts/outdated.js": SITE / "javascripts" / "outdated.js",
     "favicon.svg": ROOT / "ui" / "public" / "favicon.svg",

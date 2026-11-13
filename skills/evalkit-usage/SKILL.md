@@ -259,6 +259,9 @@ if __name__ == "__main__":
 evalkit agents create myagent --trajectory-source otel --mapping openinference
 ```
 
+Every argument, return value and type of `evalkit.sdk` is in the
+[SDK reference](../evalkit-docs/sdk-reference.md).
+
 Rules of the road:
 
 - `run_experiment` is a push model: your process runs the task once per case

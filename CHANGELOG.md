@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Docs**: the SDK reference is now a page in the web UI's docs (under
+  Traces, after SDK runs), and `evalkit skills install` copies it to
+  `evalkit-docs/sdk-reference.md` for coding agents. The docs site shows the
+  same page. `scripts/gen_sdk_reference.py` writes it from the `evalkit.sdk`
+  docstrings; the docs site no longer uses mkdocstrings.
+
 - **CLI** (Fixes): Fixed every `evalkit` command crashing with `No module
   named 'bcrypt'` in a project that has uvicorn and SQLAlchemy but not the
   server extra. The CLI now loads `serve`, `db upgrade`, `db rekey` and
