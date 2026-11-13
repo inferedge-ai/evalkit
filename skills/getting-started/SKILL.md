@@ -68,10 +68,14 @@ Do not move on until each holds:
 2. After the range import: `evalkit runs list <agent> --source app` returns
    runs. With none, the agent has no history in the trace store: take the
    quickstart's "No trace history?" path.
-3. After step 4: the baseline has at least one case that fails or runs slow.
+3. After step 4: every run has a trajectory. A run with none says why in its
+   trajectory note; follow the session id rule in
+   `../evalkit-docs/sdk-runs.md` ("An agent with its own trace store"),
+   change the task and run again.
+4. Before step 5: the baseline has at least one case that fails or runs slow.
    If every case passes, mine a wider window or add cases for the slowest
-   runs before step 5.
-4. After step 5: a second experiment exists for the same dataset.
+   runs.
+5. After step 5: a second experiment exists for the same dataset.
 
 ## Finish
 

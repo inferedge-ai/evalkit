@@ -56,7 +56,7 @@ evalkit trace-sources create phoenix --url <your Phoenix URL> --api-key-env PHOE
 Open Settings › Organization › Trace sources and add one named `phoenix`.
 <!-- /tabs -->
 
-Create your [agent](concepts.md#agent) with the [preset](concepts.md#preset) for your framework. A preset is a ready-made [mapping](concepts.md#mapping): it tells evalkit how to read your spans. List the presets:
+Create your [agent](concepts.md#agent) with the [preset](concepts.md#preset) for your framework, and name its project in your trace store. A preset is a ready-made [mapping](concepts.md#mapping): it tells evalkit how to read your spans. List the presets:
 
 ```bash
 evalkit traces mapping presets
@@ -66,18 +66,18 @@ evalkit traces mapping presets
 #### CLI
 
 ```bash
-evalkit agents create myagent --trajectory-source otel --mapping langchain
+evalkit agents create myagent --trajectory-source otel --mapping langchain --trace-source phoenix --project <project>
 ```
 
 #### UI
 
-Open Agents › New agent, set Trajectories to "From traces (OTel spans)" and pick the preset.
+Open Agents › New agent, set Trajectories to "From traces (OTel spans)", pick the preset, and pick the trace source and its project.
 <!-- /tabs -->
 
 Check that evalkit reads your traces. Import one [session](concepts.md#trace-span-session) from your Phoenix project:
 
 ```bash
-evalkit traces import myagent <session id> --source phoenix --project <project>
+evalkit traces import myagent <session id>
 ```
 
 Every line should have a ✓. If one has a `!`, your spans differ from the preset: the connect-traces skill adjusts the mapping. See [Framework mappings](framework-mappings.md) and [Mappings](mappings.md).
@@ -87,7 +87,7 @@ Every line should have a ✓. If one has a `!`, your spans differ from the prese
 Bring in your recent history:
 
 ```bash
-evalkit traces import myagent --source phoenix --project <project> --since <date>
+evalkit traces import myagent --since <date>
 ```
 
 Each imported session is an [app run](concepts.md#app-run). Tell your coding agent:
@@ -129,7 +129,7 @@ uv run python evalkit/run.py
 
 Your agent runs as usual and keeps sending traces to Phoenix. evalkit picks up each run's [trajectory](concepts.md#trajectory) from there, scores it, and prints the [scorecard](concepts.md#scorecard) and a link to the [experiment](concepts.md#experiment).
 
-Some cases fail. Good: they came from runs that went wrong. Is your agent not in Python, or behind HTTP? See [SDK runs](sdk-runs.md#an-agent-in-another-process).
+Some cases fail. Good: they came from runs that went wrong. Does your agent run in another process, or start its own trace? See [SDK runs](sdk-runs.md#an-agent-with-its-own-trace-store).
 
 ## 5. Improve
 
@@ -165,7 +165,7 @@ Or, in the words of DHH:
 
 ## No trace history?
 
-Send your agent's traces straight to evalkit instead. Create the agent as in step 2, then make it a token:
+Send your agent's traces straight to evalkit instead. Create the agent as in step 2, without `--trace-source` and `--project`, then make it a token:
 
 ```bash
 evalkit tokens create --agent myagent
