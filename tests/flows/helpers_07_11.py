@@ -24,7 +24,7 @@ LOCAL_CASE = (
 
 
 def write_cases(root: Path, dataset: str, *case_ids: str, tag: str = "local") -> Path:
-    directory = root / "eval" / "cases" / dataset
+    directory = root / "evalkit" / "cases" / dataset
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "cases.yaml").write_text(
         "cases:\n" + "".join(LOCAL_CASE.format(id=case_id, tag=tag) for case_id in case_ids)

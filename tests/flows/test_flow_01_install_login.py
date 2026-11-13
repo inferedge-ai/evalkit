@@ -41,7 +41,7 @@ def test_flow_01_old_profiles_file_asks_for_a_fresh_login(cli, monkeypatch):
     )
     out = cli.fails("whoami")
     assert "holds server profiles, which evalkit no longer supports" in out
-    assert "run `evalkit login --url <url>`" in out
+    assert "`evalkit login` for hosted evalkit, `evalkit login --url <url>`" in out
 
 
 def test_flow_01_no_login_and_env_override(cli, monkeypatch):
@@ -49,6 +49,7 @@ def test_flow_01_no_login_and_env_override(cli, monkeypatch):
     monkeypatch.delenv("EVALKIT_TOKEN")
     out = cli.fails("whoami")
     assert "no server configured" in out and "EVALKIT_SERVER_URL" in out
+    assert "`evalkit login` for hosted evalkit" in out
     cli.as_user("ravi")
     out = cli.ok("whoami")
     assert f"ravi on {cli.live.url} (from EVALKIT_SERVER_URL)" in out

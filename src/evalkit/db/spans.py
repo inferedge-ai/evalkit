@@ -36,10 +36,45 @@ from evalkit.db.session import tenant_session
 
 UPSERT_CHUNK = 1000
 SPAN_KEY = ("agent_id", "trace_id", "span_id")
+SPAN_CONTENT = (
+    "parent_span_id",
+    "name",
+    "kind",
+    "start_time",
+    "end_time",
+    "status_code",
+    "status_message",
+    "attributes",
+    "events",
+    "resource",
+    "scope",
+    "dropped_attributes_count",
+)
 LOCK_TRACES = text(
     "SELECT pg_advisory_xact_lock(hashtext(n)) "
     "FROM unnest(CAST(:names AS text[])) WITH ORDINALITY AS t(n, i) ORDER BY i"
 )
+
+
+def _upsert_changed(statement: Any) -> Any:
+    stored = models.Span.__table__.c
+    incoming = statement.excluded
+    changed = tuple_(*(stored[c] for c in SPAN_CONTENT)).is_distinct_from(
+        tuple_(*(incoming[c] for c in SPAN_CONTENT))
+    )
+    session_fix = and_(
+        incoming.session_id.is_not(None), stored.session_id.is_distinct_from(incoming.session_id)
+    )
+    return statement.on_conflict_do_update(
+        index_elements=list(SPAN_KEY),
+        set_={
+            **{c: incoming[c] for c in SPAN_CONTENT},
+            "external_trace_source_id": incoming.external_trace_source_id,
+            "session_id": func.coalesce(incoming.session_id, stored.session_id),
+            "received_at": case((changed, incoming.received_at), else_=stored.received_at),
+        },
+        where=or_(changed, session_fix),
+    )
 
 
 class SpanLink(NamedTuple):
@@ -73,6 +108,9 @@ def resolve_sessions(links: list[SpanLink]) -> dict[int, str | None]:
     return resolved
 
 
+ERROR_TYPE_ATTRIBUTE = "error.type"
+
+
 class SessionSummary(BaseModel):
     session_id: str | None
     trace_id: str
@@ -80,6 +118,13 @@ class SessionSummary(BaseModel):
     created_at: datetime
     span_count: int
     sdk_root: dict[str, Any] | None = None
+    ended_at: datetime | None = None
+    last_received_at: datetime | None = None
+    failed: bool = False
+
+
+def is_failed_root(status_code: str, attributes: dict[str, Any]) -> bool:
+    return status_code == "ERROR" or ERROR_TYPE_ATTRIBUTE in attributes
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -252,12 +297,7 @@ class SpanStore:
             values = list(rows.values())
             for start in range(0, len(values), UPSERT_CHUNK):
                 statement = insert(models.Span).values(values[start : start + UPSERT_CHUNK])
-                await session.execute(
-                    statement.on_conflict_do_update(
-                        index_elements=list(SPAN_KEY),
-                        set_={k: statement.excluded[k] for k in values[0] if k not in SPAN_KEY},
-                    )
-                )
+                await session.execute(_upsert_changed(statement))
             stored = await session.execute(
                 select(
                     models.Span.id,
@@ -344,6 +384,8 @@ class SpanStore:
                 models.Span.session_id,
                 started.label("started"),
                 newest.label("newest"),
+                func.max(models.Span.end_time).label("ended"),
+                func.max(models.Span.received_at).label("received"),
                 func.count().label("n"),
             )
             .where(*where)
@@ -365,9 +407,15 @@ class SpanStore:
             titles: dict[str, str] = {}
             sdk_roots: dict[str, dict[str, Any]] = {}
             traces: dict[str, str] = {}
+            failed: set[str] = set()
             if ids:
                 roots = await session.execute(
-                    select(models.Span.session_id, models.Span.name, models.Span.attributes)
+                    select(
+                        models.Span.session_id,
+                        models.Span.name,
+                        models.Span.attributes,
+                        models.Span.status_code,
+                    )
                     .where(
                         models.Span.agent_id == agent_id,
                         models.Span.session_id.in_(ids),
@@ -375,8 +423,10 @@ class SpanStore:
                     )
                     .order_by(models.Span.start_time)
                 )
-                for session_id, name, attributes in roots.all():
+                for session_id, name, attributes, status_code in roots.all():
                     titles.setdefault(session_id, name)
+                    if is_failed_root(status_code, attributes):
+                        failed.add(session_id)
                     if attributes.get(SDK_ROOT_ATTRIBUTE):
                         sdk_roots.setdefault(session_id, attributes)
                 first = await session.execute(
@@ -394,6 +444,9 @@ class SpanStore:
                 created_at=_aware(row.started) or row.started,
                 span_count=row.n,
                 sdk_root=sdk_roots.get(row.session_id),
+                ended_at=_aware(row.ended),
+                last_received_at=_aware(row.received),
+                failed=row.session_id in failed,
             )
             for row in page
         ], total
@@ -404,7 +457,13 @@ class SpanStore:
         where = [models.Span.agent_id == agent_id, models.Span.session_id.is_(None)]
         started = func.min(models.Span.start_time)
         grouped = (
-            select(models.Span.trace_id, started.label("started"), func.count().label("n"))
+            select(
+                models.Span.trace_id,
+                started.label("started"),
+                func.max(models.Span.end_time).label("ended"),
+                func.max(models.Span.received_at).label("received"),
+                func.count().label("n"),
+            )
             .where(*where)
             .group_by(models.Span.trace_id)
         )
@@ -423,6 +482,8 @@ class SpanStore:
                 title=None,
                 created_at=_aware(row.started) or row.started,
                 span_count=row.n,
+                ended_at=_aware(row.ended),
+                last_received_at=_aware(row.received),
             )
             for row in page
         ], total

@@ -11,7 +11,7 @@ How a developer gets the CLI from a server, logs in to a server, and keeps the C
 
 The CLI holds one server login (url, token, username) in `~/.evalkit/config.toml` (file mode `0600`). Shared workspaces such as `@dev` and `@prod` live on that one server; they are not separate logins.
 
-In a client repo, `evalkit.yaml` holds the `credentials:` map. The CLI reads keys from env and from a `.env` beside `evalkit.yaml`; real env vars win over `.env`.
+In a client repo, `evalkit.yaml` holds the `credentials:` map. The CLI reads keys from the environment.
 
 ## Sequence
 
@@ -46,7 +46,7 @@ sequenceDiagram
   actor Dev as Developer
   participant CLI as evalkit CLI
   participant S as evalkit server
-  Dev->>CLI: evalkit login --url URL [--username --password]
+  Dev->>CLI: evalkit login [--url URL] [--username --password]
   CLI->>S: POST /api/auth/login {username, password}
   S-->>CLI: token, username, is_admin
   CLI-->>Dev: "logged in as U on URL; saved to ~/.evalkit/config.toml"
@@ -95,7 +95,7 @@ sequenceDiagram
 ## Error cases
 
 - Wrong username or password: 401 "invalid username or password".
-- No stored login and no `EVALKIT_SERVER_URL`: "no server configured — run `evalkit login --url <url>` or set EVALKIT_SERVER_URL".
+- No stored login and no `EVALKIT_SERVER_URL`: "no server configured — run `evalkit login` for hosted evalkit, `evalkit login --url <url>` for another server, or set EVALKIT_SERVER_URL".
 - Archived user: login gives 401 "user is archived". Archiving also revokes their login tokens.
 - Expired token: 401 "token expired". Unknown token: 401 "invalid token".
 - An agent token (see flow 12) used on any API other than the collector: 403 "agent tokens may only export traces".

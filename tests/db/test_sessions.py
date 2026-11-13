@@ -7,6 +7,7 @@ import pytest
 from evalkit.config import OtelConfig
 from evalkit.contracts.enums import TrajectorySource
 from evalkit.contracts.esf import MappingDocument
+from evalkit.contracts.settings import AgentSettings
 from evalkit.core.traces.raw import RawSpan
 from evalkit.core.traces.sessions import SessionTooLarge, build_session_trajectory
 from evalkit.db.agents import AgentStore
@@ -271,3 +272,17 @@ async def test_a_settled_session_counts_as_rooted_under_a_stored_sessionless_par
     monkeypatch.setattr(reader._otel, "settle_seconds", -60)
     result = await reader.trajectory("support-bot@akshat", SESSION)
     assert result.settled and result.root_present
+
+
+async def test_an_agent_with_a_trace_source_settles_on_its_import_window(stores, monkeypatch):
+    reader, spans, _, agent_id = stores
+    clock = Clock()
+    turn = _span(clock, "t1", "turn", None, "turn", {"session.id": SESSION})
+    await spans.upsert(agent_id, [turn])
+    monkeypatch.setattr(reader._otel, "settle_seconds", -60)
+    assert (await reader.trajectory("support-bot@akshat", SESSION)).settled
+    await reader._agents.edit(
+        "support-bot@akshat",
+        settings=AgentSettings(trace_source="phx", project="p", import_settle_seconds=3600),
+    )
+    assert not (await reader.trajectory("support-bot@akshat", SESSION)).settled

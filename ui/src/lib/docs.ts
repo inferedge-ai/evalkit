@@ -1,4 +1,5 @@
 import quickstart from "../../../docs/user/quickstart.md?raw";
+import beyondQuickstart from "../../../docs/user/beyond-quickstart.md?raw";
 import install from "../../../docs/user/install.md?raw";
 import login from "../../../docs/user/login.md?raw";
 import sso from "../../../docs/user/sso.md?raw";
@@ -7,6 +8,7 @@ import serverConfig from "../../../docs/user/server-config.md?raw";
 import workspaces from "../../../docs/user/workspaces.md?raw";
 import ciSync from "../../../docs/user/ci-sync.md?raw";
 import sdkRuns from "../../../docs/user/sdk-runs.md?raw";
+import sdkReference from "../../../docs/user/sdk-reference.md?raw";
 import tracing from "../../../docs/user/tracing.md?raw";
 import mappings from "../../../docs/user/mappings.md?raw";
 import frameworkMappings from "../../../docs/user/framework-mappings.md?raw";
@@ -22,6 +24,12 @@ export const DOC_TABS = [
     label: "Quickstart",
     group: "Get started",
     body: quickstart,
+  },
+  {
+    id: "beyond-quickstart",
+    label: "Beyond the quickstart",
+    group: "Get started",
+    body: beyondQuickstart,
   },
   { id: "concepts", label: "Concepts", group: "Get started", body: concepts },
   {
@@ -54,6 +62,12 @@ export const DOC_TABS = [
     body: caseSchema,
   },
   { id: "sdk-runs", label: "SDK runs", group: "Traces", body: sdkRuns },
+  {
+    id: "sdk-reference",
+    label: "SDK reference",
+    group: "Traces",
+    body: sdkReference,
+  },
   { id: "tracing", label: "Tracing", group: "Traces", body: tracing },
   { id: "mappings", label: "Mappings", group: "Traces", body: mappings },
   {

@@ -6,6 +6,8 @@ from pathlib import Path
 import typer
 
 from evalkit.cli.client import ApiClient, ApiError
+from evalkit.cli.traces_commands import MAPPING_HELP, load_mapping
+from evalkit.client import links
 from evalkit.client.api import encode
 from evalkit.contracts.notes import ENDPOINT_NOTE
 from evalkit.core.agents import explicit
@@ -52,6 +54,21 @@ def _check_schema_file(path: Path | None) -> Path | None:
     return path
 
 
+TRACE_SOURCE = typer.Option(
+    None,
+    "--trace-source",
+    help="A trace source (evalkit trace-sources list) the agent sends its spans to. "
+    "Experiments then import each run's session from it; needs --project. OTel agents only.",
+)
+PROJECT = typer.Option(None, "--project", help="The agent's project in --trace-source.")
+IMPORT_SETTLE = typer.Option(
+    None,
+    "--import-settle",
+    help="Seconds without a new span before an imported session counts as complete (15).",
+)
+IMPORT_WAIT = typer.Option(
+    None, "--import-wait", help="Seconds to wait for an imported session to complete (120)."
+)
 INPUT_SCHEMA = typer.Option(
     None,
     "--input-schema",
@@ -76,7 +93,7 @@ def _provides(pairs: list[str]) -> dict[str, bool] | None:
 
 
 def _settings(
-    values: dict[str, int | None], provides: list[str], input_schema: Path | None
+    values: dict[str, int | str | None], provides: list[str], input_schema: Path | None
 ) -> dict:
     settings: dict = {key: value for key, value in values.items() if value is not None}
     flags = _provides(provides)
@@ -87,7 +104,7 @@ def _settings(
     return settings
 
 
-def _print_agent(agent: dict) -> None:
+def _print_agent(agent: dict, server_url: str, mapping_note: str | None = None) -> None:
     typer.echo(f"{agent['ref']}  ({agent['workspace_type']}, driven by {agent['driver']})")
     typer.echo(f"  harness_url        {agent['harness_url'] or '-'}")
     typer.echo(f"  trajectory_source  {agent['trajectory_source']}")
@@ -102,6 +119,9 @@ def _print_agent(agent: dict) -> None:
         typer.echo(f"  api key            {'set' if agent['has_api_key'] else 'not set'}")
     if agent["archived"]:
         typer.echo("  archived")
+    if mapping_note is not None:
+        typer.echo(f"  mapping            {mapping_note}")
+    typer.echo(f"link: {links.build_agent_url(server_url, agent['ref'])}")
 
 
 def register(
@@ -379,12 +399,10 @@ def register(
             help=f"Omit for a code-driven agent (SDK runs only). {ENDPOINT_NOTE}",
         ),
         trajectory_source: str = typer.Option("atif", "--trajectory-source", help="atif or otel."),
-        mapping: Path | None = typer.Option(
+        mapping: str | None = typer.Option(
             None,
             "--mapping",
-            exists=True,
-            dir_okay=False,
-            help="Span mapping JSON; required with --trajectory-source otel.",
+            help=f"Span mapping; required with --trajectory-source otel. {MAPPING_HELP}",
         ),
         repo_url: str | None = typer.Option(None, "--repo-url"),
         max_concurrent_runs: int | None = typer.Option(None, "--max-concurrent-runs"),
@@ -392,6 +410,10 @@ def register(
         poll_interval: int | None = typer.Option(None, "--poll-interval"),
         stop_grace: int | None = typer.Option(None, "--stop-grace"),
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
+        trace_source: str | None = TRACE_SOURCE,
+        project: str | None = PROJECT,
+        import_settle: int | None = IMPORT_SETTLE,
+        import_wait: int | None = IMPORT_WAIT,
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
         input_schema: Path | None = INPUT_SCHEMA,
         api_key_env: str | None = API_KEY_ENV,
@@ -400,7 +422,10 @@ def register(
         (--api-key-env); in your personal workspace it goes in evalkit.yaml
         credentials.agents.
 
-        Example: evalkit agents create ouragent --workspace dev --harness-url https://agent/evalkit/v1
+        Examples: evalkit agents create ouragent --workspace dev --harness-url https://agent/evalkit/v1;
+        evalkit agents create myagent --trajectory-source otel --mapping openinference;
+        evalkit agents create myagent --trajectory-source otel --mapping openinference
+        --trace-source phoenix --project myagent
         """
         settings = _settings(
             {
@@ -409,6 +434,10 @@ def register(
                 "poll_interval_seconds": poll_interval,
                 "stop_grace_seconds": stop_grace,
                 "trajectory_wait_seconds": trajectory_wait,
+                "trace_source": trace_source,
+                "project": project,
+                "import_settle_seconds": import_settle,
+                "import_wait_seconds": import_wait,
             },
             provides,
             input_schema,
@@ -420,12 +449,12 @@ def register(
             "trajectory_source": trajectory_source,
             "repo_url": repo_url,
             "settings": settings,
-            "mapping": json.loads(mapping.read_text()) if mapping else None,
+            "mapping": load_mapping(mapping) if mapping else None,
             **key_change(api_key_env, False),
         }
-        _print_agent(client_factory().post("/api/agents", json=body).json())
-        if mapping:
-            typer.echo(f"  mapping            v1, active (from {mapping.name})")
+        client = client_factory()
+        note = f"v1, active (from {Path(mapping).name})" if mapping else None
+        _print_agent(client.post("/api/agents", json=body).json(), client.server_url, note)
 
     @agents_app.command("edit")
     def agents_edit(
@@ -435,23 +464,30 @@ def register(
         trajectory_source: str | None = typer.Option(
             None, "--trajectory-source", help="atif or otel."
         ),
-        mapping: Path | None = typer.Option(
+        mapping: str | None = typer.Option(
             None,
             "--mapping",
-            exists=True,
-            dir_okay=False,
-            help="Span mapping JSON, made the active version. Needed to switch to otel "
-            "unless the agent already has an active mapping.",
+            help="Span mapping, made the active version. Needed to switch to otel "
+            f"unless the agent already has an active mapping. {MAPPING_HELP}",
         ),
         max_concurrent_runs: int | None = typer.Option(None, "--max-concurrent-runs"),
         run_timeout: int | None = typer.Option(None, "--run-timeout"),
         poll_interval: int | None = typer.Option(None, "--poll-interval"),
         stop_grace: int | None = typer.Option(None, "--stop-grace"),
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
+        trace_source: str | None = TRACE_SOURCE,
+        project: str | None = PROJECT,
+        import_settle: int | None = IMPORT_SETTLE,
+        import_wait: int | None = IMPORT_WAIT,
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
         input_schema: Path | None = INPUT_SCHEMA,
         clear_input_schema: bool = typer.Option(
             False, "--clear-input-schema", help="Go back to the default input schema."
+        ),
+        clear_trace_source: bool = typer.Option(
+            False,
+            "--clear-trace-source",
+            help="Stop reading trajectories from a trace source; use the collector again.",
         ),
         api_key_env: str | None = API_KEY_ENV,
         clear_api_key: bool = CLEAR_API_KEY,
@@ -462,7 +498,7 @@ def register(
         the agent's experiments is running; experiments that already ran keep the source
         they ran with.
 
-        Example: evalkit agents edit mybot --trajectory-source otel --mapping gen_ai.json
+        Example: evalkit agents edit mybot --trajectory-source otel --mapping gen_ai
         """
         path = f"/api/agents/{encode(ref_of(ref))}"
         client = client_factory()
@@ -474,6 +510,10 @@ def register(
                 "poll_interval_seconds": poll_interval,
                 "stop_grace_seconds": stop_grace,
                 "trajectory_wait_seconds": trajectory_wait,
+                "trace_source": trace_source,
+                "project": project,
+                "import_settle_seconds": import_settle,
+                "import_wait_seconds": import_wait,
             },
             provides,
             input_schema,
@@ -482,6 +522,10 @@ def register(
             if input_schema is not None:
                 raise ApiError("pass --input-schema or --clear-input-schema, not both")
             changed["input_schema"] = None
+        if clear_trace_source:
+            if trace_source is not None or project is not None:
+                raise ApiError("pass --trace-source and --project, or --clear-trace-source")
+            changed["trace_source"] = changed["project"] = None
         body: dict = {"settings": {**current["settings"], **changed}}
         if harness_url is not None:
             body["harness_url"] = harness_url
@@ -490,14 +534,15 @@ def register(
         if trajectory_source is not None:
             body["trajectory_source"] = trajectory_source
         if mapping is not None:
-            body["mapping"] = json.loads(mapping.read_text())
+            body["mapping"] = load_mapping(mapping)
         body.update(key_change(api_key_env, clear_api_key))
-        _print_agent(client.patch(path, json=body).json())
+        _print_agent(client.patch(path, json=body).json(), client.server_url)
 
     @agents_app.command("show")
     def agents_show(ref: str):
         """Show an agent's settings. Example: evalkit agents show ouragent@dev"""
-        _print_agent(client_factory().get(f"/api/agents/{encode(ref_of(ref))}").json())
+        client = client_factory()
+        _print_agent(client.get(f"/api/agents/{encode(ref_of(ref))}").json(), client.server_url)
 
     @agents_app.command("list")
     def agents_list(
@@ -508,12 +553,15 @@ def register(
         params: dict = {"include_archived": archived}
         if workspace:
             params["workspace"] = workspace
-        for agent in client_factory().get("/api/agents", params=params).json():
+        found = client_factory().get("/api/agents", params=params).json()
+        for agent in found:
             state = "archived" if agent["archived"] else ""
             typer.echo(
                 f"{agent['ref']:<32} {agent['driver']:<7} {agent['trajectory_source']:<5} "
                 f"{agent['harness_url'] or '-'} {state}"
             )
+        if found:
+            typer.echo("evalkit agents show <agent> shows one agent and its link")
 
     @agents_app.command("archive")
     def agents_archive(ref: str):
@@ -523,8 +571,10 @@ def register(
         Example: evalkit agents archive ouragent@dev
         """
         resolved = ref_of(ref)
-        client_factory().post(f"/api/agents/{encode(resolved)}/archive")
+        client = client_factory()
+        client.post(f"/api/agents/{encode(resolved)}/archive")
         typer.echo(f"archived {resolved}")
+        typer.echo(f"link: {links.build_agent_url(client.server_url, resolved)}")
 
     @agents_app.command("restore")
     def agents_restore(ref: str):
@@ -533,8 +583,10 @@ def register(
         Example: evalkit agents restore ouragent@dev
         """
         resolved = ref_of(ref)
-        client_factory().post(f"/api/agents/{encode(resolved)}/restore")
+        client = client_factory()
+        client.post(f"/api/agents/{encode(resolved)}/restore")
         typer.echo(f"restored {resolved}")
+        typer.echo(f"link: {links.build_agent_url(client.server_url, resolved)}")
 
     @workspaces_app.command("list")
     def workspaces_list(

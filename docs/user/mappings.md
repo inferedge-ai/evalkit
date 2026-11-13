@@ -2,9 +2,9 @@
 
 A mapping tells evalkit which span attribute holds each field of the evalkit span format (ESF): the span kind, the session id, the model, the messages, the token counts, the tool name and call id. It also says where the run's answer comes from (`answer`) and which spans to leave out (`exclude_spans`).
 
-Every agent whose trajectories come from traces has its own mapping. `evalkit agents create NAME --trajectory-source otel --mapping FILE` makes the first version active. Start from the file for your framework in [Framework mappings](framework-mappings.md), or from the `connect-traces` skill's `openinference.json` or `gen_ai.json`, which cover agents on the OpenInference or GenAI semantic conventions as they are. Spans that reach an agent with no active mapping are stored without a session id.
+Every agent whose trajectories come from traces has its own mapping. `evalkit agents create NAME --trajectory-source otel --mapping PRESET_OR_FILE` makes the first version active. `--mapping` takes the name of a preset that ships with evalkit, or the path of a mapping JSON file; a value that names an existing file is read as the file. Start from the preset for your framework in [Framework mappings](framework-mappings.md), or from `openinference` or `gen_ai`, which cover agents on the OpenInference or GenAI semantic conventions as they are. `evalkit traces mapping presets` lists the presets, and `evalkit traces mapping presets NAME` prints one as JSON to save and edit. In the web UI, the New agent form has a preset picker above Span mapping: picking one fills the field with the preset's JSON, which you can edit before you create the agent. Spans that reach an agent with no active mapping are stored without a session id.
 
-An existing agent switches between ATIF and traces with `evalkit agents edit NAME --trajectory-source otel --mapping FILE` (or `--trajectory-source atif`), or from the agent's Edit dialog. Switching to traces without a file reuses the agent's last active mapping. The switch is refused while one of the agent's experiments is running, and experiments that already ran keep the source they ran with.
+An existing agent switches between ATIF and traces with `evalkit agents edit NAME --trajectory-source otel --mapping PRESET_OR_FILE` (or `--trajectory-source atif`), or from the agent's Edit dialog. Switching to traces without `--mapping` reuses the agent's last active mapping. The switch is refused while one of the agent's experiments is running, and experiments that already ran keep the source they ran with.
 
 A mapping applies to every span of the agent and is versioned: `evalkit traces mapping push` creates a draft, you review the draft against recent sessions on the agent's Mappings tab (Agents → the agent → Mappings), and activate it there or with `evalkit traces mapping activate`. The `connect-traces` skill walks a coding agent through writing one.
 
@@ -106,7 +106,7 @@ A mapping applies to every span of the agent and is versioned: `evalkit traces m
 }
 ```
 
-That is the skill's `openinference.json`. Its `gen_ai.json` reads `gen_ai.operation.name` (`chat`, `execute_tool`, `invoke_agent`, …), `gen_ai.request.model`, `gen_ai.input.messages` / `gen_ai.output.messages` with `"message_format": "gen_ai"`, `gen_ai.usage.input_tokens` and friends, reads the system prompt from `gen_ai.system_instructions`, cache writes from `gen_ai.usage.cache_creation.input_tokens` and the agent's name from `gen_ai.agent.name`, and sets `"cost_usd": null` because the conventions define no cost attribute. Both list the other attributes of their convention under `known_attributes`, so `evalkit traces check` does not report them as unmapped; entries may be exact keys or globs such as `llm.tools.*`.
+That is the `openinference` preset. The `gen_ai` preset reads `gen_ai.operation.name` (`chat`, `execute_tool`, `invoke_agent`, …), `gen_ai.request.model`, `gen_ai.input.messages` / `gen_ai.output.messages` with `"message_format": "gen_ai"`, `gen_ai.usage.input_tokens` and friends, reads the system prompt from `gen_ai.system_instructions`, cache writes from `gen_ai.usage.cache_creation.input_tokens` and the agent's name from `gen_ai.agent.name`, and sets `"cost_usd": null` because the conventions define no cost attribute. Both list the other attributes of their convention under `known_attributes`, so `evalkit traces check` does not report them as unmapped; entries may be exact keys or globs such as `llm.tools.*`.
 
 Rule shapes:
 
@@ -145,8 +145,9 @@ Every mapping is complete on its own; there is no inheritance. The schema ships 
 ## The loop
 
 ```bash
+evalkit traces mapping presets openinference > evalkit/span-mapping.json   # start from a preset
 evalkit traces check myagent <session id> --dump spans.json   # read the raw attributes
-evalkit traces mapping push myagent eval/span-mapping.json    # upload a draft
+evalkit traces mapping push myagent evalkit/span-mapping.json    # upload a draft
 evalkit traces check myagent <session id> --mapping draft     # preview with the draft
 evalkit traces mapping list myagent
 evalkit traces mapping activate myagent 2                     # make version 2 active

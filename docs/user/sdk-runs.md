@@ -3,7 +3,7 @@
 `run_experiment` runs an experiment from your own code: it calls your task once per case and repetition, stores the runs on this server, and scores them with the judge, the remote evaluators of the agent's workspace and any Python evaluators you pass. The agent is a code-driven agent on the server (no harness URL), created once with `evalkit agents create`. Invoking the agent, timeouts and stopping are your code.
 
 ```python
-# eval/run.py — uv run python eval/run.py
+# run_evals.py — python run_evals.py
 from evalkit.sdk import run_experiment, RunResult, evaluator, tracing
 from myagent import MyAgent, setup_tracing
 
@@ -22,12 +22,11 @@ def citation_check(case, run) -> float:
 if __name__ == "__main__":
     result = run_experiment(dataset="finance", agent="myagent-sdk", task=task,
                             evaluators=[citation_check], concurrency=4)
-    print(result.url)
 ```
 
 ## The task
 
-A sync or async callable. Parameters bind **by name** from this set, so their order does not matter; any other required parameter is an error before the first call, and an optional one keeps its default.
+`run_experiment` calls the task once per case and repetition; each call is one run, with its own session id. A sync or async callable. Parameters bind **by name** from this set, so their order does not matter; any other required parameter is an error before the first call, and an optional one keeps its default.
 
 | Parameter  | Value                                                                 |
 | ---------- | --------------------------------------------------------------------- |
@@ -98,10 +97,37 @@ Either way the Runs page links the session to its experiment and case.
 
 The agent's exporter needs its own token in `EVALKIT_OTEL_TOKEN`. Mint one with `evalkit tokens create --agent <name>`; it never expires. A login token is not accepted: it expires, and an exporter that holds it would drop every span with nothing but a line in its own log.
 
+## An agent with its own trace store
+
+An OTel agent whose settings name a trace source (`evalkit agents edit myagent --trace-source phoenix --project myagent`, see [Tracing](tracing.md#experiments-that-read-a-trace-source)) needs no `tracing.register`: each run's session is imported from the store.
+
+```python
+from evalkit.sdk import run_experiment
+from myagent import MyAgent
+
+agent = MyAgent()            # exports to its own trace store, e.g. Phoenix
+
+def task(input: dict) -> str:   # in-process agent on the global provider: no session id to pass
+    return agent.ask(input["question"])
+
+if __name__ == "__main__":
+    result = run_experiment(dataset="finance", agent="myagent", task=task)
+```
+
+The session id follows one rule, here and with the collector:
+
+- An agent that runs in the task's process, on the process's global tracer provider, and continues the current trace needs nothing: its spans join the SDK's `evalkit.run` span.
+- Any other agent takes `metadata["session_id"]` as its session id, or the task returns the agent's own id with `RunResult(session_id=...)`.
+- An agent in another process that cannot receive the trace context and whose framework cannot put a session id on its spans cannot be linked to its runs.
+
+`evalkit.run` shows in your store as the root of each eval run's trace. A run whose session holds only that span ends `unavailable` with a `trajectory_note` saying so; a task with no tracer provider that neither takes `metadata` nor returns a session id fails at once.
+
 ## Datasets and workspaces
 
 - `dataset="finance"` runs your own workspace's copy; if `finance` is a directory under `cases` it is synced first.
 - `dataset="finance@dev"` or `dataset="finance", workspace="dev"` runs the shared cases, every review state included.
+- `run_experiment` prints the scorecard, then `link: <server>/experiments/<id>`, the experiment's page in the web UI. The result carries the same URL as `result.url`. `evaluate_experiment` ends with the same `link:` line. A dry run creates no experiment, so it prints no experiment link and `result.url` is `None`.
+- Each run in `result.runs` has a `url`: the experiment's page for its case. A dry run prints `  link: <url>` under each case whose session the server collected, the agent run's page on the Runs page, and puts it in that run's `url`. A case whose task returned its trajectory, or that has no session id, has no page: no link, and `url` is `None`.
 - `case_ids=[...]`, `tags=[...]`, `repetitions`, `model` and `resume=<experiment id>` mean what the same options mean on `evalkit run`.
 - `dry_run=True` runs one case (`dry_run=N` runs N) without creating an experiment and prints the answer and what the server made of the session. If the server cannot read a session, that case prints a `trajectory read failed` line and the dry run goes on. Use it while wiring up tracing; the session shows on the Runs page with its case question and case id.
 
@@ -120,11 +146,11 @@ result = await arun_experiment(dataset="finance", agent="myagent-sdk", task=task
 `agent="myagent-sdk"` names an agent on the server; a bare name means your own workspace. Create it once:
 
 ```bash
-evalkit agents create myagent-sdk --trajectory-source otel --mapping openinference.json \
+evalkit agents create myagent-sdk --trajectory-source otel --mapping openinference \
   --max-concurrent-runs 4 --provides thinking=true
 ```
 
-Its `answer` rule and `exclude_spans` live in its span mapping. `evalkit.yaml` is still required; it holds the cases, fixtures and credentials.
+Its `answer` rule and `exclude_spans` live in its span mapping. `evalkit.yaml` still holds the cases and fixtures directories and the credentials; it is optional when your cases are in `evalkit/cases/<dataset>/` and you need no keys.
 
 The judge is the server's default unless you pass one. An admin sets the default with `evalkit judge-default set`. With the default, or any other judge served by an LLM provider configured on the server (`Judge(provider=...)`), the evaluators that use a judge (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) run on the evalkit server with its stored key; your machine needs no judge key:
 

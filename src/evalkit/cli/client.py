@@ -25,6 +25,10 @@ class ApiClient(SyncApi):
         self._server_url = server_url.rstrip("/")
         self._version_checked = not check_version
 
+    @property
+    def server_url(self) -> str:
+        return self._server_url
+
     def _check_version(self, resp: httpx2.Response) -> None:
         if self._version_checked:
             return

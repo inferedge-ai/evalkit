@@ -36,6 +36,7 @@ theme:
     - toc.follow
 
 extra_css:
+  - stylesheets/tokens.css
   - stylesheets/evalkit.css
 
 extra_javascript:
@@ -46,23 +47,6 @@ hooks:
 
 plugins:
   - search
-  - mkdocstrings:
-      handlers:
-        python:
-          paths: [src]
-          options:
-            docstring_style: google
-            docstring_section_style: list
-            heading_level: 2
-            members_order: source
-            merge_init_into_class: true
-            separate_signature: true
-            show_root_heading: true
-            show_root_full_path: false
-            show_signature_annotations: true
-            show_source: false
-            show_bases: false
-            show_if_no_docstring: false
 
 extra:
   version:
@@ -82,11 +66,14 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
 
 nav:
   - Home: index.md
   - Get started:
       - Quickstart: quickstart.md
+      - Beyond the quickstart: beyond-quickstart.md
       - Concepts: concepts.md
       - Try locally: try-locally.md
       - Install: install.md
@@ -99,9 +86,9 @@ nav:
       - Case schema: case-schema.md
   - Traces:
       - SDK runs: sdk-runs.md
+      - SDK reference: sdk-reference.md
       - Tracing: tracing.md
       - Mappings: mappings.md
       - Framework mappings: framework-mappings.md
   - Harness API: harness-api.md
   - MCP: mcp.md
-  - SDK reference: sdk-reference.md

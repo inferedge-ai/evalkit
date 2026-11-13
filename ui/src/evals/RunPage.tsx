@@ -1,3 +1,4 @@
+import { Markdown } from "@/components/widgets/Markdown";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -17,14 +18,7 @@ import type {
 import { CopyText, InfoTip, Tabs } from "../lib/ui";
 import { NotFound } from "../shell/NotFound";
 import { agentTag } from "./experimentRow";
-import {
-  EvaluatorScores,
-  FixtureList,
-  Markdown,
-  PreBlock,
-  Tag,
-  TimeSpan,
-} from "./bits";
+import { EvaluatorScores, FixtureList, PreBlock, Tag, TimeSpan } from "./bits";
 import { RunTabs, TRAJECTORY_TABS } from "../runs/RunTabs";
 import { Select } from "../lib/Select";
 import { useFollowWorkspace } from "../shell/workspace";
@@ -247,6 +241,14 @@ export function RunPage() {
       {header}
       <div className="page flex min-h-0 flex-1 flex-col">
         {error && <div className="pane-status error">{error}</div>}
+        {record?.trajectory_note && (
+          <div
+            className="pane-status mb-2 whitespace-normal"
+            title="why the trajectory is partial or unavailable, or what its mapping missed"
+          >
+            Trajectory {trajectoryStatus}: {record.trajectory_note}
+          </div>
+        )}
         <div className="toolbar mb-2">
           {harnessRunId && (
             <span
@@ -377,7 +379,7 @@ export function RunPage() {
                     <div className="eyebrow">Question</div>
                     <Card>
                       <CardContent>
-                        <Markdown text={questionText(example.input)} />
+                        <Markdown text={questionText(example.input)} math />
                       </CardContent>
                     </Card>
                   </div>
@@ -403,7 +405,7 @@ export function RunPage() {
                   <div className="eyebrow">Answer</div>
                   <Card className="lg:py-6">
                     <CardContent className="lg:px-8">
-                      <Markdown text={answerText(record?.answer)} />
+                      <Markdown text={answerText(record?.answer)} math />
                     </CardContent>
                   </Card>
                   <details className="mt-1 text-micro">

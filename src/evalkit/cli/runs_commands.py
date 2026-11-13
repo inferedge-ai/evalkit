@@ -16,6 +16,7 @@ import httpx2
 import typer
 
 from evalkit.cli.client import ApiClient, ApiError
+from evalkit.client import links
 from evalkit.client.api import encode
 from evalkit.contracts.atif import TrajectoryValidationError
 from evalkit.contracts.harness import RunListItem
@@ -76,6 +77,16 @@ def parse_when(text: str | None, now: datetime | None = None) -> datetime | None
         raise ApiError(f"not a time: {text!r}; use ISO 8601 (2026-10-08T00:00Z) or 7d / 12h / 30m")
     parsed = datetime.fromisoformat(text)
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def format_duration(ms: float | None) -> str:
+    if ms is None:
+        return "-"
+    if ms < 1000:
+        return f"{ms:.0f}ms"
+    if ms < 60_000:
+        return f"{ms / 1000:.1f}s"
+    return f"{ms / 60_000:.1f}m"
 
 
 def _iso(value: datetime | None) -> str | None:
@@ -329,6 +340,11 @@ def register(
             )
         if as_json:
             for row in rows:
+                if driver(definition) is not Driver.CLI:
+                    url = links.build_agent_run_url(
+                        client.server_url, definition.ref, row["run_id"]
+                    )
+                    row = {**row, "url": url}
                 typer.echo(json.dumps(row))
             typer.echo(f"{len(rows)} of {total} run(s)", err=True)
             if note:
@@ -340,6 +356,7 @@ def register(
             )
             typer.echo(
                 f"{row['run_id']:<38} {row['source']:<4} {row.get('status') or '-':<10} "
+                f"{format_duration(row.get('duration_ms')):>8} "
                 f"{row.get('created_at') or '-':<26} {where} {row.get('title') or ''}".rstrip()
             )
         typer.echo(f"{len(rows)} of {total} run(s)")
@@ -383,6 +400,7 @@ def register(
                     break
             _stamp(target, {"experiment": experiment})
             _report(target)
+            typer.echo(f"link: {links.build_experiment_url(client.server_url, experiment)}")
             return
         if agent is None:
             raise ApiError("pass an agent, or --experiment ID")
@@ -434,6 +452,8 @@ def register(
         }
         _stamp(target, invocation, total)
         _report(target)
+        for one in run_id if not local else []:
+            typer.echo(f"link: {links.build_agent_run_url(client.server_url, ref, one)}")
 
     @runs_app.command("files", help=FILES_HELP)
     def runs_files(

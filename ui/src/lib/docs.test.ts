@@ -5,6 +5,7 @@ describe("docs", () => {
   it("lists the pages in order, grouped", () => {
     expect(DOC_TABS.map((t) => t.id)).toEqual([
       "quickstart",
+      "beyond-quickstart",
       "concepts",
       "try-locally",
       "install",
@@ -16,6 +17,7 @@ describe("docs", () => {
       "ci-sync",
       "case-schema",
       "sdk-runs",
+      "sdk-reference",
       "tracing",
       "mappings",
       "framework-mappings",

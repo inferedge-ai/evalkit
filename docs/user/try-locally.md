@@ -97,9 +97,9 @@ every start.
 | -- | -- |
 | `agent.py` | The sample agent. It answers questions about Acme Widgets, a made-up company, by calling your LLM with one tool, `lookup_financials`. It records each model call and tool call as an OpenTelemetry span, using the GenAI semantic conventions. |
 | `run.py` | The SDK run: `tracing.register` sends the spans to evalkit, and `run_experiment` calls the agent once per case and scores the answers. |
-| `mapping.json` | The span mapping: which span attribute holds the model, the messages, the tokens and each tool call. It starts as the connect-traces skill's `gen_ai.json`. |
 | `cases/acme/` | Five cases in two folders (tags), with answer rubrics and a tool check. |
-| `evalkit.yaml`, `.env` | Where the cases are. |
+| `evalkit.yaml` | Where the cases are. |
+| `.env` | Your LLM settings and the server's secrets. `evalkit serve`, docker compose and `run.py` load it. |
 | `config.yaml` | The server's config. |
 | `docker-compose.yml`, `.env.example` | With Docker only: the stack, and the template for its `.env`. `init-server` leaves them out. |
 
@@ -127,15 +127,17 @@ export EVALKIT_TOKEN=$(curl -fsSL -X POST {{origin}}/api/auth/login \
 `uv run run.py` installs what it needs on the first run. The kit pins evalkit
 to the server's version when `evalkit init-server` copies it. In an evalkit
 checkout, run the kit's scripts with the checkout instead:
-`uv run --project ../../.. --extra otel python run.py`.
+`uv run --project ../../.. python run.py`.
 
 ## 2. Connect the agent's traces
 
-Create the agent. Its trajectories come from its spans, read with
-`mapping.json`:
+Create the agent. Its trajectories come from its spans, read with a span
+mapping: which span attribute holds the model, the messages, the tokens and
+each tool call. The sample agent's spans follow the GenAI semantic
+conventions, so evalkit's `gen_ai` mapping preset reads them as it is:
 
 ```bash
-evalkit agents create analyst --trajectory-source otel --mapping mapping.json
+evalkit agents create analyst --trajectory-source otel --mapping gen_ai
 ```
 
 Run one case without creating an experiment:
@@ -203,13 +205,13 @@ Do the same in your own repository:
    connect-traces skill writes or checks the span mapping
    ([Mappings](mappings.md)).
 2. **Setup.** Put an `evalkit.yaml` at the root of your repository, with
-   `cases:` pointing at your cases directory. Keep any keys it names in a
-   `.env` beside it.
+   `cases:` pointing at your cases directory. Set any keys it names as
+   environment variables.
 3. **Judge.** Nothing to set up: the evaluators that use a judge run on the
    evalkit server, with the LLM provider configured there as the default
    judge. To judge with your own key instead, see [Config](config.md).
 4. **Script.** Copy `run.py`. Pin evalkit in its header to your evalkit
-   server's version (`evalkit-py[otel]==<version>`), call
+   server's version (`evalkit-py==<version>`), call
    `tracing.register(agent="myagent")`, and write a `task` that calls your
    agent with the case input. `uv run run.py` builds an environment from the
    header alone, so add your agent's packages to its `dependencies`. If your
@@ -219,15 +221,17 @@ Do the same in your own repository:
 4. **Cases.** Add a folder under your cases directory, for example
    `mine/`, and run with `dataset="mine"`. The authoring-eval-cases skill
    covers the format. See [Concepts](concepts.md) for the terms.
-5. **Agent and mapping.** Copy this kit's `mapping.json` into your
-   repository, or `openinference.json` from the connect-traces skill if your
-   spans follow OpenInference, and create the agent with it:
+5. **Agent and mapping.** Pick the mapping preset for your framework
+   ([Framework mappings](framework-mappings.md); `evalkit traces mapping
+   presets` lists them), or `openinference` if your spans follow
+   OpenInference, and create the agent with it:
    `evalkit agents create myagent --trajectory-source otel --mapping
-   my-mapping.json`. Do a dry run with your script and `evalkit traces check`
-   on its session, as in step 2. For each `!` line, edit your copy, upload it
-   as a draft and preview the same session:
+   openinference`. Do a dry run with your script and `evalkit traces check`
+   on its session, as in step 2. For each `!` line, save the preset to a
+   file, edit it, upload it as a draft and preview the same session:
 
    ```bash
+   evalkit traces mapping presets openinference > my-mapping.json
    evalkit traces mapping push myagent my-mapping.json
    evalkit traces check myagent <session id> --mapping draft
    ```
@@ -268,8 +272,8 @@ docker compose down -v     # stop and delete all data
 - `uv run run.py` cannot find `evalkit-py==<version>`: that version is not
   on PyPI yet (a source build, or a build whose publish job has not finished).
   Run it with the wheel you installed instead:
-  `uv run --no-project --with "<path to the wheel>[otel]" python run.py`, or
-  from an evalkit checkout: `uv run --project <checkout> --extra otel python run.py`.
+  `uv run --no-project --with "<path to the wheel>" python run.py`, or
+  from an evalkit checkout: `uv run --project <checkout> python run.py`.
   Or wait for the publish.
 - `init-server` cannot connect: start Postgres (`brew services start
   postgresql@17`, `sudo systemctl start postgresql`, or Postgres.app), or

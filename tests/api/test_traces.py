@@ -1,5 +1,6 @@
 import json
 
+import httpx2
 import pytest
 from cryptography.fernet import Fernet
 
@@ -8,7 +9,9 @@ from evalkit.client.api import AsyncApi
 from evalkit.client.oidc import static_auth
 from evalkit.client.sessions import HttpSessionReader
 from evalkit.contracts.enums import TrajectorySource
+from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.poll import poll_trajectory
+from evalkit.core.traces.presets import list_preset_names, read_preset
 from evalkit.core.traces.sessions import SessionTooLarge
 from evalkit.db.crypto import SecretBox
 from tests.api.native_api import api_env, login_as
@@ -126,5 +129,19 @@ async def test_session_over_the_size_cap_is_refused_with_413(api):
     sessions = HttpSessionReader(client)
     with pytest.raises(SessionTooLarge, match="otel.max_session_bytes"):
         await sessions.trajectory("sdk@admin", "sess-1")
-    assert await poll_trajectory(sessions, "sdk@admin", "sess-1", 60) == (None, "unavailable")
+    doc, status, note = await poll_trajectory(sessions, "sdk@admin", "sess-1", 60)
+    assert (doc, status) == (None, "unavailable") and "otel.max_session_bytes" in note
     await client.aclose()
+
+
+async def test_mapping_presets_list_every_preset_as_a_valid_document(api):
+    presets = (await api.get("/api/mapping-presets")).json()
+    assert [p["name"] for p in presets] == list_preset_names()
+    for preset in presets:
+        assert preset["document"] == json.loads(read_preset(preset["name"]))
+        MappingDocument.model_validate(preset["document"])
+
+
+async def test_mapping_presets_need_a_signed_in_user(api):
+    anonymous = httpx2.AsyncClient(transport=api._transport, base_url="http://test")
+    assert (await anonymous.get("/api/mapping-presets")).status_code == 401

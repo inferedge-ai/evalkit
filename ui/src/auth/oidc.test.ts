@@ -1,4 +1,8 @@
-import { WebStorageStateStore } from "oidc-client-ts";
+import {
+  InMemoryWebStorage,
+  OidcClient,
+  WebStorageStateStore,
+} from "oidc-client-ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   loadProviders,
@@ -16,6 +20,7 @@ const okta: OidcProviders = {
   client_id: "0oa1b2c3",
   scopes: ["openid", "profile", "email", "offline_access"],
   authorize_params: { resource: "https://evalkit.example.com" },
+  ui_resources: [],
   authorization_endpoint: "https://id.example.com/oauth2/v1/authorize",
   token_endpoint: "https://id.example.com/oauth2/v1/token",
   device_authorization_endpoint: null,
@@ -71,10 +76,89 @@ describe("userManagerSettings", () => {
     expect(s.redirect_uri).toBe("https://evalkit.example.com/login/callback");
     expect(s.scope).toBe("openid profile email offline_access");
     expect(s.response_type).toBe("code");
-    expect(s.extraQueryParams).toEqual({
-      resource: "https://evalkit.example.com",
-    });
     expect(s.automaticSilentRenew).toBe(false);
+  });
+
+  async function authorizeUrl(oidc: OidcProviders): Promise<URL> {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          issuer: oidc.issuer,
+          authorization_endpoint: oidc.authorization_endpoint,
+          token_endpoint: oidc.token_endpoint,
+        }),
+      ),
+    );
+    const client = new OidcClient({
+      ...userManagerSettings(oidc, "https://evalkit.example.com"),
+      stateStore: new WebStorageStateStore({ store: new InMemoryWebStorage() }),
+    });
+    return new URL((await client.createSigninRequest({ state: "/" })).url);
+  }
+
+  it("signs in for evalkit's API alone when there are no other APIs", async () => {
+    const url = await authorizeUrl(okta);
+    expect(url.searchParams.getAll("resource")).toEqual([
+      "https://evalkit.example.com",
+    ]);
+  });
+
+  async function codeExchange(oidc: OidcProviders): Promise<URLSearchParams> {
+    const bodies: URLSearchParams[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        if (url.endsWith("/.well-known/openid-configuration"))
+          return Response.json({
+            issuer: oidc.issuer,
+            authorization_endpoint: oidc.authorization_endpoint,
+            token_endpoint: oidc.token_endpoint,
+          });
+        bodies.push(new URLSearchParams(String(init?.body)));
+        return Response.json({ error: "invalid_grant" }, { status: 400 });
+      }),
+    );
+    const client = new OidcClient({
+      ...userManagerSettings(oidc, "https://evalkit.example.com"),
+      stateStore: new WebStorageStateStore({ store: new InMemoryWebStorage() }),
+    });
+    const request = await client.createSigninRequest({ state: "/" });
+    const id = new URL(request.url).searchParams.get("state");
+    await client
+      .processSigninResponse(
+        `https://evalkit.example.com/login/callback?code=abc&state=${id}`,
+      )
+      .catch(() => {});
+    return bodies[0];
+  }
+
+  it("names evalkit's API on the code exchange when it signs in for other APIs too", async () => {
+    const body = await codeExchange({
+      ...okta,
+      ui_resources: ["https://api.example.com"],
+    });
+    expect(body.get("grant_type")).toBe("authorization_code");
+    expect(body.getAll("resource")).toEqual(["https://evalkit.example.com"]);
+  });
+
+  it("names no API on the code exchange when it signs in for evalkit's alone", async () => {
+    const body = await codeExchange(okta);
+    expect(body.get("grant_type")).toBe("authorization_code");
+    expect(body.getAll("resource")).toEqual([]);
+  });
+
+  it("names evalkit's API first, then each API in ui_resources", async () => {
+    const url = await authorizeUrl({
+      ...okta,
+      authorize_params: { resource: "https://evalkit.example.com", foo: "1" },
+      ui_resources: ["https://api.example.com"],
+    });
+    expect(url.searchParams.getAll("resource")).toEqual([
+      "https://evalkit.example.com",
+      "https://api.example.com",
+    ]);
+    expect(url.searchParams.get("foo")).toBe("1");
   });
   it("keeps the signed-in user in localStorage", () => {
     vi.stubGlobal("localStorage", {});
@@ -96,6 +180,7 @@ describe("session", () => {
       signinCallback: async () => undefined,
       signinSilent: async () => null,
       removeUser: async () => {},
+      requestApiToken: async () => null,
     };
     setSessionForTest(fake);
     expect(await session()).toBe(fake);

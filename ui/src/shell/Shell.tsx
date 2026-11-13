@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
+import { Lockup } from "@/components/widgets/Logo";
 import {
   NavLink,
   Outlet,
@@ -41,6 +42,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import { extensions } from "../extensions";
 import { logout } from "../lib/api";
 import type { NavItem } from "../lib/extensions";
 import { Select } from "../lib/Select";
@@ -51,13 +53,13 @@ import {
   workspaceHint,
 } from "../lib/workspace";
 import type { Me, WorkspaceInfo } from "../lib/types";
-import { useMe } from "./capabilities";
+import { useClearMe, useMe } from "./capabilities";
 import { JumpPalette } from "./JumpPalette";
 import {
   DOCS_NAV,
   getNavSections,
-  getSettingsSections,
   type NavSection,
+  useSettingsSections,
 } from "./nav";
 import { useTheme } from "./theme";
 import { SWITCH_FLASH_MS, useSwitchWorkspace, useWorkspace } from "./workspace";
@@ -70,10 +72,8 @@ export function BrandLink({
   onClick?: () => void;
 }) {
   return (
-    <NavLink to={to} className="flex items-baseline" onClick={onClick}>
-      <span className="font-mono text-head font-semibold tracking-tight text-brand">
-        Evalkit
-      </span>
+    <NavLink to={to} className="flex items-center" onClick={onClick}>
+      <Lockup />
     </NavLink>
   );
 }
@@ -131,8 +131,7 @@ function SideNav() {
 }
 
 function SettingsNav({ backTo }: { backTo: string }) {
-  const me = useMe();
-  const { workspace } = useWorkspace();
+  const sections = useSettingsSections();
   const { isMobile, setOpenMobile } = useSidebar();
   return (
     <Sidebar collapsible="icon">
@@ -156,9 +155,7 @@ function SettingsNav({ backTo }: { backTo: string }) {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
-        <NavSections
-          sections={getSettingsSections(me.is_admin, workspace.name)}
-        />
+        <NavSections sections={sections} />
       </SidebarContent>
       <NavFooter />
     </Sidebar>
@@ -330,6 +327,7 @@ function WorkspaceSwitcher() {
 
 function ProfileMenu({ me }: { me: Me }) {
   const navigate = useNavigate();
+  const clearMe = useClearMe();
   const { theme, toggle } = useTheme();
   const initials = me.username.slice(0, 2).toUpperCase();
   return (
@@ -383,7 +381,14 @@ function ProfileMenu({ me }: { me: Me }) {
             {theme === "dark" ? "Light mode" : "Dark mode"}
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() => logout().finally(() => navigate("/login"))}
+            onClick={() =>
+              logout().finally(() =>
+                startTransition(() => {
+                  clearMe();
+                  navigate(extensions.landingPage ? "/" : "/login");
+                }),
+              )
+            }
           >
             <LogOut />
             Sign out

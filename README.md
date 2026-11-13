@@ -1,4 +1,9 @@
-# evalkit
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/inferedge-ai/evalkit/develop/docs/brand/evalkit-wordmark-dark.svg">
+    <img alt="evalkit" src="https://raw.githubusercontent.com/inferedge-ai/evalkit/develop/docs/brand/evalkit-wordmark-light.svg" height="40">
+  </picture>
+</h1>
 
 By [InferEdge](https://www.inferedge.com/).
 
@@ -78,7 +83,7 @@ same cases.
 ## It's that simple
 
 ```yaml
-# eval/cases/smoke/cases.yaml
+# evalkit/cases/smoke/cases.yaml
 cases:
   - id: store-count
     input:
@@ -92,7 +97,7 @@ cases:
 ```
 
 ```python
-# eval/run.py
+# evalkit/run.py
 from evalkit.sdk import run_experiment, tracing
 from myagent import ask
 

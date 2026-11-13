@@ -1,10 +1,12 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { usePasswordLogin } from "../auth/oidc";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
 import type { UserRow } from "../lib/types";
+import { NotFound } from "../shell/NotFound";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,11 +18,39 @@ type UserAction = "archive" | "restore" | "promote" | "demote";
 const ROW_COLUMNS = "grid-cols-[minmax(0,1fr)_auto_auto_auto_auto]";
 
 export function UsersAdminPage() {
+  const passwordLogin = usePasswordLogin();
+  if (passwordLogin === undefined)
+    return (
+      <div className="page">
+        <UserRowsSkeleton />
+      </div>
+    );
+  if (passwordLogin === "none")
+    return <NotFound what="page" up={{ label: "Home", to: "/" }} />;
+  return <UserList />;
+}
+
+function UserRowsSkeleton() {
+  return (
+    <Card className="rows gap-0 py-0">
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className={`row ${ROW_COLUMNS}`}>
+          <Skeleton className="h-4" style={{ width: `${20 + i * 8}%` }} />
+          <Skeleton className="h-4 w-12" />
+          <Skeleton className="h-3 w-28" />
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+function UserList() {
   const listed = useApi<UserRow[]>("/users");
   const users = listed.data;
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
+  const error = actionError ?? listed.error?.message ?? null;
 
   const add = async (e: FormEvent) => {
     e.preventDefault();
@@ -69,24 +99,9 @@ export function UsersAdminPage() {
             required
           />
           <Button type="submit">Add user</Button>
-          {actionError && (
-            <span className="text-meta text-err-text">{actionError}</span>
-          )}
         </form>
-        {listed.error && (
-          <div className="pane-status error">{listed.error.message}</div>
-        )}
-        {users === undefined && !listed.error && (
-          <Card className="rows gap-0 py-0">
-            {Array.from({ length: 4 }, (_, i) => (
-              <div key={i} className={`row ${ROW_COLUMNS}`}>
-                <Skeleton className="h-4" style={{ width: `${20 + i * 8}%` }} />
-                <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-3 w-28" />
-              </div>
-            ))}
-          </Card>
-        )}
+        {error && <div className="pane-status error">{error}</div>}
+        {users === undefined && !listed.error && <UserRowsSkeleton />}
         {users && (
           <Card className="rows gap-0 py-0">
             {users.map((user) => (

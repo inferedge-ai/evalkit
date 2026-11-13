@@ -1,18 +1,15 @@
 import json
-from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
 from evalkit.contracts.esf import EsfSpan, MappingDocument
-
-ROOT = Path(__file__).parent.parent.parent
+from evalkit.core.traces.presets import read_preset
 
 
 def test_reference_mapping_documents_validate():
     for name in ("openinference", "gen_ai"):
-        path = ROOT / "skills" / "connect-traces" / "references" / f"{name}.json"
-        doc = MappingDocument.model_validate(json.loads(path.read_text()))
+        doc = MappingDocument.model_validate(json.loads(read_preset(name)))
         assert doc.schema_version == "1"
         assert doc.kind is not None and doc.kind.values
         assert doc.session_id is not None

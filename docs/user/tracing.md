@@ -16,7 +16,7 @@ from evalkit.sdk import tracing
 tracing.register(agent="myagent-sdk")
 ```
 
-`register` adds an exporter for this server to your global tracer provider, creating one if none is set. Your existing exporters keep running. The exporter carries an `X-Evalkit-Agent` header, which names the agent on the server; the `evalkit.agent` resource attribute is only set when `register` creates the provider itself. It reads the server URL from `EVALKIT_SERVER_URL` or your `evalkit login`, and the token from `EVALKIT_OTEL_TOKEN`, an agent token (`evalkit tokens create --agent <agent>`); a login token is not accepted, because it expires under a long-running process. It needs the `otel` extra.
+`register` adds an exporter for this server to your global tracer provider, creating one if none is set. Your existing exporters keep running. The exporter carries an `X-Evalkit-Agent` header, which names the agent on the server; the `evalkit.agent` resource attribute is only set when `register` creates the provider itself. It reads the server URL from `EVALKIT_SERVER_URL` or your `evalkit login`, and the token from `EVALKIT_OTEL_TOKEN`, an agent token (`evalkit tokens create --agent <agent>`); a login token is not accepted, because it expires under a long-running process.
 
 ### An existing span pipeline
 
@@ -79,7 +79,7 @@ export OTEL_RESOURCE_ATTRIBUTES="evalkit.agent=myagent"   # alternative to the h
 
 The collector picks the agent per span: the span's `evalkit.agent` attribute first, then the resource's, then the `X-Evalkit-Agent` header. One process that serves several agents can therefore share one exporter and set `evalkit.agent` on each agent's spans. The value is an agent reference (`myagent` or `myagent@workspace`). Every agent a batch names is checked as if it came in the header: an agent token writes only its own agent, a login token only agents in workspaces you can write to (your own, or a shared one where you are a writer). If any span names an agent the token may not write, the whole batch is refused.
 
-Put the session id on the outermost span of each turn, in the attribute your mapping's `session_id` rule names (`session.id` in `openinference.json`, `gen_ai.conversation.id` in `gen_ai.json`). Each span belongs to the session of its outermost ancestor that carries one, even when the span carries a session attribute of its own. A span with no such ancestor keeps its own session. So a root span with a session sets the session for the whole trace, and a root span without one (an HTTP server's request span) does not matter.
+Put the session id on the outermost span of each turn, in the attribute your mapping's `session_id` rule names (`session.id` in the `openinference` preset, `gen_ai.conversation.id` in `gen_ai`). Each span belongs to the session of its outermost ancestor that carries one, even when the span carries a session attribute of its own. A span with no such ancestor keeps its own session. So a root span with a session sets the session for the whole trace, and a root span without one (an HTTP server's request span) does not matter.
 
 ### Agent behind an HTTP server
 
@@ -202,6 +202,53 @@ user can import traces from it into an OTel agent they can write, with
 - Imported traces land in the agent's workspace. Every user can read every
   workspace, so traces imported into your personal workspace are visible to
   everyone on the server. See [Where runs happen](workspaces.md).
+
+### Experiments that read a trace source
+
+An agent that already sends its spans to its own trace store can skip the
+collector: name the store on the agent, and experiments import each run's
+session from it. The collector stays the simpler path; use this one when the
+agent keeps its own store and you would rather not add an exporter.
+
+```bash
+evalkit agents edit myagent --trace-source phoenix --project myagent
+```
+
+- `--trace-source` names a registered trace source and `--project` the agent's
+  project in it. Both are checked when you save them: an unknown source, a
+  project the source does not have, or a source that does not answer is
+  refused. Only OTel agents take a trace source.
+- Every SDK run and harness run of the agent then pulls its session from the
+  store, with no `tracing.register` and no agent token. `evalkit traces import`
+  and the Import tab default to the same source and project.
+- The session id: the SDK opens its `evalkit.run` span on your process's
+  global tracer provider, which is the agent's own. An agent that runs in the
+  task's process and continues the current trace needs no change. Any other
+  agent takes `metadata["session_id"]` as its session id, or the task returns
+  the agent's own id with `RunResult(session_id=...)`. See
+  [SDK runs](sdk-runs.md#the-task). A harness's run id must be the session id
+  in its store.
+- `evalkit.run` shows in your store as the root of each eval run's trace.
+- Waiting: evalkit pulls the session every 5 seconds (in an SDK run,
+  `run_experiment(poll_interval=...)`) until no new span has arrived for
+  `--import-settle` seconds (15), or gives up after `--import-wait` seconds
+  (120). Stores ingest spans late, and an agent's batch processor holds them
+  for up to 5 seconds. A run whose session is still filling in at the end is
+  `partial`, or `unavailable` without a root; raise `--import-wait`.
+- Running needs no write access: anyone who may run the agent can pull its
+  sessions from the agent's own trace source. Importing from another source
+  or project still needs write access.
+- Load on your store: each unsettled session costs one session read there
+  every 5 seconds. With 4 runs at a time and fast tasks, expect about 10
+  sessions settling at once, so about 2 session reads a second.
+- Why a trajectory is missing shows on the run page and in the SDK's
+  `RunSummary.trajectory_note`:
+  - `only evalkit's run span was found`: the agent's spans went to another
+    trace or another tracer provider. Pass `metadata["session_id"]` to the
+    agent, or return `RunResult(session_id=...)`.
+  - `session ... not found in project ...`: nothing in the store carries the
+    session id. Check the agent exports to that project and uses the id.
+  - `spans still arriving after N s`: raise `--import-wait`.
 
 ## Message roles
 

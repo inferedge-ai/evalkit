@@ -1,54 +1,9 @@
-import type { ReactNode } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Moon, Sun } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { loginPath } from "./capabilities";
-import { BrandLink } from "./Shell";
-import { useTheme } from "./theme";
+import { Outlet } from "react-router-dom";
 
-export function PublicShell({ children }: { children?: ReactNode }) {
-  const location = useLocation();
-  const { theme, toggle } = useTheme();
-  const next = theme === "dark" ? "light" : "dark";
+export function PublicShell() {
   return (
-    <div className="flex h-dvh flex-col">
-      <header className="flex min-h-12 shrink-0 items-center gap-4 border-b bg-card px-4">
-        <BrandLink to="/docs" />
-        <NavLink
-          to="/docs"
-          className={({ isActive }) =>
-            cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              isActive && "bg-muted",
-            )
-          }
-        >
-          Docs
-        </NavLink>
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Switch to ${next} mode`}
-            title={`Switch to ${next} mode`}
-            onClick={toggle}
-          >
-            {theme === "dark" ? <Sun /> : <Moon />}
-          </Button>
-          {!location.pathname.startsWith("/login") && (
-            <Link
-              to={loginPath(location)}
-              className={buttonVariants({ size: "sm" })}
-            >
-              Sign in
-            </Link>
-          )}
-        </div>
-      </header>
-      <main className="min-h-0 flex-1 overflow-auto">
-        {children ?? <Outlet />}
-      </main>
+    <div className="h-dvh overflow-auto">
+      <Outlet />
     </div>
   );
 }

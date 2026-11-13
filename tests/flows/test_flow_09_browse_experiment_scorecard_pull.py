@@ -81,7 +81,13 @@ def test_flow_09_experiment_list_page_scorecard_and_summary_agree(
     body = api_get(f"/api/experiments/{exp_id}")
     assert body["status"] == "completed" and body["status_error"] is None
     assert body["workspace"] == "canonical"
-    assert body["progress"] == {"total": 2, "ran": 2, "evaluated": 2}
+    assert body["progress"] == {
+        "total": 2,
+        "ran": 2,
+        "evaluated": 2,
+        "errored": 0,
+        "partly_errored": 0,
+    }
     assert body["case_states"] == {"flow09-1": "evaluated", "flow09-2": "evaluated"}
     assert body["can_change"] is True and body["server_may_drive"] is True
     assert body["config"]["snapshot"]["evalkit_version"]
@@ -112,7 +118,7 @@ def test_flow_09_run_page_trajectory_files_and_pinned_case(env, tmp_path, monkey
     assert zipped.status_code == 200 and zipped.content[:2] == b"PK"
 
     pinned = {c["case_id"]: c["content_hash"] for c in api_get(f"/api/experiments/{exp_id}/cases")}
-    cases_yaml = tmp_path / "eval" / "cases" / "flow09p" / "cases.yaml"
+    cases_yaml = tmp_path / "evalkit" / "cases" / "flow09p" / "cases.yaml"
     cases_yaml.write_text(cases_yaml.read_text().replace("q flow09p-1", "q flow09p-1 edited"))
     run_cli("sync", "flow09p", "--workspace", "canonical")
     current = {

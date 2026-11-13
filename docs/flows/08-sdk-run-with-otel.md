@@ -5,7 +5,7 @@ A developer runs a code-driven agent (no Harness API) from their own Python scri
 ## Actors
 
 - **Developer**: creates the agent once (`evalkit agents create research-agent --trajectory-source otel --mapping mapping.json`, no `--harness-url`), then writes the script: a task function, optional `@evaluator` functions, `tracing.register(...)`, `run_experiment(...)`.
-- **Script (SDK)**: the developer's Python process. It calls the task once per case and repetition, scores, and writes results through the evalkit API. It reads `evalkit.yaml` for `cases`, `fixtures` and the `credentials` map (a `.env` beside it is loaded).
+- **Script (SDK)**: the developer's Python process. It calls the task once per case and repetition, scores, and writes results through the evalkit API. It reads `evalkit.yaml` for `cases`, `fixtures` and the `credentials` map (keys come from the environment). Without the file, `cases` is `evalkit/cases` and `fixtures` is `evalkit/fixtures` under the current dir, and there are no credentials.
 - **Agent code**: whatever the task calls; it emits OTel spans (e.g. via an OpenInference or `gen_ai` instrumentor).
 - **evalkit server**: holds the agent, its mapping, the dataset and the experiment. Its collector (`/api/otel/v1/traces`) receives spans; the server serves each session as an ATIF trajectory, built with the agent's mapping.
 - **Judge / custom evaluator**: the judge from `judge=Judge(...)`, or the server's default judge (set by an admin). Remote evaluators come from the agent's workspace.
@@ -29,7 +29,7 @@ sequenceDiagram
   SDK->>S: version check, whoami
   SDK->>S: GET agent research-agent@#lt;me#gt;, refuse if it has a harness_url
   SDK->>S: check Python evaluator names against the workspace's remote evaluators
-  opt dataset is in my workspace and evalkit.yaml has a cases dir for it
+  opt dataset is in my workspace and its directory is in the cases dir
     SDK->>S: sync cases into finance@#lt;me#gt;
   end
   SDK->>S: POST experiment (agent, capabilities from the definition, judge, Python evaluator names, trajectory wait, lease holder)
@@ -101,7 +101,7 @@ sequenceDiagram
 
 ## Error cases
 
-- No `evalkit.yaml` above the working dir: `evalkit.yaml not found above <dir>; it holds your cases, fixtures and credentials`.
+- A dataset in your workspace with no directory under the cases dir (`evalkit/cases/<dataset>/` without `evalkit.yaml`) and no copy on the server: `unknown dataset: <ref>`. When the server holds a copy, the run prints `no directory <path>; running <dataset> as the server holds it, without syncing` and runs that copy.
 - Unknown agent: `unknown agent: <ref> — create it with evalkit agents create`.
 - Agent has a `harness_url`: `<agent> has a harness_url, so evalkit drives it through its Harness API: run it with evalkit run <dataset> --agent <agent>`.
 - Python evaluator name that clashes with a remote evaluator: `python evaluator(s) <names> are also remote evaluators in @<workspace>`.
@@ -111,7 +111,6 @@ sequenceDiagram
 - Task returns another type: run error `task protocol violation: …`.
 - Task raises: the run is recorded as failed with the exception text; other runs continue.
 - No spans settle in time: `trajectory_status` `unavailable` (or `partial`); scoring goes on without a trajectory.
-- OTel extra missing: `evalkit tracing needs the otel extra: uv add 'evalkit[otel]'`.
 - Spans for an unknown agent: the collector answers 404 `unknown agent: <ref> — create it with evalkit agents create`.
 - A second resume or evaluate on an experiment whose lease is live: 409.
 - Scoring fails: the exception carries `experiment <id> is not fully scored; finish it with evalkit.sdk.evaluate_experiment(experiment_id=<id>, evaluators=[...]) passing <names>`. With no Python evaluators it ends ``evalkit.sdk.evaluate_experiment(experiment_id=<id>) or `evalkit evaluate <id>` ``.

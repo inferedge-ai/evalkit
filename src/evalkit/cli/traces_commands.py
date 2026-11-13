@@ -9,8 +9,10 @@ from pathlib import Path
 import typer
 
 from evalkit.cli.client import ApiClient, ApiError
+from evalkit.client import links
 from evalkit.client.api import encode
 from evalkit.core.traces.check import render_check
+from evalkit.core.traces.presets import list_preset_names, read_preset
 
 traces_app = typer.Typer(
     no_args_is_help=True, help="Check, map and import OpenTelemetry sessions for an agent."
@@ -21,6 +23,25 @@ traces_app.add_typer(mapping_app, name="mapping")
 DUMPS = ("spans.json", "esf.json", "trajectory.json")
 FOLLOW_SECONDS = 2
 ACTIVE_IMPORT = ("running", "stopping")
+
+
+MAPPING_HELP = (
+    "A preset name (evalkit traces mapping presets) or a mapping JSON file; a file wins "
+    "when both match."
+)
+
+
+def read_mapping(value: str) -> str:
+    if Path(value).is_file():
+        return Path(value).read_text()
+    names = list_preset_names()
+    if value in names:
+        return read_preset(value)
+    raise ApiError(f"{value} is neither a file nor a mapping preset; presets: {', '.join(names)}")
+
+
+def load_mapping(value: str) -> dict:
+    return json.loads(read_mapping(value))
 
 
 def utc(value: str) -> datetime:
@@ -86,14 +107,18 @@ def register(
             typer.echo(line)
         if not ok:
             raise typer.Exit(code=1)
+        typer.echo(f"link: {links.build_agent_run_url(client.server_url, slug, session_id)}")
 
     def print_session_check(client: ApiClient, slug: str, session_id: str) -> None:
         settle = int(client.get("/api/meta").json().get("settle_seconds") or 0)
         time.sleep(settle)
         path = f"/api/agents/{encode(slug)}/sessions/{encode(session_id)}/trajectory"
         session = client.get(path, params={"esf": "true"}).json()
-        for line in render_check(session)[0]:
+        lines, ok = render_check(session)
+        for line in lines:
             typer.echo(line)
+        if ok:
+            typer.echo(f"link: {links.build_agent_run_url(client.server_url, slug, session_id)}")
 
     def follow(client: ApiClient, agent: str, slug: str, import_id: int) -> None:
         last = None
@@ -122,10 +147,14 @@ def register(
         session_id: str | None = typer.Argument(
             None, help="One session to import. Leave out and pass --since for a time range."
         ),
-        source: str = typer.Option(
-            ..., "--source", help="A trace source name (evalkit trace-sources list)."
+        source: str | None = typer.Option(
+            None,
+            "--source",
+            help="A trace source name (evalkit trace-sources list). Default: the agent's.",
         ),
-        project: str = typer.Option(..., "--project", help="The project name in the trace source."),
+        project: str | None = typer.Option(
+            None, "--project", help="The project name in the trace source. Default: the agent's."
+        ),
         since: str | None = typer.Option(
             None,
             "--since",
@@ -150,10 +179,11 @@ def register(
             raise typer.BadParameter("--until needs --since")
         client = client_factory()
         slug = agent_slug(agent)
+        target = {k: v for k, v in (("source", source), ("project", project)) if v is not None}
         if session_id is not None:
             body = client.post(
                 f"/api/agents/{encode(slug)}/sessions/import",
-                json={"source": source, "project": project, "session_id": session_id},
+                json={**target, "session_id": session_id},
             ).json()
             typer.echo(f"imported {body['imported']} spans")
             print_session_check(client, slug, session_id)
@@ -165,7 +195,7 @@ def register(
         }
         view = client.post(
             f"/api/agents/{encode(slug)}/imports",
-            json={"source": source, "project": project, **window},
+            json={**target, **window},
         ).json()
         typer.echo(f"import {view['id']} started: {view['since']} → {view['until']}")
         follow(client, agent, slug, view["id"])
@@ -208,13 +238,13 @@ def register(
     @mapping_app.command("push")
     def mapping_push(
         agent: str,
-        file: Path = typer.Argument(..., exists=True, dir_okay=False, help="Mapping JSON file."),
+        mapping: str = typer.Argument(..., metavar="MAPPING", help=MAPPING_HELP),
     ):
         """Upload a mapping document as the agent's draft. Activate it with mapping activate.
 
-        Example: evalkit traces mapping push research-agent eval/span-mapping.json
+        Example: evalkit traces mapping push research-agent evalkit/span-mapping.json
         """
-        document = json.loads(file.read_text())
+        document = load_mapping(mapping)
         body = (
             client_factory()
             .put(f"/api/agents/{encode(agent_slug(agent))}/mappings/draft", json=document)
@@ -224,6 +254,26 @@ def register(
             typer.echo(f"draft v{body['version']} for {agent} is unchanged")
             return
         typer.echo(f"draft v{body['version']} for {agent}")
+
+    @mapping_app.command("presets")
+    def mapping_presets(
+        name: str | None = typer.Argument(
+            None, help="Print this preset's JSON. Leave out to list the preset names."
+        ),
+    ):
+        """List the mapping presets that ship with evalkit, or print one as JSON to save and edit.
+
+        Examples: evalkit traces mapping presets;
+        evalkit traces mapping presets langchain > evalkit/span-mapping.json
+        """
+        names = list_preset_names()
+        if name is None:
+            for preset in names:
+                typer.echo(preset)
+            return
+        if name not in names:
+            raise ApiError(f"{name} is not a mapping preset; presets: {', '.join(names)}")
+        typer.echo(read_preset(name), nl=False)
 
     @mapping_app.command("activate")
     def mapping_activate(

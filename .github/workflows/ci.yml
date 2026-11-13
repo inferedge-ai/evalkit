@@ -61,12 +61,12 @@ jobs:
             exit 0
           fi
           changed() { git diff --name-only "$BASE_SHA" HEAD; }
-          if changed | grep -qE '^(src/|tests/|scripts/|contracts/|docs/|skills/|\.github/workflows/ci\.yml$|ui/src/lib/docs\.ts$|mkdocs\.yml$|pyproject\.toml$|uv\.lock$|hatch_build\.py$|\.python-version$|README\.md$)'; then
+          if changed | grep -qE '^(src/|tests/|scripts/|contracts/|docs/|skills/|\.github/workflows/ci\.yml$|ui/src/lib/docs\.ts$|ui/src/app\.tsx$|ui/src/styles/tokens/|mkdocs\.yml$|pyproject\.toml$|uv\.lock$|hatch_build\.py$|\.python-version$|README\.md$)'; then
             echo "needs_py_ci=true" >> "$GITHUB_OUTPUT"
           else
             echo "needs_py_ci=false" >> "$GITHUB_OUTPUT"
           fi
-          if changed | grep -qE '^(ui|docs/user)/'; then
+          if changed | grep -qE '^((ui|docs/user)/|docs/site/tokens\.py$)'; then
             echo "needs_ts_ci=true" >> "$GITHUB_OUTPUT"
           else
             echo "needs_ts_ci=false" >> "$GITHUB_OUTPUT"
@@ -97,7 +97,17 @@ jobs:
           python-version: "3.12"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-      - run: uv sync --frozen --extra server --extra otel
+      - name: Tune Postgres for throwaway test data
+        env:
+          PGPASSWORD: postgres
+        run: >-
+          psql -h localhost -U postgres
+          -c "ALTER SYSTEM SET fsync = off"
+          -c "ALTER SYSTEM SET synchronous_commit = off"
+          -c "ALTER SYSTEM SET full_page_writes = off"
+          -c "ALTER SYSTEM SET authentication_timeout = '5s'"
+          -c "SELECT pg_reload_conf()"
+      - run: uv sync --frozen --extra server
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy src/evalkit

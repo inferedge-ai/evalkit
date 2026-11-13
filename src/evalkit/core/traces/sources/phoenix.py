@@ -7,7 +7,9 @@ from typing import Any
 import httpx2
 
 from evalkit.core.traces.raw import RawSpan
-from evalkit.core.traces.sources.base import TracePage
+from evalkit.core.traces.sources.base import TracePage, UnknownProject
+
+OPENINFERENCE_KIND = "openinference.span.kind"
 
 
 def flatten_attributes(nested: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -24,6 +26,13 @@ def flatten_attributes(nested: dict[str, Any], prefix: str = "") -> dict[str, An
     return flat
 
 
+def _with_span_kind(attributes: dict[str, Any], span: dict[str, Any]) -> dict[str, Any]:
+    kind = span.get("span_kind")
+    if kind and kind != "UNKNOWN" and OPENINFERENCE_KIND not in attributes:
+        return {**attributes, OPENINFERENCE_KIND: kind}
+    return attributes
+
+
 def _to_raw(span: dict[str, Any]) -> RawSpan:
     context = span.get("context") or {}
     end = span.get("end_time")
@@ -37,7 +46,7 @@ def _to_raw(span: dict[str, Any]) -> RawSpan:
         end_time=datetime.fromisoformat(end) if end else None,
         status_code=str(span.get("status_code") or "UNSET"),
         status_message=span.get("status_message") or None,
-        attributes=flatten_attributes(span.get("attributes") or {}),
+        attributes=_with_span_kind(flatten_attributes(span.get("attributes") or {}), span),
         events=[
             {
                 "name": e.get("name"),
@@ -61,22 +70,34 @@ class PhoenixClient:
         page_traces: int,
         *,
         transport: httpx2.AsyncBaseTransport | None = None,
+        timeout: float = 120.0,
     ):
         self._url = url.rstrip("/")
+        self._timeout = timeout
         self._api_key = api_key
         self._page_traces = page_traces
         self._transport = transport
+
+    def _client(self) -> httpx2.AsyncClient:
+        return httpx2.AsyncClient(
+            base_url=self._url,
+            headers={"Authorization": f"Bearer {self._api_key}"} if self._api_key else {},
+            timeout=self._timeout,
+            transport=self._transport,
+        )
+
+    async def check_project(self, project: str) -> None:
+        async with self._client() as client:
+            resp = await client.get(f"/v1/projects/{project}")
+        if resp.status_code == 404:
+            raise UnknownProject(f"project {project} not found")
+        resp.raise_for_status()
 
     async def _pages(
         self, path: str, params: dict[str, str | list[str]]
     ) -> AsyncIterator[list[dict[str, Any]]]:
         cursor: str | None = None
-        async with httpx2.AsyncClient(
-            base_url=self._url,
-            headers={"Authorization": f"Bearer {self._api_key}"} if self._api_key else {},
-            timeout=120,
-            transport=self._transport,
-        ) as client:
+        async with self._client() as client:
             while True:
                 resp = await client.get(
                     path, params={**params, **({"cursor": cursor} if cursor else {})}

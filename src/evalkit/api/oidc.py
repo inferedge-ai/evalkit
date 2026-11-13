@@ -142,7 +142,7 @@ async def verify_id_token(oidc: OidcState, token: str) -> dict:
             key.key,
             algorithms=oidc.cfg.algorithms,
             issuer=oidc.cfg.issuer,
-            audience=oidc.cfg.client_id,
+            audience=[oidc.cfg.client_id, oidc.cfg.resolve_cli_client_id()],
             options={"require": REQUIRED_CLAIMS},
             leeway=LEEWAY_SECONDS,
         )

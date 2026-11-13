@@ -39,7 +39,7 @@ You need [uv](https://docs.astral.sh/uv/), Docker (the tests start
 Postgres in a container) and Node.js 24 for the UI.
 
 ```bash
-uv sync --extra server --extra otel
+uv sync --extra server
 uv run pytest              # tests
 uv run ruff check          # lint
 uv run ruff format         # format
@@ -53,6 +53,29 @@ in [AGENTS.md](AGENTS.md).
 
 [AGENTS.md](AGENTS.md) also holds the project's terms, code layout,
 layering rules and code style. Please follow them.
+
+## Writing the user docs
+
+The pages in `docs/user/` render in the web UI's docs page, on the docs site
+(MkDocs) and as plain markdown on GitHub. Three markers work in both
+renderers:
+
+- **Tabs.** Put `<!-- tabs -->` and `<!-- /tabs -->` on their own lines around
+  the block. Inside it, each `#### Label` heading starts a tab, and its body
+  runs to the next `####` or the closing marker. The first tab is selected.
+  Outside the markers, `####` is an ordinary heading.
+- **Row anchors.** Put `<!-- anchor-rows -->` on the line right before a table.
+  Each body row gets an id from its first cell: lowercase, every run of
+  characters that is not a letter or digit becomes one `-`, and leading and
+  trailing `-` are removed. `App run` becomes `app-run`, `` `evalkit.yaml` ``
+  becomes `evalkit-yaml`. Link to a row as `concepts.md#app-run`. A repeated
+  or empty id fails the docs build.
+- **Heading links.** Headings get the ids MkDocs makes: `## The CLI, as a
+  global tool` is `#the-cli-as-a-global-tool`. Link as `install.md#...`, or
+  `#...` on the same page. Tab labels have no id.
+- **Images.** Put them in `docs/user/images/` and write
+  `![alt text](images/<file>.png)`. `evalkit skills install` leaves the folder
+  out of the copy it makes for coding agents.
 
 ## Code of conduct
 

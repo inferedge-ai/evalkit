@@ -216,7 +216,7 @@ async def runs_to_score(
             )
             .where(
                 models.ExperimentRun.experiment_id == exp_id,
-                models.AgentRun.error.is_(None) | models.AgentRun.output.is_not(None),
+                is_scorable_run(),
                 true() if only_run is None else models.ExperimentRun.id == only_run,
             )
             .order_by(models.ExperimentRun.id)
@@ -371,12 +371,28 @@ async def run_details(session: AsyncSession, exp_id: int) -> list[RunDetail]:
     ]
 
 
+FINISHED = frozenset(
+    {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.TIMEOUT, RunStatus.CANCELLED}
+)
+
+
+def is_scorable_run() -> ColumnElement[bool]:
+    return models.AgentRun.output.is_not(None) | (
+        (models.AgentRun.status == RunStatus.COMPLETED.value) & models.AgentRun.answer.is_not(None)
+    )
+
+
+def is_errored_run() -> ColumnElement[bool]:
+    return models.AgentRun.status.in_([s.value for s in FINISHED]) & ~is_scorable_run()
+
+
 class AgentRunItem(BaseModel):
     id: int
     harness_run_id: str
     title: str | None
     status: RunStatus
     started_at: datetime
+    ended_at: datetime | None = None
     created_by: str | None
     experiment_id: int | None
     experiment_number: int | None
@@ -408,6 +424,7 @@ def _item(row) -> AgentRunItem:
         title=run.title,
         status=RunStatus(run.status),
         started_at=run.started_at,
+        ended_at=run.ended_at,
         created_by=username,
         experiment_id=exp_id,
         experiment_number=number,

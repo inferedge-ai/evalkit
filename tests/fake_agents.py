@@ -1,16 +1,15 @@
 import json
-from pathlib import Path
 
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource
 from evalkit.contracts.esf import MappingDocument
 from evalkit.contracts.settings import AgentSettings, RemoteEvaluatorSettings
 from evalkit.core.agents import AgentDefinition, UnknownAgent
 from evalkit.core.remote_evaluators import RemoteEvaluator
+from evalkit.core.traces.presets import read_preset
 from evalkit.credentials import CredentialRegistry, CredentialsConfig
 from evalkit.db.crypto import SecretBox
 
 FAKE_HARNESS_URL = "http://fake/evalkit/v1"
-MAPPINGS_DIR = Path(__file__).parent.parent / "skills" / "connect-traces" / "references"
 FAKE_SETTINGS = AgentSettings(poll_interval_seconds=0, run_timeout_seconds=5, max_concurrent_runs=2)
 JUDGE_URL = "http://judge.test"
 TEST_CREDENTIALS_CONFIG = CredentialsConfig(
@@ -67,7 +66,7 @@ def fake_credentials(home: str | None = None) -> CredentialRegistry:
 
 
 def reference_mapping(name: str = "openinference") -> dict:
-    return json.loads((MAPPINGS_DIR / f"{name}.json").read_text())
+    return json.loads(read_preset(name))
 
 
 FAKE_EVALUATORS = {

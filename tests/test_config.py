@@ -12,7 +12,6 @@ from evalkit.config import (
     RunnerConfig,
     load_config,
 )
-from evalkit.credentials import CredentialRegistry
 
 BASIC = """
 server:
@@ -183,17 +182,16 @@ def test_local_config_resolves_paths(tmp_path):
     assert cfg.fixtures == tmp_path / "eval" / "fixtures"
 
 
-def test_local_credentials_read_dotenv_beside_evalkit_yaml(tmp_path, monkeypatch):
-    monkeypatch.delenv("RESEARCH_AGENT_KEY", raising=False)
-    (tmp_path / "evalkit.yaml").write_text(LOCAL)
-    (tmp_path / ".env").write_text("RESEARCH_AGENT_KEY=from-dotenv\n")
+def test_local_cost_map_never_reads_a_dotenv_beside_evalkit_yaml(tmp_path, monkeypatch):
+    monkeypatch.delenv("EVALKIT_COST_MAP", raising=False)
+    (tmp_path / "evalkit.yaml").write_text(
+        LOCAL + "cost_map:\n  source: env:EVALKIT_COST_MAP:bundled\n"
+    )
+    (tmp_path / ".env").write_text("EVALKIT_COST_MAP=/tmp/from-dotenv.json\n")
+    monkeypatch.chdir(tmp_path)
     cfg = LocalConfig.find(tmp_path)
     assert cfg is not None
-    registry = CredentialRegistry(cfg.credentials, cfg.environ(), home="akshat")
-    assert registry.key_for("agent", "research-agent@akshat") == "from-dotenv"
-    monkeypatch.setenv("RESEARCH_AGENT_KEY", "from-env")
-    registry = CredentialRegistry(cfg.credentials, cfg.environ(), home="akshat")
-    assert registry.key_for("agent", "research-agent@akshat") == "from-env"
+    assert cfg.resolve_env(scoring=True).cost_map.source == "bundled"
 
 
 def test_env_reference_with_default(tmp_path, monkeypatch):
@@ -212,12 +210,40 @@ def test_local_config_absent(tmp_path):
     assert LocalConfig.find(tmp_path) is None
 
 
-def test_local_config_without_cases_or_fixtures(tmp_path):
+def test_local_config_without_cases_or_fixtures_uses_the_defaults(tmp_path):
     (tmp_path / "evalkit.yaml").write_text("")
-    cfg = LocalConfig.find(tmp_path)
+    nested = tmp_path / "src"
+    nested.mkdir()
+    cfg = LocalConfig.find(nested)
     assert cfg is not None
-    assert cfg.cases is None and cfg.fixtures is None
-    assert cfg.resolve_env().cases is None
+    assert cfg.cases == tmp_path / "evalkit" / "cases"
+    assert cfg.fixtures == tmp_path / "evalkit" / "fixtures"
+    assert cfg.resolve_env().cases == tmp_path / "evalkit" / "cases"
+
+
+def test_local_config_without_a_file_defaults_to_the_first_start(tmp_path):
+    cwd = tmp_path / "cwd"
+    script_dir = tmp_path / "scripts"
+    cwd.mkdir()
+    script_dir.mkdir()
+    cfg = LocalConfig.find_or_default([cwd, script_dir])
+    assert cfg.path == cwd / "evalkit.yaml"
+    assert cfg.cases == cwd / "evalkit" / "cases"
+    assert cfg.fixtures == cwd / "evalkit" / "fixtures"
+    assert cfg.credentials.agents == {} and cfg.credentials.evaluators == {}
+    assert cfg.resolve_env().cases == cwd / "evalkit" / "cases"
+
+
+def test_local_config_file_beside_a_later_start_wins_over_the_default(tmp_path):
+    cwd = tmp_path / "cwd"
+    script_dir = tmp_path / "scripts"
+    cwd.mkdir()
+    script_dir.mkdir()
+    (script_dir / "evalkit.yaml").write_text("cases: suites\n")
+    cfg = LocalConfig.find_or_default([cwd, script_dir])
+    assert cfg.path == script_dir / "evalkit.yaml"
+    assert cfg.cases == script_dir / "suites"
+    assert cfg.fixtures == script_dir / "evalkit" / "fixtures"
 
 
 def test_the_moved_to_db_hint_names_env_refs_as_shell_variables(tmp_path, monkeypatch):
@@ -278,6 +304,23 @@ def test_oidc_config_defaults():
     assert cfg.auth.oidc.authorize_params == {}
     assert cfg.auth.oidc.algorithms == ["RS256"]
     assert cfg.auth.password_login == "admin"
+
+
+def test_oidc_cli_client_defaults_to_the_web_client():
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": OIDC}})
+    assert cfg.auth.oidc.resolve_cli_client_id() == "evalkit-ui"
+    own = {**OIDC, "cli_client_id": "evalkit-cli"}
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": own}})
+    assert cfg.auth.oidc.resolve_cli_client_id() == "evalkit-cli"
+
+
+def test_oidc_ui_resources_need_evalkit_own_resource_first():
+    other_api = {**OIDC, "ui_resources": ["https://api.test"]}
+    with pytest.raises(ValidationError, match=r"authorize_params\.resource"):
+        Config.model_validate({**OIDC_BASE, "auth": {"oidc": other_api}})
+    named = {**other_api, "authorize_params": {"resource": "https://evalkit.test"}}
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": named}})
+    assert cfg.auth.oidc.ui_resources == ["https://api.test"]
 
 
 def test_oidc_scopes_must_include_openid():

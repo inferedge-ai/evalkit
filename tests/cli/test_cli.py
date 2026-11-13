@@ -143,6 +143,8 @@ def server(tmp_path_factory, stub_judges_module, fake_harness, harness_url, modu
 def env(server, tmp_path, monkeypatch, module_db_url):
     base_url, application = server
     monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
+    monkeypatch.setenv("CLI_AGENT_KEY", "client-key")
+    monkeypatch.setenv("CLI_JUDGE_KEY", "jk")
     resp = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
     )
@@ -311,13 +313,15 @@ def test_run_prints_summary(env):
     )
     assert result.exit_code == 0, result.output
     exp_id = _exp_id(result.output)
-    assert f"experiment {exp_id}: {base_url}/experiments/{exp_id}" in result.output
+    assert f"experiment {exp_id}\nlink: {base_url}/experiments/{exp_id}\n" in result.output
     assert "completed (2/2 ran, 2/2 evaluated)" in result.output
     assert "buckets:" in result.output
     assert "answer_rubric_score" in result.output
+    assert result.output.rstrip().endswith(f"link: {base_url}/experiments/{exp_id}")
 
 
 def test_status_and_summary(env):
+    base_url, _ = env
     exp_id = _run_experiment()
     result = runner.invoke(cli_app, ["status", str(exp_id)])
     assert result.exit_code == 0, result.output
@@ -325,9 +329,11 @@ def test_status_and_summary(env):
     assert f"experiment {exp_id}  #{exp.number} of finance@canonical" in result.output
     assert "status=completed 2/2 ran, 2/2 evaluated" in result.output
     assert "held by" not in result.output
+    assert f"  link: {base_url}/experiments/{exp_id}" in result.output
     result = runner.invoke(cli_app, ["summary", str(exp_id)])
     assert result.exit_code == 0
     assert "buckets:" in result.output
+    assert result.output.rstrip().endswith(f"link: {base_url}/experiments/{exp_id}")
 
 
 def test_status_shows_the_lease_holder_of_an_active_experiment(monkeypatch):
@@ -354,14 +360,49 @@ def test_status_shows_the_lease_holder_of_an_active_experiment(monkeypatch):
             return StubResponse()
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    monkeypatch.setattr(
+        main_module,
+        "_active_connection",
+        lambda: connection.Connection("https://evalkit.example/", None, None),
+    )
     result = runner.invoke(cli_app, ["status", "7"])
     assert result.exit_code == 0, result.output
     assert "experiment 7  #3 of finance@dev  agent=fake@dev" in result.output
     assert "status=running 1/4 ran, 0/4 evaluated" in result.output
     assert re.search(r"held by cli:ravi@laptop:42 \(lease expires in 4\ds\)", result.output)
+    assert result.output.rstrip().endswith("  link: https://evalkit.example/experiments/7")
 
 
-def test_summary_lists_errored_cases(capsys):
+def test_status_and_experiments_list_tell_errored_from_partly_errored_cases(monkeypatch):
+    progress = {"total": 6, "ran": 6, "evaluated": 6, "errored": 3, "partly_errored": 1}
+    exp = {
+        "id": 7,
+        "number": 3,
+        "dataset": "finance@dev",
+        "agent": "fake@dev",
+        "status": "completed",
+        "status_error": None,
+        "started_at": "2026-11-13T10:00:00+00:00",
+        "scores": {"content": 1.0},
+        "progress": progress,
+    }
+
+    class StubClient:
+        def get(self, path, **kwargs):
+            return httpx2.Response(200, json=exp if path.endswith("/7") else [exp])
+
+    monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    monkeypatch.setattr(
+        main_module, "_connection", lambda: connection.Connection("u", "t", "admin")
+    )
+    status = runner.invoke(cli_app, ["status", "7"])
+    assert "6/6 ran, 6/6 evaluated, 3 errored, 1 partly errored" in status.output
+    listed = runner.invoke(cli_app, ["experiments", "list"])
+    assert listed.exit_code == 0, listed.output
+    assert "3 of 6 cases errored, 1 of 6 cases partly errored  content 1.00" in listed.output
+
+
+def test_summary_lists_run_and_evaluator_errors(capsys):
     case = {"overall": None, "delta": None, "errors": {}, "run_errors": []}
     report = {
         "name": "#4",
@@ -380,7 +421,7 @@ def test_summary_lists_errored_cases(capsys):
     out = capsys.readouterr().out
     assert "experiment 12  #4 of finance@dev" in out
     assert "(0 cases, 2 errored)" in out
-    assert "errored cases:" in out
+    assert "run and evaluator errors:" in out
     assert re.search(r"case-1\s+presentation_judge: 403$", out, re.M)
     assert re.search(r"case-2\s+run: agent crashed$", out, re.M)
     assert "case-3" not in out
@@ -394,6 +435,7 @@ def test_runs_pull_experiment_writes_every_run_flat(env, tmp_path, monkeypatch):
     )
     assert result.exit_code == 0, result.output
     assert f"pulled 2 run(s) to {out}" in result.output
+    assert result.output.rstrip().endswith(f"link: {env[0]}/experiments/{exp_id}")
     index = json.loads((out / "index.json").read_text())
     assert index["agent"] == "fake@canonical" and index["total_matching"] == 2
     for row in index["runs"]:
@@ -421,7 +463,7 @@ def test_runs_pull_pages_merge_into_one_index(env, tmp_path):
     assert len(list((out / "runs").iterdir())) == 2
 
 
-def test_runs_list_json_rows(env):
+def test_runs_list_json_rows(env, tmp_path):
     _run_experiment()
     result = runner.invoke(
         cli_app, ["runs", "list", "fake@canonical", "--source", "eval", "--limit", "2", "--json"]
@@ -429,6 +471,14 @@ def test_runs_list_json_rows(env):
     assert result.exit_code == 0, result.output
     rows = [json.loads(line) for line in result.stdout.splitlines()]
     assert len(rows) == 2 and all(row["source"] == "eval" for row in rows)
+    base_url, _ = env
+    assert rows[0]["url"] == f"{base_url}/runs/fake%40canonical/{rows[0]['run_id']}"
+    one = rows[0]["run_id"]
+    pulled = runner.invoke(
+        cli_app, ["runs", "pull", "fake@canonical", "--run-id", one, "--out", str(tmp_path / "p")]
+    )
+    assert pulled.exit_code == 0, pulled.output
+    assert pulled.output.rstrip().endswith(f"link: {rows[0]['url']}")
     assert "2 of " in result.stderr
 
 
@@ -490,6 +540,13 @@ def test_datasets_list(env):
     result = runner.invoke(cli_app, ["datasets", "list"])
     assert result.exit_code == 0
     assert "finance" in result.output
+    assert result.output.rstrip().endswith(
+        "evalkit datasets show <dataset> shows one dataset and its link"
+    )
+    cases = runner.invoke(cli_app, ["datasets", "list", "finance@canonical"])
+    assert cases.output.rstrip().endswith(
+        "evalkit review show <dataset> <case-id> shows one case and its link"
+    )
 
 
 def test_datasets_list_by_workspace(env):
@@ -512,6 +569,8 @@ def test_datasets_show(env):
     assert "dataset: finance@canonical" in shown.output
     assert re.search(r"cases: \d+", shown.output)
     assert "review: " in shown.output and "tags: " in shown.output
+    base_url, _ = env
+    assert shown.output.rstrip().endswith(f"link: {base_url}/datasets/finance%40canonical")
     assert runner.invoke(cli_app, ["datasets", "show", "nope@canonical"]).exit_code == 1
 
 
@@ -525,6 +584,8 @@ def _capture_post_files(monkeypatch, response: dict):
     sent: dict = {}
 
     class StubResponse:
+        status_code = 200
+
         def __init__(self, body):
             self._body = body
 
@@ -541,6 +602,9 @@ def _capture_post_files(monkeypatch, response: dict):
 
         def get(self, path, **kwargs):
             return StubResponse({"username": "admin"})
+
+        def head(self, path, **kwargs):
+            return StubResponse({})
 
     monkeypatch.setenv("EVALKIT_SERVER_URL", "http://stub")
     monkeypatch.setenv("EVALKIT_TOKEN", "stub-token")
@@ -572,6 +636,7 @@ def test_dir_sync_uploads_yaml_and_registry_only(tmp_path, monkeypatch):
         cli_app, ["sync", str(case_dir), "--workspace", "canonical", "--version", "v9"]
     )
     assert result.exit_code == 0, result.output
+    assert re.search(r"^link: http\S+/datasets/cases%40canonical$", result.output, re.M)
     assert sent["path"] == "/api/sync"
     assert sent["names"] == ["fixtures.yaml", "one.yaml"]
     assert sent["params"] == {
@@ -611,15 +676,15 @@ def test_dir_sync_uploads_registry_from_parent(tmp_path, monkeypatch):
 
 def test_subfolder_sync_keeps_dataset_name_and_relative_paths(tmp_path, monkeypatch):
     sent = _capture_post_files(monkeypatch, SYNC_OK)
-    root = tmp_path / "eval" / "cases"
+    root = tmp_path / "evalkit" / "cases"
     (root / "finance" / "equity").mkdir(parents=True)
-    (tmp_path / "evalkit.yaml").write_text("cases: eval/cases\nfixtures: eval/fixtures\n")
+    (tmp_path / "evalkit.yaml").write_text("cases: evalkit/cases\nfixtures: evalkit/fixtures\n")
     (root / "finance" / "equity" / "tcs.yaml").write_text(
         "- id: tcs-1\n  input: {question: 'q as of 2024-01-01'}\n"
     )
     (root / "finance" / "mf.yaml").write_text("- id: mf-1\n  input: {question: 'q 2024'}\n")
     monkeypatch.chdir(tmp_path)
-    result = runner.invoke(cli_app, ["sync", "eval/cases/finance/equity"])
+    result = runner.invoke(cli_app, ["sync", "evalkit/cases/finance/equity"])
     assert result.exit_code == 0, result.output
     assert sent["params"] == {"dataset": "finance", "workspace": "admin", "prune": False}
     assert sent["names"] == ["equity/tcs.yaml"]
@@ -632,7 +697,7 @@ def test_subfolder_sync_keeps_dataset_name_and_relative_paths(tmp_path, monkeypa
     result = runner.invoke(cli_app, ["sync", "finance/only-a-tag"])
     assert result.exit_code == 1
     assert "not a folder or file" in result.output
-    result = runner.invoke(cli_app, ["sync", "eval/cases"])
+    result = runner.invoke(cli_app, ["sync", "evalkit/cases"])
     assert result.exit_code == 1
     assert "cases root" in result.output
 
@@ -640,10 +705,11 @@ def test_subfolder_sync_keeps_dataset_name_and_relative_paths(tmp_path, monkeypa
 def test_sync_ignores_unset_env_vars_in_local_config(tmp_path, monkeypatch):
     sent = _capture_post_files(monkeypatch, SYNC_OK)
     monkeypatch.delenv("UNSET_COST_MAP", raising=False)
-    root = tmp_path / "eval" / "cases"
+    root = tmp_path / "evalkit" / "cases"
     (root / "finance").mkdir(parents=True)
     (tmp_path / "evalkit.yaml").write_text(
-        "cases: eval/cases\nfixtures: eval/fixtures\ncost_map:\n  source: env:UNSET_COST_MAP\n"
+        "cases: evalkit/cases\nfixtures: evalkit/fixtures\n"
+        "cost_map:\n  source: env:UNSET_COST_MAP\n"
     )
     (root / "finance" / "mf.yaml").write_text("- id: mf-1\n  input: {question: 'q 2024'}\n")
     monkeypatch.chdir(tmp_path)
@@ -806,10 +872,13 @@ def test_review_request_show_and_approve(env):
     shown = runner.invoke(cli_app, ["review", "show", "finance@canonical"])
     assert shown.exit_code == 0, shown.output
     assert re.search(r"case-2\s+review_requested\s+admin", shown.output)
+    case_hint = "evalkit review show <dataset> <case-id> shows one case and its link"
+    assert shown.output.rstrip().endswith(case_hint)
 
     queue = runner.invoke(cli_app, ["review", "queue"])
     assert queue.exit_code == 0, queue.output
     assert "case-2" in queue.output
+    assert queue.output.rstrip().endswith(case_hint)
     in_dataset = runner.invoke(cli_app, ["review", "queue", "finance@canonical"])
     assert in_dataset.exit_code == 0 and "case-2" in in_dataset.output
     assert runner.invoke(cli_app, ["review", "queue", "other@canonical"]).exit_code == 1
@@ -831,6 +900,9 @@ def test_review_request_show_and_approve(env):
     assert approved.exit_code == 0, approved.output
     assert "approving 1 case(s) in finance@canonical" in approved.output
     assert "case-2: approved" in approved.output
+    case_link = f"link: {env[0]}/datasets/finance%40canonical/cases/case-2"
+    assert approved.output.rstrip().endswith(case_link)
+    assert commented.output.rstrip().endswith(case_link)
     again = runner.invoke(cli_app, ["review", "approve", "finance@canonical", "--all-waiting"])
     assert "nothing waiting on you" in again.output
 
@@ -841,6 +913,7 @@ def test_review_request_show_and_approve(env):
     resolved = runner.invoke(cli_app, ["review", "resolve", comment_id])
     assert resolved.exit_code == 0, resolved.output
     assert f"comment {comment_id} resolved" in resolved.output
+    assert resolved.output.rstrip().endswith(case_link)
 
     detail = runner.invoke(cli_app, ["review", "show", "finance@canonical", "case-2"])
     assert detail.exit_code == 0, detail.output
@@ -848,6 +921,7 @@ def test_review_request_show_and_approve(env):
     assert "id: case-2" in detail.output
     assert "looks fine" in detail.output and "[resolved]" in detail.output
     assert "review_requested" in detail.output and "approved" in detail.output
+    assert detail.output.rstrip().endswith(case_link)
 
     empty = runner.invoke(cli_app, ["review", "queue"])
     assert "nothing waiting" in empty.output
@@ -866,22 +940,21 @@ def test_lint_agent_with_offline_is_a_usage_error(tmp_path):
 
 
 def write_local_config(tmp_path, harness_url: str) -> Path:
-    cases = tmp_path / "eval" / "cases" / "finance"
+    cases = tmp_path / "evalkit" / "cases" / "finance"
     cases.mkdir(parents=True)
     (cases / "cases.yaml").write_text(
         "cases:\n- id: local-1\n  tags: [local]\n  input: {question: 'q local'}\n"
         "  evaluators:\n    output:\n      answer_rubrics:\n        rubrics:\n"
         "        - rubric: 'Says 42.'\n          type: factual_retrieval\n"
     )
-    (tmp_path / "eval" / "fixtures").mkdir()
+    (tmp_path / "evalkit" / "fixtures").mkdir()
     cost_map = tmp_path / "cost_map.json"
     cost_map.write_text("{}")
     (tmp_path / "evalkit.yaml").write_text(
-        "cases: eval/cases\nfixtures: eval/fixtures\n"
+        "cases: evalkit/cases\nfixtures: evalkit/fixtures\n"
         f"cost_map:\n  source: {cost_map}\n"
         "credentials:\n  agents:\n    fake: env:CLI_AGENT_KEY\n"
     )
-    (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
     return tmp_path
 
 
@@ -951,7 +1024,7 @@ def test_local_run_against_canonical_dataset_does_not_sync(env, tmp_path, monkey
 
 def test_sync_command_targets_workspace(env, tmp_path, monkeypatch, harness_url):
     write_local_config(tmp_path, harness_url)
-    (tmp_path / "eval" / "cases" / "finance").rename(tmp_path / "eval" / "cases" / "synced")
+    (tmp_path / "evalkit" / "cases" / "finance").rename(tmp_path / "evalkit" / "cases" / "synced")
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(cli_app, ["sync", "synced"])
     assert result.exit_code == 0, result.output
@@ -981,11 +1054,10 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     write_local_config(tmp_path, harness_url)
     monkeypatch.delenv("CLI_AGENT_KEY", raising=False)
     monkeypatch.delenv("CLI_JUDGE_KEY", raising=False)
-    envcheck = tmp_path / "eval" / "cases" / "envcheck"
+    envcheck = tmp_path / "evalkit" / "cases" / "envcheck"
     envcheck.mkdir()
     (envcheck / "c.yaml").write_text("cases:\n- id: env-1\n  input: {question: 'q 2024'}\n")
-    dotenv = tmp_path / ".env"
-    dotenv.write_text("CLI_JUDGE_KEY=jk\n")
+    (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 1, result.output
@@ -995,7 +1067,7 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     assert "CLI_AGENT_KEY" in result.output
     assert "envcheck@admin" not in dataset_refs()
 
-    dotenv.write_text("CLI_AGENT_KEY=client-key\n")
+    monkeypatch.setenv("CLI_AGENT_KEY", "client-key")
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 0, result.output
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
@@ -1004,7 +1076,7 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake", *own_judge])
     assert result.exit_code == 1, result.output
     assert "CLI_JUDGE_KEY is not set" in result.output
-    dotenv.write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
+    monkeypatch.setenv("CLI_JUDGE_KEY", "jk")
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake", *own_judge])
     assert result.exit_code == 0, result.output
 
@@ -1014,18 +1086,18 @@ def test_canonical_sync_reuses_bytes_already_uploaded(env, tmp_path, monkeypatch
     monkeypatch.chdir(tmp_path)
     data = b"k,v\n1,2\n"
     digest = hashlib.sha256(data).hexdigest()
-    (tmp_path / "eval" / "fixtures" / "promo.csv").write_bytes(data)
-    (tmp_path / "eval" / "cases" / "fixtures.yaml").write_text(
+    (tmp_path / "evalkit" / "fixtures" / "promo.csv").write_bytes(data)
+    (tmp_path / "evalkit" / "cases" / "fixtures.yaml").write_text(
         f"fixtures:\n- key: promo.csv\n  sha256: {digest}\n  context: ctx\n"
     )
-    promo = tmp_path / "eval" / "cases" / "promo"
+    promo = tmp_path / "evalkit" / "cases" / "promo"
     promo.mkdir()
     (promo / "p.yaml").write_text(
         "cases:\n- id: promo-1\n  fixtures: [promo.csv]\n  input: {question: 'q 2024-01-01'}\n"
     )
     result = runner.invoke(cli_app, ["sync", "promo"])
     assert result.exit_code == 0, result.output
-    (tmp_path / "eval" / "fixtures" / "promo.csv").unlink()
+    (tmp_path / "evalkit" / "fixtures" / "promo.csv").unlink()
     result = runner.invoke(cli_app, ["sync", "promo", "--workspace", "canonical"])
     assert result.exit_code == 0, result.output
     assert "promoted" not in result.output
@@ -1093,12 +1165,12 @@ def test_local_run_uploads_fixtures_and_sends_them_to_the_agent(
 ):
     write_local_config(tmp_path, harness_url)
     monkeypatch.chdir(tmp_path)
-    (tmp_path / "eval" / "fixtures" / "bs.csv").write_bytes(b"a,b\n1,2\n")
+    (tmp_path / "evalkit" / "fixtures" / "bs.csv").write_bytes(b"a,b\n1,2\n")
     digest = hashlib.sha256(b"a,b\n1,2\n").hexdigest()
-    (tmp_path / "eval" / "cases" / "fixtures.yaml").write_text(
+    (tmp_path / "evalkit" / "cases" / "fixtures.yaml").write_text(
         f"fixtures:\n- key: bs.csv\n  sha256: {digest}\n  context: Balance sheet.\n"
     )
-    (tmp_path / "eval" / "cases" / "finance" / "fx.yaml").write_text(
+    (tmp_path / "evalkit" / "cases" / "finance" / "fx.yaml").write_text(
         "cases:\n- id: local-fx\n  fixtures: [bs.csv]\n"
         "  input: {question: 'Net debt as of 2024-01-01?'}\n"
         "  evaluators:\n    output:\n      answer_rubrics:\n        rubrics:\n"
@@ -1249,11 +1321,11 @@ def test_datasets_list_shows_a_workspace_datasets_fixtures(env, tmp_path, monkey
     write_local_config(tmp_path, harness_url)
     monkeypatch.chdir(tmp_path)
     data = b"a,b\n1,2\n"
-    (tmp_path / "eval" / "fixtures" / "bs.csv").write_bytes(data)
-    (tmp_path / "eval" / "cases" / "fixtures.yaml").write_text(
+    (tmp_path / "evalkit" / "fixtures" / "bs.csv").write_bytes(data)
+    (tmp_path / "evalkit" / "cases" / "fixtures.yaml").write_text(
         f"fixtures:\n- key: bs.csv\n  sha256: {hashlib.sha256(data).hexdigest()}\n  context: c\n"
     )
-    listing = tmp_path / "eval" / "cases" / "listing"
+    listing = tmp_path / "evalkit" / "cases" / "listing"
     listing.mkdir()
     (listing / "l.yaml").write_text(
         "cases:\n- id: listed-1\n  tags: [mine]\n  fixtures: [bs.csv]\n"
@@ -1272,19 +1344,33 @@ def test_canonical_local_run_without_cases_or_fixtures(
 ):
     write_local_config(tmp_path, harness_url)
     config = tmp_path / "evalkit.yaml"
-    paths = "cases: eval/cases\nfixtures: eval/fixtures\n"
+    paths = "cases: evalkit/cases\nfixtures: evalkit/fixtures\n"
     config.write_text(config.read_text().replace(paths, ""))
     monkeypatch.chdir(tmp_path)
     _seed_canonical(module_db_url, "shared")
     args = ["run", "shared@canonical", "--agent", "fake", "--case-id", "shared-1"]
     result = runner.invoke(cli_app, args)
     assert result.exit_code == 0, result.output
-    own = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
-    assert own.exit_code == 1 and "set `cases:` in evalkit.yaml" in own.output
+    missing = runner.invoke(cli_app, ["sync", "ghost"])
+    assert missing.exit_code == 1 and "set `cases:` in evalkit.yaml" in missing.output
+    assert str(tmp_path / "evalkit" / "cases") in missing.output.replace("\n", "")
     synced = runner.invoke(cli_app, ["sync", "finance"])
-    assert synced.exit_code == 1 and "set `cases:` in evalkit.yaml" in synced.output
-    on_disk = runner.invoke(cli_app, ["sync", "eval/cases/finance"])
-    assert on_disk.exit_code == 0, on_disk.output
+    assert synced.exit_code == 0, synced.output
+    own = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
+    assert own.exit_code == 0, own.output
+
+
+def test_sync_and_local_run_without_evalkit_yaml(env, tmp_path, monkeypatch, harness_url):
+    write_local_config(tmp_path, harness_url)
+    (tmp_path / "evalkit.yaml").unlink()
+    monkeypatch.chdir(tmp_path)
+    missing = runner.invoke(cli_app, ["sync", "ghost"])
+    assert missing.exit_code == 1 and "no dataset directory 'ghost'" in missing.output
+    synced = runner.invoke(cli_app, ["sync", "finance"])
+    assert synced.exit_code == 0, synced.output
+    keyless = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
+    assert "no evalkit.yaml" not in keyless.output
+    assert "harness returned 401" in str(keyless.exception)
 
 
 def test_local_run_with_failed_scoring_says_how_to_finish(env, tmp_path, monkeypatch, harness_url):
@@ -1344,9 +1430,13 @@ def test_agents_commands(env, tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert "cliagent@admin" in result.output and "driven by cli" in result.output
+    agent_link = f"link: {env[0]}/agents/cliagent%40admin"
+    assert result.output.rstrip().endswith(agent_link)
     result = runner.invoke(cli_app, ["agents", "edit", "cliagent", "--trajectory-wait", "9"])
     assert result.exit_code == 0, result.output
+    assert result.output.rstrip().endswith(agent_link)
     shown = runner.invoke(cli_app, ["agents", "show", "cliagent@admin"]).output
+    assert shown.rstrip().endswith(agent_link)
     assert "max_concurrent_runs" in shown and " 2" in shown and "trajectory_wait_seconds" in shown
     refused = runner.invoke(cli_app, ["agents", "edit", "cliagent", "--provides", "x=true"])
     assert refused.exit_code == 1 and "provides" in refused.output
@@ -1357,6 +1447,10 @@ def test_agents_commands(env, tmp_path):
         ["agents", "create", "clitraced", "--trajectory-source", "otel", "--mapping", str(mapping)],
     )
     assert result.exit_code == 0, result.output
+    assert result.output.rstrip().splitlines()[-2:] == [
+        "  mapping            v1, active (from m.json)",
+        f"link: {env[0]}/agents/clitraced%40admin",
+    ]
     missing = runner.invoke(cli_app, ["agents", "create", "nomap", "--trajectory-source", "otel"])
     assert missing.exit_code == 1 and "mapping" in missing.output
     result = runner.invoke(cli_app, ["agents", "edit", "clitraced", "--provides", "x=true"])
@@ -1364,7 +1458,10 @@ def test_agents_commands(env, tmp_path):
     assert "{'x': True}" in runner.invoke(cli_app, ["agents", "show", "clitraced"]).output
     listed = runner.invoke(cli_app, ["agents", "list", "--workspace", "admin"]).output
     assert "cliagent@admin" in listed and "clitraced@admin" in listed
-    assert runner.invoke(cli_app, ["agents", "archive", "cliagent"]).exit_code == 0
+    assert listed.rstrip().endswith("evalkit agents show <agent> shows one agent and its link")
+    archived = runner.invoke(cli_app, ["agents", "archive", "cliagent"])
+    assert archived.exit_code == 0
+    assert archived.output.rstrip().endswith(agent_link)
     assert "cliagent@admin" not in runner.invoke(cli_app, ["agents", "list"]).output
     bad = runner.invoke(cli_app, ["agents", "edit", "clitraced", "--provides", "x"])
     assert bad.exit_code == 1 and "key=true" in bad.output
@@ -1554,6 +1651,33 @@ def test_runs_list_notes_a_code_driven_agent_without_traces(env, monkeypatch):
     assert "only sees its eval runs" in result.output
 
 
+def test_runs_list_shows_status_and_duration(env, monkeypatch):
+    definition = fake_agent("task", "admin", shared=True, harness_url=None)
+    monkeypatch.setattr(main_module, "_agent_definition", lambda ref: definition)
+    monkeypatch.setattr(
+        main_module, "_connection", lambda: connection.Connection("u", "t", "admin")
+    )
+    rows = [
+        {"run_id": "s-ok", "source": "app", "status": "completed", "duration_ms": 1500.0},
+        {"run_id": "s-bad", "source": "app", "status": "failed", "duration_ms": 95_000.0},
+        {"run_id": "s-new", "source": "app", "status": None, "duration_ms": None},
+        {"run_id": "s-live", "source": "app", "status": "running", "duration_ms": 300.0},
+    ]
+
+    class StubClient:
+        def get(self, path, **kwargs):
+            return httpx2.Response(200, json={"runs": rows, "total": 4})
+
+    monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    result = runner.invoke(cli_app, ["runs", "list", "task@admin", "--source", "app"])
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert lines[0].split()[1:4] == ["app", "completed", "1.5s"]
+    assert lines[1].split()[1:4] == ["app", "failed", "1.6m"]
+    assert lines[2].split()[1:4] == ["app", "-", "-"]
+    assert lines[3].split()[1:4] == ["app", "running", "300ms"]
+
+
 def test_runs_pull_pages_server_calls_above_100(env, tmp_path, monkeypatch):
     calls: list[dict] = []
 
@@ -1662,10 +1786,16 @@ def test_summary_with_baseline_reads_the_compare_endpoint(monkeypatch):
             return StubResponse()
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    monkeypatch.setattr(
+        main_module,
+        "_active_connection",
+        lambda: connection.Connection("https://evalkit.example/", None, None),
+    )
     result = runner.invoke(cli_app, ["summary", "4", "--baseline", "3"])
     assert result.exit_code == 0, result.output
     assert "vs experiment 3  #3 of finance@dev" in result.output
     assert re.search(r"c1\s+0\.00 → 1\.00  Δ\+1\.00$", result.output, re.M)
+    assert result.output.rstrip().endswith("link: https://evalkit.example/experiments/4")
 
 
 def test_offline_lint_refuses_a_file_that_is_not_a_case_file(tmp_path):
@@ -1725,6 +1855,7 @@ def idp_providers(idp: FakeIdp, scopes: list[str]) -> dict:
             **idp.discovery(),
             "name": "Fake",
             "client_id": idp.client_id,
+            "cli_client_id": idp.client_id,
             "audience": idp.audience,
             "scopes": scopes,
             "authorize_params": {},
@@ -1749,6 +1880,54 @@ def test_login_falls_back_to_the_password_path_without_an_idp(server, tmp_path, 
     result = runner.invoke(cli_app, ["login", "--url", base_url], input="admin\nhunter2-pw\n")
     assert result.exit_code == 0, result.output
     assert "token = " in config_path.read_text()
+
+
+def test_login_without_url_names_hosted_evalkit_and_never_prompts(tmp_path, monkeypatch):
+    asked: list[str] = []
+
+    def fetch(url, transport=None):
+        asked.append(url)
+        return {"oidc": None}
+
+    posted: list[str] = []
+
+    class StubClient:
+        def __init__(self, url):
+            posted.append(url)
+
+        def post(self, path, json):
+            return httpx2.Response(200, json={"token": "tok", "username": "ann"})
+
+    monkeypatch.setattr(client_oidc, "fetch_providers", fetch)
+    monkeypatch.setattr(main_module, "ApiClient", StubClient)
+    config_path = tmp_path / "login.toml"
+    monkeypatch.setattr(connection, "CONFIG_PATH", config_path)
+    monkeypatch.delenv("EVALKIT_SERVER_URL", raising=False)
+    result = runner.invoke(cli_app, ["login"], input="ann\npw\n")
+    assert result.exit_code == 0, result.output
+    first_line = result.output.splitlines()[0]
+    assert first_line == (
+        "logging in to https://evalkit.inferedge.com; pass --url to log in to another server"
+    )
+    assert "Server URL" not in result.output
+    assert asked == posted == [connection.DEFAULT_SERVER_URL]
+    saved = connection.load(config_path)
+    assert saved is not None and saved.url == "https://evalkit.inferedge.com"
+
+
+def test_login_url_overrides_hosted_evalkit(tmp_path, monkeypatch):
+    asked: list[str] = []
+
+    def fetch(url, transport=None):
+        asked.append(url)
+        raise httpx2.ConnectError("stop here")
+
+    monkeypatch.setattr(client_oidc, "fetch_providers", fetch)
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "login.toml")
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "https://env.test")
+    result = runner.invoke(cli_app, ["login", "--url", "https://evalkit.test"])
+    assert asked == ["https://evalkit.test"]
+    assert "logging in to" not in result.output and "inferedge.com" not in result.output
 
 
 def test_login_runs_the_loopback_flow_and_registers(tmp_path, monkeypatch):
@@ -1873,6 +2052,9 @@ def test_experiments_list_filters_by_dataset(env):
         header, first = listed.output.splitlines()[:2]
         assert header.split()[:2] == ["id", "dataset"]
         assert first.split()[0] == str(rows[0]["id"])
+        assert listed.output.rstrip().endswith(
+            "evalkit status <id> shows one experiment and its link"
+        )
     else:
         assert "no experiments" in listed.output
     missing = runner.invoke(cli_app, ["experiments", "list", "--dataset", "nope@canonical"])
@@ -1896,3 +2078,23 @@ def test_review_show_yaml_drops_filled_in_defaults():
     assert "source" not in str(shown) and "args_mode" not in str(shown)
     assert shown["trajectory"] == {"tool_trajectory_match": {"expected": [{"name": "search"}]}}
     assert main_module._authored_evaluators({}) is None
+
+
+def test_trace_source_flags_go_together_and_imports_default_to_the_agent(
+    env, tmp_path, monkeypatch, harness_url
+):
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    lone = runner.invoke(cli_app, ["agents", "edit", "sdk", "--trace-source", "phx"])
+    assert lone.exit_code == 1 and "trace_source and project go together" in lone.output
+    both = runner.invoke(
+        cli_app, ["agents", "edit", "sdk", "--clear-trace-source", "--project", "ra"]
+    )
+    assert both.exit_code == 1 and "--clear-trace-source" in both.output
+    unknown = runner.invoke(
+        cli_app, ["agents", "edit", "sdk", "--trace-source", "nope", "--project", "ra"]
+    )
+    assert unknown.exit_code == 1 and "trace source nope not found" in unknown.output
+    imported = runner.invoke(cli_app, ["traces", "import", "sdk", "s-1"])
+    assert imported.exit_code == 1
+    assert "no trace source given and agent sdk@admin has none" in imported.output

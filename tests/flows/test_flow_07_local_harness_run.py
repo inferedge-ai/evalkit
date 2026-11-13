@@ -53,6 +53,7 @@ def test_flow_07_local_run_syncs_drives_scores_and_lands_in_my_workspace(
             assert f"run {case_id} #{rep} completed" in result.output
             assert f"scored {case_id} #{rep}" in result.output
     assert "buckets:" in result.output
+    assert lines[-1].startswith("link: http") and lines[-1].endswith(f"/experiments/{exp_id}")
 
     dataset = api_get("/api/datasets/flow07@admin")
     assert (dataset["workspace"], dataset["kind"]) == ("admin", "suite")
@@ -61,7 +62,13 @@ def test_flow_07_local_run_syncs_drives_scores_and_lands_in_my_workspace(
     assert (exp.workspace, exp.agent, exp.repetitions) == ("admin", "fake@admin", 2)
     assert exp.config.model == "gpt-x" and exp.lease_holder is None
     body = api_get(f"/api/experiments/{exp_id}")
-    assert body["progress"] == {"total": 2, "ran": 2, "evaluated": 2}
+    assert body["progress"] == {
+        "total": 2,
+        "ran": 2,
+        "evaluated": 2,
+        "errored": 0,
+        "partly_errored": 0,
+    }
 
     runs = experiment_runs(exp_id)
     assert sorted((r.case_id, r.repetition) for r in runs) == [
@@ -152,7 +159,9 @@ def test_flow_07_evaluate_is_safe_to_repeat_and_server_resume_points_at_the_cli(
     exp_id = _exp_id(run_cli("run", "flow07e", "--agent", "fake").output)
     before = {(e.name, e.value) for e in experiment_runs(exp_id)[0].evaluations}
     for _ in range(2):
-        run_cli("evaluate", str(exp_id))
+        evaluated = run_cli("evaluate", str(exp_id)).output.splitlines()
+        assert evaluated[-2] == f"evaluated {exp_id}"
+        assert evaluated[-1].endswith(f"/experiments/{exp_id}")
         after = {(e.name, e.value) for e in experiment_runs(exp_id)[0].evaluations}
         assert after == before
         assert api_get(f"/api/experiments/{exp_id}")["status"] == "completed"
@@ -184,8 +193,8 @@ def test_flow_07_harness_without_file_support_drops_fixture_cases(env, tmp_path,
         run_cli("agents", "create", "nofiles", "--harness-url", url)
         data = b"a,b\n1,2\n"
         digest = hashlib.sha256(data).hexdigest()
-        (tmp_path / "eval" / "fixtures" / "nf.csv").write_bytes(data)
-        (tmp_path / "eval" / "cases" / "fixtures.yaml").write_text(
+        (tmp_path / "evalkit" / "fixtures" / "nf.csv").write_bytes(data)
+        (tmp_path / "evalkit" / "cases" / "fixtures.yaml").write_text(
             f"fixtures:\n- key: nf.csv\n  sha256: {digest}\n  context: ctx\n"
         )
         directory = write_cases(tmp_path, "flow07f", "plain-1")

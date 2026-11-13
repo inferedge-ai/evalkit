@@ -50,6 +50,7 @@ const scored: Report = {
       gauges: {},
       errors: {},
       run_errors: [],
+      errored_runs: 0,
       repetitions: 1,
       overall: 0.5,
       baseline_overall: null,
@@ -300,4 +301,48 @@ test("a finished experiment whose case list fails does not keep asking for it", 
   expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
   await act(() => vi.advanceTimersByTimeAsync(10_000));
   expect(casesLoads).toBe(1);
+});
+
+test("an experiment with errored runs says how many cases errored and how many each bucket covers", async () => {
+  const errored: Report = {
+    ...scored,
+    cases: [
+      ...scored.cases,
+      {
+        ...scored.cases[0],
+        case_id: "late-fee",
+        scores: {},
+        run_errors: [],
+        errored_runs: 1,
+        overall: null,
+      },
+    ],
+    bucket_cases: { content: 1 },
+    selected_cases: 3,
+    errored_cases: 1,
+    partly_errored_cases: 0,
+  };
+  stubServer((url) =>
+    url.endsWith("/api/experiments/12/cases")
+      ? Response.json([refundPolicy])
+      : url.endsWith("/api/experiments/12")
+        ? Response.json({
+            ...experiment,
+            progress: { total: 2, ran: 2, evaluated: 2, errored: 1 },
+          })
+        : url.endsWith("/api/experiments/12/scorecard")
+          ? Response.json(errored)
+          : undefined,
+  );
+  openExperiment();
+  expect(
+    await screen.findByText(
+      "1 of 3 cases errored: no run completed with an answer, so they are left out of every score.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByText("1 of 3 cases scored")).toBeInTheDocument();
+  expect(screen.getAllByText("1/3").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("2/2 ran · 2/2 evaluated · 1 errored").length,
+  ).toBeGreaterThan(0);
 });

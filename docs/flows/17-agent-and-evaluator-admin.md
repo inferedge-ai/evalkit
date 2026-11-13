@@ -41,8 +41,8 @@ their keys in `evalkit.yaml`.
   `kind: "evaluator"`.
 - **Mapping:** the per-agent document that turns spans into a trajectory,
   including `answer` and `exclude_spans` (flow 13). Every OTel agent has its
-  own. `gen_ai.json` and `openinference.json` ship as starting points in the
-  `connect-traces` skill.
+  own. `gen_ai`, `openinference` and one preset per popular framework ship
+  in the package as starting points (`evalkit traces mapping presets`).
 - **Stored key:** an API key saved in the database, encrypted with the
   server's `encryption_key`. Shared agents, shared remote evaluators, LLM
   providers and trace sources have one. It is write-only: reads show
@@ -58,8 +58,7 @@ their keys in `evalkit.yaml`.
   the CLI's credential registry looks keys up in it. A judge's key is never
   here: a run that brings its own judge passes the key with the run.
   - In `evalkit.yaml` a bare name means your personal workspace.
-  - `evalkit.yaml` also loads a `.env` file next to it. Real env vars win over
-    `.env`.
+  - The keys come from the environment.
 
 ```yaml
 credentials:
@@ -84,7 +83,7 @@ sequenceDiagram
   S-->>CLI: research-agent@dev
   D->>UI: Agents → research-agent@dev → Edit (timeouts, concurrency, repo URL)
   UI->>S: update agent settings
-  D->>CLI: evalkit agents create myagent --trajectory-source otel --mapping gen_ai.json
+  D->>CLI: evalkit agents create myagent --trajectory-source otel --mapping gen_ai
   CLI->>S: create code-driven agent myagent@<me> with mapping v1 active
   D->>CLI: evalkit evaluators create compliance --workspace dev --endpoint https://… --api-key-env KEY
   CLI->>S: create remote evaluator in @dev (key stored encrypted)
@@ -114,8 +113,8 @@ sequenceDiagram
     your personal workspace by default.
     - `--harness-url` makes it harness-driven. Without it, the agent is
       code-driven (SDK runs only).
-    - `--trajectory-source otel` requires `--mapping file.json`, which becomes
-      the agent's first active mapping (v1).
+    - `--trajectory-source otel` requires `--mapping`, a preset name or a
+      mapping JSON file, which becomes the agent's first active mapping (v1).
     - Optional: repo URL and the agent settings above (`--provides key=true|false`
       is repeatable).
     - `--api-key-env NAME` reads the key from an env var and stores it. Shared
@@ -183,7 +182,7 @@ sequenceDiagram
   `myagent@<you>`, and the agent must already exist.
 - **Keys:**
   - Server runs use stored keys. Local and SDK runs look keys up in
-    `evalkit.yaml` + `.env`.
+    `evalkit.yaml` and the environment.
   - There's no shared fallback key.
   - **No stored key (server run):** the run goes ahead without the key header.
     The create, resume or evaluate response carries `warnings: […]`, also

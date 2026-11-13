@@ -6,7 +6,6 @@ import shutil
 import time
 import webbrowser
 from datetime import UTC, datetime
-from importlib.util import find_spec
 from pathlib import Path
 
 import httpx2
@@ -29,12 +28,14 @@ from evalkit.cli.local_run import (
     credentials as local_credentials,
 )
 from evalkit.cli.runs_commands import register as register_runs
+from evalkit.cli.server_extra import has_server_extra
+from evalkit.cli.skill_targets import DEFAULT_TARGETS as DEFAULT_SKILL_TARGETS
 from evalkit.cli.skill_targets import INSTALL_MANIFEST
 from evalkit.cli.skill_targets import record as record_skill_target
 from evalkit.cli.tokens_commands import register as register_tokens
 from evalkit.cli.traces_commands import register as register_traces
 from evalkit.cli.update import run_update
-from evalkit.client import connection, oidc
+from evalkit.client import connection, links, oidc
 from evalkit.client.agents import definition_of
 from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
@@ -59,12 +60,13 @@ from evalkit.store.base import GitRevision, Selection
 # `serve` and `db upgrade` need the `evalkit-py[server]` extra; the base install
 # is a thin HTTP client. The boundary is explicit here rather than hidden in
 # per-command imports.
-if find_spec("uvicorn") and find_spec("sqlalchemy"):
+if has_server_extra():
     from evalkit.cli import server_commands
 else:
     server_commands = None  # type: ignore[assignment]
 
 RUN_POLL_SECONDS = 2.0
+CASE_HINT = "evalkit review show <dataset> <case-id> shows one case and its link"
 
 app = typer.Typer(
     name="evalkit",
@@ -158,25 +160,18 @@ def _parse(text: str, workspace: str) -> Reference:
         raise ApiError(str(exc)) from exc
 
 
-def _resolve(arg: str, cases_root: Path | None, workspace: str):
+def _resolve(arg: str, cases_root: Path, workspace: str):
     try:
         return resolve_path(arg, cases_root, workspace)
     except ValueError as exc:
         raise ApiError(str(exc)) from exc
 
 
-def _find_local() -> LocalConfig | None:
+def _local_config() -> LocalConfig:
     try:
-        return LocalConfig.find(Path.cwd())
+        return LocalConfig.find_or_default([Path.cwd()])
     except ValueError as exc:
         raise ApiError(str(exc)) from exc
-
-
-def _local_config() -> LocalConfig:
-    local = _find_local()
-    if local is None:
-        raise ApiError("no evalkit.yaml found above the current directory")
-    return local
 
 
 def _with_secrets(local: LocalConfig, *, scoring: bool) -> LocalConfig:
@@ -236,7 +231,12 @@ def _print_findings(findings: list[dict]) -> None:
 
 @app.command()
 def login(
-    url: str = typer.Option(None, "--url", help="Server base URL, e.g. https://evalkit.internal"),
+    url: str | None = typer.Option(
+        None,
+        "--url",
+        help=f"Server base URL, for a server other than hosted evalkit "
+        f"({connection.DEFAULT_SERVER_URL}), e.g. https://evalkit.internal",
+    ),
     username: str = typer.Option(
         None,
         "--username",
@@ -251,15 +251,17 @@ def login(
         "(device authorization grant).",
     ),
 ):
-    """Log in to a server and store the login in ~/.evalkit/config.toml, replacing any
-    earlier one.
+    """Log in to hosted evalkit, or to the server --url names, and store the login in
+    ~/.evalkit/config.toml, replacing any earlier one.
 
     With single sign-on configured on the server, the command opens your browser at
     the identity provider and stores the IdP's tokens; they refresh themselves. Pass
     --username for a password login instead.
-    Example: evalkit login --url https://evalkit.example.com
+    Example: evalkit login · evalkit login --url https://evalkit.example.com
     """
-    url = url or typer.prompt("Server URL")
+    if url is None:
+        url = connection.DEFAULT_SERVER_URL
+        typer.echo(f"logging in to {url}; pass --url to log in to another server")
     providers_oidc = None if username is not None else oidc.fetch_providers(url)["oidc"]
     if providers_oidc is None:
         username = username or typer.prompt("Username")
@@ -334,7 +336,9 @@ def whoami():
 @app.command()
 def update(
     server: str = typer.Option(
-        None, "--server", help="Server base URL; defaults to the one you logged in to."
+        None,
+        "--server",
+        help="Server base URL; defaults to the one you logged in to (or EVALKIT_SERVER_URL).",
     ),
     skills: bool = typer.Option(
         True,
@@ -349,7 +353,9 @@ def update(
     ./pyproject.toml to the server's version and runs `uv sync`, so the CLI and the SDK
     match the server again after a deploy. After a reinstall it runs the new
     `evalkit skills install` again in every skills directory installed before, and in
-    ./.claude/skills or ./.agents/skills if an earlier install put skills there.
+    ./.agents/skills or ./.claude/skills if an earlier install put skills there. When
+    either of those two holds an install, it refreshes both. A directory the install could
+    not fully refresh does not stop the others: they are named at the end, with an error.
 
     Example: evalkit update · evalkit update --no-skills
     """
@@ -498,6 +504,7 @@ def _sync_and_report(
             "(no need to run `review request` again): "
             + ", ".join(f"{c['case_id']} ({c['reviewer']})" for c in review["carried"])
         )
+    _echo_link(links.build_dataset_url(_server_url(), slug(Reference(name, workspace))))
 
 
 @app.command()
@@ -522,7 +529,8 @@ def sync(
     ),
 ):
     """Import a dataset into a workspace. The dataset is the directory under the cases
-    root (or the directory itself without an evalkit.yaml); a whole dataset prunes cases no
+    root (`cases:` in evalkit.yaml, evalkit/cases by default), or the directory itself
+    when it is outside the cases root; a whole dataset prunes cases no
     longer on disk, a subfolder or file patches just its cases. Uploads case YAML plus the
     nearest fixtures.yaml.
 
@@ -532,8 +540,8 @@ def sync(
     conn = _connection()
     me = conn.username or ""
     target = workspace or me
-    local = _find_local()
-    resolved = _resolve(path, local.cases if local else None, me)
+    local = _local_config()
+    resolved = _resolve(path, local.cases, me)
     if resolved.dataset_dir is None:
         raise ApiError(f"{path} is not on disk; sync needs a directory or file")
     detected = git_revision(resolved.dataset_dir)
@@ -548,7 +556,7 @@ def sync(
         workspace=target,
         revision=revision,
         subpath=resolved.subpath,
-        fixtures_dir=local.fixtures if local else None,
+        fixtures_dir=local.fixtures,
         actor=actor,
     )
 
@@ -565,6 +573,7 @@ def datasets_create(
     ref = _parse(dataset, _connection().username or "")
     _client().post("/api/datasets", json={"name": ref.name, "workspace": ref.workspace})
     typer.echo(f"created {slug(ref)}")
+    _echo_link(links.build_dataset_url(_server_url(), slug(ref)))
 
 
 @datasets_app.command("list")
@@ -592,10 +601,13 @@ def datasets_list(
         if state is not None or tag is not None:
             raise ApiError("--state and --tag filter a dataset's cases; pass a dataset")
         params = {"workspace": workspace.removeprefix("@")} if workspace is not None else {}
-        for ds in _client().get("/api/datasets", params=params).json():
+        found = _client().get("/api/datasets", params=params).json()
+        for ds in found:
             last = ds.get("last_sync") or {}
             sha = (last.get("detail") or {}).get("sha") or "-"
             typer.echo(f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}")
+        if found:
+            typer.echo("evalkit datasets show <dataset> shows one dataset and its link")
         return
     if workspace is not None:
         raise ApiError("--workspace filters the dataset list; name the dataset as finance@dev")
@@ -614,6 +626,8 @@ def datasets_list(
             f"fixtures={','.join(fixtures) or '-'}"
         )
     typer.echo(f"{len(shown)} case(s) in {dataset_slug}")
+    if shown:
+        typer.echo(CASE_HINT)
 
 
 @datasets_app.command("show")
@@ -649,6 +663,7 @@ def datasets_show(
             states[state] = states.get(state, 0) + 1
         typer.echo("review: " + (", ".join(f"{k} {v}" for k, v in sorted(states.items())) or "-"))
     typer.echo("tags: " + (", ".join(f"{t['name']} {t['count']}" for t in tags) or "-"))
+    _echo_link(links.build_dataset_url(_server_url(), ds["ref"]))
 
 
 class _Progress:
@@ -696,7 +711,8 @@ def _run_on_server(
         created = client.post("/api/experiments", json=payload).json()
         exp_id = int(created["id"])
         _warn_dropped(created.get("dropped_cases") or [])
-    typer.echo(f"experiment {exp_id}: {_experiment_url(exp_id)}")
+    typer.echo(f"experiment {exp_id}")
+    _echo_experiment_link(exp_id)
     last = None
     while True:
         body = client.get(f"/api/experiments/{exp_id}").json()
@@ -759,8 +775,7 @@ def run(
     judge_api_key_env: str | None = typer.Option(
         None,
         "--judge-api-key-env",
-        help="The env var (or .env entry beside evalkit.yaml) holding the key for "
-        "--judge-base-url. Never stored.",
+        help="The env var holding the key for --judge-base-url. Never stored.",
     ),
     judge_effort: str | None = typer.Option(None, "--judge-effort", help="Judge reasoning effort."),
     evaluation_concurrency: int | None = typer.Option(
@@ -798,11 +813,11 @@ def run(
             f"{definition.ref} belongs to {definition.workspace}'s workspace; "
             "only its owner can run it"
         )
-    local = _find_local()
-    if local is not None and route is Driver.CLI:
+    local = _local_config()
+    if route is Driver.CLI:
         local = _with_secrets(local, scoring=True)
         _require_agent_key(local, conn, definition)
-    resolved = _resolve(dataset, local.cases if local else None, me)
+    resolved = _resolve(dataset, local.cases, me)
     selection = _run_selection(resolved, tag, case_id)
     revision = git_revision(resolved.dataset_dir) if resolved.dataset_dir else GitRevision()
     if resolved.dataset_dir is not None and resume is None:
@@ -811,11 +826,11 @@ def run(
             name=resolved.ref.name,
             workspace=me,
             revision=revision,
-            fixtures_dir=local.fixtures if local else None,
+            fixtures_dir=local.fixtures,
         )
     dataset_slug = slug(resolved.ref)
     judge = _judge_override(judge_model, judge_provider, judge_base_url, judge_effort)
-    judge_key = _judge_api_key(judge, judge_api_key_env, local, resuming=resume is not None)
+    judge_key = _judge_api_key(judge, judge_api_key_env, resuming=resume is not None)
     if route is Driver.SERVER:
         exp_id = _run_on_server(
             dataset_slug,
@@ -829,8 +844,6 @@ def run(
             evaluation_concurrency,
         )
     else:
-        if local is None:
-            raise ApiError("no evalkit.yaml found above the current directory")
         progress = _Progress()
         try:
             exp_id = asyncio.run(
@@ -868,11 +881,10 @@ def run(
         ) as exc:
             raise ApiError(str(exc)) from exc
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
+    _echo_experiment_link(exp_id)
 
 
-def _judge_api_key(
-    judge: dict | None, env_name: str | None, local: LocalConfig | None, *, resuming: bool
-) -> str | None:
+def _judge_api_key(judge: dict | None, env_name: str | None, *, resuming: bool) -> str | None:
     own = judge is not None and judge.get("base_url") is not None
     if env_name is None:
         if own:
@@ -880,14 +892,13 @@ def _judge_api_key(
         return None
     if not own and not resuming:
         raise ApiError("--judge-api-key-env goes with --judge-base-url or --resume")
-    return _env_value(env_name, local)
+    return _env_value(env_name)
 
 
-def _env_value(name: str, local: LocalConfig | None) -> str:
-    environ = local.environ() if local is not None else dict(os.environ)
-    if name not in environ:
-        raise ApiError(f"env var {name} is not set (shell or the .env beside evalkit.yaml)")
-    return environ[name]
+def _env_value(name: str) -> str:
+    if name not in os.environ:
+        raise ApiError(f"env var {name} is not set")
+    return os.environ[name]
 
 
 def _judge_override(
@@ -977,7 +988,7 @@ def evaluate(
                 progress=typer.echo,
                 refetch_trajectories=refetch_trajectories,
                 evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
-                judge_api_key=_env_value(judge_api_key_env, local) if judge_api_key_env else None,
+                judge_api_key=_env_value(judge_api_key_env) if judge_api_key_env else None,
             )
         )
     except ScoringFailed as exc:
@@ -993,15 +1004,38 @@ def evaluate(
     ) as exc:
         raise ApiError(str(exc)) from exc
     typer.echo(f"evaluated {experiment_id}")
+    _echo_experiment_link(experiment_id)
 
 
 def _progress_text(progress: dict) -> str:
     total = progress["total"]
-    return f"{progress['ran']}/{total} ran, {progress['evaluated']}/{total} evaluated"
+    parts = [f"{progress['ran']}/{total} ran", f"{progress['evaluated']}/{total} evaluated"]
+    if progress.get("errored"):
+        parts.append(f"{progress['errored']} errored")
+    if progress.get("partly_errored"):
+        parts.append(f"{progress['partly_errored']} partly errored")
+    return ", ".join(parts)
 
 
-def _experiment_url(exp_id: int) -> str:
-    return f"{_connection().url.rstrip('/')}/experiments/{exp_id}"
+def _describe_errored(progress: dict) -> str:
+    parts = []
+    if progress.get("errored"):
+        parts.append(f"{progress['errored']} of {progress['total']} cases errored")
+    if progress.get("partly_errored"):
+        parts.append(f"{progress['partly_errored']} of {progress['total']} cases partly errored")
+    return ", ".join(parts)
+
+
+def _server_url() -> str:
+    return _active_connection().url
+
+
+def _echo_link(url: str) -> None:
+    typer.echo(f"link: {url}")
+
+
+def _echo_experiment_link(exp_id: int) -> None:
+    _echo_link(links.build_experiment_url(_server_url(), exp_id))
 
 
 def _lease_text(body: dict) -> str:
@@ -1016,7 +1050,9 @@ def _lease_text(body: dict) -> str:
 
 @app.command()
 def status(experiment_id: int):
-    """Show an experiment's status, progress and, while it runs, who holds it.
+    """Show one experiment: dataset, agent, status, progress, link, and who holds it.
+
+    `evalkit summary <id>` shows its scorecard.
 
     Example: evalkit status 42
     """
@@ -1027,6 +1063,7 @@ def status(experiment_id: int):
     )
     if body.get("status_error"):
         typer.secho(f"  error: {body['status_error']}", fg="red")
+    typer.echo(f"  link: {links.build_experiment_url(_server_url(), body['id'])}")
 
 
 def _render_summary(report: dict, base: dict | None = None) -> None:
@@ -1039,19 +1076,20 @@ def summary(
     experiment_id: int,
     baseline: int = typer.Option(None, "--baseline", help="Baseline experiment id for deltas."),
 ):
-    """Render an experiment's scorecard as a console table.
+    """Render an experiment's scorecard as a console table, then its link.
 
     Example: evalkit summary <experiment-id> --baseline <older-id>
     """
     if baseline is None:
         _render_summary(_client().get(f"/api/experiments/{experiment_id}/scorecard").json())
-        return
-    reports = (
-        _client()
-        .get("/api/experiments/compare", params={"base": baseline, "compare": experiment_id})
-        .json()
-    )
-    _render_summary(reports["compare"], reports["base"])
+    else:
+        reports = (
+            _client()
+            .get("/api/experiments/compare", params={"base": baseline, "compare": experiment_id})
+            .json()
+        )
+        _render_summary(reports["compare"], reports["base"])
+    _echo_experiment_link(experiment_id)
 
 
 @experiments_app.command("list")
@@ -1061,6 +1099,8 @@ def experiments_list(
     limit: int = typer.Option(20, "--limit", help="How many, newest first."),
 ):
     """List experiments, newest first, with their bucket scores.
+
+    `evalkit status <id>` shows one of them with its link.
 
     Example: evalkit experiments list --dataset finance@dev
     """
@@ -1079,10 +1119,13 @@ def experiments_list(
     )
     for exp in found:
         scores = " ".join(f"{bucket} {_fmt_score(v)}" for bucket, v in exp["scores"].items())
+        if errored := _describe_errored(exp["progress"]):
+            scores = f"{errored}  {scores}".rstrip()
         typer.echo(
             f"{exp['id']:>5}  {exp['dataset']:<28} {exp['agent']:<24} {exp['status']:<10} "
             f"{exp['started_at'][:16].replace('T', ' ')}  {scores or '-'}"
         )
+    typer.echo("evalkit status <id> shows one experiment and its link")
 
 
 def _fmt_score(value: float | None) -> str:
@@ -1158,8 +1201,8 @@ def users_add(
 
     With --subject the user is a machine user bound to that subject at the identity
     provider: no password, no browser login. Without it, a password user; with SSO
-    configured and password_login admin, that user can only sign in once made admin,
-    and with password_login none, never.
+    configured and password_login admin, that user can only sign in once made admin;
+    with password_login none the server refuses it, so add machine users with --subject.
 
     Examples: evalkit users add alice · evalkit users add ci-bot --subject 0oa...
     """
@@ -1220,14 +1263,22 @@ def users_set_password(
 
 @users_app.command("promote")
 def users_promote(username: str):
-    """Make a user an admin (admin only). Example: evalkit users promote alice"""
+    """Make a user an admin (admin only). Example: evalkit users promote alice
+
+    With auth.oidc.admin_claim set, the server refuses this for people bound to the
+    identity provider: its claim decides who is an admin.
+    """
     _client().post(f"/api/users/{username}/promote")
     typer.echo(f"{username} is an admin")
 
 
 @users_app.command("demote")
 def users_demote(username: str):
-    """Remove a user's admin flag; the last admin stays. Example: evalkit users demote alice"""
+    """Remove a user's admin flag; the last admin stays. Example: evalkit users demote alice
+
+    With auth.oidc.admin_claim set, a person who signs in through the identity provider
+    is an admin again at their next sign-in if the claim still names them.
+    """
     _client().post(f"/api/users/{username}/demote")
     typer.echo(f"{username} is no longer an admin")
 
@@ -1254,6 +1305,52 @@ def users_list():
 
 DOCS_DIR = "evalkit-docs"
 INSTALL_LEAVES_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.pyc")
+DOCS_LEAVE_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.pyc", "images")
+
+
+def describe_installed(names: list[str]) -> str:
+    skills = [name for name in names if name != DOCS_DIR]
+    parts = [f"{len(skills)} skill{'' if len(skills) == 1 else 's'}"] if skills else []
+    return " and ".join([*parts, f"{DOCS_DIR}/"] if DOCS_DIR in names else parts)
+
+
+def install_skills_into(target: Path, sources: dict[str, Path]) -> list[Path]:
+    target.mkdir(parents=True, exist_ok=True)
+    manifest = target / INSTALL_MANIFEST
+    previous = manifest.read_text().split() if manifest.is_file() else []
+    for name in previous:
+        if name not in sources and (target / name).is_dir():
+            shutil.rmtree(target / name)
+            typer.echo(f"{target}: removed {name}, which an earlier install put there")
+    updated: list[str] = []
+    written: list[str] = []
+    skipped: list[str] = []
+    for name, source in sources.items():
+        destination = target / name
+        if destination.exists() and name not in previous:
+            skipped.append(name)
+            continue
+        if destination.exists():
+            shutil.rmtree(destination)
+            updated.append(name)
+        else:
+            written.append(name)
+        ignore = DOCS_LEAVE_OUT if name == DOCS_DIR else INSTALL_LEAVES_OUT
+        shutil.copytree(source, destination, ignore=ignore)
+    manifest.write_text("".join(f"{name}\n" for name in [*updated, *written]))
+    record_skill_target(target)
+    done = [
+        f"{verb} {describe_installed(names)}"
+        for verb, names in (("updated", updated), ("wrote", written))
+        if names
+    ]
+    typer.echo(f"{target}: {', '.join(done) or 'wrote nothing'}")
+    for name in skipped:
+        typer.echo(
+            f"{target}: skipped {name}: {target / name} is already there "
+            "and no evalkit install put it there"
+        )
+    return [target / name for name in skipped]
 
 
 @skills_app.command("install")
@@ -1261,14 +1358,16 @@ def skills_install(
     target: Path = typer.Option(
         None,
         "--target",
-        help="Skills dir; default .claude/skills/ if .claude/ exists, else .agents/skills/",
+        help="Install into this one directory instead of .agents/skills/ and .claude/skills/",
     ),
 ):
-    """Copy the bundled skills, and the user docs they link to, into this repo's agent-skills
-    directory.
+    """Copy the bundled skills, and the user docs they link to, into this repo's
+    .agents/skills/ and .claude/skills/ directories.
 
     The docs go to evalkit-docs/ beside the skills. A directory an earlier install put there
-    that this version no longer ships is removed; other directories are left alone.
+    that this version no longer ships is removed. A directory with the name of an evalkit skill
+    (or evalkit-docs) that no evalkit install put there is never overwritten: the command skips
+    it, installs the rest and exits with an error.
     `evalkit update` refreshes every directory installed this way.
 
     Example: evalkit skills install
@@ -1277,24 +1376,18 @@ def skills_install(
     skills = sorted(p for p in root.iterdir() if (p / "SKILL.md").is_file())
     if not skills:
         raise ApiError(f"no skills found under {root}")
-    if target is None:
-        target = Path(".claude/skills") if Path(".claude").is_dir() else Path(".agents/skills")
-    target.mkdir(parents=True, exist_ok=True)
     sources = {skill.name: skill for skill in skills} | {DOCS_DIR: docs_root()}
-    manifest = target / INSTALL_MANIFEST
-    previous = manifest.read_text().split() if manifest.is_file() else []
-    for name in previous:
-        if name not in sources and (target / name).is_dir():
-            shutil.rmtree(target / name)
-            typer.echo(f"removed {name} (no longer shipped)")
-    for name, source in sources.items():
-        destination = target / name
-        if destination.exists():
-            shutil.rmtree(destination)
-        shutil.copytree(source, destination, ignore=INSTALL_LEAVES_OUT)
-        typer.echo(f"installed {name} → {destination}")
-    manifest.write_text("".join(f"{name}\n" for name in sources))
-    record_skill_target(target)
+    skipped = [
+        path
+        for directory in ([target] if target is not None else DEFAULT_SKILL_TARGETS)
+        for path in install_skills_into(directory, sources)
+    ]
+    if skipped:
+        raise ApiError(
+            f"did not overwrite {', '.join(str(path) for path in skipped)}. "
+            "Rename what is yours, remove what is an old copy of evalkit's skills, then run "
+            "`evalkit skills install` again; or pass --target DIR to install elsewhere."
+        )
 
 
 @contracts_app.command("export")
@@ -1559,10 +1652,17 @@ def _case_yaml(case: dict) -> str:
     )
 
 
+def _case_url(dataset: str, case_id: str) -> str:
+    return links.build_case_url(
+        _server_url(), slug(_parse(dataset, _connection().username or "")), case_id
+    )
+
+
 def _post_decision(dataset: str, case_id: str, action: str, comment: str | None) -> None:
     body = {"action": action, "comment": comment}
     result = _client().post(f"{_case_path(dataset, case_id)}/review", json=body).json()
     typer.echo(f"{case_id}: {result['state']}")
+    _echo_link(_case_url(dataset, case_id))
 
 
 @review_app.command("request")
@@ -1610,6 +1710,7 @@ def review_show(
                 f"{ex['case_id']:<40} {review.get('state', '-'):<18} "
                 f"{review.get('requested_to') or ''}"
             )
+        typer.echo(CASE_HINT)
         return
     match = client.get(_case_path(dataset, case_id)).json()
     case_yaml = _case_yaml(match)
@@ -1635,6 +1736,7 @@ def review_show(
         typer.echo(_fmt_comment(thread, indent=2))
         for reply in thread["replies"]:
             typer.echo(_fmt_comment(reply, indent=6))
+    _echo_link(links.build_case_url(_server_url(), shown_ref, case_id))
 
 
 @review_app.command("approve")
@@ -1695,6 +1797,7 @@ def review_comment(
     body = {"body": text if comment is None else comment, "parent_id": reply_to}
     stored = _client().post(f"{_case_path(dataset, case_id)}/comments", json=body).json()
     typer.echo(f"comment {stored['id']} on {case_id}")
+    _echo_link(_case_url(dataset, case_id))
 
 
 @review_app.command("resolve")
@@ -1719,6 +1822,7 @@ def review_resolve(
     )
     result = _client().patch(path, json={"resolved": not undo}).json()
     typer.echo(f"comment {result['id']} {'resolved' if result['resolved'] else 'unresolved'}")
+    _echo_link(links.build_case_url(_server_url(), result["dataset"], result["case_id"]))
 
 
 def _queue_items(client: ApiClient, dataset: str | None, params: dict) -> list[dict]:
@@ -1764,3 +1868,4 @@ def review_queue(
             f"{item['dataset']:<20} {item['case_id']:<40} by {item['requested_by']:<16} "
             f"to {to or '-':<16} {item['input'][:60]}"
         )
+    typer.echo(CASE_HINT)

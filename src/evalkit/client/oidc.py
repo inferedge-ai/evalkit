@@ -15,6 +15,7 @@ from authlib.common.security import generate_token
 from authlib.integrations.base_client import OAuthError
 from authlib.integrations.httpx_client import OAuth2Client
 
+from evalkit import version
 from evalkit.client import connection
 from evalkit.client.api import response_detail
 from evalkit.client.connection import Connection, MachineLogin, OidcLogin
@@ -179,8 +180,15 @@ class EvalkitAuth(httpx2.Auth):
 def fetch_providers(url: str, transport: httpx2.BaseTransport | None = None) -> dict:
     with httpx2.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
         resp = http.get("/api/auth/providers")
-        resp.raise_for_status()
-        return resp.json()
+    remote = resp.headers.get("X-Evalkit-Version")
+    local = version.current()
+    if remote and version.compare(local, remote) is version.VersionComparison.INCOMPATIBLE:
+        raise LookupError(
+            f"evalkit {local} cannot talk to server {remote}: "
+            f"run `evalkit update --server {url.rstrip('/')}`"
+        )
+    resp.raise_for_status()
+    return resp.json()
 
 
 def static_auth(token: str) -> EvalkitAuth:
@@ -270,7 +278,7 @@ def run_loopback_flow(
     redirect_uri = f"http://127.0.0.1:{server.server_address[1]}/callback"
     verifier = generate_token(64)
     with OAuth2Client(
-        client_id=providers_oidc["client_id"],
+        client_id=providers_oidc["cli_client_id"],
         token_endpoint_auth_method="none",
         code_challenge_method="S256",
         transport=transport,
@@ -323,7 +331,7 @@ def run_device_flow(
         started_resp = http.post(
             endpoint,
             data={
-                "client_id": providers_oidc["client_id"],
+                "client_id": providers_oidc["cli_client_id"],
                 "scope": " ".join(providers_oidc["scopes"]),
                 **providers_oidc["authorize_params"],
             },
@@ -339,7 +347,7 @@ def run_device_flow(
                 data={
                     "grant_type": DEVICE_GRANT,
                     "device_code": started["device_code"],
-                    "client_id": providers_oidc["client_id"],
+                    "client_id": providers_oidc["cli_client_id"],
                 },
             )
             if resp.status_code == 200:
@@ -376,7 +384,7 @@ def login_from_tokens(url: str, providers_oidc: dict, tokens: dict) -> Connectio
         None,
         oidc=OidcLogin(
             issuer=providers_oidc["issuer"],
-            client_id=providers_oidc["client_id"],
+            client_id=providers_oidc["cli_client_id"],
             token_endpoint=providers_oidc["token_endpoint"],
             access_token=tokens["access_token"],
             refresh_token=tokens["refresh_token"],

@@ -199,6 +199,7 @@ class AgentRunRecord(BaseModel):
     ended_at: datetime | None = None
     trajectory_key: str | None = None
     trajectory_status: TrajectoryStatus | None = None
+    trajectory_note: str | None = None
     metrics: dict[str, Any] = Field(default_factory=dict)
     title: str | None = None
 
@@ -257,6 +258,8 @@ class AggregateRows(BaseModel):
     case_errors: list[tuple[str, str, str]]
     run_errors: list[tuple[str, str]]
     repetitions_seen: dict[str, int]
+    errored_runs: dict[str, int] = Field(default_factory=dict)
+    selected_cases: int = 0
     sources: dict[str, str]
 
 
@@ -267,6 +270,8 @@ class Progress(BaseModel):
     total: int
     ran: int
     evaluated: int
+    errored: int = 0
+    partly_errored: int = 0
 
 
 class HistoryPoint(BaseModel):

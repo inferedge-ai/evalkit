@@ -54,6 +54,10 @@ export interface AgentSettings {
   poll_interval_seconds: number;
   stop_grace_seconds: number;
   provides: Record<string, boolean> | null;
+  trace_source: string | null;
+  project: string | null;
+  import_settle_seconds: number;
+  import_wait_seconds: number;
 }
 
 export interface RemoteEvaluatorInfo {
@@ -180,6 +184,8 @@ export interface Progress {
   total: number;
   ran: number;
   evaluated: number;
+  errored?: number;
+  partly_errored?: number;
 }
 
 export interface Experiment {
@@ -259,6 +265,7 @@ export interface CaseRow {
   gauges: Record<string, number | null>;
   errors: Record<string, string>;
   run_errors: string[];
+  errored_runs: number;
   repetitions: number;
   overall: number | null;
   baseline_overall: number | null;
@@ -289,6 +296,10 @@ export interface Report {
   cases: CaseRow[];
   evaluators: EvaluatorStat[];
   buckets: Record<string, number | null>;
+  bucket_cases: Record<string, number>;
+  selected_cases: number;
+  errored_cases: number;
+  partly_errored_cases: number;
   gauges: GaugeStat[];
   evaluator_columns: string[];
   baseline_id: string | null;
@@ -341,6 +352,11 @@ export interface AgentInfo {
 }
 
 // ── Traces (mirrors db/mappings.py and core/traces/sessions.py) ──────────
+export interface MappingPreset {
+  name: string;
+  document: Record<string, unknown>;
+}
+
 export interface MappingRecord {
   id: number;
   version: number;
@@ -396,6 +412,7 @@ export interface RunListItem {
   org_id?: string | null;
   created_at: string | null;
   status?: string | null;
+  duration_ms?: number | null;
   experiment_id?: number | null;
   experiment_number?: number | null;
   case_id?: string | null;
@@ -502,6 +519,7 @@ export interface AgentRunRecord {
   ended_at: string | null;
   trajectory_key: string | null;
   trajectory_status: string | null;
+  trajectory_note?: string | null;
   metrics: Record<string, unknown>;
   title: string | null;
 }

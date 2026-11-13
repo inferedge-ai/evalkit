@@ -3,7 +3,6 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable
-from importlib.util import find_spec
 from pathlib import Path
 
 import typer
@@ -11,6 +10,7 @@ import typer
 from evalkit import version
 from evalkit.cli import skill_targets
 from evalkit.cli.client import ApiClient, ApiError
+from evalkit.cli.server_extra import has_server_extra
 
 PINNED = re.compile(r'"(evalkit-py(?:\[[^\]]*\])?)==([^"]+)"')
 VENDORED = re.compile(r"evalkit-[^\s\"']+\.whl")
@@ -33,6 +33,10 @@ def _run_checked(command: list[str]) -> None:
     subprocess.run(command, check=True)
 
 
+def _run_for_exit_code(command: list[str]) -> int:
+    return subprocess.run(command).returncode
+
+
 def update_project_pin(cwd: Path, target: str, run: Callable[[list[str]], object]) -> bool:
     pyproject = cwd / "pyproject.toml"
     if not pyproject.is_file():
@@ -47,7 +51,7 @@ def update_project_pin(cwd: Path, target: str, run: Callable[[list[str]], object
             return True
     elif VENDORED.search(text):
         typer.echo("this project uses a vendored evalkit wheel; move it to PyPI:")
-        typer.echo(f'  uv remove evalkit && uv add "{version.DISTRIBUTION}[otel]=={target}"')
+        typer.echo(f'  uv remove evalkit && uv add "{version.DISTRIBUTION}=={target}"')
     return False
 
 
@@ -56,10 +60,11 @@ def run_update(
     *,
     prefix: Path | None = None,
     run: Callable[[list[str]], object] = _run_checked,
+    run_skills_install: Callable[[list[str]], object] = _run_for_exit_code,
     cwd: Path | None = None,
     skills: bool = True,
     targets_path: Path | None = None,
-    server_extra: bool = find_spec("uvicorn") is not None,
+    server_extra: bool | None = None,
 ) -> None:
     target = client.get("/api/cli").json()["version"]
     project = cwd or Path.cwd()
@@ -72,6 +77,8 @@ def run_update(
     if synced and install_prefix.resolve() == (project / ".venv").resolve():
         typer.echo(f"installed evalkit {target} into {install_prefix}")
         return
+    if server_extra is None:
+        server_extra = has_server_extra()
     extra = "[server]" if server_extra else ""
     requirement = f"{version.DISTRIBUTION}{extra}=={target}"
     command = install_command(install_prefix, requirement)
@@ -82,4 +89,11 @@ def run_update(
     run(command)
     typer.echo(f"installed evalkit {target}")
     if skills:
-        skill_targets.refresh(project, installed_cli(install_prefix), run, targets_path)
+        failed = skill_targets.refresh(
+            project, installed_cli(install_prefix), run_skills_install, targets_path
+        )
+        if failed:
+            raise ApiError(
+                f"skills not fully refreshed in {', '.join(str(path) for path in failed)}; "
+                "see the lines above for what to do in each"
+            )

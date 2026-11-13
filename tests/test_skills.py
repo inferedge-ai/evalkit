@@ -1,13 +1,14 @@
-import json
 import re
+import shutil
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
 from evalkit.cli import main as main_module
 from evalkit.cli.main import app
-from evalkit.contracts.esf import MappingDocument
+from evalkit.core.traces.presets import list_preset_names
 
 SKILLS = Path(__file__).parent.parent / "skills"
 # Agent Skills spec limits (agentskills.io/specification), enforced by Claude Code.
@@ -19,6 +20,7 @@ EXPECTED = {
     "authoring-eval-cases",
     "eval-driven-development",
     "connect-traces",
+    "getting-started",
 }
 
 
@@ -53,7 +55,7 @@ def test_skills_install_removes_only_what_an_earlier_install_put_there(tmp_path)
     (tmp_path / ".evalkit-installed").write_text("retired-skill\nevalkit-usage\n")
     result = CliRunner().invoke(app, ["skills", "install", "--target", str(tmp_path)])
     assert result.exit_code == 0, result.output
-    assert "removed retired-skill" in result.output
+    assert "removed retired-skill, which an earlier install put there" in result.output
     assert not (tmp_path / "retired-skill").exists()
     assert (tmp_path / "my-own-skill" / "SKILL.md").read_text() == "mine"
 
@@ -65,80 +67,9 @@ def test_skill_links_to_installed_docs_resolve(tmp_path):
             assert (path.parent / href).resolve().is_file(), f"{path} links {href}"
 
 
-def test_connect_traces_ships_the_reference_mappings():
-    for name in ("openinference.json", "gen_ai.json"):
-        assert (SKILLS / "connect-traces" / "references" / name).is_file()
-    for path in (SKILLS / "connect-traces" / "references").glob("*.json"):
-        MappingDocument.model_validate_json(path.read_text())
-    assert not (
-        Path(__file__).parent.parent / "src" / "evalkit" / "core" / "traces" / "mappings"
-    ).exists()
-
-
-FRAMEWORK_MAPPINGS = {
-    "langchain.json": (
-        "openinference.json",
-        ["input.value", "output.value", "llm.input_messages.*", "llm.output_messages.*"],
-        {},
-    ),
-    "crewai.json": (
-        "openinference.json",
-        [
-            "agent.backstory",
-            "agent.goal",
-            "agent.tools",
-            "conversation.turn_index",
-            "tool.cache_function",
-            "tool.current_usage_count",
-            "tool.description_updated",
-            "tool.result_as_answer",
-        ],
-        {},
-    ),
-    "agno.json": ("openinference.json", ["agno.*"], {}),
-    "llamaindex.json": (
-        "openinference.json",
-        ["input.value", "output.value"],
-        {
-            "rekind_spans": [
-                {"name": "*.astream_chat", "attribute": "llm.finish_reason", "kind": "llm"},
-                {"name": "*.astream_chat", "kind": "chain"},
-                {"name": "*._prepare_chat_with_tools", "kind": "chain"},
-            ]
-        },
-    ),
-    "google-adk.json": (
-        "gen_ai.json",
-        ["gcp.vertex.agent.*", "input.value", "output.value", "session.id"],
-        {"exclude_spans": ["execute_tool (merged)"]},
-    ),
-    "claude-agent-sdk.json": (
-        "gen_ai.json",
-        ["mcp.*", "jsonrpc.*"],
-        {"exclude_spans": [{"scope": "mcp-python-sdk"}]},
-    ),
-    "mastra.json": (
-        "gen_ai.json",
-        ["mastra.*", "gen_ai.usage.reasoning_tokens", "gen_ai.tool.call.id"],
-        {
-            "answer": "invoke_agent <agent name>.text",
-            "exclude_spans": [
-                {"attribute": "mastra.span.type", "equals": kind}
-                for kind in ("processor_run", "memory_operation", "model_chunk")
-            ],
-        },
-    ),
-}
-
-
-def test_framework_mappings_are_their_base_plus_the_listed_changes():
-    references = SKILLS / "connect-traces" / "references"
-    shipped = {p.name for p in references.glob("*.json")} - {"openinference.json", "gen_ai.json"}
-    assert shipped == set(FRAMEWORK_MAPPINGS)
-    for name, (base_name, known, overrides) in FRAMEWORK_MAPPINGS.items():
-        base = json.loads((references / base_name).read_text())
-        expected = base | {"known_attributes": base["known_attributes"] + known} | overrides
-        assert json.loads((references / name).read_text()) == expected, name
+def test_connect_traces_ships_no_mapping_json():
+    assert not list((SKILLS / "connect-traces").rglob("*.json"))
+    assert set(list_preset_names()) >= {"openinference", "gen_ai"}
 
 
 def test_skills_install_drops_files_a_shipped_skill_no_longer_has(tmp_path):
@@ -148,6 +79,7 @@ def test_skills_install_drops_files_a_shipped_skill_no_longer_has(tmp_path):
     docs_stale = tmp_path / "evalkit-docs" / "retired-page.md"
     docs_stale.parent.mkdir(parents=True)
     docs_stale.write_text("old")
+    (tmp_path / ".evalkit-installed").write_text("evalkit-usage\nevalkit-docs\n")
     result = CliRunner().invoke(app, ["skills", "install", "--target", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert not stale.exists()
@@ -177,3 +109,144 @@ def test_skills_linking_installed_docs_say_where_the_pages_live():
         files = skill_md.parent.rglob("*.md")
         if any("evalkit-docs/" in path.read_text() for path in files):
             assert "docs/user/" in skill_md.read_text(), skill_md.parent.name
+
+
+def test_skills_install_leaves_docs_images_out(tmp_path, monkeypatch):
+    docs = tmp_path / "docs"
+    (docs / "images").mkdir(parents=True)
+    (docs / "quickstart.md").write_text("![run](images/run.png)")
+    (docs / "images" / "run.png").write_bytes(b"png")
+    monkeypatch.setattr(main_module, "docs_root", lambda: docs)
+    target = tmp_path / "target"
+    result = CliRunner().invoke(app, ["skills", "install", "--target", str(target)])
+    assert result.exit_code == 0, result.output
+    assert sorted(p.name for p in (target / "evalkit-docs").iterdir()) == ["quickstart.md"]
+
+
+DEFAULT_FOLDERS = (Path(".agents/skills"), Path(".claude/skills"))
+
+
+def install_in(repo: Path, monkeypatch) -> str:
+    monkeypatch.chdir(repo)
+    result = CliRunner().invoke(app, ["skills", "install"])
+    assert result.exit_code == 0, result.output
+    return result.output
+
+
+def assert_installed(folder: Path) -> None:
+    assert {p.parent.name for p in folder.glob("*/SKILL.md")} == EXPECTED
+    assert (folder / "evalkit-docs" / "try-locally.md").is_file()
+
+
+@pytest.mark.parametrize("existing", [(), (".claude",), (".agents",), (".agents", ".claude")])
+def test_skills_install_writes_both_default_folders(tmp_path, monkeypatch, existing):
+    for name in existing:
+        (tmp_path / name).mkdir()
+    output = install_in(tmp_path, monkeypatch)
+    for folder in DEFAULT_FOLDERS:
+        assert_installed(tmp_path / folder)
+    assert output.splitlines() == [
+        f"{folder}: wrote {len(EXPECTED)} skills and evalkit-docs/" for folder in DEFAULT_FOLDERS
+    ]
+
+
+def test_skills_install_with_target_writes_only_there(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(app, ["skills", "install", "--target", "custom"])
+    assert result.exit_code == 0, result.output
+    assert_installed(tmp_path / "custom")
+    assert not (tmp_path / ".agents").exists()
+    assert not (tmp_path / ".claude").exists()
+
+
+def test_second_install_names_what_it_replaced_and_removed(tmp_path, monkeypatch):
+    install_in(tmp_path, monkeypatch)
+    claude = tmp_path / ".claude" / "skills"
+    (claude / "retired-skill").mkdir()
+    (claude / ".evalkit-installed").write_text(
+        (claude / ".evalkit-installed").read_text() + "retired-skill\n"
+    )
+    (claude / "my-own-skill").mkdir()
+    (claude / "my-own-skill" / "SKILL.md").write_text("mine")
+    output = install_in(tmp_path, monkeypatch)
+    updated = f"updated {len(EXPECTED)} skills and evalkit-docs/"
+    assert output.splitlines() == [
+        f".agents/skills: {updated}",
+        ".claude/skills: removed retired-skill, which an earlier install put there",
+        f".claude/skills: {updated}",
+    ]
+    assert not (claude / "retired-skill").exists()
+    assert (claude / "my-own-skill" / "SKILL.md").read_text() == "mine"
+
+
+def test_install_reports_updated_and_new_skills_apart(tmp_path, monkeypatch):
+    install_in(tmp_path, monkeypatch)
+    for folder in DEFAULT_FOLDERS:
+        shutil.rmtree(tmp_path / folder / "connect-traces")
+    output = install_in(tmp_path, monkeypatch)
+    assert output.splitlines() == [
+        f"{folder}: updated {len(EXPECTED) - 1} skills and evalkit-docs/, wrote 1 skill"
+        for folder in DEFAULT_FOLDERS
+    ]
+
+
+def test_describe_installed_counts_skills_without_assuming_the_docs():
+    assert main_module.describe_installed(["a", "b"]) == "2 skills"
+    assert main_module.describe_installed(["a", "evalkit-docs"]) == "1 skill and evalkit-docs/"
+    assert main_module.describe_installed(["evalkit-docs"]) == "evalkit-docs/"
+
+
+def test_install_never_overwrites_a_skill_evalkit_did_not_install(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    own = tmp_path / ".claude" / "skills" / "connect-traces"
+    own.mkdir(parents=True)
+    (own / "SKILL.md").write_text("mine")
+    for _ in range(2):
+        result = CliRunner().invoke(app, ["skills", "install"])
+        assert result.exit_code == 1
+        assert (own / "SKILL.md").read_text() == "mine"
+        assert sorted(p.name for p in own.iterdir()) == ["SKILL.md"]
+        assert (
+            ".claude/skills: skipped connect-traces: .claude/skills/connect-traces is already "
+            "there and no evalkit install put it there"
+        ) in result.output
+        assert "did not overwrite .claude/skills/connect-traces." in result.output
+        assert "--target DIR" in result.output
+    assert_installed(tmp_path / ".agents" / "skills")
+    claude = tmp_path / ".claude" / "skills"
+    assert {p.parent.name for p in claude.glob("*/SKILL.md")} == EXPECTED
+    assert (claude / "evalkit-docs" / "try-locally.md").is_file()
+    assert set((claude / ".evalkit-installed").read_text().split()) == (
+        EXPECTED - {"connect-traces"}
+    ) | {"evalkit-docs"}
+    assert f".claude/skills: updated {len(EXPECTED) - 1} skills and evalkit-docs/" in result.output
+
+
+def test_install_takes_over_once_the_clashing_skill_is_moved_away(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    own = tmp_path / ".claude" / "skills" / "connect-traces"
+    own.mkdir(parents=True)
+    (own / "SKILL.md").write_text("mine")
+    assert CliRunner().invoke(app, ["skills", "install"]).exit_code == 1
+    own.rename(own.with_name("my-connect-traces"))
+    output = install_in(tmp_path, monkeypatch)
+    assert output.splitlines()[1] == (
+        f".claude/skills: updated {len(EXPECTED) - 1} skills and evalkit-docs/, wrote 1 skill"
+    )
+    claude = tmp_path / ".claude" / "skills"
+    assert (claude / "connect-traces" / "SKILL.md").read_text() != "mine"
+    assert set((claude / ".evalkit-installed").read_text().split()) == EXPECTED | {"evalkit-docs"}
+    assert (claude / "my-connect-traces" / "SKILL.md").read_text() == "mine"
+
+
+def test_install_does_not_overwrite_a_folder_of_skills_without_a_manifest(tmp_path):
+    for name in [*EXPECTED, "evalkit-docs"]:
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "SKILL.md").write_text("from before the manifest")
+    result = CliRunner().invoke(app, ["skills", "install", "--target", str(tmp_path)])
+    assert result.exit_code == 1
+    assert f"{tmp_path}: wrote nothing" in result.output
+    for name in [*EXPECTED, "evalkit-docs"]:
+        assert (tmp_path / name / "SKILL.md").read_text() == "from before the manifest"
+        assert f"{tmp_path}: skipped {name}: " in result.output
+    assert (tmp_path / ".evalkit-installed").read_text() == ""

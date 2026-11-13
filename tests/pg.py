@@ -36,7 +36,11 @@ def pg_server_url() -> Iterator[str]:
     if url:
         yield url
         return
-    with PostgresContainer("postgres:17", driver="psycopg") as container:
+    container = PostgresContainer("postgres:17", driver="psycopg").with_command(
+        "postgres -c fsync=off -c synchronous_commit=off -c full_page_writes=off"
+        " -c authentication_timeout=5s"
+    )
+    with container:
         yield container.get_connection_url()
 
 

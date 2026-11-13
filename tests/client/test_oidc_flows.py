@@ -6,17 +6,21 @@ import jwt
 import pytest
 from authlib.integrations.httpx_client import OAuth2Client
 
+from evalkit import version
 from evalkit.client import oidc
 from evalkit.client.oidc import (
     LoginRefused,
     LoginTimedOut,
     NoDeviceGrant,
+    fetch_providers,
     login_from_tokens,
     register_identity,
     run_device_flow,
     run_loopback_flow,
 )
 from tests.identity import FakeIdp
+
+CLI_CLIENT = "evalkit-cli"
 
 
 def providers_for(idp: FakeIdp, *, device: bool = True) -> dict:
@@ -25,6 +29,7 @@ def providers_for(idp: FakeIdp, *, device: bool = True) -> dict:
         "name": "Fake",
         "issuer": idp.issuer,
         "client_id": idp.client_id,
+        "cli_client_id": CLI_CLIENT,
         "audience": idp.audience,
         "scopes": ["openid", "profile", "email", "offline_access"],
         "authorize_params": {"resource": idp.audience},
@@ -66,8 +71,10 @@ def test_loopback_flow_sends_pkce_and_the_authorize_params():
     tokens = run_loopback_flow(providers_for(idp), spy, transport=idp.transport())
     query = parse_qs(urlsplit(seen[0]).query)
     assert query["code_challenge_method"] == ["S256"] and query["resource"] == [idp.audience]
+    assert query["client_id"] == [CLI_CLIENT]
     assert query["redirect_uri"][0].startswith("http://127.0.0.1:")
-    assert jwt.decode(tokens["id_token"], options={"verify_signature": False})["sub"] == "sub-1"
+    claims = jwt.decode(tokens["id_token"], options={"verify_signature": False})
+    assert claims["sub"] == "sub-1" and claims["aud"] == CLI_CLIENT
     assert "refresh_token" in tokens
 
 
@@ -159,7 +166,8 @@ def test_device_flow_polls_until_the_person_finishes():
     )
     assert lines == [f"open {idp.issuer}/device/verify and enter ABCD-EFGH"]
     assert len(sleeps) == 2
-    assert jwt.decode(tokens["id_token"], options={"verify_signature": False})["sub"] == "sub-2"
+    claims = jwt.decode(tokens["id_token"], options={"verify_signature": False})
+    assert claims["sub"] == "sub-2" and claims["aud"] == CLI_CLIENT
 
 
 def test_device_flow_needs_the_endpoint():
@@ -198,6 +206,7 @@ def test_login_from_tokens_builds_the_connection():
     assert conn.oidc is not None
     assert conn.oidc.refresh_token == tokens["refresh_token"]
     assert conn.oidc.token_endpoint == f"{idp.issuer}/token"
+    assert conn.oidc.client_id == CLI_CLIENT
     assert conn.token is None
 
 
@@ -230,3 +239,15 @@ def test_loopback_flow_reports_a_refused_code_exchange_as_login_refused(monkeypa
     )
     with pytest.raises(LoginRefused, match="invalid_grant: code expired"):
         run_loopback_flow(providers_for(idp), browser_for(idp), transport=idp.transport())
+
+
+def test_fetch_providers_from_an_incompatible_server_says_to_update(monkeypatch):
+    monkeypatch.setattr(version, "current", lambda: "0.5.0")
+
+    def server(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200, json={"password": "none", "oidc": None}, headers={"X-Evalkit-Version": "0.6.0"}
+        )
+
+    with pytest.raises(LookupError, match=r"run `evalkit update --server https://evalkit.test`"):
+        fetch_providers("https://evalkit.test", httpx2.MockTransport(server))

@@ -41,16 +41,18 @@ and how case review works.
    version filled in. `evalkit --version` prints what you have.
 
    For SDK runs, add evalkit to the project at the same version:
-   `uv add "evalkit-py[otel]==<version>"`; `uv.lock` pins it. To keep evalkit
+   `uv add "evalkit-py==<version>"`; `uv.lock` pins it. To keep evalkit
    out of the app's dependencies, run the eval script with
-   `uv run --with "evalkit-py[otel]==<version>" python eval/run.py` instead.
+   `uv run --with "evalkit-py==<version>" python run_evals.py` instead.
    After a server deploy, local and SDK runs refuse to start until the
    versions match: run `evalkit update` from the project root, which
    reinstalls the CLI, moves the `evalkit-py` pin in `pyproject.toml` (and
    runs `uv sync`) and refreshes the skills `evalkit skills install` put in
    your repos, in one step.
-2. `evalkit login --url <url>` with your username, e.g. `evalkit login
-   --url https://evalkit.internal`. The login is stored in
+2. `evalkit login` logs in to hosted evalkit, `https://evalkit.inferedge.com`,
+   and prints that server first. For any other server pass `--url`, e.g.
+   `evalkit login --url https://evalkit.internal`.
+   The login is stored in
    `~/.evalkit/config.toml`. The CLI talks to one server at a time; logging
    in again replaces the stored login. Dev and prod are shared workspaces on
    that server (`@dev`, `@prod`), not separate logins. With single sign-on
@@ -139,10 +141,10 @@ evalkit agents list --workspace dev
 - `agents create|edit|show|list|archive|restore` and
   `evaluators create|edit|list|archive`. Creating one in a shared workspace
   needs the writer role there.
-- An OTel agent (`--trajectory-source otel`) needs `--mapping <file.json>`
+- An OTel agent (`--trajectory-source otel`) needs `--mapping <preset or file.json>`
   when you create it (see the **connect-traces** skill).
 - `agents edit <agent> --trajectory-source otel|atif` switches an existing
-  agent. Switching to `otel` takes `--mapping <file.json>`, or reuses the
+  agent. Switching to `otel` takes `--mapping <preset or file.json>`, or reuses the
   agent's last active mapping. It's refused while one of the agent's
   experiments is running; finished experiments keep the source they ran with.
 - A run scores with the remote evaluators in the agent's workspace.
@@ -160,8 +162,8 @@ read from the `fixtures` directory and uploaded by sha256 on every run or
 sync.
 
 ```yaml
-cases: eval/cases            # optional: directory whose children are datasets
-fixtures: eval/fixtures      # optional: fixture bytes, flat, keyed by filename
+cases: evalkit/cases            # optional: directory whose children are datasets
+fixtures: evalkit/fixtures      # optional: fixture bytes, flat, keyed by filename
 credentials:                 # env:NAME references only, never the key itself
   agents:
     myagent: env:MYAGENT_API_KEY             # bare name = your workspace
@@ -174,8 +176,7 @@ credentials:                 # env:NAME references only, never the key itself
   database (`evalkit agents create|edit … --api-key-env NAME`, by an admin or
   a writer), so an entry for one here is never read. The same holds for
   shared remote evaluators.
-- Keys come from the environment or from a `.env` file next to
-  `evalkit.yaml`. A variable set in the environment wins over `.env`.
+- Keys come from the environment.
 - An agent or evaluator with no `credentials` entry gets no auth header, and
   the run prints one line saying so.
 - `credentials` holds agent and evaluator keys only; a file with
@@ -196,7 +197,7 @@ provider configured on the server or a base URL, never both:
   key is needed on your machine. `evalkit run --judge-provider NAME`
   (`evalkit llm-providers list`) picks another one.
 - **Your own judge:** `evalkit run --judge-base-url URL --judge-model M
-  --judge-api-key-env NAME` (the env var or `.env` entry holding the key), or
+  --judge-api-key-env NAME` (the env var holding the key), or
   `Judge(base_url=..., model=..., api_key=...)` in the SDK. Those evaluators
   run on your machine. The key is never stored: `evalkit evaluate <id>` and
   `evalkit run … --resume <id>` need `--judge-api-key-env NAME` again; in the SDK, pass the same
@@ -217,8 +218,7 @@ of several tags. Local runs require the CLI and server versions to match.
 
 An agent that is a library, a notebook, or a service with its own job runner
 does not need a Harness API. Install the SDK into the project (the web UI's
-Docs → Install page has the exact command for your server; it is
-`evalkit-py` with the `otel` extra), create a code-driven agent (no `--harness-url`),
+Docs → Install page has the exact command for your server), create a code-driven agent (no `--harness-url`),
 and run the experiment from your own code. A local run uses
 your own login for the API calls (the one from `evalkit login`, or
 `EVALKIT_SERVER_URL` and the machine client variables). The exported traces
@@ -228,7 +228,7 @@ while a login token runs out under a long-running process and the export
 would fail silently.
 
 ```python
-# eval/run.py — uv run python eval/run.py
+# run_evals.py — python run_evals.py
 from evalkit.sdk import run_experiment, evaluator, tracing
 from myagent import MyAgent, setup_tracing
 
@@ -256,9 +256,11 @@ if __name__ == "__main__":
 
 ```bash
 # no --harness-url: a code-driven agent. Trajectories come from its spans.
-cp <skills>/connect-traces/references/openinference.json eval/mapping.json
-evalkit agents create myagent --trajectory-source otel --mapping eval/mapping.json
+evalkit agents create myagent --trajectory-source otel --mapping openinference
 ```
+
+Every argument, return value and type of `evalkit.sdk` is in the
+[SDK reference](../evalkit-docs/sdk-reference.md).
 
 Rules of the road:
 
@@ -390,8 +392,9 @@ Harness API page has the full table.
 | Create or change agents and remote evaluators | `evalkit agents`, `evalkit evaluators` |
 | See workspaces and who can write or review in them | `evalkit workspaces` |
 | Check which server and user the CLI uses | `evalkit whoami` |
-| Check on or summarise an experiment | `evalkit status`, `evalkit summary` |
-| List an agent's runs: app runs (outside any experiment) and eval runs | `evalkit runs list` (`--source app\|eval`, `--since`, `--until`) |
+| Show one experiment: dataset, agent, status, progress and its link in the web UI | `evalkit status <id>` (`evalkit experiments list` gives the ids) |
+| Read an experiment's scorecard, or compare it with another | `evalkit summary <id>` (`--baseline <id>`); it ends with the experiment's link |
+| List an agent's runs: app runs (outside any experiment) and eval runs, with status and duration | `evalkit runs list` (`--source app\|eval`, `--since`, `--until`) |
 | Pull runs to a local directory (ATIF trajectories, case versions, scores) for diagnosis or profiling | `evalkit runs pull <agent>` (same filters, `--limit`, `--offset`) or `evalkit runs pull --experiment <id>` |
 | See or fetch a pulled run's workspace files and full tool outputs | `evalkit runs files <pull dir> <run_id>` lists the tree; add `--path <file or folder>` to fetch only those |
 | Generate new eval cases from an agent's app runs (production, staging or manual traffic) | the `eval-driven-development` skill, Loop 2 (`runs list` / `runs pull --source app`, then analysis and authoring) |
@@ -401,8 +404,25 @@ Harness API page has the full table.
 | Move cases through review | `evalkit review` (subcommands below) |
 | Ask about runs, failures, usage or experiments from Claude, Cursor or Codex | the MCP server at `{{origin}}/mcp` (below) |
 | Update the CLI and a project's `evalkit-py` pin to the server's version | `evalkit update` |
-| Add the SDK to a project | `uv add "evalkit-py[otel]==<server version>"` |
+| Add the SDK to a project | `uv add "evalkit-py==<server version>"` |
 | Vendor these skills into a repo | `evalkit skills install` |
+
+Commands that show, create or change one item with a page in the web UI end
+with `link: <url>`, that page. Give the developer the link.
+
+| Item | Page | Commands that print its link |
+|---|---|---|
+| Experiment | `/experiments/<id>` | `run`, `evaluate`, `status`, `summary`, `runs pull --experiment` |
+| Dataset | `/datasets/<dataset>` | `sync` (and `run`, which syncs first), `datasets create`, `datasets show` |
+| Case | `/datasets/<dataset>/cases/<case id>` | `review show <dataset> <case id>`, `review approve` (one link per case), `review request-changes`, `review comment`, `review resolve` |
+| Agent | `/agents/<agent>` | `agents create`, `agents edit`, `agents show`, `agents archive`, `agents restore` |
+| Agent run | `/runs/<agent>/<run id>` | `traces check`, `traces import <agent> <session id>`; `runs pull --run-id` and `runs list --json` (each row's `url`), except for a personal agent with a harness, whose runs the server cannot reach |
+
+`experiments list`, `datasets list`, `agents list` and the commands that list
+cases (`datasets list <dataset>`, `review show <dataset>`, `review queue`) end
+with a line naming the command that shows one item and its link. Remote
+evaluators, workspaces, trace sources and LLM providers have no page of their
+own, so their commands print no link.
 
 Read `evalkit <command> --help` before you run a command. It is the source of
 truth for how the command behaves: for example, `run` executes only Approved

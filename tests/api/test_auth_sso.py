@@ -88,14 +88,28 @@ async def test_providers_with_an_idp(env, idp):
         "name": "Fake",
         "issuer": idp.issuer,
         "client_id": idp.client_id,
+        "cli_client_id": idp.client_id,
         "audience": idp.audience,
         "scopes": ["openid", "profile", "email", "offline_access"],
         "required_scopes": [],
         "authorize_params": {},
+        "ui_resources": [],
         "authorization_endpoint": f"{idp.issuer}/authorize",
         "token_endpoint": f"{idp.issuer}/token",
         "device_authorization_endpoint": f"{idp.issuer}/device",
     }
+
+
+async def test_providers_lists_the_other_apis_the_web_ui_signs_in_for(env, idp):
+    async with sso_app(
+        env,
+        idp,
+        authorize_params={"resource": idp.audience},
+        ui_resources=["https://api.example.com"],
+    ) as client:
+        oidc = (await client.get("/api/auth/providers")).json()["oidc"]
+    assert oidc["authorize_params"] == {"resource": idp.audience}
+    assert oidc["ui_resources"] == ["https://api.example.com"]
 
 
 async def test_providers_lists_the_required_scopes(env, idp):
@@ -148,6 +162,31 @@ async def test_password_sign_in_is_refused_when_passwords_are_off(env, idp):
     assert resp.status_code == 403
     assert resp.json()["detail"] == "password login is off on this server; sign in with Fake"
     assert providers["password"] == "none"
+
+
+async def test_password_accounts_are_refused_when_passwords_are_off(env, idp):
+    admin_role = {"extra": {"roles": ["evalkit-admin"]}}
+    async with sso_app(env, idp, password_login="none", admin_claim=ADMINS) as client:
+        await register(client, idp, "sub-ann", "ann@example.com", "ann", **admin_role)
+        admin = bearer(idp.access_token("sub-ann", **admin_role))
+        added = await client.post(
+            "/api/users", headers=admin, json={"username": "bob", "password": "password"}
+        )
+        reset = await client.post(
+            "/api/users/alice/password", headers=admin, json={"password": "new-password"}
+        )
+        machine = await client.post(
+            "/api/users", headers=admin, json={"username": "ci-bot", "subject": "client-ci"}
+        )
+        names = {u["username"] for u in (await client.get("/api/users", headers=admin)).json()}
+    refusal = (
+        "password login is off on this server; people join by signing in with Fake, "
+        "and a machine user is added with a subject"
+    )
+    assert added.status_code == 400 and added.json()["detail"] == refusal
+    assert reset.status_code == 400 and reset.json()["detail"] == refusal
+    assert machine.status_code == 200, machine.text
+    assert "ci-bot" in names and "bob" not in names
 
 
 async def test_providers_says_passwords_are_off_while_discovery_is_down(env, idp):
@@ -253,6 +292,35 @@ async def register(
         headers=bearer(access),
         json={"id_token": idp.id_token(sub, email, preferred)},
     )
+
+
+async def register_with_id_token_for(client: httpx2.AsyncClient, idp: FakeIdp, audience: str):
+    return await client.post(
+        "/api/auth/oidc/register",
+        headers=bearer(idp.access_token("sub-ann")),
+        json={"id_token": idp.id_token("sub-ann", "ann@example.com", "ann", audience=audience)},
+    )
+
+
+async def test_the_cli_signs_in_with_its_own_client_when_one_is_set(env, idp):
+    async with sso_app(env, idp, cli_client_id="evalkit-cli") as client:
+        oidc = (await client.get("/api/auth/providers")).json()["oidc"]
+        assert oidc["client_id"] == idp.client_id
+        assert oidc["cli_client_id"] == "evalkit-cli"
+        from_cli = await register_with_id_token_for(client, idp, "evalkit-cli")
+        assert from_cli.status_code == 200, from_cli.text
+        from_web = await register_with_id_token_for(client, idp, idp.client_id)
+        assert from_web.status_code == 200, from_web.text
+        stranger = await register_with_id_token_for(client, idp, "someone-else")
+        assert stranger.status_code == 401
+
+
+async def test_without_a_cli_client_the_cli_signs_in_with_the_web_client(env, idp):
+    async with sso_app(env, idp) as client:
+        oidc = (await client.get("/api/auth/providers")).json()["oidc"]
+        assert oidc["cli_client_id"] == idp.client_id
+        unknown = await register_with_id_token_for(client, idp, "evalkit-cli")
+        assert unknown.status_code == 401
 
 
 async def test_register_creates_a_user_then_is_a_no_op(env, idp):
@@ -396,6 +464,63 @@ async def test_admin_adds_a_machine_user_and_its_token_is_served(env, idp):
         assert bot["kind"] == "machine" and bot["email"] is None and bot["has_subject"] is True
         promote = await client.post("/api/users/ci-bot/promote")
         assert promote.status_code == 400 and "machine user" in promote.json()["detail"]
+
+
+def get_admin_names(rows: list[dict]) -> set[str]:
+    return {row["username"] for row in rows if row["is_admin"]}
+
+
+async def test_with_an_admin_claim_admins_demote_but_cannot_promote_identity_provider_people(
+    env, idp
+):
+    async with sso_app(env, idp, admin_claim=ADMINS) as client:
+        await register(client, idp, "sub-ann", "ann@example.com", "ann")
+        await register(
+            client, idp, "sub-bob", "bob@example.com", "bob", extra={"roles": ["evalkit-admin"]}
+        )
+        promote = await client.post("/api/users/ann/promote")
+        demote = await client.post("/api/users/bob/demote")
+        admins = get_admin_names((await client.get("/api/users")).json())
+    assert promote.status_code == 400
+    assert promote.json()["detail"] == (
+        "ann signs in through the identity provider, which decides who is an admin "
+        "on this server from its roles claim"
+    )
+    assert demote.status_code == 200, demote.text
+    assert admins == {"admin"}
+
+
+async def test_with_an_admin_claim_admins_cannot_promote_a_password_account_bound_to_a_subject(
+    env, idp
+):
+    async with sso_app(env, idp, admin_claim=ADMINS) as client:
+        bound = await client.post("/api/users/akshat/identity", json={"subject": "sub-akshat"})
+        promote = await client.post("/api/users/akshat/promote")
+        admins = get_admin_names((await client.get("/api/users")).json())
+    assert bound.status_code == 200, bound.text
+    assert promote.status_code == 400
+    assert "from its roles claim" in promote.json()["detail"]
+    assert admins == {"admin"}
+
+
+async def test_with_an_admin_claim_password_accounts_and_machine_users_are_unchanged(env, idp):
+    async with sso_app(env, idp, admin_claim=ADMINS) as client:
+        promote = await client.post("/api/users/akshat/promote")
+        demote = await client.post("/api/users/akshat/demote")
+        await client.post("/api/users", json={"username": "ci-bot", "subject": "client-ci-sub"})
+        machine = await client.post("/api/users/ci-bot/promote")
+    assert promote.status_code == 200 and demote.status_code == 200
+    assert machine.status_code == 400
+    assert machine.json()["detail"] == "ci-bot is a machine user and cannot be an admin"
+
+
+async def test_without_an_admin_claim_admins_promote_identity_provider_people(env, idp):
+    async with sso_app(env, idp) as client:
+        await register(client, idp, "sub-ann", "ann@example.com", "ann")
+        promote = await client.post("/api/users/ann/promote")
+        admins = get_admin_names((await client.get("/api/users")).json())
+    assert promote.status_code == 200
+    assert admins == {"admin", "ann"}
 
 
 async def test_admin_binds_an_existing_user(env, idp):

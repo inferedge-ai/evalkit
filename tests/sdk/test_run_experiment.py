@@ -3,7 +3,6 @@ import json
 import os
 import sys
 from datetime import timedelta
-from pathlib import Path
 
 import httpx2
 import pytest
@@ -18,7 +17,7 @@ from evalkit.api import experiments as experiments_api
 from evalkit.api.app import create_app
 from evalkit.client import connection
 from evalkit.client.api import ApiRequestError
-from evalkit.config import OtelConfig
+from evalkit.config import LocalConfig, OtelConfig
 from evalkit.contracts.enums import EvaluatorKind, TrajectorySource
 from evalkit.contracts.settings import AgentSettings, JudgeSettings, RemoteEvaluatorSettings
 from evalkit.core.blob import tenant_prefix
@@ -28,6 +27,7 @@ from evalkit.core.runner import (
     MissingJudgeKey,
     ScoringFailed,
 )
+from evalkit.credentials import MissingCredential
 from evalkit.db import models
 from evalkit.db.evaluators import RemoteEvaluatorStore
 from evalkit.db.session import make_session_factory, tenant_session
@@ -41,7 +41,7 @@ from evalkit.sdk import (
     tracing,
 )
 from evalkit.sdk import runner as sdk_runner
-from evalkit.sdk.runner import _local_config
+from evalkit.sdk.runner import _config_search_starts
 from evalkit.store.base import Experiment, RunDetail
 from tests.cli.test_cli import _serve
 from tests.fake_agents import reference_mapping
@@ -132,12 +132,13 @@ def env(server, tmp_path, monkeypatch, module_db_url):
     monkeypatch.setenv("EVALKIT_TOKEN", token)
     cost_map = tmp_path / "cost_map.json"
     cost_map.write_text("{}")
-    (tmp_path / "eval" / "fixtures").mkdir(parents=True)
+    (tmp_path / "evalkit" / "fixtures").mkdir(parents=True)
     (tmp_path / "evalkit.yaml").write_text(
-        f"cases: eval/cases\nfixtures: eval/fixtures\ncost_map:\n  source: {cost_map}\n"
+        f"cases: evalkit/cases\nfixtures: evalkit/fixtures\ncost_map:\n  source: {cost_map}\n"
         "credentials:\n  evaluators:\n    http_eval: env:SDK_EVAL_KEY\n"
     )
-    (tmp_path / ".env").write_text("SDK_EVAL_KEY=k\nSDK_JUDGE_KEY=jk\n")
+    monkeypatch.setenv("SDK_EVAL_KEY", "k")
+    monkeypatch.setenv("SDK_JUDGE_KEY", "jk")
     monkeypatch.chdir(tmp_path)
     provider = TracerProvider()
     headers = {"Authorization": f"Bearer {token}", "X-Evalkit-Agent": "sdk"}
@@ -196,6 +197,7 @@ async def test_sdk_run_with_traces_records_runs_after_settle(env):
     def cite(case, run):
         return 1.0 if run.trajectory else 0.0
 
+    lines: list[str] = []
     result = await arun_experiment(
         dataset="finance",
         workspace="canonical",
@@ -204,9 +206,12 @@ async def test_sdk_run_with_traces_records_runs_after_settle(env):
         evaluators=[cite],
         tracer_provider=provider,
         poll_interval=0.2,
+        progress=lines.append,
     )
     assert isinstance(result.experiment_id, int)
     assert result.url.endswith(f"/experiments/{result.experiment_id}")
+    assert lines[-1] == f"link: {result.url}"
+    assert [r.url for r in result.runs] == [f"{result.url}/{r.case_id}" for r in result.runs]
     assert sorted(seen[0]) == ["case_id", "experiment_id", "repetition", "session_id", "tags"]
     assert seen[0]["experiment_id"] == result.experiment_id
     assert {m["session_id"] for m in seen} == {r.session_id for r in result.runs}
@@ -503,7 +508,12 @@ async def test_deadline_gives_partial_then_refetch_rescored(env):
             models.Evaluation.name == "gauge_input_tokens",
         )
     )
-    await aevaluate_experiment(experiment_id=result.experiment_id, refetch_trajectories=True)
+    lines: list[str] = []
+    rescored = await aevaluate_experiment(
+        experiment_id=result.experiment_id, refetch_trajectories=True, progress=lines.append
+    )
+    assert lines[-1] == f"link: {rescored.url}" and rescored.url == result.url
+    assert rescored.runs[0].url == f"{result.url}/{rescored.runs[0].case_id}"
     exp, [run] = await srv.experiment(result.experiment_id)
     scores = {e.name: e for e in run.evaluations}
     assert scores["gauge_input_tokens"].value == 9
@@ -523,7 +533,9 @@ async def test_dry_run_creates_nothing_and_prints(env, capsys):
     )
     assert result.experiment_id is None and await srv.count() == before
     assert len(result.runs) == 1
-    assert "dry" in capsys.readouterr().out
+    printed = capsys.readouterr().out
+    assert "dry" in printed
+    assert result.runs[0].url is None and "link:" not in printed
 
 
 async def test_dry_run_and_real_run_check_inputs_against_the_agent_schema(env):
@@ -549,7 +561,6 @@ async def test_only_a_base_url_judge_needs_a_local_key_and_names_it_before_any_t
 ):
     srv, blob, provider = env
     monkeypatch.delenv("SDK_JUDGE_KEY", raising=False)
-    Path(".env").write_text("SDK_EVAL_KEY=k\n")
     called: list[str] = []
 
     def task(q):
@@ -632,13 +643,21 @@ async def test_validation_errors_before_server(env):
         await aevaluate_experiment(experiment_id=exp_id, evaluators=[nope])
 
 
-async def test_no_local_config(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(
-        sys.modules["__main__"], "__file__", str(tmp_path / "run.py"), raising=False
+async def test_run_without_evalkit_yaml_syncs_from_the_default_cases_dir(env, tmp_path):
+    srv, blob, provider = env
+    (tmp_path / "evalkit.yaml").unlink()
+    dataset_dir = tmp_path / "evalkit" / "cases" / "defaulted"
+    dataset_dir.mkdir(parents=True)
+    (dataset_dir / "cases.yaml").write_text(
+        "cases:\n- id: defaulted-1\n  input: {question: 'q as of 2024-01-01'}\n"
     )
-    with pytest.raises(FileNotFoundError, match="evalkit.yaml not found"):
-        await arun_experiment(dataset="finance", agent="sdk", task=lambda q: q)
+    result = await arun_experiment(
+        dataset="defaulted",
+        agent="pushed",
+        task=lambda q: RunResult(answer="x", trajectory=DEFAULT_TRAJECTORY),
+        trajectory_wait_seconds=0,
+    )
+    assert [run.status for run in result.runs] == ["completed"]
 
 
 def test_local_config_is_found_beside_the_script(tmp_path, monkeypatch):
@@ -649,10 +668,11 @@ def test_local_config_is_found_beside_the_script(tmp_path, monkeypatch):
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)
     monkeypatch.setattr(sys.modules["__main__"], "__file__", str(project / "run.py"), raising=False)
-    assert _local_config().path == project / "evalkit.yaml"
+    assert LocalConfig.find_or_default(_config_search_starts()).path == project / "evalkit.yaml"
     monkeypatch.delattr(sys.modules["__main__"], "__file__", raising=False)
-    with pytest.raises(FileNotFoundError, match="evalkit.yaml not found"):
-        _local_config()
+    fallback = LocalConfig.find_or_default(_config_search_starts())
+    assert fallback.path == elsewhere / "evalkit.yaml"
+    assert fallback.cases == elsewhere / "evalkit" / "cases"
 
 
 def test_run_experiment_refuses_a_running_loop():
@@ -687,7 +707,7 @@ async def test_run_warns_when_the_token_expires_within_a_day(env, monkeypatch):
 async def test_canonical_run_needs_no_cases_or_fixtures_in_evalkit_yaml(env, tmp_path):
     srv, blob, provider = env
     config = tmp_path / "evalkit.yaml"
-    paths = "cases: eval/cases\nfixtures: eval/fixtures\n"
+    paths = "cases: evalkit/cases\nfixtures: evalkit/fixtures\n"
     config.write_text(config.read_text().replace(paths, ""))
     created = await arun_experiment(
         dataset="finance",
@@ -705,7 +725,7 @@ async def test_canonical_run_needs_no_cases_or_fixtures_in_evalkit_yaml(env, tmp
 async def test_own_dataset_without_cases_runs_the_server_copy(env, tmp_path):
     srv, blob, provider = env
     config = tmp_path / "evalkit.yaml"
-    paths = "cases: eval/cases\nfixtures: eval/fixtures\n"
+    paths = "cases: evalkit/cases\nfixtures: evalkit/fixtures\n"
     config.write_text(config.read_text().replace(paths, ""))
     lines: list[str] = []
     with pytest.raises(ApiRequestError, match="finance@admin"):
@@ -715,7 +735,8 @@ async def test_own_dataset_without_cases_runs_the_server_copy(env, tmp_path):
             task=lambda q: RunResult(answer="x", trajectory=DEFAULT_TRAJECTORY),
             progress=lines.append,
         )
-    assert any("no cases: directory" in line for line in lines)
+    missing = str(tmp_path / "evalkit" / "cases" / "finance")
+    assert any(f"no directory {missing}" in line for line in lines)
 
 
 async def test_dry_run_session_lists_with_case_title_and_id(env):
@@ -764,6 +785,10 @@ async def test_dry_run_reports_a_trajectory_read_failure_and_goes_on(env, monkey
         ("case-1", "unavailable"),
         ("case-2", "unavailable"),
     ]
+    assert result.url is None and not any(line.startswith("link:") for line in lines)
+    run_links = [line for line in lines if line.startswith("  link: ")]
+    assert run_links == [f"  link: {r.url}" for r in result.runs]
+    assert result.runs[0].url.endswith("/runs/sdk%40admin/s-q1")
     failures = [line for line in lines if "trajectory read failed" in line]
     assert len(failures) == 2 and "502" in failures[0] and "s-q1" in failures[0]
 
@@ -881,3 +906,16 @@ async def test_sdk_runs_skip_keyless_evaluators_their_cases_do_not_use(env):
     )
     assert "experiment" in lines[0]
     assert not any("nokey_eval" in line for line in lines)
+
+
+def test_sdk_credentials_never_read_a_dotenv_beside_evalkit_yaml(tmp_path, monkeypatch):
+    monkeypatch.delenv("SDK_DOTENV_KEY", raising=False)
+    (tmp_path / "evalkit.yaml").write_text(
+        "credentials:\n  evaluators:\n    http_eval: env:SDK_DOTENV_KEY\n"
+    )
+    (tmp_path / ".env").write_text("SDK_DOTENV_KEY=from-dotenv\n")
+    monkeypatch.chdir(tmp_path)
+    local = LocalConfig.find(tmp_path)
+    assert local is not None
+    with pytest.raises(MissingCredential, match="SDK_DOTENV_KEY"):
+        sdk_runner._credentials(local, "admin").key_for("evaluator", "http_eval@admin")

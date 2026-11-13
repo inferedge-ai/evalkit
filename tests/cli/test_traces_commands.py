@@ -6,12 +6,15 @@ from respx import MockResponse
 from typer.testing import CliRunner
 
 from evalkit.cli import main as main_module
-from evalkit.cli.client import ApiClient
+from evalkit.cli.client import ApiClient, ApiError
 from evalkit.cli.main import app as cli_app
+from evalkit.cli.traces_commands import load_mapping
 from evalkit.client import connection
 from evalkit.client.api import AsyncApi
 from evalkit.client.oidc import static_auth
+from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.check import render_check
+from evalkit.core.traces.presets import list_preset_names, read_preset
 from evalkit.sdk.runner import _session_summary
 
 SESSION = {
@@ -199,15 +202,65 @@ def test_render_check_warns_when_llm_spans_carry_no_token_counts():
     assert llm.startswith("  ! llm") and "no token counts (check the tokens rule)" in llm
 
 
-def test_mapping_push_with_a_missing_file_is_a_one_line_error(tmp_path):
+PRESETS = "agno, claude-agent-sdk, crewai, gen_ai, google-adk, langchain, llamaindex, mastra"
+
+
+def test_mapping_push_with_neither_a_file_nor_a_preset_is_a_one_line_error(tmp_path):
+    missing = str(tmp_path / "nope.json")
     result = CliRunner().invoke(
-        cli_app,
-        ["traces", "mapping", "push", "myagent", str(tmp_path / "nope.json")],
-        env={"COLUMNS": "200"},
+        cli_app, ["traces", "mapping", "push", "myagent", missing], env={"COLUMNS": "200"}
     )
-    assert result.exit_code == 2
-    assert "does not exist" in result.output
+    assert result.exit_code == 1
+    assert f"{missing} is neither a file nor a mapping preset" in result.output
+    assert f"presets: {PRESETS}, openinference" in result.output
     assert "Traceback" not in result.output
+
+
+def test_a_mapping_value_is_a_file_first_then_a_preset(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    assert load_mapping("gen_ai") == json.loads(read_preset("gen_ai"))
+    (tmp_path / "mine.json").write_text('{"schema_version": "1"}')
+    assert load_mapping("mine.json") == {"schema_version": "1"}
+    (tmp_path / "gen_ai").write_text('{"schema_version": "1", "answer": "mine"}')
+    assert load_mapping("gen_ai") == {"schema_version": "1", "answer": "mine"}
+    (tmp_path / "langchain").mkdir()
+    assert load_mapping("langchain") == json.loads(read_preset("langchain"))
+    for value in ("gen_ai.json", "genai", "OPENINFERENCE", str(tmp_path)):
+        with pytest.raises(ApiError):
+            load_mapping(value)
+        assert f"{value} is neither a file nor a mapping preset; presets: agno" in (
+            capsys.readouterr().err
+        )
+
+
+def test_mapping_presets_lists_the_names_and_prints_one_as_json():
+    listed = CliRunner().invoke(cli_app, ["traces", "mapping", "presets"])
+    assert listed.exit_code == 0, listed.output
+    assert listed.output.splitlines() == list_preset_names()
+    assert f"{PRESETS}, openinference" == ", ".join(listed.output.splitlines())
+    printed = CliRunner().invoke(cli_app, ["traces", "mapping", "presets", "llamaindex"])
+    assert printed.exit_code == 0, printed.output
+    assert printed.output == read_preset("llamaindex")
+    MappingDocument.model_validate_json(printed.output)
+    unknown = CliRunner().invoke(cli_app, ["traces", "mapping", "presets", "llama-index"])
+    assert unknown.exit_code == 1
+    assert f"llama-index is not a mapping preset; presets: {PRESETS}" in unknown.output
+
+
+@pytest.mark.httpx2(assert_all_called=False)
+def test_mapping_push_and_agents_create_take_a_preset_name(srv, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    draft = srv.put("http://srv/api/agents/sdk@canonical/mappings/draft").mock(
+        return_value=MockResponse(200, json={"version": 2, "unchanged": False})
+    )
+    pushed = CliRunner().invoke(cli_app, ["traces", "mapping", "push", "sdk@canonical", "crewai"])
+    assert pushed.exit_code == 0, pushed.output
+    assert json.loads(draft.calls[0].request.content) == json.loads(read_preset("crewai"))
+    refused = CliRunner().invoke(
+        cli_app, ["agents", "create", "bot", "--trajectory-source", "otel", "--mapping", "nope"]
+    )
+    assert refused.exit_code == 1
+    assert "nope is neither a file nor a mapping preset" in refused.output
 
 
 def import_view(status: str, reached: str = "2026-10-03T00:00:00Z", **extra) -> dict:
@@ -279,6 +332,24 @@ def test_range_import_starts_follows_and_checks_the_sample_session(srv):
     assert lines[2] == "12   done     2026-10-04 12:00  100%  40 traces  800 spans"
     assert lines[3] == "check of session s9:"
     assert lines[4].startswith("  ✓ session")
+    assert lines[-1] == "link: http://srv/runs/sdk%40canonical/s9"
+
+
+@pytest.mark.httpx2(assert_all_called=False)
+def test_session_import_and_check_end_with_the_run_link(srv):
+    session = "http://srv/api/agents/sdk@canonical/sessions/s9"
+    srv.post("http://srv/api/agents/sdk@canonical/sessions/import").mock(
+        return_value=MockResponse(200, json={"imported": 3})
+    )
+    srv.get("http://srv/api/meta").mock(return_value=MockResponse(200, json={}))
+    srv.get(f"{session}/trajectory").mock(return_value=MockResponse(200, json=SESSION))
+    imported = CliRunner().invoke(cli_app, ["traces", "import", "sdk@canonical", "s9"])
+    assert imported.exit_code == 0, imported.output
+    assert imported.output.splitlines()[0] == "imported 3 spans"
+    assert imported.output.splitlines()[-1] == "link: http://srv/runs/sdk%40canonical/s9"
+    checked = CliRunner().invoke(cli_app, ["traces", "check", "sdk@canonical", "s9"])
+    assert checked.exit_code == 0, checked.output
+    assert checked.output.splitlines()[-1] == "link: http://srv/runs/sdk%40canonical/s9"
 
 
 @pytest.mark.httpx2(assert_all_called=False)

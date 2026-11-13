@@ -3,21 +3,29 @@ import re
 import tomllib
 from pathlib import Path
 
+from markers import anchor_rows, convert_tabs
 from mkdocs.structure.files import File, Files
+from tokens import render_site_tokens
 
 SITE = Path(__file__).parent
 ROOT = SITE.parent.parent
 GENERATED = {
-    "sdk-reference.md": SITE / "sdk-reference.md",
     "stylesheets/evalkit.css": SITE / "stylesheets" / "evalkit.css",
     "javascripts/outdated.js": SITE / "javascripts" / "outdated.js",
     "favicon.svg": ROOT / "ui" / "public" / "favicon.svg",
+    "brand/evalkit-wordmark-light.svg": ROOT / "docs" / "brand" / "evalkit-wordmark-light.svg",
+    "brand/evalkit-wordmark-dark.svg": ROOT / "docs" / "brand" / "evalkit-wordmark-dark.svg",
 }
 PLACEHOLDER = re.compile(r"\{\{(origin|version)\}\}")
 REPO_LINK = re.compile(r"\]\((?!https?:|mailto:|#)([^)]+)\)")
 REPO_BLOB = "https://github.com/inferedge-ai/evalkit/blob/"
 CONFIG_BASE = re.compile(r'(id="__config" type="application/json">\{[^<]*?"base": "[^"]*)"')
 GITHUB_ONLY = "On GitHub, `{{origin}}` in the docs stands for your server's URL.\n"
+README_WORDMARK = re.compile(r"<picture>.*?</picture>", re.S)
+SITE_WORDMARK = (
+    '<img alt="evalkit" src="brand/evalkit-wordmark-light.svg#gh-light-mode-only" height="40">'
+    '<img alt="evalkit" src="brand/evalkit-wordmark-dark.svg#gh-dark-mode-only" height="40">'
+)
 
 
 def _version() -> str:
@@ -34,6 +42,7 @@ def _site_link(target: str) -> str:
 
 def _home_page() -> str:
     readme = (ROOT / "README.md").read_text().replace(GITHUB_ONLY, "")
+    readme = README_WORDMARK.sub(SITE_WORDMARK, readme)
     return REPO_LINK.sub(lambda match: f"]({_site_link(match.group(1))})", readme)
 
 
@@ -41,12 +50,20 @@ def on_files(files: Files, config) -> Files:
     for name, source in GENERATED.items():
         files.append(File.generated(config, name, abs_src_path=str(source)))
     files.append(File.generated(config, "index.md", content=_home_page()))
+    files.append(
+        File.generated(
+            config,
+            "stylesheets/tokens.css",
+            content=render_site_tokens(ROOT / "ui" / "src" / "styles" / "tokens"),
+        )
+    )
     return files
 
 
 def on_page_markdown(markdown: str, page, config, files) -> str:
     if page.file.src_uri == "index.md":
         return markdown
+    markdown = anchor_rows(convert_tabs(markdown))
     values = {"origin": "http://localhost:8020", "version": _version()}
     return PLACEHOLDER.sub(lambda match: values[match.group(1)], markdown)
 

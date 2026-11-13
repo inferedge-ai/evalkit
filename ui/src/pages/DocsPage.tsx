@@ -1,12 +1,15 @@
-import { useId, useState } from "react";
-import type { ReactElement, ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
-import { Link, Navigate, useParams } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Highlight, themes } from "prism-react-renderer";
+import { Children, isValidElement, useEffect, useId, useState } from "react";
+import type { ComponentProps, ReactElement, ReactNode } from "react";
+import { ChevronDown, Moon, Sun } from "lucide-react";
+import { Link, Navigate, useLocation, useParams } from "react-router-dom";
+import type { ExtraProps } from "react-markdown";
+import { Markdown } from "@/components/widgets/Markdown";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { SignInLink } from "../auth/SignInLink";
+import { extensions } from "../extensions";
 import { ApiError } from "../lib/api";
 import { useApi } from "../lib/query";
 import {
@@ -16,68 +19,77 @@ import {
   fillTemplate,
   isDocTab,
 } from "../lib/docs";
+import { remarkDocMarkers, resolveDocImage } from "../lib/docMarkdown";
 import type { CliInfo } from "../lib/types";
-import { CopyButton } from "../lib/ui";
 import { useOptionalMe } from "../shell/capabilities";
+import { BrandLink } from "../shell/Shell";
 import { useTheme } from "../shell/theme";
-
-function Snippet({ code, language }: { code: string; language: string }) {
-  const { theme } = useTheme();
-  const base = theme === "dark" ? themes.nightOwl : themes.github;
-  return (
-    <div className="relative my-2">
-      <div className="absolute top-1 right-1">
-        <CopyButton text={code} />
-      </div>
-      <Highlight
-        code={code}
-        language={language}
-        theme={{
-          ...base,
-          plain: { ...base.plain, backgroundColor: "var(--muted)" },
-        }}
-      >
-        {({ className, style, tokens, getLineProps, getTokenProps }) => (
-          <pre
-            className={`${className} overflow-x-auto rounded-md p-3 pr-16 font-mono text-meta`}
-            style={style}
-          >
-            {tokens.map((line, i) => (
-              <div key={i} {...getLineProps({ line })}>
-                {line.map((token, key) => (
-                  <span key={key} {...getTokenProps({ token })} />
-                ))}
-              </div>
-            ))}
-          </pre>
-        )}
-      </Highlight>
-    </div>
-  );
-}
-
-type CodeProps = { className?: string; children?: ReactNode };
 
 function DocLink({ href, children }: { href?: string; children?: ReactNode }) {
   const route = docRoute(href);
   if (route) return <Link to={route}>{children}</Link>;
+  if (href?.startsWith("#")) return <Link to={href}>{children}</Link>;
   return <a href={href}>{children}</a>;
 }
 
-function Pre({ children }: { children?: ReactNode }) {
-  const child = children as ReactElement<CodeProps> | undefined;
-  const props = child?.props ?? {};
-  const code = String(props.children ?? "").replace(/\n$/, "");
-  const language = /language-(\w+)/.exec(props.className ?? "")?.[1] ?? "text";
-  return <Snippet code={code} language={language} />;
+function DocImage({
+  src,
+  alt,
+  node: _node,
+  ...props
+}: ComponentProps<"img"> & ExtraProps) {
+  return <img {...props} src={resolveDocImage(src)} alt={alt ?? ""} />;
 }
 
-function ScrollingTable({ children }: { children?: ReactNode }) {
-  return (
-    <div className="overflow-x-auto">
-      <table>{children}</table>
-    </div>
+function DocDiv({
+  node,
+  children,
+  ...props
+}: ComponentProps<"div"> & ExtraProps) {
+  if (!("data-doc-tabs" in props)) return <div {...props}>{children}</div>;
+  const labels = (node?.children ?? []).flatMap((child) =>
+    child.type === "element" ? [String(child.properties.dataDocTab ?? "")] : [],
   );
+  const panels = Children.toArray(children).filter(
+    isValidElement,
+  ) as ReactElement<{ children?: ReactNode }>[];
+  return (
+    <Tabs defaultValue={0} className="my-3">
+      <TabsList>
+        {labels.map((label, i) => (
+          <TabsTrigger key={i} value={i} className="px-3">
+            {label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {panels.map((panel, i) => (
+        <TabsContent key={i} value={i} className="text-[length:inherit]">
+          {panel.props.children}
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+}
+
+function useScrollToHash(tab: string | undefined) {
+  const { hash } = useLocation();
+  useEffect(() => {
+    const id = decodeURIComponent(hash.slice(1));
+    const target = id ? document.getElementById(id) : null;
+    if (!target) return;
+    const isRow = target.tagName === "TR";
+    target.scrollIntoView({ block: isRow ? "center" : "start" });
+    if (!isRow) return;
+    target.setAttribute("data-targeted", "");
+    const timer = window.setTimeout(
+      () => target.removeAttribute("data-targeted"),
+      2000,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      target.removeAttribute("data-targeted");
+    };
+  }, [hash, tab]);
 }
 
 function DocsMenu({ tab }: { tab: string }) {
@@ -90,12 +102,12 @@ function DocsMenu({ tab }: { tab: string }) {
       className="md:sticky md:top-4 md:w-44 md:shrink-0 md:self-start"
       aria-label="Docs"
     >
-      <button
-        type="button"
+      <Button
+        variant="outline"
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => setOpenOn(open ? null : tab)}
-        className="flex w-full items-center gap-2 rounded-md border bg-card px-3 py-2 text-left text-sm md:hidden"
+        className="h-9 w-full justify-start gap-2 bg-card px-3 text-left font-normal md:hidden"
       >
         <span className="text-muted-foreground">{current?.group}</span>
         <span aria-hidden className="text-muted-foreground">
@@ -108,7 +120,7 @@ function DocsMenu({ tab }: { tab: string }) {
           aria-hidden
           className={cn("size-4 transition-transform", open && "rotate-180")}
         />
-      </button>
+      </Button>
       <div
         id={listId}
         className={cn(
@@ -147,8 +159,37 @@ function DocsMenu({ tab }: { tab: string }) {
   );
 }
 
+function PublicDocsHeader() {
+  const location = useLocation();
+  const { theme, toggle } = useTheme();
+  const next = theme === "dark" ? "light" : "dark";
+  return (
+    <header className="mx-auto mb-6 flex max-w-6xl items-center gap-4">
+      <BrandLink to={extensions.landingPage ? "/" : "/docs"} />
+      <div className="ml-auto flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Switch to ${next} mode`}
+          title={`Switch to ${next} mode`}
+          onClick={toggle}
+        >
+          {theme === "dark" ? <Sun /> : <Moon />}
+        </Button>
+        <SignInLink
+          next={location.pathname + location.search}
+          className={buttonVariants({ size: "sm" })}
+        >
+          Sign in
+        </SignInLink>
+      </div>
+    </header>
+  );
+}
+
 export function DocsPage() {
   const { tab } = useParams();
+  useScrollToHash(tab);
   const me = useOptionalMe();
   const cli = useApi<CliInfo>("/cli");
   const error =
@@ -168,18 +209,17 @@ export function DocsPage() {
     <>
       {me && <PageHeader title="Docs" />}
       <div className="page">
+        {!me && <PublicDocsHeader />}
         <div className="mx-auto flex max-w-6xl flex-col gap-4 md:flex-row md:gap-10">
           <DocsMenu tab={tab} />
           <article className="min-w-0 flex-1">
             {error && <p className="text-ink-2">{error}</p>}
-            <div className="md-body docs-body mx-auto max-w-3xl text-lede">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{ pre: Pre, a: DocLink, table: ScrollingTable }}
-              >
-                {fillTemplate(body, values)}
-              </ReactMarkdown>
-            </div>
+            <Markdown
+              text={fillTemplate(body, values)}
+              className="mx-auto max-w-3xl"
+              remarkPlugins={[remarkDocMarkers]}
+              components={{ a: DocLink, div: DocDiv, img: DocImage }}
+            />
           </article>
         </div>
       </div>
