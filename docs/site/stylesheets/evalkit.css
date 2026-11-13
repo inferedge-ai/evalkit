@@ -90,32 +90,42 @@ body {
   padding: 0.4rem 0;
 }
 
-.ek-lockup {
-  font-family: var(--md-code-font-family);
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
+.ek-mark {
+  fill: #111827;
+  stroke: transparent;
 }
 
-.ek-infer {
-  color: var(--muted-foreground);
+.ek-name {
+  fill: #111827;
 }
 
-.ek-slash {
-  color: var(--primary);
+[data-md-color-scheme="slate"] .ek-mark {
+  fill: #1f2937;
+  stroke: #374151;
 }
 
-.ek-edge {
-  color: var(--foreground);
-  font-weight: 700;
+[data-md-color-scheme="slate"] .ek-name {
+  fill: #ffffff;
+}
+
+/* The lockup already says evalkit: hide the site name beside it in the drawer,
+   and in the header on wide screens, where Material shows the logo. */
+.md-nav--primary > .md-nav__title {
+  font-size: 0;
+}
+
+@media screen and (min-width: 76.25em) {
+  .md-header__topic:first-child {
+    visibility: hidden;
+  }
 }
 
 .md-header__topic:first-child {
   font-family: var(--md-code-font-family);
   font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--primary);
+  letter-spacing: -0.04em;
+  text-transform: lowercase;
+  color: var(--foreground);
 }
 
 .md-header__topic .md-ellipsis {
