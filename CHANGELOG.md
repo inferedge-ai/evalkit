@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **CLI** (Fixes): Fixed every `evalkit` command crashing with `No module
+  named 'bcrypt'` in a project that has uvicorn and SQLAlchemy but not the
+  server extra. The CLI now loads `serve`, `db upgrade`, `db rekey` and
+  `init-server` only when every package of `evalkit-py[server]` is
+  installed, and otherwise says to install the extra. `evalkit update` uses
+  the same check to decide whether to reinstall with `[server]`.
+
 - **Scorecard**: errored runs show in every scorecard (ENG-14621). A run is
   errored when it ended without completing with an answer: it has no `output`,
   and it either did not end `completed` or has no `answer`. An errored run

@@ -6,7 +6,6 @@ import shutil
 import time
 import webbrowser
 from datetime import UTC, datetime
-from importlib.util import find_spec
 from pathlib import Path
 
 import httpx2
@@ -29,6 +28,7 @@ from evalkit.cli.local_run import (
     credentials as local_credentials,
 )
 from evalkit.cli.runs_commands import register as register_runs
+from evalkit.cli.server_extra import has_server_extra
 from evalkit.cli.skill_targets import DEFAULT_TARGETS as DEFAULT_SKILL_TARGETS
 from evalkit.cli.skill_targets import INSTALL_MANIFEST
 from evalkit.cli.skill_targets import record as record_skill_target
@@ -60,7 +60,7 @@ from evalkit.store.base import GitRevision, Selection
 # `serve` and `db upgrade` need the `evalkit-py[server]` extra; the base install
 # is a thin HTTP client. The boundary is explicit here rather than hidden in
 # per-command imports.
-if find_spec("uvicorn") and find_spec("sqlalchemy"):
+if has_server_extra():
     from evalkit.cli import server_commands
 else:
     server_commands = None  # type: ignore[assignment]

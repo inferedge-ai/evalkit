@@ -3,7 +3,6 @@ import re
 import subprocess
 import sys
 from collections.abc import Callable
-from importlib.util import find_spec
 from pathlib import Path
 
 import typer
@@ -11,6 +10,7 @@ import typer
 from evalkit import version
 from evalkit.cli import skill_targets
 from evalkit.cli.client import ApiClient, ApiError
+from evalkit.cli.server_extra import has_server_extra
 
 PINNED = re.compile(r'"(evalkit-py(?:\[[^\]]*\])?)==([^"]+)"')
 VENDORED = re.compile(r"evalkit-[^\s\"']+\.whl")
@@ -64,7 +64,7 @@ def run_update(
     cwd: Path | None = None,
     skills: bool = True,
     targets_path: Path | None = None,
-    server_extra: bool = find_spec("uvicorn") is not None,
+    server_extra: bool = has_server_extra(),
 ) -> None:
     target = client.get("/api/cli").json()["version"]
     project = cwd or Path.cwd()
