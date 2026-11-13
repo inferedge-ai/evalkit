@@ -70,8 +70,10 @@ class PhoenixClient:
         page_traces: int,
         *,
         transport: httpx2.AsyncBaseTransport | None = None,
+        timeout: float = 120.0,
     ):
         self._url = url.rstrip("/")
+        self._timeout = timeout
         self._api_key = api_key
         self._page_traces = page_traces
         self._transport = transport
@@ -80,7 +82,7 @@ class PhoenixClient:
         return httpx2.AsyncClient(
             base_url=self._url,
             headers={"Authorization": f"Bearer {self._api_key}"} if self._api_key else {},
-            timeout=120,
+            timeout=self._timeout,
             transport=self._transport,
         )
 

@@ -12,7 +12,7 @@ from evalkit.client.blob import HttpBlobStore
 from evalkit.client.connection import Connection
 from evalkit.client.evaluators import HttpEvaluators
 from evalkit.client.server_evaluators import HttpServerEvaluators
-from evalkit.client.sessions import sessions_for
+from evalkit.client.sessions import build_session_reader
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.config import LocalConfig
 from evalkit.contracts.enums import ExperimentStatus
@@ -65,7 +65,7 @@ def _deps(
         harness_transport=harness_transport,
         custom_eval_transport=custom_eval_transport,
         progress=progress,
-        sessions=sessions_for(api, definition),
+        sessions=build_session_reader(api, definition),
         evaluation_concurrency=evaluation_concurrency,
         server_evaluators=HttpServerEvaluators(api),
         judge_api_key=judge_api_key,
@@ -227,7 +227,7 @@ async def check_local(
             credentials(local, conn).key_for("agent", definition.ref),
             blob_store,
             transport=transport,
-            sessions=sessions_for(api, definition),
+            sessions=build_session_reader(api, definition),
             agent_slug=slug(agent),
         )
     finally:

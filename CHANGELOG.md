@@ -31,13 +31,19 @@
   `TraceSourceClient` gains `check_project`.
 - `source` and `project` on `POST /api/agents/{agent}/sessions/import` and
   `POST /api/agents/{agent}/imports` (and `evalkit traces import
-  --source/--project`) are optional and default to the agent's.
+  --source/--project`) are optional and default to the agent's. A
+  single-session import that leaves both out (a pull from the agent's own
+  source) needs only permission to run the agent, not write access, and
+  waits at most 30 s for the store. A trace source that refuses its key when
+  the agent is saved or an experiment starts answers 400 naming
+  `evalkit trace-sources edit <name> --api-key-env`.
 - A session that holds only evalkit's `evalkit.run` span is now `unavailable`
   with a reason, on the collector path too, instead of `valid` with an empty
   trajectory. A run whose trajectory is partial or unavailable, or whose
   mapping read no LLM or tool steps, records why in the new
   `agent_runs.trajectory_note` (migration `0019`): in the experiment's runs,
   on the run page, in `RunSummary.trajectory_note` and on the progress line.
+  A refetch that finds the trajectory replaces the note.
   The session read returns `only_run_span` and `reason`.
 - An SDK run with no tracer provider whose task neither takes `metadata` nor
   returns a session id now fails at once with a message naming the fix,

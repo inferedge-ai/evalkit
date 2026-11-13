@@ -8,7 +8,7 @@ from evalkit.api.access import ActorDep, StoresDep, TenantStores
 from evalkit.api.deps import EndpointRuleDep, HolderDep
 from evalkit.api.experiments import task_holder
 from evalkit.api.trace_checks import resolve_import_source
-from evalkit.api.traces import agent_or_404, import_target, require_otel, require_write
+from evalkit.api.traces import agent_or_404, require_otel, require_write, resolve_import_target
 from evalkit.contracts.enums import TraceImportStatus
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.agents import AgentDefinition
@@ -109,7 +109,7 @@ async def start_import(
     await require_write(stores, actor, record)
     require_otel(record)
     mapping = await _session_mapping(stores.mappings, record)
-    name, project = import_target(record, body.source, body.project)
+    name, project = resolve_import_target(record, body.source, body.project)
     source = await resolve_import_source(stores, name, rule=rule)
     holder = task_holder(pod)
     view = await stores.imports.create(

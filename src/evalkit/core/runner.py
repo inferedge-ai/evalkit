@@ -79,7 +79,7 @@ from evalkit.core.server_evaluators import (
     needs_judge,
     resolve_location,
 )
-from evalkit.core.traces.poll import HARNESS_HINT, TASK_HINT, budget_for, poll_trajectory
+from evalkit.core.traces.poll import HARNESS_HINT, TASK_HINT, choose_poll_budget, poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
 from evalkit.core.trajectory import (
     RunMetrics,
@@ -443,7 +443,7 @@ async def _record_one(
                 f"agent {agent.name} takes its trajectory from traces but no session reader "
                 "is configured"
             )
-        budget = budget_for(agent.settings)
+        budget = choose_poll_budget(agent.settings)
         doc, status, driven.trajectory_note = await poll_trajectory(
             deps.sessions,
             exp.agent,
@@ -1046,15 +1046,15 @@ async def _refetch(
     if deps.sessions is None:
         raise ValueError("refetching trajectories needs a session reader")
     budget = (
-        budget_for(agent.settings)
+        choose_poll_budget(agent.settings)
         if agent.settings.trace_source is not None
-        else budget_for(agent.settings, exp.config.snapshot.trajectory_wait_seconds)
+        else choose_poll_budget(agent.settings, exp.config.snapshot.trajectory_wait_seconds)
     )
     refetched: set[int] = set()
     sessions = deps.sessions
 
     async def one(run: RunForScoring) -> None:
-        doc, status, _ = await poll_trajectory(
+        doc, status, note = await poll_trajectory(
             sessions,
             exp.agent,
             run.agent_run.harness_run_id,
@@ -1066,7 +1066,11 @@ async def _refetch(
         if doc is None:
             return
         trajectory = validate_trajectory(doc)
-        trajectory.extra = {**(trajectory.extra or {}), "trajectory_status": status}
+        trajectory.extra = {
+            **(trajectory.extra or {}),
+            "trajectory_status": status,
+            "trajectory_note": note or "",
+        }
         await store_trajectory(
             deps,
             agent.id,

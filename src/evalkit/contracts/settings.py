@@ -71,11 +71,6 @@ class AgentSettings(BaseModel):
             raise ValueError("trace_source and project go together: set both or neither")
         return self
 
-    def wait_seconds(self) -> int:
-        if self.trace_source is not None:
-            return self.import_wait_seconds
-        return self.trajectory_wait_seconds
-
     @field_validator("input_schema")
     @classmethod
     def _check_input_schema(cls, schema: dict | None) -> dict | None:

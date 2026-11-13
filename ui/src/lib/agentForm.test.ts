@@ -52,10 +52,12 @@ describe("agent form", () => {
       import_settle_seconds: 15,
       import_wait_seconds: 120,
     });
-    const atif = { ...ok, trajectory_source: "atif" as const };
-    expect(agentFormErrors(atif, "create")).toContain(
-      "Only an agent whose trajectories come from traces takes a trace source.",
-    );
+    const atif = { ...ok, trajectory_source: "atif" as const, project: "" };
+    expect(agentFormErrors(atif, "create")).toEqual([]);
+    expect(createAgentBody(atif).settings).toMatchObject({
+      trace_source: null,
+      project: null,
+    });
     const none = createAgentBody({ ...ok, trace_source: "" }).settings;
     expect(none).toMatchObject({ trace_source: null, project: null });
   });

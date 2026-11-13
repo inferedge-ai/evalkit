@@ -19,10 +19,14 @@ from evalkit.api.access import (
 )
 from evalkit.api.deps import ConfigDep, EndpointRuleDep
 from evalkit.api.experiments import slug_or_400
-from evalkit.api.session_pull import active_mapping, source_client
+from evalkit.api.session_pull import (
+    PULL_TIMEOUT_SECONDS,
+    build_source_client,
+    load_active_mapping,
+)
 from evalkit.api.trace_checks import resolve_import_source
 from evalkit.contracts.esf import MappingDocument
-from evalkit.core.access import can_write
+from evalkit.core.access import can_use_agent, can_write
 from evalkit.core.agents import AgentDefinition, UnknownAgent, explicit
 from evalkit.core.traces.presets import list_preset_names, read_preset
 from evalkit.core.traces.raw import RawSpan
@@ -171,7 +175,7 @@ class ImportRequest(BaseModel):
     session_id: str
 
 
-def import_target(
+def resolve_import_target(
     record: AgentDefinition, source: str | None, project: str | None
 ) -> tuple[str, str]:
     source = source or record.settings.trace_source
@@ -195,15 +199,19 @@ async def import_session(
     rule: EndpointRuleDep,
 ) -> dict:
     _, record = await agent_or_404(stores.agents, agent)
-    await require_write(stores, actor, record)
+    if body.source is None and body.project is None:
+        ws = await workspace_ref(stores, record.workspace)
+        require(can_use_agent(actor, ws), f"you cannot run {record.ref}")
+    else:
+        await require_write(stores, actor, record)
     require_otel(record)
-    name, project = import_target(record, body.source, body.project)
+    name, project = resolve_import_target(record, body.source, body.project)
     source = await resolve_import_source(stores, name, rule=rule)
     try:
         imported = await pull_session(
-            source_client(source, cfg.otel.import_page_traces),
+            build_source_client(source, cfg.otel.import_page_traces, PULL_TIMEOUT_SECONDS),
             stores.spans,
-            await active_mapping(stores.mappings, record.id),
+            await load_active_mapping(stores.mappings, record.id),
             agent_id=record.id,
             source_id=source.id,
             project=project,

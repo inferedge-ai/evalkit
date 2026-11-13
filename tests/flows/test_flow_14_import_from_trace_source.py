@@ -407,3 +407,25 @@ async def test_flow_14_server_puller_pulls_only_for_an_agent_with_a_source(httpx
     await stores.sources.archive("phx")
     with pytest.raises(SessionPullFailed, match="trace source phx not found"):
         await puller(AGENT, "sess-9")
+
+
+async def test_flow_14_anyone_who_may_run_the_agent_pulls_from_its_own_source(httpx2_mock, api):
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": [phoenix_trace(9)]}))
+    serve_spans(httpx2_mock)
+    assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200
+    alice = await login_as(api, "alice", "password")
+    own = await alice.post(f"/api/agents/{AGENT}/sessions/import", json={"session_id": "sess-9"})
+    assert own.status_code == 200, own.text
+    named = await alice.post(f"/api/agents/{AGENT}/sessions/import", json=body())
+    assert named.status_code == 403
+
+
+async def test_flow_14_a_refused_key_names_the_fix(httpx2_mock, api):
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(401))
+    refused = await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == (
+        "trace source phx refused its API key (401); an admin sets a new one with "
+        "evalkit trace-sources edit phx --api-key-env <VAR>"
+    )

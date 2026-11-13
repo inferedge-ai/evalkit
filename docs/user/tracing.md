@@ -229,11 +229,15 @@ evalkit agents edit myagent --trace-source phoenix --project myagent
   [SDK runs](sdk-runs.md#the-task). A harness's run id must be the session id
   in its store.
 - `evalkit.run` shows in your store as the root of each eval run's trace.
-- Waiting: evalkit pulls the session every `poll_interval_seconds` (5) until
-  no new span has arrived for `--import-settle` seconds (15), or gives up
-  after `--import-wait` seconds (120). Stores ingest late: a Langfuse span can
-  take 15 seconds to show. A run whose session is still filling in at the end
-  is `partial`, or `unavailable` without a root; raise `--import-wait`.
+- Waiting: evalkit pulls the session every 5 seconds (in an SDK run,
+  `run_experiment(poll_interval=...)`) until no new span has arrived for
+  `--import-settle` seconds (15), or gives up after `--import-wait` seconds
+  (120). Stores ingest spans late, and an agent's batch processor holds them
+  for up to 5 seconds. A run whose session is still filling in at the end is
+  `partial`, or `unavailable` without a root; raise `--import-wait`.
+- Running needs no write access: anyone who may run the agent can pull its
+  sessions from the agent's own trace source. Importing from another source
+  or project still needs write access.
 - Load on your store: each unsettled session costs one session read there
   every 5 seconds. With 4 runs at a time and fast tasks, expect about 10
   sessions settling at once, so about 2 session reads a second.

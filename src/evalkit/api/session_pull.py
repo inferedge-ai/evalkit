@@ -10,17 +10,22 @@ from evalkit.db.mappings import MappingStore
 from evalkit.db.spans import SpanStore
 from evalkit.db.trace_sources import ResolvedTraceSource, TraceSourceStore, UnknownTraceSource
 
+PULL_TIMEOUT_SECONDS = 30.0
 
-def source_client(source: ResolvedTraceSource, page_traces: int) -> TraceSourceClient:
+
+def build_source_client(
+    source: ResolvedTraceSource, page_traces: int, timeout: float = 120.0
+) -> TraceSourceClient:
     return client_for(
         source.provider,
         source.url,
         source.api_key.get_secret_value() if source.api_key else None,
         page_traces,
+        timeout=timeout,
     )
 
 
-async def active_mapping(mappings: MappingStore, agent_id: int) -> MappingDocument | None:
+async def load_active_mapping(mappings: MappingStore, agent_id: int) -> MappingDocument | None:
     active = await mappings.active(agent_id)
     return MappingDocument.model_validate(active.document) if active else None
 
@@ -48,9 +53,9 @@ class ServerSessionPuller:
         try:
             source = await self._sources.resolve(settings.trace_source)
             await pull_session(
-                source_client(source, self._page_traces),
+                build_source_client(source, self._page_traces, PULL_TIMEOUT_SECONDS),
                 self._spans,
-                await active_mapping(self._mappings, record.id),
+                await load_active_mapping(self._mappings, record.id),
                 agent_id=record.id,
                 source_id=source.id,
                 project=settings.project,

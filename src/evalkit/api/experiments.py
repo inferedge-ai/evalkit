@@ -282,13 +282,6 @@ async def create_experiment(
     )
     ensure_active(agent_ws)
     ensure_active(dataset_ws)
-    await check_trace_source(
-        stores,
-        agent.settings,
-        otel=agent.is_otel,
-        rule=rule,
-        page_traces=request.app.state.cfg.otel.import_page_traces,
-    )
     if dataset_ws.is_shared and agent_ws.is_shared:
         require(
             can_create_experiment(actor, dataset_ws),
@@ -311,6 +304,13 @@ async def create_experiment(
             status_code=400,
             detail="capabilities and holder are required for agents the server does not drive",
         )
+    await check_trace_source(
+        stores,
+        agent.settings,
+        otel=agent.is_otel,
+        rule=rule,
+        page_traces=request.app.state.cfg.otel.import_page_traces,
+    )
     providers = stores.providers
     judge = body.judge or await providers.default_judge()
     api_key: str | None = None
@@ -431,8 +431,11 @@ async def list_runs(exp_id: int, stores: StoresDep) -> list[dict]:
     rows = []
     for run in await stores.store.run_details(exp_id):
         if run.agent_run.trajectory_status in REFETCHABLE:
-            _, status = await stored_trajectory_doc(stores.blob, exp.agent_id, run.agent_run)
+            doc, status = await stored_trajectory_doc(stores.blob, exp.agent_id, run.agent_run)
             run.agent_run.trajectory_status = status
+            extra = (doc or {}).get("extra") or {}
+            if "trajectory_note" in extra:
+                run.agent_run.trajectory_note = extra["trajectory_note"] or None
         rows.append(run.model_dump(mode="json"))
     return rows
 

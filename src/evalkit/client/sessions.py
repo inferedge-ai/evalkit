@@ -1,3 +1,5 @@
+import httpx2
+
 from evalkit.client.api import ApiRequestError, AsyncApi, encode
 from evalkit.core.agents import AgentDefinition
 from evalkit.core.traces.session_import import SessionPullFailed, TraceSourceSessionReader
@@ -19,6 +21,9 @@ class HttpSessionReader:
         return SessionTrajectory.model_validate(resp.json())
 
 
+STORE_FAILURES = frozenset({502, 503, 504})
+
+
 class HttpSessionPuller:
     def __init__(self, api: AsyncApi):
         self._api = api
@@ -28,12 +33,14 @@ class HttpSessionPuller:
         try:
             await self._api.post(path, json={"session_id": session_id})
         except ApiRequestError as exc:
-            if exc.status != 502:
+            if exc.status not in STORE_FAILURES:
                 raise
             raise SessionPullFailed(exc.detail) from exc
+        except httpx2.TimeoutException as exc:
+            raise SessionPullFailed(f"pulling session {session_id} timed out: {exc}") from exc
 
 
-def sessions_for(api: AsyncApi, definition: AgentDefinition) -> SessionReader:
+def build_session_reader(api: AsyncApi, definition: AgentDefinition) -> SessionReader:
     reader = HttpSessionReader(api)
     if definition.settings.trace_source is None:
         return reader

@@ -284,7 +284,7 @@ async def test_flow_18_no_run_span_and_no_way_to_name_the_session_fails_at_once(
     assert "task blew up" in errors["case-2"]
 
 
-async def test_flow_18_a_task_that_returns_its_own_session_and_a_refetch(env):
+async def test_flow_18_a_task_that_returns_its_own_session(env):
     _, provider = env
     tracer = provider.get_tracer("agent")
     counter = iter(range(100))
@@ -299,10 +299,36 @@ async def test_flow_18_a_task_that_returns_its_own_session_and_a_refetch(env):
     result, _ = await run(provider, task)
     assert [r.trajectory_status for r in result.runs] == ["valid", "valid"]
     assert {r.session_id for r in result.runs} == {"own-0", "own-1"}
+
+
+async def test_flow_18_a_refetch_finds_late_spans_and_clears_the_note(env, phoenix):
+    srv, provider = env
+    fake, _ = phoenix
+    tracer = provider.get_tracer("agent")
+
+    def task(input: dict) -> str:
+        with tracer.start_as_current_span("llm", context=Context(), attributes=LLM_ATTRS):
+            pass
+        return "42"
+
+    result, _ = await run(provider, task)
+    assert {r.trajectory_status for r in result.runs} == {"unavailable"}
+    for summary in result.runs:
+        fake.add_harness_run(summary.session_id)
     again = await aevaluate_experiment(
         experiment_id=result.experiment_id, refetch_trajectories=True, progress=lambda line: None
     )
     assert [r.trajectory_status for r in again.runs] == ["valid", "valid"]
+    token = httpx2.post(
+        f"{srv.base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
+    ).json()["token"]
+    runs = httpx2.get(
+        f"{srv.base_url}/api/experiments/{result.experiment_id}/runs",
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    assert {
+        (r["agent_run"]["trajectory_status"], r["agent_run"]["trajectory_note"]) for r in runs
+    } == {("valid", None)}
 
 
 def test_flow_18_a_server_run_of_a_harness_agent_pulls_from_the_store(env):

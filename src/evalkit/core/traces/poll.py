@@ -23,7 +23,7 @@ class PollBudget(NamedTuple):
     origin: str
 
 
-def budget_for(settings: AgentSettings, override: int | None = None) -> PollBudget:
+def choose_poll_budget(settings: AgentSettings, override: int | None = None) -> PollBudget:
     if settings.trace_source is not None:
         return PollBudget(
             settings.import_wait_seconds if override is None else override,

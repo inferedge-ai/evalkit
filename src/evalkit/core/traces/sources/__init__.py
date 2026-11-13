@@ -13,7 +13,8 @@ def client_for(
     api_key: str | None,
     page_traces: int,
     transport: httpx2.AsyncBaseTransport | None = None,
+    timeout: float = 120.0,
 ) -> TraceSourceClient:
     match provider:
         case TraceProvider.PHOENIX:
-            return PhoenixClient(url, api_key, page_traces, transport=transport)
+            return PhoenixClient(url, api_key, page_traces, transport=transport, timeout=timeout)

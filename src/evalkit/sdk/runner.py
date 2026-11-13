@@ -22,7 +22,7 @@ from evalkit.client.api import ApiRequestError, AsyncApi, SyncApi, encode
 from evalkit.client.blob import HttpBlobStore
 from evalkit.client.evaluators import HttpEvaluators
 from evalkit.client.server_evaluators import HttpServerEvaluators
-from evalkit.client.sessions import sessions_for
+from evalkit.client.sessions import build_session_reader
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.client.summary import summary_lines
 from evalkit.client.sync import git_revision, resolve_dataset, sync_dataset
@@ -55,7 +55,7 @@ from evalkit.core.runner import (
 )
 from evalkit.core.traces.check import render_check
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE, TASK_SESSION_ATTRIBUTE
-from evalkit.core.traces.poll import PollBudget, budget_for, poll_trajectory
+from evalkit.core.traces.poll import PollBudget, choose_poll_budget, poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
 from evalkit.core.trajectory import TrajectoryView, backfill_step_costs, derive_metrics
 from evalkit.core.workspace import Reference, parse_reference, parse_slug, slug
@@ -526,7 +526,7 @@ async def _dry_run(
         evaluators=HttpEvaluators(api),
         credentials=_credentials(local, me),
         progress=progress,
-        sessions=sessions_for(api, definition),
+        sessions=build_session_reader(api, definition),
     )
     settings = definition.settings
     if settings.trace_source is not None:
@@ -624,7 +624,7 @@ async def arun_experiment(
         await _check_evaluator_names(evaluators, api, definition.workspace)
         dataset_ref = resolve_dataset(dataset, workspace, me)
         agent_ref = definition.reference
-        budget = budget_for(definition.settings, trajectory_wait_seconds)
+        budget = choose_poll_budget(definition.settings, trajectory_wait_seconds)
         provider = tracer_provider if tracer_provider is not None else trace.get_tracer_provider()
         on_disk = local.cases / dataset_ref.name
         own_dataset = dataset_ref.workspace == me and resume is None
@@ -704,7 +704,7 @@ async def arun_experiment(
             credentials=credentials,
             custom_eval_transport=custom_eval_transport,
             progress=progress,
-            sessions=sessions_for(api, definition),
+            sessions=build_session_reader(api, definition),
             python_evaluators=python_evaluators,
             evaluation_concurrency=evaluation_concurrency,
             server_evaluators=HttpServerEvaluators(api),
@@ -820,7 +820,7 @@ async def aevaluate_experiment(
             credentials=_credentials(local, me),
             custom_eval_transport=custom_eval_transport,
             progress=progress,
-            sessions=sessions_for(api, await HttpAgents(api).get(exp.agent)),
+            sessions=build_session_reader(api, await HttpAgents(api).get(exp.agent)),
             python_evaluators={e.name: e for e in evaluators},
             evaluation_concurrency=evaluation_concurrency,
             server_evaluators=HttpServerEvaluators(api),

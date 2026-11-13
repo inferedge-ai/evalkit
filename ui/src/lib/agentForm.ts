@@ -117,13 +117,10 @@ export function agentFormErrors(
   ) {
     errors.push("The span mapping is not a JSON object.");
   }
-  if (values.trace_source && values.trajectory_source !== "otel")
-    errors.push(
-      "Only an agent whose trajectories come from traces takes a trace source.",
-    );
-  if (values.trace_source && !values.project.trim())
+  const traced = values.trajectory_source === "otel" && values.trace_source;
+  if (traced && !values.project.trim())
     errors.push("A trace source needs the agent's project in it.");
-  const numeric = values.trace_source
+  const numeric = traced
     ? [...SETTING_FIELDS, ...IMPORT_FIELDS]
     : SETTING_FIELDS;
   for (const { key, label, min } of numeric) {
@@ -139,7 +136,8 @@ function settingsOf(values: AgentFormValues): Omit<AgentSettings, "provides"> {
   const numbers = {} as Record<NumericSetting, number>;
   for (const { key } of [...SETTING_FIELDS, ...IMPORT_FIELDS])
     numbers[key] = Number(values.settings[key]);
-  const source = values.trace_source || null;
+  const source =
+    values.trajectory_source === "otel" ? values.trace_source || null : null;
   return {
     ...numbers,
     trace_source: source,

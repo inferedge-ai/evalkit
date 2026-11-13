@@ -1,11 +1,12 @@
 import json
 
+import httpx2
 import pytest
 from respx import MockResponse
 
 from evalkit.client.api import ApiRequestError, AsyncApi
 from evalkit.client.oidc import static_auth
-from evalkit.client.sessions import HttpSessionPuller, HttpSessionReader, sessions_for
+from evalkit.client.sessions import HttpSessionPuller, HttpSessionReader, build_session_reader
 from evalkit.contracts.settings import AgentSettings
 from evalkit.core.agents import AgentDefinition
 from evalkit.core.traces.session_import import SessionPullFailed
@@ -62,7 +63,7 @@ async def test_a_trace_source_reader_pulls_then_reads(httpx2_mock):
         repo_url=None,
         settings=AgentSettings(trace_source="phx", project="ra"),
     )
-    result = await sessions_for(api, definition).trajectory("sdk@me", "s-1")
+    result = await build_session_reader(api, definition).trajectory("sdk@me", "s-1")
     assert result.settled and json.loads(pull.calls[0].request.content) == {"session_id": "s-1"}
     await api.aclose()
 
@@ -72,6 +73,12 @@ async def test_a_store_failure_is_retried_and_anything_else_raises(httpx2_mock):
     route.mock(return_value=MockResponse(502, json={"detail": "phx: refused"}))
     api = AsyncApi("http://srv", static_auth("tok"))
     with pytest.raises(SessionPullFailed, match="phx: refused"):
+        await HttpSessionPuller(api)("sdk@me", "s-1")
+    route.mock(return_value=MockResponse(504, json={"detail": "gateway timeout"}))
+    with pytest.raises(SessionPullFailed, match="gateway timeout"):
+        await HttpSessionPuller(api)("sdk@me", "s-1")
+    route.mock(side_effect=httpx2.ReadTimeout("slow"))
+    with pytest.raises(SessionPullFailed, match="timed out"):
         await HttpSessionPuller(api)("sdk@me", "s-1")
     route.mock(return_value=MockResponse(404, json={"detail": "trace source phx not found"}))
     with pytest.raises(ApiRequestError, match="trace source phx not found"):
