@@ -270,7 +270,7 @@ def run_loopback_flow(
     redirect_uri = f"http://127.0.0.1:{server.server_address[1]}/callback"
     verifier = generate_token(64)
     with OAuth2Client(
-        client_id=providers_oidc["client_id"],
+        client_id=providers_oidc["cli_client_id"],
         token_endpoint_auth_method="none",
         code_challenge_method="S256",
         transport=transport,
@@ -323,7 +323,7 @@ def run_device_flow(
         started_resp = http.post(
             endpoint,
             data={
-                "client_id": providers_oidc["client_id"],
+                "client_id": providers_oidc["cli_client_id"],
                 "scope": " ".join(providers_oidc["scopes"]),
                 **providers_oidc["authorize_params"],
             },
@@ -339,7 +339,7 @@ def run_device_flow(
                 data={
                     "grant_type": DEVICE_GRANT,
                     "device_code": started["device_code"],
-                    "client_id": providers_oidc["client_id"],
+                    "client_id": providers_oidc["cli_client_id"],
                 },
             )
             if resp.status_code == 200:
@@ -376,7 +376,7 @@ def login_from_tokens(url: str, providers_oidc: dict, tokens: dict) -> Connectio
         None,
         oidc=OidcLogin(
             issuer=providers_oidc["issuer"],
-            client_id=providers_oidc["client_id"],
+            client_id=providers_oidc["cli_client_id"],
             token_endpoint=providers_oidc["token_endpoint"],
             access_token=tokens["access_token"],
             refresh_token=tokens["refresh_token"],

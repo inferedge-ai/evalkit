@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- New optional setting `auth.oidc.cli_client_id`: an OAuth client of
+  `evalkit login`'s own. When it's set, `evalkit login` uses it for the
+  browser sign-in, the device flow (`--no-browser`), the code exchange and
+  every later refresh. The server accepts an ID token issued to either client
+  when someone first signs in. `GET /api/auth/providers` returns it in
+  `oidc.cli_client_id`, or `client_id` when it isn't set, so servers that
+  don't set it work as before. Set it when the identity provider skips the
+  approval step for evalkit's web client; [Single sign-on](docs/user/sso.md)
+  says why and how to register the CLI's client. A CLI logged in before the
+  change keeps refreshing with the client it signed in with until it logs in
+  again.
 - New `GET /api/mapping-presets` returns the span mapping presets the package
   ships, as `[{"name", "document"}]`, to any signed-in user. In the web UI, the
   new-agent and edit-agent forms have a preset picker above "Span mapping": a

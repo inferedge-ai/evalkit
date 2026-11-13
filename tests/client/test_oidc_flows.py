@@ -18,6 +18,8 @@ from evalkit.client.oidc import (
 )
 from tests.identity import FakeIdp
 
+CLI_CLIENT = "evalkit-cli"
+
 
 def providers_for(idp: FakeIdp, *, device: bool = True) -> dict:
     disc = idp.discovery()
@@ -25,6 +27,7 @@ def providers_for(idp: FakeIdp, *, device: bool = True) -> dict:
         "name": "Fake",
         "issuer": idp.issuer,
         "client_id": idp.client_id,
+        "cli_client_id": CLI_CLIENT,
         "audience": idp.audience,
         "scopes": ["openid", "profile", "email", "offline_access"],
         "authorize_params": {"resource": idp.audience},
@@ -66,8 +69,10 @@ def test_loopback_flow_sends_pkce_and_the_authorize_params():
     tokens = run_loopback_flow(providers_for(idp), spy, transport=idp.transport())
     query = parse_qs(urlsplit(seen[0]).query)
     assert query["code_challenge_method"] == ["S256"] and query["resource"] == [idp.audience]
+    assert query["client_id"] == [CLI_CLIENT]
     assert query["redirect_uri"][0].startswith("http://127.0.0.1:")
-    assert jwt.decode(tokens["id_token"], options={"verify_signature": False})["sub"] == "sub-1"
+    claims = jwt.decode(tokens["id_token"], options={"verify_signature": False})
+    assert claims["sub"] == "sub-1" and claims["aud"] == CLI_CLIENT
     assert "refresh_token" in tokens
 
 
@@ -159,7 +164,8 @@ def test_device_flow_polls_until_the_person_finishes():
     )
     assert lines == [f"open {idp.issuer}/device/verify and enter ABCD-EFGH"]
     assert len(sleeps) == 2
-    assert jwt.decode(tokens["id_token"], options={"verify_signature": False})["sub"] == "sub-2"
+    claims = jwt.decode(tokens["id_token"], options={"verify_signature": False})
+    assert claims["sub"] == "sub-2" and claims["aud"] == CLI_CLIENT
 
 
 def test_device_flow_needs_the_endpoint():
@@ -198,6 +204,7 @@ def test_login_from_tokens_builds_the_connection():
     assert conn.oidc is not None
     assert conn.oidc.refresh_token == tokens["refresh_token"]
     assert conn.oidc.token_endpoint == f"{idp.issuer}/token"
+    assert conn.oidc.client_id == CLI_CLIENT
     assert conn.token is None
 
 

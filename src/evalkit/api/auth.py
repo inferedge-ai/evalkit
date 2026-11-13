@@ -257,6 +257,7 @@ async def providers(request: Request, response: Response) -> dict:
         "name": oidc.cfg.name,
         "issuer": oidc.cfg.issuer,
         "client_id": oidc.cfg.client_id,
+        "cli_client_id": oidc.cfg.resolve_cli_client_id(),
         "audience": oidc.cfg.audience,
         "scopes": oidc.cfg.scopes,
         "required_scopes": oidc.cfg.required_scopes,

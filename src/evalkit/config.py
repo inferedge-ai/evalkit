@@ -71,6 +71,7 @@ class AdminClaimConfig(ConfigModel):
 class OidcConfig(ConfigModel):
     issuer: str
     client_id: str
+    cli_client_id: str | None = None
     audience: str
     name: str
     scopes: list[str] = ["openid", "profile", "email", "offline_access"]
@@ -100,6 +101,9 @@ class OidcConfig(ConfigModel):
     @classmethod
     def _issuer_has_no_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
+
+    def resolve_cli_client_id(self) -> str:
+        return self.cli_client_id or self.client_id
 
 
 class AuthConfig(ConfigModel):

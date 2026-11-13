@@ -311,6 +311,14 @@ def test_oidc_config_defaults():
     assert cfg.auth.password_login == "admin"
 
 
+def test_oidc_cli_client_defaults_to_the_web_client():
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": OIDC}})
+    assert cfg.auth.oidc.resolve_cli_client_id() == "evalkit-ui"
+    own = {**OIDC, "cli_client_id": "evalkit-cli"}
+    cfg = Config.model_validate({**OIDC_BASE, "auth": {"oidc": own}})
+    assert cfg.auth.oidc.resolve_cli_client_id() == "evalkit-cli"
+
+
 def test_oidc_scopes_must_include_openid():
     with pytest.raises(ValidationError, match="must include openid"):
         Config.model_validate({**OIDC_BASE, "auth": {"oidc": {**OIDC, "scopes": ["email"]}}})

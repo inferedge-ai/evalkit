@@ -12,8 +12,8 @@ who turns SSO on.
 
 | Piece | At the IdP | Standard |
 | --- | --- | --- |
-| The web UI and the CLI | One public client (no secret) | Authorization code with PKCE, RFC 6749 §4.1 and RFC 7636; refresh, RFC 6749 §6 |
-| The CLI on a machine without a browser | The same client | Device authorization grant, RFC 8628 |
+| The web UI and the CLI | One public client (no secret), or one each | Authorization code with PKCE, RFC 6749 §4.1 and RFC 7636; refresh, RFC 6749 §6 |
+| The CLI on a machine without a browser | The CLI's client | Device authorization grant, RFC 8628 |
 | Evalkit's API | An API or resource that access tokens name in `aud` | JWT access tokens, RFC 9068 |
 | A CI pipeline | One machine client per pipeline, with a secret | Client credentials, RFC 6749 §4.4 |
 | Discovery | `<issuer>/.well-known/openid-configuration` | OpenID Connect Discovery 1.0 |
@@ -47,6 +47,28 @@ single-page or native, no client secret. Redirect URIs:
 Scopes to allow: `openid`, `profile`, `email`, `offline_access` (or the IdP's
 name for refresh tokens). PKCE S256 on. Refresh token rotation on. Copy the
 client id into `auth.oidc.client_id`.
+
+### A separate client for the CLI
+
+Register the CLI as a client of its own when the IdP skips the approval
+step for evalkit's web client: a first-party or trusted app, or consent
+granted once for everyone. On one shared client, any program on a person's
+computer can start evalkit's sign-in with its own `127.0.0.1` redirect. The
+person sees no approval step, at most "Continue as ‹email›", and one click
+sends the program a code for their tokens (RFC 8252 §8.6).
+
+- **Give the CLI its own registration:** public, native, no client secret,
+  with PKCE S256, authorization code and refresh tokens (and the device
+  grant, for `evalkit login --no-browser`).
+- **Redirect URI:** `http://127.0.0.1/callback`, with any port.
+- **Approval step:** leave it on, so the person sees the CLI asking and
+  where it will send them.
+- **Config:** copy its client id into `auth.oidc.cli_client_id`.
+- **The web client:** remove the `127.0.0.1` redirect from it.
+
+`evalkit login` then signs in and refreshes with `cli_client_id`. The server
+accepts an ID token issued to either client when someone first signs in.
+Leave `cli_client_id` unset to keep one shared client.
 
 ## Registering the audience
 
@@ -84,6 +106,7 @@ In the server's `config.yaml`:
       oidc:
         issuer: https://id.example.com
         client_id: 0oa1b2c3d4e5f6g7h8
+        cli_client_id: null         # evalkit login's own client; defaults to client_id
         audience: https://evalkit.example.com
         name: Okta                  # the login button's label
         scopes: [openid, profile, email, offline_access]
