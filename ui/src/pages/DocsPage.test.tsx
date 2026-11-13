@@ -40,6 +40,16 @@ function openDocs(path: string) {
   );
 }
 
+test("a docs command that wraps onto a second line keeps its shell variables as written", async () => {
+  openDocs("/docs/ci-sync");
+  await screen.findByText("Sync cases from CI", { selector: "h1" });
+  const login = [...document.querySelectorAll("article p > code")].find((c) =>
+    c.textContent?.includes("evalkit login"),
+  );
+  expect(login?.textContent).toContain('"$EVALKIT_SERVER_URL"');
+  expect(login?.textContent).not.toContain("\\$");
+});
+
 // The docs pages are long; whole-document role queries take minutes in jsdom.
 test("on a phone the docs menu folds under the page's name and folds again after a pick", async () => {
   openDocs("/docs/mcp");
