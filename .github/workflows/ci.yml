@@ -61,7 +61,7 @@ jobs:
             exit 0
           fi
           changed() { git diff --name-only "$BASE_SHA" HEAD; }
-          if changed | grep -qE '^(src/|tests/|scripts/|contracts/|docs/|skills/|\.github/workflows/ci\.yml$|ui/src/lib/docs\.ts$|mkdocs\.yml$|pyproject\.toml$|uv\.lock$|hatch_build\.py$|\.python-version$|README\.md$)'; then
+          if changed | grep -qE '^(src/|tests/|scripts/|contracts/|docs/|skills/|\.github/workflows/ci\.yml$|ui/src/lib/docs\.ts$|ui/src/styles/tokens/|mkdocs\.yml$|pyproject\.toml$|uv\.lock$|hatch_build\.py$|\.python-version$|README\.md$)'; then
             echo "needs_py_ci=true" >> "$GITHUB_OUTPUT"
           else
             echo "needs_py_ci=false" >> "$GITHUB_OUTPUT"

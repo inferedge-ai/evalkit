@@ -73,15 +73,6 @@ renderers:
 - **Heading links.** Headings get the ids MkDocs makes: `## The CLI, as a
   global tool` is `#the-cli-as-a-global-tool`. Link as `install.md#...`, or
   `#...` on the same page. Tab labels have no id.
-- **Admonitions.** Write `!!! note` or `!!! note "Custom title"`, then the
-  body indented by four spaces. The body can hold paragraphs, lists, links
-  and fenced code. Types: `note`, `info`, `tip`, `warning` and `danger`,
-  plus Material's other names (`abstract`, `summary`, `tldr`, `todo`,
-  `question`, `help`, `faq`, `example`, `quote`, `cite` look like `info`;
-  `hint`, `important`, `success`, `check`, `done` like `tip`; `caution`,
-  `attention` like `warning`; `error`, `failure`, `fail`, `missing`, `bug`
-  like `danger`). Any other type looks like `note`. Without a title the box
-  is titled after its type; `""` gives no title.
 - **Images.** Put them in `docs/user/images/` and write
   `![alt text](images/<file>.png)`. `evalkit skills install` leaves the folder
   out of the copy it makes for coding agents.

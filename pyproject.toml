@@ -100,4 +100,3 @@ packages = ["src/evalkit"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "contracts" = "evalkit/bundled/contracts"
-"docs/user" = "evalkit/bundled/docs"

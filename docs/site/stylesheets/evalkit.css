@@ -19,14 +19,7 @@
 
 [data-md-color-scheme="default"],
 [data-md-color-scheme="slate"] {
-  --ek-brand: var(--primary);
   --ek-brand-hover: color-mix(in oklab, var(--primary) 80%, var(--foreground));
-  --ek-surface: var(--card);
-  --ek-canvas: var(--background);
-  --ek-fill: var(--muted);
-  --ek-line: var(--border);
-  --ek-ink: var(--foreground);
-  --ek-ink-3: var(--muted-foreground);
   --md-hue: 220;
 
   --md-primary-fg-color: var(--card);
@@ -51,8 +44,6 @@
   --md-code-hl-color: color-mix(in oklab, var(--primary) 15%, transparent);
   --md-typeset-table-color: var(--border);
   --md-typeset-table-color--light: color-mix(in oklab, var(--border) 50%, transparent);
-  --md-admonition-bg-color: var(--card);
-  --md-admonition-fg-color: var(--foreground);
   --md-footer-bg-color: var(--background);
   --md-footer-bg-color--dark: var(--background);
   --md-footer-fg-color: var(--ek-ink-2);
@@ -469,33 +460,18 @@ tr:has(.ek-row-anchor:target),
   background-color: var(--background);
 }
 
-.md-typeset .tabbed-set > input:focus-visible ~ .tabbed-labels > label:is(:focus-visible) {
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(1):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(1),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(2):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(2),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(3):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(3),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(4):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(4),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(5):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(5),
+[data-md-color-scheme] .md-typeset .tabbed-set > input:nth-child(6):is(:focus-visible, .focus-visible) ~ .tabbed-labels > :nth-child(6) {
+  border-color: var(--ring);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 50%, transparent);
 }
 
 .md-typeset .tabbed-content {
   padding-top: 0.25rem;
-}
-
-/* Admonitions: a card with a hairline; the type colour stays on the icon and the left edge. */
-.md-typeset :is(.admonition, details) {
-  border: 1px solid var(--border);
-  border-left-width: 0.2rem;
-  border-radius: var(--ek-radius-md);
-  background-color: var(--card);
-  box-shadow: none;
-  font-size: 0.7rem;
-}
-
-.md-typeset :is(.admonition, details)[class] {
-  border-top-color: var(--border);
-  border-right-color: var(--border);
-  border-bottom-color: var(--border);
-}
-
-.md-typeset :is(.admonition-title, summary) {
-  color: var(--foreground);
-  font-weight: 600;
 }
 
 /* Images: never wider than the column, the UI's radius and hairline. */
@@ -551,96 +527,4 @@ tr:has(.ek-row-anchor:target),
 
 .doc-signature {
   font-family: var(--md-code-font-family);
-}
-
-/* Admonition kinds use the web UI Admonition's colours: brand, ok, warn, destructive. */
-.md-typeset .admonition.note,
-.md-typeset .admonition.info,
-.md-typeset .admonition.todo,
-.md-typeset .admonition.abstract,
-.md-typeset .admonition.summary,
-.md-typeset .admonition.tldr,
-.md-typeset .admonition.question,
-.md-typeset .admonition.help,
-.md-typeset .admonition.faq,
-.md-typeset .admonition.example,
-.md-typeset .admonition.quote,
-.md-typeset .admonition.cite {
-  border-left-color: var(--primary);
-}
-
-.md-typeset .admonition.note > .admonition-title::before,
-.md-typeset .admonition.info > .admonition-title::before,
-.md-typeset .admonition.todo > .admonition-title::before,
-.md-typeset .admonition.abstract > .admonition-title::before,
-.md-typeset .admonition.summary > .admonition-title::before,
-.md-typeset .admonition.tldr > .admonition-title::before,
-.md-typeset .admonition.question > .admonition-title::before,
-.md-typeset .admonition.help > .admonition-title::before,
-.md-typeset .admonition.faq > .admonition-title::before,
-.md-typeset .admonition.example > .admonition-title::before,
-.md-typeset .admonition.quote > .admonition-title::before,
-.md-typeset .admonition.cite > .admonition-title::before {
-  background-color: var(--primary);
-}
-
-.md-typeset .admonition.tip,
-.md-typeset .admonition.hint,
-.md-typeset .admonition.important,
-.md-typeset .admonition.success,
-.md-typeset .admonition.check,
-.md-typeset .admonition.done {
-  border-left-color: var(--color-ok);
-}
-
-.md-typeset .admonition.tip > .admonition-title::before,
-.md-typeset .admonition.hint > .admonition-title::before,
-.md-typeset .admonition.important > .admonition-title::before,
-.md-typeset .admonition.success > .admonition-title::before,
-.md-typeset .admonition.check > .admonition-title::before,
-.md-typeset .admonition.done > .admonition-title::before {
-  background-color: var(--color-ok);
-}
-
-.md-typeset .admonition.warning,
-.md-typeset .admonition.caution,
-.md-typeset .admonition.attention {
-  border-left-color: var(--color-warn);
-}
-
-.md-typeset .admonition.warning > .admonition-title::before,
-.md-typeset .admonition.caution > .admonition-title::before,
-.md-typeset .admonition.attention > .admonition-title::before {
-  background-color: var(--color-warn);
-}
-
-.md-typeset .admonition.danger,
-.md-typeset .admonition.error,
-.md-typeset .admonition.failure,
-.md-typeset .admonition.fail,
-.md-typeset .admonition.missing,
-.md-typeset .admonition.bug {
-  border-left-color: var(--destructive);
-}
-
-.md-typeset .admonition.danger > .admonition-title::before,
-.md-typeset .admonition.error > .admonition-title::before,
-.md-typeset .admonition.failure > .admonition-title::before,
-.md-typeset .admonition.fail > .admonition-title::before,
-.md-typeset .admonition.missing > .admonition-title::before,
-.md-typeset .admonition.bug > .admonition-title::before {
-  background-color: var(--destructive);
-}
-
-.md-typeset .admonition[class] > .admonition-title {
-  background-color: transparent;
-  margin-bottom: 0;
-}
-
-.md-typeset .admonition > :not(.admonition-title) {
-  margin-left: 1.4rem;
-}
-
-.md-typeset .admonition > .admonition-title + * {
-  margin-top: 0.3em;
 }

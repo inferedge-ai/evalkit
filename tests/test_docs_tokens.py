@@ -11,16 +11,6 @@ _spec.loader.exec_module(tokens)
 TOKENS_DIR = ROOT / "ui" / "src" / "styles" / "tokens"
 
 
-def test_site_tokens_carry_the_ui_tokens_for_both_schemes():
-    css = tokens.render_site_tokens(TOKENS_DIR)
-    light, dark = css.split(tokens.DARK_SCHEME)
-    assert "--primary: oklch(0.5299 0.1627 260.34);" in light
-    assert "--background: var(--color-white);" in light
-    assert "--color-gray-900: oklch(21% 0.034 264.665);" in light
-    assert "--primary: oklch(0.7526 0.1278 258.16);" in dark
-    assert "--background: var(--color-gray-950);" in dark
-
-
 def test_every_tailwind_colour_the_tokens_use_is_defined():
     css = tokens.render_site_tokens(TOKENS_DIR)
     used = set(re.findall(r"var\((--color-[\w-]+)\)", css))
@@ -42,10 +32,3 @@ def test_every_declared_token_reaches_the_site():
             body = source[start : source.index("\n}", start)]
             for prop in re.findall(r"^\s*(--[\w-]+)\s*:", body, flags=re.M):
                 assert f"  {prop}:" in block, (name, selector, prop)
-
-
-def test_site_tokens_carry_the_ui_status_colours():
-    light, dark = tokens.render_site_tokens(TOKENS_DIR).split(tokens.DARK_SCHEME)
-    for role in tokens.THEME_ROLES:
-        assert f"  {role}:" in light
-        assert f"  {role}:" in dark

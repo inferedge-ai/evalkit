@@ -4,8 +4,6 @@ from pathlib import Path
 TOKEN_FILES = ("semantic.css", "brand.css")
 COMMENT = re.compile(r"/\*.*?\*/", re.S)
 BLOCK = re.compile(r"(:root|\.dark)\s*\{(.*?)\}", re.S)
-THEME_ROLES = ("--color-ok", "--color-warn")
-THEME_BLOCK = re.compile(r"(@theme|\.dark)\s*\{(.*?)\n\}", re.S)
 DARK_SCHEME = '[data-md-color-scheme="slate"]'
 
 # Tailwind v4's gray and white, which the UI tokens reference; a test checks them
@@ -37,21 +35,8 @@ def read_token_blocks(tokens_dir: Path) -> dict[str, list[str]]:
     return blocks
 
 
-def read_theme_roles(theme_css: Path) -> dict[str, list[str]]:
-    roles: dict[str, list[str]] = {":root": [], ".dark": []}
-    source = COMMENT.sub("", theme_css.read_text())
-    for selector, body in THEME_BLOCK.findall(source):
-        for line in body.split(";"):
-            declaration = " ".join(line.split())
-            if declaration.split(":")[0] in THEME_ROLES:
-                roles[":root" if selector == "@theme" else ".dark"].append(declaration)
-    return roles
-
-
 def render_site_tokens(tokens_dir: Path) -> str:
     blocks = read_token_blocks(tokens_dir)
-    for selector, lines in read_theme_roles(tokens_dir.parent.parent / "theme.css").items():
-        blocks[selector].extend(lines)
     palette = [f"{name}: {value}" for name, value in TAILWIND_COLORS.items()]
     light = "".join(f"  {line};\n" for line in palette + blocks[":root"])
     dark = "".join(f"  {line};\n" for line in blocks[".dark"])
