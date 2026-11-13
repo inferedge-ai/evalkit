@@ -49,6 +49,8 @@
     
       <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
+      <link rel="stylesheet" href="../stylesheets/tokens.css">
+    
       <link rel="stylesheet" href="../stylesheets/evalkit.css">
     
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
@@ -965,87 +967,103 @@
 </thead>
 <tbody>
 <tr>
-<td>Case</td>
+<td><span id="case" class="ek-row-anchor"></span> Case</td>
 <td>One eval question, written in YAML: the input, the rubrics a right answer meets, and the checks to run.</td>
 </tr>
 <tr>
-<td>Dataset</td>
+<td><span id="dataset" class="ek-row-anchor"></span> Dataset</td>
 <td>A directory of cases, run and tracked together. The directory name is the dataset name, and subfolders become tags you can run alone.</td>
 </tr>
 <tr>
-<td>Sync</td>
+<td><span id="sync" class="ek-row-anchor"></span> Sync</td>
 <td>Copying a dataset directory to the server. Runs do it for you.</td>
 </tr>
 <tr>
-<td>Workspace</td>
+<td><span id="workspace" class="ek-row-anchor"></span> Workspace</td>
 <td>Where datasets, agents and experiments live: your own (named after you), or a shared one such as <code>dev</code>. Every user can read every workspace; only the owner changes a personal one, and admins and writers change a shared one.</td>
 </tr>
 <tr>
-<td>Reference</td>
+<td><span id="hosted-evalkit" class="ek-row-anchor"></span> Hosted evalkit</td>
+<td>The evalkit server InferEdge runs at <code>https://evalkit.inferedge.com</code>, open to any organisation. <code>evalkit login</code> uses it unless you pass <code>--url</code>.</td>
+</tr>
+<tr>
+<td><span id="reference" class="ek-row-anchor"></span> Reference</td>
 <td><code>name@workspace</code>, for example <code>acme@dev</code>. A bare name means your own workspace.</td>
 </tr>
 <tr>
-<td>Agent</td>
+<td><span id="agent" class="ek-row-anchor"></span> Agent</td>
 <td>Your agent, registered once on the server. A code-driven agent is run by your own code; this is the usual way to start.</td>
 </tr>
 <tr>
-<td>Task</td>
+<td><span id="task" class="ek-row-anchor"></span> Task</td>
 <td>The function <code>run_experiment</code> calls once per case. It calls your agent and returns the answer.</td>
 </tr>
 <tr>
-<td>Experiment</td>
+<td><span id="experiment" class="ek-row-anchor"></span> Experiment</td>
 <td>One run of a dataset against an agent.</td>
 </tr>
 <tr>
-<td>Run</td>
+<td><span id="run" class="ek-row-anchor"></span> Run</td>
 <td>One case answered once.</td>
 </tr>
 <tr>
-<td>Single sign-on</td>
+<td><span id="app-run" class="ek-row-anchor"></span> App run</td>
+<td>A run of your agent outside any experiment: production, staging, or you trying it by hand. Its traces show on the Runs page.</td>
+</tr>
+<tr>
+<td><span id="single-sign-on" class="ek-row-anchor"></span> Single sign-on</td>
 <td>Signing in through your organisation's identity provider. The first sign-in creates your evalkit user. See <a href="../sso/">Single sign-on</a>.</td>
 </tr>
 <tr>
-<td>Subject</td>
+<td><span id="subject" class="ek-row-anchor"></span> Subject</td>
 <td>The stable id your identity provider assigns you; evalkit keys your user on it, not on your email.</td>
 </tr>
 <tr>
-<td>Machine user</td>
+<td><span id="machine-user" class="ek-row-anchor"></span> Machine user</td>
 <td>A user bound to a machine client at the identity provider, for CI. No password, no browser. <code>evalkit users add &lt;name&gt; --subject &lt;sub&gt;</code>.</td>
 </tr>
 <tr>
-<td>Trace, span, session</td>
+<td><span id="trace-span-session" class="ek-row-anchor"></span> Trace, span, session</td>
 <td>What your agent records as it works: one span per model call or tool call. One run is one session.</td>
 </tr>
 <tr>
-<td>Mapping</td>
+<td><span id="trace-source" class="ek-row-anchor"></span> Trace source</td>
+<td>A third-party trace store, such as Phoenix, that an admin connects to import past traces.</td>
+</tr>
+<tr>
+<td><span id="mapping" class="ek-row-anchor"></span> Mapping</td>
 <td>Which span attribute holds the model, the messages, the tokens and each tool call.</td>
 </tr>
 <tr>
-<td>Trajectory</td>
+<td><span id="preset" class="ek-row-anchor"></span> Preset</td>
+<td>A span mapping that ships with evalkit for a common framework or span convention, such as <code>gen_ai</code> or <code>crewai</code>. List them with <code>evalkit traces mapping presets</code>.</td>
+</tr>
+<tr>
+<td><span id="trajectory" class="ek-row-anchor"></span> Trajectory</td>
 <td>The step-by-step record of a run that evalkit builds from the spans.</td>
 </tr>
 <tr>
-<td>Judge</td>
+<td><span id="judge" class="ek-row-anchor"></span> Judge</td>
 <td>The LLM that grades an answer against the case's rubrics. By default it runs on the evalkit server, served by an LLM provider configured there; you can bring your own key instead.</td>
 </tr>
 <tr>
-<td>Evaluator</td>
+<td><span id="evaluator" class="ek-row-anchor"></span> Evaluator</td>
 <td>One scoring check, for example the rubric check or "did the agent call this tool".</td>
 </tr>
 <tr>
-<td>Scorecard</td>
+<td><span id="scorecard" class="ek-row-anchor"></span> Scorecard</td>
 <td>The table of scores for an experiment, per case and per bucket (content, trajectory, presentation, efficiency, custom). <a href="../case-schema/#evaluators">Case schema</a> maps each bucket to its YAML key, e.g. presentation → <code>evaluators.output.presentation_judge</code>.</td>
 </tr>
 <tr>
-<td>Unreviewed</td>
+<td><span id="unreviewed" class="ek-row-anchor"></span> Unreviewed</td>
 <td>A case in a shared dataset with no review decision at its current content. It runs like any other case; review decides promotion.</td>
 </tr>
 <tr>
-<td>Promotion</td>
+<td><span id="promotion" class="ek-row-anchor"></span> Promotion</td>
 <td>An admin links a shared workspace to a target (<code>evalkit workspaces promote-to dev prod</code>). Approving a case in <code>dev</code> adds it, approved, to the same-named dataset in <code>prod</code>. Datasets in <code>prod</code> are fed only that way.</td>
 </tr>
 <tr>
-<td><code>evalkit.yaml</code></td>
+<td><span id="evalkit-yaml" class="ek-row-anchor"></span> <code>evalkit.yaml</code></td>
 <td>The optional file in your repo that says where your cases are and which environment variables hold API keys. Without it, cases are read from <code>evalkit/cases/&lt;dataset&gt;/</code> and fixtures from <code>evalkit/fixtures/</code>.</td>
 </tr>
 </tbody>
