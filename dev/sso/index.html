@@ -576,6 +576,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Registering the public client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-separate-client-for-the-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A separate client for the CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1148,6 +1165,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Registering the public client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a-separate-client-for-the-cli" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A separate client for the CLI
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1295,12 +1329,12 @@ who turns SSO on.</p>
 <tbody>
 <tr>
 <td>The web UI and the CLI</td>
-<td>One public client (no secret)</td>
+<td>One public client (no secret), or one each</td>
 <td>Authorization code with PKCE, RFC 6749 §4.1 and RFC 7636; refresh, RFC 6749 §6</td>
 </tr>
 <tr>
 <td>The CLI on a machine without a browser</td>
-<td>The same client</td>
+<td>The CLI's client</td>
 <td>Device authorization grant, RFC 8628</td>
 </tr>
 <tr>
@@ -1380,6 +1414,16 @@ single-page or native, no client secret. Redirect URIs:</p>
 <p>Scopes to allow: <code>openid</code>, <code>profile</code>, <code>email</code>, <code>offline_access</code> (or the IdP's
 name for refresh tokens). PKCE S256 on. Refresh token rotation on. Copy the
 client id into <code>auth.oidc.client_id</code>.</p>
+<h3 id="a-separate-client-for-the-cli">A separate client for the CLI<a class="headerlink" href="#a-separate-client-for-the-cli" title="Permanent link">&para;</a></h3>
+<p>If your IdP skips the approval step for evalkit's web client, give the CLI
+a client of its own that keeps the approval step. It needs an IdP that gives
+a person the same <code>sub</code> in every client; Okta, Auth0 and Keycloak do.
+Entra ID doesn't, so keep one shared client there.</p>
+<p>Register it like the public client above, with only the
+<code>http://127.0.0.1/callback</code> redirect, evalkit's audience and scopes, and the
+approval step on. Put its client id in <code>auth.oidc.cli_client_id</code>. Then
+remove the <code>127.0.0.1</code> and <code>localhost</code> redirects and the device grant from
+the web client.</p>
 <h2 id="registering-the-audience">Registering the audience<a class="headerlink" href="#registering-the-audience" title="Permanent link">&para;</a></h2>
 <p>Access tokens must name evalkit. How that is set up depends on the IdP:</p>
 <table>
@@ -1445,6 +1489,7 @@ account user): an evalkit admin binds it with <code>evalkit users add ci-bot
   oidc:
     issuer: https://id.example.com
     client_id: 0oa1b2c3d4e5f6g7h8
+    cli_client_id: null         # evalkit login's own client; defaults to client_id
     audience: https://evalkit.example.com
     name: Okta                  # the login button's label
     scopes: [openid, profile, email, offline_access]
