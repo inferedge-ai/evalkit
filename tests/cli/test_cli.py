@@ -1965,3 +1965,23 @@ def test_review_show_yaml_drops_filled_in_defaults():
     assert "source" not in str(shown) and "args_mode" not in str(shown)
     assert shown["trajectory"] == {"tool_trajectory_match": {"expected": [{"name": "search"}]}}
     assert main_module._authored_evaluators({}) is None
+
+
+def test_trace_source_flags_go_together_and_imports_default_to_the_agent(
+    env, tmp_path, monkeypatch, harness_url
+):
+    write_local_config(tmp_path, harness_url)
+    monkeypatch.chdir(tmp_path)
+    lone = runner.invoke(cli_app, ["agents", "edit", "sdk", "--trace-source", "phx"])
+    assert lone.exit_code == 1 and "trace_source and project go together" in lone.output
+    both = runner.invoke(
+        cli_app, ["agents", "edit", "sdk", "--clear-trace-source", "--project", "ra"]
+    )
+    assert both.exit_code == 1 and "--clear-trace-source" in both.output
+    unknown = runner.invoke(
+        cli_app, ["agents", "edit", "sdk", "--trace-source", "nope", "--project", "ra"]
+    )
+    assert unknown.exit_code == 1 and "trace source nope not found" in unknown.output
+    imported = runner.invoke(cli_app, ["traces", "import", "sdk", "s-1"])
+    assert imported.exit_code == 1
+    assert "no trace source given and agent sdk@admin has none" in imported.output

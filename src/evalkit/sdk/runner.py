@@ -289,6 +289,7 @@ async def call_task_traced(
         outcome.session_id = run_id
     if outcome.session_id is None and outcome.trajectory is None and outcome.error is None:
         outcome.error = NO_SESSION_ERROR
+        outcome.status = "failed"
     return outcome
 
 
