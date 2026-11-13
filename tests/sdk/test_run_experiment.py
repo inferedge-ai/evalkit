@@ -3,7 +3,6 @@ import json
 import os
 import sys
 from datetime import timedelta
-from pathlib import Path
 
 import httpx2
 import pytest
@@ -28,6 +27,7 @@ from evalkit.core.runner import (
     MissingJudgeKey,
     ScoringFailed,
 )
+from evalkit.credentials import MissingCredential
 from evalkit.db import models
 from evalkit.db.evaluators import RemoteEvaluatorStore
 from evalkit.db.session import make_session_factory, tenant_session
@@ -137,7 +137,8 @@ def env(server, tmp_path, monkeypatch, module_db_url):
         f"cases: evalkit/cases\nfixtures: evalkit/fixtures\ncost_map:\n  source: {cost_map}\n"
         "credentials:\n  evaluators:\n    http_eval: env:SDK_EVAL_KEY\n"
     )
-    (tmp_path / ".env").write_text("SDK_EVAL_KEY=k\nSDK_JUDGE_KEY=jk\n")
+    monkeypatch.setenv("SDK_EVAL_KEY", "k")
+    monkeypatch.setenv("SDK_JUDGE_KEY", "jk")
     monkeypatch.chdir(tmp_path)
     provider = TracerProvider()
     headers = {"Authorization": f"Bearer {token}", "X-Evalkit-Agent": "sdk"}
@@ -549,7 +550,6 @@ async def test_only_a_base_url_judge_needs_a_local_key_and_names_it_before_any_t
 ):
     srv, blob, provider = env
     monkeypatch.delenv("SDK_JUDGE_KEY", raising=False)
-    Path(".env").write_text("SDK_EVAL_KEY=k\n")
     called: list[str] = []
 
     def task(q):
@@ -891,3 +891,16 @@ async def test_sdk_runs_skip_keyless_evaluators_their_cases_do_not_use(env):
     )
     assert "experiment" in lines[0]
     assert not any("nokey_eval" in line for line in lines)
+
+
+def test_sdk_credentials_never_read_a_dotenv_beside_evalkit_yaml(tmp_path, monkeypatch):
+    monkeypatch.delenv("SDK_DOTENV_KEY", raising=False)
+    (tmp_path / "evalkit.yaml").write_text(
+        "credentials:\n  evaluators:\n    http_eval: env:SDK_DOTENV_KEY\n"
+    )
+    (tmp_path / ".env").write_text("SDK_DOTENV_KEY=from-dotenv\n")
+    monkeypatch.chdir(tmp_path)
+    local = LocalConfig.find(tmp_path)
+    assert local is not None
+    with pytest.raises(MissingCredential, match="SDK_DOTENV_KEY"):
+        sdk_runner._credentials(local, "admin").key_for("evaluator", "http_eval@admin")

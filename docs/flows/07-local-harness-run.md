@@ -5,7 +5,7 @@ A developer runs their own agent, served by a harness on their machine, against 
 ## Actors
 
 - **Developer**: runs `evalkit run`, `evalkit status`, `evalkit evaluate`.
-- **CLI**: the `evalkit` command on the developer's machine. It reads `evalkit.yaml` (`cases` / `fixtures` dirs and the `credentials` map; a `.env` beside it is loaded). Without the file, `cases` is `evalkit/cases` and `fixtures` is `evalkit/fixtures` under the current dir, and there are no credentials.
+- **CLI**: the `evalkit` command on the developer's machine. It reads `evalkit.yaml` (`cases` / `fixtures` dirs and the `credentials` map; keys come from the environment). Without the file, `cases` is `evalkit/cases` and `fixtures` is `evalkit/fixtures` under the current dir, and there are no credentials.
 - **Harness**: the developer's agent behind the Harness API. The agent lives in the developer's personal workspace (`evalkit agents create research-agent --harness-url http://localhost:8000`); its `harness_url` is often `localhost`.
 - **Custom evaluator**: optional, a remote evaluator in the agent's workspace (`evalkit evaluators create`).
 - **Judge**: the LLM used by built-in evaluators. The experiment uses the server's default judge unless the run sets one with `--judge-*` flags (`evalkit judge-default show` prints the default).

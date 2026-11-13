@@ -24,7 +24,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Reference | How a dataset, agent or evaluator is named: `name@workspace`. The API and UI always use the full form; the CLI also takes a bare `name`, meaning your personal workspace. |
 | Local run | An experiment whose agent is in a personal workspace: the user's CLI drives the harness, runs evaluators, and writes results to the server. Judge-using built-ins run on the server unless the run brings its own judge key. |
 | Server run | An experiment whose agent is shared: the server's own runner drives it. |
-| Developer config | `evalkit.yaml` in the client's repo: the `credentials:` map (keys for personal agents and evaluators and the judge's LLM provider), the `cases` / `fixtures` directories. Keys come from env or a `.env` beside it. |
+| Developer config | `evalkit.yaml` in the client's repo: the `credentials:` map (keys for personal agents and evaluators and the judge's LLM provider), the `cases` / `fixtures` directories. Keys come from the environment. |
 | Experiment | One run of one dataset against one agent (× N repetitions). |
 | Run | One case executed once against the agent, in a fresh session. |
 | App run | A run of an agent outside any experiment: production, staging, or a developer using the agent by hand. Never "production run" when you mean "not an eval run". |

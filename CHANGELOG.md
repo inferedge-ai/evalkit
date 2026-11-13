@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **CLI**, **SDK**: the `env:` references in `evalkit.yaml` and `evalkit run --judge-api-key-env` read only the environment. The CLI and SDK no longer read the `.env` beside `evalkit.yaml` (or in the current directory). Export the variables in your shell instead. `evalkit serve` still reads the `.env` beside `config.yaml`.
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a
   table) and images in `docs/user/images/`, in the web UI's docs page and on

@@ -4,7 +4,6 @@ from evalkit.credentials import (
     CredentialRegistry,
     CredentialsConfig,
     MissingCredential,
-    load_dotenv_beside,
 )
 
 
@@ -35,14 +34,6 @@ def test_judge_keys_are_no_longer_read_from_evalkit_yaml():
     for key in ("llm_providers", "judges"):
         with pytest.raises(ValueError, match="--judge-api-key-env"):
             CredentialsConfig.model_validate({key: {"https://x/v1": "env:K"}})
-
-
-def test_env_beats_dotenv(tmp_path, monkeypatch):
-    (tmp_path / "evalkit.yaml").write_text("cases: cases\n")
-    (tmp_path / ".env").write_text("A=from_file\nB=only_file\n")
-    monkeypatch.setenv("A", "from_env")
-    env = load_dotenv_beside(tmp_path / "evalkit.yaml")
-    assert env["A"] == "from_env" and env["B"] == "only_file"
 
 
 def test_values_must_be_env_refs():

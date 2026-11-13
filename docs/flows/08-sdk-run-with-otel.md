@@ -5,7 +5,7 @@ A developer runs a code-driven agent (no Harness API) from their own Python scri
 ## Actors
 
 - **Developer**: creates the agent once (`evalkit agents create research-agent --trajectory-source otel --mapping mapping.json`, no `--harness-url`), then writes the script: a task function, optional `@evaluator` functions, `tracing.register(...)`, `run_experiment(...)`.
-- **Script (SDK)**: the developer's Python process. It calls the task once per case and repetition, scores, and writes results through the evalkit API. It reads `evalkit.yaml` for `cases`, `fixtures` and the `credentials` map (a `.env` beside it is loaded). Without the file, `cases` is `evalkit/cases` and `fixtures` is `evalkit/fixtures` under the current dir, and there are no credentials.
+- **Script (SDK)**: the developer's Python process. It calls the task once per case and repetition, scores, and writes results through the evalkit API. It reads `evalkit.yaml` for `cases`, `fixtures` and the `credentials` map (keys come from the environment). Without the file, `cases` is `evalkit/cases` and `fixtures` is `evalkit/fixtures` under the current dir, and there are no credentials.
 - **Agent code**: whatever the task calls; it emits OTel spans (e.g. via an OpenInference or `gen_ai` instrumentor).
 - **evalkit server**: holds the agent, its mapping, the dataset and the experiment. Its collector (`/api/otel/v1/traces`) receives spans; the server serves each session as an ATIF trajectory, built with the agent's mapping.
 - **Judge / custom evaluator**: the judge from `judge=Judge(...)`, or the server's default judge (set by an admin). Remote evaluators come from the agent's workspace.

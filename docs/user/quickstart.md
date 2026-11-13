@@ -40,7 +40,7 @@ credentials:
 
 The file holds no judge key. By default the evaluators that use a judge run on the evalkit server, with the LLM provider configured there. To judge with your own key instead, see [Config](config.md).
 
-Put the keys in a `.env` next to `evalkit.yaml`. Then create your agent on the server once:
+Set the keys as environment variables. Then create your agent on the server once:
 
 ```bash
 # SDK path: a code-driven agent whose trajectory comes from its traces
