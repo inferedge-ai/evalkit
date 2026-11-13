@@ -35,7 +35,7 @@ describe("LoginCallbackPage", () => {
     localStorage.clear();
   });
 
-  it("shows a cancelled provider sign-in on the sign-in card, without the navbar", async () => {
+  it("shows a cancelled provider sign-in on the sign-in card", async () => {
     setSessionForTest({
       getUser: async () => null,
       signinRedirect: async () => {},
@@ -52,7 +52,7 @@ describe("LoginCallbackPage", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByText("The user cancelled")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Evalkit" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "evalkit" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Try again" })).toHaveAttribute(
       "href",
       "/login",

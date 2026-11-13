@@ -46,7 +46,7 @@ describe("signed-out layout", () => {
 describe("signed-in layout", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("waits for the workspace gate instead of the public navbar", () => {
+  it("waits for the workspace gate, not the signed-out pages", () => {
     vi.stubGlobal("localStorage", { getItem: () => null });
     const html = render(me, "/docs/install");
     expect(html).not.toContain("Sign in");

@@ -1,4 +1,5 @@
 import { startTransition, useEffect, useState } from "react";
+import { Lockup } from "@/components/widgets/Logo";
 import {
   NavLink,
   Outlet,
@@ -71,17 +72,9 @@ export function BrandLink({
   onClick?: () => void;
 }) {
   return (
-    <NavLink to={to} className="flex items-baseline" onClick={onClick}>
-      <Wordmark />
+    <NavLink to={to} className="flex items-center" onClick={onClick}>
+      <Lockup />
     </NavLink>
-  );
-}
-
-export function Wordmark() {
-  return (
-    <span className="font-mono text-head font-semibold tracking-tight text-brand">
-      Evalkit
-    </span>
   );
 }
 
