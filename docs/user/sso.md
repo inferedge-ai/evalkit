@@ -57,14 +57,24 @@ computer can start evalkit's sign-in with its own `127.0.0.1` redirect. The
 person sees no approval step, at most "Continue as ‹email›", and one click
 sends the program a code for their tokens (RFC 8252 §8.6).
 
+This works only where the IdP gives a person the same `sub` in every
+client's tokens, as Okta, Auth0 and Keycloak do. Entra ID gives each client
+a different `sub`. There, a separate client would make a person's first
+`evalkit login` create a second evalkit user, so keep one shared client.
+
 - **Give the CLI its own registration:** public, native, no client secret,
   with PKCE S256, authorization code and refresh tokens (and the device
   grant, for `evalkit login --no-browser`).
+- **Grant it evalkit's audience and scopes,** as for the web client
+  (Registering the audience, below), or its tokens won't be accepted.
 - **Redirect URI:** `http://127.0.0.1/callback`, with any port.
 - **Approval step:** leave it on, so the person sees the CLI asking and
   where it will send them.
 - **Config:** copy its client id into `auth.oidc.cli_client_id`.
-- **The web client:** remove the `127.0.0.1` redirect from it.
+- **The web client:** remove the `127.0.0.1` redirect, any `localhost`
+  redirect, and the device grant. Each would let a local program back in.
+  Do this only once people have run `evalkit update`: an older CLI still
+  signs in with the web client.
 
 `evalkit login` then signs in and refreshes with `cli_client_id`. The server
 accepts an ID token issued to either client when someone first signs in.

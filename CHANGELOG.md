@@ -9,10 +9,14 @@
   when someone first signs in. `GET /api/auth/providers` returns it in
   `oidc.cli_client_id`, or `client_id` when it isn't set, so servers that
   don't set it work as before. Set it when the identity provider skips the
-  approval step for evalkit's web client; [Single sign-on](docs/user/sso.md)
-  says why and how to register the CLI's client. A CLI logged in before the
-  change keeps refreshing with the client it signed in with until it logs in
-  again.
+  approval step for evalkit's web client and gives a person the same `sub`
+  in every client (not Entra ID); [Single sign-on](docs/user/sso.md) says
+  why and how to register the CLI's client. A CLI logged in before the change
+  keeps refreshing with the client it signed in with until it logs in again.
+  An older CLI still signs in with the web client, so people need
+  `evalkit update` before an operator removes the web client's loopback
+  redirect. `evalkit login` against a server it can't talk to now says to
+  run `evalkit update --server <url>`.
 - New `GET /api/mapping-presets` returns the span mapping presets the package
   ships, as `[{"name", "document"}]`, to any signed-in user. In the web UI, the
   new-agent and edit-agent forms have a preset picker above "Span mapping": a

@@ -6,11 +6,13 @@ import jwt
 import pytest
 from authlib.integrations.httpx_client import OAuth2Client
 
+from evalkit import version
 from evalkit.client import oidc
 from evalkit.client.oidc import (
     LoginRefused,
     LoginTimedOut,
     NoDeviceGrant,
+    fetch_providers,
     login_from_tokens,
     register_identity,
     run_device_flow,
@@ -237,3 +239,15 @@ def test_loopback_flow_reports_a_refused_code_exchange_as_login_refused(monkeypa
     )
     with pytest.raises(LoginRefused, match="invalid_grant: code expired"):
         run_loopback_flow(providers_for(idp), browser_for(idp), transport=idp.transport())
+
+
+def test_fetch_providers_from_an_incompatible_server_says_to_update(monkeypatch):
+    monkeypatch.setattr(version, "current", lambda: "0.5.0")
+
+    def server(request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(
+            200, json={"password": "none", "oidc": None}, headers={"X-Evalkit-Version": "0.6.0"}
+        )
+
+    with pytest.raises(LookupError, match=r"run `evalkit update --server https://evalkit.test`"):
+        fetch_providers("https://evalkit.test", httpx2.MockTransport(server))

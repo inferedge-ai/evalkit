@@ -15,6 +15,7 @@ from authlib.common.security import generate_token
 from authlib.integrations.base_client import OAuthError
 from authlib.integrations.httpx_client import OAuth2Client
 
+from evalkit import version
 from evalkit.client import connection
 from evalkit.client.api import response_detail
 from evalkit.client.connection import Connection, MachineLogin, OidcLogin
@@ -179,8 +180,15 @@ class EvalkitAuth(httpx2.Auth):
 def fetch_providers(url: str, transport: httpx2.BaseTransport | None = None) -> dict:
     with httpx2.Client(base_url=url.rstrip("/"), transport=transport, timeout=30.0) as http:
         resp = http.get("/api/auth/providers")
-        resp.raise_for_status()
-        return resp.json()
+    remote = resp.headers.get("X-Evalkit-Version")
+    local = version.current()
+    if remote and version.compare(local, remote) is version.VersionComparison.INCOMPATIBLE:
+        raise LookupError(
+            f"evalkit {local} cannot talk to server {remote}: "
+            f"run `evalkit update --server {url.rstrip('/')}`"
+        )
+    resp.raise_for_status()
+    return resp.json()
 
 
 def static_auth(token: str) -> EvalkitAuth:
