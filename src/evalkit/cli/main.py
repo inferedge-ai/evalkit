@@ -1264,7 +1264,13 @@ INSTALL_LEAVES_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.p
 DOCS_LEAVE_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.pyc", "images")
 
 
-def install_skills_into(target: Path, sources: dict[str, Path]) -> None:
+def describe_installed(names: list[str]) -> str:
+    skills = [name for name in names if name != DOCS_DIR]
+    parts = [f"{len(skills)} skill{'' if len(skills) == 1 else 's'}"] if skills else []
+    return " and ".join([*parts, f"{DOCS_DIR}/"] if DOCS_DIR in names else parts)
+
+
+def install_skills_into(target: Path, sources: dict[str, Path]) -> list[Path]:
     target.mkdir(parents=True, exist_ok=True)
     manifest = target / INSTALL_MANIFEST
     previous = manifest.read_text().split() if manifest.is_file() else []
@@ -1272,18 +1278,35 @@ def install_skills_into(target: Path, sources: dict[str, Path]) -> None:
         if name not in sources and (target / name).is_dir():
             shutil.rmtree(target / name)
             typer.echo(f"{target}: removed {name}, which an earlier install put there")
-    replaced = 0
+    updated: list[str] = []
+    written: list[str] = []
+    skipped: list[str] = []
     for name, source in sources.items():
         destination = target / name
+        if destination.exists() and name not in previous:
+            skipped.append(name)
+            continue
         if destination.exists():
             shutil.rmtree(destination)
-            replaced += 1
+            updated.append(name)
+        else:
+            written.append(name)
         ignore = DOCS_LEAVE_OUT if name == DOCS_DIR else INSTALL_LEAVES_OUT
         shutil.copytree(source, destination, ignore=ignore)
-    manifest.write_text("".join(f"{name}\n" for name in sources))
+    manifest.write_text("".join(f"{name}\n" for name in [*updated, *written]))
     record_skill_target(target)
-    note = f", replacing {replaced} already there" if replaced else ""
-    typer.echo(f"{target}: wrote {len(sources) - 1} skills and {DOCS_DIR}/{note}")
+    done = [
+        f"{verb} {describe_installed(names)}"
+        for verb, names in (("updated", updated), ("wrote", written))
+        if names
+    ]
+    typer.echo(f"{target}: {', '.join(done) or 'wrote nothing'}")
+    for name in skipped:
+        typer.echo(
+            f"{target}: skipped {name}: {target / name} is already there "
+            "and no evalkit install put it there"
+        )
+    return [target / name for name in skipped]
 
 
 @skills_app.command("install")
@@ -1298,7 +1321,9 @@ def skills_install(
     .agents/skills/ and .claude/skills/ directories.
 
     The docs go to evalkit-docs/ beside the skills. A directory an earlier install put there
-    that this version no longer ships is removed; other directories are left alone.
+    that this version no longer ships is removed. A directory with the name of an evalkit skill
+    (or evalkit-docs) that no evalkit install put there is never overwritten: the command skips
+    it, installs the rest and exits with an error.
     `evalkit update` refreshes every directory installed this way.
 
     Example: evalkit skills install
@@ -1308,8 +1333,17 @@ def skills_install(
     if not skills:
         raise ApiError(f"no skills found under {root}")
     sources = {skill.name: skill for skill in skills} | {DOCS_DIR: docs_root()}
-    for directory in [target] if target is not None else DEFAULT_SKILL_TARGETS:
-        install_skills_into(directory, sources)
+    skipped = [
+        path
+        for directory in ([target] if target is not None else DEFAULT_SKILL_TARGETS)
+        for path in install_skills_into(directory, sources)
+    ]
+    if skipped:
+        raise ApiError(
+            f"did not overwrite {', '.join(str(path) for path in skipped)}. "
+            "Rename what is yours, remove what is an old copy of evalkit's skills, then run "
+            "`evalkit skills install` again; or pass --target DIR to install elsewhere."
+        )
 
 
 @contracts_app.command("export")

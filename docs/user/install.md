@@ -72,7 +72,11 @@ evalkit skills install
 
 They go to both `.agents/skills/` and `.claude/skills/`, created when missing, so that Claude Code (which reads `.claude/skills/`) and coding agents that read `.agents/skills/` both find them. The user docs they link to go to `evalkit-docs/` in each. `--target DIR` installs into that one directory instead.
 
-The command prints one line per directory. A later install replaces the evalkit skills already there and says how many it replaced. It removes a skill an earlier install put there that this version no longer ships, and names it. Skills you wrote yourself in the same directory are left alone, unless one has the same name as an evalkit skill.
+The command prints one line per directory, for example `.claude/skills: updated 5 skills and evalkit-docs/`: `wrote` for what was not there and `updated` for what an earlier install put there. It removes a skill an earlier install put there that this version no longer ships, and names it.
+
+Each directory holds a `.evalkit-installed` file that lists what the install put there. The command replaces and removes only what that file lists, so skills you wrote yourself in the same directory are left alone. Commit the file with the skills.
+
+A directory that has the name of an evalkit skill (or `evalkit-docs`) and is not in that list is never overwritten. The command skips it, names it, installs the rest and exits with an error. This covers a skill of your own with the same name, and a copy of evalkit's skills that has no `.evalkit-installed` file beside it. To proceed, rename your skill, or remove the old copy, and run the command again; or install into another directory with `--target DIR`. `evalkit update` runs the same install, so it stops with the same error until then.
 
 `skills install` also writes outside the repo: it appends each directory it wrote to `~/.evalkit/skills-targets`, so that `evalkit update` can refresh them later.
 

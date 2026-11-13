@@ -1,4 +1,5 @@
 import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -77,6 +78,7 @@ def test_skills_install_drops_files_a_shipped_skill_no_longer_has(tmp_path):
     docs_stale = tmp_path / "evalkit-docs" / "retired-page.md"
     docs_stale.parent.mkdir(parents=True)
     docs_stale.write_text("old")
+    (tmp_path / ".evalkit-installed").write_text("evalkit-usage\nevalkit-docs\n")
     result = CliRunner().invoke(app, ["skills", "install", "--target", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert not stale.exists()
@@ -166,11 +168,84 @@ def test_second_install_names_what_it_replaced_and_removed(tmp_path, monkeypatch
     (claude / "my-own-skill").mkdir()
     (claude / "my-own-skill" / "SKILL.md").write_text("mine")
     output = install_in(tmp_path, monkeypatch)
-    replacing = f"wrote {len(EXPECTED)} skills and evalkit-docs/, replacing {len(EXPECTED) + 1}"
+    updated = f"updated {len(EXPECTED)} skills and evalkit-docs/"
     assert output.splitlines() == [
-        f".agents/skills: {replacing} already there",
+        f".agents/skills: {updated}",
         ".claude/skills: removed retired-skill, which an earlier install put there",
-        f".claude/skills: {replacing} already there",
+        f".claude/skills: {updated}",
     ]
     assert not (claude / "retired-skill").exists()
     assert (claude / "my-own-skill" / "SKILL.md").read_text() == "mine"
+
+
+def test_install_reports_updated_and_new_skills_apart(tmp_path, monkeypatch):
+    install_in(tmp_path, monkeypatch)
+    for folder in DEFAULT_FOLDERS:
+        shutil.rmtree(tmp_path / folder / "connect-traces")
+    output = install_in(tmp_path, monkeypatch)
+    assert output.splitlines() == [
+        f"{folder}: updated {len(EXPECTED) - 1} skills and evalkit-docs/, wrote 1 skill"
+        for folder in DEFAULT_FOLDERS
+    ]
+
+
+def test_describe_installed_counts_skills_without_assuming_the_docs():
+    assert main_module.describe_installed(["a", "b"]) == "2 skills"
+    assert main_module.describe_installed(["a", "evalkit-docs"]) == "1 skill and evalkit-docs/"
+    assert main_module.describe_installed(["evalkit-docs"]) == "evalkit-docs/"
+
+
+def test_install_never_overwrites_a_skill_evalkit_did_not_install(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    own = tmp_path / ".claude" / "skills" / "connect-traces"
+    own.mkdir(parents=True)
+    (own / "SKILL.md").write_text("mine")
+    for _ in range(2):
+        result = CliRunner().invoke(app, ["skills", "install"])
+        assert result.exit_code == 1
+        assert (own / "SKILL.md").read_text() == "mine"
+        assert sorted(p.name for p in own.iterdir()) == ["SKILL.md"]
+        assert (
+            ".claude/skills: skipped connect-traces: .claude/skills/connect-traces is already "
+            "there and no evalkit install put it there"
+        ) in result.output
+        assert "did not overwrite .claude/skills/connect-traces." in result.output
+        assert "--target DIR" in result.output
+    assert_installed(tmp_path / ".agents" / "skills")
+    claude = tmp_path / ".claude" / "skills"
+    assert {p.parent.name for p in claude.glob("*/SKILL.md")} == EXPECTED
+    assert (claude / "evalkit-docs" / "try-locally.md").is_file()
+    assert set((claude / ".evalkit-installed").read_text().split()) == (
+        EXPECTED - {"connect-traces"}
+    ) | {"evalkit-docs"}
+    assert f".claude/skills: updated {len(EXPECTED) - 1} skills and evalkit-docs/" in result.output
+
+
+def test_install_takes_over_once_the_clashing_skill_is_moved_away(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    own = tmp_path / ".claude" / "skills" / "connect-traces"
+    own.mkdir(parents=True)
+    (own / "SKILL.md").write_text("mine")
+    assert CliRunner().invoke(app, ["skills", "install"]).exit_code == 1
+    own.rename(own.with_name("my-connect-traces"))
+    output = install_in(tmp_path, monkeypatch)
+    assert output.splitlines()[1] == (
+        f".claude/skills: updated {len(EXPECTED) - 1} skills and evalkit-docs/, wrote 1 skill"
+    )
+    claude = tmp_path / ".claude" / "skills"
+    assert (claude / "connect-traces" / "SKILL.md").read_text() != "mine"
+    assert set((claude / ".evalkit-installed").read_text().split()) == EXPECTED | {"evalkit-docs"}
+    assert (claude / "my-connect-traces" / "SKILL.md").read_text() == "mine"
+
+
+def test_install_does_not_overwrite_a_folder_of_skills_without_a_manifest(tmp_path):
+    for name in [*EXPECTED, "evalkit-docs"]:
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "SKILL.md").write_text("from before the manifest")
+    result = CliRunner().invoke(app, ["skills", "install", "--target", str(tmp_path)])
+    assert result.exit_code == 1
+    assert f"{tmp_path}: wrote nothing" in result.output
+    for name in [*EXPECTED, "evalkit-docs"]:
+        assert (tmp_path / name / "SKILL.md").read_text() == "from before the manifest"
+        assert f"{tmp_path}: skipped {name}: " in result.output
+    assert (tmp_path / ".evalkit-installed").read_text() == ""
