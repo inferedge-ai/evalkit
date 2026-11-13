@@ -272,3 +272,45 @@ def test_probes_read_the_call_id_so_a_task_agents_first_llm_keeps_its_input():
         for s in spans
     ]
     assert later_llm_spans(probes, TASK_MAPPING).positions == []
+
+
+def build(spans, mapping=None, version=3):
+    return build_session_trajectory(
+        spans,
+        agent_name="a",
+        active_mapping=mapping,
+        mapping_version=version,
+        now=NOW,
+        settle_seconds=10,
+    )
+
+
+def test_a_session_of_only_the_run_span_says_so():
+    run_span = raw("root", name="evalkit.run", attributes={"evalkit.sdk_root": True, "x": 1})
+    result = build([run_span])
+    assert result.only_run_span and result.trajectory is None
+    assert result.settled and result.root_present and result.span_count == 1
+    assert result.reason.startswith("only evalkit's run span was found;")
+
+
+def test_a_mapping_that_reads_no_steps_gives_a_reason():
+    result = build(
+        [raw("root", attributes={"gen_ai.conversation.id": "s1"})], REFERENCE["gen_ai"], 2
+    )
+    assert not result.only_run_span and result.trajectory is not None
+    assert result.reason == (
+        "session s1: 1 spans but mapping v2 read no LLM or tool steps; "
+        "run evalkit traces check a s1"
+    )
+
+
+def test_a_session_with_steps_has_no_reason():
+    llm = {"gen_ai.conversation.id": "s1", "gen_ai.operation.name": "chat"}
+    result = build([raw("root", attributes=llm)], REFERENCE["gen_ai"], 2)
+    assert result.reason is None and not result.only_run_span
+
+
+def test_a_lone_run_span_the_task_moved_into_its_own_session_keeps_waiting():
+    moved = {"evalkit.sdk_root": True, "evalkit.task_session": True, "session.id": "own"}
+    result = build([raw("root", name="evalkit.run", attributes=moved)])
+    assert result.only_run_span and not result.settled

@@ -212,6 +212,32 @@ lacks it. That is what a wrong mapping looks like in the check.
    the agent → Mappings in the web UI) and activate it there. Green check
    output is not approval; a mapping applies to every future run of the agent.
 
+## An agent that keeps its own trace store
+
+When the agent already sends its spans to a registered trace source (Phoenix)
+and the developer would rather not add the exporter, skip step 3: name the
+store on the agent instead.
+
+```bash
+evalkit agents edit <agent> --trace-source <source> --project <project>
+```
+
+Experiments then import each run's session from the store (see "Experiments
+that read a trace source" in
+[`tracing.md`](../evalkit-docs/tracing.md#experiments-that-read-a-trace-source)).
+An agent that runs in the task's process and continues the current trace
+needs no task change. Any other agent takes `metadata["session_id"]` as its
+session id, or the task returns its own id with `RunResult(session_id=...)`.
+Check with `run_experiment(..., dry_run=True)`, then read the run's
+`trajectory_note` when a trajectory is missing:
+
+- `only evalkit's run span was found`: the agent's spans went to another
+  trace or tracer provider. Pass `metadata["session_id"]` to the agent, or
+  return `RunResult(session_id=...)`.
+- `session ... not found in project ...`: nothing in the store carries the
+  session id. Check the project and that the agent uses the id.
+- `spans still arriving after N s`: raise `--import-wait`.
+
 ## An agent in another process
 
 `tracing.register` stamps `session.id` and the `evalkit.*` attributes only on

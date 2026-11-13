@@ -13,12 +13,12 @@ from evalkit.client.blob import HttpBlobStore
 from evalkit.client.connection import Connection
 from evalkit.client.evaluators import HttpEvaluators
 from evalkit.client.server_evaluators import HttpServerEvaluators
-from evalkit.client.sessions import HttpSessionReader
+from evalkit.client.sessions import build_session_reader
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.config import LocalConfig
 from evalkit.contracts.enums import ExperimentStatus
 from evalkit.contracts.settings import JudgeSettings
-from evalkit.core.agents import explicit
+from evalkit.core.agents import AgentDefinition, explicit
 from evalkit.core.harness_check import check_harness
 from evalkit.core.runner import (
     EVALUATION_CONCURRENCY,
@@ -49,6 +49,7 @@ def _deps(
     conn: Connection,
     api: AsyncApi,
     exp_id: int,
+    definition: AgentDefinition,
     progress: Callable[[str], None],
     harness_transport: httpx2.AsyncBaseTransport | None,
     custom_eval_transport: httpx2.AsyncBaseTransport | None,
@@ -65,7 +66,7 @@ def _deps(
         harness_transport=harness_transport,
         custom_eval_transport=custom_eval_transport,
         progress=progress,
-        sessions=HttpSessionReader(api),
+        sessions=build_session_reader(api, definition),
         evaluation_concurrency=evaluation_concurrency,
         server_evaluators=HttpServerEvaluators(api),
         judge_api_key=judge_api_key,
@@ -96,8 +97,8 @@ async def run_local(
     try:
         await api.require_same_version()
         store = HttpStore(api)
+        definition = await HttpAgents(api).get(explicit(agent))
         if resume is None:
-            definition = await HttpAgents(api).get(explicit(agent))
             caps = await harness_capabilities(
                 definition, credentials(local, conn).key_for("agent", definition.ref), transport
             )
@@ -126,6 +127,7 @@ async def run_local(
             conn,
             api,
             exp.id,
+            definition,
             progress,
             transport,
             custom_eval_transport,
@@ -158,11 +160,13 @@ async def evaluate_local(
     holder = holder_for(conn)
     try:
         await api.require_same_version()
+        exp = await HttpStore(api).get_experiment(exp_id)
         deps = _deps(
             local,
             conn,
             api,
             exp_id,
+            await HttpAgents(api).get(exp.agent),
             progress,
             None,
             custom_eval_transport,
@@ -224,7 +228,7 @@ async def check_local(
             credentials(local, conn).key_for("agent", definition.ref),
             blob_store,
             transport=transport,
-            sessions=HttpSessionReader(api),
+            sessions=build_session_reader(api, definition),
             agent_slug=slug(agent),
         )
     finally:

@@ -15,7 +15,13 @@ class TracePage:
         return self.traces[-1][1]
 
 
+class UnknownProject(Exception):
+    pass
+
+
 class TraceSourceClient(Protocol):
+    async def check_project(self, project: str) -> None: ...
+
     async def session_spans(self, project: str, session_id: str) -> list[RawSpan]: ...
 
     def trace_pages(

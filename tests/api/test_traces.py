@@ -129,7 +129,8 @@ async def test_session_over_the_size_cap_is_refused_with_413(api):
     sessions = HttpSessionReader(client)
     with pytest.raises(SessionTooLarge, match="otel.max_session_bytes"):
         await sessions.trajectory("sdk@admin", "sess-1")
-    assert await poll_trajectory(sessions, "sdk@admin", "sess-1", 60) == (None, "unavailable")
+    doc, status, note = await poll_trajectory(sessions, "sdk@admin", "sess-1", 60)
+    assert (doc, status) == (None, "unavailable") and "otel.max_session_bytes" in note
     await client.aclose()
 
 

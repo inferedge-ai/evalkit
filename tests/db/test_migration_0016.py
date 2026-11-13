@@ -50,7 +50,7 @@ def test_0016_backfills_tenant_1_and_folds_server_settings(fresh_db_url):
     run_migrations(fresh_db_url, "0015")
     _seed_at_0015(fresh_db_url)
     run_migrations(fresh_db_url, "0016")
-    assert head_revision() == "0018"
+    assert head_revision() == "0019"
     [(judge,)] = _rows(
         fresh_db_url,
         "SELECT default_judge->>'model' FROM tenant_settings WHERE tenant_id = 'default'",

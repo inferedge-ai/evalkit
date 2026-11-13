@@ -6,8 +6,11 @@ from cryptography.fernet import Fernet
 from respx import MockResponse, Route, Router
 from sqlalchemy import func, select
 
+from evalkit.api.access import build_tenant_stores
 from evalkit.api.deps import get_allow_private_endpoints, get_config
+from evalkit.api.session_pull import ServerSessionPuller
 from evalkit.cli.traces_commands import render_check
+from evalkit.core.traces.session_import import SessionPullFailed
 from evalkit.db.crypto import SecretBox
 from evalkit.db.models import Span
 from tests.api.native_api import login_as
@@ -108,7 +111,9 @@ async def test_flow_14_session_id_comes_from_the_mapping_else_the_command_line(h
 async def test_flow_14_errors(httpx2_mock, api):
     unknown_source = await api.post(f"/api/agents/{AGENT}/sessions/import", json=body(source="x"))
     assert unknown_source.status_code == 404
-    assert "unknown trace source" in unknown_source.json()["detail"]
+    assert unknown_source.json()["detail"] == (
+        "trace source x not found; evalkit trace-sources list shows the registered ones"
+    )
     unknown_agent = await api.post(f"/api/agents/ghost@{DEV}/sessions/import", json=body())
     assert unknown_agent.status_code == 404
     alice = await login_as(api, "alice", "password")
@@ -321,3 +326,106 @@ async def test_flow_14_imports_refuse_a_stored_private_url(httpx2_mock, api):
             assert refused.status_code == 400 and "allow_private_endpoints" in detail
     imports = (await api.get(f"/api/agents/{AGENT}/imports")).json()
     assert [(i["id"], i["status"]) for i in imports] == [(import_id, "failed")]
+
+
+PROJECT = f"{PHOENIX}/v1/projects/research-agent"
+SETTINGS = {"trace_source": "phx", "project": "research-agent"}
+
+
+async def test_flow_14_agent_settings_name_a_checked_source_and_default_imports(httpx2_mock, api):
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": [phoenix_trace(9)]}))
+    serve_spans(httpx2_mock)
+    none = await api.post(f"/api/agents/{AGENT}/sessions/import", json={"session_id": "sess-9"})
+    assert none.status_code == 400
+    assert none.json()["detail"] == (
+        f"no trace source given and agent {AGENT} has none; "
+        "pass source and project, or set them on the agent"
+    )
+    saved = await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["settings"]["trace_source"] == "phx"
+    assert saved.json()["settings"]["import_wait_seconds"] == 120
+    imported = await api.post(f"/api/agents/{AGENT}/sessions/import", json={"session_id": "sess-9"})
+    assert imported.status_code == 200 and imported.json() == {"imported": 1}
+
+
+async def test_flow_14_agent_settings_refuse_a_bad_source(httpx2_mock, api):
+    unknown = await api.patch(
+        f"/api/agents/{AGENT}", json={"settings": {**SETTINGS, "trace_source": "nope"}}
+    )
+    assert unknown.status_code == 404
+    assert "trace source nope not found" in unknown.json()["detail"]
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(404))
+    wrong = await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})
+    assert wrong.status_code == 400
+    assert wrong.json()["detail"] == (
+        "project research-agent not found in trace source phx (provider phoenix); "
+        "check the name in its UI"
+    )
+    httpx2_mock.get(PROJECT).mock(side_effect=httpx2.ConnectError("refused"))
+    down = await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})
+    assert down.status_code == 502
+    assert down.json()["detail"].startswith(f"trace source phx at {PHOENIX} did not answer")
+    lone = await api.patch(f"/api/agents/{AGENT}", json={"settings": {"trace_source": "phx"}})
+    assert lone.status_code == 422
+    atif = await api.post(
+        "/api/agents", json={"workspace": DEV, "name": "plain", "settings": SETTINGS}
+    )
+    assert atif.status_code == 400
+    assert "only an OTel agent" in atif.json()["detail"]
+
+
+async def test_flow_14_unrelated_edits_skip_the_store_and_atif_drops_the_source(httpx2_mock, api):
+    project = httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    saved = await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})
+    assert saved.status_code == 200 and project.call_count == 1
+    project.mock(side_effect=httpx2.ConnectError("refused"))
+    settings = {**saved.json()["settings"], "poll_interval_seconds": 3}
+    unrelated = await api.patch(f"/api/agents/{AGENT}", json={"settings": settings})
+    assert unrelated.status_code == 200, unrelated.text
+    atif = await api.patch(f"/api/agents/{AGENT}", json={"trajectory_source": "atif"})
+    assert atif.status_code == 400 and "only an OTel agent" in atif.json()["detail"]
+
+
+async def test_flow_14_server_puller_pulls_only_for_an_agent_with_a_source(httpx2_mock, api):
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    traces = httpx2_mock.get(TRACES).mock(
+        return_value=MockResponse(200, json={"data": [phoenix_trace(9)]})
+    )
+    serve_spans(httpx2_mock)
+    stores = build_tenant_stores(api.app.state, "default")
+    puller = ServerSessionPuller(stores.agents, stores.sources, stores.mappings, stores.spans, 25)
+    await puller(AGENT, "sess-9")
+    assert traces.call_count == 0
+    assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200
+    await puller(AGENT, "sess-9")
+    assert traces.call_count == 1 and [r[0] for r in await span_rows(api)] == ["sess-9"]
+    traces.mock(side_effect=httpx2.ConnectError("refused"))
+    with pytest.raises(SessionPullFailed, match="trace source phx"):
+        await puller(AGENT, "sess-9")
+    await stores.sources.archive("phx")
+    with pytest.raises(SessionPullFailed, match="trace source phx not found"):
+        await puller(AGENT, "sess-9")
+
+
+async def test_flow_14_anyone_who_may_run_the_agent_pulls_from_its_own_source(httpx2_mock, api):
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": [phoenix_trace(9)]}))
+    serve_spans(httpx2_mock)
+    assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200
+    alice = await login_as(api, "alice", "password")
+    own = await alice.post(f"/api/agents/{AGENT}/sessions/import", json={"session_id": "sess-9"})
+    assert own.status_code == 200, own.text
+    named = await alice.post(f"/api/agents/{AGENT}/sessions/import", json=body())
+    assert named.status_code == 403
+
+
+async def test_flow_14_a_refused_key_names_the_fix(httpx2_mock, api):
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(401))
+    refused = await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == (
+        "trace source phx refused its API key (401); an admin sets a new one with "
+        "evalkit trace-sources edit phx --api-key-env <VAR>"
+    )

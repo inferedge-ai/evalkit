@@ -14,7 +14,11 @@ import {
   localToIso,
 } from "../lib/traceImports";
 import type { TraceImport } from "../lib/traceImports";
-import type { SessionTrajectory, TraceSourceInfo } from "../lib/types";
+import type {
+  AgentSettings,
+  SessionTrajectory,
+  TraceSourceInfo,
+} from "../lib/types";
 import { Summary } from "./MappingsPanel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,11 +148,19 @@ function ImportRow({
   );
 }
 
-export function ImportPanel({ agent }: { agent: string }) {
+export function ImportPanel({
+  agent,
+  settings,
+}: {
+  agent: string;
+  settings?: AgentSettings;
+}) {
   const formId = useId();
   const base = `/agents/${encodeURIComponent(agent)}`;
-  const [pickedSource, setPickedSource] = useState("");
-  const [project, setProject] = useState("");
+  const [pickedSource, setPickedSource] = useState(
+    settings?.trace_source ?? "",
+  );
+  const [project, setProject] = useState(settings?.project ?? "");
   const [mode, setMode] = useState<Mode>("range");
   const [sessionId, setSessionId] = useState("");
   const [since, setSince] = useState("");

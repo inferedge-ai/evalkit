@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
 ## The task
 
-A sync or async callable. Parameters bind **by name** from this set, so their order does not matter; any other required parameter is an error before the first call, and an optional one keeps its default.
+`run_experiment` calls the task once per case and repetition; each call is one run, with its own session id. A sync or async callable. Parameters bind **by name** from this set, so their order does not matter; any other required parameter is an error before the first call, and an optional one keeps its default.
 
 | Parameter  | Value                                                                 |
 | ---------- | --------------------------------------------------------------------- |
@@ -97,6 +97,32 @@ The SDK stamps `session.id` and the `evalkit.*` attributes only on spans made in
 Either way the Runs page links the session to its experiment and case.
 
 The agent's exporter needs its own token in `EVALKIT_OTEL_TOKEN`. Mint one with `evalkit tokens create --agent <name>`; it never expires. A login token is not accepted: it expires, and an exporter that holds it would drop every span with nothing but a line in its own log.
+
+## An agent with its own trace store
+
+An OTel agent whose settings name a trace source (`evalkit agents edit myagent --trace-source phoenix --project myagent`, see [Tracing](tracing.md#experiments-that-read-a-trace-source)) needs no `tracing.register`: each run's session is imported from the store.
+
+```python
+from evalkit.sdk import run_experiment
+from myagent import MyAgent
+
+agent = MyAgent()            # exports to its own trace store, e.g. Phoenix
+
+def task(input: dict) -> str:   # in-process agent on the global provider: no session id to pass
+    return agent.ask(input["question"])
+
+if __name__ == "__main__":
+    result = run_experiment(dataset="finance", agent="myagent", task=task)
+    print(result.url)
+```
+
+The session id follows one rule, here and with the collector:
+
+- An agent that runs in the task's process, on the process's global tracer provider, and continues the current trace needs nothing: its spans join the SDK's `evalkit.run` span.
+- Any other agent takes `metadata["session_id"]` as its session id, or the task returns the agent's own id with `RunResult(session_id=...)`.
+- An agent in another process that cannot receive the trace context and whose framework cannot put a session id on its spans cannot be linked to its runs.
+
+`evalkit.run` shows in your store as the root of each eval run's trace. A run whose session holds only that span ends `unavailable` with a `trajectory_note` saying so; a task with no tracer provider that neither takes `metadata` nor returns a session id fails at once.
 
 ## Datasets and workspaces
 

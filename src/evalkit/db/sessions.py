@@ -79,8 +79,11 @@ class DbSessionReader:
                 agent_name=record.name,
                 mapping_version=chosen.version if chosen else None,
                 now=datetime.now(UTC),
-                settle_seconds=self._otel.settle_seconds,
+                settle_seconds=record.settings.import_settle_seconds
+                if record.settings.trace_source is not None
+                else self._otel.settle_seconds,
                 include_esf=include_esf,
+                requested_session=session_id,
             )
             if result.root_present or not result.span_count:
                 return result

@@ -16,6 +16,7 @@ import {
   createAgentBody,
   editAgentBody,
   emptyAgentForm,
+  IMPORT_FIELDS,
   SETTING_FIELDS,
   urlClearsKey,
 } from "../lib/agentForm";
@@ -25,7 +26,8 @@ import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import type { AgentFormValues } from "../lib/agentForm";
 import { Select } from "../lib/Select";
 import { MappingPresetPicker } from "./MappingPresetPicker";
-import type { AgentInfo } from "../lib/types";
+import type { AgentInfo, TraceSourceInfo } from "../lib/types";
+import { useApi } from "../lib/query";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -51,6 +53,7 @@ export function AgentForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const errors = agentFormErrors(values, mode);
+  const sources = useApi<TraceSourceInfo[]>("/trace-sources").data ?? [];
 
   const set = <K extends keyof AgentFormValues>(
     key: K,
@@ -172,6 +175,59 @@ export function AgentForm({
                 />
               </Field>
             )}
+          {values.trajectory_source === "otel" && (
+            <Field>
+              <FieldLabel htmlFor={`${formId}-trace-source`}>
+                Trace source
+              </FieldLabel>
+              <Select
+                id={`${formId}-trace-source`}
+                ariaLabel="trace source"
+                value={values.trace_source}
+                onChange={(source) => set("trace_source", source)}
+                options={[
+                  { value: "", label: "None: spans reach evalkit's collector" },
+                  ...sources.map((s) => ({
+                    value: s.name,
+                    label: `${s.name} (${s.provider})`,
+                  })),
+                ]}
+              />
+              <FieldDescription>
+                The store the agent already sends its spans to. Experiments then
+                import each run's session from it.
+              </FieldDescription>
+            </Field>
+          )}
+          {values.trajectory_source === "otel" && values.trace_source && (
+            <>
+              <Field>
+                <FieldLabel htmlFor={`${formId}-project`}>Project</FieldLabel>
+                <Input
+                  id={`${formId}-project`}
+                  placeholder="the agent's project in the trace source"
+                  value={values.project}
+                  onChange={(e) => set("project", e.target.value)}
+                />
+              </Field>
+              {IMPORT_FIELDS.map(({ key, label }) => (
+                <Field key={key}>
+                  <FieldLabel htmlFor={`${formId}-${key}`}>{label}</FieldLabel>
+                  <Input
+                    id={`${formId}-${key}`}
+                    inputMode="numeric"
+                    value={values.settings[key]}
+                    onChange={(e) =>
+                      set("settings", {
+                        ...values.settings,
+                        [key]: e.target.value,
+                      })
+                    }
+                  />
+                </Field>
+              ))}
+            </>
+          )}
           <Field>
             <FieldLabel htmlFor={`${formId}-repository`}>Repository</FieldLabel>
             <Input

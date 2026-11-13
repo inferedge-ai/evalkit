@@ -54,6 +54,10 @@ export interface AgentSettings {
   poll_interval_seconds: number;
   stop_grace_seconds: number;
   provides: Record<string, boolean> | null;
+  trace_source: string | null;
+  project: string | null;
+  import_settle_seconds: number;
+  import_wait_seconds: number;
 }
 
 export interface RemoteEvaluatorInfo {
@@ -507,6 +511,7 @@ export interface AgentRunRecord {
   ended_at: string | null;
   trajectory_key: string | null;
   trajectory_status: string | null;
+  trajectory_note?: string | null;
   metrics: Record<string, unknown>;
   title: string | null;
 }
