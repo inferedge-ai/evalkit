@@ -91,31 +91,42 @@ body {
 }
 
 .ek-lockup {
-  font-family: var(--md-code-font-family);
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  white-space: nowrap;
+  display: block;
+  height: 1.3rem;
+  width: auto;
 }
 
-.ek-infer {
-  color: var(--muted-foreground);
+.ek-mark {
+  fill: #111827;
+  stroke: transparent;
 }
 
-.ek-slash {
-  color: var(--primary);
+.ek-name {
+  fill: #111827;
 }
 
-.ek-edge {
-  color: var(--foreground);
-  font-weight: 700;
+[data-md-color-scheme="slate"] .ek-mark {
+  fill: #1f2937;
+  stroke: #374151;
+}
+
+[data-md-color-scheme="slate"] .ek-name {
+  fill: #ffffff;
+}
+
+/* Wide screens show the lockup, so the site name beside it would repeat it. */
+@media screen and (min-width: 76.25em) {
+  .md-header__topic:first-child {
+    visibility: hidden;
+  }
 }
 
 .md-header__topic:first-child {
   font-family: var(--md-code-font-family);
   font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--primary);
+  letter-spacing: -0.04em;
+  text-transform: lowercase;
+  color: var(--foreground);
 }
 
 .md-header__topic .md-ellipsis {

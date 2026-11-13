@@ -288,7 +288,7 @@ test("on a phone the navigation's wordmark goes home and closes it", async () =>
   expect(
     within(sheet).getByRole("button", { name: "Close navigation" }),
   ).toBeInTheDocument();
-  await user.click(within(sheet).getByRole("link", { name: "Evalkit" }));
+  await user.click(within(sheet).getByRole("link", { name: "evalkit" }));
 
   await waitFor(() => expect(sheet).not.toBeInTheDocument());
 });

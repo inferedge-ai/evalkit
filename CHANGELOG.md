@@ -3,8 +3,12 @@
 ## Unreleased
 
 - **Web UI**: signed-out pages no longer have evalkit's bar across the top.
-  The docs page carries its own header instead: the Evalkit link, the theme
+  The docs page carries its own header instead: the evalkit link, the theme
   switch and Sign in, above the docs menu. The sign-in page is unchanged.
+- **Web UI**, **Docs**: evalkit has a new logo, a `/e` mark beside
+  "evalkit" in lowercase mono. It replaces the "Evalkit" wordmark in the app
+  sidebar, the sign-in card and the docs page, the favicon (now also a
+  `favicon.ico`), the docs site's header and the README.
 - **Extending evalkit**: a `landingPage` and `publicRoutes` render with no
   evalkit bar for a signed-out visitor, inside a scroll container that fills
   the window, so the package draws its own header. `useOptionalMe` and

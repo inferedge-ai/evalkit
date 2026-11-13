@@ -52,7 +52,7 @@ describe("LoginCallbackPage", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByText("The user cancelled")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Evalkit" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "evalkit" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Try again" })).toHaveAttribute(
       "href",
       "/login",

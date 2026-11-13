@@ -125,7 +125,7 @@ test("a signed-out visitor at / sees only the wrapper's landing page, with no ev
   openApp("/");
 
   expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: "Evalkit" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "evalkit" })).toBeNull();
   expect(screen.queryByRole("link", { name: "Docs" })).toBeNull();
   expect(screen.queryByRole("button", { name: /^Switch to/ })).toBeNull();
   expect(where()).toBe("/");
@@ -169,7 +169,7 @@ test("signed out, the docs page leads home, switches the theme and signs in from
   openApp("/docs/quickstart");
   const user = userEvent.setup();
 
-  expect(await screen.findByRole("link", { name: "Evalkit" })).toHaveAttribute(
+  expect(await screen.findByRole("link", { name: "evalkit" })).toHaveAttribute(
     "href",
     "/",
   );
@@ -194,11 +194,11 @@ test("the sign-in card's wordmark leads back to the wrapper's landing page", asy
   await logout();
   serve(null);
   openApp("/login");
-  const heading = await screen.findByRole("heading", { name: "Evalkit" });
+  const heading = await screen.findByRole("heading", { name: "evalkit" });
 
   await userEvent
     .setup()
-    .click(within(heading).getByRole("link", { name: "Evalkit" }));
+    .click(within(heading).getByRole("link", { name: "evalkit" }));
 
   expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
   expect(where()).toBe("/");
@@ -208,7 +208,7 @@ test("without a landing page, the sign-in card's wordmark is not a link", async 
   wrapper.landingPage = null;
   serve(null);
   openApp("/login");
-  const heading = await screen.findByRole("heading", { name: "Evalkit" });
+  const heading = await screen.findByRole("heading", { name: "evalkit" });
   expect(within(heading).queryByRole("link")).toBeNull();
 });
 
@@ -219,7 +219,7 @@ test("a public page opens on its own when signed out and in the app shell when s
 
   expect(await screen.findByText("Terms of use")).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
-  expect(screen.queryByRole("link", { name: "Evalkit" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "evalkit" })).toBeNull();
   expect(redirects).toEqual([]);
   closePage();
 
