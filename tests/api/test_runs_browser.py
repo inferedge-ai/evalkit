@@ -335,6 +335,29 @@ async def test_otel_agent_runs_list_sessions_and_convert_on_demand(api):
     assert none == {"runs": [], "total": 0}
 
 
+async def test_traces_without_a_session_settle_and_have_a_duration(api):
+    client, _ = api
+    created = await client.post(
+        "/api/agents",
+        json={
+            "workspace": "admin",
+            "name": "sdk",
+            "trajectory_source": "otel",
+            "mapping": reference_mapping(),
+        },
+    )
+    assert created.status_code == 200, created.text
+    headers = {**PROTO, "X-Evalkit-Agent": "sdk"}
+    await client.post("/api/otel/v1/traces", content=otlp_payload(session_id=None), headers=headers)
+    params = {"no_session": "true"}
+    running = (await client.get("/api/agents/sdk@admin/runs", params=params)).json()
+    assert [r["status"] for r in running["runs"]] == ["running"]
+    assert running["runs"][0]["duration_ms"] is not None
+    client.app.state.cfg.otel.settle_seconds = -60
+    settled = (await client.get("/api/agents/sdk@admin/runs", params=params)).json()
+    assert [r["status"] for r in settled["runs"]] == ["completed"]
+
+
 @pytest.fixture
 async def shared(tmp_path, stub_judges, session_factory):
     harness = FakeHarness()

@@ -457,7 +457,13 @@ class SpanStore:
         where = [models.Span.agent_id == agent_id, models.Span.session_id.is_(None)]
         started = func.min(models.Span.start_time)
         grouped = (
-            select(models.Span.trace_id, started.label("started"), func.count().label("n"))
+            select(
+                models.Span.trace_id,
+                started.label("started"),
+                func.max(models.Span.end_time).label("ended"),
+                func.max(models.Span.received_at).label("received"),
+                func.count().label("n"),
+            )
             .where(*where)
             .group_by(models.Span.trace_id)
         )
@@ -476,6 +482,8 @@ class SpanStore:
                 title=None,
                 created_at=_aware(row.started) or row.started,
                 span_count=row.n,
+                ended_at=_aware(row.ended),
+                last_received_at=_aware(row.received),
             )
             for row in page
         ], total
