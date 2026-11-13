@@ -63,7 +63,7 @@ Run every `evalkit` command below in that environment: with the virtualenv activ
 evalkit login
 ```
 
-Your browser opens. Sign up or sign in to [hosted evalkit](concepts.md#hosted-evalkit). There is no server to run and no LLM key to add: the [judge](concepts.md#judge) is ready.
+Your browser opens. Sign up or sign in to [hosted evalkit](concepts.md#hosted-evalkit).
 
 On a server you run yourself:
 
@@ -122,11 +122,11 @@ Check that evalkit reads your traces. Import one session from the project:
 evalkit traces import myagent <session id>
 ```
 
+The command prints one line per check. `session`, `root`, `mapping`, `llm` and `trajectory` must have a ✓, and so must `tools` when your agent called a tool. A `!` on `unmapped` is fine: it lists span attributes evalkit did not need. A `!` or ✗ on a required line means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
+
 In the UI: Agents › myagent › Import, pick One session and enter its id.
 
 ![The Import tab after importing one session, with its span counts, messages and tokens](images/quickstart-import-session.png)
-
-`session`, `root`, `mapping`, `llm` and `trajectory` must have a ✓, and so must `tools` when your agent called a tool. A `!` on `unmapped` is fine: it lists span attributes evalkit did not need. A `!` or ✗ on a required line means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
 
 Bring in your recent history:
 
@@ -147,6 +147,8 @@ Make your agent a token for sending traces:
 ```bash
 evalkit tokens create --agent myagent
 ```
+
+On hosted evalkit you can also make it in the UI: Settings › API keys.
 
 Export it in every shell that runs your agent:
 
@@ -197,11 +199,11 @@ In the UI: Runs, then pick myagent.
 evalkit traces check myagent <session id>
 ```
 
+The command prints one line per check. `session`, `root`, `mapping`, `llm` and `trajectory` must have a ✓, and so must `tools` when your agent called a tool. A `!` on `unmapped` is fine: it lists span attributes evalkit did not need. A `!` or ✗ on a required line means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
+
 In the UI: Agents › myagent › Mappings, under Preview over recent sessions.
 
 ![The Mappings tab previewing one session: span counts, messages, tokens and the trajectory](images/quickstart-check-session.png)
-
-`session`, `root`, `mapping`, `llm` and `trajectory` must have a ✓, and so must `tools` when your agent called a tool. A `!` on `unmapped` is fine: it lists span attributes evalkit did not need. A `!` or ✗ on a required line means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
 <!-- /tabs -->
 
 [Tracing](tracing.md) has the details for both paths.
