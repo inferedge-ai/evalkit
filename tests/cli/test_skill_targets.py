@@ -74,6 +74,7 @@ def test_refresh_picks_up_an_unrecorded_install_in_cwd(tmp_path, isolated_skill_
     calls: list[list[str]] = []
     refresh(tmp_path, CLI, calls.append)
     assert calls == [install_call(agents), install_call(claude)]
+    assert isolated_skill_targets.read_text() == f"{agents}\n{claude}\n"
 
 
 def test_refresh_carries_on_past_a_failed_install_and_returns_it(tmp_path, isolated_skill_targets):
