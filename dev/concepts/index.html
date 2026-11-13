@@ -1062,7 +1062,7 @@
 </tr>
 <tr>
 <td><span id="scorecard" class="ek-row-anchor"></span> Scorecard</td>
-<td>The table of scores for an experiment, per case and per bucket (content, trajectory, presentation, efficiency, custom). <a href="../case-schema/#evaluators">Case schema</a> maps each bucket to its YAML key, e.g. presentation → <code>evaluators.output.presentation_judge</code>.</td>
+<td>The table of scores for an experiment, per case and per bucket (content, trajectory, presentation, efficiency, custom). <a href="../case-schema/#evaluators">Case schema</a> maps each bucket to its YAML key, e.g. presentation → <code>evaluators.output.presentation_judge</code>. A run that did not complete with an answer is errored and gets no score. The scorecard counts the cases where every run errored (<code>cases: 6, 3 errored</code>) and, with repetitions, the cases where only some did (<code>1 partly errored</code>, scored on the runs that completed). A bucket that covers fewer cases than the experiment selected says so (<code>content 1.00 (3 of 6 cases)</code>).</td>
 </tr>
 <tr>
 <td><span id="unreviewed" class="ek-row-anchor"></span> Unreviewed</td>
