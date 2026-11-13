@@ -15,23 +15,23 @@ There are two paths. They differ only in step 4, which has a tab for each:
 
 ## Let your coding agent drive
 
-In your agent's project folder, install evalkit:
-
-```bash
-uv tool install evalkit-py
-```
-
-Then tell your coding agent:
+Open your coding agent in your agent's project folder and tell it:
 
 ```text
-Run `evalkit skills install`, then use the getting-started skill to set up evalkit for this agent.
+Install evalkit with `uv tool install evalkit-py`, run `evalkit skills install`, then use the getting-started skill to set up evalkit for this agent.
 ```
 
 It runs every step below. It stops only when it needs you: the sign-in in your browser, which path you take, and your trace store's URL and API key.
 
 Prefer to do it by hand? The steps are the same.
 
-## 1. Log in
+## 1. Install and log in
+
+From your agent's project folder:
+
+```bash
+uv tool install evalkit-py
+```
 
 ```bash
 evalkit login
