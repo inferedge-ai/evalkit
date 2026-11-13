@@ -1,0 +1,191 @@
+/* Loaded before the main stylesheet, so name the layer order Tailwind uses. */
+@layer properties, theme, base, components, utilities;
+
+@layer components {
+  .markdown-content {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    color: var(--foreground);
+    overflow-wrap: break-word;
+    min-width: 0;
+  }
+
+  .markdown-content :is(h1, h2, h3, h4, h5, h6) {
+    font-weight: 600;
+    margin: 1.25rem 0 0.5rem;
+    scroll-margin-top: 4rem;
+  }
+  .markdown-content h1 {
+    font-size: var(--text-title);
+    line-height: var(--text-title--line-height);
+  }
+  .markdown-content h2 {
+    font-size: var(--text-head);
+    line-height: var(--text-head--line-height);
+  }
+  .markdown-content h3 {
+    font-size: var(--text-lede);
+    line-height: var(--text-lede--line-height);
+  }
+  .markdown-content :is(h4, h5, h6) {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+
+  .markdown-content p {
+    margin: 0 0 0.75rem;
+  }
+
+  .markdown-content :is(ul, ol) {
+    margin: 0 0 0.75rem;
+    padding-left: 1.5rem;
+  }
+  .markdown-content ul {
+    list-style: disc outside;
+  }
+  .markdown-content ol {
+    list-style: decimal outside;
+  }
+  .markdown-content li {
+    margin: 0.25rem 0;
+  }
+  .markdown-content li > :is(ul, ol) {
+    margin: 0.25rem 0 0;
+  }
+  .markdown-content li > p:last-child {
+    margin-bottom: 0;
+  }
+
+  .markdown-content strong {
+    font-weight: 600;
+  }
+  .markdown-content em {
+    font-style: italic;
+  }
+
+  /* Underlined, not colour alone: answers' bare URLs and citations must read as links. */
+  .markdown-content a {
+    color: var(--color-brand);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .markdown-content a:hover {
+    color: var(--color-brand-hover);
+  }
+
+  .markdown-content :not(pre) > code {
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--muted);
+    padding: 0.0625rem 0.3125rem;
+    font-size: 0.875em;
+    font-family: var(--font-mono);
+  }
+
+  .markdown-content .code-block {
+    margin-bottom: 0.75rem;
+    max-width: 100%;
+    overflow: hidden;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+  }
+  .markdown-content .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--muted);
+    padding: 0.25rem 0.25rem 0.25rem 1rem;
+  }
+  .markdown-content .language-label {
+    font-size: var(--text-meta);
+    font-weight: 500;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .markdown-content pre {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .markdown-content .code-pre {
+    margin: 0;
+    background: var(--muted);
+    padding: 1rem;
+    font-size: 0.875em;
+    font-family: var(--font-mono);
+  }
+
+  .markdown-content blockquote {
+    margin: 0 0 0.75rem;
+    border-left: 4px solid var(--border);
+    padding-left: 1rem;
+    color: var(--muted-foreground);
+  }
+
+  .markdown-content hr {
+    margin: 1rem 0;
+    border-color: var(--border);
+  }
+
+  .markdown-content img {
+    max-width: 100%;
+    height: auto;
+    margin: 0 0 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .markdown-content .table-wrapper {
+    margin-bottom: 0.75rem;
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+  .markdown-content table {
+    min-width: 100%;
+    border-collapse: collapse;
+    background: var(--card);
+  }
+  .markdown-content th {
+    border-bottom: 1px solid var(--border);
+    padding: 0.25rem 0.5rem;
+    text-align: left;
+    font-size: var(--text-meta);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted-foreground);
+  }
+  .markdown-content td {
+    padding: 0.375rem 0.5rem;
+    vertical-align: top;
+    font-variant-numeric: tabular-nums;
+  }
+  .markdown-content tbody tr + tr td {
+    border-top: 1px solid var(--border);
+  }
+  .markdown-content tr {
+    scroll-margin-top: 4rem;
+    transition: background-color var(--duration-medium) var(--ease-standard);
+  }
+  .markdown-content tbody tr:hover {
+    background: color-mix(in oklab, var(--muted) 50%, transparent);
+  }
+  .markdown-content tr[data-targeted] {
+    background: var(--muted);
+  }
+
+  .markdown-content .katex-display {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .markdown-content > :first-child {
+    margin-top: 0;
+  }
+  .markdown-content > :last-child {
+    margin-bottom: 0;
+  }
+}
