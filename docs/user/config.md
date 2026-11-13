@@ -17,7 +17,7 @@ credentials: # values are env:NAME, read when a run needs them
 
 Only your personal Harness API agents use `credentials.agents` here. The server drives shared agents (`ouragent@dev`) with the keys stored in its database, so an entry for one in `evalkit.yaml` is never read. The same holds for shared remote evaluators.
 
-Set the values as environment variables, in your shell or with a tool that loads them for you. The CLI and the SDK read only the environment: they never read a `.env` file.
+Set the values as environment variables, in your shell or with a tool that loads them for you.
 
 Agents, remote evaluators and the judge are not configured here:
 
