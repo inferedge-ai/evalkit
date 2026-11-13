@@ -5,10 +5,10 @@ Connect your agent, turn its real runs into eval cases, and ship a measured impr
 You need:
 
 - An agent.
-- Python 3.12 or newer and [uv](https://docs.astral.sh/uv/).
+- Python 3.12 or newer in your agent's project.
 - A coding agent, such as Claude Code or Codex.
 
-There are two paths. They differ only in step 4, which has a tab for each:
+There are two paths. They differ only in step 3, which has a tab for each:
 
 - **My agent sends traces to Phoenix.** evalkit imports your trace history.
 - **No traces yet.** Your agent sends its traces straight to evalkit, and you use it a few times.
@@ -24,7 +24,7 @@ This quickstart assumes a Python agent. Is yours in another language, or does it
 Open your coding agent in your agent's project folder and tell it:
 
 ```text
-Install evalkit with `uv tool install evalkit-py`, run `evalkit skills install`, then use the getting-started skill to set up evalkit for this agent.
+Install evalkit-py into this project, run `evalkit skills install`, then use the getting-started skill to set up evalkit for this agent.
 ```
 
 It runs every step below. It stops only when it needs you: the sign-in in your browser, which path you take, and your trace store's URL and API key.
@@ -32,26 +32,6 @@ It runs every step below. It stops only when it needs you: the sign-in in your b
 Prefer to do it by hand? The steps are the same.
 
 ## 1. Install and log in
-
-From your agent's project folder:
-
-```bash
-uv tool install evalkit-py
-```
-
-```bash
-evalkit login
-```
-
-Your browser opens. Sign up or sign in to [hosted evalkit](concepts.md#hosted-evalkit). There is no server to run and no LLM key to add: the [judge](concepts.md#judge) is ready.
-
-On a server you run yourself:
-
-```bash
-evalkit login --url {{origin}}
-```
-
-## 2. Add evalkit to your project
 
 Install `evalkit-py` into your agent's own project. evalkit needs Python 3.12 or newer.
 
@@ -77,7 +57,21 @@ poetry add evalkit-py
 ```
 <!-- /tabs -->
 
-## 3. Create your agent
+Run every `evalkit` command below in that environment: with the virtualenv active, or as `uv run evalkit ...` or `poetry run evalkit ...`.
+
+```bash
+evalkit login
+```
+
+Your browser opens. Sign up or sign in to [hosted evalkit](concepts.md#hosted-evalkit). There is no server to run and no LLM key to add: the [judge](concepts.md#judge) is ready.
+
+On a server you run yourself:
+
+```bash
+evalkit login --url {{origin}}
+```
+
+## 2. Create your agent
 
 Pick the [preset](concepts.md#preset) for your framework. A preset is a ready-made [mapping](concepts.md#mapping): it tells evalkit how to read your agent's spans. [Framework mappings](framework-mappings.md) says which preset fits which framework. List them:
 
@@ -99,7 +93,7 @@ evalkit agents create myagent --trajectory-source otel --mapping langchain
 Open Agents › New agent, set Trajectories to "From traces (OTel spans)" and pick the preset.
 <!-- /tabs -->
 
-## 4. Get real runs onto evalkit
+## 3. Get real runs onto evalkit
 
 Each [session](concepts.md#trace-span-session) of your agent becomes an [app run](concepts.md#app-run). Pick your path:
 
@@ -124,7 +118,7 @@ Check that evalkit reads your traces. Import one session from the project:
 evalkit traces import myagent <session id>
 ```
 
-Every line should have a ✓. A `!` means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
+`session`, `root`, `mapping`, `llm` and `trajectory` must have a ✓, and so must `tools` when your agent called a tool. A `!` on `unmapped` is fine: it lists span attributes evalkit did not need. A `!` or ✗ on a required line means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
 
 Bring in your recent history:
 
@@ -132,7 +126,7 @@ Bring in your recent history:
 evalkit traces import myagent --since <date>
 ```
 
-Does your agent start its own trace? Read [An agent with its own trace store](sdk-runs.md#an-agent-with-its-own-trace-store) before step 6.
+Does your agent start its own trace? Read [An agent with its own trace store](sdk-runs.md#an-agent-with-its-own-trace-store) before step 5.
 
 #### No traces yet
 
@@ -148,11 +142,7 @@ Export it in every shell that runs your agent:
 export EVALKIT_OTEL_TOKEN=<token>
 ```
 
-Add the OpenTelemetry instrumentor for your framework. The Instrumentation column of [Framework mappings](framework-mappings.md) names it. Install it the way you installed `evalkit-py`. For LangGraph or LangChain:
-
-```bash
-pip install openinference-instrumentation-langchain
-```
+Add the OpenTelemetry instrumentor for your framework. The Instrumentation column of [Framework mappings](framework-mappings.md) names it.
 
 Turn tracing on where your agent starts, in code that also runs when `run_evals.py` imports your agent:
 
@@ -191,14 +181,12 @@ evalkit runs list myagent --source app
 evalkit traces check myagent <session id>
 ```
 
-Every line should have a ✓. A `!` means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
-
-An unmapped `!` line is fine when the trajectory looks right. Change the mapping only when a field you need is missing.
+`session`, `root`, `mapping`, `llm` and `trajectory` must have a ✓, and so must `tools` when your agent called a tool. A `!` on `unmapped` is fine: it lists span attributes evalkit did not need. A `!` or ✗ on a required line means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
 <!-- /tabs -->
 
 [Tracing](tracing.md) has the details for both paths.
 
-## 5. Mine cases from real runs
+## 4. Mine cases from real runs
 
 Tell your coding agent:
 
@@ -208,7 +196,7 @@ Use the eval-driven-development skill to mine cases from myagent's app runs sinc
 
 It reads each run, groups the ones that failed or ran slow, shows you a plan, and writes the [cases](concepts.md#case) to `evalkit/cases/mined/`. That folder is your first [dataset](concepts.md#dataset), built from real questions. [Case schema](case-schema.md) has the format.
 
-## 6. Run the baseline
+## 5. Run the baseline
 
 Write `run_evals.py` in your project's root. The [task](concepts.md#task) calls your agent once per case:
 
@@ -242,7 +230,7 @@ evalkit picks up each run's [trajectory](concepts.md#trajectory), scores it, and
 
 Some cases fail. Good: they came from runs that went wrong.
 
-## 7. Improve
+## 6. Improve
 
 Tell your coding agent:
 

@@ -23,7 +23,7 @@ Before anything else, ask the developer:
 - **Which pace.** "Just set it up": run straight through and explain at the
   end. "Walk me through it": say what each step does as you do it, from the
   quickstart and the pages it links to (`../evalkit-docs/concepts.md` first).
-- **Which path** (the tabs of the quickstart's step 4). "My agent sends
+- **Which path** (the tabs of the quickstart's step 3). "My agent sends
   traces to Phoenix": evalkit imports its history. "No traces yet": the agent
   sends its traces straight to evalkit. Read the agent's code first and
   suggest the path it fits.
@@ -43,7 +43,9 @@ After that, stop for the developer only at the points under "When to stop".
   subcommand; do not guess flags.
 - Install `evalkit-py` into the agent's own project with the tool it already
   uses (pip in its active virtualenv, uv or poetry). evalkit needs Python
-  3.12 or newer; if the project cannot use it, say so and stop.
+  3.12 or newer; if the project cannot use it, say so and stop. Run every
+  `evalkit` command in that environment (active virtualenv, `uv run` or
+  `poetry run`); there is no separate global install.
 - A non-Python agent, or one in another process: follow the note at the top
   of the quickstart (a Python task that calls the agent, the agent's own
   OpenTelemetry SDK, and a session id passed in or returned).
@@ -56,11 +58,12 @@ After that, stop for the developer only at the points under "When to stop".
   `repetitions` (for example `repetitions=3`).
 - An async agent gets an `async def task`. Never wrap it in `asyncio.run`.
 - Hand over to the other skills where the quickstart does:
-  - Step 4, a `!` line from `evalkit traces import` or `evalkit traces check`
-    that leaves out a field you need: the **connect-traces** skill. A `!`
-    line with a trajectory that looks right is fine.
-  - Step 5, mining cases: the **eval-driven-development** skill, Loop 2.
-  - Step 7, fixing the agent: the **eval-driven-development** skill, Loop 1,
+  - Step 3, a `!` or ✗ on a required line of `evalkit traces import` or
+    `evalkit traces check` (`session`, `root`, `mapping`, `llm`,
+    `trajectory`, and `tools` when the agent called a tool): the
+    **connect-traces** skill. A `!` on `unmapped` is fine.
+  - Step 4, mining cases: the **eval-driven-development** skill, Loop 2.
+  - Step 6, fixing the agent: the **eval-driven-development** skill, Loop 1,
     with `--apply`.
 - Mine a small first batch: pick the window so it holds 30 app runs or
   fewer, and narrow it if `evalkit runs list` shows more. On the Phoenix path,
@@ -91,17 +94,17 @@ session.
 
 Do not move on until each holds:
 
-1. After step 4: `evalkit runs list <agent> --source app` returns runs, and
+1. After step 3: `evalkit runs list <agent> --source app` returns runs, and
    one session checked with `evalkit traces import` (Phoenix) or
-   `evalkit traces check` (no traces yet) has a trajectory that looks right.
-2. After step 6: every run has a trajectory. A run with none says why in its
+   `evalkit traces check` (no traces yet) has a ✓ on every required line.
+2. After step 5: every run has a trajectory. A run with none says why in its
    trajectory note; follow the session id rule in
    `../evalkit-docs/sdk-runs.md` ("An agent with its own trace store" or "An
    agent in another process"), change the task and run again.
-3. Before step 7: the baseline has at least one case that fails or runs slow.
+3. Before step 6: the baseline has at least one case that fails or runs slow.
    If every case passes, mine a wider window or add cases for the slowest
    runs.
-4. After step 7: a second experiment of the whole dataset exists.
+4. After step 6: a second experiment of the whole dataset exists.
 
 ## Finish
 
