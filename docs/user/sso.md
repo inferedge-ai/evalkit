@@ -63,6 +63,15 @@ Access tokens must name evalkit. How that is set up depends on the IdP:
 Evalkit sends `authorize_params` verbatim on the authorize request and the
 device authorization request; the server never interprets them.
 
+`ui_resources` lists other APIs the web UI signs in for, so that pages a
+package extending evalkit adds can call them with a token of their own. The
+web UI's sign-in names `authorize_params.resource` first and each of these
+after it, as repeated `resource` parameters (RFC 8707). Evalkit's own calls
+keep the token for evalkit's API. The setting needs
+`authorize_params.resource`, and the identity provider must issue a token for
+any API the sign-in named from the person's refresh token. `evalkit login`
+doesn't send them.
+
 ## Registering a machine client for CI
 
 One per pipeline. Application type: machine-to-machine or service, client
@@ -89,6 +98,7 @@ In the server's `config.yaml`:
         scopes: [openid, profile, email, offline_access]
         required_scopes: []         # scopes an access token must carry
         authorize_params: {}
+        ui_resources: []            # other APIs the web UI signs in for
         algorithms: [RS256]
         admin_claim: null           # {name: roles, value: evalkit-admin}: who is an admin
 

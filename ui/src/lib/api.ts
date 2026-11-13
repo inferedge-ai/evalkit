@@ -45,6 +45,14 @@ function needsRefresh(user: SessionUser): boolean {
   );
 }
 
+// Every refresh-token use, in any tab, runs under this lock: the provider
+// rotates the token and revokes the person's tokens when a used one comes back.
+export function withRefreshLock<T>(refresh: () => Promise<T>): Promise<T> {
+  return typeof navigator !== "undefined" && navigator.locks
+    ? navigator.locks.request(REFRESH_LOCK, refresh)
+    : refresh();
+}
+
 async function refreshUser(s: OidcSession): Promise<SessionUser | null> {
   const user = await s.getUser();
   if (user === null) return null;
@@ -69,11 +77,7 @@ export async function bearer(): Promise<string | null> {
   let user = await s.getUser();
   if (user === null) return null;
   if (needsRefresh(user)) {
-    refreshing ??= (
-      typeof navigator !== "undefined" && navigator.locks
-        ? navigator.locks.request(REFRESH_LOCK, () => refreshUser(s))
-        : refreshUser(s)
-    ).finally(() => {
+    refreshing ??= withRefreshLock(() => refreshUser(s)).finally(() => {
       refreshing = null;
     });
     user = await refreshing;

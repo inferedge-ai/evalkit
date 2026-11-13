@@ -44,6 +44,7 @@ describe("LoginCallbackPage", () => {
       },
       signinSilent: async () => null,
       removeUser: async () => {},
+      requestApiToken: async () => null,
     });
     render(
       <MemoryRouter initialEntries={["/login/callback"]}>

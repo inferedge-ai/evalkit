@@ -46,6 +46,7 @@ function fakeSession(
     removeUser: async () => {
       calls.push("removeUser");
     },
+    requestApiToken: async () => null,
   };
 }
 
