@@ -29,6 +29,7 @@ from evalkit.core.harness import HarnessClient, HarnessFile
 from evalkit.core.paths import is_safe_path, is_safe_run_id
 from evalkit.core.pull import SCAN_NOTE, list_harness_runs
 from evalkit.core.runner import RunnerDeps, case_title
+from evalkit.core.traces.settle import is_settled_since
 from evalkit.core.trajectory import backfill_step_costs
 from evalkit.db.agents import AgentStore
 from evalkit.db.runs import (
@@ -93,8 +94,12 @@ def _duration_ms(start: datetime | None, end: datetime | None) -> float | None:
     return round((end - start).total_seconds() * 1000, 1)
 
 
-def _session_status(item: SessionSummary) -> RunStatus:
-    return RunStatus.FAILED if item.failed else RunStatus.COMPLETED
+def _session_status(item: SessionSummary, now: datetime, settle_seconds: int) -> RunStatus:
+    if item.failed:
+        return RunStatus.FAILED
+    if is_settled_since(item.last_received_at, now, settle_seconds):
+        return RunStatus.COMPLETED
+    return RunStatus.RUNNING
 
 
 def _stored(item: AgentRunItem) -> BrowserRun:
@@ -126,6 +131,7 @@ async def resolve_runs(
     spans: SpanStore,
     session: AsyncSession,
     *,
+    settle_seconds: int,
     source: RunSource = "all",
     since: datetime | None = None,
     until: datetime | None = None,
@@ -158,6 +164,7 @@ async def resolve_runs(
             session, record.id, [i.session_id for i in items if i.session_id]
         )
         sessions: list[BrowserRun] = []
+        now = datetime.now(UTC)
         for i in items:
             run = linked.get(i.session_id) if i.session_id else None
             sdk_case_id, sdk_title = _sdk_case(i)
@@ -167,7 +174,7 @@ async def resolve_runs(
                     title=(run.title if run else None) or sdk_title or i.title,
                     created_at=i.created_at,
                     user_id=run.created_by if run else None,
-                    status=(run.status if run else _session_status(i)).value,
+                    status=(run.status if run else _session_status(i, now, settle_seconds)).value,
                     duration_ms=_duration_ms(i.created_at, i.ended_at),
                     experiment_id=run.experiment_id if run else None,
                     experiment_number=run.experiment_number if run else None,
@@ -246,11 +253,13 @@ async def list_runs(
     until: datetime | None = None,
     run_id: Annotated[list[str] | None, Query()] = None,
 ) -> dict:
+    record = await agent_or_404(stores.agents, agent)
     page = await resolve_runs(
-        await agent_or_404(stores.agents, agent),
+        record,
         stores.deps,
         stores.spans,
         session,
+        settle_seconds=stores.sessions.settle_seconds(record),
         source=source,
         since=since,
         until=until,

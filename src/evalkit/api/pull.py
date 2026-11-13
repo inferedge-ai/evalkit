@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response
 
-from evalkit.api.access import StoresDep
+from evalkit.api.access import StoresDep, TenantStores
 from evalkit.api.deps import SessionDep
 from evalkit.api.download import content_disposition
 from evalkit.api.runs import BrowserRun, agent_or_404, harness_client, resolve_runs
@@ -115,10 +115,18 @@ async def _bundle(ctx: PullContext, session: AsyncSession, run: BrowserRun) -> R
 
 
 async def _select(
-    record: AgentDefinition, body: PullRequest, deps, spans, session
+    record: AgentDefinition, body: PullRequest, stores: TenantStores, session
 ) -> tuple[list[BrowserRun], int, str | None]:
+    settle_seconds = stores.sessions.settle_seconds(record)
     if body.run_ids is not None:
-        page = await resolve_runs(record, deps, spans, session, run_ids=body.run_ids)
+        page = await resolve_runs(
+            record,
+            stores.deps,
+            stores.spans,
+            session,
+            settle_seconds=settle_seconds,
+            run_ids=body.run_ids,
+        )
         known = {run.run_id: run for run in page.runs}
         runs = [known.get(run_id) or BrowserRun(run_id=run_id) for run_id in body.run_ids]
         return runs, len(runs), None
@@ -133,13 +141,14 @@ async def _select(
             )
         if not ids:
             return [], total, None
-        picked, _, _ = await _select(record, PullRequest(run_ids=ids), deps, spans, session)
+        picked, _, _ = await _select(record, PullRequest(run_ids=ids), stores, session)
         return picked, total, None
     page = await resolve_runs(
         record,
-        deps,
-        spans,
+        stores.deps,
+        stores.spans,
         session,
+        settle_seconds=settle_seconds,
         source=body.source,
         since=body.since,
         until=body.until,
@@ -157,7 +166,7 @@ async def pull_runs(
     session: SessionDep,
 ) -> Response:
     record = await agent_or_404(stores.agents, agent)
-    selected, total, note = await _select(record, body, stores.deps, stores.spans, session)
+    selected, total, note = await _select(record, body, stores, session)
     await session.commit()
     harness = (
         await harness_client(stores.deps, record) if server_may_drive(record) and selected else None

@@ -119,6 +119,7 @@ class SessionSummary(BaseModel):
     span_count: int
     sdk_root: dict[str, Any] | None = None
     ended_at: datetime | None = None
+    last_received_at: datetime | None = None
     failed: bool = False
 
 
@@ -384,6 +385,7 @@ class SpanStore:
                 started.label("started"),
                 newest.label("newest"),
                 func.max(models.Span.end_time).label("ended"),
+                func.max(models.Span.received_at).label("received"),
                 func.count().label("n"),
             )
             .where(*where)
@@ -443,6 +445,7 @@ class SpanStore:
                 span_count=row.n,
                 sdk_root=sdk_roots.get(row.session_id),
                 ended_at=_aware(row.ended),
+                last_received_at=_aware(row.received),
                 failed=row.session_id in failed,
             )
             for row in page

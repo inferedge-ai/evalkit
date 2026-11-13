@@ -186,8 +186,15 @@ test("each run shows its status and how long it took", async () => {
             status: "failed",
             duration_ms: 95_000,
           },
+          {
+            ...refundRun.runs[0],
+            run_id: "run-3",
+            title: "Still going",
+            status: "running",
+            duration_ms: 300,
+          },
         ],
-        total: 2,
+        total: 3,
       });
   });
   openRuns();
@@ -195,4 +202,5 @@ test("each run shows its status and how long it took", async () => {
   expect(screen.getByText("completed")).toBeInTheDocument();
   expect(screen.getByText("1.5s")).toBeInTheDocument();
   expect(screen.getByText("1.6m")).toBeInTheDocument();
+  expect(screen.getByText("running")).toBeInTheDocument();
 });
