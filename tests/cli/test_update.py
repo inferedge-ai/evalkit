@@ -4,6 +4,7 @@ import httpx2
 import pytest
 
 from evalkit import version
+from evalkit.cli import skill_targets
 from evalkit.cli.client import ApiClient, ApiError
 from evalkit.cli.update import install_command, run_update
 
@@ -150,12 +151,52 @@ def test_reinstall_refreshes_installed_skills(stale, tmp_path):
     skills.mkdir(parents=True)
     (skills / ".evalkit-installed").write_text("evalkit-usage\n")
     calls: list[list[str]] = []
-    run_update(client(), prefix=UV_PREFIX, run=calls.append, cwd=tmp_path, server_extra=False)
+    run_update(
+        client(),
+        prefix=UV_PREFIX,
+        run=calls.append,
+        run_skills_install=calls.append,
+        cwd=tmp_path,
+        server_extra=False,
+    )
     cli = str(UV_PREFIX / "bin" / "evalkit")
     assert calls[1:] == [
         [cli, "skills", "install", "--target", str(folder.resolve())]
         for folder in (tmp_path / ".agents" / "skills", skills)
     ]
+
+
+def test_a_skills_folder_that_fails_does_not_stop_the_others(stale, tmp_path, capsys):
+    folders = [tmp_path / name / "skills" for name in ("a", "b", "c")]
+    for folder in folders:
+        folder.mkdir(parents=True)
+        (folder / ".evalkit-installed").write_text("evalkit-usage\n")
+        skill_targets.record(folder)
+    first, clashing, last = (folder.resolve() for folder in folders)
+    calls: list[list[str]] = []
+
+    def run_skills_install(command: list[str]) -> int:
+        calls.append(command)
+        return 1 if command[-1] == str(clashing) else 0
+
+    with pytest.raises(ApiError):
+        run_update(
+            client(),
+            prefix=UV_PREFIX,
+            run=lambda c: None,
+            run_skills_install=run_skills_install,
+            cwd=tmp_path,
+            server_extra=False,
+        )
+    assert [command[-1] for command in calls] == [str(first), str(clashing), str(last)]
+    captured = capsys.readouterr()
+    assert f"refreshed skills in {first};" in captured.out
+    assert f"refreshed skills in {last};" in captured.out
+    assert f"refreshed skills in {clashing};" not in captured.out
+    assert captured.err.strip() == (
+        f"skills not fully refreshed in {clashing}; see the lines above for what to do in each"
+    )
+    assert skill_targets.TARGETS_PATH.read_text() == f"{first}\n{clashing}\n{last}\n"
 
 
 def test_a_project_venv_is_updated_by_its_sync_alone(stale, tmp_path, capsys):

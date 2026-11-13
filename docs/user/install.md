@@ -76,7 +76,7 @@ The command prints one line per directory, for example `.claude/skills: updated 
 
 Each directory holds a `.evalkit-installed` file that lists what the install put there. The command replaces and removes only what that file lists, so skills you wrote yourself in the same directory are left alone. Commit the file with the skills.
 
-A directory that has the name of an evalkit skill (or `evalkit-docs`) and is not in that list is never overwritten. The command skips it, names it, installs the rest and exits with an error. This covers a skill of your own with the same name, and a copy of evalkit's skills that has no `.evalkit-installed` file beside it. To proceed, rename your skill, or remove the old copy, and run the command again; or install into another directory with `--target DIR`. `evalkit update` runs the same install, so it stops with the same error until then.
+A directory that has the name of an evalkit skill (or `evalkit-docs`) and is not in that list is never overwritten. The command skips it, names it, installs the rest and exits with an error. This covers a skill of your own with the same name, and a copy of evalkit's skills that has no `.evalkit-installed` file beside it. To proceed, rename your skill, or remove the old copy, and run the command again; or install into another directory with `--target DIR`.
 
 `skills install` also writes outside the repo: it appends each directory it wrote to `~/.evalkit/skills-targets`, so that `evalkit update` can refresh them later.
 
@@ -88,7 +88,7 @@ Every API response carries `X-Evalkit-Version`. The CLI warns when it differs fr
 evalkit update
 ```
 
-It reinstalls the CLI at the server's version and, when `pyproject.toml` pins `evalkit-py==…`, moves the pin and runs `uv sync`. It then refreshes the skills in every directory `evalkit skills install` wrote to on this machine (listed in `~/.evalkit/skills-targets`), and in `./.agents/skills` or `./.claude/skills` if they hold an earlier install. When either of those two holds an install, it refreshes both, adding the other one if it is missing; commit the changes in repos that track the skills. Pass `--no-skills` to skip that.
+It reinstalls the CLI at the server's version and, when `pyproject.toml` pins `evalkit-py==…`, moves the pin and runs `uv sync`. It then refreshes the skills in every directory `evalkit skills install` wrote to on this machine (listed in `~/.evalkit/skills-targets`), and in `./.agents/skills` or `./.claude/skills` if they hold an earlier install. When either of those two holds an install, it refreshes both, adding the other one if it is missing; commit the changes in repos that track the skills. When the install [skips a directory](#the-skills) in one of them, `evalkit update` still refreshes the others, then names the ones it could not fully refresh and exits with an error. Pass `--no-skills` to skip the refresh.
 
 A CLI older than 0.3.0 cannot update itself: `evalkit update` fails with `KeyError: 'filename'`. Run the [global tool install](#the-cli-as-a-global-tool) command once instead; `evalkit update` works from then on.
 

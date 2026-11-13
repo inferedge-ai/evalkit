@@ -353,7 +353,8 @@ def update(
     match the server again after a deploy. After a reinstall it runs the new
     `evalkit skills install` again in every skills directory installed before, and in
     ./.agents/skills or ./.claude/skills if an earlier install put skills there. When
-    either of those two holds an install, it refreshes both.
+    either of those two holds an install, it refreshes both. A directory the install could
+    not fully refresh does not stop the others: they are named at the end, with an error.
 
     Example: evalkit update · evalkit update --no-skills
     """

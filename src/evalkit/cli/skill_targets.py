@@ -34,7 +34,7 @@ def find_default_siblings(target: Path) -> list[Path]:
 
 def refresh(
     cwd: Path, cli: Path, run: Callable[[list[str]], object], path: Path | None = None
-) -> None:
+) -> list[Path]:
     registry = path or TARGETS_PATH
     targets = _read(registry)
     for candidate in DEFAULT_TARGETS:
@@ -42,12 +42,17 @@ def refresh(
         if (found / INSTALL_MANIFEST).is_file() and found not in targets:
             targets.append(found)
     kept: list[Path] = []
+    failed: list[Path] = []
     for target in targets:
         if not (target / INSTALL_MANIFEST).is_file():
             continue
         for directory in find_default_siblings(target):
-            if directory not in kept:
-                run([str(cli), "skills", "install", "--target", str(directory)])
+            if directory in kept:
+                continue
+            kept.append(directory)
+            if run([str(cli), "skills", "install", "--target", str(directory)]):
+                failed.append(directory)
+            else:
                 typer.echo(f"refreshed skills in {directory}; commit them if the repo tracks them")
-                kept.append(directory)
     _write(registry, kept)
+    return failed

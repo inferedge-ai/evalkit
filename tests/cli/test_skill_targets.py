@@ -76,6 +76,22 @@ def test_refresh_picks_up_an_unrecorded_install_in_cwd(tmp_path, isolated_skill_
     assert calls == [install_call(agents), install_call(claude)]
 
 
+def test_refresh_carries_on_past_a_failed_install_and_returns_it(tmp_path, isolated_skill_targets):
+    first = installed(tmp_path / "a" / "skills")
+    second = installed(tmp_path / "b" / "skills")
+    record(first)
+    record(second)
+    calls: list[list[str]] = []
+
+    def run(command: list[str]) -> int:
+        calls.append(command)
+        return 1 if command[-1] == str(first) else 0
+
+    assert refresh(tmp_path, CLI, run) == [first]
+    assert calls == [install_call(first), install_call(second)]
+    assert isolated_skill_targets.read_text() == f"{first}\n{second}\n"
+
+
 def test_refresh_drops_a_target_without_a_manifest(tmp_path, isolated_skill_targets):
     target = tmp_path / "repo" / ".claude" / "skills"
     target.mkdir(parents=True)
