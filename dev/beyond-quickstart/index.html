@@ -1,0 +1,1348 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Make your AI agent better, end to end.">
+      
+      
+      
+        <link rel="canonical" href="https://inferedge-ai.github.io/evalkit/dev/beyond-quickstart/">
+      
+      
+        <link rel="prev" href="../quickstart/">
+      
+      
+        <link rel="next" href="../concepts/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Beyond the quickstart - Evalkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/tokens.css">
+    
+      <link rel="stylesheet" href="../stylesheets/evalkit.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#beyond-the-quickstart" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+          <aside class="md-banner md-banner--warning">
+            <div class="md-banner__inner md-grid md-typeset">
+              
+  <span data-evalkit-outdated data-root=".."></span>
+
+            </div>
+            <script>var el=document.querySelector("[data-md-component=outdated]"),base=new URL(".."),outdated=__md_get("__outdated",sessionStorage,base);!0===outdated&&el&&(el.hidden=!1)</script>
+          </aside>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Evalkit" class="md-header__button md-logo" aria-label="Evalkit" data-md-component="logo">
+      <svg class="ek-lockup" overflow="visible" viewBox="0 0 405.01 80" role="img" aria-label="evalkit">
+  <rect class="ek-mark" x="0.5" y="0.5" width="79" height="79" rx="17.5" vector-effect="non-scaling-stroke"/>
+  <path fill="#6B9AE8" d="M26.25 59.78 38.24 25.81H33.1L21.11 59.78Z"/>
+  <path fill="#F9FAFB" d="M54.24 57.52Q57.62 57.52 60.06 56.2Q62.49 54.88 63.63 53.22L60.78 50.28Q59.72 51.63 58.07 52.34Q56.41 53.05 54.59 53.05Q53.26 53.05 52.15 52.62Q51.04 52.19 50.18 51.42Q49.37 50.67 48.88 49.72Q48.4 48.78 48.12 47.32V47.23H64.08V44.87Q64.08 42.33 63.4 40.21Q62.71 38.1 61.38 36.59Q60.02 35.09 58.08 34.25Q56.13 33.42 53.62 33.42Q51.28 33.42 49.25 34.29Q47.22 35.16 45.71 36.72Q44.21 38.31 43.36 40.52Q42.51 42.72 42.51 45.42V46.28Q42.51 48.65 43.35 50.7Q44.19 52.75 45.74 54.25Q47.28 55.78 49.44 56.65Q51.6 57.52 54.24 57.52ZM53.58 37.93Q54.8 37.93 55.72 38.32Q56.63 38.72 57.27 39.39Q57.9 40.05 58.25 40.98Q58.61 41.9 58.61 42.87V43.3H48.25Q48.46 42.05 48.93 41.06Q49.39 40.08 50.08 39.37Q50.74 38.66 51.63 38.29Q52.53 37.93 53.58 37.93Z"/>
+  <path class="ek-name" d="M128.6 70.26Q134.43 70.26 138.64 67.98Q142.85 65.7 144.82 62.84L139.88 57.76Q138.07 60.09 135.21 61.32Q132.35 62.54 129.2 62.54Q126.9 62.54 124.99 61.8Q123.07 61.06 121.59 59.72Q120.18 58.42 119.34 56.79Q118.51 55.16 118.03 52.64V52.49H145.6V48.41Q145.6 44.03 144.41 40.37Q143.22 36.72 140.92 34.12Q138.59 31.52 135.23 30.07Q131.87 28.63 127.53 28.63Q123.48 28.63 119.98 30.13Q116.47 31.63 113.87 34.34Q111.27 37.09 109.81 40.89Q108.34 44.69 108.34 49.37V50.85Q108.34 54.94 109.79 58.48Q111.24 62.02 113.91 64.62Q116.58 67.26 120.31 68.76Q124.04 70.26 128.6 70.26ZM127.45 36.42Q129.57 36.42 131.15 37.11Q132.72 37.79 133.84 38.94Q134.91 40.09 135.52 41.69Q136.14 43.28 136.14 44.95V45.7H118.25Q118.62 43.54 119.42 41.84Q120.22 40.13 121.4 38.91Q122.55 37.68 124.09 37.05Q125.63 36.42 127.45 36.42Z M165.01 69.52H173.77L189.24 29.37H179.26L169.98 58.09L169.39 60.84L168.83 58.09L159.41 29.37H149.42Z M219.97 69.52H229.77V68.89Q228.99 67.33 228.6 65.2Q228.21 63.06 228.21 60.09V42.58Q228.21 39.09 226.91 36.47Q225.61 33.86 223.39 32.11Q221.09 30.37 218.01 29.5Q214.93 28.63 211.33 28.63Q207.36 28.63 204.26 29.65Q201.16 30.67 199.01 32.41Q196.85 34.16 195.72 36.4Q194.59 38.65 194.59 41.13H204.2Q204.2 40.02 204.57 39.07Q204.94 38.13 205.72 37.46Q206.54 36.72 207.82 36.31Q209.1 35.9 210.81 35.9Q212.74 35.9 214.2 36.38Q215.67 36.86 216.67 37.75Q217.63 38.61 218.12 39.8Q218.6 40.98 218.6 42.5V45.03H212.48Q208.1 45.03 204.67 45.83Q201.23 46.62 198.89 48.18Q196.33 49.85 195.04 52.41Q193.74 54.97 193.74 58.31Q193.74 60.87 194.76 63.08Q195.78 65.29 197.63 66.89Q199.45 68.48 202.03 69.37Q204.61 70.26 207.73 70.26Q209.62 70.26 211.29 69.89Q212.96 69.52 214.37 68.89Q215.74 68.26 216.89 67.42Q218.04 66.59 218.93 65.62Q219.08 66.74 219.34 67.76Q219.6 68.78 219.97 69.52ZM209.66 62.69Q208.1 62.69 206.91 62.3Q205.72 61.91 204.94 61.28Q204.13 60.58 203.72 59.59Q203.31 58.61 203.31 57.46Q203.31 56.05 203.85 54.86Q204.39 53.67 205.46 52.82Q206.65 51.89 208.54 51.41Q210.44 50.93 213.11 50.93H218.6V58.09Q218.12 58.94 217.28 59.78Q216.45 60.61 215.3 61.25Q214.15 61.91 212.74 62.3Q211.33 62.69 209.66 62.69Z M239.12 12.52V20.42H251.48V61.65H239.12V69.52H273V61.65H261.17V12.52Z M294.23 52.49 306.3 69.52H318.13L300.58 46.1L315.94 29.37H304.4L292.86 41.76L289.45 45.58V12.52H279.87V69.52H289.45V56.94Z M324.7 29.37V37.27H336.62V61.65H324.7V69.52H357.66V61.65H346.3V29.37ZM335.84 19.05Q335.84 20.31 336.39 21.35Q336.95 22.39 337.99 22.95Q339.03 23.54 340.12 23.63Q341.22 23.73 342.26 23.36Q344.45 23.17 345.65 21.8Q346.86 20.42 346.75 18.42Q346.64 16.38 345.21 15.12Q343.78 13.86 341.4 13.86Q340.14 13.86 339.12 14.23Q338.1 14.6 337.4 15.27Q336.65 15.97 336.25 16.94Q335.84 17.9 335.84 19.05Z M383.27 19.57H373.65V29.37H364.19V36.49H373.65V55.49Q373.65 59.43 374.68 62.21Q375.7 64.99 377.59 66.77Q379.44 68.59 382.06 69.45Q384.68 70.3 387.83 70.3Q389.54 70.3 391.26 70.13Q392.99 69.97 394.58 69.67Q396.18 69.37 397.57 68.93Q398.96 68.48 400 67.89L399 61.25Q398.33 61.43 397.35 61.62Q396.37 61.8 395.25 61.95Q394.1 62.14 392.86 62.27Q391.62 62.4 390.47 62.4Q388.87 62.4 387.53 62.02Q386.2 61.65 385.23 60.73Q384.3 59.87 383.79 58.41Q383.27 56.94 383.27 54.71V36.49H398.3V29.37H383.27Z"/>
+</svg>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Evalkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Beyond the quickstart
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Dark"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Dark" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Light"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Light" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/inferedge-ai/evalkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inferedge-ai/evalkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Evalkit" class="md-nav__button md-logo" aria-label="Evalkit" data-md-component="logo">
+      <svg class="ek-lockup" overflow="visible" viewBox="0 0 405.01 80" role="img" aria-label="evalkit">
+  <rect class="ek-mark" x="0.5" y="0.5" width="79" height="79" rx="17.5" vector-effect="non-scaling-stroke"/>
+  <path fill="#6B9AE8" d="M26.25 59.78 38.24 25.81H33.1L21.11 59.78Z"/>
+  <path fill="#F9FAFB" d="M54.24 57.52Q57.62 57.52 60.06 56.2Q62.49 54.88 63.63 53.22L60.78 50.28Q59.72 51.63 58.07 52.34Q56.41 53.05 54.59 53.05Q53.26 53.05 52.15 52.62Q51.04 52.19 50.18 51.42Q49.37 50.67 48.88 49.72Q48.4 48.78 48.12 47.32V47.23H64.08V44.87Q64.08 42.33 63.4 40.21Q62.71 38.1 61.38 36.59Q60.02 35.09 58.08 34.25Q56.13 33.42 53.62 33.42Q51.28 33.42 49.25 34.29Q47.22 35.16 45.71 36.72Q44.21 38.31 43.36 40.52Q42.51 42.72 42.51 45.42V46.28Q42.51 48.65 43.35 50.7Q44.19 52.75 45.74 54.25Q47.28 55.78 49.44 56.65Q51.6 57.52 54.24 57.52ZM53.58 37.93Q54.8 37.93 55.72 38.32Q56.63 38.72 57.27 39.39Q57.9 40.05 58.25 40.98Q58.61 41.9 58.61 42.87V43.3H48.25Q48.46 42.05 48.93 41.06Q49.39 40.08 50.08 39.37Q50.74 38.66 51.63 38.29Q52.53 37.93 53.58 37.93Z"/>
+  <path class="ek-name" d="M128.6 70.26Q134.43 70.26 138.64 67.98Q142.85 65.7 144.82 62.84L139.88 57.76Q138.07 60.09 135.21 61.32Q132.35 62.54 129.2 62.54Q126.9 62.54 124.99 61.8Q123.07 61.06 121.59 59.72Q120.18 58.42 119.34 56.79Q118.51 55.16 118.03 52.64V52.49H145.6V48.41Q145.6 44.03 144.41 40.37Q143.22 36.72 140.92 34.12Q138.59 31.52 135.23 30.07Q131.87 28.63 127.53 28.63Q123.48 28.63 119.98 30.13Q116.47 31.63 113.87 34.34Q111.27 37.09 109.81 40.89Q108.34 44.69 108.34 49.37V50.85Q108.34 54.94 109.79 58.48Q111.24 62.02 113.91 64.62Q116.58 67.26 120.31 68.76Q124.04 70.26 128.6 70.26ZM127.45 36.42Q129.57 36.42 131.15 37.11Q132.72 37.79 133.84 38.94Q134.91 40.09 135.52 41.69Q136.14 43.28 136.14 44.95V45.7H118.25Q118.62 43.54 119.42 41.84Q120.22 40.13 121.4 38.91Q122.55 37.68 124.09 37.05Q125.63 36.42 127.45 36.42Z M165.01 69.52H173.77L189.24 29.37H179.26L169.98 58.09L169.39 60.84L168.83 58.09L159.41 29.37H149.42Z M219.97 69.52H229.77V68.89Q228.99 67.33 228.6 65.2Q228.21 63.06 228.21 60.09V42.58Q228.21 39.09 226.91 36.47Q225.61 33.86 223.39 32.11Q221.09 30.37 218.01 29.5Q214.93 28.63 211.33 28.63Q207.36 28.63 204.26 29.65Q201.16 30.67 199.01 32.41Q196.85 34.16 195.72 36.4Q194.59 38.65 194.59 41.13H204.2Q204.2 40.02 204.57 39.07Q204.94 38.13 205.72 37.46Q206.54 36.72 207.82 36.31Q209.1 35.9 210.81 35.9Q212.74 35.9 214.2 36.38Q215.67 36.86 216.67 37.75Q217.63 38.61 218.12 39.8Q218.6 40.98 218.6 42.5V45.03H212.48Q208.1 45.03 204.67 45.83Q201.23 46.62 198.89 48.18Q196.33 49.85 195.04 52.41Q193.74 54.97 193.74 58.31Q193.74 60.87 194.76 63.08Q195.78 65.29 197.63 66.89Q199.45 68.48 202.03 69.37Q204.61 70.26 207.73 70.26Q209.62 70.26 211.29 69.89Q212.96 69.52 214.37 68.89Q215.74 68.26 216.89 67.42Q218.04 66.59 218.93 65.62Q219.08 66.74 219.34 67.76Q219.6 68.78 219.97 69.52ZM209.66 62.69Q208.1 62.69 206.91 62.3Q205.72 61.91 204.94 61.28Q204.13 60.58 203.72 59.59Q203.31 58.61 203.31 57.46Q203.31 56.05 203.85 54.86Q204.39 53.67 205.46 52.82Q206.65 51.89 208.54 51.41Q210.44 50.93 213.11 50.93H218.6V58.09Q218.12 58.94 217.28 59.78Q216.45 60.61 215.3 61.25Q214.15 61.91 212.74 62.3Q211.33 62.69 209.66 62.69Z M239.12 12.52V20.42H251.48V61.65H239.12V69.52H273V61.65H261.17V12.52Z M294.23 52.49 306.3 69.52H318.13L300.58 46.1L315.94 29.37H304.4L292.86 41.76L289.45 45.58V12.52H279.87V69.52H289.45V56.94Z M324.7 29.37V37.27H336.62V61.65H324.7V69.52H357.66V61.65H346.3V29.37ZM335.84 19.05Q335.84 20.31 336.39 21.35Q336.95 22.39 337.99 22.95Q339.03 23.54 340.12 23.63Q341.22 23.73 342.26 23.36Q344.45 23.17 345.65 21.8Q346.86 20.42 346.75 18.42Q346.64 16.38 345.21 15.12Q343.78 13.86 341.4 13.86Q340.14 13.86 339.12 14.23Q338.1 14.6 337.4 15.27Q336.65 15.97 336.25 16.94Q335.84 17.9 335.84 19.05Z M383.27 19.57H373.65V29.37H364.19V36.49H373.65V55.49Q373.65 59.43 374.68 62.21Q375.7 64.99 377.59 66.77Q379.44 68.59 382.06 69.45Q384.68 70.3 387.83 70.3Q389.54 70.3 391.26 70.13Q392.99 69.97 394.58 69.67Q396.18 69.37 397.57 68.93Q398.96 68.48 400 67.89L399 61.25Q398.33 61.43 397.35 61.62Q396.37 61.8 395.25 61.95Q394.1 62.14 392.86 62.27Q391.62 62.4 390.47 62.4Q388.87 62.4 387.53 62.02Q386.2 61.65 385.23 60.73Q384.3 59.87 383.79 58.41Q383.27 56.94 383.27 54.71V36.49H398.3V29.37H383.27Z"/>
+</svg>
+    </a>
+    Evalkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/inferedge-ai/evalkit" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    inferedge-ai/evalkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Get started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Get started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beyond the quickstart
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beyond the quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#other-ways-to-connect-your-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other ways to connect your agent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#write-a-case-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write a case by hand
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attach-a-file-to-a-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attach a file to a case
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-and-compare-experiments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read and compare experiments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#share-cases-with-your-team" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Share cases with your team
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../concepts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../try-locally/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Try locally
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../login/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Login
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sso/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Single sign-on
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server-config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Server config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workspaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workspaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ci-sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CI sync
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../case-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Case schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Traces
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Traces
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sdk-runs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK runs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sdk-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tracing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tracing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mappings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mappings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../framework-mappings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Framework mappings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../harness-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Harness API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mcp/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MCP
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#other-ways-to-connect-your-agent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other ways to connect your agent
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#write-a-case-by-hand" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write a case by hand
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attach-a-file-to-a-case" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attach a file to a case
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#read-and-compare-experiments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read and compare experiments
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#share-cases-with-your-team" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Share cases with your team
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="beyond-the-quickstart">Beyond the quickstart<a class="headerlink" href="#beyond-the-quickstart" title="Permanent link">&para;</a></h1>
+<p>What the <a href="../quickstart/">Quickstart</a> leaves out: other ways to connect your agent, cases you write yourself, files attached to a case, and sharing cases with your team.</p>
+<h2 id="other-ways-to-connect-your-agent">Other ways to connect your agent<a class="headerlink" href="#other-ways-to-connect-your-agent" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>What you build</th>
+<th>Pick it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SDK run + traces</td>
+<td>A Python script that calls your agent once per case; evalkit reads the run's traces</td>
+<td>The default, and the one the quickstart uses. Runs start from your machine or CI</td>
+</tr>
+<tr>
+<td>Harness API</td>
+<td>An HTTP service: start a run, report its status, serve its ATIF trajectory</td>
+<td>A deployed agent the server should drive (shared agents, runs started from the UI), or you need the Workspace tab</td>
+</tr>
+<tr>
+<td>Harness API + traces</td>
+<td>The same service minus the trajectory endpoint; the trajectory comes from your spans</td>
+<td>You want the Harness API but your agent already emits OpenTelemetry spans</td>
+</tr>
+</tbody>
+</table>
+<p>The Workspace tab on a run lists the files the agent wrote. evalkit reads them through the Harness API files endpoints, so only the two Harness API paths have it. See <a href="../harness-api/">Harness API</a> for what each endpoint enables.</p>
+<p>Create a Harness API agent with its URL:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>agents<span class="w"> </span>create<span class="w"> </span>myagent<span class="w"> </span>--harness-url<span class="w"> </span>http://localhost:8080/evalkit/v1
+</code></pre></div>
+<p>Check it, then run a dataset against it:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>harness<span class="w"> </span>check<span class="w"> </span>myagent
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>run<span class="w"> </span>smoke<span class="w"> </span>--agent<span class="w"> </span>myagent
+</code></pre></div>
+<p><code>evalkit harness check</code> exercises every capability the harness declares. A run executes every case it selects, whether the dataset is in your own workspace (<code>smoke</code>) or a shared one (<code>smoke@dev</code>). Review state never filters a run. If the agent needs an API key, name it in <code>evalkit.yaml</code>; see <a href="../config/">Config</a>.</p>
+<h2 id="write-a-case-by-hand">Write a case by hand<a class="headerlink" href="#write-a-case-by-hand" title="Permanent link">&para;</a></h2>
+<p>Each directory under <code>evalkit/cases</code> is a dataset. Add <code>evalkit/cases/smoke/cases.yaml</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">cases</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">store-count</span>
+<span class="w">    </span><span class="nt">input</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">question</span><span class="p">:</span><span class="w"> </span><span class="s">"How</span><span class="nv"> </span><span class="s">many</span><span class="nv"> </span><span class="s">company-operated</span><span class="nv"> </span><span class="s">stores</span><span class="nv"> </span><span class="s">did</span><span class="nv"> </span><span class="s">Starbucks</span><span class="nv"> </span><span class="s">have</span><span class="nv"> </span><span class="s">at</span><span class="nv"> </span><span class="s">FY2021</span><span class="nv"> </span><span class="s">year-end?"</span>
+<span class="w">    </span><span class="nt">evaluators</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">output</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">answer_rubrics</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">rubrics</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">rubric</span><span class="p">:</span><span class="w"> </span><span class="s">"States</span><span class="nv"> </span><span class="s">17,133</span><span class="nv"> </span><span class="s">company-operated</span><span class="nv"> </span><span class="s">stores</span><span class="nv"> </span><span class="s">at</span><span class="nv"> </span><span class="s">FY2021</span><span class="nv"> </span><span class="s">year-end."</span>
+<span class="w">              </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">factual_retrieval</span>
+</code></pre></div>
+<p>The next run of that dataset syncs the folder first. <a href="../case-schema/">Case schema</a> lists every key and evaluator.</p>
+<h2 id="attach-a-file-to-a-case">Attach a file to a case<a class="headerlink" href="#attach-a-file-to-a-case" title="Permanent link">&para;</a></h2>
+<p>Drop the file in <code>evalkit/fixtures</code>, register it once in <code>fixtures.yaml</code> at the root of your cases directory, and name it in the case. The <code>context</code> line is what the agent is told about the file.</p>
+<div class="highlight"><pre><span></span><code>cp<span class="w"> </span>~/Downloads/meridian-balance-sheet.csv<span class="w"> </span>evalkit/fixtures/
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>shasum<span class="w"> </span>-a<span class="w"> </span><span class="m">256</span><span class="w"> </span>evalkit/fixtures/meridian-balance-sheet.csv
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1"># evalkit/cases/fixtures.yaml</span>
+<span class="nt">fixtures</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">meridian-balance-sheet.csv</span>
+<span class="w">    </span><span class="nt">sha256</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">652d32…eece7</span>
+<span class="w">    </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Meridian's FY2025 balance sheet, USD thousands.</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><span class="c1"># in the case</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">net-debt-fy2025</span>
+<span class="w">  </span><span class="nt">fixtures</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">meridian-balance-sheet.csv</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">input</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">question</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Using only the attached file, what was net debt at FY2025 year-end?</span>
+</code></pre></div>
+<p>A run or sync uploads any fixture whose sha256 the server doesn't hold yet, and the server keeps one copy per sha256. So you only need the files you touch, and if the bytes on disk don't match the registry the run stops and shows both hashes.</p>
+<h2 id="read-and-compare-experiments">Read and compare experiments<a class="headerlink" href="#read-and-compare-experiments" title="Permanent link">&para;</a></h2>
+<p>On the server, open the dataset under Datasets and pick the experiment. The experiment page has the scorecard; each run opens its trajectory and scores and, on the Harness API paths, its workspace files. If converted spans look wrong (missing messages, wrong span kinds), check one session with <code>evalkit traces check myagent &lt;session id&gt;</code> and see <a href="../mappings/">Mappings</a>.</p>
+<p>List a dataset's experiments, newest first:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>experiments<span class="w"> </span>list<span class="w"> </span>--dataset<span class="w"> </span>smoke
+</code></pre></div>
+<p>Compare two experiments: cases fixed, cases broken and gauge deltas:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>summary<span class="w"> </span>&lt;new-id&gt;<span class="w"> </span>--baseline<span class="w"> </span>&lt;old-id&gt;
+</code></pre></div>
+<p>Re-score the same runs after an evaluator change, with no agent calls:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>evaluate<span class="w"> </span>&lt;experiment-id&gt;
+</code></pre></div>
+<p>Download every run (trajectory, case, scores) to diagnose failures:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>runs<span class="w"> </span>pull<span class="w"> </span>--experiment<span class="w"> </span>&lt;experiment-id&gt;
+</code></pre></div>
+<h2 id="share-cases-with-your-team">Share cases with your team<a class="headerlink" href="#share-cases-with-your-team" title="Permanent link">&para;</a></h2>
+<p>Cases reach a shared dataset through a PR. On merge, CI syncs them into a shared workspace such as <code>dev</code>, where they start Unreviewed; a reviewer of that workspace approves them, and if <code>dev</code> is linked to <code>prod</code>, approval promotes them there. <a href="../ci-sync/">CI sync</a> shows how to set up that CI job, and <a href="../workspaces/">Where runs happen</a> walks through the whole setup.</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>review<span class="w"> </span>request<span class="w"> </span>finance@dev<span class="w"> </span>--case-id<span class="w"> </span>net-debt-fy2025<span class="w"> </span>--reviewer<span class="w"> </span>&lt;user&gt;
+</code></pre></div>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>review<span class="w"> </span>approve<span class="w"> </span>finance@dev<span class="w"> </span>net-debt-fy2025
+</code></pre></div>
+<p>Only reviewers can approve. If an admin linked <code>dev</code> to a promotion target (<code>evalkit workspaces promote-to dev prod</code>), that approval also lands the case in <code>finance@prod</code>, approved. <code>prod</code> takes cases only that way: no sync, no separate review. The case page in either workspace shows the other's version and links to it.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../quickstart/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Quickstart">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Quickstart
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../concepts/" class="md-footer__link md-footer__link--next" aria-label="Next: Concepts">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Concepts
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.footer", "navigation.sections", "navigation.top", "search.highlight", "toc.follow"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+        <script src="../javascripts/outdated.js"></script>
+      
+    
+  </body>
+</html>

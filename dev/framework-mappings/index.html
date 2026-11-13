@@ -382,6 +382,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../beyond-quickstart/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Beyond the quickstart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../concepts/" class="md-nav__link">
         
   
@@ -1275,7 +1303,7 @@ evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class=
 <tr>
 <td>LangGraph</td>
 <td>OpenInference LangChain</td>
-<td><code>openinference</code></td>
+<td><code>langchain</code></td>
 <td>LangGraph 1.2</td>
 </tr>
 <tr>
@@ -1340,7 +1368,7 @@ evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class=
 <p>When the agent runs inside the process that calls <code>run_experiment</code>, the SDK's <code>evalkit.run</code> span carries the session id and this is already done.</p>
 <p>Tool spans from most OpenInference instrumentors carry no <code>tool.id</code>. The check then reports "0 matched to calls by id", and evalkit matches tool results to calls by time and order. That is expected; nothing to fix.</p>
 <h2 id="langgraph">LangGraph<a class="headerlink" href="#langgraph" title="Permanent link">&para;</a></h2>
-<p><code>openinference</code> as it is.</p>
+<p><code>langchain</code>: <code>openinference</code> with <code>input.value</code>, <code>output.value</code>, <code>llm.input_messages.*</code> and <code>llm.output_messages.*</code> in <code>known_attributes</code>. LangGraph's CHAIN spans carry flattened messages that the trajectory does not need.</p>
 <ul>
 <li>A graph node named <code>agent</code> (the tutorial's default) is emitted as an AGENT span. If every model step shows up as a subagent, rename the node, or add <code>"rekind_spans": [{"name": "agent", "kind": "chain"}]</code>.</li>
 </ul>
