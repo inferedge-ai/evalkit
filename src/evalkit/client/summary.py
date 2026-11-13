@@ -160,10 +160,10 @@ def summary_lines(report: dict, base: dict | None = None) -> list[str]:
             evaluators = ", ".join(f"{name} {_fmt(score)}" for name, score in sorted(low.items()))
             detail = f"  ({evaluators})" if evaluators else ""
             lines.append(f"  {case['case_id']:<48} {_fmt(case['overall'])}{delta}{detail}")
-    errored_cases = [c for c in report["cases"] if c["errors"] or c["run_errors"]]
-    if errored_cases:
-        lines.append("errored cases:")
-        for case in errored_cases:
+    with_errors = [c for c in report["cases"] if c["errors"] or c["run_errors"]]
+    if with_errors:
+        lines.append("run and evaluator errors:")
+        for case in with_errors:
             problems = [("run", error) for error in case["run_errors"]]
             problems += sorted(case["errors"].items())
             for name, error in problems:

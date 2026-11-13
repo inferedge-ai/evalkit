@@ -265,6 +265,7 @@ export interface CaseRow {
   gauges: Record<string, number | null>;
   errors: Record<string, string>;
   run_errors: string[];
+  errored_runs: number;
   repetitions: number;
   overall: number | null;
   baseline_overall: number | null;

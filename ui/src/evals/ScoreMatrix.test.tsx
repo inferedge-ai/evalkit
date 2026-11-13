@@ -21,6 +21,7 @@ function caseRow(case_id: string, accuracy: number, coverage: number): CaseRow {
     gauges: {},
     errors: {},
     run_errors: [],
+    errored_runs: 0,
     repetitions: 1,
     overall: (accuracy + coverage) / 2,
     baseline_overall: null,

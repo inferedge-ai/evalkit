@@ -50,6 +50,7 @@ const scored: Report = {
       gauges: {},
       errors: {},
       run_errors: [],
+      errored_runs: 0,
       repetitions: 1,
       overall: 0.5,
       baseline_overall: null,
@@ -311,7 +312,8 @@ test("an experiment with errored runs says how many cases errored and how many e
         ...scored.cases[0],
         case_id: "late-fee",
         scores: {},
-        run_errors: ["agent crashed"],
+        run_errors: [],
+        errored_runs: 1,
         overall: null,
       },
     ],
@@ -338,7 +340,8 @@ test("an experiment with errored runs says how many cases errored and how many e
       "1 of 3 cases errored: no run completed with an answer, so they are left out of every score.",
     ),
   ).toBeInTheDocument();
-  expect(screen.getByText("1 of 3 cases")).toBeInTheDocument();
+  expect(screen.getByText("1 of 3 cases scored")).toBeInTheDocument();
+  expect(screen.getAllByText("1/3").length).toBeGreaterThan(0);
   expect(
     screen.getAllByText("2/2 ran · 2/2 evaluated · 1 errored").length,
   ).toBeGreaterThan(0);

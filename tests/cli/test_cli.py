@@ -392,7 +392,7 @@ def test_status_and_experiments_list_tell_errored_from_partly_errored_cases(monk
     assert "3 of 6 cases errored, 1 of 6 cases partly errored  content 1.00" in listed.output
 
 
-def test_summary_lists_errored_cases(capsys):
+def test_summary_lists_run_and_evaluator_errors(capsys):
     case = {"overall": None, "delta": None, "errors": {}, "run_errors": []}
     report = {
         "name": "#4",
@@ -411,7 +411,7 @@ def test_summary_lists_errored_cases(capsys):
     out = capsys.readouterr().out
     assert "experiment 12  #4 of finance@dev" in out
     assert "(0 cases, 2 errored)" in out
-    assert "errored cases:" in out
+    assert "run and evaluator errors:" in out
     assert re.search(r"case-1\s+presentation_judge: 403$", out, re.M)
     assert re.search(r"case-2\s+run: agent crashed$", out, re.M)
     assert "case-3" not in out

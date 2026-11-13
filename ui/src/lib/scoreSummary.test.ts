@@ -22,6 +22,7 @@ function row(over: Partial<CaseRow>): CaseRow {
     gauges: {},
     errors: {},
     run_errors: [],
+    errored_runs: 0,
     repetitions: 1,
     overall: null,
     baseline_overall: null,
