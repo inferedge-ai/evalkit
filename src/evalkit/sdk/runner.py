@@ -17,7 +17,7 @@ from opentelemetry.context import Context
 from pydantic import BaseModel
 
 from evalkit import version
-from evalkit.client import connection, oidc
+from evalkit.client import connection, links, oidc
 from evalkit.client.agents import HttpAgents
 from evalkit.client.api import ApiRequestError, AsyncApi, SyncApi, encode
 from evalkit.client.blob import HttpBlobStore
@@ -118,6 +118,9 @@ class RunSummary(BaseModel):
         session_id: The session the run's spans belong to.
         trajectory_note: Why the trajectory is partial or unavailable, or a note on a
             valid one whose mapping read no LLM or tool steps; `None` otherwise.
+        url: The run's page in the web UI: the experiment's page for its case, or after
+            a dry run the agent run's page; `None` when a dry run pushed its trajectory
+            or has no session id, because the server then holds no run.
     """
 
     case_id: str
@@ -126,6 +129,7 @@ class RunSummary(BaseModel):
     trajectory_status: str | None
     session_id: str | None
     trajectory_note: str | None = None
+    url: str | None = None
 
 
 class ExperimentResult(BaseModel):
@@ -445,10 +449,6 @@ def _note_how_to_finish(
     progress(note)
 
 
-def _experiment_url(server_url: str, exp_id: int) -> str:
-    return f"{server_url.rstrip('/')}/experiments/{exp_id}"
-
-
 async def _session_summary(api: AsyncApi, path: str, session_id: str) -> str:
     try:
         session = (await api.get(path, params={"esf": "true"})).json()
@@ -514,6 +514,7 @@ async def _dry_run(
     provider: Any,
     progress: Progress,
     poll_interval: float,
+    server_url: str,
 ) -> ExperimentResult:
     agent_ref = definition.reference
     store = HttpStore(api)
@@ -571,6 +572,13 @@ async def _dry_run(
                 progress(f"  session {outcome.session_id}: trajectory read failed: {exc}")
         else:
             status = "unavailable"
+        run_url = (
+            links.build_agent_run_url(server_url, slug(agent_ref), outcome.session_id)
+            if outcome.trajectory is None and outcome.session_id is not None
+            else None
+        )
+        if run_url is not None:
+            progress(f"  link: {run_url}")
         summaries.append(
             RunSummary(
                 case_id=case.case_id,
@@ -578,6 +586,7 @@ async def _dry_run(
                 status=outcome.status,
                 trajectory_status=status,
                 session_id=outcome.session_id,
+                url=run_url,
             )
         )
     return ExperimentResult(experiment_id=None, url=None, runs=summaries)
@@ -664,6 +673,7 @@ async def arun_experiment(
                 provider=provider,
                 progress=progress,
                 poll_interval=poll_interval,
+                server_url=active.url,
             )
         store = HttpStore(api)
         holder = local_holder(me)
@@ -771,10 +781,17 @@ async def arun_experiment(
         report = (await api.get(f"/api/experiments/{exp.id}/scorecard")).json()
         for line in summary_lines(report):
             progress(line)
+        url = links.build_experiment_url(active.url, exp.id)
+        progress(f"link: {url}")
         return ExperimentResult(
             experiment_id=exp.id,
-            url=_experiment_url(active.url, exp.id),
-            runs=sorted(summaries, key=lambda s: (s.case_id, s.repetition)),
+            url=url,
+            runs=[
+                s.model_copy(
+                    update={"url": links.build_eval_run_url(active.url, exp.id, s.case_id)}
+                )
+                for s in sorted(summaries, key=lambda s: (s.case_id, s.repetition))
+            ],
         )
     finally:
         await api.aclose()
@@ -847,12 +864,15 @@ async def aevaluate_experiment(
                 if r.agent_run.trajectory_status
                 else None,
                 session_id=r.agent_run.harness_run_id,
+                url=links.build_eval_run_url(active.url, experiment_id, r.case_id),
             )
             for r in await store.run_details(experiment_id)
         ]
+        url = links.build_experiment_url(active.url, experiment_id)
+        progress(f"link: {url}")
         return ExperimentResult(
             experiment_id=experiment_id,
-            url=_experiment_url(active.url, experiment_id),
+            url=url,
             runs=runs,
         )
     finally:
@@ -893,6 +913,7 @@ def run_experiment(
     from the current directory or a parent, and the login from `evalkit login`. The
     file is optional: without it, cases are read from `evalkit/cases/<dataset>/` and
     fixtures from `evalkit/fixtures/` under the current directory, with no credentials.
+    Prints the scorecard, then `link: <url>`, the experiment's page in the web UI.
 
     Args:
         dataset: The dataset to run. A bare name means your personal workspace; if it
@@ -973,6 +994,7 @@ def evaluate_experiment_sync(
 
     `evalkit evaluate` refuses such experiments, because the evaluators live in your
     script; call this from the script instead. Exported as `evaluate_experiment`.
+    Ends with `link: <url>`, the experiment's page in the web UI.
 
     Args:
         experiment_id: The experiment to re-score.

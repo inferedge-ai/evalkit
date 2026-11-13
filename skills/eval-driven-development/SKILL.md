@@ -184,10 +184,12 @@ stateDiagram-v2
   expect the first run to be red.
 - **D — run a dataset.** The developer wants to know how the agent does on a
   dataset (or part of one). → Step 2: `evalkit run`, then `evalkit summary
-  <experiment-id>`, and stop there. Read the `cases:` line first: an errored
-  case has no run that completed with an answer and no score, so report it as
-  a failure, never as a pass. A partly errored case lost some repetitions and
-  is scored on the rest; name it too. Continue at Step 3 only if they ask for the failures to be fixed.
+  <experiment-id>`, and stop there. Both end with a `link:` line, the
+  experiment's page in the web UI; give it to the developer. Read the `cases:`
+  line first: an errored case has no run that completed with an answer and no
+  score, so report it as a failure, never as a pass. A partly errored case lost
+  some repetitions and is scored on the rest; name it too. Continue at Step 3
+  only if they ask for the failures to be fixed.
 
 ### Step 1 — author / select cases (B and C)
 
