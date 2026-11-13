@@ -12,6 +12,7 @@
 - New skill `getting-started`: walks a coding agent through the quickstart in
   the developer's agent project. `evalkit skills install` copies it with the
   others.
+- **CLI**, **SDK**: the `env:` references in `evalkit.yaml` and `evalkit run --judge-api-key-env` read only the environment. The CLI and SDK no longer read the `.env` beside `evalkit.yaml` (or in the current directory). Export the variables in your shell instead. `evalkit serve` still reads the `.env` beside `config.yaml`.
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a
   table) and images in `docs/user/images/`, in the web UI's docs page and on
@@ -28,6 +29,46 @@
   selector follow them. The web UI's docs page sets its headings, images and
   tables from the same tokens, and its mobile page menu is the shared
   `Button`.
+- Experiments can take trajectories from the agent's own trace store. Set
+  `--trace-source` and `--project` on an OTel agent (`evalkit agents
+  create/edit`, or the agent form); SDK runs and harness runs then import each
+  run's session from that store, with no `tracing.register` and no agent
+  token. The source and project are checked when they are saved and when an
+  experiment starts. An agent that runs in the task's process needs no
+  change; any other agent takes `metadata["session_id"]` or the task returns
+  `RunResult(session_id=...)`. New agent settings `trace_source`, `project`,
+  `import_settle_seconds` (15) and `import_wait_seconds` (120), with CLI flags
+  `--import-settle`, `--import-wait` and `--clear-trace-source`.
+  `TraceSourceClient` gains `check_project`.
+- `source` and `project` on `POST /api/agents/{agent}/sessions/import` and
+  `POST /api/agents/{agent}/imports` (and `evalkit traces import
+  --source/--project`) are optional and default to the agent's. A
+  single-session import that leaves both out (a pull from the agent's own
+  source) needs only permission to run the agent, not write access, and
+  waits at most 30 s for the store. A trace source that refuses its key when
+  the agent is saved or an experiment starts answers 400 naming
+  `evalkit trace-sources edit <name> --api-key-env`.
+- A session that holds only evalkit's `evalkit.run` span is now `unavailable`
+  with a reason, on the collector path too, instead of `valid` with an empty
+  trajectory. A run whose trajectory is partial or unavailable, or whose
+  mapping read no LLM or tool steps, records why in the new
+  `agent_runs.trajectory_note` (migration `0019`): in the experiment's runs,
+  on the run page, in `RunSummary.trajectory_note` and on the progress line.
+  A refetch that finds the trajectory replaces the note.
+  The session read returns `only_run_span` and `reason`.
+- An SDK run with no tracer provider whose task neither takes `metadata` nor
+  returns a session id now fails at once with a message naming the fix,
+  replacing `no tracer provider configured and the task returned no
+  session_id`.
+- The span upsert leaves an unchanged span's row, `received_at` included,
+  untouched; a session id fix alone no longer moves `received_at`, and an
+  empty incoming session id never replaces a stored one.
+- Phoenix imports put `openinference.span.kind` back on a span when Phoenix
+  returns it only in its `span_kind` field. Some Phoenix servers move it out
+  of the attributes, and the `openinference` mapping then saw no LLM or tool
+  spans.
+- An unknown trace source now reads `trace source X not found; evalkit
+  trace-sources list shows the registered ones`.
 - New optional setting `auth.oidc.cli_client_id`: an OAuth client of
   `evalkit login`'s own, for identity providers that skip the approval step
   for evalkit's web client. When it's set, `evalkit login` uses it for the

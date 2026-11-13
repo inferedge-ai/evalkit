@@ -11,7 +11,7 @@ How a developer gets the CLI from a server, logs in to a server, and keeps the C
 
 The CLI holds one server login (url, token, username) in `~/.evalkit/config.toml` (file mode `0600`). Shared workspaces such as `@dev` and `@prod` live on that one server; they are not separate logins.
 
-In a client repo, `evalkit.yaml` holds the `credentials:` map. The CLI reads keys from env and from a `.env` beside `evalkit.yaml`; real env vars win over `.env`.
+In a client repo, `evalkit.yaml` holds the `credentials:` map. The CLI reads keys from the environment.
 
 ## Sequence
 

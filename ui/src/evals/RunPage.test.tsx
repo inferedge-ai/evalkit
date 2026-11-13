@@ -223,3 +223,23 @@ test("a run with no evaluators and no scores says so on its Scores tab", async (
   openRun("?tab=scores");
   expect(await screen.findByText("No scores for this run")).toBeInTheDocument();
 });
+
+test("a run whose trajectory is missing says why", async () => {
+  const noted: RunDetail = {
+    ...run,
+    agent_run: {
+      ...run.agent_run,
+      trajectory_status: "unavailable",
+      trajectory_note: "only evalkit's run span was found",
+    },
+  };
+  serveRun((url) =>
+    url.endsWith(RUNS_URL) ? Response.json([noted]) : undefined,
+  );
+  openRun();
+  expect(
+    await screen.findByText(
+      "Trajectory unavailable: only evalkit's run span was found",
+    ),
+  ).toBeInTheDocument();
+});

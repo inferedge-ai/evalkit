@@ -142,10 +142,14 @@ def register(
         session_id: str | None = typer.Argument(
             None, help="One session to import. Leave out and pass --since for a time range."
         ),
-        source: str = typer.Option(
-            ..., "--source", help="A trace source name (evalkit trace-sources list)."
+        source: str | None = typer.Option(
+            None,
+            "--source",
+            help="A trace source name (evalkit trace-sources list). Default: the agent's.",
         ),
-        project: str = typer.Option(..., "--project", help="The project name in the trace source."),
+        project: str | None = typer.Option(
+            None, "--project", help="The project name in the trace source. Default: the agent's."
+        ),
         since: str | None = typer.Option(
             None,
             "--since",
@@ -170,10 +174,11 @@ def register(
             raise typer.BadParameter("--until needs --since")
         client = client_factory()
         slug = agent_slug(agent)
+        target = {k: v for k, v in (("source", source), ("project", project)) if v is not None}
         if session_id is not None:
             body = client.post(
                 f"/api/agents/{encode(slug)}/sessions/import",
-                json={"source": source, "project": project, "session_id": session_id},
+                json={**target, "session_id": session_id},
             ).json()
             typer.echo(f"imported {body['imported']} spans")
             print_session_check(client, slug, session_id)
@@ -185,7 +190,7 @@ def register(
         }
         view = client.post(
             f"/api/agents/{encode(slug)}/imports",
-            json={"source": source, "project": project, **window},
+            json={**target, **window},
         ).json()
         typer.echo(f"import {view['id']} started: {view['since']} → {view['until']}")
         follow(client, agent, slug, view["id"])

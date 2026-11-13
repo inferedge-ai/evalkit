@@ -251,7 +251,9 @@ function AgentView() {
             <div className="mt-4">
               {tab === "overview" && <Overview agent={agent} />}
               {tab === "mappings" && <MappingsPanel agent={slug} />}
-              {tab === "import" && <ImportPanel agent={slug} />}
+              {tab === "import" && (
+                <ImportPanel agent={slug} settings={agent.settings} />
+              )}
               {tab === "check" && <HarnessCheckPanel agent={agent.ref} />}
             </div>
             {editing && (

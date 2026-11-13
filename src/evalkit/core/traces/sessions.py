@@ -24,10 +24,20 @@ from evalkit.core.traces.settle import root_present, settled
 LINK_ATTRIBUTES = (SDK_ROOT_ATTRIBUTE, TASK_SESSION_ATTRIBUTE)
 
 
+ONLY_RUN_SPAN = (
+    "only evalkit's run span was found; the agent's spans are in another trace or another "
+    "provider. Pass metadata['session_id'] to the agent as its session id, or return "
+    "RunResult(session_id=...)"
+)
+STEP_KINDS = frozenset({"llm", "tool"})
+
+
 class SessionTrajectory(BaseModel):
     settled: bool
     root_present: bool
     span_count: int
+    only_run_span: bool = False
+    reason: str | None = None
     mapping_version: int | None = None
     unmapped_attributes: list[str] = Field(default_factory=list)
     trajectory: dict[str, Any] | None = None
@@ -86,6 +96,17 @@ def later_llm_spans(probes: list[RawSpan], active: MappingDocument | None) -> La
     return LaterLlmSpans([i for i, _ in later], input_context(docs, active))
 
 
+def describe_no_steps(
+    agent_name: str, session_id: str | None, span_count: int, mapping_version: int | None
+) -> str:
+    mapping = f"mapping v{mapping_version}" if mapping_version is not None else "no mapping"
+    session = session_id or "?"
+    return (
+        f"session {session}: {span_count} spans but {mapping} read no LLM or tool steps; "
+        f"run evalkit traces check {agent_name} {session}"
+    )
+
+
 class SessionBuilder:
     def __init__(self, active_mapping: MappingDocument | None):
         self._active_mapping = active_mapping
@@ -118,8 +139,22 @@ class SessionBuilder:
         now: datetime,
         settle_seconds: int,
         include_esf: bool = False,
+        requested_session: str | None = None,
     ) -> SessionTrajectory:
-        kept_heads = {id(head) for head in agent_spans([head for head, _, _ in self._spans])}
+        every = [head for head, _, _ in self._spans]
+        if every and all(head.attributes.get(SDK_ROOT_ATTRIBUTE) for head in every):
+            self._spans = []
+            self._texts = {}
+            waiting = any(head.attributes.get(TASK_SESSION_ATTRIBUTE) for head in every)
+            return SessionTrajectory(
+                settled=not waiting and settled(every, now, settle_seconds),
+                root_present=root_present(every),
+                span_count=len(every),
+                mapping_version=mapping_version,
+                only_run_span=True,
+                reason=ONLY_RUN_SPAN,
+            )
+        kept_heads = {id(head) for head in agent_spans(every)}
         kept = [entry for entry in self._spans if id(entry[0]) in kept_heads]
         self._spans = []
         self._texts = {}
@@ -147,6 +182,10 @@ class SessionBuilder:
             incomplete_ended_at=max(received) if received else now,
         )
         result.trajectory = trajectory.model_dump(exclude_none=True)
+        if not any(span.kind in STEP_KINDS for span in esf):
+            result.reason = describe_no_steps(
+                agent_name, requested_session or session_id, len(heads), mapping_version
+            )
         return result
 
 

@@ -199,6 +199,7 @@ class AgentRunRecord(BaseModel):
     ended_at: datetime | None = None
     trajectory_key: str | None = None
     trajectory_status: TrajectoryStatus | None = None
+    trajectory_note: str | None = None
     metrics: dict[str, Any] = Field(default_factory=dict)
     title: str | None = None
 

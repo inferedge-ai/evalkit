@@ -1,10 +1,7 @@
-import os
 import re
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Literal, Protocol
 
-from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 Kind = Literal["agent", "evaluator"]
@@ -87,10 +84,3 @@ class ProviderJudgeIsServerSide(LookupError):
             f"judge provider {name} is scored on the evalkit server; "
             "pass a base_url judge to judge on this machine"
         )
-
-
-def load_dotenv_beside(config_path: Path) -> dict[str, str]:
-    file_values = {
-        k: v for k, v in dotenv_values(config_path.parent / ".env").items() if v is not None
-    }
-    return {**file_values, **os.environ}

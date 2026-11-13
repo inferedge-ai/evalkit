@@ -1,10 +1,12 @@
 from datetime import UTC, datetime, timedelta
 
+import httpx2
+import pytest
 from respx import MockResponse
 
 from evalkit.contracts.enums import TraceProvider
-from evalkit.core.traces.sources import client_for
-from evalkit.core.traces.sources.phoenix import PhoenixClient, flatten_attributes
+from evalkit.core.traces.sources import UnknownProject, client_for
+from evalkit.core.traces.sources.phoenix import PhoenixClient, _to_raw, flatten_attributes
 
 PHOENIX = "https://phoenix.example.com"
 TRACES = f"{PHOENIX}/v1/projects/research-agent/traces"
@@ -151,3 +153,33 @@ async def test_trace_pages_stop_on_an_empty_page(httpx2_mock):
 
 def test_client_for_picks_the_provider():
     assert isinstance(client_for(TraceProvider.PHOENIX, "u", None, 25), PhoenixClient)
+
+
+async def test_check_project_passes_a_known_project(httpx2_mock):
+    route = httpx2_mock.get(f"{PHOENIX}/v1/projects/research-agent").mock(
+        return_value=MockResponse(200, json={"data": {"name": "research-agent"}})
+    )
+    await client().check_project("research-agent")
+    assert route.calls[0].request.headers["authorization"] == "Bearer pk"
+
+
+async def test_check_project_refuses_an_unknown_project(httpx2_mock):
+    httpx2_mock.get(f"{PHOENIX}/v1/projects/nope").mock(return_value=MockResponse(404))
+    with pytest.raises(UnknownProject, match="project nope not found"):
+        await client().check_project("nope")
+
+
+async def test_check_project_raises_on_a_server_error(httpx2_mock):
+    httpx2_mock.get(f"{PHOENIX}/v1/projects/ra").mock(return_value=MockResponse(500))
+    with pytest.raises(httpx2.HTTPStatusError):
+        await client().check_project("ra")
+
+
+def test_span_kind_is_put_back_when_phoenix_moved_it_out_of_the_attributes():
+    span = phoenix_span(1)
+    del span["attributes"]["openinference.span.kind"]
+    span["span_kind"] = "TOOL"
+    assert _to_raw(span).attributes["openinference.span.kind"] == "TOOL"
+    span["span_kind"] = "UNKNOWN"
+    assert "openinference.span.kind" not in _to_raw(span).attributes
+    assert _to_raw(phoenix_span(2)).attributes["openinference.span.kind"] == "LLM"

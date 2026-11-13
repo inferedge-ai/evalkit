@@ -8,12 +8,14 @@ from starlette.datastructures import State
 
 from evalkit.api.auth import CurrentUser
 from evalkit.api.deps import SessionDep
+from evalkit.api.session_pull import ServerSessionPuller
 from evalkit.contracts.enums import WorkspaceRole
 from evalkit.contracts.notes import PERSONAL_KEY_NOTE
 from evalkit.core.access import Actor, WorkspaceRef, can_write
 from evalkit.core.blob import BlobStore, TenantBlobStore
 from evalkit.core.endpoints import EndpointRule, check_endpoint
 from evalkit.core.runner import RunnerDeps
+from evalkit.core.traces.session_import import TraceSourceSessionReader
 from evalkit.db.agents import AgentStore
 from evalkit.db.evaluators import RemoteEvaluatorStore
 from evalkit.db.keys import KeyLoader
@@ -64,6 +66,8 @@ def build_tenant_stores(state: State, tenant_id: str) -> TenantStores:
     spans = SpanStore(sf, tenant_id)
     mappings = MappingStore(sf, tenant_id)
     sessions = DbSessionReader(agents, spans, mappings, state.cfg.otel)
+    sources = TraceSourceStore(sf, tenant_id, state.box)
+    page_traces = state.cfg.otel.import_page_traces
     store = PgStore(sf, tenant_id)
     keys = KeyLoader(sf, tenant_id, state.box)
     blob = TenantBlobStore(state.blob_store, tenant_id)
@@ -74,7 +78,10 @@ def build_tenant_stores(state: State, tenant_id: str) -> TenantStores:
         blob_store=blob,
         agents=agents,
         evaluators=evaluators,
-        sessions=sessions,
+        sessions=TraceSourceSessionReader(
+            sessions,
+            ServerSessionPuller(agents, sources, mappings, spans, page_traces),
+        ),
         agent_keys=keys,
     )
     return TenantStores(
@@ -85,7 +92,7 @@ def build_tenant_stores(state: State, tenant_id: str) -> TenantStores:
         agents=agents,
         evaluators=evaluators,
         providers=LlmProviderStore(sf, tenant_id),
-        sources=TraceSourceStore(sf, tenant_id, state.box),
+        sources=sources,
         imports=TraceImportStore(sf, tenant_id),
         spans=spans,
         mappings=mappings,

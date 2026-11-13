@@ -53,6 +53,21 @@ def _check_schema_file(path: Path | None) -> Path | None:
     return path
 
 
+TRACE_SOURCE = typer.Option(
+    None,
+    "--trace-source",
+    help="A trace source (evalkit trace-sources list) the agent sends its spans to. "
+    "Experiments then import each run's session from it; needs --project. OTel agents only.",
+)
+PROJECT = typer.Option(None, "--project", help="The agent's project in --trace-source.")
+IMPORT_SETTLE = typer.Option(
+    None,
+    "--import-settle",
+    help="Seconds without a new span before an imported session counts as complete (15).",
+)
+IMPORT_WAIT = typer.Option(
+    None, "--import-wait", help="Seconds to wait for an imported session to complete (120)."
+)
 INPUT_SCHEMA = typer.Option(
     None,
     "--input-schema",
@@ -77,7 +92,7 @@ def _provides(pairs: list[str]) -> dict[str, bool] | None:
 
 
 def _settings(
-    values: dict[str, int | None], provides: list[str], input_schema: Path | None
+    values: dict[str, int | str | None], provides: list[str], input_schema: Path | None
 ) -> dict:
     settings: dict = {key: value for key, value in values.items() if value is not None}
     flags = _provides(provides)
@@ -391,6 +406,10 @@ def register(
         poll_interval: int | None = typer.Option(None, "--poll-interval"),
         stop_grace: int | None = typer.Option(None, "--stop-grace"),
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
+        trace_source: str | None = TRACE_SOURCE,
+        project: str | None = PROJECT,
+        import_settle: int | None = IMPORT_SETTLE,
+        import_wait: int | None = IMPORT_WAIT,
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
         input_schema: Path | None = INPUT_SCHEMA,
         api_key_env: str | None = API_KEY_ENV,
@@ -400,7 +419,9 @@ def register(
         credentials.agents.
 
         Examples: evalkit agents create ouragent --workspace dev --harness-url https://agent/evalkit/v1;
+        evalkit agents create myagent --trajectory-source otel --mapping openinference;
         evalkit agents create myagent --trajectory-source otel --mapping openinference
+        --trace-source phoenix --project myagent
         """
         settings = _settings(
             {
@@ -409,6 +430,10 @@ def register(
                 "poll_interval_seconds": poll_interval,
                 "stop_grace_seconds": stop_grace,
                 "trajectory_wait_seconds": trajectory_wait,
+                "trace_source": trace_source,
+                "project": project,
+                "import_settle_seconds": import_settle,
+                "import_wait_seconds": import_wait,
             },
             provides,
             input_schema,
@@ -446,10 +471,19 @@ def register(
         poll_interval: int | None = typer.Option(None, "--poll-interval"),
         stop_grace: int | None = typer.Option(None, "--stop-grace"),
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
+        trace_source: str | None = TRACE_SOURCE,
+        project: str | None = PROJECT,
+        import_settle: int | None = IMPORT_SETTLE,
+        import_wait: int | None = IMPORT_WAIT,
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
         input_schema: Path | None = INPUT_SCHEMA,
         clear_input_schema: bool = typer.Option(
             False, "--clear-input-schema", help="Go back to the default input schema."
+        ),
+        clear_trace_source: bool = typer.Option(
+            False,
+            "--clear-trace-source",
+            help="Stop reading trajectories from a trace source; use the collector again.",
         ),
         api_key_env: str | None = API_KEY_ENV,
         clear_api_key: bool = CLEAR_API_KEY,
@@ -472,6 +506,10 @@ def register(
                 "poll_interval_seconds": poll_interval,
                 "stop_grace_seconds": stop_grace,
                 "trajectory_wait_seconds": trajectory_wait,
+                "trace_source": trace_source,
+                "project": project,
+                "import_settle_seconds": import_settle,
+                "import_wait_seconds": import_wait,
             },
             provides,
             input_schema,
@@ -480,6 +518,10 @@ def register(
             if input_schema is not None:
                 raise ApiError("pass --input-schema or --clear-input-schema, not both")
             changed["input_schema"] = None
+        if clear_trace_source:
+            if trace_source is not None or project is not None:
+                raise ApiError("pass --trace-source and --project, or --clear-trace-source")
+            changed["trace_source"] = changed["project"] = None
         body: dict = {"settings": {**current["settings"], **changed}}
         if harness_url is not None:
             body["harness_url"] = harness_url

@@ -24,12 +24,16 @@ async def ctx(tmp_path, stub_judges, session_factory):
         yield client, env, fake
 
 
+@pytest.fixture(autouse=True)
+def local_keys(monkeypatch):
+    monkeypatch.setenv("LOCAL_AGENT_KEY", "client-key")
+    monkeypatch.setenv("LOCAL_EVAL_KEY", "k")
+    monkeypatch.setenv("LOCAL_JUDGE_KEY", "jk")
+
+
 def local_config(tmp_path) -> LocalConfig:
     cost_map = tmp_path / "cost_map.json"
     cost_map.write_text("{}")
-    (tmp_path / ".env").write_text(
-        "LOCAL_AGENT_KEY=client-key\nLOCAL_EVAL_KEY=k\nLOCAL_JUDGE_KEY=jk\n"
-    )
     return LocalConfig(
         path=tmp_path / "evalkit.yaml",
         cases=tmp_path / "cases",

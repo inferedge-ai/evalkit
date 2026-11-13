@@ -564,6 +564,7 @@ class AgentRun(AuditMixin, Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     trajectory_key: Mapped[str | None] = mapped_column(String(500), default=None)
     trajectory_status: Mapped[str | None] = mapped_column(String(16), default=None)
+    trajectory_note: Mapped[str | None] = mapped_column(Text, default=None)
     metrics: Mapped[dict] = mapped_column(JSONB, default=dict)
     title: Mapped[str | None] = mapped_column(String(200), default=None)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)

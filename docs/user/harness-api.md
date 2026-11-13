@@ -47,7 +47,7 @@ Without `input_schema`, the default applies: an object with a required string `q
 
 ## Already have a harness? Keep it
 
-A harness that already emits OpenTelemetry traces can skip the trajectory endpoint: create the agent with `--trajectory-source otel --mapping FILE` and export spans to the collector with the run id it returned from `POST /runs` in the attribute the mapping's `session_id` rule names (`session.id` for OpenInference, `gen_ai.conversation.id` for GenAI). Everything else stays: server runs, `evalkit run`, the Workspace tab. The harness declares `provides.trajectory: false`. See [Tracing](tracing.md).
+A harness that already emits OpenTelemetry traces can skip the trajectory endpoint: create the agent with `--trajectory-source otel --mapping FILE` and export spans to the collector with the run id it returned from `POST /runs` in the attribute the mapping's `session_id` rule names (`session.id` for OpenInference, `gen_ai.conversation.id` for GenAI). Everything else stays: server runs, `evalkit run`, the Workspace tab. The harness declares `provides.trajectory: false`. See [Tracing](tracing.md). If the harness's spans go to its own trace store instead, name it on the agent (`--trace-source`, `--project`): evalkit imports each run's session from there, and the run id must be the session id in that store.
 
 The session evalkit polls is the `run_id` that `POST /runs` returns; there is no separate session field. A queue-backed agent whose worker opens its own session can return that session id as `run_id`, or stamp the `run_id` it returned on the job's spans in the mapping's session id attribute. Either way the ids must also work with the other `/runs/{id}` endpoints.
 

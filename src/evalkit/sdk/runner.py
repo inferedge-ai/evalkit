@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import time
 import uuid
@@ -22,7 +23,7 @@ from evalkit.client.api import ApiRequestError, AsyncApi, SyncApi, encode
 from evalkit.client.blob import HttpBlobStore
 from evalkit.client.evaluators import HttpEvaluators
 from evalkit.client.server_evaluators import HttpServerEvaluators
-from evalkit.client.sessions import HttpSessionReader
+from evalkit.client.sessions import build_session_reader
 from evalkit.client.store import HttpStore, local_holder
 from evalkit.client.summary import summary_lines
 from evalkit.client.sync import git_revision, resolve_dataset, sync_dataset
@@ -55,7 +56,7 @@ from evalkit.core.runner import (
 )
 from evalkit.core.traces.check import render_check
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE, TASK_SESSION_ATTRIBUTE
-from evalkit.core.traces.poll import poll_trajectory
+from evalkit.core.traces.poll import PollBudget, choose_poll_budget, poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
 from evalkit.core.trajectory import TrajectoryView, backfill_step_costs, derive_metrics
 from evalkit.core.workspace import Reference, parse_reference, parse_slug, slug
@@ -72,7 +73,11 @@ from evalkit.sdk.tracing import CURRENT_RUN
 from evalkit.store.base import AgentRunRecord, CaseView, Experiment, Selection
 
 ROOT_SPAN_NAME = "evalkit.run"
-NO_PROVIDER_ERROR = "no tracer provider configured and the task returned no session_id"
+NO_SESSION_ERROR = (
+    "evalkit recorded no run span (no tracer provider is set) and the task returned no "
+    "session_id and takes no metadata, so evalkit cannot find this run's spans; pass "
+    "metadata['session_id'] to the agent as its session id, or return RunResult(session_id=...)"
+)
 Task = Callable[..., Any]
 Progress = Callable[[str], None]
 
@@ -109,6 +114,8 @@ class RunSummary(BaseModel):
         trajectory_status: `valid`, `partial`, `invalid` or `unavailable`, or `None`
             when no trajectory was read.
         session_id: The session the run's spans belong to.
+        trajectory_note: Why the trajectory is partial or unavailable, or a note on a
+            valid one whose mapping read no LLM or tool steps; `None` otherwise.
     """
 
     case_id: str
@@ -116,6 +123,7 @@ class RunSummary(BaseModel):
     status: str
     trajectory_status: str | None
     session_id: str | None
+    trajectory_note: str | None = None
 
 
 class ExperimentResult(BaseModel):
@@ -164,7 +172,7 @@ async def _agent_definition(api: AsyncApi, agent: str, me: str) -> AgentDefiniti
 
 
 def _credentials(local: LocalConfig, me: str) -> CredentialRegistry:
-    return CredentialRegistry(local.credentials, local.environ(), home=me)
+    return CredentialRegistry(local.credentials, os.environ, home=me)
 
 
 async def _check_evaluator_names(
@@ -278,10 +286,11 @@ async def call_task_traced(
         CURRENT_RUN.reset(token)
     outcome.wall_ms = int((time.monotonic() - clock) * 1000)
     await _flush(provider)
-    if outcome.session_id is None and recording:
+    if outcome.session_id is None and (recording or "metadata" in spec.params):
         outcome.session_id = run_id
     if outcome.session_id is None and outcome.trajectory is None and outcome.error is None:
-        outcome.error = NO_PROVIDER_ERROR
+        outcome.error = NO_SESSION_ERROR
+        outcome.status = "failed"
     return outcome
 
 
@@ -308,7 +317,7 @@ async def settle_and_record(
     repetition: int,
     outcome: Outcome,
     *,
-    wait_seconds: int,
+    budget: PollBudget,
     model: str | None,
     poll_interval: float,
     holder: str | None = None,
@@ -333,6 +342,7 @@ async def settle_and_record(
             outcome.session_id = None
             outcome.trajectory = None
     trajectory_doc: dict[str, Any] | None = None
+    note: str | None = None
     status: str | None
     if outcome.trajectory is not None:
         try:
@@ -345,12 +355,14 @@ async def settle_and_record(
         status = "unavailable"
     else:
         assert deps.sessions is not None
-        trajectory_doc, status = await poll_trajectory(
+        trajectory_doc, status, note = await poll_trajectory(
             deps.sessions,
             exp.agent,
             outcome.session_id,
-            wait_seconds,
+            budget.seconds,
             poll_interval=poll_interval,
+            wait_setting=budget.setting,
+            origin=budget.origin,
         )
     key: str | None = None
     metrics: dict[str, Any] = {}
@@ -381,18 +393,22 @@ async def settle_and_record(
             ended_at=datetime.now(UTC),
             trajectory_key=key,
             trajectory_status=TrajectoryStatus(status) if status else None,
+            trajectory_note=note,
             metrics=metrics,
             title=case_title(case.input),
         ),
         holder=holder,
     )
     deps.progress(f"run {case.case_id} #{repetition} {outcome.status} (trajectory {status})")
+    if note is not None:
+        deps.progress(f"  {note}")
     return RunSummary(
         case_id=case.case_id,
         repetition=repetition,
         status=outcome.status,
         trajectory_status=status,
         session_id=outcome.session_id,
+        trajectory_note=note,
     )
 
 
@@ -458,17 +474,25 @@ async def _report_session(
     agent_slug: str,
     session_id: str,
     *,
-    wait: int,
+    budget: PollBudget,
     progress: Progress,
     poll_interval: float,
 ) -> str:
-    doc, status = await poll_trajectory(
-        sessions, agent_slug, session_id, wait, poll_interval=poll_interval
+    doc, status, note = await poll_trajectory(
+        sessions,
+        agent_slug,
+        session_id,
+        budget.seconds,
+        poll_interval=poll_interval,
+        wait_setting=budget.setting,
+        origin=budget.origin,
     )
     session_path = f"/api/agents/{encode(agent_slug)}/sessions/{encode(session_id)}/trajectory"
     progress(await _session_summary(api, session_path, session_id))
     steps = len((doc or {}).get("steps") or [])
     progress(f"  trajectory: {status}, {steps} steps")
+    if note is not None:
+        progress(f"  {note}")
     return status
 
 
@@ -484,7 +508,7 @@ async def _dry_run(
     selection: Selection,
     count: int,
     model: str | None,
-    wait: int,
+    budget: PollBudget,
     provider: Any,
     progress: Progress,
     poll_interval: float,
@@ -503,8 +527,11 @@ async def _dry_run(
         evaluators=HttpEvaluators(api),
         credentials=_credentials(local, me),
         progress=progress,
-        sessions=HttpSessionReader(api),
+        sessions=build_session_reader(api, definition),
     )
+    settings = definition.settings
+    if settings.trace_source is not None:
+        progress(f"trajectories: imported from {settings.trace_source}, project {settings.project}")
     summaries: list[RunSummary] = []
     for case in cases:
         outcome = await call_task_traced(
@@ -533,7 +560,7 @@ async def _dry_run(
                     deps.sessions,
                     slug(agent_ref),
                     outcome.session_id,
-                    wait=wait,
+                    budget=budget,
                     progress=progress,
                     poll_interval=poll_interval,
                 )
@@ -598,11 +625,7 @@ async def arun_experiment(
         await _check_evaluator_names(evaluators, api, definition.workspace)
         dataset_ref = resolve_dataset(dataset, workspace, me)
         agent_ref = definition.reference
-        wait = (
-            trajectory_wait_seconds
-            if trajectory_wait_seconds is not None
-            else definition.settings.trajectory_wait_seconds
-        )
+        budget = choose_poll_budget(definition.settings, trajectory_wait_seconds)
         provider = tracer_provider if tracer_provider is not None else trace.get_tracer_provider()
         on_disk = local.cases / dataset_ref.name
         own_dataset = dataset_ref.workspace == me and resume is None
@@ -635,7 +658,7 @@ async def arun_experiment(
                 selection=_selection(case_ids, tags),
                 count=int(dry_run),
                 model=model,
-                wait=wait,
+                budget=budget,
                 provider=provider,
                 progress=progress,
                 poll_interval=poll_interval,
@@ -682,7 +705,7 @@ async def arun_experiment(
             credentials=credentials,
             custom_eval_transport=custom_eval_transport,
             progress=progress,
-            sessions=HttpSessionReader(api),
+            sessions=build_session_reader(api, definition),
             python_evaluators=python_evaluators,
             evaluation_concurrency=evaluation_concurrency,
             server_evaluators=HttpServerEvaluators(api),
@@ -715,7 +738,7 @@ async def arun_experiment(
                     case,
                     repetition,
                     outcome,
-                    wait_seconds=wait,
+                    budget=budget,
                     model=model,
                     poll_interval=poll_interval,
                     holder=holder,
@@ -798,7 +821,7 @@ async def aevaluate_experiment(
             credentials=_credentials(local, me),
             custom_eval_transport=custom_eval_transport,
             progress=progress,
-            sessions=HttpSessionReader(api),
+            sessions=build_session_reader(api, await HttpAgents(api).get(exp.agent)),
             python_evaluators={e.name: e for e in evaluators},
             evaluation_concurrency=evaluation_concurrency,
             server_evaluators=HttpServerEvaluators(api),

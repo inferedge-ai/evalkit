@@ -7,7 +7,8 @@ from pydantic import AwareDatetime, BaseModel, model_validator
 from evalkit.api.access import ActorDep, StoresDep, TenantStores
 from evalkit.api.deps import EndpointRuleDep, HolderDep
 from evalkit.api.experiments import task_holder
-from evalkit.api.traces import agent_or_404, require_otel, require_write, resolve_import_source
+from evalkit.api.trace_checks import resolve_import_source
+from evalkit.api.traces import agent_or_404, require_otel, require_write, resolve_import_target
 from evalkit.contracts.enums import TraceImportStatus
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.agents import AgentDefinition
@@ -29,8 +30,8 @@ NO_SESSION_MAPPING = (
 
 
 class RangeImportRequest(BaseModel):
-    source: str
-    project: str
+    source: str | None = None
+    project: str | None = None
     since: AwareDatetime
     until: AwareDatetime
 
@@ -108,10 +109,11 @@ async def start_import(
     await require_write(stores, actor, record)
     require_otel(record)
     mapping = await _session_mapping(stores.mappings, record)
-    source = await resolve_import_source(stores, body.source, rule=rule)
+    name, project = resolve_import_target(record, body.source, body.project)
+    source = await resolve_import_source(stores, name, rule=rule)
     holder = task_holder(pod)
     view = await stores.imports.create(
-        record.id, source.id, body.project, body.since, body.until, actor.id, holder
+        record.id, source.id, project, body.since, body.until, actor.id, holder
     )
     _launch(request, stores, view.id, holder, source, mapping)
     return view

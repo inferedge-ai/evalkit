@@ -13,7 +13,9 @@ from evalkit.db.session import tenant_session
 
 class UnknownTraceSource(KeyError):
     def __init__(self, name: str):
-        super().__init__(f"unknown trace source: {name}")
+        super().__init__(
+            f"trace source {name} not found; evalkit trace-sources list shows the registered ones"
+        )
 
 
 class TraceSourceExists(ValueError):
