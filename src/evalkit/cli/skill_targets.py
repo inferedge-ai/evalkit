@@ -5,7 +5,7 @@ import typer
 
 INSTALL_MANIFEST = ".evalkit-installed"
 TARGETS_PATH = Path.home() / ".evalkit" / "skills-targets"
-DEFAULT_TARGETS = (Path(".claude/skills"), Path(".agents/skills"))
+DEFAULT_TARGETS = (Path(".agents/skills"), Path(".claude/skills"))
 
 
 def _read(path: Path) -> list[Path]:
@@ -25,6 +25,13 @@ def record(target: Path, path: Path | None = None) -> None:
         _write(registry, [*targets, resolved])
 
 
+def find_default_siblings(target: Path) -> list[Path]:
+    root = target.parent.parent
+    if not any(target == (root / candidate).resolve() for candidate in DEFAULT_TARGETS):
+        return [target]
+    return [(root / candidate).resolve() for candidate in DEFAULT_TARGETS]
+
+
 def refresh(
     cwd: Path, cli: Path, run: Callable[[list[str]], object], path: Path | None = None
 ) -> None:
@@ -34,10 +41,13 @@ def refresh(
         found = (cwd / candidate).resolve()
         if (found / INSTALL_MANIFEST).is_file() and found not in targets:
             targets.append(found)
-    kept = []
+    kept: list[Path] = []
     for target in targets:
-        if (target / INSTALL_MANIFEST).is_file():
-            run([str(cli), "skills", "install", "--target", str(target)])
-            typer.echo(f"refreshed skills in {target}; commit them if the repo tracks them")
-            kept.append(target)
+        if not (target / INSTALL_MANIFEST).is_file():
+            continue
+        for directory in find_default_siblings(target):
+            if directory not in kept:
+                run([str(cli), "skills", "install", "--target", str(directory)])
+                typer.echo(f"refreshed skills in {directory}; commit them if the repo tracks them")
+                kept.append(directory)
     _write(registry, kept)

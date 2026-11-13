@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -52,7 +53,7 @@ def test_skills_install_removes_only_what_an_earlier_install_put_there(tmp_path)
     (tmp_path / ".evalkit-installed").write_text("retired-skill\nevalkit-usage\n")
     result = CliRunner().invoke(app, ["skills", "install", "--target", str(tmp_path)])
     assert result.exit_code == 0, result.output
-    assert "removed retired-skill" in result.output
+    assert "removed retired-skill, which an earlier install put there" in result.output
     assert not (tmp_path / "retired-skill").exists()
     assert (tmp_path / "my-own-skill" / "SKILL.md").read_text() == "mine"
 
@@ -117,3 +118,59 @@ def test_skills_install_leaves_docs_images_out(tmp_path, monkeypatch):
     result = CliRunner().invoke(app, ["skills", "install", "--target", str(target)])
     assert result.exit_code == 0, result.output
     assert sorted(p.name for p in (target / "evalkit-docs").iterdir()) == ["quickstart.md"]
+
+
+DEFAULT_FOLDERS = (Path(".agents/skills"), Path(".claude/skills"))
+
+
+def install_in(repo: Path, monkeypatch) -> str:
+    monkeypatch.chdir(repo)
+    result = CliRunner().invoke(app, ["skills", "install"])
+    assert result.exit_code == 0, result.output
+    return result.output
+
+
+def assert_installed(folder: Path) -> None:
+    assert {p.parent.name for p in folder.glob("*/SKILL.md")} == EXPECTED
+    assert (folder / "evalkit-docs" / "try-locally.md").is_file()
+
+
+@pytest.mark.parametrize("existing", [(), (".claude",), (".agents",), (".agents", ".claude")])
+def test_skills_install_writes_both_default_folders(tmp_path, monkeypatch, existing):
+    for name in existing:
+        (tmp_path / name).mkdir()
+    output = install_in(tmp_path, monkeypatch)
+    for folder in DEFAULT_FOLDERS:
+        assert_installed(tmp_path / folder)
+    assert output.splitlines() == [
+        f"{folder}: wrote {len(EXPECTED)} skills and evalkit-docs/" for folder in DEFAULT_FOLDERS
+    ]
+
+
+def test_skills_install_with_target_writes_only_there(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    result = CliRunner().invoke(app, ["skills", "install", "--target", "custom"])
+    assert result.exit_code == 0, result.output
+    assert_installed(tmp_path / "custom")
+    assert not (tmp_path / ".agents").exists()
+    assert not (tmp_path / ".claude").exists()
+
+
+def test_second_install_names_what_it_replaced_and_removed(tmp_path, monkeypatch):
+    install_in(tmp_path, monkeypatch)
+    claude = tmp_path / ".claude" / "skills"
+    (claude / "retired-skill").mkdir()
+    (claude / ".evalkit-installed").write_text(
+        (claude / ".evalkit-installed").read_text() + "retired-skill\n"
+    )
+    (claude / "my-own-skill").mkdir()
+    (claude / "my-own-skill" / "SKILL.md").write_text("mine")
+    output = install_in(tmp_path, monkeypatch)
+    replacing = f"wrote {len(EXPECTED)} skills and evalkit-docs/, replacing {len(EXPECTED) + 1}"
+    assert output.splitlines() == [
+        f".agents/skills: {replacing} already there",
+        ".claude/skills: removed retired-skill, which an earlier install put there",
+        f".claude/skills: {replacing} already there",
+    ]
+    assert not (claude / "retired-skill").exists()
+    assert (claude / "my-own-skill" / "SKILL.md").read_text() == "mine"

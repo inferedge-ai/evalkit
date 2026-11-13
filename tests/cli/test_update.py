@@ -152,7 +152,10 @@ def test_reinstall_refreshes_installed_skills(stale, tmp_path):
     calls: list[list[str]] = []
     run_update(client(), prefix=UV_PREFIX, run=calls.append, cwd=tmp_path, server_extra=False)
     cli = str(UV_PREFIX / "bin" / "evalkit")
-    assert calls[1] == [cli, "skills", "install", "--target", str(skills.resolve())]
+    assert calls[1:] == [
+        [cli, "skills", "install", "--target", str(folder.resolve())]
+        for folder in (tmp_path / ".agents" / "skills", skills)
+    ]
 
 
 def test_a_project_venv_is_updated_by_its_sync_alone(stale, tmp_path, capsys):

@@ -29,6 +29,7 @@ from evalkit.cli.local_run import (
     credentials as local_credentials,
 )
 from evalkit.cli.runs_commands import register as register_runs
+from evalkit.cli.skill_targets import DEFAULT_TARGETS as DEFAULT_SKILL_TARGETS
 from evalkit.cli.skill_targets import INSTALL_MANIFEST
 from evalkit.cli.skill_targets import record as record_skill_target
 from evalkit.cli.tokens_commands import register as register_tokens
@@ -351,7 +352,8 @@ def update(
     ./pyproject.toml to the server's version and runs `uv sync`, so the CLI and the SDK
     match the server again after a deploy. After a reinstall it runs the new
     `evalkit skills install` again in every skills directory installed before, and in
-    ./.claude/skills or ./.agents/skills if an earlier install put skills there.
+    ./.agents/skills or ./.claude/skills if an earlier install put skills there. When
+    either of those two holds an install, it refreshes both.
 
     Example: evalkit update · evalkit update --no-skills
     """
@@ -1262,16 +1264,38 @@ INSTALL_LEAVES_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.p
 DOCS_LEAVE_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.pyc", "images")
 
 
+def install_skills_into(target: Path, sources: dict[str, Path]) -> None:
+    target.mkdir(parents=True, exist_ok=True)
+    manifest = target / INSTALL_MANIFEST
+    previous = manifest.read_text().split() if manifest.is_file() else []
+    for name in previous:
+        if name not in sources and (target / name).is_dir():
+            shutil.rmtree(target / name)
+            typer.echo(f"{target}: removed {name}, which an earlier install put there")
+    replaced = 0
+    for name, source in sources.items():
+        destination = target / name
+        if destination.exists():
+            shutil.rmtree(destination)
+            replaced += 1
+        ignore = DOCS_LEAVE_OUT if name == DOCS_DIR else INSTALL_LEAVES_OUT
+        shutil.copytree(source, destination, ignore=ignore)
+    manifest.write_text("".join(f"{name}\n" for name in sources))
+    record_skill_target(target)
+    note = f", replacing {replaced} already there" if replaced else ""
+    typer.echo(f"{target}: wrote {len(sources) - 1} skills and {DOCS_DIR}/{note}")
+
+
 @skills_app.command("install")
 def skills_install(
     target: Path = typer.Option(
         None,
         "--target",
-        help="Skills dir; default .claude/skills/ if .claude/ exists, else .agents/skills/",
+        help="Install into this one directory instead of .agents/skills/ and .claude/skills/",
     ),
 ):
-    """Copy the bundled skills, and the user docs they link to, into this repo's agent-skills
-    directory.
+    """Copy the bundled skills, and the user docs they link to, into this repo's
+    .agents/skills/ and .claude/skills/ directories.
 
     The docs go to evalkit-docs/ beside the skills. A directory an earlier install put there
     that this version no longer ships is removed; other directories are left alone.
@@ -1283,25 +1307,9 @@ def skills_install(
     skills = sorted(p for p in root.iterdir() if (p / "SKILL.md").is_file())
     if not skills:
         raise ApiError(f"no skills found under {root}")
-    if target is None:
-        target = Path(".claude/skills") if Path(".claude").is_dir() else Path(".agents/skills")
-    target.mkdir(parents=True, exist_ok=True)
     sources = {skill.name: skill for skill in skills} | {DOCS_DIR: docs_root()}
-    manifest = target / INSTALL_MANIFEST
-    previous = manifest.read_text().split() if manifest.is_file() else []
-    for name in previous:
-        if name not in sources and (target / name).is_dir():
-            shutil.rmtree(target / name)
-            typer.echo(f"removed {name} (no longer shipped)")
-    for name, source in sources.items():
-        destination = target / name
-        if destination.exists():
-            shutil.rmtree(destination)
-        ignore = DOCS_LEAVE_OUT if name == DOCS_DIR else INSTALL_LEAVES_OUT
-        shutil.copytree(source, destination, ignore=ignore)
-        typer.echo(f"installed {name} → {destination}")
-    manifest.write_text("".join(f"{name}\n" for name in sources))
-    record_skill_target(target)
+    for directory in [target] if target is not None else DEFAULT_SKILL_TARGETS:
+        install_skills_into(directory, sources)
 
 
 @contracts_app.command("export")

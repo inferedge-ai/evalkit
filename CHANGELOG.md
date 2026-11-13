@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **CLI**: `evalkit skills install` without `--target` writes the skills and `evalkit-docs/` into both `.agents/skills/` and `.claude/skills/`, creating either when missing, so Claude Code finds them in a repo with no `.claude/` folder. Before, it wrote only to `.claude/skills/` when `.claude/` existed, else `.agents/skills/`. `--target DIR` still writes to that one directory. The command prints one line per directory, saying how many skills it replaced, and names each skill it removed because an earlier install put it there and this version no longer ships it. `evalkit update` refreshes both folders, and adds the missing one to a repo that holds an earlier install in only one of them (ENG-14623).
 - **CLI**, **SDK**: the `env:` references in `evalkit.yaml` and `evalkit run --judge-api-key-env` read only the environment. The CLI and SDK no longer read the `.env` beside `evalkit.yaml` (or in the current directory). Export the variables in your shell instead. `evalkit serve` still reads the `.env` beside `config.yaml`.
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a
