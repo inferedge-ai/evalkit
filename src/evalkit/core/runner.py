@@ -79,7 +79,7 @@ from evalkit.core.server_evaluators import (
     needs_judge,
     resolve_location,
 )
-from evalkit.core.traces.poll import poll_trajectory
+from evalkit.core.traces.poll import budget_for, poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
 from evalkit.core.trajectory import (
     RunMetrics,
@@ -329,6 +329,7 @@ class DrivenRun:
     reported_model: str | None = None
     trajectory: Trajectory | None = None
     trajectory_status: TrajectoryStatus | None = None
+    trajectory_note: str | None = None
     wall_ms: int = 0
 
 
@@ -442,11 +443,14 @@ async def _record_one(
                 f"agent {agent.name} takes its trajectory from traces but no session reader "
                 "is configured"
             )
-        doc, status = await poll_trajectory(
+        budget = budget_for(agent.settings)
+        doc, status, driven.trajectory_note = await poll_trajectory(
             deps.sessions,
             exp.agent,
             driven.harness_run_id,
-            agent.settings.trajectory_wait_seconds,
+            budget.seconds,
+            wait_setting=budget.setting,
+            origin=budget.origin,
         )
         driven.trajectory_status = TrajectoryStatus(status)
         if doc is not None:
@@ -478,6 +482,7 @@ async def _record_one(
             ended_at=datetime.now(UTC),
             trajectory_key=key,
             trajectory_status=driven.trajectory_status,
+            trajectory_note=driven.trajectory_note,
             metrics=driven.metrics,
             title=case_title(driven.case.input),
         ),
@@ -1039,12 +1044,23 @@ async def _refetch(
 ) -> set[int]:
     if deps.sessions is None:
         raise ValueError("refetching trajectories needs a session reader")
-    wait = exp.config.snapshot.trajectory_wait_seconds
+    budget = (
+        budget_for(agent.settings)
+        if agent.settings.trace_source is not None
+        else budget_for(agent.settings, exp.config.snapshot.trajectory_wait_seconds)
+    )
     refetched: set[int] = set()
     sessions = deps.sessions
 
     async def one(run: RunForScoring) -> None:
-        doc, status = await poll_trajectory(sessions, exp.agent, run.agent_run.harness_run_id, wait)
+        doc, status, _ = await poll_trajectory(
+            sessions,
+            exp.agent,
+            run.agent_run.harness_run_id,
+            budget.seconds,
+            wait_setting=budget.setting,
+            origin=budget.origin,
+        )
         if doc is None:
             return
         trajectory = validate_trajectory(doc)

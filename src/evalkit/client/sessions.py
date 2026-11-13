@@ -1,5 +1,7 @@
 from evalkit.client.api import ApiRequestError, AsyncApi, encode
-from evalkit.core.traces.sessions import SessionTooLarge, SessionTrajectory
+from evalkit.core.agents import AgentDefinition
+from evalkit.core.traces.session_import import SessionPullFailed, TraceSourceSessionReader
+from evalkit.core.traces.sessions import SessionReader, SessionTooLarge, SessionTrajectory
 
 
 class HttpSessionReader:
@@ -15,3 +17,22 @@ class HttpSessionReader:
                 raise SessionTooLarge(exc.detail) from exc
             raise
         return SessionTrajectory.model_validate(resp.json())
+
+
+class HttpSessionPuller:
+    def __init__(self, api: AsyncApi):
+        self._api = api
+
+    async def __call__(self, agent: str, session_id: str) -> None:
+        path = f"/api/agents/{encode(agent)}/sessions/import"
+        try:
+            await self._api.post(path, json={"session_id": session_id})
+        except ApiRequestError as exc:
+            raise SessionPullFailed(exc.detail) from exc
+
+
+def sessions_for(api: AsyncApi, definition: AgentDefinition) -> SessionReader:
+    reader = HttpSessionReader(api)
+    if definition.settings.trace_source is None:
+        return reader
+    return TraceSourceSessionReader(reader, HttpSessionPuller(api))

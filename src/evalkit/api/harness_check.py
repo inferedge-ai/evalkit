@@ -40,7 +40,7 @@ async def run_check(
             keys.key_for("agent", definition.ref),
             stores.deps.blob_store,
             transport=stores.deps.harness_transport,
-            sessions=stores.sessions,
+            sessions=stores.deps.sessions,
         ),
         timeout=120,
     )
