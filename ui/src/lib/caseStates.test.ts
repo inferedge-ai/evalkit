@@ -9,6 +9,7 @@ const row = (case_id: string): CaseRow => ({
   gauges: {},
   errors: {},
   run_errors: [],
+  errored_runs: 0,
   repetitions: 1,
   overall: 0.5,
   baseline_overall: null,

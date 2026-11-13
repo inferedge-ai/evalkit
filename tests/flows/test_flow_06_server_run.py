@@ -64,7 +64,13 @@ def test_flow_06_shared_run_lives_in_the_shared_workspace(cli):
         [row] = [
             e for e in alice.get("/api/datasets/sv6@dev/experiments").json() if e["id"] == exp_id
         ]
-        assert row["progress"] == {"total": 1, "ran": 1, "evaluated": 1}
+        assert row["progress"] == {
+            "total": 1,
+            "ran": 1,
+            "evaluated": 1,
+            "errored": 0,
+            "partly_errored": 0,
+        }
         assert len(alice.get(f"/api/experiments/{exp_id}/runs").json()) == 2
         ui = alice.post(
             "/api/experiments",
@@ -233,12 +239,25 @@ def test_flow_06_resume_reruns_only_missing_runs_and_reevaluate_keeps_scores(cli
         exp_id = experiment_id(cli.ok("run", "rs6@dev", "--agent", "ouragent@dev"))
     finally:
         fake.fail_run = False
+    summary = cli.ok("summary", str(exp_id))
+    assert (
+        "cases: 2, 2 errored (no run completed with an answer; left out of every score)" in summary
+    )
+    listed = cli.ok("experiments", "list", "--dataset", "rs6@dev")
+    assert "2 of 2 cases errored" in listed
+    assert "2/2 evaluated, 2 errored" in cli.ok("status", str(exp_id))
     with api(cli.live, "ravi") as ravi:
         assert ravi.post(f"/api/experiments/{exp_id}/resume").status_code == 403
     with api(cli.live, "alice") as alice:
         finished = alice.get(f"/api/experiments/{exp_id}").json()
         assert finished["status"] == "completed"
-        assert finished["progress"] == {"total": 2, "ran": 2, "evaluated": 2}
+        assert finished["progress"] == {
+            "total": 2,
+            "ran": 2,
+            "evaluated": 2,
+            "errored": 2,
+            "partly_errored": 0,
+        }
         first = alice.get(f"/api/experiments/{exp_id}/runs").json()
         assert all(r["agent_run"]["status"] == "failed" for r in first)
         before = {r["agent_run_id"] for r in first}

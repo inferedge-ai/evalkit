@@ -7,9 +7,11 @@ import {
   resumeHint,
   isActive,
   isIncomplete,
+  erroredNote,
   progressLabel,
   shortProgress,
 } from "./experimentStatus";
+import { scorecard } from "../testFixtures";
 
 describe("experiment status", () => {
   it("treats running and evaluating as active", () => {
@@ -74,5 +76,36 @@ describe("progress", () => {
     expect(shortProgress(progress)).toBe("8/40");
     expect(isIncomplete(progress)).toBe(true);
     expect(isIncomplete({ total: 5, ran: 5, evaluated: 5 })).toBe(false);
+  });
+
+  it("counts errored and partly errored cases in both labels", () => {
+    const progress = {
+      total: 6,
+      ran: 6,
+      evaluated: 6,
+      errored: 3,
+      partly_errored: 1,
+    };
+    expect(progressLabel(progress)).toBe(
+      "6/6 ran · 6/6 evaluated · 3 errored · 1 partly errored",
+    );
+    expect(shortProgress(progress)).toBe("6/6 · 3 err · 1 part err");
+  });
+
+  it("notes errored and partly errored cases out of the selected cases", () => {
+    const base = {
+      ...scorecard,
+      cases: [],
+      selected_cases: 6,
+      errored_cases: 0,
+      partly_errored_cases: 0,
+    };
+    expect(erroredNote(base)).toBeNull();
+    expect(erroredNote({ ...base, errored_cases: 3 })).toBe(
+      "3 of 6 cases errored: no run completed with an answer, so they are left out of every score.",
+    );
+    expect(erroredNote({ ...base, partly_errored_cases: 1 })).toBe(
+      "1 of 6 cases partly errored: scored only on the runs that completed.",
+    );
   });
 });

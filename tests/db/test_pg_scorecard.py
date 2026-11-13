@@ -6,7 +6,7 @@ from evalkit.contracts.enums import EvaluationSource, EvaluatorKind, RunStatus
 from evalkit.core.scorecard import assemble_report
 from evalkit.db.cases import get_dataset
 from evalkit.db.experiments import create_experiment
-from evalkit.db.runs import publish_evaluations, record_run
+from evalkit.db.runs import publish_evaluations, record_run, runs_to_score
 from evalkit.db.scorecard import (
     RunFacts,
     aggregate,
@@ -94,6 +94,7 @@ async def _store(s, exp_id, runs) -> None:
             AgentRunRecord(
                 harness_run_id=f"{exp_id}-{case_id}-{rep}",
                 status=RunStatus.FAILED if error else RunStatus.COMPLETED,
+                answer=None if error else "42",
                 error=error,
                 started_at=datetime.now(UTC),
             ),
@@ -159,6 +160,7 @@ EXPECTED = {
             "gauges": {"gauge_agent_cost_usd": pytest.approx(0.03)},
             "errors": {},
             "run_errors": [],
+            "errored_runs": 0,
             "repetitions": 2,
             "overall": pytest.approx(1.6 / 3),
             "baseline_overall": 0.2,
@@ -170,6 +172,7 @@ EXPECTED = {
             "gauges": {"gauge_agent_cost_usd": 0.01},
             "errors": {"broken": "500 from evaluator"},
             "run_errors": ["harness crashed"],
+            "errored_runs": 1,
             "repetitions": 2,
             "overall": 1.0,
             "baseline_overall": 1.0,
@@ -222,6 +225,9 @@ async def test_sql_report_values(session_factory, experiments):
     assert by_case["q-2"].errors == {"broken": "500 from evaluator"}
     assert by_case["q-2"].run_errors == ["harness crashed"]
     assert new_report.buckets["custom"] == 0.5
+    assert (new_report.errored_cases, new_report.partly_errored_cases) == (0, 1)
+    assert new_report.selected_cases == 3
+    assert new_report.bucket_cases == {"content": 2, "presentation": 1, "custom": 1}
 
 
 async def test_progress_and_case_states(session_factory, experiments):
@@ -229,7 +235,59 @@ async def test_progress_and_case_states(session_factory, experiments):
     async with session_factory() as s:
         states = await case_states(s, current)
         assert states == {"q-1": "evaluated", "q-2": "evaluated", "q-3": "pending"}
-        assert await progress(s, current) == Progress(total=3, ran=2, evaluated=2)
+        assert await progress(s, current) == Progress(
+            total=3, ran=2, evaluated=2, errored=0, partly_errored=1
+        )
+
+
+async def test_a_case_is_errored_only_when_every_repetition_errored(session_factory, experiments):
+    current, _ = experiments
+    async with session_factory() as s:
+        await _store(s, current, {("q-3", 1): ("boom", []), ("q-3", 2): ("boom again", [])})
+        report = assemble_report(await aggregate(s, current))
+        assert (report.errored_cases, report.partly_errored_cases) == (1, 1)
+        assert report.bucket_cases["content"] == 2 and report.selected_cases == 3
+        assert await progress(s, current) == Progress(
+            total=3, ran=3, evaluated=3, errored=1, partly_errored=1
+        )
+
+
+def run_record(status: RunStatus, **fields) -> AgentRunRecord:
+    return AgentRunRecord(
+        harness_run_id=f"{status.value}-{sorted(fields)}",
+        status=status,
+        started_at=datetime.now(UTC),
+        **fields,
+    )
+
+
+@pytest.mark.parametrize(
+    ("run", "errored"),
+    [
+        (run_record(RunStatus.COMPLETED, answer="42"), False),
+        (run_record(RunStatus.COMPLETED, answer="partial", error="tool failed once"), False),
+        (run_record(RunStatus.COMPLETED, output={"total": 1}, error="warning"), False),
+        (run_record(RunStatus.FAILED, output={"total": 1}, error="late crash"), False),
+        (run_record(RunStatus.COMPLETED), True),
+        (run_record(RunStatus.FAILED), True),
+        (run_record(RunStatus.TIMEOUT), True),
+        (run_record(RunStatus.CANCELLED), True),
+        (run_record(RunStatus.FAILED, answer="half", error="crashed"), True),
+        (run_record(RunStatus.RUNNING), False),
+    ],
+)
+async def test_errored_follows_the_run_status_and_answer(
+    session_factory, experiments, run, errored
+):
+    current, _ = experiments
+    async with session_factory() as s:
+        await record_run(s, current, "q-3", 1, run, None)
+        report = assemble_report(await aggregate(s, current))
+        scored = {r.case.case_id for r in await runs_to_score(s, current, force=True)}
+        counted = (await progress(s, current)).errored
+    assert (report.errored_cases, counted) == (int(errored), int(errored))
+    finished = run.status is not RunStatus.RUNNING
+    assert ("q-3" in scored) == (finished and not errored)
 
 
 DONE, FAILED_WITH_OUTPUT, FAILED_NO_OUTPUT, LIVE = (

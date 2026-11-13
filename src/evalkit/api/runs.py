@@ -20,6 +20,7 @@ from evalkit.api.deps import SessionDep
 from evalkit.api.download import content_disposition
 from evalkit.api.experiments import slug_or_400
 from evalkit.contracts.atif import Trajectory, validate_trajectory
+from evalkit.contracts.enums import RunStatus
 from evalkit.contracts.harness import FileEntry, FileList, RunListItem
 from evalkit.core.agents import AgentDefinition, explicit, server_may_drive
 from evalkit.core.blob import artifact_key, workspace_key
@@ -28,6 +29,7 @@ from evalkit.core.harness import HarnessClient, HarnessFile
 from evalkit.core.paths import is_safe_path, is_safe_run_id
 from evalkit.core.pull import SCAN_NOTE, list_harness_runs
 from evalkit.core.runner import RunnerDeps, case_title
+from evalkit.core.traces.settle import is_settled_since
 from evalkit.core.trajectory import backfill_step_costs
 from evalkit.db.agents import AgentStore
 from evalkit.db.runs import (
@@ -48,6 +50,7 @@ MAX_PAGE = 200
 
 class BrowserRun(RunListItem):
     status: str | None = None
+    duration_ms: float | None = None
     experiment_id: int | None = None
     experiment_number: int | None = None
     case_id: str | None = None
@@ -85,6 +88,20 @@ def _sdk_case(item: SessionSummary) -> tuple[str | None, str | None]:
     return (str(case_id) if case_id is not None else None), title
 
 
+def _duration_ms(start: datetime | None, end: datetime | None) -> float | None:
+    if start is None or end is None:
+        return None
+    return round((end - start).total_seconds() * 1000, 1)
+
+
+def _session_status(item: SessionSummary, now: datetime, settle_seconds: int) -> RunStatus:
+    if item.failed:
+        return RunStatus.FAILED
+    if is_settled_since(item.last_received_at, now, settle_seconds):
+        return RunStatus.COMPLETED
+    return RunStatus.RUNNING
+
+
 def _stored(item: AgentRunItem) -> BrowserRun:
     return BrowserRun(
         run_id=item.harness_run_id,
@@ -92,6 +109,7 @@ def _stored(item: AgentRunItem) -> BrowserRun:
         user_id=item.created_by,
         created_at=item.started_at,
         status=item.status.value,
+        duration_ms=_duration_ms(item.started_at, item.ended_at),
         experiment_id=item.experiment_id,
         experiment_number=item.experiment_number,
         case_id=item.case_id,
@@ -113,6 +131,7 @@ async def resolve_runs(
     spans: SpanStore,
     session: AsyncSession,
     *,
+    settle_seconds: int,
     source: RunSource = "all",
     since: datetime | None = None,
     until: datetime | None = None,
@@ -145,6 +164,7 @@ async def resolve_runs(
             session, record.id, [i.session_id for i in items if i.session_id]
         )
         sessions: list[BrowserRun] = []
+        now = datetime.now(UTC)
         for i in items:
             run = linked.get(i.session_id) if i.session_id else None
             sdk_case_id, sdk_title = _sdk_case(i)
@@ -154,7 +174,8 @@ async def resolve_runs(
                     title=(run.title if run else None) or sdk_title or i.title,
                     created_at=i.created_at,
                     user_id=run.created_by if run else None,
-                    status=run.status.value if run else None,
+                    status=(run.status if run else _session_status(i, now, settle_seconds)).value,
+                    duration_ms=_duration_ms(i.created_at, i.ended_at),
                     experiment_id=run.experiment_id if run else None,
                     experiment_number=run.experiment_number if run else None,
                     case_id=(run.case_id if run else None) or sdk_case_id,
@@ -232,11 +253,13 @@ async def list_runs(
     until: datetime | None = None,
     run_id: Annotated[list[str] | None, Query()] = None,
 ) -> dict:
+    record = await agent_or_404(stores.agents, agent)
     page = await resolve_runs(
-        await agent_or_404(stores.agents, agent),
+        record,
         stores.deps,
         stores.spans,
         session,
+        settle_seconds=stores.sessions.settle_seconds(record),
         source=source,
         since=since,
         until=until,

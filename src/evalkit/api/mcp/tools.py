@@ -381,6 +381,7 @@ class Runs:
                     stores.deps,
                     stores.spans,
                     session,
+                    settle_seconds=stores.sessions.settle_seconds(record),
                     limit=limit,
                     offset=offset,
                     **filters,

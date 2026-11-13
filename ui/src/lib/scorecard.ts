@@ -8,9 +8,14 @@ export function columnShown(report: Report, col: string): boolean {
   return report.cases.some((row) => hasColumn(row, col));
 }
 
+export function describeErroredRuns(row: CaseRow): string | null {
+  if (row.errored_runs === 0) return null;
+  return row.errored_runs >= row.repetitions ? "errored" : "partly errored";
+}
+
 export function rowFailing(row: CaseRow): boolean {
   return (
-    row.run_errors.length > 0 ||
+    row.errored_runs > 0 ||
     Object.keys(row.errors).length > 0 ||
     Object.values(row.scores).some((s) => s !== null && s < 0.8)
   );

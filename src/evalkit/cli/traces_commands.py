@@ -9,6 +9,7 @@ from pathlib import Path
 import typer
 
 from evalkit.cli.client import ApiClient, ApiError
+from evalkit.client import links
 from evalkit.client.api import encode
 from evalkit.core.traces.check import render_check
 from evalkit.core.traces.presets import list_preset_names, read_preset
@@ -106,14 +107,18 @@ def register(
             typer.echo(line)
         if not ok:
             raise typer.Exit(code=1)
+        typer.echo(f"link: {links.build_agent_run_url(client.server_url, slug, session_id)}")
 
     def print_session_check(client: ApiClient, slug: str, session_id: str) -> None:
         settle = int(client.get("/api/meta").json().get("settle_seconds") or 0)
         time.sleep(settle)
         path = f"/api/agents/{encode(slug)}/sessions/{encode(session_id)}/trajectory"
         session = client.get(path, params={"esf": "true"}).json()
-        for line in render_check(session)[0]:
+        lines, ok = render_check(session)
+        for line in lines:
             typer.echo(line)
+        if ok:
+            typer.echo(f"link: {links.build_agent_run_url(client.server_url, slug, session_id)}")
 
     def follow(client: ApiClient, agent: str, slug: str, import_id: int) -> None:
         last = None
