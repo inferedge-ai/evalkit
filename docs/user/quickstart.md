@@ -153,7 +153,7 @@ You see which cases it fixed, and how response time, cost and tokens moved.
 
 ## What you just did
 
-- Set up evalkit with no server and no LLM key.
+- Set up evalkit in your agent repo.
 - Mapped your agent's spans.
 - Built a dataset from your own traces.
 - Ran an experiment and got a scorecard.
