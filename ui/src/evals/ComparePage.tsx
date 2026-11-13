@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowUpRight, GitCompareArrows } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
-import { progressLabel } from "../lib/experimentStatus";
+import { erroredNote, progressLabel } from "../lib/experimentStatus";
 import { useApi } from "../lib/query";
 import { NotFound } from "../shell/NotFound";
 import { ToArrow } from "../lib/ui";
@@ -276,6 +276,21 @@ export function ComparePage() {
         )}
 
         <div className="eyebrow">Scores</div>
+        {(
+          [
+            ["baseline", data.base],
+            ["this experiment", data.compare],
+          ] as const
+        ).map(([side, report]) => {
+          const note = erroredNote(report.errored_cases, report.cases.length);
+          return (
+            note && (
+              <div className="pane-status error" key={side}>
+                {side}: {note}
+              </div>
+            )
+          );
+        })}
         <CompareBucketCards base={data.base} compare={data.compare} />
         <CostSpeedLine report={data.compare} base={data.base} />
 

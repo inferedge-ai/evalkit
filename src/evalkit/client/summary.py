@@ -86,17 +86,36 @@ def _changed_cases(report: dict, base: dict) -> list[str]:
     return lines
 
 
+def _cases_text(report: dict) -> str:
+    total = len(report["cases"])
+    errored = report.get("errored_cases", 0)
+    if not errored:
+        return f"{total}"
+    return f"{total}, {errored} errored (no answer; left out of every score)"
+
+
+def _bucket_coverage(report: dict, bucket: str) -> str:
+    total = len(report["cases"])
+    covered = report.get("bucket_cases", {}).get(bucket, total)
+    return f"  ({covered} of {total} cases)" if covered < total else ""
+
+
 def summary_lines(report: dict, base: dict | None = None) -> list[str]:
     lines = [f"\nexperiment {report['experiment_id']}  {report['name']} of {report['dataset']}"]
     if base is not None:
         lines.append(f"vs experiment {base['experiment_id']}  {base['name']} of {base['dataset']}")
+    cases = f"cases: {_cases_text(report)}"
+    if base is not None:
+        cases += f"  (baseline: {_cases_text(base)})"
+    lines.append(cases)
     base_buckets = base["buckets"] if base else {}
     base_evaluators = {stat["name"]: stat for stat in base["evaluators"]} if base else {}
     scored = {bucket: value for bucket, value in report["buckets"].items() if value is not None}
     if scored:
         lines.append("buckets:")
         lines += [
-            f"  {bucket:<14} {_fmt(value)}{_fmt_delta(base_buckets.get(bucket), value)}"
+            f"  {bucket:<14} {_fmt(value)}{_bucket_coverage(report, bucket)}"
+            f"{_fmt_delta(base_buckets.get(bucket), value)}"
             for bucket, value in scored.items()
         ]
     lines.append("evaluators:")

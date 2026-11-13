@@ -312,10 +312,13 @@ async def test_otel_agent_runs_list_sessions_and_convert_on_demand(api):
         "/api/otel/v1/traces", content=otlp_payload(session_id="s-1"), headers=headers
     )
     await client.post(
-        "/api/otel/v1/traces", content=otlp_payload(session_id="s-2"), headers=headers
+        "/api/otel/v1/traces", content=otlp_payload(session_id="s-2", failed=True), headers=headers
     )
     listed = (await client.get("/api/agents/sdk@admin/runs")).json()
     assert listed["total"] == 2 and {r["run_id"] for r in listed["runs"]} == {"s-1", "s-2"}
+    by_id = {r["run_id"]: r for r in listed["runs"]}
+    assert (by_id["s-1"]["status"], by_id["s-2"]["status"]) == ("completed", "failed")
+    assert all(r["duration_ms"] is not None and r["duration_ms"] >= 0 for r in listed["runs"])
     assert listed["runs"][0]["title"] == "evalkit.run"
     filtered = (await client.get("/api/agents/sdk@admin/runs", params={"query": "s-2"})).json()
     assert [r["run_id"] for r in filtered["runs"]] == ["s-2"]

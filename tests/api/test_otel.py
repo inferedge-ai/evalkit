@@ -8,6 +8,7 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import SpanLimits, TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+from opentelemetry.trace import Status, StatusCode
 from sqlalchemy import select
 
 from evalkit.contracts.enums import TrajectorySource, WorkspaceRole
@@ -24,7 +25,9 @@ from tests.native import seed_env
 PROTO = {"content-type": "application/x-protobuf"}
 
 
-def otlp_payload(session_id="sess-1", agent_attr=None, child=True, llm_extra=0) -> bytes:
+def otlp_payload(
+    session_id="sess-1", agent_attr=None, child=True, llm_extra=0, failed=False
+) -> bytes:
     exporter = InMemorySpanExporter()
     resource = Resource.create({"evalkit.agent": agent_attr} if agent_attr else {})
     limits = SpanLimits(max_span_attributes=2) if llm_extra else None
@@ -32,7 +35,11 @@ def otlp_payload(session_id="sess-1", agent_attr=None, child=True, llm_extra=0) 
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     tracer = provider.get_tracer("t")
     root_attrs = {"session.id": session_id, "openinference.span.kind": "CHAIN"}
-    with tracer.start_as_current_span("evalkit.run", attributes=root_attrs):
+    with tracer.start_as_current_span(
+        "evalkit.run", attributes=root_attrs, record_exception=False, set_status_on_exception=False
+    ) as root:
+        if failed:
+            root.set_status(Status(StatusCode.ERROR, "agent crashed"))
         if child:
             llm_attrs = {"openinference.span.kind": "LLM", "llm.model_name": "m"}
             llm_attrs |= {f"llm.input_messages.{i}.message.role": "user" for i in range(llm_extra)}

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Scorecard**: errored runs show in every scorecard (ENG-14621). Scores
+  for runs that completed are unchanged. The report (`GET
+  /api/experiments/{id}/scorecard`) has new fields `errored_cases` and
+  `bucket_cases`, and an experiment's `progress` has `errored`.
+  `evalkit summary` (with or without `--baseline`) and the SDK's printed
+  scorecard start with `cases: 6, 3 errored (no answer; left out of every
+  score)` and add `(3 of 6 cases)` to a bucket that covers fewer cases than
+  ran. `evalkit experiments list` puts `3 of 6 cases errored` before the
+  bucket scores, and `evalkit status` adds `3 errored`. The web UI shows the
+  same count above the bucket cards, on each bucket card and in the cases
+  column of the experiments list.
+- **Runs**: `evalkit runs list` and the Runs page show a status and a
+  duration for every run. An OTel session is `failed` when a root span has
+  status `ERROR` or an `error.type` attribute, and `completed` otherwise; its
+  duration runs from its first span's start to its last span's end. The run
+  list API has a new field `duration_ms`.
+
 - **CLI**, **SDK**: the `env:` references in `evalkit.yaml` and `evalkit run --judge-api-key-env` read only the environment. The CLI and SDK no longer read the `.env` beside `evalkit.yaml` (or in the current directory). Export the variables in your shell instead. `evalkit serve` still reads the `.env` beside `config.yaml`.
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a

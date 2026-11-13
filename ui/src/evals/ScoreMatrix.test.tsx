@@ -59,6 +59,8 @@ const REPORT: Report = {
     },
   ],
   buckets: { content: 0.5 },
+  bucket_cases: { content: 3 },
+  errored_cases: 0,
   gauges: [],
   evaluator_columns: ["accuracy", "coverage"],
   baseline_id: null,

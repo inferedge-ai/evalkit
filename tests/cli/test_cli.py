@@ -1574,6 +1574,31 @@ def test_runs_list_notes_a_code_driven_agent_without_traces(env, monkeypatch):
     assert "only sees its eval runs" in result.output
 
 
+def test_runs_list_shows_status_and_duration(env, monkeypatch):
+    definition = fake_agent("task", "admin", shared=True, harness_url=None)
+    monkeypatch.setattr(main_module, "_agent_definition", lambda ref: definition)
+    monkeypatch.setattr(
+        main_module, "_connection", lambda: connection.Connection("u", "t", "admin")
+    )
+    rows = [
+        {"run_id": "s-ok", "source": "app", "status": "completed", "duration_ms": 1500.0},
+        {"run_id": "s-bad", "source": "app", "status": "failed", "duration_ms": 95_000.0},
+        {"run_id": "s-new", "source": "app", "status": None, "duration_ms": None},
+    ]
+
+    class StubClient:
+        def get(self, path, **kwargs):
+            return httpx2.Response(200, json={"runs": rows, "total": 3})
+
+    monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    result = runner.invoke(cli_app, ["runs", "list", "task@admin", "--source", "app"])
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert lines[0].split()[1:4] == ["app", "completed", "1.5s"]
+    assert lines[1].split()[1:4] == ["app", "failed", "1.6m"]
+    assert lines[2].split()[1:4] == ["app", "-", "-"]
+
+
 def test_runs_pull_pages_server_calls_above_100(env, tmp_path, monkeypatch):
     calls: list[dict] = []
 

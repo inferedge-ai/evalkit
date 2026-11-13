@@ -68,7 +68,7 @@ async def test_workspace_agent_creates_record_without_running(api):
     assert summary["status"] == "running" and summary["lease_holder"] == HOLDER
     assert summary["config"]["revision"]["sha"] == "abc"
     assert summary["config"]["snapshot"]["evalkit_version"] == "0.4.0"
-    assert summary["progress"] == {"total": 2, "ran": 0, "evaluated": 0}
+    assert summary["progress"] == {"total": 2, "ran": 0, "evaluated": 0, "errored": 0}
     assert summary["can_change"] is True and summary["server_may_drive"] is False
     agents = {a["slug"]: a for a in (await client.get("/api/agents")).json()}
     assert agents["fake@admin"]["name"] == "fake" and agents["fake@admin"]["workspace"] == "admin"

@@ -104,6 +104,7 @@ class RunFacts(NamedTuple):
     finished: bool
     scorable: bool
     evaluated: bool
+    errored: bool = False
 
 
 def case_state(repetitions: int, runs: list[RunFacts]) -> RunState:
@@ -117,11 +118,11 @@ def case_state(repetitions: int, runs: list[RunFacts]) -> RunState:
     return "ran"
 
 
-async def case_states_many(
+async def _case_facts(
     session: AsyncSession, exp_ids: list[int]
-) -> dict[int, dict[str, RunState]]:
+) -> tuple[dict[int, dict[str, RunState]], dict[tuple[int, str], list[RunFacts]]]:
     if not exp_ids:
-        return {}
+        return {}, {}
     repetitions: dict[int, int] = {
         exp_id: reps
         for exp_id, reps in (
@@ -147,20 +148,27 @@ async def case_states_many(
             AgentRun.status,
             AgentRun.error.is_(None) | AgentRun.output.is_not(None),
             has_evaluation,
+            AgentRun.error.is_not(None),
         )
         .join(Case, Case.id == ExperimentRun.case_ref)
         .join(AgentRun, AgentRun.id == ExperimentRun.agent_run_id)
         .where(ExperimentRun.experiment_id.in_(exp_ids))
     )
     facts: dict[tuple[int, str], list[RunFacts]] = {}
-    for exp_id, case_id, status, scorable, evaluated in runs.all():
+    for exp_id, case_id, status, scorable, evaluated, errored in runs.all():
         facts.setdefault((exp_id, case_id), []).append(
-            RunFacts(RunStatus(status) in FINISHED, bool(scorable), bool(evaluated))
+            RunFacts(RunStatus(status) in FINISHED, bool(scorable), bool(evaluated), bool(errored))
         )
     out: dict[int, dict[str, RunState]] = {exp_id: {} for exp_id in exp_ids}
     for exp_id, case_id in pinned.all():
         out[exp_id][case_id] = case_state(repetitions[exp_id], facts.get((exp_id, case_id), []))
-    return out
+    return out, facts
+
+
+async def case_states_many(
+    session: AsyncSession, exp_ids: list[int]
+) -> dict[int, dict[str, RunState]]:
+    return (await _case_facts(session, exp_ids))[0]
 
 
 async def case_states(session: AsyncSession, exp_id: int) -> dict[str, RunState]:
@@ -168,23 +176,27 @@ async def case_states(session: AsyncSession, exp_id: int) -> dict[str, RunState]
     return (await case_states_many(session, [exp_id]))[exp_id]
 
 
-def _progress(states: dict[str, RunState]) -> Progress:
+def _progress(states: dict[str, RunState], errored: set[str]) -> Progress:
     return Progress(
         total=len(states),
         ran=sum(1 for s in states.values() if s != "pending"),
         evaluated=sum(1 for s in states.values() if s == "evaluated"),
+        errored=len(errored & states.keys()),
     )
 
 
 async def progress(session: AsyncSession, exp_id: int) -> Progress:
-    return _progress(await case_states(session, exp_id))
+    await get_experiment(session, exp_id)
+    return (await progress_many(session, [exp_id]))[exp_id]
 
 
 async def progress_many(session: AsyncSession, exp_ids: list[int]) -> dict[int, Progress]:
-    return {
-        exp_id: _progress(states)
-        for exp_id, states in (await case_states_many(session, exp_ids)).items()
-    }
+    states, facts = await _case_facts(session, exp_ids)
+    errored: dict[int, set[str]] = {exp_id: set() for exp_id in exp_ids}
+    for (exp_id, case_id), runs in facts.items():
+        if any(run.errored for run in runs):
+            errored[exp_id].add(case_id)
+    return {exp_id: _progress(cases, errored[exp_id]) for exp_id, cases in states.items()}
 
 
 async def list_scores(

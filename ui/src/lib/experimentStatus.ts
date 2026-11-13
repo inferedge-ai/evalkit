@@ -21,13 +21,29 @@ export const STATUS_TONE: Record<string, BadgeVariant> = {
   failed: "fail",
 };
 
+export const RUN_STATUS_TONE: Record<string, BadgeVariant> = {
+  completed: "pass",
+  queued: "info",
+  running: "info",
+  failed: "fail",
+  timeout: "fail",
+  cancelled: "secondary",
+};
+
 export function progressLabel(progress: Progress): string {
   const { total, ran, evaluated } = progress;
-  return `${ran}/${total} ran · ${evaluated}/${total} evaluated`;
+  const label = `${ran}/${total} ran · ${evaluated}/${total} evaluated`;
+  return progress.errored ? `${label} · ${progress.errored} errored` : label;
 }
 
 export function shortProgress(progress: Progress): string {
-  return `${progress.evaluated}/${progress.total}`;
+  const short = `${progress.evaluated}/${progress.total}`;
+  return progress.errored ? `${short} · ${progress.errored} err` : short;
+}
+
+export function erroredNote(errored: number, total: number): string | null {
+  if (!errored) return null;
+  return `${errored} of ${total} cases errored: no answer, so they are left out of every score.`;
 }
 
 export function isIncomplete(progress: Progress): boolean {

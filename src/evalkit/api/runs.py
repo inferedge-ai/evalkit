@@ -20,6 +20,7 @@ from evalkit.api.deps import SessionDep
 from evalkit.api.download import content_disposition
 from evalkit.api.experiments import slug_or_400
 from evalkit.contracts.atif import Trajectory, validate_trajectory
+from evalkit.contracts.enums import RunStatus
 from evalkit.contracts.harness import FileEntry, FileList, RunListItem
 from evalkit.core.agents import AgentDefinition, explicit, server_may_drive
 from evalkit.core.blob import artifact_key, workspace_key
@@ -48,6 +49,7 @@ MAX_PAGE = 200
 
 class BrowserRun(RunListItem):
     status: str | None = None
+    duration_ms: float | None = None
     experiment_id: int | None = None
     experiment_number: int | None = None
     case_id: str | None = None
@@ -85,6 +87,16 @@ def _sdk_case(item: SessionSummary) -> tuple[str | None, str | None]:
     return (str(case_id) if case_id is not None else None), title
 
 
+def _duration_ms(start: datetime | None, end: datetime | None) -> float | None:
+    if start is None or end is None:
+        return None
+    return round((end - start).total_seconds() * 1000, 1)
+
+
+def _session_status(item: SessionSummary) -> RunStatus:
+    return RunStatus.FAILED if item.failed else RunStatus.COMPLETED
+
+
 def _stored(item: AgentRunItem) -> BrowserRun:
     return BrowserRun(
         run_id=item.harness_run_id,
@@ -92,6 +104,7 @@ def _stored(item: AgentRunItem) -> BrowserRun:
         user_id=item.created_by,
         created_at=item.started_at,
         status=item.status.value,
+        duration_ms=_duration_ms(item.started_at, item.ended_at),
         experiment_id=item.experiment_id,
         experiment_number=item.experiment_number,
         case_id=item.case_id,
@@ -154,7 +167,8 @@ async def resolve_runs(
                     title=(run.title if run else None) or sdk_title or i.title,
                     created_at=i.created_at,
                     user_id=run.created_by if run else None,
-                    status=run.status.value if run else None,
+                    status=(run.status if run else _session_status(i)).value,
+                    duration_ms=_duration_ms(i.created_at, i.ended_at),
                     experiment_id=run.experiment_id if run else None,
                     experiment_number=run.experiment_number if run else None,
                     case_id=(run.case_id if run else None) or sdk_case_id,

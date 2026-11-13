@@ -7,6 +7,7 @@ import {
   resumeHint,
   isActive,
   isIncomplete,
+  erroredNote,
   progressLabel,
   shortProgress,
 } from "./experimentStatus";
@@ -74,5 +75,15 @@ describe("progress", () => {
     expect(shortProgress(progress)).toBe("8/40");
     expect(isIncomplete(progress)).toBe(true);
     expect(isIncomplete({ total: 5, ran: 5, evaluated: 5 })).toBe(false);
+  });
+
+  it("counts errored cases in both labels", () => {
+    const progress = { total: 6, ran: 6, evaluated: 6, errored: 3 };
+    expect(progressLabel(progress)).toBe("6/6 ran · 6/6 evaluated · 3 errored");
+    expect(shortProgress(progress)).toBe("6/6 · 3 err");
+    expect(erroredNote(0, 6)).toBeNull();
+    expect(erroredNote(3, 6)).toBe(
+      "3 of 6 cases errored: no answer, so they are left out of every score.",
+    );
   });
 });

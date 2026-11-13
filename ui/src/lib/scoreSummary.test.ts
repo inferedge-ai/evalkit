@@ -51,6 +51,8 @@ function report(over: Partial<Report>): Report {
     cases: [],
     evaluators: [],
     buckets: {},
+    bucket_cases: {},
+    errored_cases: 0,
     gauges: [],
     evaluator_columns: [],
     baseline_id: null,

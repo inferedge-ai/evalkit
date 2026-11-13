@@ -268,6 +268,7 @@ class Progress(BaseModel):
     total: int
     ran: int
     evaluated: int
+    errored: int = 0
 
 
 class HistoryPoint(BaseModel):

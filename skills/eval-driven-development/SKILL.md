@@ -184,8 +184,9 @@ stateDiagram-v2
   expect the first run to be red.
 - **D — run a dataset.** The developer wants to know how the agent does on a
   dataset (or part of one). → Step 2: `evalkit run`, then `evalkit summary
-  <experiment-id>`, and stop there. Continue at Step 3 only if they ask for the
-  failures to be fixed.
+  <experiment-id>`, and stop there. Read the `cases:` line first: errored
+  cases have no answer and no score, so report them as failures, never as
+  passes. Continue at Step 3 only if they ask for the failures to be fixed.
 
 ### Step 1 — author / select cases (B and C)
 
@@ -414,7 +415,10 @@ Analyze every app run in the window; don't sample.
 1. Ask for the time window (default: the last 7 days). Fix `until` to the
    current time for the whole batch, so new runs don't shift the pages.
 2. Count: `evalkit runs list <agent> --source app --since <since> --until
-   <until> --json` (one row per line).
+   <until> --json` (one row per line). Each row has a `status` and a
+   `duration_ms`: start M3 with the `failed` and the slowest runs. An OTel
+   session is `failed` when a root span has status `ERROR` or an
+   `error.type` attribute.
 3. If the count is 0, stop (see M1). If it is 100 or fewer, go on. Above 100,
    tell the developer the count and the cost — one subagent per run, 5 at a
    time — and offer to narrow the window. Go on with more than 100 only when

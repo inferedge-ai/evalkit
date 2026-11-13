@@ -93,6 +93,25 @@ async def test_list_sessions_newest_first_with_prefix_query_and_title(db):
     assert total == 1 and items[0].trace_id == "t3" and items[0].session_id is None
 
 
+async def test_list_sessions_marks_a_session_failed_by_its_root_and_spans_its_duration(db):
+    store, agent_id = db
+    crashed = span("r1", trace="t1", session="crashed", at=0)
+    crashed.status_code = "ERROR"
+    typed = span("r2", trace="t2", session="typed", at=10, attrs={"error.type": "Timeout"})
+    child_error = span("c3", trace="t3", parent="r3", at=21)
+    child_error.status_code = "ERROR"
+    fine = [span("r3", trace="t3", session="fine", at=20), child_error]
+    await store.upsert(agent_id, [crashed, typed, *fine])
+    items, _ = await store.list_sessions(agent_id, query=None, limit=10, offset=0)
+    by_id = {i.session_id: i for i in items}
+    assert {k: v.failed for k, v in by_id.items()} == {
+        "crashed": True,
+        "typed": True,
+        "fine": False,
+    }
+    assert by_id["fine"].ended_at - by_id["fine"].created_at == timedelta(seconds=2)
+
+
 async def test_session_spans_falls_back_to_the_trace_id(db):
     store, agent_id = db
     await store.upsert(

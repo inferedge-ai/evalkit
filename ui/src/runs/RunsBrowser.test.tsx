@@ -171,3 +171,28 @@ test("a refresh that fails keeps the runs on screen with the error above them", 
   expect(await screen.findByText(/harness unreachable/)).toBeInTheDocument();
   expect(screen.getByText("Refund question")).toBeInTheDocument();
 });
+
+test("each run shows its status and how long it took", async () => {
+  stubServer((url) => {
+    if (url.includes("/api/agents?")) return Response.json([bot]);
+    if (url.includes("/api/agents/bot%40dev/runs"))
+      return Response.json({
+        runs: [
+          { ...refundRun.runs[0], status: "completed", duration_ms: 1500 },
+          {
+            ...refundRun.runs[0],
+            run_id: "run-2",
+            title: "Card limit",
+            status: "failed",
+            duration_ms: 95_000,
+          },
+        ],
+        total: 2,
+      });
+  });
+  openRuns();
+  expect(await screen.findByText("failed")).toBeInTheDocument();
+  expect(screen.getByText("completed")).toBeInTheDocument();
+  expect(screen.getByText("1.5s")).toBeInTheDocument();
+  expect(screen.getByText("1.6m")).toBeInTheDocument();
+});

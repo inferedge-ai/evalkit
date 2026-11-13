@@ -108,6 +108,9 @@ def resolve_sessions(links: list[SpanLink]) -> dict[int, str | None]:
     return resolved
 
 
+ERROR_TYPE_ATTRIBUTE = "error.type"
+
+
 class SessionSummary(BaseModel):
     session_id: str | None
     trace_id: str
@@ -115,6 +118,12 @@ class SessionSummary(BaseModel):
     created_at: datetime
     span_count: int
     sdk_root: dict[str, Any] | None = None
+    ended_at: datetime | None = None
+    failed: bool = False
+
+
+def is_failed_root(status_code: str, attributes: dict[str, Any]) -> bool:
+    return status_code == "ERROR" or ERROR_TYPE_ATTRIBUTE in attributes
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -374,6 +383,7 @@ class SpanStore:
                 models.Span.session_id,
                 started.label("started"),
                 newest.label("newest"),
+                func.max(models.Span.end_time).label("ended"),
                 func.count().label("n"),
             )
             .where(*where)
@@ -395,9 +405,15 @@ class SpanStore:
             titles: dict[str, str] = {}
             sdk_roots: dict[str, dict[str, Any]] = {}
             traces: dict[str, str] = {}
+            failed: set[str] = set()
             if ids:
                 roots = await session.execute(
-                    select(models.Span.session_id, models.Span.name, models.Span.attributes)
+                    select(
+                        models.Span.session_id,
+                        models.Span.name,
+                        models.Span.attributes,
+                        models.Span.status_code,
+                    )
                     .where(
                         models.Span.agent_id == agent_id,
                         models.Span.session_id.in_(ids),
@@ -405,8 +421,10 @@ class SpanStore:
                     )
                     .order_by(models.Span.start_time)
                 )
-                for session_id, name, attributes in roots.all():
+                for session_id, name, attributes, status_code in roots.all():
                     titles.setdefault(session_id, name)
+                    if is_failed_root(status_code, attributes):
+                        failed.add(session_id)
                     if attributes.get(SDK_ROOT_ATTRIBUTE):
                         sdk_roots.setdefault(session_id, attributes)
                 first = await session.execute(
@@ -424,6 +442,8 @@ class SpanStore:
                 created_at=_aware(row.started) or row.started,
                 span_count=row.n,
                 sdk_root=sdk_roots.get(row.session_id),
+                ended_at=_aware(row.ended),
+                failed=row.session_id in failed,
             )
             for row in page
         ], total

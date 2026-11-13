@@ -145,3 +145,25 @@ def test_summary_with_baseline_shows_gauge_deltas():
     assert any(line.endswith("mean=8.44 median=7") for line in lines)
     assert any(line.endswith("mean=0.001 median=0.001  Δmean -0.002") for line in lines)
     assert any(line.endswith("mean=500 median=500") for line in lines)
+
+
+def test_summary_counts_errored_cases_and_bucket_coverage():
+    errored = {**_case("broke", None), "run_errors": ["harness crashed"]}
+    report = {
+        **REPORT,
+        "buckets": {"content": 1.0},
+        "bucket_cases": {"content": 1},
+        "errored_cases": 1,
+        "cases": [_case("ok", 1.0, answer_rubric_score=1.0), errored],
+    }
+    lines = summary_lines(report)
+    assert "cases: 2, 1 errored (no answer; left out of every score)" in lines
+    assert "  content        1.00  (1 of 2 cases)" in lines
+    assert any(line.startswith("  broke") and "run: harness crashed" in line for line in lines)
+
+
+def test_summary_with_baseline_shows_both_sides_errored_counts():
+    base = {**REPORT, "cases": [_case("a", 1.0)], "errored_cases": 0}
+    compare = {**REPORT, "cases": [_case("a", None)], "errored_cases": 1}
+    lines = summary_lines(compare, base)
+    assert "cases: 1, 1 errored (no answer; left out of every score)  (baseline: 1)" in lines

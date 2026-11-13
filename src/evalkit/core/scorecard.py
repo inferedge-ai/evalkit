@@ -124,6 +124,8 @@ class Report(BaseModel):
     cases: list[CaseRow]
     evaluators: list[EvaluatorStat]
     buckets: dict[str, float | None]
+    bucket_cases: dict[str, int] = Field(default_factory=dict)
+    errored_cases: int = 0
     gauges: list[GaugeStat]
     evaluator_columns: list[str]
     baseline_id: str | None = None
@@ -220,6 +222,19 @@ def _report(
             and stat.name not in EXCLUDED_FROM_BUCKETS
         ]
         buckets[bucket] = _mean(members)
+    bucket_cases = {
+        bucket: sum(
+            1
+            for row in rows.values()
+            if any(
+                stored_buckets.get(name) == bucket and name not in EXCLUDED_FROM_BUCKETS
+                for name, value in row.scores.items()
+                if value is not None
+            )
+        )
+        for bucket, value in buckets.items()
+        if value is not None
+    }
 
     gauge_names = {name for row in rows.values() for name in row.gauges}
     gauges = []
@@ -248,6 +263,8 @@ def _report(
             "cases": sorted(rows.values(), key=lambda r: r.case_id),
             "evaluators": evaluators,
             "buckets": buckets,
+            "bucket_cases": bucket_cases,
+            "errored_cases": sum(1 for row in rows.values() if row.run_errors),
             "gauges": gauges,
             "evaluator_columns": order_evaluator_columns(evaluator_names),
             "baseline_id": baseline_id,

@@ -1,3 +1,4 @@
+import { erroredNote } from "../lib/experimentStatus";
 import { fmtDelta, fmtGauge, fmtScore, severity } from "../lib/format";
 import {
   bucketCards,
@@ -36,49 +37,61 @@ export function BucketCards({
 }) {
   const total = report.cases.length;
   const cards = bucketCards(report);
-  if (!cards.length) return null;
+  const note = erroredNote(report.errored_cases, total);
+  if (!cards.length && !note) return null;
   return (
-    <div className="bucket-cards">
-      {cards.map((card) => (
-        <div className="tile tile-hero" key={card.bucket}>
-          <div className="flex items-baseline gap-1">
-            <div className="tile-label">{card.bucket}</div>
-            <InfoTip term={`bucket:${card.bucket}`} />
-            <div
-              className={`ml-auto tile-value sev-fg-${severity(card.score)}`}
-            >
-              {fmtScore(card.score)}
-            </div>
-          </div>
-          <ul className="bucket-members">
-            {card.members.map((m) => (
-              <li key={m.name}>
-                <button
-                  type="button"
-                  onClick={() => onPick?.(m.name)}
-                  title={`focus ${m.name} in the case table`}
+    <>
+      {note && <div className="pane-status error">{note}</div>}
+      <div className="bucket-cards">
+        {cards.map((card) => {
+          const covered = report.bucket_cases[card.bucket] ?? total;
+          return (
+            <div className="tile tile-hero" key={card.bucket}>
+              <div className="flex items-baseline gap-1">
+                <div className="tile-label">{card.bucket}</div>
+                <InfoTip term={`bucket:${card.bucket}`} />
+                <div
+                  className={`ml-auto tile-value sev-fg-${severity(card.score)}`}
                 >
-                  <span className="member-name truncate font-mono">
-                    {m.name}
-                  </span>
-                  {m.cases < total && (
-                    <span className="text-ink-4">
-                      n={m.cases}/{total}
-                    </span>
-                  )}
-                  {m.errors > 0 && (
-                    <span className="text-err-text">{m.errors} err</span>
-                  )}
-                  <span className={`num sev-fg-${severity(m.score)}`}>
-                    {fmtScore(m.score)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
+                  {fmtScore(card.score)}
+                </div>
+              </div>
+              {covered < total && (
+                <div className="tile-sub num text-right text-warn">
+                  {covered} of {total} cases
+                </div>
+              )}
+              <ul className="bucket-members">
+                {card.members.map((m) => (
+                  <li key={m.name}>
+                    <button
+                      type="button"
+                      onClick={() => onPick?.(m.name)}
+                      title={`focus ${m.name} in the case table`}
+                    >
+                      <span className="member-name truncate font-mono">
+                        {m.name}
+                      </span>
+                      {m.cases < total && (
+                        <span className="text-ink-4">
+                          n={m.cases}/{total}
+                        </span>
+                      )}
+                      {m.errors > 0 && (
+                        <span className="text-err-text">{m.errors} err</span>
+                      )}
+                      <span className={`num sev-fg-${severity(m.score)}`}>
+                        {fmtScore(m.score)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

@@ -994,7 +994,8 @@ def evaluate(
 
 def _progress_text(progress: dict) -> str:
     total = progress["total"]
-    return f"{progress['ran']}/{total} ran, {progress['evaluated']}/{total} evaluated"
+    text = f"{progress['ran']}/{total} ran, {progress['evaluated']}/{total} evaluated"
+    return f"{text}, {progress['errored']} errored" if progress.get("errored") else text
 
 
 def _experiment_url(exp_id: int) -> str:
@@ -1076,6 +1077,9 @@ def experiments_list(
     )
     for exp in found:
         scores = " ".join(f"{bucket} {_fmt_score(v)}" for bucket, v in exp["scores"].items())
+        errored = exp["progress"].get("errored", 0)
+        if errored:
+            scores = f"{errored} of {exp['progress']['total']} cases errored  {scores}".rstrip()
         typer.echo(
             f"{exp['id']:>5}  {exp['dataset']:<28} {exp['agent']:<24} {exp['status']:<10} "
             f"{exp['started_at'][:16].replace('T', ' ')}  {scores or '-'}"

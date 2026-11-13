@@ -301,3 +301,43 @@ test("a finished experiment whose case list fails does not keep asking for it", 
   await act(() => vi.advanceTimersByTimeAsync(10_000));
   expect(casesLoads).toBe(1);
 });
+
+test("an experiment with errored runs says how many cases errored and how many each bucket covers", async () => {
+  const errored: Report = {
+    ...scored,
+    cases: [
+      ...scored.cases,
+      {
+        ...scored.cases[0],
+        case_id: "late-fee",
+        scores: {},
+        run_errors: ["agent crashed"],
+        overall: null,
+      },
+    ],
+    bucket_cases: { content: 1 },
+    errored_cases: 1,
+  };
+  stubServer((url) =>
+    url.endsWith("/api/experiments/12/cases")
+      ? Response.json([refundPolicy])
+      : url.endsWith("/api/experiments/12")
+        ? Response.json({
+            ...experiment,
+            progress: { total: 2, ran: 2, evaluated: 2, errored: 1 },
+          })
+        : url.endsWith("/api/experiments/12/scorecard")
+          ? Response.json(errored)
+          : undefined,
+  );
+  openExperiment();
+  expect(
+    await screen.findByText(
+      "1 of 2 cases errored: no answer, so they are left out of every score.",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByText("1 of 2 cases")).toBeInTheDocument();
+  expect(
+    screen.getAllByText("2/2 ran · 2/2 evaluated · 1 errored").length,
+  ).toBeGreaterThan(0);
+});

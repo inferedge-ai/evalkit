@@ -222,6 +222,8 @@ async def test_sql_report_values(session_factory, experiments):
     assert by_case["q-2"].errors == {"broken": "500 from evaluator"}
     assert by_case["q-2"].run_errors == ["harness crashed"]
     assert new_report.buckets["custom"] == 0.5
+    assert new_report.errored_cases == 1
+    assert new_report.bucket_cases == {"content": 2, "presentation": 1, "custom": 1}
 
 
 async def test_progress_and_case_states(session_factory, experiments):
@@ -229,7 +231,7 @@ async def test_progress_and_case_states(session_factory, experiments):
     async with session_factory() as s:
         states = await case_states(s, current)
         assert states == {"q-1": "evaluated", "q-2": "evaluated", "q-3": "pending"}
-        assert await progress(s, current) == Progress(total=3, ran=2, evaluated=2)
+        assert await progress(s, current) == Progress(total=3, ran=2, evaluated=2, errored=1)
 
 
 DONE, FAILED_WITH_OUTPUT, FAILED_NO_OUTPUT, LIVE = (

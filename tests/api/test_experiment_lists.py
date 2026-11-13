@@ -22,7 +22,7 @@ async def test_list_rows_carry_progress_scores_cost_and_latency(
         ).json()
     assert row == same == by_both
     assert row["id"] == exp_id and row["number"] == 1
-    assert row["progress"] == {"total": 2, "ran": 2, "evaluated": 2}
+    assert row["progress"] == {"total": 2, "ran": 2, "evaluated": 2, "errored": 0}
     assert row["scores"]["content"] == 0.5
     assert row["cost_usd"] is not None and row["cost_usd"] >= 0
     assert row["avg_latency_ms"] is not None and row["avg_latency_ms"] >= 0

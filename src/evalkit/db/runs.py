@@ -377,6 +377,7 @@ class AgentRunItem(BaseModel):
     title: str | None
     status: RunStatus
     started_at: datetime
+    ended_at: datetime | None = None
     created_by: str | None
     experiment_id: int | None
     experiment_number: int | None
@@ -408,6 +409,7 @@ def _item(row) -> AgentRunItem:
         title=run.title,
         status=RunStatus(run.status),
         started_at=run.started_at,
+        ended_at=run.ended_at,
         created_by=username,
         experiment_id=exp_id,
         experiment_number=number,
