@@ -2,20 +2,35 @@
 
 ## Unreleased
 
-- **Scorecard**: errored runs show in every scorecard (ENG-14621). Scores
-  for runs that completed are unchanged. The report (`GET
-  /api/experiments/{id}/scorecard`) has new fields `errored_cases` and
-  `bucket_cases`, and an experiment's `progress` has `errored`.
-  `evalkit summary` (with or without `--baseline`) and the SDK's printed
-  scorecard start with `cases: 6, 3 errored (no answer; left out of every
-  score)` and add `(3 of 6 cases)` to a bucket that covers fewer cases than
-  ran. `evalkit experiments list` puts `3 of 6 cases errored` before the
-  bucket scores, and `evalkit status` adds `3 errored`. The web UI shows the
-  same count above the bucket cards, on each bucket card and in the cases
-  column of the experiments list.
+- **Scorecard**: errored runs show in every scorecard (ENG-14621). A run is
+  errored when it ended without completing with an answer: it has no `output`,
+  and it either did not end `completed` or has no `answer`. An errored run
+  gets no score. A case is errored when every run of it errored, and partly
+  errored when only some repetitions did; a partly errored case is scored on
+  the runs that completed. The report (`GET /api/experiments/{id}/scorecard`)
+  has new fields `selected_cases`, `errored_cases`, `partly_errored_cases`
+  and `bucket_cases`, each case row has `errored_runs`, and an experiment's
+  `progress` has `errored` and `partly_errored`. `evalkit summary` (with or
+  without `--baseline`) and the SDK's printed scorecard start with `cases: 6,
+  3 errored (no run completed with an answer; left out of every score)`, or
+  `cases: 2 of 3 ran` when not every selected case has a run, and add `(3 of
+  6 cases)` to a bucket that covers fewer cases than the experiment selected.
+  `evalkit experiments list` puts `3 of 6 cases errored` before the bucket
+  scores, and `evalkit status` adds `3 errored`. The web UI shows the same
+  counts above the bucket cards, on each bucket card, on the compare page and
+  in the cases column of the experiments list.
+- **Scoring**: which runs are scored follows the run's status and answer, not
+  its error text. A `completed` run that has an answer and also carries a
+  non-fatal `error` is now scored; before, it was left out unless it had an
+  `output`. A run with no error text that did not end `completed`, or ended
+  with neither `answer` nor `output`, is no longer scored on an empty answer.
+  `evalkit evaluate <id>` scores the runs of an earlier experiment that the
+  old rule left out.
 - **Runs**: `evalkit runs list` and the Runs page show a status and a
   duration for every run. An OTel session is `failed` when a root span has
-  status `ERROR` or an `error.type` attribute, and `completed` otherwise; its
+  status `ERROR` or an `error.type` attribute. Otherwise it is `running`
+  until it settles (no new span for `otel.settle_seconds`, or the agent's
+  `import_settle_seconds` for a trace source) and `completed` after that. Its
   duration runs from its first span's start to its last span's end. The run
   list API has a new field `duration_ms`.
 

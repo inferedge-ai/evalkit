@@ -1,5 +1,11 @@
 import type { BadgeVariant } from "@/components/ui/badge";
-import type { AgentInfo, Experiment, ExperimentState, Progress } from "./types";
+import type {
+  AgentInfo,
+  Experiment,
+  ExperimentState,
+  Progress,
+  Report,
+} from "./types";
 
 export const STATUSES: ExperimentState[] = [
   "completed",
@@ -32,18 +38,49 @@ export const RUN_STATUS_TONE: Record<string, BadgeVariant> = {
 
 export function progressLabel(progress: Progress): string {
   const { total, ran, evaluated } = progress;
-  const label = `${ran}/${total} ran · ${evaluated}/${total} evaluated`;
-  return progress.errored ? `${label} · ${progress.errored} errored` : label;
+  return [
+    `${ran}/${total} ran`,
+    `${evaluated}/${total} evaluated`,
+    ...erroredParts(progress, "errored", "partly errored"),
+  ].join(" · ");
+}
+
+function erroredParts(
+  progress: Progress,
+  errored: string,
+  partly: string,
+): string[] {
+  return [
+    ...(progress.errored ? [`${progress.errored} ${errored}`] : []),
+    ...(progress.partly_errored
+      ? [`${progress.partly_errored} ${partly}`]
+      : []),
+  ];
 }
 
 export function shortProgress(progress: Progress): string {
-  const short = `${progress.evaluated}/${progress.total}`;
-  return progress.errored ? `${short} · ${progress.errored} err` : short;
+  return [
+    `${progress.evaluated}/${progress.total}`,
+    ...erroredParts(progress, "err", "part err"),
+  ].join(" · ");
 }
 
-export function erroredNote(errored: number, total: number): string | null {
-  if (!errored) return null;
-  return `${errored} of ${total} cases errored: no answer, so they are left out of every score.`;
+export function selectedCases(report: Report): number {
+  return Math.max(report.selected_cases, report.cases.length);
+}
+
+export function erroredNote(report: Report): string | null {
+  const total = selectedCases(report);
+  const notes = [];
+  if (report.errored_cases)
+    notes.push(
+      `${report.errored_cases} of ${total} cases errored: no run completed with an answer, so they are left out of every score.`,
+    );
+  if (report.partly_errored_cases)
+    notes.push(
+      `${report.partly_errored_cases} of ${total} cases partly errored: scored only on the runs that completed.`,
+    );
+  return notes.length ? notes.join(" ") : null;
 }
 
 export function isIncomplete(progress: Progress): boolean {

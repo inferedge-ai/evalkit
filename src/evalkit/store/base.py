@@ -258,6 +258,8 @@ class AggregateRows(BaseModel):
     case_errors: list[tuple[str, str, str]]
     run_errors: list[tuple[str, str]]
     repetitions_seen: dict[str, int]
+    errored_runs: dict[str, int] = Field(default_factory=dict)
+    selected_cases: int = 0
     sources: dict[str, str]
 
 
@@ -269,6 +271,7 @@ class Progress(BaseModel):
     ran: int
     evaluated: int
     errored: int = 0
+    partly_errored: int = 0
 
 
 class HistoryPoint(BaseModel):

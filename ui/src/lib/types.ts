@@ -185,6 +185,7 @@ export interface Progress {
   ran: number;
   evaluated: number;
   errored?: number;
+  partly_errored?: number;
 }
 
 export interface Experiment {
@@ -295,7 +296,9 @@ export interface Report {
   evaluators: EvaluatorStat[];
   buckets: Record<string, number | null>;
   bucket_cases: Record<string, number>;
+  selected_cases: number;
   errored_cases: number;
+  partly_errored_cases: number;
   gauges: GaugeStat[];
   evaluator_columns: string[];
   baseline_id: string | null;

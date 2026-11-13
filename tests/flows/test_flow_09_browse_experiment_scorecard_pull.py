@@ -81,7 +81,13 @@ def test_flow_09_experiment_list_page_scorecard_and_summary_agree(
     body = api_get(f"/api/experiments/{exp_id}")
     assert body["status"] == "completed" and body["status_error"] is None
     assert body["workspace"] == "canonical"
-    assert body["progress"] == {"total": 2, "ran": 2, "evaluated": 2, "errored": 0}
+    assert body["progress"] == {
+        "total": 2,
+        "ran": 2,
+        "evaluated": 2,
+        "errored": 0,
+        "partly_errored": 0,
+    }
     assert body["case_states"] == {"flow09-1": "evaluated", "flow09-2": "evaluated"}
     assert body["can_change"] is True and body["server_may_drive"] is True
     assert body["config"]["snapshot"]["evalkit_version"]

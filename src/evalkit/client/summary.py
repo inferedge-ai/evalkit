@@ -86,16 +86,24 @@ def _changed_cases(report: dict, base: dict) -> list[str]:
     return lines
 
 
+def _selected(report: dict) -> int:
+    return max(report.get("selected_cases", 0), len(report["cases"]))
+
+
 def _cases_text(report: dict) -> str:
-    total = len(report["cases"])
-    errored = report.get("errored_cases", 0)
-    if not errored:
-        return f"{total}"
-    return f"{total}, {errored} errored (no answer; left out of every score)"
+    selected, ran = _selected(report), len(report["cases"])
+    parts = [f"{selected}" if ran == selected else f"{ran} of {selected} ran"]
+    if errored := report.get("errored_cases", 0):
+        parts.append(
+            f"{errored} errored (no run completed with an answer; left out of every score)"
+        )
+    if partly := report.get("partly_errored_cases", 0):
+        parts.append(f"{partly} partly errored (scored only on the runs that completed)")
+    return ", ".join(parts)
 
 
 def _bucket_coverage(report: dict, bucket: str) -> str:
-    total = len(report["cases"])
+    total = _selected(report)
     covered = report.get("bucket_cases", {}).get(bucket, total)
     return f"  ({covered} of {total} cases)" if covered < total else ""
 
@@ -104,10 +112,9 @@ def summary_lines(report: dict, base: dict | None = None) -> list[str]:
     lines = [f"\nexperiment {report['experiment_id']}  {report['name']} of {report['dataset']}"]
     if base is not None:
         lines.append(f"vs experiment {base['experiment_id']}  {base['name']} of {base['dataset']}")
-    cases = f"cases: {_cases_text(report)}"
+    lines.append(f"cases: {_cases_text(report)}")
     if base is not None:
-        cases += f"  (baseline: {_cases_text(base)})"
-    lines.append(cases)
+        lines.append(f"baseline cases: {_cases_text(base)}")
     base_buckets = base["buckets"] if base else {}
     base_evaluators = {stat["name"]: stat for stat in base["evaluators"]} if base else {}
     scored = {bucket: value for bucket, value in report["buckets"].items() if value is not None}

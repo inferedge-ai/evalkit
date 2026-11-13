@@ -105,7 +105,7 @@ export function experimentTailColumns(
       valueGetter: readValue((exp) => exp.progress.evaluated),
       cellRenderer: renderCell<ExperimentListItem>((exp) => (
         <span
-          className={`row-meta num ${exp.progress.errored ? "text-err-text" : isIncomplete(exp.progress) ? "text-warn" : ""}`}
+          className={`row-meta num ${exp.progress.errored || exp.progress.partly_errored ? "text-err-text" : isIncomplete(exp.progress) ? "text-warn" : ""}`}
           title={progressLabel(exp.progress)}
         >
           {shortProgress(exp.progress)}

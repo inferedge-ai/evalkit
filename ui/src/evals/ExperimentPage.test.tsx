@@ -316,7 +316,9 @@ test("an experiment with errored runs says how many cases errored and how many e
       },
     ],
     bucket_cases: { content: 1 },
+    selected_cases: 3,
     errored_cases: 1,
+    partly_errored_cases: 0,
   };
   stubServer((url) =>
     url.endsWith("/api/experiments/12/cases")
@@ -333,10 +335,10 @@ test("an experiment with errored runs says how many cases errored and how many e
   openExperiment();
   expect(
     await screen.findByText(
-      "1 of 2 cases errored: no answer, so they are left out of every score.",
+      "1 of 3 cases errored: no run completed with an answer, so they are left out of every score.",
     ),
   ).toBeInTheDocument();
-  expect(screen.getByText("1 of 2 cases")).toBeInTheDocument();
+  expect(screen.getByText("1 of 3 cases")).toBeInTheDocument();
   expect(
     screen.getAllByText("2/2 ran · 2/2 evaluated · 1 errored").length,
   ).toBeGreaterThan(0);

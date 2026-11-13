@@ -1,4 +1,4 @@
-import { erroredNote } from "../lib/experimentStatus";
+import { erroredNote, selectedCases } from "../lib/experimentStatus";
 import { fmtDelta, fmtGauge, fmtScore, severity } from "../lib/format";
 import {
   bucketCards,
@@ -37,14 +37,15 @@ export function BucketCards({
 }) {
   const total = report.cases.length;
   const cards = bucketCards(report);
-  const note = erroredNote(report.errored_cases, total);
+  const selected = selectedCases(report);
+  const note = erroredNote(report);
   if (!cards.length && !note) return null;
   return (
     <>
       {note && <div className="pane-status error">{note}</div>}
       <div className="bucket-cards">
         {cards.map((card) => {
-          const covered = report.bucket_cases[card.bucket] ?? total;
+          const covered = report.bucket_cases[card.bucket] ?? selected;
           return (
             <div className="tile tile-hero" key={card.bucket}>
               <div className="flex items-baseline gap-1">
@@ -56,9 +57,9 @@ export function BucketCards({
                   {fmtScore(card.score)}
                 </div>
               </div>
-              {covered < total && (
+              {covered < selected && (
                 <div className="tile-sub num text-right text-warn">
-                  {covered} of {total} cases
+                  {covered} of {selected} cases
                 </div>
               )}
               <ul className="bucket-members">

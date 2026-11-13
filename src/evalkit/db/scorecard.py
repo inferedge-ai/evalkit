@@ -5,9 +5,16 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by, array_agg
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from evalkit.contracts.enums import EvaluationSource, EvaluatorKind, RunStatus
-from evalkit.core.scorecard import BUCKET_EVALUATOR, COST_GAUGE, EXCLUDED_FROM_BUCKETS
+from evalkit.core.scorecard import (
+    BUCKET_EVALUATOR,
+    COST_GAUGE,
+    EXCLUDED_FROM_BUCKETS,
+    Errored,
+    classify_errored,
+)
 from evalkit.db import models
 from evalkit.db.experiments import get_experiment, list_experiments
+from evalkit.db.runs import FINISHED, is_errored_run, is_scorable_run
 from evalkit.store.base import AggregateRows, HistoryPoint, Progress, RunState
 
 Case, Evaluation, ExperimentRun, AgentRun = (
@@ -68,7 +75,7 @@ async def aggregate(session: AsyncSession, exp_id: int) -> AggregateRows:
     )
     runs = (
         await session.execute(
-            select(Case.case_id, ExperimentRun.repetition, AgentRun.error)
+            select(Case.case_id, ExperimentRun.repetition, AgentRun.error, is_errored_run())
             .join(Case, Case.id == ExperimentRun.case_ref)
             .join(AgentRun, AgentRun.id == ExperimentRun.agent_run_id)
             .where(ExperimentRun.experiment_id == exp_id)
@@ -81,30 +88,34 @@ async def aggregate(session: AsyncSession, exp_id: int) -> AggregateRows:
         .where(ExperimentRun.experiment_id == exp_id)
         .distinct()
     )
+    selected = (
+        await session.execute(
+            select(func.count()).where(models.ExperimentCase.experiment_id == exp_id)
+        )
+    ).scalar_one()
     repetitions: dict[str, int] = {}
-    for case_id, _, _ in runs:
+    errored: dict[str, int] = {}
+    for case_id, _, _, run_errored in runs:
         repetitions[case_id] = repetitions.get(case_id, 0) + 1
+        if run_errored:
+            errored[case_id] = errored.get(case_id, 0) + 1
     return AggregateRows(
         experiment=experiment,
         case_scores=[(c, n, float(m), e, b) for _, c, n, m, e, b in scores.all()],
         case_gauges=[(c, n, float(m)) for c, n, m in gauges.all()],
         case_errors=[(c, n, e) for c, n, e in errors.all()],
-        run_errors=[(c, e) for c, _, e in runs if e],
+        run_errors=[(c, e) for c, _, e, _ in runs if e],
         repetitions_seen=repetitions,
+        errored_runs=errored,
+        selected_cases=selected,
         sources={name: _source(source, producer) for name, source, producer in sources.all()},
     )
-
-
-FINISHED = frozenset(
-    {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.TIMEOUT, RunStatus.CANCELLED}
-)
 
 
 class RunFacts(NamedTuple):
     finished: bool
     scorable: bool
     evaluated: bool
-    errored: bool = False
 
 
 def case_state(repetitions: int, runs: list[RunFacts]) -> RunState:
@@ -146,18 +157,17 @@ async def _case_facts(
             ExperimentRun.experiment_id,
             Case.case_id,
             AgentRun.status,
-            AgentRun.error.is_(None) | AgentRun.output.is_not(None),
+            is_scorable_run(),
             has_evaluation,
-            AgentRun.error.is_not(None),
         )
         .join(Case, Case.id == ExperimentRun.case_ref)
         .join(AgentRun, AgentRun.id == ExperimentRun.agent_run_id)
         .where(ExperimentRun.experiment_id.in_(exp_ids))
     )
     facts: dict[tuple[int, str], list[RunFacts]] = {}
-    for exp_id, case_id, status, scorable, evaluated, errored in runs.all():
+    for exp_id, case_id, status, scorable, evaluated in runs.all():
         facts.setdefault((exp_id, case_id), []).append(
-            RunFacts(RunStatus(status) in FINISHED, bool(scorable), bool(evaluated), bool(errored))
+            RunFacts(RunStatus(status) in FINISHED, bool(scorable), bool(evaluated))
         )
     out: dict[int, dict[str, RunState]] = {exp_id: {} for exp_id in exp_ids}
     for exp_id, case_id in pinned.all():
@@ -176,12 +186,14 @@ async def case_states(session: AsyncSession, exp_id: int) -> dict[str, RunState]
     return (await case_states_many(session, [exp_id]))[exp_id]
 
 
-def _progress(states: dict[str, RunState], errored: set[str]) -> Progress:
+def _progress(states: dict[str, RunState], errored: dict[str, Errored]) -> Progress:
+    kinds = [errored.get(case_id) for case_id in states]
     return Progress(
         total=len(states),
         ran=sum(1 for s in states.values() if s != "pending"),
         evaluated=sum(1 for s in states.values() if s == "evaluated"),
-        errored=len(errored & states.keys()),
+        errored=kinds.count("all"),
+        partly_errored=kinds.count("some"),
     )
 
 
@@ -192,10 +204,13 @@ async def progress(session: AsyncSession, exp_id: int) -> Progress:
 
 async def progress_many(session: AsyncSession, exp_ids: list[int]) -> dict[int, Progress]:
     states, facts = await _case_facts(session, exp_ids)
-    errored: dict[int, set[str]] = {exp_id: set() for exp_id in exp_ids}
+    errored: dict[int, dict[str, Errored]] = {exp_id: {} for exp_id in exp_ids}
     for (exp_id, case_id), runs in facts.items():
-        if any(run.errored for run in runs):
-            errored[exp_id].add(case_id)
+        kind = classify_errored(
+            sum(1 for run in runs if run.finished and not run.scorable), len(runs)
+        )
+        if kind is not None:
+            errored[exp_id][case_id] = kind
     return {exp_id: _progress(cases, errored[exp_id]) for exp_id, cases in states.items()}
 
 

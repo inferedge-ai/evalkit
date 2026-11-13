@@ -216,7 +216,7 @@ async def runs_to_score(
             )
             .where(
                 models.ExperimentRun.experiment_id == exp_id,
-                models.AgentRun.error.is_(None) | models.AgentRun.output.is_not(None),
+                is_scorable_run(),
                 true() if only_run is None else models.ExperimentRun.id == only_run,
             )
             .order_by(models.ExperimentRun.id)
@@ -369,6 +369,21 @@ async def run_details(session: AsyncSession, exp_id: int) -> list[RunDetail]:
         )
         for er, ar, case_id in rows
     ]
+
+
+FINISHED = frozenset(
+    {RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.TIMEOUT, RunStatus.CANCELLED}
+)
+
+
+def is_scorable_run() -> ColumnElement[bool]:
+    return models.AgentRun.output.is_not(None) | (
+        (models.AgentRun.status == RunStatus.COMPLETED.value) & models.AgentRun.answer.is_not(None)
+    )
+
+
+def is_errored_run() -> ColumnElement[bool]:
+    return models.AgentRun.status.in_([s.value for s in FINISHED]) & ~is_scorable_run()
 
 
 class AgentRunItem(BaseModel):

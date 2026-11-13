@@ -147,23 +147,57 @@ def test_summary_with_baseline_shows_gauge_deltas():
     assert any(line.endswith("mean=500 median=500") for line in lines)
 
 
+ERRORED = "errored (no run completed with an answer; left out of every score)"
+
+
 def test_summary_counts_errored_cases_and_bucket_coverage():
     errored = {**_case("broke", None), "run_errors": ["harness crashed"]}
     report = {
         **REPORT,
         "buckets": {"content": 1.0},
         "bucket_cases": {"content": 1},
+        "selected_cases": 2,
         "errored_cases": 1,
         "cases": [_case("ok", 1.0, answer_rubric_score=1.0), errored],
     }
     lines = summary_lines(report)
-    assert "cases: 2, 1 errored (no answer; left out of every score)" in lines
+    assert f"cases: 2, 1 {ERRORED}" in lines
     assert "  content        1.00  (1 of 2 cases)" in lines
     assert any(line.startswith("  broke") and "run: harness crashed" in line for line in lines)
+
+
+def test_summary_reports_a_case_with_one_errored_repetition_as_partly_errored():
+    flaky = {**_case("flaky", 1.0, answer_rubric_score=1.0), "run_errors": ["harness crashed"]}
+    report = {
+        **REPORT,
+        "buckets": {"content": 1.0},
+        "bucket_cases": {"content": 2},
+        "selected_cases": 2,
+        "errored_cases": 0,
+        "partly_errored_cases": 1,
+        "cases": [_case("ok", 1.0, answer_rubric_score=1.0), flaky],
+    }
+    lines = summary_lines(report)
+    assert "cases: 2, 1 partly errored (scored only on the runs that completed)" in lines
+    assert "  content        1.00" in lines
+
+
+def test_summary_counts_coverage_against_the_selected_cases():
+    report = {
+        **REPORT,
+        "buckets": {"content": 1.0},
+        "bucket_cases": {"content": 2},
+        "selected_cases": 3,
+        "cases": [_case("a", 1.0), _case("b", 1.0)],
+    }
+    lines = summary_lines(report)
+    assert "cases: 2 of 3 ran" in lines
+    assert "  content        1.00  (2 of 3 cases)" in lines
 
 
 def test_summary_with_baseline_shows_both_sides_errored_counts():
     base = {**REPORT, "cases": [_case("a", 1.0)], "errored_cases": 0}
     compare = {**REPORT, "cases": [_case("a", None)], "errored_cases": 1}
     lines = summary_lines(compare, base)
-    assert "cases: 1, 1 errored (no answer; left out of every score)  (baseline: 1)" in lines
+    assert f"cases: 1, 1 {ERRORED}" in lines
+    assert "baseline cases: 1" in lines

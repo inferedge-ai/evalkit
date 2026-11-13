@@ -173,7 +173,13 @@ async def test_experiment_lifecycle_and_scorecard(api):
     client, env, _ = api
     status = await run_shared(client, repetitions=1)
     assert status["status"] == "completed"
-    assert status["progress"] == {"total": 2, "ran": 2, "evaluated": 2, "errored": 0}
+    assert status["progress"] == {
+        "total": 2,
+        "ran": 2,
+        "evaluated": 2,
+        "errored": 0,
+        "partly_errored": 0,
+    }
     assert status["case_states"] == {"case-1": "evaluated", "case-2": "evaluated"}
     exp_id = status["id"]
 

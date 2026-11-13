@@ -363,6 +363,35 @@ def test_status_shows_the_lease_holder_of_an_active_experiment(monkeypatch):
     assert re.search(r"held by cli:ravi@laptop:42 \(lease expires in 4\ds\)", result.output)
 
 
+def test_status_and_experiments_list_tell_errored_from_partly_errored_cases(monkeypatch):
+    progress = {"total": 6, "ran": 6, "evaluated": 6, "errored": 3, "partly_errored": 1}
+    exp = {
+        "id": 7,
+        "number": 3,
+        "dataset": "finance@dev",
+        "agent": "fake@dev",
+        "status": "completed",
+        "status_error": None,
+        "started_at": "2026-11-13T10:00:00+00:00",
+        "scores": {"content": 1.0},
+        "progress": progress,
+    }
+
+    class StubClient:
+        def get(self, path, **kwargs):
+            return httpx2.Response(200, json=exp if path.endswith("/7") else [exp])
+
+    monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    monkeypatch.setattr(
+        main_module, "_connection", lambda: connection.Connection("u", "t", "admin")
+    )
+    status = runner.invoke(cli_app, ["status", "7"])
+    assert "6/6 ran, 6/6 evaluated, 3 errored, 1 partly errored" in status.output
+    listed = runner.invoke(cli_app, ["experiments", "list"])
+    assert listed.exit_code == 0, listed.output
+    assert "3 of 6 cases errored, 1 of 6 cases partly errored  content 1.00" in listed.output
+
+
 def test_summary_lists_errored_cases(capsys):
     case = {"overall": None, "delta": None, "errors": {}, "run_errors": []}
     report = {
@@ -1584,11 +1613,12 @@ def test_runs_list_shows_status_and_duration(env, monkeypatch):
         {"run_id": "s-ok", "source": "app", "status": "completed", "duration_ms": 1500.0},
         {"run_id": "s-bad", "source": "app", "status": "failed", "duration_ms": 95_000.0},
         {"run_id": "s-new", "source": "app", "status": None, "duration_ms": None},
+        {"run_id": "s-live", "source": "app", "status": "running", "duration_ms": 300.0},
     ]
 
     class StubClient:
         def get(self, path, **kwargs):
-            return httpx2.Response(200, json={"runs": rows, "total": 3})
+            return httpx2.Response(200, json={"runs": rows, "total": 4})
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
     result = runner.invoke(cli_app, ["runs", "list", "task@admin", "--source", "app"])
@@ -1597,6 +1627,7 @@ def test_runs_list_shows_status_and_duration(env, monkeypatch):
     assert lines[0].split()[1:4] == ["app", "completed", "1.5s"]
     assert lines[1].split()[1:4] == ["app", "failed", "1.6m"]
     assert lines[2].split()[1:4] == ["app", "-", "-"]
+    assert lines[3].split()[1:4] == ["app", "running", "300ms"]
 
 
 def test_runs_pull_pages_server_calls_above_100(env, tmp_path, monkeypatch):

@@ -282,7 +282,7 @@ export function ComparePage() {
             ["this experiment", data.compare],
           ] as const
         ).map(([side, report]) => {
-          const note = erroredNote(report.errored_cases, report.cases.length);
+          const note = erroredNote(report);
           return (
             note && (
               <div className="pane-status error" key={side}>
