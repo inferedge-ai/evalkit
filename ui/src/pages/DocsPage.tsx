@@ -220,7 +220,7 @@ function PublicDocsHeader() {
   const { theme, toggle } = useTheme();
   const next = theme === "dark" ? "light" : "dark";
   return (
-    <div className="mx-auto mb-6 flex max-w-6xl items-center gap-4">
+    <header className="mx-auto mb-6 flex max-w-6xl items-center gap-4">
       <BrandLink to={extensions.landingPage ? "/" : "/docs"} />
       <div className="ml-auto flex items-center gap-2">
         <Button
@@ -239,7 +239,7 @@ function PublicDocsHeader() {
           Sign in
         </SignInLink>
       </div>
-    </div>
+    </header>
   );
 }
 

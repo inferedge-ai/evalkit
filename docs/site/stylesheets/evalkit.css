@@ -90,12 +90,6 @@ body {
   padding: 0.4rem 0;
 }
 
-.ek-lockup {
-  display: block;
-  height: 1.3rem;
-  width: auto;
-}
-
 .ek-mark {
   fill: #111827;
   stroke: transparent;
@@ -114,7 +108,12 @@ body {
   fill: #ffffff;
 }
 
-/* Wide screens show the lockup, so the site name beside it would repeat it. */
+/* The lockup already says evalkit: hide the site name beside it in the drawer,
+   and in the header on wide screens, where Material shows the logo. */
+.md-nav--primary > .md-nav__title {
+  font-size: 0;
+}
+
 @media screen and (min-width: 76.25em) {
   .md-header__topic:first-child {
     visibility: hidden;

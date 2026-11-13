@@ -35,7 +35,7 @@ describe("LoginCallbackPage", () => {
     localStorage.clear();
   });
 
-  it("shows a cancelled provider sign-in on the sign-in card, without the navbar", async () => {
+  it("shows a cancelled provider sign-in on the sign-in card", async () => {
     setSessionForTest({
       getUser: async () => null,
       signinRedirect: async () => {},

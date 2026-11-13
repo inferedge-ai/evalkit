@@ -14,12 +14,19 @@ GENERATED = {
     "stylesheets/evalkit.css": SITE / "stylesheets" / "evalkit.css",
     "javascripts/outdated.js": SITE / "javascripts" / "outdated.js",
     "favicon.svg": ROOT / "ui" / "public" / "favicon.svg",
+    "brand/evalkit-wordmark-light.svg": ROOT / "docs" / "brand" / "evalkit-wordmark-light.svg",
+    "brand/evalkit-wordmark-dark.svg": ROOT / "docs" / "brand" / "evalkit-wordmark-dark.svg",
 }
 PLACEHOLDER = re.compile(r"\{\{(origin|version)\}\}")
 REPO_LINK = re.compile(r"\]\((?!https?:|mailto:|#)([^)]+)\)")
 REPO_BLOB = "https://github.com/inferedge-ai/evalkit/blob/"
 CONFIG_BASE = re.compile(r'(id="__config" type="application/json">\{[^<]*?"base": "[^"]*)"')
 GITHUB_ONLY = "On GitHub, `{{origin}}` in the docs stands for your server's URL.\n"
+README_WORDMARK = re.compile(r"<picture>.*?</picture>", re.S)
+SITE_WORDMARK = (
+    '<img alt="evalkit" src="brand/evalkit-wordmark-light.svg#gh-light-mode-only" height="40">'
+    '<img alt="evalkit" src="brand/evalkit-wordmark-dark.svg#gh-dark-mode-only" height="40">'
+)
 
 
 def _version() -> str:
@@ -36,6 +43,7 @@ def _site_link(target: str) -> str:
 
 def _home_page() -> str:
     readme = (ROOT / "README.md").read_text().replace(GITHUB_ONLY, "")
+    readme = README_WORDMARK.sub(SITE_WORDMARK, readme)
     return REPO_LINK.sub(lambda match: f"]({_site_link(match.group(1))})", readme)
 
 

@@ -182,6 +182,17 @@ test("signed out, the docs page leads home, switches the theme and signs in from
   expect(screen.queryByRole("group", { name: "Evaluate" })).toBeNull();
 });
 
+test("without a landing page, the signed-out docs page's logo leads to the docs", async () => {
+  wrapper.landingPage = null;
+  serve(null);
+  openApp("/docs/quickstart");
+
+  expect(await screen.findByRole("link", { name: "evalkit" })).toHaveAttribute(
+    "href",
+    "/docs",
+  );
+});
+
 test("signed in, the docs page has the app shell and no docs header", async () => {
   serve(writer);
   openApp("/docs/quickstart");

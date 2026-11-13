@@ -191,12 +191,13 @@ then add plain FastAPI routes with `app.include_router(...)`.
   data must come from public endpoints. A public route with the same path as
   one of evalkit's, `/` included, loses to evalkit's page.
 - Signed-out pages have no evalkit bar. A `landingPage` or public route
-  draws its own header, inside a scroll container that fills the window, so
-  a `sticky top-0` header stays put. `useOptionalMe` from
+  draws its own header and landmarks (`header`, `main`, `footer`), inside a
+  plain scroll container that fills the window, so a `sticky top-0` header
+  stays put. `useOptionalMe` from
   `@/shell/capabilities` returns `null` for a signed-out visitor, so a page
   can draw its header only then; `useTheme` from `@/shell/theme` (`theme`,
   `toggle`) gives it a theme switch.
-- `landingPage` is what a signed-out visitor sees at `/`; the Evalkit link on
+- `landingPage` is what a signed-out visitor sees at `/`; the evalkit link on
   the sign-in card and the signed-out docs page then goes to `/`. Signing
   out lands there. A signed-in person at `/` still gets the workspace
   list, and a signed-out visitor opening any other page, such as

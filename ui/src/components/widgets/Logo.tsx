@@ -12,6 +12,7 @@ export function Lockup({ className }: { className?: string }) {
       viewBox="0 0 405.01 80"
       role="img"
       aria-label="evalkit"
+      overflow="visible"
       className={cn("h-6 w-auto", className)}
     >
       <rect

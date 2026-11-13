@@ -1,7 +1,7 @@
 <h1>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/inferedge-ai/evalkit/main/docs/brand/evalkit-wordmark-dark.svg">
-    <img alt="evalkit" src="https://raw.githubusercontent.com/inferedge-ai/evalkit/main/docs/brand/evalkit-wordmark-light.svg" height="40">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/inferedge-ai/evalkit/develop/docs/brand/evalkit-wordmark-dark.svg">
+    <img alt="evalkit" src="https://raw.githubusercontent.com/inferedge-ai/evalkit/develop/docs/brand/evalkit-wordmark-light.svg" height="40">
   </picture>
 </h1>
 
