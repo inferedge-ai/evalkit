@@ -91,8 +91,9 @@ ignore_missing_imports = true
 [tool.hatch.build]
 artifacts = ["src/evalkit/core/data/cost_map.json"]
 
-# hatch_build.py adds skills/ file by file, leaving out .env files, wheels and
-# bytecode, so a filled-in try-it .env never ships in a wheel.
+# hatch_build.py adds skills/ and docs/user/ file by file, leaving out .env files,
+# wheels and bytecode, so a filled-in try-it .env never ships in a wheel, and
+# docs/user/images/, which the UI bundle carries.
 [tool.hatch.build.targets.wheel]
 packages = ["src/evalkit"]
 
@@ -100,4 +101,3 @@ packages = ["src/evalkit"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "contracts" = "evalkit/bundled/contracts"
-"docs/user" = "evalkit/bundled/docs"

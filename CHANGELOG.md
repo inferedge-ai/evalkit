@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
+  `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a
+  table) and images in `docs/user/images/`, in the web UI's docs page and on
+  the docs site. In the web UI's docs page, headings get the same ids as on
+  the docs site, and the page scrolls to a `#fragment` target (heading or
+  row) on load and when the hash changes. The web UI bundles the images;
+  `evalkit skills install` and the wheel's `evalkit/bundled/docs/` leave
+  `images/` out. Concepts has rows for App run, Trace
+  source, Preset and Hosted evalkit; see CONTRIBUTING.md for the markers.
+- The docs site uses the web UI's design tokens: the build generates
+  `stylesheets/tokens.css` from `ui/src/styles/tokens/`, and the site's
+  colours (light and dark), Roboto and JetBrains Mono fonts, radii, header,
+  sidebar, search, tables, code blocks, content tabs and version
+  selector follow them. The web UI's docs page sets its headings, images and
+  tables from the same tokens, and its mobile page menu is the shared
+  `Button`.
 - New optional setting `auth.oidc.cli_client_id`: an OAuth client of
   `evalkit login`'s own, for identity providers that skip the approval step
   for evalkit's web client. When it's set, `evalkit login` uses it for the

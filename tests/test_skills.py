@@ -105,3 +105,15 @@ def test_skills_linking_installed_docs_say_where_the_pages_live():
         files = skill_md.parent.rglob("*.md")
         if any("evalkit-docs/" in path.read_text() for path in files):
             assert "docs/user/" in skill_md.read_text(), skill_md.parent.name
+
+
+def test_skills_install_leaves_docs_images_out(tmp_path, monkeypatch):
+    docs = tmp_path / "docs"
+    (docs / "images").mkdir(parents=True)
+    (docs / "quickstart.md").write_text("![run](images/run.png)")
+    (docs / "images" / "run.png").write_bytes(b"png")
+    monkeypatch.setattr(main_module, "docs_root", lambda: docs)
+    target = tmp_path / "target"
+    result = CliRunner().invoke(app, ["skills", "install", "--target", str(target)])
+    assert result.exit_code == 0, result.output
+    assert sorted(p.name for p in (target / "evalkit-docs").iterdir()) == ["quickstart.md"]

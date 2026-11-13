@@ -1267,6 +1267,7 @@ def users_list():
 
 DOCS_DIR = "evalkit-docs"
 INSTALL_LEAVES_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.pyc")
+DOCS_LEAVE_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.pyc", "images")
 
 
 @skills_app.command("install")
@@ -1304,7 +1305,8 @@ def skills_install(
         destination = target / name
         if destination.exists():
             shutil.rmtree(destination)
-        shutil.copytree(source, destination, ignore=INSTALL_LEAVES_OUT)
+        ignore = DOCS_LEAVE_OUT if name == DOCS_DIR else INSTALL_LEAVES_OUT
+        shutil.copytree(source, destination, ignore=ignore)
         typer.echo(f"installed {name} → {destination}")
     manifest.write_text("".join(f"{name}\n" for name in sources))
     record_skill_target(target)
