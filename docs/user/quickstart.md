@@ -81,17 +81,13 @@ evalkit traces mapping presets
 
 Create your [agent](concepts.md#agent) with it:
 
-<!-- tabs -->
-#### CLI
-
 ```bash
 evalkit agents create myagent --trajectory-source otel --mapping langchain
 ```
 
-#### UI
+In the UI: Agents › New agent, set Trajectories to "From traces (OTel spans)" and pick the preset under Span mapping.
 
-Open Agents › New agent, set Trajectories to "From traces (OTel spans)" and pick the preset.
-<!-- /tabs -->
+![The New agent dialog with Trajectories set to From traces and the langchain preset picked](images/quickstart-create-agent.png)
 
 ## 3. Get real runs onto evalkit
 
@@ -100,11 +96,15 @@ Each [session](concepts.md#trace-span-session) of your agent becomes an [app run
 <!-- tabs -->
 #### My agent sends traces to Phoenix
 
-Tell evalkit where your traces live. This makes a [trace source](concepts.md#trace-source), and it needs an admin. In the UI, it is Settings › Organization › Trace sources.
+Tell evalkit where your traces live. This makes a [trace source](concepts.md#trace-source), and it needs an admin:
 
 ```bash
 evalkit trace-sources create phoenix --url <your Phoenix URL> --api-key-env PHOENIX_API_KEY
 ```
+
+In the UI: Settings › Organization › Trace sources.
+
+![The Trace sources page with a trace source named phoenix](images/quickstart-trace-source.png)
 
 Point your agent at its project there:
 
@@ -112,11 +112,19 @@ Point your agent at its project there:
 evalkit agents edit myagent --trace-source phoenix --project <project>
 ```
 
+In the UI: Agents › myagent › Edit, then set Trace source and Project.
+
+![The Edit agent dialog with Trace source phoenix and a Project](images/quickstart-agent-trace-source.png)
+
 Check that evalkit reads your traces. Import one session from the project:
 
 ```bash
 evalkit traces import myagent <session id>
 ```
+
+In the UI: Agents › myagent › Import, pick One session and enter its id.
+
+![The Import tab after importing one session, with its span counts, messages and tokens](images/quickstart-import-session.png)
 
 `session`, `root`, `mapping`, `llm` and `trajectory` must have a ✓, and so must `tools` when your agent called a tool. A `!` on `unmapped` is fine: it lists span attributes evalkit did not need. A `!` or ✗ on a required line means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
 
@@ -125,6 +133,10 @@ Bring in your recent history:
 ```bash
 evalkit traces import myagent --since <date>
 ```
+
+In the UI: Agents › myagent › Import, pick Time range and set Since.
+
+![The Import tab with a finished range import](images/quickstart-import-history.png)
 
 Does your agent start its own trace? Read [An agent with its own trace store](sdk-runs.md#an-agent-with-its-own-trace-store) before step 5.
 
@@ -177,9 +189,17 @@ Check one session. List the runs, then check one by its id:
 evalkit runs list myagent --source app
 ```
 
+In the UI: Runs, then pick myagent.
+
+![The Runs page listing myagent's app runs](images/quickstart-app-runs.png)
+
 ```bash
 evalkit traces check myagent <session id>
 ```
+
+In the UI: Agents › myagent › Mappings, under Preview over recent sessions.
+
+![The Mappings tab previewing one session: span counts, messages, tokens and the trajectory](images/quickstart-check-session.png)
 
 `session`, `root`, `mapping`, `llm` and `trajectory` must have a ✓, and so must `tools` when your agent called a tool. A `!` on `unmapped` is fine: it lists span attributes evalkit did not need. A `!` or ✗ on a required line means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
 <!-- /tabs -->
@@ -230,6 +250,8 @@ evalkit picks up each run's [trajectory](concepts.md#trajectory), scores it, and
 
 Some cases fail. Good: they came from runs that went wrong.
 
+![The experiment page: score cards per bucket and a table of cases, two of them failing](images/quickstart-experiment.png)
+
 ## 6. Improve
 
 Tell your coding agent:
@@ -251,6 +273,10 @@ evalkit summary <new id> --baseline <old id>
 ```
 
 You see which cases it fixed, and how response time, cost and tokens moved.
+
+In the UI: open the new experiment and pick the old one under Compare with.
+
+![The Compare page: each bucket's score before and after, and the cases that improved](images/quickstart-compare.png)
 
 ## What you just did
 
