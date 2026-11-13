@@ -73,6 +73,7 @@ nav:
   - Home: index.md
   - Get started:
       - Quickstart: quickstart.md
+      - Beyond the quickstart: beyond-quickstart.md
       - Concepts: concepts.md
       - Try locally: try-locally.md
       - Install: install.md

@@ -1,4 +1,5 @@
 import quickstart from "../../../docs/user/quickstart.md?raw";
+import beyondQuickstart from "../../../docs/user/beyond-quickstart.md?raw";
 import install from "../../../docs/user/install.md?raw";
 import login from "../../../docs/user/login.md?raw";
 import sso from "../../../docs/user/sso.md?raw";
@@ -23,6 +24,12 @@ export const DOC_TABS = [
     label: "Quickstart",
     group: "Get started",
     body: quickstart,
+  },
+  {
+    id: "beyond-quickstart",
+    label: "Beyond the quickstart",
+    group: "Get started",
+    body: beyondQuickstart,
   },
   { id: "concepts", label: "Concepts", group: "Get started", body: concepts },
   {

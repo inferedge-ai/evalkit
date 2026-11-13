@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Docs**: the Quickstart page (`docs/user/quickstart.md`) is a short tutorial for
+  hosted evalkit: connect an agent, either by importing its history from
+  Phoenix or by sending its traces straight to evalkit, mine cases from its
+  real runs, run a baseline experiment and let the eval-driven-development
+  skill improve the agent. What the old page covered beyond that (the Harness
+  API path, hand-written cases, fixtures, comparing experiments, review and
+  promotion) is on the new page Beyond the quickstart
+  (`docs/user/beyond-quickstart.md`).
+- **Docs**: the Install page drops the recipe for a separate uv project in
+  the `evalkit/` folder; install `evalkit-py` into the agent's own project
+  with pip, uv or poetry. Eval scripts in the docs and skills are
+  `run_evals.py` at the project root. Framework mappings names the
+  `langchain` preset for LangGraph.
+- **Docs**: new skill `getting-started` walks a coding agent through the quickstart in
+  the developer's agent project. `evalkit skills install` copies it with the
+  others.
 - **Docs**: the SDK reference is now a page in the web UI's docs (under
   Traces, after SDK runs), and `evalkit skills install` copies it to
   `evalkit-docs/sdk-reference.md` for coding agents. The docs site shows the

@@ -75,8 +75,10 @@ which applies:
 - **Code-driven agent** (no `harness_url`): `evalkit run` cannot drive it.
   Run the client's eval script, which calls `run_experiment`; pass
   `case_ids=[...]` or `tags=[...]` to run a subset.
-  `run_experiment(dataset=<dir name>)` syncs the directory when it is under
-  `cases` in `evalkit.yaml`; otherwise run `evalkit sync <dir>` first and pass
+  `run_experiment(dataset=<dir name>)` first syncs that directory under the
+  cases folder (`cases` in `evalkit.yaml`; `evalkit/cases` by default, with
+  no `evalkit.yaml` needed); for a directory elsewhere, run
+  `evalkit sync <dir>` first and pass
   the dataset reference (`<name>@<workspace>`) (see
   [`sdk-runs.md`](../evalkit-docs/sdk-runs.md)).
 

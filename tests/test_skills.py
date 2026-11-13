@@ -20,6 +20,7 @@ EXPECTED = {
     "authoring-eval-cases",
     "eval-driven-development",
     "connect-traces",
+    "getting-started",
 }
 
 
