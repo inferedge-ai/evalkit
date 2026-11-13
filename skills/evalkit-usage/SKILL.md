@@ -198,7 +198,7 @@ provider configured on the server or a base URL, never both:
   key is needed on your machine. `evalkit run --judge-provider NAME`
   (`evalkit llm-providers list`) picks another one.
 - **Your own judge:** `evalkit run --judge-base-url URL --judge-model M
-  --judge-api-key-env NAME` (the env var or `.env` entry holding the key), or
+  --judge-api-key-env NAME` (the env var holding the key), or
   `Judge(base_url=..., model=..., api_key=...)` in the SDK. Those evaluators
   run on your machine. The key is never stored: `evalkit evaluate <id>` and
   `evalkit run … --resume <id>` need `--judge-api-key-env NAME` again; in the SDK, pass the same

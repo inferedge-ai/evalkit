@@ -10,7 +10,7 @@ import httpx2
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from evalkit.credentials import CredentialsConfig, load_dotenv_beside
+from evalkit.credentials import CredentialsConfig
 
 
 class MissingEnvError(ValueError):
@@ -278,14 +278,10 @@ class LocalConfig(RunnerConfig):
                 return found
         return _anchor_paths(cls(path=starts[0].resolve() / LOCAL_CONFIG_FILENAME))
 
-    def environ(self) -> dict[str, str]:
-        return load_dotenv_beside(self.path)
-
     def resolve_env(self, *, scoring: bool = True) -> LocalConfig:
         data = self.model_dump()
         if scoring:
-            environ = self.environ()
-            data["cost_map"] = resolve_env_refs(data["cost_map"], self.path, "cost_map", environ)
+            data["cost_map"] = resolve_env_refs(data["cost_map"], self.path, "cost_map", os.environ)
         return LocalConfig.model_validate(data)
 
 

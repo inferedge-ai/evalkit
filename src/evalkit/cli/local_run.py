@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 
 import httpx2
@@ -36,7 +37,7 @@ from evalkit.store.base import GitRevision, Selection
 
 
 def credentials(local: LocalConfig, conn: Connection) -> CredentialRegistry:
-    return CredentialRegistry(local.credentials, local.environ(), home=conn.username)
+    return CredentialRegistry(local.credentials, os.environ, home=conn.username)
 
 
 def holder_for(conn: Connection) -> str:

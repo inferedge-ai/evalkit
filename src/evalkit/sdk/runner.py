@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import time
 import uuid
@@ -164,7 +165,7 @@ async def _agent_definition(api: AsyncApi, agent: str, me: str) -> AgentDefiniti
 
 
 def _credentials(local: LocalConfig, me: str) -> CredentialRegistry:
-    return CredentialRegistry(local.credentials, local.environ(), home=me)
+    return CredentialRegistry(local.credentials, os.environ, home=me)
 
 
 async def _check_evaluator_names(

@@ -19,11 +19,11 @@ def entries(output: str) -> dict[str, str]:
     return found
 
 
-def write_local_config(tmp_path) -> None:
+def write_local_config(tmp_path, monkeypatch) -> None:
     (tmp_path / "evalkit.yaml").write_text(
         "credentials:\n  agents:\n    myagent: env:MY_AGENT_KEY\n"
     )
-    (tmp_path / ".env").write_text("MY_AGENT_KEY=client-key\n")
+    monkeypatch.setenv("MY_AGENT_KEY", "client-key")
 
 
 def test_flow_15_server_checks_a_shared_agent(live):
@@ -65,7 +65,7 @@ def test_flow_15_missing_credential_fails_capabilities_and_stops(live):
 
 
 def test_flow_15_own_agent_is_checked_from_the_laptop(live, tmp_path, monkeypatch):
-    write_local_config(tmp_path)
+    write_local_config(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
     live.as_user("akshat")
     result = live.run("harness", "check", "myagent")
@@ -83,7 +83,7 @@ def test_flow_15_own_agent_is_checked_from_the_laptop(live, tmp_path, monkeypatc
 
 
 def test_flow_15_lint_reads_a_personal_agents_schema_from_the_laptop(live, tmp_path, monkeypatch):
-    write_local_config(tmp_path)
+    write_local_config(tmp_path, monkeypatch)
     monkeypatch.chdir(tmp_path)
     cases = tmp_path / "lintcases"
     cases.mkdir()

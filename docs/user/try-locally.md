@@ -204,8 +204,8 @@ Do the same in your own repository:
    connect-traces skill writes or checks the span mapping
    ([Mappings](mappings.md)).
 2. **Setup.** Put an `evalkit.yaml` at the root of your repository, with
-   `cases:` pointing at your cases directory. Keep any keys it names in a
-   `.env` beside it.
+   `cases:` pointing at your cases directory. Set any keys it names as
+   environment variables.
 3. **Judge.** Nothing to set up: the evaluators that use a judge run on the
    evalkit server, with the LLM provider configured there as the default
    judge. To judge with your own key instead, see [Config](config.md).

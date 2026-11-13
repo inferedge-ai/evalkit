@@ -762,9 +762,7 @@ def run(
     judge_api_key_env: str | None = typer.Option(
         None,
         "--judge-api-key-env",
-        help="The env var (or entry in the .env beside evalkit.yaml, or in the current directory "
-        "without one) holding the key for "
-        "--judge-base-url. Never stored.",
+        help="The env var holding the key for --judge-base-url. Never stored.",
     ),
     judge_effort: str | None = typer.Option(None, "--judge-effort", help="Judge reasoning effort."),
     evaluation_concurrency: int | None = typer.Option(
@@ -819,7 +817,7 @@ def run(
         )
     dataset_slug = slug(resolved.ref)
     judge = _judge_override(judge_model, judge_provider, judge_base_url, judge_effort)
-    judge_key = _judge_api_key(judge, judge_api_key_env, local, resuming=resume is not None)
+    judge_key = _judge_api_key(judge, judge_api_key_env, resuming=resume is not None)
     if route is Driver.SERVER:
         exp_id = _run_on_server(
             dataset_slug,
@@ -872,9 +870,7 @@ def run(
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
 
 
-def _judge_api_key(
-    judge: dict | None, env_name: str | None, local: LocalConfig, *, resuming: bool
-) -> str | None:
+def _judge_api_key(judge: dict | None, env_name: str | None, *, resuming: bool) -> str | None:
     own = judge is not None and judge.get("base_url") is not None
     if env_name is None:
         if own:
@@ -882,17 +878,13 @@ def _judge_api_key(
         return None
     if not own and not resuming:
         raise ApiError("--judge-api-key-env goes with --judge-base-url or --resume")
-    return _env_value(env_name, local)
+    return _env_value(env_name)
 
 
-def _env_value(name: str, local: LocalConfig) -> str:
-    environ = local.environ()
-    if name not in environ:
-        raise ApiError(
-            f"env var {name} is not set (shell or the .env beside evalkit.yaml, or in the "
-            "current directory without one)"
-        )
-    return environ[name]
+def _env_value(name: str) -> str:
+    if name not in os.environ:
+        raise ApiError(f"env var {name} is not set")
+    return os.environ[name]
 
 
 def _judge_override(
@@ -982,7 +974,7 @@ def evaluate(
                 progress=typer.echo,
                 refetch_trajectories=refetch_trajectories,
                 evaluation_concurrency=evaluation_concurrency or EVALUATION_CONCURRENCY,
-                judge_api_key=_env_value(judge_api_key_env, local) if judge_api_key_env else None,
+                judge_api_key=_env_value(judge_api_key_env) if judge_api_key_env else None,
             )
         )
     except ScoringFailed as exc:

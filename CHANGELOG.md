@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **CLI**, **SDK**: the `env:` references in `evalkit.yaml` and `evalkit run --judge-api-key-env` read only the environment. The CLI and SDK no longer read the `.env` beside `evalkit.yaml` (or in the current directory). Export the variables in your shell instead. `evalkit serve` still reads the `.env` beside `config.yaml`.
+
 - New optional setting `auth.oidc.cli_client_id`: an OAuth client of
   `evalkit login`'s own, for identity providers that skip the approval step
   for evalkit's web client. When it's set, `evalkit login` uses it for the

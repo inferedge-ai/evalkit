@@ -143,6 +143,8 @@ def server(tmp_path_factory, stub_judges_module, fake_harness, harness_url, modu
 def env(server, tmp_path, monkeypatch, module_db_url):
     base_url, application = server
     monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
+    monkeypatch.setenv("CLI_AGENT_KEY", "client-key")
+    monkeypatch.setenv("CLI_JUDGE_KEY", "jk")
     resp = httpx2.post(
         f"{base_url}/api/auth/login", json={"username": "admin", "password": "hunter2-pw"}
     )
@@ -887,7 +889,6 @@ def write_local_config(tmp_path, harness_url: str) -> Path:
         f"cost_map:\n  source: {cost_map}\n"
         "credentials:\n  agents:\n    fake: env:CLI_AGENT_KEY\n"
     )
-    (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
     return tmp_path
 
 
@@ -990,8 +991,8 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     envcheck = tmp_path / "evalkit" / "cases" / "envcheck"
     envcheck.mkdir()
     (envcheck / "c.yaml").write_text("cases:\n- id: env-1\n  input: {question: 'q 2024'}\n")
-    dotenv = tmp_path / ".env"
-    dotenv.write_text("CLI_JUDGE_KEY=jk\n")
+    (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\n")
+    monkeypatch.setenv("CLI_JUDGE_KEY", "jk")
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 1, result.output
@@ -1001,7 +1002,8 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     assert "CLI_AGENT_KEY" in result.output
     assert "envcheck@admin" not in dataset_refs()
 
-    dotenv.write_text("CLI_AGENT_KEY=client-key\n")
+    monkeypatch.setenv("CLI_AGENT_KEY", "client-key")
+    monkeypatch.delenv("CLI_JUDGE_KEY")
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 0, result.output
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
@@ -1010,7 +1012,7 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake", *own_judge])
     assert result.exit_code == 1, result.output
     assert "CLI_JUDGE_KEY is not set" in result.output
-    dotenv.write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
+    monkeypatch.setenv("CLI_JUDGE_KEY", "jk")
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake", *own_judge])
     assert result.exit_code == 0, result.output
 

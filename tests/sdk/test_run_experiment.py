@@ -3,7 +3,6 @@ import json
 import os
 import sys
 from datetime import timedelta
-from pathlib import Path
 
 import httpx2
 import pytest
@@ -137,7 +136,8 @@ def env(server, tmp_path, monkeypatch, module_db_url):
         f"cases: evalkit/cases\nfixtures: evalkit/fixtures\ncost_map:\n  source: {cost_map}\n"
         "credentials:\n  evaluators:\n    http_eval: env:SDK_EVAL_KEY\n"
     )
-    (tmp_path / ".env").write_text("SDK_EVAL_KEY=k\nSDK_JUDGE_KEY=jk\n")
+    monkeypatch.setenv("SDK_EVAL_KEY", "k")
+    monkeypatch.setenv("SDK_JUDGE_KEY", "jk")
     monkeypatch.chdir(tmp_path)
     provider = TracerProvider()
     headers = {"Authorization": f"Bearer {token}", "X-Evalkit-Agent": "sdk"}
@@ -549,7 +549,6 @@ async def test_only_a_base_url_judge_needs_a_local_key_and_names_it_before_any_t
 ):
     srv, blob, provider = env
     monkeypatch.delenv("SDK_JUDGE_KEY", raising=False)
-    Path(".env").write_text("SDK_EVAL_KEY=k\n")
     called: list[str] = []
 
     def task(q):

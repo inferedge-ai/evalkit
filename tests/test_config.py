@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,7 @@ from evalkit.config import (
     RunnerConfig,
     load_config,
 )
-from evalkit.credentials import CredentialRegistry
+from evalkit.credentials import CredentialRegistry, MissingCredential
 
 BASIC = """
 server:
@@ -183,16 +184,23 @@ def test_local_config_resolves_paths(tmp_path):
     assert cfg.fixtures == tmp_path / "eval" / "fixtures"
 
 
-def test_local_credentials_read_dotenv_beside_evalkit_yaml(tmp_path, monkeypatch):
+def test_local_credentials_never_read_a_dotenv_beside_evalkit_yaml(tmp_path, monkeypatch):
     monkeypatch.delenv("RESEARCH_AGENT_KEY", raising=False)
-    (tmp_path / "evalkit.yaml").write_text(LOCAL)
-    (tmp_path / ".env").write_text("RESEARCH_AGENT_KEY=from-dotenv\n")
+    monkeypatch.delenv("EVALKIT_COST_MAP", raising=False)
+    (tmp_path / "evalkit.yaml").write_text(
+        LOCAL + "cost_map:\n  source: env:EVALKIT_COST_MAP:bundled\n"
+    )
+    (tmp_path / ".env").write_text(
+        "RESEARCH_AGENT_KEY=from-dotenv\nEVALKIT_COST_MAP=/tmp/from-dotenv.json\n"
+    )
+    monkeypatch.chdir(tmp_path)
     cfg = LocalConfig.find(tmp_path)
     assert cfg is not None
-    registry = CredentialRegistry(cfg.credentials, cfg.environ(), home="akshat")
-    assert registry.key_for("agent", "research-agent@akshat") == "from-dotenv"
+    registry = CredentialRegistry(cfg.credentials, os.environ, home="akshat")
+    with pytest.raises(MissingCredential):
+        registry.key_for("agent", "research-agent@akshat")
+    assert cfg.resolve_env(scoring=True).cost_map.source == "bundled"
     monkeypatch.setenv("RESEARCH_AGENT_KEY", "from-env")
-    registry = CredentialRegistry(cfg.credentials, cfg.environ(), home="akshat")
     assert registry.key_for("agent", "research-agent@akshat") == "from-env"
 
 
@@ -223,19 +231,16 @@ def test_local_config_without_cases_or_fixtures_uses_the_defaults(tmp_path):
     assert cfg.resolve_env().cases == tmp_path / "evalkit" / "cases"
 
 
-def test_local_config_without_a_file_defaults_to_the_first_start(tmp_path, monkeypatch):
-    monkeypatch.delenv("RESEARCH_AGENT_KEY", raising=False)
+def test_local_config_without_a_file_defaults_to_the_first_start(tmp_path):
     cwd = tmp_path / "cwd"
     script_dir = tmp_path / "scripts"
     cwd.mkdir()
     script_dir.mkdir()
-    (cwd / ".env").write_text("RESEARCH_AGENT_KEY=from-dotenv\n")
     cfg = LocalConfig.find_or_default([cwd, script_dir])
     assert cfg.path == cwd / "evalkit.yaml"
     assert cfg.cases == cwd / "evalkit" / "cases"
     assert cfg.fixtures == cwd / "evalkit" / "fixtures"
     assert cfg.credentials.agents == {} and cfg.credentials.evaluators == {}
-    assert cfg.environ()["RESEARCH_AGENT_KEY"] == "from-dotenv"
     assert cfg.resolve_env().cases == cwd / "evalkit" / "cases"
 
 
