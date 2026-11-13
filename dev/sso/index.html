@@ -1420,6 +1420,14 @@ client id into <code>auth.oidc.client_id</code>.</p>
 </table>
 <p>Evalkit sends <code>authorize_params</code> verbatim on the authorize request and the
 device authorization request; the server never interprets them.</p>
+<p><code>ui_resources</code> lists other APIs the web UI signs in for, so that pages a
+package extending evalkit adds can call them with a token of their own. The
+web UI's sign-in names <code>authorize_params.resource</code> first and each of these
+after it, as repeated <code>resource</code> parameters (RFC 8707). Evalkit's own calls
+keep the token for evalkit's API. The setting needs
+<code>authorize_params.resource</code>, and the identity provider must issue a token for
+any API the sign-in named from the person's refresh token. <code>evalkit login</code>
+doesn't send them.</p>
 <h2 id="registering-a-machine-client-for-ci">Registering a machine client for CI<a class="headerlink" href="#registering-a-machine-client-for-ci" title="Permanent link">&para;</a></h2>
 <p>One per pipeline. Application type: machine-to-machine or service, client
 credentials grant on, with the same audience attached. Note the client id
@@ -1442,6 +1450,7 @@ account user): an evalkit admin binds it with <code>evalkit users add ci-bot
     scopes: [openid, profile, email, offline_access]
     required_scopes: []         # scopes an access token must carry
     authorize_params: {}
+    ui_resources: []            # other APIs the web UI signs in for
     algorithms: [RS256]
     admin_claim: null           # {name: roles, value: evalkit-admin}: who is an admin
 </code></pre></div>
