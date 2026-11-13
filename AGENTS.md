@@ -96,7 +96,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - `src/evalkit/api/` — FastAPI server (`api/otel.py` is the collector, `api/traces.py` sessions and mappings, `api/tokens.py` agent tokens, `api/runs.py` and `api/pull.py` an agent's runs, `api/mcp/` the read-only MCP server at `/mcp`); `src/evalkit/cli/` — typer CLI (local runs, thin HTTP calls for everything else)
 - `docs/user/` — the user pages (Try it locally, Quickstart, Concepts and the web UI's docs pages). The UI imports these files directly, the wheel bundles them, and `evalkit skills install` copies them to `evalkit-docs/` beside the skills, so skills link to `../evalkit-docs/<page>.md`; there is no second copy. Pages link to each other as `page.md`
 - `ui/` — React web UI, bundled into the wheel as `evalkit/bundled/ui` (`paths.ui_root()`); `skills/` — distributable skills
-- `mkdocs.yml`, `docs/site/` — the GitHub Pages site: MkDocs Material over `docs/user/`, plus `docs/site/sdk-reference.md` (mkdocstrings), hooks, theme and overrides; `mike` versions it
+- `mkdocs.yml`, `docs/site/` — the GitHub Pages site: MkDocs Material over `docs/user/`, hooks, theme and overrides; `mike` versions it
 - `deploy/` — Dockerfile (server image build; clients deploy via the evalkit-deployment skill's bundled compose); `contracts/` — generated OpenAPI/JSON Schemas
 
 ## Layering rules
@@ -114,6 +114,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 - `uv run mypy src/evalkit` — types
 - `cd ui && npm test` — UI tests
 - `uv run python scripts/gen_schemas.py` — regenerate the OpenAPI contract docs under `contracts/` (a drift test fails CI when they're stale)
+- `uv run python scripts/gen_sdk_reference.py` — regenerate `docs/user/sdk-reference.md` from the `evalkit.sdk` docstrings (a drift test fails CI when it is stale)
 - `uv run --group docs mkdocs serve` — the docs site on :8000 (`mkdocs build --strict` is the CI check)
 - `uv run python scripts/fetch_cost_map.py` — fetch the LiteLLM cost map (gitignored; the Docker build and the wheel build fetch it, and the server fetches it at runtime when missing)
 
