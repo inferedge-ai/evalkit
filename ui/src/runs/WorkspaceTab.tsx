@@ -9,8 +9,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { Editor } from "../lib/Editor";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Markdown } from "@/components/widgets/Markdown";
 import {
   NotFoundError,
   apiFetch,
@@ -375,11 +374,7 @@ function FileViewer({ base, node }: { base: string; node: FileNode }) {
         )}
         {showPreview &&
           (extension === "md" ? (
-            <div className="md-body max-w-3xl p-4 text-meta">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {text ?? ""}
-              </ReactMarkdown>
-            </div>
+            <Markdown text={text ?? ""} className="max-w-3xl p-4" />
           ) : extension === "svg" ? (
             blob.url && (
               <img src={blob.url} className="max-h-full max-w-full p-4" />

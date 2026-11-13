@@ -1,0 +1,207 @@
+.markdown-content {
+  font-size: 14px;
+  line-height: 150%;
+  color: var(--foreground);
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+.markdown-content :is(h1, h2, h3, h4, h5, h6) {
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+  scroll-margin-top: 4rem;
+}
+.markdown-content h1 {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+.markdown-content h2 {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+.markdown-content h3 {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.markdown-content :is(h4, h5, h6) {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.markdown-content p {
+  margin: 0 0 0.75rem;
+}
+
+.markdown-content :is(ul, ol) {
+  margin: 0 0 0.75rem;
+  padding-left: 1.5rem;
+}
+.markdown-content ul {
+  list-style: disc outside;
+}
+.markdown-content ol {
+  list-style: decimal outside;
+}
+.markdown-content li {
+  margin: 0.25rem 0;
+}
+.markdown-content li > :is(ul, ol) {
+  margin: 0.25rem 0 0;
+}
+.markdown-content li > p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+}
+.markdown-content em {
+  font-style: italic;
+}
+
+.markdown-content a {
+  color: var(--primary);
+}
+.markdown-content a:hover {
+  text-decoration: underline;
+}
+
+.markdown-content :not(pre) > code {
+  border-radius: 0.25rem;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  padding: 0.0625rem 0.3125rem;
+  font-size: 0.875em;
+  font-family: var(--font-mono);
+}
+
+/* No overflow: hidden here: it would stop the copy button's sticky rail. */
+.markdown-content .code-block-wrapper {
+  position: relative;
+  margin-bottom: 0.75rem;
+  max-width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+}
+.markdown-content pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.markdown-content .code-header {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+  background: var(--muted);
+  padding: 0.5rem 1rem;
+}
+.markdown-content .language-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+.markdown-content .code-copy-sticky {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 2;
+  height: 0;
+}
+.markdown-content .copy-button {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.markdown-content .code-block-wrapper:hover .copy-button,
+.markdown-content .code-block-wrapper:focus-within .copy-button {
+  opacity: 1;
+}
+.markdown-content .code-pre {
+  margin: 0;
+  background: var(--muted);
+  padding: 1rem;
+  font-size: 0.875em;
+  font-family: var(--font-mono);
+  border-bottom-left-radius: 0.5rem;
+  border-bottom-right-radius: 0.5rem;
+}
+.markdown-content .code-block-wrapper[data-language="text"] .code-pre {
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+}
+
+.markdown-content blockquote {
+  margin: 0 0 0.75rem;
+  border-left: 4px solid var(--border);
+  padding-left: 1rem;
+  color: var(--muted-foreground);
+}
+
+.markdown-content hr {
+  margin: 1rem 0;
+  border-color: var(--border);
+}
+
+.markdown-content img {
+  max-width: 100%;
+  height: auto;
+  margin: 0 0 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.markdown-content .table-wrapper {
+  margin-bottom: 0.75rem;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+}
+.markdown-content table {
+  min-width: 100%;
+  border-collapse: collapse;
+  background: var(--card);
+}
+.markdown-content th {
+  border-bottom: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+}
+.markdown-content td {
+  padding: 0.375rem 0.5rem;
+  vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+.markdown-content tbody tr + tr td {
+  border-top: 1px solid var(--border);
+}
+.markdown-content tr {
+  scroll-margin-top: 4rem;
+  transition: background-color 0.15s ease;
+}
+.markdown-content tbody tr:hover,
+.markdown-content tr[data-targeted] {
+  background: var(--muted);
+}
+
+.markdown-content .katex {
+  font-size: 1em;
+}
+.markdown-content .katex-display {
+  margin: 0.75rem 0;
+}
+
+.markdown-content > :first-child {
+  margin-top: 0;
+}
+.markdown-content > :last-child {
+  margin-bottom: 0;
+}

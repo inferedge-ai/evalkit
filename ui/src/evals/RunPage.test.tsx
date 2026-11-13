@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
 import { afterEach, expect, test } from "vitest";
 import { refreshQueries } from "../lib/query";
@@ -216,6 +217,24 @@ test("a case without runs is not reported missing while the experiment's cases l
   await expect(
     screen.findByRole("heading", { name: "Not found" }, { timeout: 300 }),
   ).rejects.toThrow();
+});
+
+test("links in an answer open in a new tab, and its code blocks copy", async () => {
+  const answer =
+    "See [the refund policy](https://acme.example/refunds).\n\n```sql\nselect 5;\n```\n";
+  serveRun((url) =>
+    url.endsWith(RUNS_URL)
+      ? Response.json([{ ...run, agent_run: { ...run.agent_run, answer } }])
+      : undefined,
+  );
+  const user = userEvent.setup();
+  openRun();
+
+  const link = await screen.findByRole("link", { name: "the refund policy" });
+  expect(link).toHaveAttribute("target", "_blank");
+  expect(link).toHaveAttribute("rel", "noreferrer");
+  await user.click(screen.getByRole("button", { name: "Copy code" }));
+  expect(await navigator.clipboard.readText()).toBe("select 5;");
 });
 
 test("a run with no evaluators and no scores says so on its Scores tab", async () => {

@@ -180,6 +180,28 @@ test.each([
   },
 );
 
+test("a markdown file in the workspace shows its maths, keeps prices as text and copies its code", async () => {
+  const report =
+    "Revenue rose from $5 to $10.\n\nGrowth is \\(g^2\\).\n\n```python\nprint('hi')\n```\n";
+  serveRun((url) => {
+    if (url.endsWith(`${RUN_URL}/files`))
+      return Response.json({ files: [{ path: "report.md", size: 80 }] });
+    if (url.endsWith(`${RUN_URL}/files/report.md`)) return new Response(report);
+  });
+  const user = userEvent.setup();
+  openRun();
+  await user.click(await screen.findByRole("tab", { name: "Workspace" }));
+  await user.click(await screen.findByText("report.md"));
+
+  expect(
+    await screen.findByText("Revenue rose from $5 to $10."),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/Growth is/).querySelector("math")).not.toBeNull();
+  expect(screen.getByText("python")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Copy code" }));
+  expect(await navigator.clipboard.readText()).toBe("print('hi')");
+});
+
 test("a run whose workspace holds no files says so", async () => {
   serveRun((url) =>
     url.endsWith(`${RUN_URL}/files`) ? Response.json({ files: [] }) : undefined,

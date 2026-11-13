@@ -1,3 +1,4 @@
+import { Markdown } from "@/components/widgets/Markdown";
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, ListChecks } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
@@ -28,7 +29,6 @@ import {
   CostCell,
   EvaluatorScores,
   FixtureList,
-  Markdown,
   PreBlock,
   ScoreCell,
   Tag,

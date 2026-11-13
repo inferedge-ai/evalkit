@@ -1,3 +1,4 @@
+import { Markdown } from "@/components/widgets/Markdown";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
@@ -17,14 +18,7 @@ import type {
 import { CopyText, InfoTip, Tabs } from "../lib/ui";
 import { NotFound } from "../shell/NotFound";
 import { agentTag } from "./experimentRow";
-import {
-  EvaluatorScores,
-  FixtureList,
-  Markdown,
-  PreBlock,
-  Tag,
-  TimeSpan,
-} from "./bits";
+import { EvaluatorScores, FixtureList, PreBlock, Tag, TimeSpan } from "./bits";
 import { RunTabs, TRAJECTORY_TABS } from "../runs/RunTabs";
 import { Select } from "../lib/Select";
 import { useFollowWorkspace } from "../shell/workspace";

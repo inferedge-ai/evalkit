@@ -3,9 +3,7 @@ import type { ComponentProps, ReactElement, ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import type { ExtraProps } from "react-markdown";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Highlight, themes } from "prism-react-renderer";
+import { Markdown } from "@/components/widgets/Markdown";
 import { PageHeader } from "@/components/widgets/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -21,68 +19,13 @@ import {
 } from "../lib/docs";
 import { remarkDocMarkers, resolveDocImage } from "../lib/docMarkdown";
 import type { CliInfo } from "../lib/types";
-import { CopyButton } from "../lib/ui";
 import { useOptionalMe } from "../shell/capabilities";
-import { useTheme } from "../shell/theme";
-
-function Snippet({ code, language }: { code: string; language: string }) {
-  const { theme } = useTheme();
-  const base = theme === "dark" ? themes.nightOwl : themes.github;
-  return (
-    <div className="relative my-2">
-      <div className="absolute top-1 right-1">
-        <CopyButton text={code} />
-      </div>
-      <Highlight
-        code={code}
-        language={language}
-        theme={{
-          ...base,
-          plain: { ...base.plain, backgroundColor: "var(--muted)" },
-        }}
-      >
-        {({ className, style, tokens, getLineProps, getTokenProps }) => (
-          <pre
-            className={`${className} overflow-x-auto rounded-md p-3 pr-16 font-mono text-meta`}
-            style={style}
-          >
-            {tokens.map((line, i) => (
-              <div key={i} {...getLineProps({ line })}>
-                {line.map((token, key) => (
-                  <span key={key} {...getTokenProps({ token })} />
-                ))}
-              </div>
-            ))}
-          </pre>
-        )}
-      </Highlight>
-    </div>
-  );
-}
-
-type CodeProps = { className?: string; children?: ReactNode };
 
 function DocLink({ href, children }: { href?: string; children?: ReactNode }) {
   const route = docRoute(href);
   if (route) return <Link to={route}>{children}</Link>;
   if (href?.startsWith("#")) return <Link to={href}>{children}</Link>;
   return <a href={href}>{children}</a>;
-}
-
-function Pre({ children }: { children?: ReactNode }) {
-  const child = children as ReactElement<CodeProps> | undefined;
-  const props = child?.props ?? {};
-  const code = String(props.children ?? "").replace(/\n$/, "");
-  const language = /language-(\w+)/.exec(props.className ?? "")?.[1] ?? "text";
-  return <Snippet code={code} language={language} />;
-}
-
-function ScrollingTable({ children }: { children?: ReactNode }) {
-  return (
-    <div className="overflow-x-auto">
-      <table>{children}</table>
-    </div>
-  );
 }
 
 function DocImage({
@@ -238,20 +181,12 @@ export function DocsPage() {
           <DocsMenu tab={tab} />
           <article className="min-w-0 flex-1">
             {error && <p className="text-ink-2">{error}</p>}
-            <div className="md-body docs-body mx-auto max-w-3xl text-lede">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkDocMarkers]}
-                components={{
-                  pre: Pre,
-                  a: DocLink,
-                  table: ScrollingTable,
-                  div: DocDiv,
-                  img: DocImage,
-                }}
-              >
-                {fillTemplate(body, values)}
-              </ReactMarkdown>
-            </div>
+            <Markdown
+              text={fillTemplate(body, values)}
+              className="mx-auto max-w-3xl"
+              remarkPlugins={[remarkDocMarkers]}
+              components={{ a: DocLink, div: DocDiv, img: DocImage }}
+            />
           </article>
         </div>
       </div>

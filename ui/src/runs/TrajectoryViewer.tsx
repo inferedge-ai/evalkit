@@ -11,7 +11,8 @@ import type {
 import { formatElapsed, formatTokens, formatUsd, toYaml } from "../lib/format";
 import type { AtifTrajectory } from "../lib/types";
 import { Collapsible, Tabs } from "../lib/ui";
-import { Markdown, PreBlock } from "../evals/bits";
+import { Markdown } from "@/components/widgets/Markdown";
+import { PreBlock } from "../evals/bits";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Empty } from "@/components/widgets/Empty";
@@ -135,7 +136,7 @@ function StepCard({
           step.source === "agent" ? (
             <Markdown text={step.text} />
           ) : (
-            <div className="text-meta whitespace-pre-wrap">{step.text}</div>
+            <div className="text-body whitespace-pre-wrap">{step.text}</div>
           )
         ) : null}
         {showTools &&

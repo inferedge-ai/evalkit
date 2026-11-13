@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Web UI**: the docs pages, a case's question, a run's answer, agent steps
+  in a trajectory and Markdown files in a run's workspace share one Markdown
+  look, at 14px. Code blocks show their language and a copy button on hover,
+  with syntax highlighting everywhere, not only in the docs. Tables scroll
+  sideways in a bordered frame. Links in answers, trajectories and workspace
+  files open in a new tab. Workspace Markdown files render maths written as
+  `\( … \)` or `\[ … \]`, as answers already did; a `$` stays a literal
+  dollar sign. User steps in a trajectory are 14px to match.
 - **CLI**, **SDK**: the `env:` references in `evalkit.yaml` and `evalkit run --judge-api-key-env` read only the environment. The CLI and SDK no longer read the `.env` beside `evalkit.yaml` (or in the current directory). Export the variables in your shell instead. `evalkit serve` still reads the `.env` beside `config.yaml`.
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a
