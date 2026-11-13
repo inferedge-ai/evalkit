@@ -33,8 +33,11 @@ After that, stop for the developer only at the points under "When to stop".
 ## Rules
 
 - When a step fails and the linked docs do not cover it, show the developer
-  the exact command and error, and point them to
-  https://github.com/inferedge-ai/evalkit/issues to report it.
+  the exact command and error, and offer to open an issue for it on
+  https://github.com/inferedge-ai/evalkit/issues (with `gh issue create
+  --repo inferedge-ai/evalkit` when `gh` is available). Show them the title
+  and body first and open it only when they agree. The repo is public: leave
+  out keys, tokens, internal URLs, customer data and the agent's private code.
 - Work from the root of the developer's agent project. Cases go in
   `evalkit/cases/<dataset>/` and the run script is `run_evals.py` at the
   project root (in `evalkit/`, `from myagent import ...` fails). Never put
