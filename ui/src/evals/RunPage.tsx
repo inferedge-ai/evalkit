@@ -379,7 +379,7 @@ export function RunPage() {
                     <div className="eyebrow">Question</div>
                     <Card>
                       <CardContent>
-                        <Markdown text={questionText(example.input)} />
+                        <Markdown text={questionText(example.input)} math />
                       </CardContent>
                     </Card>
                   </div>
@@ -405,7 +405,7 @@ export function RunPage() {
                   <div className="eyebrow">Answer</div>
                   <Card className="lg:py-6">
                     <CardContent className="lg:px-8">
-                      <Markdown text={answerText(record?.answer)} />
+                      <Markdown text={answerText(record?.answer)} math />
                     </CardContent>
                   </Card>
                   <details className="mt-1 text-micro">

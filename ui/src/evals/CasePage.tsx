@@ -290,7 +290,7 @@ export function CasePage() {
             <div className="eyebrow">Question</div>
             <Card>
               <CardContent>
-                <Markdown text={questionText(example.input)} />
+                <Markdown text={questionText(example.input)} math />
               </CardContent>
             </Card>
             <FixtureList files={example.files} />

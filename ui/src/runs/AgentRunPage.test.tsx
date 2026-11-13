@@ -180,7 +180,7 @@ test.each([
   },
 );
 
-test("a markdown file in the workspace shows its maths, keeps prices as text and copies its code", async () => {
+test("a markdown file in the workspace keeps prices and maths delimiters as text and copies its code", async () => {
   const report =
     "Revenue rose from $5 to $10.\n\nGrowth is \\(g^2\\).\n\n```python\nprint('hi')\n```\n";
   serveRun((url) => {
@@ -196,9 +196,9 @@ test("a markdown file in the workspace shows its maths, keeps prices as text and
   expect(
     await screen.findByText("Revenue rose from $5 to $10."),
   ).toBeInTheDocument();
-  expect(screen.getByText(/Growth is/).querySelector("math")).not.toBeNull();
-  expect(screen.getByText("python")).toBeVisible();
-  await user.click(screen.getByRole("button", { name: "Copy code" }));
+  expect(screen.getByText(/Growth is/)).toHaveTextContent("Growth is (g^2).");
+  const code = within(screen.getByText("python").parentElement!);
+  await user.click(code.getByRole("button", { name: "copy" }));
   expect(await navigator.clipboard.readText()).toBe("print('hi')");
 });
 

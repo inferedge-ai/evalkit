@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, screen } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
 import { afterEach, expect, test } from "vitest";
@@ -219,9 +219,9 @@ test("a case without runs is not reported missing while the experiment's cases l
   ).rejects.toThrow();
 });
 
-test("links in an answer open in a new tab, and its code blocks copy", async () => {
+test("links in an answer open in a new tab, its footnotes stay on the page, and its code blocks copy", async () => {
   const answer =
-    "See [the refund policy](https://acme.example/refunds).\n\n```sql\nselect 5;\n```\n";
+    "See [the refund policy](https://acme.example/refunds).[^1]\n\n```sql\nselect 5;\n```\n\n[^1]: Annual report.\n";
   serveRun((url) =>
     url.endsWith(RUNS_URL)
       ? Response.json([{ ...run, agent_run: { ...run.agent_run, answer } }])
@@ -233,7 +233,11 @@ test("links in an answer open in a new tab, and its code blocks copy", async () 
   const link = await screen.findByRole("link", { name: "the refund policy" });
   expect(link).toHaveAttribute("target", "_blank");
   expect(link).toHaveAttribute("rel", "noreferrer");
-  await user.click(screen.getByRole("button", { name: "Copy code" }));
+  const footnote = screen.getByRole("link", { name: "1" });
+  expect(footnote).not.toHaveAttribute("target");
+  expect(footnote).toHaveAttribute("id");
+  const code = within(screen.getByText("sql").parentElement!);
+  await user.click(code.getByRole("button", { name: "copy" }));
   expect(await navigator.clipboard.readText()).toBe("select 5;");
 });
 

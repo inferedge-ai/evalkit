@@ -134,7 +134,7 @@ function StepCard({
         ) : null}
         {step.text ? (
           step.source === "agent" ? (
-            <Markdown text={step.text} />
+            <Markdown text={step.text} math />
           ) : (
             <div className="text-body whitespace-pre-wrap">{step.text}</div>
           )

@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Check, Copy } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { Components, Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -8,69 +7,65 @@ import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { Highlight, themes } from "prism-react-renderer";
 import "katex/dist/katex.min.css";
-import { Button } from "@/components/ui/button";
 import { normalizeMathDelimiters } from "@/lib/format";
+import { CopyButton } from "@/lib/ui";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/shell/theme";
 import "./markdown.css";
 
-function CopyCodeButton({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      variant="outline"
-      size="icon-sm"
-      className="copy-button"
-      aria-label="Copy code"
-      title="Copy code"
-      onClick={(e) => {
-        e.stopPropagation();
-        void navigator.clipboard.writeText(code).then(() => {
-          setCopied(true);
-          window.setTimeout(() => setCopied(false), 2000);
-        });
-      }}
-    >
-      {copied ? <Check /> : <Copy />}
-    </Button>
-  );
-}
+const MAX_HIGHLIGHTED_CHARS = 20_000;
 
-function CodeBlock({ code, language }: { code: string; language: string }) {
+function HighlightedCode({
+  code,
+  language,
+}: {
+  code: string;
+  language: string;
+}) {
   const { theme } = useTheme();
   const base = theme === "dark" ? themes.nightOwl : themes.github;
   return (
-    <div className="code-block-wrapper" data-language={language}>
-      {language !== "text" && (
-        <div className="code-header">
-          <span className="language-label">{language}</span>
-        </div>
+    <Highlight
+      code={code}
+      language={language}
+      theme={{
+        ...base,
+        plain: { ...base.plain, backgroundColor: "var(--muted)" },
+      }}
+    >
+      {({ className, style, tokens, getLineProps, getTokenProps }) => (
+        <pre className={cn("code-pre", className)} style={style}>
+          <code>
+            {tokens.map((line, i) => (
+              <div key={i} {...getLineProps({ line })}>
+                {line.map((token, key) => (
+                  <span key={key} {...getTokenProps({ token })} />
+                ))}
+              </div>
+            ))}
+          </code>
+        </pre>
       )}
-      <div className="code-copy-sticky">
-        <CopyCodeButton code={code} />
+    </Highlight>
+  );
+}
+
+function FencedCode({ code, language }: { code: string; language: string }) {
+  return (
+    <div className="code-block">
+      <div className="code-header">
+        <span className="language-label">
+          {language === "text" ? "" : language}
+        </span>
+        <CopyButton text={code} />
       </div>
-      <Highlight
-        code={code}
-        language={language}
-        theme={{
-          ...base,
-          plain: { ...base.plain, backgroundColor: "transparent" },
-        }}
-      >
-        {({ className, style, tokens, getLineProps, getTokenProps }) => (
-          <pre className={cn("code-pre", className)} style={style}>
-            <code>
-              {tokens.map((line, i) => (
-                <div key={i} {...getLineProps({ line })}>
-                  {line.map((token, key) => (
-                    <span key={key} {...getTokenProps({ token })} />
-                  ))}
-                </div>
-              ))}
-            </code>
-          </pre>
-        )}
-      </Highlight>
+      {code.length > MAX_HIGHLIGHTED_CHARS ? (
+        <pre className="code-pre">
+          <code>{code}</code>
+        </pre>
+      ) : (
+        <HighlightedCode code={code} language={language} />
+      )}
     </div>
   );
 }
@@ -83,45 +78,52 @@ const BASE_COMPONENTS: Components = {
     const code = String(props?.children ?? "").replace(/\n$/, "");
     const language =
       /language-(\w+)/.exec(props?.className ?? "")?.[1] ?? "text";
-    return <CodeBlock code={code} language={language} />;
+    return <FencedCode code={code} language={language} />;
   },
-  table({ children }) {
+  table({ node: _node, ...props }) {
     return (
       <div className="table-wrapper">
-        <table>{children}</table>
+        <table {...props} />
       </div>
     );
   },
-  a({ href, children }) {
-    if (href?.startsWith("#")) return <a href={href}>{children}</a>;
-    return (
-      <a href={href} target="_blank" rel="noreferrer">
-        {children}
-      </a>
-    );
+  a({ node: _node, href, ...props }) {
+    if (href?.startsWith("#")) return <a href={href} {...props} />;
+    return <a href={href} target="_blank" rel="noreferrer" {...props} />;
   },
 };
 
 export function Markdown({
   text,
   className,
-  remarkPlugins = [],
+  math = false,
+  remarkPlugins,
   components,
 }: {
   text: string;
   className?: string;
+  math?: boolean;
   remarkPlugins?: Options["remarkPlugins"];
   components?: Components;
 }) {
-  const normalized = useMemo(() => normalizeMathDelimiters(text), [text]);
+  const source = useMemo(
+    () => (math ? normalizeMathDelimiters(text) : text),
+    [math, text],
+  );
   return (
     <div className={cn("markdown-content", className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath, ...(remarkPlugins ?? [])]}
-        rehypePlugins={[rehypeKatex]}
+        remarkPlugins={[
+          remarkGfm,
+          ...(math ? [remarkMath] : []),
+          ...(remarkPlugins ?? []),
+        ]}
+        rehypePlugins={
+          math ? [[rehypeKatex, { maxSize: 10, maxExpand: 100 }]] : []
+        }
         components={{ ...BASE_COMPONENTS, ...components }}
       >
-        {normalized}
+        {source}
       </ReactMarkdown>
     </div>
   );
