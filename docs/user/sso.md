@@ -50,35 +50,16 @@ client id into `auth.oidc.client_id`.
 
 ### A separate client for the CLI
 
-Register the CLI as a client of its own when the IdP skips the approval
-step for evalkit's web client: a first-party or trusted app, or consent
-granted once for everyone. On one shared client, any program on a person's
-computer can start evalkit's sign-in with its own `127.0.0.1` redirect. The
-person sees no approval step, at most "Continue as ‹email›", and one click
-sends the program a code for their tokens (RFC 8252 §8.6).
+If your IdP skips the approval step for evalkit's web client, give the CLI
+a client of its own that keeps the approval step. It needs an IdP that gives
+a person the same `sub` in every client; Okta, Auth0 and Keycloak do.
+Entra ID doesn't, so keep one shared client there.
 
-This works only where the IdP gives a person the same `sub` in every
-client's tokens, as Okta, Auth0 and Keycloak do. Entra ID gives each client
-a different `sub`. There, a separate client would make a person's first
-`evalkit login` create a second evalkit user, so keep one shared client.
-
-- **Give the CLI its own registration:** public, native, no client secret,
-  with PKCE S256, authorization code and refresh tokens (and the device
-  grant, for `evalkit login --no-browser`).
-- **Grant it evalkit's audience and scopes,** as for the web client
-  (Registering the audience, below), or its tokens won't be accepted.
-- **Redirect URI:** `http://127.0.0.1/callback`, with any port.
-- **Approval step:** leave it on, so the person sees the CLI asking and
-  where it will send them.
-- **Config:** copy its client id into `auth.oidc.cli_client_id`.
-- **The web client:** remove the `127.0.0.1` redirect, any `localhost`
-  redirect, and the device grant. Each would let a local program back in.
-  Do this only once people have run `evalkit update`: an older CLI still
-  signs in with the web client.
-
-`evalkit login` then signs in and refreshes with `cli_client_id`. The server
-accepts an ID token issued to either client when someone first signs in.
-Leave `cli_client_id` unset to keep one shared client.
+Register it like the public client above, with only the
+`http://127.0.0.1/callback` redirect, evalkit's audience and scopes, and the
+approval step on. Put its client id in `auth.oidc.cli_client_id`. Then
+remove the `127.0.0.1` and `localhost` redirects and the device grant from
+the web client.
 
 ## Registering the audience
 
