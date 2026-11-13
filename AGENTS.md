@@ -185,15 +185,25 @@ then add plain FastAPI routes with `app.include_router(...)`.
   `@/components/widgets/PageHeader` (title, description, breadcrumbs,
   actions), and show an empty state with `Empty` from
   `@/components/widgets/Empty`.
-- `publicRoutes` render for everyone, as evalkit's `/docs` pages do: under
-  the public navbar (Evalkit, Docs, the theme switch and Sign in) for a
-  signed-out visitor, and inside the app shell for a signed-in person. They
-  suit pages such as terms of use or pricing; their data must come from
-  public endpoints. A public route with the same path as one of evalkit's,
-  `/` included, loses to evalkit's page.
-- `landingPage` is what a signed-out visitor sees at `/`, under the public
-  navbar, whose Evalkit link then goes to `/`. Signing out lands there. A
-  signed-in person at `/` still gets the workspace
+- `publicRoutes` render for everyone, as evalkit's `/docs` pages do: on
+  their own for a signed-out visitor, and inside the app shell for a
+  signed-in person. They suit pages such as terms of use or pricing; their
+  data must come from public endpoints. A public route with the same path as
+  one of evalkit's, `/` included, loses to evalkit's page.
+- Signed-out pages have no evalkit bar. A `landingPage` or public route
+  draws its own header and landmarks (`header`, `main`, `footer`), inside a
+  plain scroll container that fills the window, so a `sticky top-0` header
+  stays put. `useOptionalMe` from
+  `@/shell/capabilities` returns `null` for a signed-out visitor, so a page
+  can draw its header only then; `useTheme` from `@/shell/theme` (`theme`,
+  `toggle`) gives it a theme switch. `Lockup` from
+  `@/components/widgets/Logo` is evalkit's logo; size it with `className`
+  (default `h-6`). Its colours follow the `dark` class, so it renders the
+  dark version inside any element with that class. The favicon is served at
+  `/favicon.svg`.
+- `landingPage` is what a signed-out visitor sees at `/`; the evalkit link on
+  the sign-in card and the signed-out docs page then goes to `/`. Signing
+  out lands there. A signed-in person at `/` still gets the workspace
   list, and a signed-out visitor opening any other page, such as
   `/experiments/12`, still goes straight to sign-in and back. With
   `landingPage: null`, `/` sends a signed-out visitor to sign in and
@@ -234,8 +244,9 @@ then add plain FastAPI routes with `app.include_router(...)`.
 - Every `nav` item and every Settings page the person can see is a page in
   ⌘K search.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
-  `PageHeader`, `Empty`, `SignInLink`, `/login`'s `next` and `prompt`,
-  `getApiToken`, `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config` and
+  `PageHeader`, `Empty`, `SignInLink`, `useOptionalMe`, `useTheme`,
+  `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
+  `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config` and
   `get_allow_private_endpoints` stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
