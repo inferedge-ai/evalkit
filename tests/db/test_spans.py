@@ -193,3 +193,48 @@ def test_resolve_sessions_walks_a_deep_chain_once():
     ]
     resolved = resolve_sessions(links)
     assert len(resolved) == 10_000 and set(resolved.values()) == {"S"}
+
+
+async def received(store, agent_id, session) -> dict[str, datetime]:
+    return {r.span_id: r.received_at for r in await store.session_spans(agent_id, session)}
+
+
+async def test_an_unchanged_span_keeps_its_received_at(db):
+    store, agent_id = db
+    await store.upsert(agent_id, [span("a", session="S")])
+    before = await received(store, agent_id, "S")
+    await store.upsert(agent_id, [span("a", session="S")])
+    assert await received(store, agent_id, "S") == before
+
+
+async def test_a_changed_span_moves_its_received_at(db):
+    store, agent_id = db
+    await store.upsert(agent_id, [span("a", session="S")])
+    before = await received(store, agent_id, "S")
+    await store.upsert(agent_id, [span("a", session="S", attrs={"v": 2})])
+    assert (await received(store, agent_id, "S"))["a"] > before["a"]
+
+
+async def test_a_session_fix_alone_keeps_received_at(db):
+    store, agent_id = db
+    await store.upsert(agent_id, [span("a")])
+    [stored] = await store.session_spans(agent_id, "t1")
+    await store.upsert(agent_id, [span("a", session="S").model_copy(update={"attributes": {}})])
+    assert await received(store, agent_id, "S") == {"a": stored.received_at}
+
+
+async def test_an_empty_session_never_wipes_a_stored_one(db):
+    store, agent_id = db
+    await store.upsert(agent_id, [span("a", session="S")])
+    await store.upsert(agent_id, [span("a", attrs={"v": 2})])
+    rows = await store.session_spans(agent_id, "S")
+    assert [r.span_id for r in rows] == ["a"] and rows[0].attributes == {"v": 2}
+
+
+async def test_a_child_with_its_own_session_settles(db):
+    store, agent_id = db
+    batch = [span("root", session="S"), span("sub", parent="root", session="sub-conv")]
+    await store.upsert(agent_id, batch)
+    before = await received(store, agent_id, "S")
+    await store.upsert(agent_id, batch)
+    assert await received(store, agent_id, "S") == before

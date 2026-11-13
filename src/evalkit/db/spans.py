@@ -36,10 +36,45 @@ from evalkit.db.session import tenant_session
 
 UPSERT_CHUNK = 1000
 SPAN_KEY = ("agent_id", "trace_id", "span_id")
+SPAN_CONTENT = (
+    "parent_span_id",
+    "name",
+    "kind",
+    "start_time",
+    "end_time",
+    "status_code",
+    "status_message",
+    "attributes",
+    "events",
+    "resource",
+    "scope",
+    "dropped_attributes_count",
+)
 LOCK_TRACES = text(
     "SELECT pg_advisory_xact_lock(hashtext(n)) "
     "FROM unnest(CAST(:names AS text[])) WITH ORDINALITY AS t(n, i) ORDER BY i"
 )
+
+
+def _upsert_changed(statement: Any) -> Any:
+    stored = models.Span.__table__.c
+    incoming = statement.excluded
+    changed = tuple_(*(stored[c] for c in SPAN_CONTENT)).is_distinct_from(
+        tuple_(*(incoming[c] for c in SPAN_CONTENT))
+    )
+    session_fix = and_(
+        incoming.session_id.is_not(None), stored.session_id.is_distinct_from(incoming.session_id)
+    )
+    return statement.on_conflict_do_update(
+        index_elements=list(SPAN_KEY),
+        set_={
+            **{c: incoming[c] for c in SPAN_CONTENT},
+            "external_trace_source_id": incoming.external_trace_source_id,
+            "session_id": func.coalesce(incoming.session_id, stored.session_id),
+            "received_at": case((changed, incoming.received_at), else_=stored.received_at),
+        },
+        where=or_(changed, session_fix),
+    )
 
 
 class SpanLink(NamedTuple):
@@ -252,12 +287,7 @@ class SpanStore:
             values = list(rows.values())
             for start in range(0, len(values), UPSERT_CHUNK):
                 statement = insert(models.Span).values(values[start : start + UPSERT_CHUNK])
-                await session.execute(
-                    statement.on_conflict_do_update(
-                        index_elements=list(SPAN_KEY),
-                        set_={k: statement.excluded[k] for k in values[0] if k not in SPAN_KEY},
-                    )
-                )
+                await session.execute(_upsert_changed(statement))
             stored = await session.execute(
                 select(
                     models.Span.id,
