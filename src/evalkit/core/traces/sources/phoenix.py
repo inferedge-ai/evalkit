@@ -9,6 +9,8 @@ import httpx2
 from evalkit.core.traces.raw import RawSpan
 from evalkit.core.traces.sources.base import TracePage, UnknownProject
 
+OPENINFERENCE_KIND = "openinference.span.kind"
+
 
 def flatten_attributes(nested: dict[str, Any], prefix: str = "") -> dict[str, Any]:
     flat: dict[str, Any] = {}
@@ -24,6 +26,13 @@ def flatten_attributes(nested: dict[str, Any], prefix: str = "") -> dict[str, An
     return flat
 
 
+def _with_span_kind(attributes: dict[str, Any], span: dict[str, Any]) -> dict[str, Any]:
+    kind = span.get("span_kind")
+    if kind and kind != "UNKNOWN" and OPENINFERENCE_KIND not in attributes:
+        return {**attributes, OPENINFERENCE_KIND: kind}
+    return attributes
+
+
 def _to_raw(span: dict[str, Any]) -> RawSpan:
     context = span.get("context") or {}
     end = span.get("end_time")
@@ -37,7 +46,7 @@ def _to_raw(span: dict[str, Any]) -> RawSpan:
         end_time=datetime.fromisoformat(end) if end else None,
         status_code=str(span.get("status_code") or "UNSET"),
         status_message=span.get("status_message") or None,
-        attributes=flatten_attributes(span.get("attributes") or {}),
+        attributes=_with_span_kind(flatten_attributes(span.get("attributes") or {}), span),
         events=[
             {
                 "name": e.get("name"),

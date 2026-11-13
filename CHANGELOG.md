@@ -46,6 +46,10 @@
 - The span upsert leaves an unchanged span's row, `received_at` included,
   untouched; a session id fix alone no longer moves `received_at`, and an
   empty incoming session id never replaces a stored one.
+- Phoenix imports put `openinference.span.kind` back on a span when Phoenix
+  returns it only in its `span_kind` field. Some Phoenix servers move it out
+  of the attributes, and the `openinference` mapping then saw no LLM or tool
+  spans.
 - An unknown trace source now reads `trace source X not found; evalkit
   trace-sources list shows the registered ones`.
 - New optional setting `auth.oidc.cli_client_id`: an OAuth client of
