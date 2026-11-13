@@ -70,10 +70,10 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | ESF | evalkit span format: the normalized span model (`EsfSpan`) every raw span is mapped into before conversion to ATIF. |
 | Mapping | A per-agent JSON document that says which span attribute holds each ESF field, plus `answer` and `exclude_spans`. Every OTel agent has one, versioned draft → active → retired. The package ships presets to start from (`core/traces/mapping_presets/`, `evalkit traces mapping presets`): `openinference`, `gen_ai` and one per popular framework. |
 | Session | The set of spans that belong to one run, grouped by the session id attribute. One run is one session. |
-| Settled | A session whose newest span arrived longer ago than `otel.settle_seconds`. The signal that no more spans are coming. |
+| Settled | A session whose newest span arrived longer ago than the settle window: the agent's `import_settle_seconds` when it has a trace source, otherwise `otel.settle_seconds`. The signal that no more spans are coming. |
 | Pushed trajectory | An ATIF document a task returns directly, bypassing the collector. |
 | Trajectory source | Where an agent's trajectories come from: `atif` (served by a harness or returned by a task) or `otel` (collected spans converted by evalkit). Recorded on the agent row and the experiment. |
-| Trace source | A third-party trace store (Phoenix), created by an admin and used only to import history. Its API key is stored encrypted with the server's `encryption_key`. |
+| Trace source | A third-party trace store (Phoenix, Langfuse), created by an admin. Used to import history, and to get the trajectories of experiments whose agent names it in its settings (`trace_source`, `project`). Its API key is stored encrypted with the server's `encryption_key`. |
 | Python evaluator | A custom evaluator written as a Python function and passed to `run_experiment`. The in-process twin of the Custom Evaluator API. |
 | Try-it stack | The Compose kit in `skills/evalkit-deployment/try/`: server and Postgres judging with the developer's LLM (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`) on host port `EVALKIT_PORT` (default 8020), plus a sample agent run through an SDK run with OTel traces. For trying evalkit on one machine; never a deployment. |
 | Sample agent | The try-it stack's `agent.py`: a small agent that calls the developer's LLM with one tool and emits GenAI-convention spans. Example client code, not part of the package. |

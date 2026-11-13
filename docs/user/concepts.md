@@ -20,7 +20,7 @@ The words you need before your first scorecard. Everything else is explained on 
 | Subject                    | The stable id your identity provider assigns you; evalkit keys your user on it, not on your email. |
 | Machine user               | A user bound to a machine client at the identity provider, for CI. No password, no browser. `evalkit users add <name> --subject <sub>`. |
 | Trace, span, session       | What your agent records as it works: one span per model call or tool call. One run is one session.                                  |
-| Trace source               | A third-party trace store, such as Phoenix, that an admin connects to import past traces. |
+| Trace source               | A third-party trace store, such as Phoenix, that an admin connects. You import past traces from it, and an agent that names it in its settings gets its experiments' trajectories from it instead of from the collector. |
 | Mapping                    | Which span attribute holds the model, the messages, the tokens and each tool call.                                                   |
 | Preset                     | A span mapping that ships with evalkit for a common framework or span convention, such as `gen_ai` or `crewai`. List them with `evalkit traces mapping presets`. |
 | Trajectory                 | The step-by-step record of a run that evalkit builds from the spans.                                                                 |

@@ -80,6 +80,13 @@ which applies:
   the dataset reference (`<name>@<workspace>`) (see
   [`sdk-runs.md`](../evalkit-docs/sdk-runs.md)).
 
+A run whose trajectory is `partial` or `unavailable` carries a
+`trajectory_note` (run page, `RunSummary.trajectory_note`) that names the fix.
+For an agent that reads a trace source (`trace_source` in `evalkit agents
+show`), "only evalkit's run span was found" and "not found in project" both
+mean the agent's spans do not carry the run's session id; see "An agent that
+keeps its own trace store" in the connect-traces skill.
+
 ## Pick a loop
 
 | Developer gives | Wants back | Loop |

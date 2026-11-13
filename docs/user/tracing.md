@@ -203,6 +203,49 @@ user can import traces from it into an OTel agent they can write, with
   workspace, so traces imported into your personal workspace are visible to
   everyone on the server. See [Where runs happen](workspaces.md).
 
+### Experiments that read a trace source
+
+An agent that already sends its spans to its own trace store can skip the
+collector: name the store on the agent, and experiments import each run's
+session from it. The collector stays the simpler path; use this one when the
+agent keeps its own store and you would rather not add an exporter.
+
+```bash
+evalkit agents edit myagent --trace-source phoenix --project myagent
+```
+
+- `--trace-source` names a registered trace source and `--project` the agent's
+  project in it. Both are checked when you save them: an unknown source, a
+  project the source does not have, or a source that does not answer is
+  refused. Only OTel agents take a trace source.
+- Every SDK run and harness run of the agent then pulls its session from the
+  store, with no `tracing.register` and no agent token. `evalkit traces import`
+  and the Import tab default to the same source and project.
+- The session id: the SDK opens its `evalkit.run` span on your process's
+  global tracer provider, which is the agent's own. An agent that runs in the
+  task's process and continues the current trace needs no change. Any other
+  agent takes `metadata["session_id"]` as its session id, or the task returns
+  the agent's own id with `RunResult(session_id=...)`. See
+  [SDK runs](sdk-runs.md#the-task). A harness's run id must be the session id
+  in its store.
+- `evalkit.run` shows in your store as the root of each eval run's trace.
+- Waiting: evalkit pulls the session every `poll_interval_seconds` (5) until
+  no new span has arrived for `--import-settle` seconds (15), or gives up
+  after `--import-wait` seconds (120). Stores ingest late: a Langfuse span can
+  take 15 seconds to show. A run whose session is still filling in at the end
+  is `partial`, or `unavailable` without a root; raise `--import-wait`.
+- Load on your store: each unsettled session costs one session read there
+  every 5 seconds. With 4 runs at a time and fast tasks, expect about 10
+  sessions settling at once, so about 2 session reads a second.
+- Why a trajectory is missing shows on the run page and in the SDK's
+  `RunSummary.trajectory_note`:
+  - `only evalkit's run span was found`: the agent's spans went to another
+    trace or another tracer provider. Pass `metadata["session_id"]` to the
+    agent, or return `RunResult(session_id=...)`.
+  - `session ... not found in project ...`: nothing in the store carries the
+    session id. Check the agent exports to that project and uses the id.
+  - `spans still arriving after N s`: raise `--import-wait`.
+
 ## Message roles
 
 evalkit reads message roles in any letter case and maps the names some frameworks use to four roles:
