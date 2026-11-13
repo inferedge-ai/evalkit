@@ -1145,33 +1145,33 @@
 
 <h1 id="install">Install<a class="headerlink" href="#install" title="Permanent link">&para;</a></h1>
 <p>evalkit is one Python package on PyPI, <code>evalkit-py</code>. It holds the <code>evalkit</code> command (the CLI), the <code>evalkit.sdk</code> module for SDK runs and, with the <code>server</code> extra, the server itself. It needs <strong>Python 3.12 or newer</strong>, for the CLI, the SDK and the server alike.</p>
-<p>Your CLI and SDK must run the <strong>same version as the evalkit server</strong> you use: local runs and SDK runs refuse to start otherwise. The commands on this page pin version <strong>0.5.0.dev104</strong>. On your server's own <code>/docs/install</code> page, that is the server's version; <code>curl &lt;server url&gt;/api/cli</code> prints it anywhere.</p>
+<p>Your CLI and SDK must run the <strong>same version as the evalkit server</strong> you use: local runs and SDK runs refuse to start otherwise. The commands on this page pin version <strong>0.5.0.dev105</strong>. On your server's own <code>/docs/install</code> page, that is the server's version; <code>curl &lt;server url&gt;/api/cli</code> prints it anywhere.</p>
 <h2 id="the-cli-as-a-global-tool">The CLI, as a global tool<a class="headerlink" href="#the-cli-as-a-global-tool" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev104"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev105"</span>
 </code></pre></div>
-<p>With pipx instead: <code>pipx install --force "evalkit-py==0.5.0.dev104"</code>.</p>
+<p>With pipx instead: <code>pipx install --force "evalkit-py==0.5.0.dev105"</code>.</p>
 <p><code>curl http://localhost:8020/api/cli</code> prints the server's version, for scripts and CI:</p>
 <div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==</span><span class="k">$(</span>curl<span class="w"> </span>-fsSL<span class="w"> </span>http://localhost:8020/api/cli<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span>-r<span class="w"> </span>.version<span class="k">)</span><span class="s2">"</span>
 </code></pre></div>
 <h2 id="the-cli-inside-a-project">The CLI, inside a project<a class="headerlink" href="#the-cli-inside-a-project" title="Permanent link">&para;</a></h2>
 <p>To keep evalkit out of your global tools, add it to a uv project and run it with <code>uv run</code>. The CLI, the SDK and <code>tracing.register</code> need no extra; add <code>server</code> only if you also run the server from there:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev104"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev105"</span>
 uv<span class="w"> </span>run<span class="w"> </span>evalkit<span class="w"> </span>--help
 </code></pre></div>
 <p>If you give evalkit its own uv project in the <code>evalkit/</code> folder of your agent's uv project, create it with <code>uv init --bare --no-workspace</code> and a name other than <code>evalkit</code>:</p>
-<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>evalkit<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>init<span class="w"> </span>--bare<span class="w"> </span>--no-workspace<span class="w"> </span>--name<span class="w"> </span>evals<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev104"</span>
+<div class="highlight"><pre><span></span><code><span class="nb">cd</span><span class="w"> </span>evalkit<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>init<span class="w"> </span>--bare<span class="w"> </span>--no-workspace<span class="w"> </span>--name<span class="w"> </span>evals<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev105"</span>
 </code></pre></div>
 <p>Without <code>--no-workspace</code>, uv silently adds <code>evalkit/</code> to your agent project's workspace, so it shares your agent's lockfile. <code>--bare</code> writes only <code>pyproject.toml</code>: a project named <code>evalkit</code>, or a Python package in that folder, would hide the installed <code>evalkit</code> package. Run the script from your agent project's root: <code>uv run --project evalkit python evalkit/run.py</code>.</p>
 <h2 id="the-sdk-into-a-project">The SDK, into a project<a class="headerlink" href="#the-sdk-into-a-project" title="Permanent link">&para;</a></h2>
 <p><code>run_experiment</code> and <code>tracing.register</code> live in the same package as the CLI, which includes the OpenTelemetry SDK and the OTLP exporter. Pin the server's version; <code>uv.lock</code> records it:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev104"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev105"</span>
 </code></pre></div>
-<p>With pip instead: <code>pip install "evalkit-py==0.5.0.dev104"</code>.</p>
+<p>With pip instead: <code>pip install "evalkit-py==0.5.0.dev105"</code>.</p>
 <p>To keep evalkit out of the app's dependencies, run the eval script with it instead:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--with<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev104"</span><span class="w"> </span>python<span class="w"> </span>evalkit/run.py
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>run<span class="w"> </span>--with<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev105"</span><span class="w"> </span>python<span class="w"> </span>evalkit/run.py
 </code></pre></div>
 <h2 id="the-server">The server<a class="headerlink" href="#the-server" title="Permanent link">&para;</a></h2>
-<p><code>uv tool install --reinstall "evalkit-py[server]==0.5.0.dev104"</code> (or <code>pip install "evalkit-py[server]==0.5.0.dev104"</code>) installs the server too: the API, the web UI and migrations. To run one on your machine against a Postgres you already have:</p>
+<p><code>uv tool install --reinstall "evalkit-py[server]==0.5.0.dev105"</code> (or <code>pip install "evalkit-py[server]==0.5.0.dev105"</code>) installs the server too: the API, the web UI and migrations. To run one on your machine against a Postgres you already have:</p>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>init-server<span class="w">   </span><span class="c1"># creates the database, writes config.yaml and .env in ./evalkit-try</span>
 <span class="nb">cd</span><span class="w"> </span>evalkit-try<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>evalkit<span class="w"> </span>serve
 </code></pre></div>
@@ -1180,15 +1180,18 @@ uv<span class="w"> </span>run<span class="w"> </span>evalkit<span class="w"> </s
 <p>The skills teach a coding agent to write cases, connect traces and run evals. Copy them into your repo, from the repo root:</p>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>skills<span class="w"> </span>install
 </code></pre></div>
-<p>They go to <code>.claude/skills/</code> when <code>.claude/</code> exists, else <code>.agents/skills/</code>; <code>--target DIR</code> picks another directory. The user docs they link to go to <code>evalkit-docs/</code> beside them.</p>
-<p><code>skills install</code> also writes outside the repo: it appends the target directory to <code>~/.evalkit/skills-targets</code>, so that <code>evalkit update</code> can refresh it later.</p>
+<p>They go to both <code>.agents/skills/</code> and <code>.claude/skills/</code>, created when missing, so that Claude Code (which reads <code>.claude/skills/</code>) and coding agents that read <code>.agents/skills/</code> both find them. The user docs they link to go to <code>evalkit-docs/</code> in each. <code>--target DIR</code> installs into that one directory instead.</p>
+<p>The command prints one line per directory, for example <code>.claude/skills: updated 5 skills and evalkit-docs/</code>: <code>wrote</code> for what was not there and <code>updated</code> for what an earlier install put there. It removes a skill an earlier install put there that this version no longer ships, and names it.</p>
+<p>Each directory holds a <code>.evalkit-installed</code> file that lists what the install put there. The command replaces and removes only what that file lists, so skills you wrote yourself in the same directory are left alone. Commit the file with the skills.</p>
+<p>A directory that has the name of an evalkit skill (or <code>evalkit-docs</code>) and is not in that list is never overwritten. The command skips it, names it, installs the rest and exits with an error. This covers a skill of your own with the same name, and a copy of evalkit's skills that has no <code>.evalkit-installed</code> file beside it. To proceed, rename your skill, or remove the old copy, and run the command again; or install into another directory with <code>--target DIR</code>.</p>
+<p><code>skills install</code> also writes outside the repo: it appends each directory it wrote to <code>~/.evalkit/skills-targets</code>, so that <code>evalkit update</code> can refresh them later.</p>
 <h2 id="updating">Updating<a class="headerlink" href="#updating" title="Permanent link">&para;</a></h2>
 <p>Every API response carries <code>X-Evalkit-Version</code>. The CLI warns when it differs from the server and refuses when the major versions differ. Local runs and SDK runs refuse any difference, so after a server deploy, from the project's root:</p>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>update
 </code></pre></div>
-<p>It reinstalls the CLI at the server's version and, when <code>pyproject.toml</code> pins <code>evalkit-py==…</code>, moves the pin and runs <code>uv sync</code>. It then refreshes the skills in every directory <code>evalkit skills install</code> wrote to on this machine (listed in <code>~/.evalkit/skills-targets</code>), and in <code>./.claude/skills</code> or <code>./.agents/skills</code> if they hold an earlier install; commit the changes in repos that track the skills. Pass <code>--no-skills</code> to skip that.</p>
+<p>It reinstalls the CLI at the server's version and, when <code>pyproject.toml</code> pins <code>evalkit-py==…</code>, moves the pin and runs <code>uv sync</code>. It then refreshes the skills in every directory <code>evalkit skills install</code> wrote to on this machine (listed in <code>~/.evalkit/skills-targets</code>), and in <code>./.agents/skills</code> or <code>./.claude/skills</code> if they hold an earlier install. When either of those two holds an install, it refreshes both, adding the other one if it is missing; commit the changes in repos that track the skills. When the install <a href="#the-skills">skips a directory</a> in one of them, <code>evalkit update</code> still refreshes the others, then names the ones it could not fully refresh and exits with an error. Pass <code>--no-skills</code> to skip the refresh.</p>
 <p>A CLI older than 0.3.0 cannot update itself: <code>evalkit update</code> fails with <code>KeyError: 'filename'</code>. Run the <a href="#the-cli-as-a-global-tool">global tool install</a> command once instead; <code>evalkit update</code> works from then on.</p>
-<p>A project that vendored an evalkit wheel before evalkit was on PyPI moves to PyPI once: <code>uv remove evalkit &amp;&amp; uv add "evalkit-py==0.5.0.dev104"</code>.</p>
+<p>A project that vendored an evalkit wheel before evalkit was on PyPI moves to PyPI once: <code>uv remove evalkit &amp;&amp; uv add "evalkit-py==0.5.0.dev105"</code>.</p>
 <p>Next: <a href="../login/">Login</a>. <code>evalkit login</code> logs in to hosted evalkit, <code>https://evalkit.inferedge.com</code>; for any other server, pass its URL: <code>evalkit login --url http://localhost:8020</code>.</p>
 
 
