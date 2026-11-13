@@ -86,17 +86,43 @@ def _changed_cases(report: dict, base: dict) -> list[str]:
     return lines
 
 
+def _selected(report: dict) -> int:
+    return max(report.get("selected_cases", 0), len(report["cases"]))
+
+
+def _cases_text(report: dict) -> str:
+    selected, ran = _selected(report), len(report["cases"])
+    parts = [f"{selected}" if ran == selected else f"{ran} of {selected} ran"]
+    if errored := report.get("errored_cases", 0):
+        parts.append(
+            f"{errored} errored (no run completed with an answer; left out of every score)"
+        )
+    if partly := report.get("partly_errored_cases", 0):
+        parts.append(f"{partly} partly errored (scored only on the runs that completed)")
+    return ", ".join(parts)
+
+
+def _bucket_coverage(report: dict, bucket: str) -> str:
+    total = _selected(report)
+    covered = report.get("bucket_cases", {}).get(bucket, total)
+    return f"  ({covered} of {total} cases)" if covered < total else ""
+
+
 def summary_lines(report: dict, base: dict | None = None) -> list[str]:
     lines = [f"\nexperiment {report['experiment_id']}  {report['name']} of {report['dataset']}"]
     if base is not None:
         lines.append(f"vs experiment {base['experiment_id']}  {base['name']} of {base['dataset']}")
+    lines.append(f"cases: {_cases_text(report)}")
+    if base is not None:
+        lines.append(f"baseline cases: {_cases_text(base)}")
     base_buckets = base["buckets"] if base else {}
     base_evaluators = {stat["name"]: stat for stat in base["evaluators"]} if base else {}
     scored = {bucket: value for bucket, value in report["buckets"].items() if value is not None}
     if scored:
         lines.append("buckets:")
         lines += [
-            f"  {bucket:<14} {_fmt(value)}{_fmt_delta(base_buckets.get(bucket), value)}"
+            f"  {bucket:<14} {_fmt(value)}{_bucket_coverage(report, bucket)}"
+            f"{_fmt_delta(base_buckets.get(bucket), value)}"
             for bucket, value in scored.items()
         ]
     lines.append("evaluators:")
@@ -134,10 +160,10 @@ def summary_lines(report: dict, base: dict | None = None) -> list[str]:
             evaluators = ", ".join(f"{name} {_fmt(score)}" for name, score in sorted(low.items()))
             detail = f"  ({evaluators})" if evaluators else ""
             lines.append(f"  {case['case_id']:<48} {_fmt(case['overall'])}{delta}{detail}")
-    errored_cases = [c for c in report["cases"] if c["errors"] or c["run_errors"]]
-    if errored_cases:
-        lines.append("errored cases:")
-        for case in errored_cases:
+    with_errors = [c for c in report["cases"] if c["errors"] or c["run_errors"]]
+    if with_errors:
+        lines.append("run and evaluator errors:")
+        for case in with_errors:
             problems = [("run", error) for error in case["run_errors"]]
             problems += sorted(case["errors"].items())
             for name, error in problems:

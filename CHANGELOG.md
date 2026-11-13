@@ -13,6 +13,44 @@
 - New skill `getting-started`: walks a coding agent through the quickstart in
   the developer's agent project. `evalkit skills install` copies it with the
   others.
+- **Scorecard**: errored runs show in every scorecard (ENG-14621). A run is
+  errored when it ended without completing with an answer: it has no `output`,
+  and it either did not end `completed` or has no `answer`. An errored run
+  gets no score. A case is errored when every run of it errored, and partly
+  errored when only some repetitions did; a partly errored case is scored on
+  the runs that completed. The report (`GET /api/experiments/{id}/scorecard`)
+  has new fields `selected_cases`, `errored_cases`, `partly_errored_cases`
+  and `bucket_cases`, each case row has `errored_runs`, and an experiment's
+  `progress` has `errored` and `partly_errored`. `evalkit summary` (with or
+  without `--baseline`) and the SDK's printed scorecard start with `cases: 6,
+  3 errored (no run completed with an answer; left out of every score)`, or
+  `cases: 2 of 3 ran` when not every selected case has a run, and add `(3 of
+  6 cases)` to a bucket that covers fewer cases than the experiment selected.
+  `evalkit experiments list` puts `3 of 6 cases errored` before the bucket
+  scores, and `evalkit status` adds `3 errored`. The web UI shows the same
+  counts above the bucket cards, on each bucket card (`2 of 3 cases scored`,
+  and `1/3` beside an evaluator that scored fewer cases), on the compare page
+  and in the cases column of the experiments list. On the experiment page a
+  case with errored runs gets an `errored` or `partly errored` badge and
+  counts as failing, whether or not its runs carry error text. `evalkit
+  summary` lists error text under `run and evaluator errors:`.
+- **Scoring**: which runs are scored follows the run's status and answer, not
+  its error text. A `completed` run that has an answer and also carries a
+  non-fatal `error` is now scored; before, it was left out unless it had an
+  `output`. A run with no error text that did not end `completed`, or ended
+  with neither `answer` nor `output`, is no longer scored on an empty answer.
+  `evalkit evaluate <id>` scores the runs of an earlier experiment that the
+  old rule left out.
+- **Runs**: `evalkit runs list` and the Runs page show a status and a
+  duration for every run. An OTel session is `failed` when a root span has
+  status `ERROR` or an `error.type` attribute. Otherwise it is `running`
+  until it settles (no new span for `otel.settle_seconds`, or the agent's
+  `import_settle_seconds` for a trace source) and `completed` after that. Its
+  duration runs from its first span's start to its last span's end. A trace
+  without a session gets its status and duration the same way. The run
+  list API has a new field `duration_ms`.
+
+- **CLI**: `evalkit skills install` without `--target` writes the skills and `evalkit-docs/` into both `.agents/skills/` and `.claude/skills/`, creating either when missing, so Claude Code finds them in a repo with no `.claude/` folder. Before, it wrote only to `.claude/skills/` when `.claude/` existed, else `.agents/skills/`. `--target DIR` still writes to that one directory. The command prints one line per directory (`wrote 5 skills and evalkit-docs/` for what was not there, `updated …` for what an earlier install put there), and names each skill it removed because an earlier install put it there and this version no longer ships it. It no longer overwrites a directory that has the name of an evalkit skill (or `evalkit-docs`) but is not listed in that directory's `.evalkit-installed`: it skips it, names it, installs the rest and exits 1. Rename or remove that directory and run the install again, or pass `--target DIR`. This also applies to a copy of evalkit's skills with no `.evalkit-installed` beside it. `evalkit update` refreshes both folders, carries on past a folder where the install skipped something, then names those folders and exits 1, and adds the missing one to a repo that holds an earlier install in only one of them (ENG-14623).
 - **CLI**, **SDK**: `run_experiment`, `evaluate_experiment`, `evalkit run`, `evalkit evaluate` and `evalkit summary` end with `link: <server>/experiments/<id>`, the experiment's page in the web UI. `evalkit status <id>` prints the same link under the status line. A server run prints `experiment <id>` and then the `link:` line when it starts, where it used to print `experiment <id>: <url>`. `evalkit experiments list` ends with `evalkit status <id> shows one experiment and its link`. A dry run prints no experiment link.
 - **CLI**, **SDK**: commands that show, create or change one item with a page in the web UI end with `link: <url>` too. Datasets (`/datasets/<ref>`): `evalkit sync`, `evalkit run` when it syncs, `evalkit datasets create`, `evalkit datasets show`. Cases (`/datasets/<ref>/cases/<id>`): `evalkit review show <dataset> <case-id>`, `evalkit review approve` (one link under each case), `evalkit review request-changes`, `evalkit review comment`, `evalkit review resolve`. Agents (`/agents/<ref>`): `evalkit agents create`, `edit`, `show`, `archive`, `restore`. Agent runs (`/runs/<agent>/<run id>`): `evalkit traces check`, `evalkit traces import` (the checked session), `evalkit runs pull --run-id`; `evalkit runs list --json` adds a `url` field to each run. A personal agent with a harness gets neither, because the server cannot reach its runs. `evalkit runs pull --experiment <id>` ends with the experiment's link. `evalkit sync` prints the dataset link last, after its review lines. `evalkit datasets list` and `evalkit agents list` end with a line naming the show command, like `evalkit experiments list`; `evalkit datasets list <dataset>`, `evalkit review show <dataset>` and `evalkit review queue` end with `evalkit review show <dataset> <case-id> shows one case and its link`. In the SDK, `RunSummary` has a new `url` field (the experiment's page for its case, or after a dry run the agent run's page), and a dry run prints `  link: <url>` for each case whose session the server collected (not for a pushed trajectory, which a dry run does not store). The URL builders live in `evalkit.client.links`. Remote evaluators, workspaces, trace sources and LLM providers have no page of their own and print no link.
 - **Web UI**: the docs pages, a case's question, a run's answer, agent steps

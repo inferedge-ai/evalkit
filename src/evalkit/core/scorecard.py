@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import statistics
 from collections.abc import Iterable
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -64,6 +65,15 @@ BUCKET_EVALUATOR = {
 COST_GAUGE = "gauge_agent_cost_usd"
 
 
+Errored = Literal["all", "some"]
+
+
+def classify_errored(errored_runs: int, runs: int) -> Errored | None:
+    if errored_runs == 0:
+        return None
+    return "all" if errored_runs >= runs else "some"
+
+
 def is_gauge(name: str) -> bool:
     return name.startswith(GAUGE_PREFIX)
 
@@ -94,6 +104,7 @@ class CaseRow(BaseModel):
     gauges: dict[str, float | None] = Field(default_factory=dict)
     errors: dict[str, str] = Field(default_factory=dict)
     run_errors: list[str] = Field(default_factory=list)
+    errored_runs: int = 0
     repetitions: int = 1
     overall: float | None = None
     baseline_overall: float | None = None
@@ -124,6 +135,10 @@ class Report(BaseModel):
     cases: list[CaseRow]
     evaluators: list[EvaluatorStat]
     buckets: dict[str, float | None]
+    bucket_cases: dict[str, int] = Field(default_factory=dict)
+    selected_cases: int = 0
+    errored_cases: int = 0
+    partly_errored_cases: int = 0
     gauges: list[GaugeStat]
     evaluator_columns: list[str]
     baseline_id: str | None = None
@@ -150,6 +165,8 @@ def _aggregate_rows(agg: AggregateRows) -> dict[str, CaseRow]:
         rows[case_id].errors[name] = error
     for case_id, error in agg.run_errors:
         rows[case_id].run_errors.append(error)
+    for case_id, count in agg.errored_runs.items():
+        rows[case_id].errored_runs = count
     for case_id, row in rows.items():
         row.overall = _mean(bucketed.get(case_id, []))
     return rows
@@ -171,6 +188,7 @@ def assemble_report(agg: AggregateRows, baseline: AggregateRows | None = None) -
             cases=[],
             evaluators=[],
             buckets={},
+            selected_cases=agg.selected_cases,
             gauges=[],
             evaluator_columns=[],
         ),
@@ -220,6 +238,19 @@ def _report(
             and stat.name not in EXCLUDED_FROM_BUCKETS
         ]
         buckets[bucket] = _mean(members)
+    bucket_cases = {
+        bucket: sum(
+            1
+            for row in rows.values()
+            if any(
+                stored_buckets.get(name) == bucket and name not in EXCLUDED_FROM_BUCKETS
+                for name, value in row.scores.items()
+                if value is not None
+            )
+        )
+        for bucket, value in buckets.items()
+        if value is not None
+    }
 
     gauge_names = {name for row in rows.values() for name in row.gauges}
     gauges = []
@@ -233,6 +264,8 @@ def _report(
                 count=len(values),
             )
         )
+
+    kinds = [classify_errored(row.errored_runs, row.repetitions) for row in rows.values()]
 
     baseline_id = None
     if baseline is not None:
@@ -248,6 +281,9 @@ def _report(
             "cases": sorted(rows.values(), key=lambda r: r.case_id),
             "evaluators": evaluators,
             "buckets": buckets,
+            "bucket_cases": bucket_cases,
+            "errored_cases": kinds.count("all"),
+            "partly_errored_cases": kinds.count("some"),
             "gauges": gauges,
             "evaluator_columns": order_evaluator_columns(evaluator_names),
             "baseline_id": baseline_id,

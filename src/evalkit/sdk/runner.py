@@ -89,7 +89,9 @@ class RunResult(BaseModel):
         answer: The agent's answer text.
         output: The agent's structured output.
         model: The model the agent used, recorded on the run.
-        error: An error message; the run is recorded as failed.
+        error: An error message. With no answer and no output the run is recorded
+            as failed and gets no score; with one, the run is scored and keeps
+            the message.
         session_id: The agent's own session id, when its spans do not continue the
             SDK's trace. The SDK reads the trajectory from that session.
         trajectory: An ATIF document to store as the trajectory, instead of building

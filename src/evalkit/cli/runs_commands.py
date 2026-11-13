@@ -79,6 +79,16 @@ def parse_when(text: str | None, now: datetime | None = None) -> datetime | None
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def format_duration(ms: float | None) -> str:
+    if ms is None:
+        return "-"
+    if ms < 1000:
+        return f"{ms:.0f}ms"
+    if ms < 60_000:
+        return f"{ms / 1000:.1f}s"
+    return f"{ms / 60_000:.1f}m"
+
+
 def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
@@ -346,6 +356,7 @@ def register(
             )
             typer.echo(
                 f"{row['run_id']:<38} {row['source']:<4} {row.get('status') or '-':<10} "
+                f"{format_duration(row.get('duration_ms')):>8} "
                 f"{row.get('created_at') or '-':<26} {where} {row.get('title') or ''}".rstrip()
             )
         typer.echo(f"{len(rows)} of {total} run(s)")

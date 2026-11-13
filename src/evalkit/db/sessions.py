@@ -38,6 +38,11 @@ class DbSessionReader:
         self._otel = otel
         self._reads = asyncio.Semaphore(CONCURRENT_READS)
 
+    def settle_seconds(self, record: AgentDefinition) -> int:
+        if record.settings.trace_source is not None:
+            return record.settings.import_settle_seconds
+        return self._otel.settle_seconds
+
     async def agent(self, agent_slug: str) -> AgentDefinition:
         return await self._agents.get(explicit(parse_slug(agent_slug)))
 
@@ -79,9 +84,7 @@ class DbSessionReader:
                 agent_name=record.name,
                 mapping_version=chosen.version if chosen else None,
                 now=datetime.now(UTC),
-                settle_seconds=record.settings.import_settle_seconds
-                if record.settings.trace_source is not None
-                else self._otel.settle_seconds,
+                settle_seconds=self.settle_seconds(record),
                 include_esf=include_esf,
                 requested_session=session_id,
             )

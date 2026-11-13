@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { columnShown, hasColumn, rowFailing, worstFirstKey } from "./scorecard";
+import {
+  columnShown,
+  describeErroredRuns,
+  hasColumn,
+  rowFailing,
+  worstFirstKey,
+} from "./scorecard";
 import type { CaseRow, Report } from "./types";
 
 function row(over: Partial<CaseRow>): CaseRow {
@@ -10,6 +16,7 @@ function row(over: Partial<CaseRow>): CaseRow {
     gauges: {},
     errors: {},
     run_errors: [],
+    errored_runs: 0,
     repetitions: 1,
     overall: null,
     baseline_overall: null,
@@ -31,6 +38,18 @@ describe("scorecard errors", () => {
   it("counts an errored evaluator as failing", () => {
     expect(rowFailing(errored)).toBe(true);
     expect(rowFailing(scored)).toBe(false);
+  });
+
+  it("fails and labels a row by its errored runs, not by error text", () => {
+    const silent = row({ errored_runs: 1 });
+    const noted = row({ run_errors: ["non-fatal"], scores: { coverage: 0.9 } });
+    expect(rowFailing(silent)).toBe(true);
+    expect(describeErroredRuns(silent)).toBe("errored");
+    expect(rowFailing(noted)).toBe(false);
+    expect(describeErroredRuns(noted)).toBeNull();
+    expect(describeErroredRuns(row({ errored_runs: 1, repetitions: 3 }))).toBe(
+      "partly errored",
+    );
   });
 
   it("keeps errored rows when focusing an evaluator and sorts them first", () => {

@@ -12,7 +12,9 @@ import {
   renderCell,
   useDataGrid,
 } from "../lib/DataGrid";
-import { fmtWhen } from "../lib/format";
+import { fmtWhen, formatMs } from "../lib/format";
+import { RUN_STATUS_TONE } from "../lib/experimentStatus";
+import { Badge } from "@/components/ui/badge";
 import { useApi } from "../lib/query";
 import type { AgentInfo, RunList, RunListItem } from "../lib/types";
 import { Select } from "../lib/Select";
@@ -57,6 +59,33 @@ function runColumns(agent: string): ColDef<RunListItem>[] {
       field: "run_id",
       cellRenderer: renderCell<RunListItem>((run) => (
         <span className="row-meta font-mono text-ink-4">{run.run_id}</span>
+      )),
+    },
+    {
+      colId: "status",
+      headerName: "status",
+      type: "text",
+      initialWidth: 110,
+      valueGetter: readValue((run) => run.status ?? ""),
+      cellRenderer: renderCell<RunListItem>((run) =>
+        run.status ? (
+          <Badge variant={RUN_STATUS_TONE[run.status] ?? "secondary"}>
+            {run.status}
+          </Badge>
+        ) : null,
+      ),
+    },
+    {
+      colId: "duration",
+      headerName: "duration",
+      type: "number",
+      initialWidth: 100,
+      valueGetter: readValue((run) => run.duration_ms ?? null),
+      comparator: compareNullsLast,
+      cellRenderer: renderCell<RunListItem>((run) => (
+        <span className="row-meta num">
+          {run.duration_ms != null ? formatMs(run.duration_ms) : ""}
+        </span>
       )),
     },
     {

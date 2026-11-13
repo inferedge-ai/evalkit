@@ -25,7 +25,7 @@ import {
 } from "../lib/experimentStatus";
 import { selectionLabel } from "../lib/format";
 import { agentCommitUrl } from "../lib/meta";
-import { hasColumn, rowFailing } from "../lib/scorecard";
+import { describeErroredRuns, hasColumn, rowFailing } from "../lib/scorecard";
 import { BY_TYPE, gaugeGroup, scoreGroups } from "../lib/scoreSummary";
 import type { AgentInfo, CaseView, ExperimentInfo, Report } from "../lib/types";
 import { CopyText } from "../lib/ui";
@@ -435,13 +435,13 @@ function ExperimentView() {
                         def <ArrowUpRight size={10} />
                       </Link>
                     )}
-                    {row && row.run_errors.length > 0 && (
+                    {row && describeErroredRuns(row) && (
                       <Badge
                         variant="fail"
                         className="ml-2"
-                        title={row.run_errors.join("\n")}
+                        title={row.run_errors.join("\n") || undefined}
                       >
-                        run error
+                        {describeErroredRuns(row)}
                       </Badge>
                     )}
                   </>
