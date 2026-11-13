@@ -16,6 +16,7 @@ import httpx2
 import typer
 
 from evalkit.cli.client import ApiClient, ApiError
+from evalkit.client import links
 from evalkit.client.api import encode
 from evalkit.contracts.atif import TrajectoryValidationError
 from evalkit.contracts.harness import RunListItem
@@ -329,6 +330,11 @@ def register(
             )
         if as_json:
             for row in rows:
+                if driver(definition) is not Driver.CLI:
+                    url = links.build_agent_run_url(
+                        client.server_url, definition.ref, row["run_id"]
+                    )
+                    row = {**row, "url": url}
                 typer.echo(json.dumps(row))
             typer.echo(f"{len(rows)} of {total} run(s)", err=True)
             if note:
@@ -383,6 +389,7 @@ def register(
                     break
             _stamp(target, {"experiment": experiment})
             _report(target)
+            typer.echo(f"link: {links.build_experiment_url(client.server_url, experiment)}")
             return
         if agent is None:
             raise ApiError("pass an agent, or --experiment ID")
@@ -434,6 +441,8 @@ def register(
         }
         _stamp(target, invocation, total)
         _report(target)
+        for one in run_id if not local else []:
+            typer.echo(f"link: {links.build_agent_run_url(client.server_url, ref, one)}")
 
     @runs_app.command("files", help=FILES_HELP)
     def runs_files(

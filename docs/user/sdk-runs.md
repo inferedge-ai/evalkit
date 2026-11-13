@@ -22,7 +22,6 @@ def citation_check(case, run) -> float:
 if __name__ == "__main__":
     result = run_experiment(dataset="finance", agent="myagent-sdk", task=task,
                             evaluators=[citation_check], concurrency=4)
-    print(result.url)
 ```
 
 ## The task
@@ -113,7 +112,6 @@ def task(input: dict) -> str:   # in-process agent on the global provider: no se
 
 if __name__ == "__main__":
     result = run_experiment(dataset="finance", agent="myagent", task=task)
-    print(result.url)
 ```
 
 The session id follows one rule, here and with the collector:
@@ -128,6 +126,8 @@ The session id follows one rule, here and with the collector:
 
 - `dataset="finance"` runs your own workspace's copy; if `finance` is a directory under `cases` it is synced first.
 - `dataset="finance@dev"` or `dataset="finance", workspace="dev"` runs the shared cases, every review state included.
+- `run_experiment` prints the scorecard, then `link: <server>/experiments/<id>`, the experiment's page in the web UI. The result carries the same URL as `result.url`. `evaluate_experiment` ends with the same `link:` line. A dry run creates no experiment, so it prints no experiment link and `result.url` is `None`.
+- Each run in `result.runs` has a `url`: the experiment's page for its case. A dry run prints `  link: <url>` under each case whose session the server collected, the agent run's page on the Runs page, and puts it in that run's `url`. A case whose task returned its trajectory, or that has no session id, has no page: no link, and `url` is `None`.
 - `case_ids=[...]`, `tags=[...]`, `repetitions`, `model` and `resume=<experiment id>` mean what the same options mean on `evalkit run`.
 - `dry_run=True` runs one case (`dry_run=N` runs N) without creating an experiment and prints the answer and what the server made of the session. If the server cannot read a session, that case prints a `trajectory read failed` line and the dry run goes on. Use it while wiring up tracing; the session shows on the Runs page with its case question and case id.
 

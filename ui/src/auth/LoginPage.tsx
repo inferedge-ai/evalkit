@@ -8,7 +8,7 @@ import {
 } from "react-router-dom";
 import { extensions } from "../extensions";
 import { isSignedOut, login } from "../lib/api";
-import { Wordmark } from "../shell/Shell";
+import { Lockup } from "@/components/widgets/Logo";
 import { safeNext } from "./next";
 import { SignInFooter } from "./SignInFooter";
 import type { SignInState } from "./SignInLink";
@@ -41,11 +41,11 @@ export function SignInCard({
       <CardHeader className="text-center">
         <h1>
           {extensions.landingPage ? (
-            <Link to="/">
-              <Wordmark />
+            <Link to="/" className="inline-flex">
+              <Lockup className="h-8" />
             </Link>
           ) : (
-            <Wordmark />
+            <Lockup className="mx-auto h-8" />
           )}
         </h1>
         {description && <CardDescription>{description}</CardDescription>}
