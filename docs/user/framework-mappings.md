@@ -18,7 +18,7 @@ Then run one session and check it with `evalkit traces check myagent <session id
 
 | Framework | Instrumentation | Preset | Verified with |
 | -- | -- | -- | -- |
-| LangGraph | OpenInference LangChain | `openinference` | LangGraph 1.2 |
+| LangGraph | OpenInference LangChain | `langchain` | LangGraph 1.2 |
 | LangChain `create_agent` | OpenInference LangChain | `langchain` | LangChain 1.4 |
 | CrewAI | OpenInference CrewAI + OpenAI | `crewai` | CrewAI 1.15 |
 | Agno | OpenInference Agno | `agno` | Agno 3.1 |
@@ -41,7 +41,7 @@ Tool spans from most OpenInference instrumentors carry no `tool.id`. The check t
 
 ## LangGraph
 
-`openinference` as it is.
+`langchain`: `openinference` with `input.value`, `output.value`, `llm.input_messages.*` and `llm.output_messages.*` in `known_attributes`. LangGraph's CHAIN spans carry flattened messages that the trajectory does not need.
 
 - A graph node named `agent` (the tutorial's default) is emitted as an AGENT span. If every model step shows up as a subagent, rename the node, or add `"rekind_spans": [{"name": "agent", "kind": "chain"}]`.
 

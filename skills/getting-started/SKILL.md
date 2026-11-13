@@ -33,26 +33,32 @@ After that, stop for the developer only at the points under "When to stop".
 ## Rules
 
 - Work from the root of the developer's agent project. Cases go in
-  `evalkit/cases/<dataset>/` and the run script is `evalkit/run.py`. Never put
+  `evalkit/cases/<dataset>/` and the run script is `run_evals.py` at the
+  project root (in `evalkit/`, `from myagent import ...` fails). Never put
   an `__init__.py` in the `evalkit/` folder. Add `evalkit-runs/` to
   `.gitignore` before the first pull.
 - Log in with a bare `evalkit login`: it uses hosted evalkit. Pass `--url`
   only when the developer names another server.
 - Find exact command shapes with `evalkit --help` and `--help` on any
   subcommand; do not guess flags.
-- `uv add evalkit-py` fails when the project allows Python below 3.12 or has
-  no `pyproject.toml`. Ask before raising `requires-python`; otherwise give
-  evalkit its own uv project in `evalkit/` as `../evalkit-docs/install.md`
-  says.
+- Install `evalkit-py` into the agent's own project with the tool it already
+  uses (pip in its active virtualenv, uv or poetry). evalkit needs Python
+  3.12 or newer; if the project cannot use it, say so and stop.
+- A non-Python agent, or one in another process: follow the note at the top
+  of the quickstart (a Python task that calls the agent, the agent's own
+  OpenTelemetry SDK, and a session id passed in or returned).
 - On the "No traces yet" path, tracing goes in the agent's own start-up code,
-  never only in `evalkit/run.py`: app runs do not go through `run.py`. Add the
+  never only in `run_evals.py`: app runs do not go through it. Add the
   framework's instrumentor (the Instrumentation column of
   `../evalkit-docs/framework-mappings.md`) and one session per run. Keep the
   agent token out of files the repo tracks.
+- One run per case in the quickstart. For real comparisons, pass
+  `repetitions` (for example `repetitions=3`).
 - An async agent gets an `async def task`. Never wrap it in `asyncio.run`.
 - Hand over to the other skills where the quickstart does:
-  - Step 4, a `!` line from `evalkit traces import` or `evalkit traces check`:
-    the **connect-traces** skill.
+  - Step 4, a `!` line from `evalkit traces import` or `evalkit traces check`
+    that leaves out a field you need: the **connect-traces** skill. A `!`
+    line with a trajectory that looks right is fine.
   - Step 5, mining cases: the **eval-driven-development** skill, Loop 2.
   - Step 7, fixing the agent: the **eval-driven-development** skill, Loop 1,
     with `--apply`.
@@ -87,7 +93,7 @@ Do not move on until each holds:
 
 1. After step 4: `evalkit runs list <agent> --source app` returns runs, and
    one session checked with `evalkit traces import` (Phoenix) or
-   `evalkit traces check` (no traces yet) has a ✓ on every line.
+   `evalkit traces check` (no traces yet) has a trajectory that looks right.
 2. After step 6: every run has a trajectory. A run with none says why in its
    trajectory note; follow the session id rule in
    `../evalkit-docs/sdk-runs.md` ("An agent with its own trace store" or "An
@@ -99,7 +105,7 @@ Do not move on until each holds:
 
 ## Finish
 
-Print both experiment links (each run of `evalkit/run.py` prints one) and
+Print both experiment links (each run of `run_evals.py` prints one) and
 the output of `evalkit summary <new id> --baseline <old id>`. Then say in a
 few lines what was set up, which cases were fixed, and how response time,
 cost and tokens moved. Point at the quickstart's "Where next" links.

@@ -4,7 +4,7 @@ Connect your agent, turn its real runs into eval cases, and ship a measured impr
 
 You need:
 
-- An agent. The steps show Python; step 4 links what to do for other languages.
+- An agent.
 - Python 3.12 or newer and [uv](https://docs.astral.sh/uv/).
 - A coding agent, such as Claude Code or Codex.
 
@@ -12,6 +12,12 @@ There are two paths. They differ only in step 4, which has a tab for each:
 
 - **My agent sends traces to Phoenix.** evalkit imports your trace history.
 - **No traces yet.** Your agent sends its traces straight to evalkit, and you use it a few times.
+
+This quickstart assumes a Python agent. Is yours in another language, or does it run in another process? evalkit still works:
+
+- Write a small Python [task](concepts.md#task) that calls your agent over HTTP or as a subprocess.
+- Have your agent send its traces with its own OpenTelemetry SDK, as in [From any OpenTelemetry SDK](tracing.md#from-any-opentelemetry-sdk).
+- Link each run to its spans. Either the task takes `metadata` and passes `metadata["session_id"]` to your agent as its session id, or your agent returns the session id it set on its spans and the task returns it in `RunResult(session_id=...)`. See [An agent in another process](sdk-runs.md#an-agent-in-another-process).
 
 ## Let your coding agent drive
 
@@ -47,13 +53,29 @@ evalkit login --url {{origin}}
 
 ## 2. Add evalkit to your project
 
-From your project's root:
+Install `evalkit-py` into your agent's own project. evalkit needs Python 3.12 or newer.
+
+<!-- tabs -->
+#### pip
+
+In the virtualenv your agent uses:
+
+```bash
+pip install evalkit-py
+```
+
+#### uv
 
 ```bash
 uv add evalkit-py
 ```
 
-This needs `requires-python` in your `pyproject.toml` to start at 3.12 or newer (`">=3.12"`). Is your repo not a Python project, or can it not move to 3.12? Give evalkit its own uv project in the `evalkit/` folder instead: see [The CLI, inside a project](install.md#the-cli-inside-a-project).
+#### poetry
+
+```bash
+poetry add evalkit-py
+```
+<!-- /tabs -->
 
 ## 3. Create your agent
 
@@ -110,7 +132,7 @@ Bring in your recent history:
 evalkit traces import myagent --since <date>
 ```
 
-Does your agent run in another process, or start its own trace? Read [An agent with its own trace store](sdk-runs.md#an-agent-with-its-own-trace-store) before step 6.
+Does your agent start its own trace? Read [An agent with its own trace store](sdk-runs.md#an-agent-with-its-own-trace-store) before step 6.
 
 #### No traces yet
 
@@ -126,13 +148,13 @@ Export it in every shell that runs your agent:
 export EVALKIT_OTEL_TOKEN=<token>
 ```
 
-Add the OpenTelemetry instrumentor for your framework. The Instrumentation column of [Framework mappings](framework-mappings.md) names it. For LangGraph or LangChain:
+Add the OpenTelemetry instrumentor for your framework. The Instrumentation column of [Framework mappings](framework-mappings.md) names it. Install it the way you installed `evalkit-py`. For LangGraph or LangChain:
 
 ```bash
-uv add openinference-instrumentation-langchain
+pip install openinference-instrumentation-langchain
 ```
 
-Turn tracing on where your agent starts, in code that also runs when `evalkit/run.py` imports your agent:
+Turn tracing on where your agent starts, in code that also runs when `run_evals.py` imports your agent:
 
 ```python
 from evalkit.sdk import tracing
@@ -171,7 +193,7 @@ evalkit traces check myagent <session id>
 
 Every line should have a ✓. A `!` means your spans differ from the preset: the connect-traces skill fixes the mapping. See [Mappings](mappings.md).
 
-Is your agent not in Python, or does it run in another process? Point its exporter at evalkit as in [From any OpenTelemetry SDK](tracing.md#from-any-opentelemetry-sdk), and link its sessions to runs as in [An agent in another process](sdk-runs.md#an-agent-in-another-process).
+An unmapped `!` line is fine when the trajectory looks right. Change the mapping only when a field you need is missing.
 <!-- /tabs -->
 
 [Tracing](tracing.md) has the details for both paths.
@@ -188,7 +210,7 @@ It reads each run, groups the ones that failed or ran slow, shows you a plan, an
 
 ## 6. Run the baseline
 
-Write `evalkit/run.py`. The [task](concepts.md#task) calls your agent once per case:
+Write `run_evals.py` in your project's root. The [task](concepts.md#task) calls your agent once per case:
 
 ```python
 from evalkit.sdk import run_experiment
@@ -206,10 +228,14 @@ if __name__ == "__main__":
 
 Is your agent async? Write `async def task` and `await` it. Do not wrap it in `asyncio.run`. See [The task](sdk-runs.md#the-task).
 
-Run it from your project's root:
+`run_experiment(dataset="mined")` syncs `evalkit/cases/mined/` before it runs. You need no `evalkit.yaml`.
+
+Each case runs once here, to keep the demo fast. Real comparisons pass `repetitions` (for example `repetitions=3`), because one run can flip by chance.
+
+Run it from your project's root (with uv, `uv run python run_evals.py`; with poetry, `poetry run python run_evals.py`):
 
 ```bash
-uv run python evalkit/run.py
+python run_evals.py
 ```
 
 evalkit picks up each run's [trajectory](concepts.md#trajectory), scores it, and prints the [scorecard](concepts.md#scorecard) and a link to the [experiment](concepts.md#experiment).

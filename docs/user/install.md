@@ -18,23 +18,6 @@ With pipx instead: `pipx install --force "evalkit-py=={{version}}"`.
 uv tool install --reinstall "evalkit-py==$(curl -fsSL {{origin}}/api/cli | jq -r .version)"
 ```
 
-## The CLI, inside a project
-
-To keep evalkit out of your global tools, add it to a uv project and run it with `uv run`. The CLI, the SDK and `tracing.register` need no extra; add `server` only if you also run the server from there:
-
-```bash
-uv add "evalkit-py=={{version}}"
-uv run evalkit --help
-```
-
-If you give evalkit its own uv project in the `evalkit/` folder of your agent's uv project, create it with `uv init --bare --no-workspace` and a name other than `evalkit`:
-
-```bash
-cd evalkit && uv init --bare --no-workspace --name evals && uv add "evalkit-py=={{version}}"
-```
-
-Without `--no-workspace`, uv silently adds `evalkit/` to your agent project's workspace, so it shares your agent's lockfile. `--bare` writes only `pyproject.toml`: a project named `evalkit`, or a Python package in that folder, would hide the installed `evalkit` package. Run the script from your agent project's root: `uv run --project evalkit python evalkit/run.py`.
-
 ## The SDK, into a project
 
 `run_experiment` and `tracing.register` live in the same package as the CLI, which includes the OpenTelemetry SDK and the OTLP exporter. Pin the server's version; `uv.lock` records it:
@@ -43,12 +26,12 @@ Without `--no-workspace`, uv silently adds `evalkit/` to your agent project's wo
 uv add "evalkit-py=={{version}}"
 ```
 
-With pip instead: `pip install "evalkit-py=={{version}}"`.
+With pip instead: `pip install "evalkit-py=={{version}}"`. With poetry: `poetry add "evalkit-py=={{version}}"`. The CLI, the SDK and `tracing.register` need no extra; run the CLI from the project with `uv run evalkit`.
 
 To keep evalkit out of the app's dependencies, run the eval script with it instead:
 
 ```bash
-uv run --with "evalkit-py=={{version}}" python evalkit/run.py
+uv run --with "evalkit-py=={{version}}" python run_evals.py
 ```
 
 ## The server

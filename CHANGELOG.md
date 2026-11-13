@@ -10,6 +10,11 @@
   API path, hand-written cases, fixtures, comparing experiments, review and
   promotion) is on the new page Beyond the quickstart
   (`docs/user/beyond-quickstart.md`).
+- **Docs**: the Install page drops the recipe for a separate uv project in
+  the `evalkit/` folder; install `evalkit-py` into the agent's own project
+  with pip, uv or poetry. Eval scripts in the docs and skills are
+  `run_evals.py` at the project root. Framework mappings names the
+  `langchain` preset for LangGraph.
 - New skill `getting-started`: walks a coding agent through the quickstart in
   the developer's agent project. `evalkit skills install` copies it with the
   others.
