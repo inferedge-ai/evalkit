@@ -1,15 +1,17 @@
 import { Children, isValidElement, useEffect, useId, useState } from "react";
 import type { ComponentProps, ReactElement, ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Moon, Sun } from "lucide-react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import type { ExtraProps } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Highlight, themes } from "prism-react-renderer";
 import { PageHeader } from "@/components/widgets/PageHeader";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { SignInLink } from "../auth/SignInLink";
+import { extensions } from "../extensions";
 import { ApiError } from "../lib/api";
 import { useApi } from "../lib/query";
 import {
@@ -23,6 +25,7 @@ import { remarkDocMarkers, resolveDocImage } from "../lib/docMarkdown";
 import type { CliInfo } from "../lib/types";
 import { CopyButton } from "../lib/ui";
 import { useOptionalMe } from "../shell/capabilities";
+import { BrandLink } from "../shell/Shell";
 import { useTheme } from "../shell/theme";
 
 function Snippet({ code, language }: { code: string; language: string }) {
@@ -212,6 +215,34 @@ function DocsMenu({ tab }: { tab: string }) {
   );
 }
 
+function PublicDocsHeader() {
+  const location = useLocation();
+  const { theme, toggle } = useTheme();
+  const next = theme === "dark" ? "light" : "dark";
+  return (
+    <div className="mx-auto mb-6 flex max-w-6xl items-center gap-4">
+      <BrandLink to={extensions.landingPage ? "/" : "/docs"} />
+      <div className="ml-auto flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Switch to ${next} mode`}
+          title={`Switch to ${next} mode`}
+          onClick={toggle}
+        >
+          {theme === "dark" ? <Sun /> : <Moon />}
+        </Button>
+        <SignInLink
+          next={location.pathname + location.search}
+          className={buttonVariants({ size: "sm" })}
+        >
+          Sign in
+        </SignInLink>
+      </div>
+    </div>
+  );
+}
+
 export function DocsPage() {
   const { tab } = useParams();
   useScrollToHash(tab);
@@ -234,6 +265,7 @@ export function DocsPage() {
     <>
       {me && <PageHeader title="Docs" />}
       <div className="page">
+        {!me && <PublicDocsHeader />}
         <div className="mx-auto flex max-w-6xl flex-col gap-4 md:flex-row md:gap-10">
           <DocsMenu tab={tab} />
           <article className="min-w-0 flex-1">
