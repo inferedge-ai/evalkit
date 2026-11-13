@@ -19,29 +19,20 @@ from evalkit.api.access import (
 )
 from evalkit.api.deps import ConfigDep, EndpointRuleDep
 from evalkit.api.experiments import slug_or_400
+from evalkit.api.session_pull import active_mapping, source_client
+from evalkit.api.trace_checks import resolve_import_source
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.access import can_write
 from evalkit.core.agents import AgentDefinition, UnknownAgent, explicit
-from evalkit.core.endpoints import EndpointRule, check_endpoint
-from evalkit.core.traces.mapping import session_id_of
 from evalkit.core.traces.presets import list_preset_names, read_preset
 from evalkit.core.traces.raw import RawSpan
+from evalkit.core.traces.session_import import pull_session
 from evalkit.core.traces.sessions import SessionTrajectory
-from evalkit.core.traces.sources import client_for
 from evalkit.core.workspace import Reference
 from evalkit.db.agents import AgentStore
-from evalkit.db.trace_sources import ResolvedTraceSource
 
 router = APIRouter(prefix="/api", tags=["traces"])
 LOGGER = logging.getLogger(__name__)
-
-
-async def resolve_import_source(
-    stores: TenantStores, name: str, *, rule: EndpointRule
-) -> ResolvedTraceSource:
-    source = await stores.sources.resolve(name)
-    await check_endpoint(source.url, rule=rule)
-    return source
 
 
 async def session_too_large(request: Request, exc: Exception) -> JSONResponse:
@@ -175,9 +166,23 @@ async def activate_mapping(
 
 
 class ImportRequest(BaseModel):
-    source: str
-    project: str
+    source: str | None = None
+    project: str | None = None
     session_id: str
+
+
+def import_target(
+    record: AgentDefinition, source: str | None, project: str | None
+) -> tuple[str, str]:
+    source = source or record.settings.trace_source
+    project = project or record.settings.project
+    if source is None or project is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"no trace source given and agent {record.ref} has none; "
+            "pass source and project, or set them on the agent",
+        )
+    return source, project
 
 
 @router.post("/agents/{agent}/sessions/import")
@@ -192,20 +197,18 @@ async def import_session(
     _, record = await agent_or_404(stores.agents, agent)
     await require_write(stores, actor, record)
     require_otel(record)
-    source = await resolve_import_source(stores, body.source, rule=rule)
-    client = client_for(
-        source.provider,
-        source.url,
-        source.api_key.get_secret_value() if source.api_key else None,
-        cfg.otel.import_page_traces,
-    )
+    name, project = import_target(record, body.source, body.project)
+    source = await resolve_import_source(stores, name, rule=rule)
     try:
-        fetched = await client.session_spans(body.project, body.session_id)
+        imported = await pull_session(
+            source_client(source, cfg.otel.import_page_traces),
+            stores.spans,
+            await active_mapping(stores.mappings, record.id),
+            agent_id=record.id,
+            source_id=source.id,
+            project=project,
+            session_id=body.session_id,
+        )
     except httpx2.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"{body.source}: {exc}") from exc
-    active = await stores.mappings.active(record.id)
-    document = MappingDocument.model_validate(active.document) if active else None
-    for span in fetched:
-        span.session_id_hint = session_id_of(span.attributes, document) or body.session_id
-    imported = await stores.spans.upsert(record.id, fetched, external_trace_source_id=source.id)
+        raise HTTPException(status_code=502, detail=f"{name}: {exc}") from exc
     return {"imported": imported}

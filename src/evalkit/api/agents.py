@@ -4,7 +4,8 @@ from fastapi import APIRouter
 from pydantic import AfterValidator, BaseModel
 
 from evalkit.api.access import ActorDep, StoresDep, writable, writable_endpoint
-from evalkit.api.deps import EndpointRuleDep
+from evalkit.api.deps import ConfigDep, EndpointRuleDep
+from evalkit.api.trace_checks import check_trace_source
 from evalkit.contracts.enums import TrajectorySource
 from evalkit.contracts.settings import AgentSettings
 from evalkit.core.agents import AgentDefinition, driver
@@ -74,6 +75,7 @@ async def create_agent(
     stores: StoresDep,
     actor: ActorDep,
     rule: EndpointRuleDep,
+    cfg: ConfigDep,
 ) -> dict:
     ws = await writable_endpoint(
         stores,
@@ -82,6 +84,13 @@ async def create_agent(
         rule=rule,
         api_key="api_key" in body.model_fields_set,
         url=body.harness_url,
+    )
+    await check_trace_source(
+        stores,
+        body.settings,
+        otel=body.trajectory_source == TrajectorySource.OTEL,
+        rule=rule,
+        page_traces=cfg.otel.import_page_traces,
     )
     created = await stores.agents.create(
         ws,
@@ -113,6 +122,7 @@ async def edit_agent(
     stores: StoresDep,
     actor: ActorDep,
     rule: EndpointRuleDep,
+    cfg: ConfigDep,
 ) -> dict:
     current = await stores.agents.get(ref)
     url_changes = "harness_url" in body.model_fields_set and body.harness_url != current.harness_url
@@ -124,6 +134,15 @@ async def edit_agent(
         api_key="api_key" in body.model_fields_set,
         url=body.harness_url if url_changes else None,
     )
+    otel = (body.trajectory_source or current.trajectory_source) == TrajectorySource.OTEL
+    if body.settings is not None:
+        await check_trace_source(
+            stores,
+            body.settings,
+            otel=otel,
+            rule=rule,
+            page_traces=cfg.otel.import_page_traces,
+        )
     clear = {k for k in ("harness_url", "repo_url", "api_key") if k in body.model_fields_set}
     edited = await stores.agents.edit(
         ref,

@@ -24,6 +24,7 @@ from evalkit.api.access import (
 from evalkit.api.deps import EndpointRuleDep, HolderDep, SessionDep
 from evalkit.api.llm_providers import require_provider_judge
 from evalkit.api.server_keys import server_keys, with_keys
+from evalkit.api.trace_checks import check_trace_source
 from evalkit.contracts.atif import validate_trajectory
 from evalkit.contracts.enums import ExperimentStatus, ScoredOn, SyncSource
 from evalkit.contracts.harness import Capabilities
@@ -281,6 +282,13 @@ async def create_experiment(
     )
     ensure_active(agent_ws)
     ensure_active(dataset_ws)
+    await check_trace_source(
+        stores,
+        agent.settings,
+        otel=agent.is_otel,
+        rule=rule,
+        page_traces=request.app.state.cfg.otel.import_page_traces,
+    )
     if dataset_ws.is_shared and agent_ws.is_shared:
         require(
             can_create_experiment(actor, dataset_ws),
