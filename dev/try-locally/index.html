@@ -47,8 +47,6 @@
       
     
     
-      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
-    
       <link rel="stylesheet" href="../stylesheets/tokens.css">
     
       <link rel="stylesheet" href="../stylesheets/evalkit.css">
@@ -949,6 +947,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../sdk-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../tracing/" class="md-nav__link">
         
   
@@ -1075,33 +1101,6 @@
     
   
     MCP
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../sdk-reference/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    SDK reference
   
 
     
@@ -1337,7 +1336,7 @@ same.</p>
 <h3 id="without-docker">Without Docker<a class="headerlink" href="#without-docker" title="Permanent link">&para;</a></h3>
 <p>evalkit is on PyPI as <code>evalkit-py</code> and needs Python 3.12 or newer. Install it with the server extra, then
 let <code>evalkit init-server</code> set up the rest:</p>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py[server]==0.5.0.dev107"</span><span class="w">   </span><span class="c1"># or: pip install "evalkit-py[server]==0.5.0.dev107"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py[server]==0.5.0.dev109"</span><span class="w">   </span><span class="c1"># or: pip install "evalkit-py[server]==0.5.0.dev109"</span>
 evalkit<span class="w"> </span>init-server
 <span class="nb">cd</span><span class="w"> </span>evalkit-try
 evalkit<span class="w"> </span>serve
@@ -1422,10 +1421,10 @@ every start.</p>
 </tbody>
 </table>
 <h2 id="1-install-the-cli-and-log-in">1. Install the CLI and log in<a class="headerlink" href="#1-install-the-cli-and-log-in" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev107"</span><span class="w">   </span><span class="c1"># with Docker only</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>--reinstall<span class="w"> </span><span class="s2">"evalkit-py==0.5.0.dev109"</span><span class="w">   </span><span class="c1"># with Docker only</span>
 evalkit<span class="w"> </span>login<span class="w"> </span>--url<span class="w"> </span>http://localhost:8020<span class="w"> </span>--username<span class="w"> </span>admin<span class="w"> </span>--password<span class="w"> </span>evalkit-admin
 </code></pre></div>
-<p><code>0.5.0.dev107</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
+<p><code>0.5.0.dev109</code> is the server's version; <code>curl http://localhost:8020/api/cli</code>
 prints it.</p>
 <p><code>evalkit login</code> replaces any login you already saved. To keep it, skip
 <code>evalkit login</code> and give this shell a token for the try-it server instead
