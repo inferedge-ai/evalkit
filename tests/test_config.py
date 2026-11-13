@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import pytest
@@ -13,7 +12,6 @@ from evalkit.config import (
     RunnerConfig,
     load_config,
 )
-from evalkit.credentials import CredentialRegistry, MissingCredential
 
 BASIC = """
 server:
@@ -184,24 +182,16 @@ def test_local_config_resolves_paths(tmp_path):
     assert cfg.fixtures == tmp_path / "eval" / "fixtures"
 
 
-def test_local_credentials_never_read_a_dotenv_beside_evalkit_yaml(tmp_path, monkeypatch):
-    monkeypatch.delenv("RESEARCH_AGENT_KEY", raising=False)
+def test_local_cost_map_never_reads_a_dotenv_beside_evalkit_yaml(tmp_path, monkeypatch):
     monkeypatch.delenv("EVALKIT_COST_MAP", raising=False)
     (tmp_path / "evalkit.yaml").write_text(
         LOCAL + "cost_map:\n  source: env:EVALKIT_COST_MAP:bundled\n"
     )
-    (tmp_path / ".env").write_text(
-        "RESEARCH_AGENT_KEY=from-dotenv\nEVALKIT_COST_MAP=/tmp/from-dotenv.json\n"
-    )
+    (tmp_path / ".env").write_text("EVALKIT_COST_MAP=/tmp/from-dotenv.json\n")
     monkeypatch.chdir(tmp_path)
     cfg = LocalConfig.find(tmp_path)
     assert cfg is not None
-    registry = CredentialRegistry(cfg.credentials, os.environ, home="akshat")
-    with pytest.raises(MissingCredential):
-        registry.key_for("agent", "research-agent@akshat")
     assert cfg.resolve_env(scoring=True).cost_map.source == "bundled"
-    monkeypatch.setenv("RESEARCH_AGENT_KEY", "from-env")
-    assert registry.key_for("agent", "research-agent@akshat") == "from-env"
 
 
 def test_env_reference_with_default(tmp_path, monkeypatch):

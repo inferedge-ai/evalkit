@@ -176,8 +176,7 @@ credentials:                 # env:NAME references only, never the key itself
   database (`evalkit agents create|edit … --api-key-env NAME`, by an admin or
   a writer), so an entry for one here is never read. The same holds for
   shared remote evaluators.
-- Keys come from the environment or from a `.env` file next to
-  `evalkit.yaml`. A variable set in the environment wins over `.env`.
+- Keys come from the environment.
 - An agent or evaluator with no `credentials` entry gets no auth header, and
   the run prints one line saying so.
 - `credentials` holds agent and evaluator keys only; a file with

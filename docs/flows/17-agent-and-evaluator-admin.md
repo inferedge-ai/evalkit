@@ -58,8 +58,7 @@ their keys in `evalkit.yaml`.
   the CLI's credential registry looks keys up in it. A judge's key is never
   here: a run that brings its own judge passes the key with the run.
   - In `evalkit.yaml` a bare name means your personal workspace.
-  - `evalkit.yaml` also loads a `.env` file next to it. Real env vars win over
-    `.env`.
+  - The keys come from the environment.
 
 ```yaml
 credentials:
@@ -183,7 +182,7 @@ sequenceDiagram
   `myagent@<you>`, and the agent must already exist.
 - **Keys:**
   - Server runs use stored keys. Local and SDK runs look keys up in
-    `evalkit.yaml` + `.env`.
+    `evalkit.yaml` and the environment.
   - There's no shared fallback key.
   - **No stored key (server run):** the run goes ahead without the key header.
     The create, resume or evaluate response carries `warnings: […]`, also

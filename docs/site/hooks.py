@@ -3,7 +3,9 @@ import re
 import tomllib
 from pathlib import Path
 
+from markers import anchor_rows, convert_tabs
 from mkdocs.structure.files import File, Files
+from tokens import render_site_tokens
 
 SITE = Path(__file__).parent
 ROOT = SITE.parent.parent
@@ -41,12 +43,20 @@ def on_files(files: Files, config) -> Files:
     for name, source in GENERATED.items():
         files.append(File.generated(config, name, abs_src_path=str(source)))
     files.append(File.generated(config, "index.md", content=_home_page()))
+    files.append(
+        File.generated(
+            config,
+            "stylesheets/tokens.css",
+            content=render_site_tokens(ROOT / "ui" / "src" / "styles" / "tokens"),
+        )
+    )
     return files
 
 
 def on_page_markdown(markdown: str, page, config, files) -> str:
     if page.file.src_uri == "index.md":
         return markdown
+    markdown = anchor_rows(convert_tabs(markdown))
     values = {"origin": "http://localhost:8020", "version": _version()}
     return PLACEHOLDER.sub(lambda match: values[match.group(1)], markdown)
 

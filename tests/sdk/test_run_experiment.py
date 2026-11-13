@@ -27,6 +27,7 @@ from evalkit.core.runner import (
     MissingJudgeKey,
     ScoringFailed,
 )
+from evalkit.credentials import MissingCredential
 from evalkit.db import models
 from evalkit.db.evaluators import RemoteEvaluatorStore
 from evalkit.db.session import make_session_factory, tenant_session
@@ -890,3 +891,16 @@ async def test_sdk_runs_skip_keyless_evaluators_their_cases_do_not_use(env):
     )
     assert "experiment" in lines[0]
     assert not any("nokey_eval" in line for line in lines)
+
+
+def test_sdk_credentials_never_read_a_dotenv_beside_evalkit_yaml(tmp_path, monkeypatch):
+    monkeypatch.delenv("SDK_DOTENV_KEY", raising=False)
+    (tmp_path / "evalkit.yaml").write_text(
+        "credentials:\n  evaluators:\n    http_eval: env:SDK_DOTENV_KEY\n"
+    )
+    (tmp_path / ".env").write_text("SDK_DOTENV_KEY=from-dotenv\n")
+    monkeypatch.chdir(tmp_path)
+    local = LocalConfig.find(tmp_path)
+    assert local is not None
+    with pytest.raises(MissingCredential, match="SDK_DOTENV_KEY"):
+        sdk_runner._credentials(local, "admin").key_for("evaluator", "http_eval@admin")

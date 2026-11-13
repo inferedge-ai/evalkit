@@ -98,7 +98,8 @@ every start.
 | `agent.py` | The sample agent. It answers questions about Acme Widgets, a made-up company, by calling your LLM with one tool, `lookup_financials`. It records each model call and tool call as an OpenTelemetry span, using the GenAI semantic conventions. |
 | `run.py` | The SDK run: `tracing.register` sends the spans to evalkit, and `run_experiment` calls the agent once per case and scores the answers. |
 | `cases/acme/` | Five cases in two folders (tags), with answer rubrics and a tool check. |
-| `evalkit.yaml`, `.env` | Where the cases are. |
+| `evalkit.yaml` | Where the cases are. |
+| `.env` | Your LLM settings and the server's secrets. `evalkit serve`, docker compose and `run.py` load it. |
 | `config.yaml` | The server's config. |
 | `docker-compose.yml`, `.env.example` | With Docker only: the stack, and the template for its `.env`. `init-server` leaves them out. |
 

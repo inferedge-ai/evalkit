@@ -22,6 +22,13 @@ class CustomBuildHook(BuildHookInterface):
             if bundled(path):
                 target = f"evalkit/bundled/skills/{path.relative_to(skills).as_posix()}"
                 build_data["force_include"][str(path)] = target
+        docs = Path(self.root) / "docs" / "user"
+        for path in sorted(docs.rglob("*")):
+            relative = path.relative_to(docs)
+            if bundled(path) and relative.parts[0] != "images":
+                build_data["force_include"][str(path)] = (
+                    f"evalkit/bundled/docs/{relative.as_posix()}"
+                )
         if self.target_name == "wheel" and version == "standard":
             dist = Path(self.root) / "ui" / "dist"
             if not (dist / "index.html").is_file():

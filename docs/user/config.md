@@ -17,7 +17,7 @@ credentials: # values are env:NAME, read when a run needs them
 
 Only your personal Harness API agents use `credentials.agents` here. The server drives shared agents (`ouragent@dev`) with the keys stored in its database, so an entry for one in `evalkit.yaml` is never read. The same holds for shared remote evaluators.
 
-Set the values as environment variables, in your shell or with a tool that loads them for you.
+Set the values as environment variables. To load a `.env` file into your shell, run `set -a; . ./.env; set +a`.
 
 Agents, remote evaluators and the judge are not configured here:
 
@@ -25,7 +25,7 @@ Agents, remote evaluators and the judge are not configured here:
 - **Remote evaluators** are created with `evalkit evaluators create`. A run uses the evaluators in its agent's workspace.
 - **The judge** of an experiment is the server's default judge (an admin sets it with `evalkit judge-default set`) unless you pick one. Re-evaluating an experiment always reuses its judge. You pick it in one of two ways:
   - **An LLM provider configured on the server:** `evalkit run … --judge-provider NAME --judge-model M`, or `run_experiment(judge=Judge(provider=..., model=...))`. The default judge is one too. The evaluators that use a judge (`answer_rubrics`, `presentation_judge`, `trajectory_rubrics`) then run on the evalkit server with its stored key, so you need no judge key on your machine.
-  - **Your own judge:** `evalkit run … --judge-base-url URL --judge-model M --judge-api-key-env NAME`, where `NAME` is the env var (or `.env` entry) holding the key; or `run_experiment(judge=Judge(base_url=..., model=..., api_key=...))`. Those evaluators then run on your machine. The key goes only to your judge and is never stored on the evalkit server, so re-scoring and resuming ask for it again: `evalkit evaluate <id> --judge-api-key-env NAME`, `evalkit run … --resume <id> --judge-api-key-env NAME`, or `evaluate_experiment(..., judge=Judge(base_url=..., model=..., api_key=...))`, the same judge again. A different judge is refused.
+  - **Your own judge:** `evalkit run … --judge-base-url URL --judge-model M --judge-api-key-env NAME`, where `NAME` is the env var holding the key; or `run_experiment(judge=Judge(base_url=..., model=..., api_key=...))`. Those evaluators then run on your machine. The key goes only to your judge and is never stored on the evalkit server, so re-scoring and resuming ask for it again: `evalkit evaluate <id> --judge-api-key-env NAME`, `evalkit run … --resume <id> --judge-api-key-env NAME`, or `evaluate_experiment(..., judge=Judge(base_url=..., model=..., api_key=...))`, the same judge again. A different judge is refused.
   - `--judge-provider` and `--judge-base-url` together are refused, and so is `--judge-base-url` without `--judge-api-key-env`.
 
 Rules:

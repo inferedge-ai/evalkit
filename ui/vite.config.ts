@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       setupFiles: ["./src/testSetup.ts"],
+      css: { include: [/tailwindcss\/theme\.css/] },
     },
     server: {
       // IPv4 explicitly — a reverse proxy dialing 127.0.0.1 misses vite's

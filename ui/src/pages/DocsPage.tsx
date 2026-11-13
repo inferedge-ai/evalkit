@@ -1,11 +1,14 @@
-import { useId, useState } from "react";
-import type { ReactElement, ReactNode } from "react";
+import { Children, isValidElement, useEffect, useId, useState } from "react";
+import type { ComponentProps, ReactElement, ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useLocation, useParams } from "react-router-dom";
+import type { ExtraProps } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Highlight, themes } from "prism-react-renderer";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { ApiError } from "../lib/api";
 import { useApi } from "../lib/query";
@@ -16,6 +19,7 @@ import {
   fillTemplate,
   isDocTab,
 } from "../lib/docs";
+import { remarkDocMarkers, resolveDocImage } from "../lib/docMarkdown";
 import type { CliInfo } from "../lib/types";
 import { CopyButton } from "../lib/ui";
 import { useOptionalMe } from "../shell/capabilities";
@@ -61,6 +65,7 @@ type CodeProps = { className?: string; children?: ReactNode };
 function DocLink({ href, children }: { href?: string; children?: ReactNode }) {
   const route = docRoute(href);
   if (route) return <Link to={route}>{children}</Link>;
+  if (href?.startsWith("#")) return <Link to={href}>{children}</Link>;
   return <a href={href}>{children}</a>;
 }
 
@@ -80,6 +85,66 @@ function ScrollingTable({ children }: { children?: ReactNode }) {
   );
 }
 
+function DocImage({
+  src,
+  alt,
+  node: _node,
+  ...props
+}: ComponentProps<"img"> & ExtraProps) {
+  return <img {...props} src={resolveDocImage(src)} alt={alt ?? ""} />;
+}
+
+function DocDiv({
+  node,
+  children,
+  ...props
+}: ComponentProps<"div"> & ExtraProps) {
+  if (!("data-doc-tabs" in props)) return <div {...props}>{children}</div>;
+  const labels = (node?.children ?? []).flatMap((child) =>
+    child.type === "element" ? [String(child.properties.dataDocTab ?? "")] : [],
+  );
+  const panels = Children.toArray(children).filter(
+    isValidElement,
+  ) as ReactElement<{ children?: ReactNode }>[];
+  return (
+    <Tabs defaultValue={0} className="my-3">
+      <TabsList>
+        {labels.map((label, i) => (
+          <TabsTrigger key={i} value={i} className="px-3">
+            {label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {panels.map((panel, i) => (
+        <TabsContent key={i} value={i} className="text-[length:inherit]">
+          {panel.props.children}
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+}
+
+function useScrollToHash(tab: string | undefined) {
+  const { hash } = useLocation();
+  useEffect(() => {
+    const id = decodeURIComponent(hash.slice(1));
+    const target = id ? document.getElementById(id) : null;
+    if (!target) return;
+    const isRow = target.tagName === "TR";
+    target.scrollIntoView({ block: isRow ? "center" : "start" });
+    if (!isRow) return;
+    target.setAttribute("data-targeted", "");
+    const timer = window.setTimeout(
+      () => target.removeAttribute("data-targeted"),
+      2000,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      target.removeAttribute("data-targeted");
+    };
+  }, [hash, tab]);
+}
+
 function DocsMenu({ tab }: { tab: string }) {
   const [openOn, setOpenOn] = useState<string | null>(null);
   const open = openOn === tab;
@@ -90,12 +155,12 @@ function DocsMenu({ tab }: { tab: string }) {
       className="md:sticky md:top-4 md:w-44 md:shrink-0 md:self-start"
       aria-label="Docs"
     >
-      <button
-        type="button"
+      <Button
+        variant="outline"
         aria-expanded={open}
         aria-controls={listId}
         onClick={() => setOpenOn(open ? null : tab)}
-        className="flex w-full items-center gap-2 rounded-md border bg-card px-3 py-2 text-left text-sm md:hidden"
+        className="h-9 w-full justify-start gap-2 bg-card px-3 text-left font-normal md:hidden"
       >
         <span className="text-muted-foreground">{current?.group}</span>
         <span aria-hidden className="text-muted-foreground">
@@ -108,7 +173,7 @@ function DocsMenu({ tab }: { tab: string }) {
           aria-hidden
           className={cn("size-4 transition-transform", open && "rotate-180")}
         />
-      </button>
+      </Button>
       <div
         id={listId}
         className={cn(
@@ -149,6 +214,7 @@ function DocsMenu({ tab }: { tab: string }) {
 
 export function DocsPage() {
   const { tab } = useParams();
+  useScrollToHash(tab);
   const me = useOptionalMe();
   const cli = useApi<CliInfo>("/cli");
   const error =
@@ -174,8 +240,14 @@ export function DocsPage() {
             {error && <p className="text-ink-2">{error}</p>}
             <div className="md-body docs-body mx-auto max-w-3xl text-lede">
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{ pre: Pre, a: DocLink, table: ScrollingTable }}
+                remarkPlugins={[remarkGfm, remarkDocMarkers]}
+                components={{
+                  pre: Pre,
+                  a: DocLink,
+                  table: ScrollingTable,
+                  div: DocDiv,
+                  img: DocImage,
+                }}
               >
                 {fillTemplate(body, values)}
               </ReactMarkdown>

@@ -33,7 +33,7 @@ sequenceDiagram
   else own agent (CLI: research-agent, harness on the laptop or anywhere the laptop reaches)
     U->>CLI: evalkit harness check research-agent
     CLI->>S: GET agent settings (harness URL, timeouts, trajectory source)
-    CLI->>CLI: read the harness key from evalkit.yaml credentials (+ .env)
+    CLI->>CLI: read the harness key from evalkit.yaml credentials (env var)
     CLI->>H: same checks, driven from the laptop (file passed as a URL or inline)
     opt agent traces via OTel
       CLI->>S: poll the run's session trajectory
@@ -56,7 +56,7 @@ sequenceDiagram
   - **`workspace`, `run_listing`, `stop`:** exercised only when declared; otherwise `skipped`.
 - **The CLI exits 1** if any entry is `fail`.
 - **Who may check:** the same rule as starting an experiment against the agent. Any user may check a shared agent; only the owner may check a personal one.
-- **The harness API key** comes from the agent's stored key (in the server database) for shared agents, and from `credentials.agents` in `evalkit.yaml` plus a `.env` beside it for your own. With no entry, no key header is sent, and a harness that needs one shows a 401 `fail` on `capabilities`.
+- **The harness API key** comes from the agent's stored key (in the server database) for shared agents, and from `credentials.agents` in `evalkit.yaml` and the environment for your own. With no entry, no key header is sent, and a harness that needs one shows a 401 `fail` on `capabilities`.
 - **The UI tab:**
   - Shown only for agents with a `harness_url`, and only to users who may check the agent.
   - Shows "Checking… (runs a live agent call)" while running, then a table of capability, status chip and detail.

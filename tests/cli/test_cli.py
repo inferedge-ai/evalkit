@@ -991,8 +991,7 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     envcheck = tmp_path / "evalkit" / "cases" / "envcheck"
     envcheck.mkdir()
     (envcheck / "c.yaml").write_text("cases:\n- id: env-1\n  input: {question: 'q 2024'}\n")
-    (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\n")
-    monkeypatch.setenv("CLI_JUDGE_KEY", "jk")
+    (tmp_path / ".env").write_text("CLI_AGENT_KEY=client-key\nCLI_JUDGE_KEY=jk\n")
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 1, result.output
@@ -1003,7 +1002,6 @@ def test_local_commands_resolve_only_the_credentials_they_use(
     assert "envcheck@admin" not in dataset_refs()
 
     monkeypatch.setenv("CLI_AGENT_KEY", "client-key")
-    monkeypatch.delenv("CLI_JUDGE_KEY")
     result = runner.invoke(cli_app, ["harness", "check", "fake"])
     assert result.exit_code == 0, result.output
     result = runner.invoke(cli_app, ["run", "finance", "--agent", "fake"])
