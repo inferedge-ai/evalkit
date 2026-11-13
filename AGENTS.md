@@ -198,6 +198,13 @@ then add plain FastAPI routes with `app.include_router(...)`.
   `/experiments/12`, still goes straight to sign-in and back. With
   `landingPage: null`, `/` sends a signed-out visitor to sign in and
   signing out lands on `/login`.
+- `publicHeader` replaces the public navbar on every page a signed-out
+  visitor sees under it: the landing page, `/docs` and `publicRoutes`. It
+  sits above the page and stays in place while the page scrolls. It brings
+  its own links: sign-in through `SignInLink`, and the theme switch through
+  `useTheme` from `@/shell/theme` (`theme`, `toggle`). The sign-in page has
+  no navbar either way, and a signed-in person keeps the app shell. With
+  `publicHeader: null`, the navbar is evalkit's.
 - Link to sign-in with `SignInLink` from `@/auth/SignInLink` (`next`,
   default `/`; `prompt`; `className`). It opens `/login`, which starts
   sign-in at once even right after a sign-out in that browser; a plain link
@@ -234,9 +241,10 @@ then add plain FastAPI routes with `app.include_router(...)`.
 - Every `nav` item and every Settings page the person can see is a page in
   ⌘K search.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
-  `PageHeader`, `Empty`, `SignInLink`, `/login`'s `next` and `prompt`,
-  `getApiToken`, `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config` and
-  `get_allow_private_endpoints` stable: other packages build against them.
+  `PageHeader`, `Empty`, `SignInLink`, `useTheme`, `/login`'s `next` and
+  `prompt`, `getApiToken`, `auth.oidc.ui_resources`, `SIGNED_IN`,
+  `get_config` and `get_allow_private_endpoints` stable: other packages
+  build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
 (`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,

@@ -5,6 +5,7 @@ export const extensions: UiExtensions = {
   routes: [],
   publicRoutes: [],
   landingPage: null,
+  publicHeader: null,
   nav: [],
   accountSettings: [],
   organizationSettings: [],

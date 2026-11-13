@@ -19,6 +19,7 @@ const wrapper = vi.hoisted(() => ({
   routes: [],
   publicRoutes: [] as ExtensionRoute[],
   landingPage: null as ReactElement | null,
+  publicHeader: null as ReactElement | null,
   nav: [],
   accountSettings: [],
   organizationSettings: [],
@@ -110,6 +111,7 @@ beforeEach(() => {
     requestApiToken: async () => null,
   });
   wrapper.landingPage = <Landing />;
+  wrapper.publicHeader = null;
   wrapper.publicRoutes = [];
 });
 
@@ -185,6 +187,29 @@ test("the sign-in page has no navbar, while the docs pages keep it", async () =>
   expect(
     navbar.getByRole("button", { name: "Switch to dark mode" }),
   ).toBeVisible();
+});
+
+test("a wrapper's header replaces the public navbar on signed-out pages only", async () => {
+  wrapper.publicHeader = (
+    <header>
+      <a href="/#pricing">Pricing</a>
+    </header>
+  );
+  for (const path of ["/", "/docs/quickstart"]) {
+    serve(null);
+    openApp(path);
+    const navbar = within(await screen.findByRole("banner"));
+    expect(navbar.getByRole("link", { name: "Pricing" })).toBeVisible();
+    expect(screen.getAllByRole("banner")).toHaveLength(1);
+    expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Switch to/ })).toBeNull();
+    closePage();
+  }
+
+  serve(writer);
+  openApp("/docs/quickstart");
+  expect(await screen.findByRole("group", { name: "Evaluate" })).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Pricing" })).toBeNull();
 });
 
 test("the sign-in card's wordmark leads back to the wrapper's landing page", async () => {

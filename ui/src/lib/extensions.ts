@@ -16,6 +16,7 @@ export type UiExtensions = {
   routes: ExtensionRoute[];
   publicRoutes: ExtensionRoute[];
   landingPage: ReactElement | null;
+  publicHeader: ReactElement | null;
   nav: NavItem[];
   accountSettings: SettingsPage[];
   organizationSettings: SettingsPage[];
