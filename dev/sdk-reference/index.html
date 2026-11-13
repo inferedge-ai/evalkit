@@ -1441,7 +1441,8 @@ the server and score them.</p>
 Python <code>evaluators</code> you pass. Reads <code>evalkit.yaml</code> (cases, fixtures, credentials)
 from the current directory or a parent, and the login from <code>evalkit login</code>. The
 file is optional: without it, cases are read from <code>evalkit/cases/&lt;dataset&gt;/</code> and
-fixtures from <code>evalkit/fixtures/</code> under the current directory, with no credentials.</p>
+fixtures from <code>evalkit/fixtures/</code> under the current directory, with no credentials.
+Prints the scorecard, then <code>link: &lt;url&gt;</code>, the experiment's page in the web UI.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1709,7 +1710,8 @@ there instead.</p>
 
         <p>Re-score an experiment that used Python evaluators.</p>
 <p><code>evalkit evaluate</code> refuses such experiments, because the evaluators live in your
-script; call this from the script instead. Exported as <code>evaluate_experiment</code>.</p>
+script; call this from the script instead. Exported as <code>evaluate_experiment</code>.
+Ends with <code>link: &lt;url&gt;</code>, the experiment's page in the web UI.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -2551,6 +2553,16 @@ when no trajectory was read.</p>
           <div class="doc-md-description">
             <p>Why the trajectory is partial or unavailable, or a note on a
 valid one whose mapping read no LLM or tool steps; <code>None</code> otherwise.</p>
+          </div>
+        </li>
+        <li class="doc-section-item field-body">
+          <b><code><span title="evalkit.sdk.RunSummary.url">url</span></code></b>
+              (<code><span title="str">str</span> | None</code>)
+          –
+          <div class="doc-md-description">
+            <p>The run's page in the web UI: the experiment's page for its case, or after
+a dry run the agent run's page; <code>None</code> when a dry run pushed its trajectory
+or has no session id, because the server then holds no run.</p>
           </div>
         </li>
     </ul>

@@ -1252,7 +1252,6 @@
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">run_experiment</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="s2">"finance"</span><span class="p">,</span> <span class="n">agent</span><span class="o">=</span><span class="s2">"myagent-sdk"</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">,</span>
                             <span class="n">evaluators</span><span class="o">=</span><span class="p">[</span><span class="n">citation_check</span><span class="p">],</span> <span class="n">concurrency</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="the-task">The task<a class="headerlink" href="#the-task" title="Permanent link">&para;</a></h2>
 <p><code>run_experiment</code> calls the task once per case and repetition; each call is one run, with its own session id. A sync or async callable. Parameters bind <strong>by name</strong> from this set, so their order does not matter; any other required parameter is an error before the first call, and an optional one keeps its default.</p>
@@ -1342,7 +1341,6 @@
 
 <span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">run_experiment</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="s2">"finance"</span><span class="p">,</span> <span class="n">agent</span><span class="o">=</span><span class="s2">"myagent"</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">url</span><span class="p">)</span>
 </code></pre></div>
 <p>The session id follows one rule, here and with the collector:</p>
 <ul>
@@ -1355,6 +1353,8 @@
 <ul>
 <li><code>dataset="finance"</code> runs your own workspace's copy; if <code>finance</code> is a directory under <code>cases</code> it is synced first.</li>
 <li><code>dataset="finance@dev"</code> or <code>dataset="finance", workspace="dev"</code> runs the shared cases, every review state included.</li>
+<li><code>run_experiment</code> prints the scorecard, then <code>link: &lt;server&gt;/experiments/&lt;id&gt;</code>, the experiment's page in the web UI. The result carries the same URL as <code>result.url</code>. <code>evaluate_experiment</code> ends with the same <code>link:</code> line. A dry run creates no experiment, so it prints no experiment link and <code>result.url</code> is <code>None</code>.</li>
+<li>Each run in <code>result.runs</code> has a <code>url</code>: the experiment's page for its case. A dry run prints <code>link: &lt;url&gt;</code> under each case whose session the server collected, the agent run's page on the Runs page, and puts it in that run's <code>url</code>. A case whose task returned its trajectory, or that has no session id, has no page: no link, and <code>url</code> is <code>None</code>.</li>
 <li><code>case_ids=[...]</code>, <code>tags=[...]</code>, <code>repetitions</code>, <code>model</code> and <code>resume=&lt;experiment id&gt;</code> mean what the same options mean on <code>evalkit run</code>.</li>
 <li><code>dry_run=True</code> runs one case (<code>dry_run=N</code> runs N) without creating an experiment and prints the answer and what the server made of the session. If the server cannot read a session, that case prints a <code>trajectory read failed</code> line and the dry run goes on. Use it while wiring up tracing; the session shows on the Runs page with its case question and case id.</li>
 </ul>
