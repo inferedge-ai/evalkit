@@ -341,6 +341,11 @@ export interface AgentInfo {
 }
 
 // ── Traces (mirrors db/mappings.py and core/traces/sessions.py) ──────────
+export interface MappingPreset {
+  name: string;
+  document: Record<string, unknown>;
+}
+
 export interface MappingRecord {
   id: number;
   version: number;

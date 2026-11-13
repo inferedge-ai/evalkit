@@ -87,6 +87,7 @@ from evalkit.db.trace_sources import (
     UnknownTraceSource,
 )
 from evalkit.db.users import (
+    AdminFromIdentityProvider,
     IdentityConflict,
     InvalidName,
     InvalidPassword,
@@ -336,6 +337,7 @@ def create_app(
     @app.exception_handler(InvalidName)
     @app.exception_handler(InvalidPassword)
     @app.exception_handler(MachineUser)
+    @app.exception_handler(AdminFromIdentityProvider)
     @app.exception_handler(InvalidEvaluator)
     @app.exception_handler(InvalidAgent)
     @app.exception_handler(MissingCredential)

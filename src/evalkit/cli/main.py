@@ -1225,14 +1225,22 @@ def users_set_password(
 
 @users_app.command("promote")
 def users_promote(username: str):
-    """Make a user an admin (admin only). Example: evalkit users promote alice"""
+    """Make a user an admin (admin only). Example: evalkit users promote alice
+
+    With auth.oidc.admin_claim set, the server refuses this for people bound to the
+    identity provider: its claim decides who is an admin.
+    """
     _client().post(f"/api/users/{username}/promote")
     typer.echo(f"{username} is an admin")
 
 
 @users_app.command("demote")
 def users_demote(username: str):
-    """Remove a user's admin flag; the last admin stays. Example: evalkit users demote alice"""
+    """Remove a user's admin flag; the last admin stays. Example: evalkit users demote alice
+
+    With auth.oidc.admin_claim set, a person who signs in through the identity provider
+    is an admin again at their next sign-in if the claim still names them.
+    """
     _client().post(f"/api/users/{username}/demote")
     typer.echo(f"{username} is no longer an admin")
 
@@ -1259,6 +1267,7 @@ def users_list():
 
 DOCS_DIR = "evalkit-docs"
 INSTALL_LEAVES_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.pyc")
+DOCS_LEAVE_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.pyc", "images")
 
 
 @skills_app.command("install")
@@ -1296,7 +1305,8 @@ def skills_install(
         destination = target / name
         if destination.exists():
             shutil.rmtree(destination)
-        shutil.copytree(source, destination, ignore=INSTALL_LEAVES_OUT)
+        ignore = DOCS_LEAVE_OUT if name == DOCS_DIR else INSTALL_LEAVES_OUT
+        shutil.copytree(source, destination, ignore=ignore)
         typer.echo(f"installed {name} → {destination}")
     manifest.write_text("".join(f"{name}\n" for name in sources))
     record_skill_target(target)

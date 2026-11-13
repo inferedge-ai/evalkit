@@ -12,13 +12,89 @@
 - New skill `getting-started`: walks a coding agent through the quickstart in
   the developer's agent project. `evalkit skills install` copies it with the
   others.
+- The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
+  `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a
+  table) and images in `docs/user/images/`, in the web UI's docs page and on
+  the docs site. In the web UI's docs page, headings get the same ids as on
+  the docs site, and the page scrolls to a `#fragment` target (heading or
+  row) on load and when the hash changes. The web UI bundles the images;
+  `evalkit skills install` and the wheel's `evalkit/bundled/docs/` leave
+  `images/` out. Concepts has rows for App run, Trace
+  source, Preset and Hosted evalkit; see CONTRIBUTING.md for the markers.
+- The docs site uses the web UI's design tokens: the build generates
+  `stylesheets/tokens.css` from `ui/src/styles/tokens/`, and the site's
+  colours (light and dark), Roboto and JetBrains Mono fonts, radii, header,
+  sidebar, search, tables, code blocks, content tabs and version
+  selector follow them. The web UI's docs page sets its headings, images and
+  tables from the same tokens, and its mobile page menu is the shared
+  `Button`.
+- New optional setting `auth.oidc.cli_client_id`: an OAuth client of
+  `evalkit login`'s own, for identity providers that skip the approval step
+  for evalkit's web client. When it's set, `evalkit login` uses it for the
+  browser sign-in, the device flow, the code exchange and later refreshes, and
+  the server accepts an ID token issued to either client. Unset, it defaults
+  to `client_id` and nothing changes. `GET /api/auth/providers` returns it in
+  `oidc.cli_client_id`. An older CLI still signs in with the web client, so
+  people need `evalkit update` before an operator removes the web client's
+  loopback redirect. `evalkit login` against a server it can't talk to now
+  says to run `evalkit update --server <url>`.
+- New server setting `auth.oidc.ui_resources`: other APIs the web UI signs
+  in for, so pages a package extending evalkit adds can call them as the
+  signed-in person. The web UI's sign-in names `authorize_params.resource`
+  first and these after, as repeated `resource` parameters. Its code exchange
+  and its own refreshes then name `authorize_params.resource`, so evalkit's
+  calls keep a token for evalkit's API. The setting needs
+  `authorize_params.resource`; the server refuses to start without it.
+  `GET /api/auth/providers` returns it in `oidc.ui_resources`. `evalkit login`
+  doesn't send it. A page gets a token for one of these APIs with
+  `getApiToken(resource)` from `@/auth/apiToken`.
+- On every server with single sign-on, the web UI now gives up on the
+  identity provider after 10 seconds. This covers discovery, the code
+  exchange at sign-in and refreshes. Before, these had no time limit: 10
+  seconds is oidc-client-ts's own default for refreshes, which its silent
+  refresh skipped. An identity provider slower than that now fails sign-in or
+  refresh instead of hanging. oidc-client-ts is pinned to exactly 3.5.0.
+- New `GET /api/mapping-presets` returns the span mapping presets the package
+  ships, as `[{"name", "document"}]`, to any signed-in user. In the web UI, the
+  new-agent and edit-agent forms have a preset picker above "Span mapping": a
+  pick fills the field with the preset's JSON, which stays editable. When the
+  pick replaces text you typed or pasted, the form says so and offers Undo,
+  which brings that text back even after several picks.
+- A package extending evalkit's UI can add pages signed-out visitors open and
+  a page for `/`. `UiExtensions` has two new required fields, so a wrapper's
+  `ui/src/extensions/index.tsx` must set both:
+  - `publicRoutes` render under the public navbar for a signed-out visitor
+    and inside the app shell for a signed-in person, as `/docs` does.
+  - `landingPage` (or `null`) is what a signed-out visitor sees at `/`;
+    signing out then lands on `/` instead of `/login`. A signed-out deep link
+    still goes straight to sign-in.
+  - The new `SignInLink` (`@/auth/SignInLink`) starts sign-in at once, even
+    right after a sign-out; the public navbar's Sign in button uses it, so
+    it no longer stops at "You're signed out · Sign in again".
+  - `/login?prompt=<value>` passes `prompt` to the identity provider's
+    authorize request, e.g. `prompt=create` for its sign-up form.
+  - While evalkit hands sign-in to the identity provider, the page says
+    "Signing you in…" instead of "Taking you to <provider>…".
 - With `auth.password_login: none`, evalkit makes no password accounts:
   `POST /api/users` with a password (`evalkit users add <name>`) and
   `POST /api/users/{name}/password` (`evalkit users set-password`) answer 400.
   Before, they made accounts that could never sign in. Machine users
-  (`evalkit users add <name> --subject <sub>`) are added as before. The Users
-  page under Settings › Organization says how people join in place of its
-  username and password form.
+  (`evalkit users add <name> --subject <sub>`) are added as before.
+- With `auth.password_login: none`, the web UI has no Users page: Settings ›
+  Organization and ⌘K search no longer list it, and `/settings/users` shows
+  the not-found page. Every person comes from the identity provider, so the
+  page's actions did not stick. `evalkit users list`, `evalkit users archive`
+  and `evalkit users add <name> --subject <sub>` work as before.
+- With `auth.oidc.admin_claim` set, `POST /api/users/{name}/promote`
+  (`evalkit users promote`, **make admin** on the Users page) answers 400 for a
+  person bound to the identity provider (a user with a subject), whether or not
+  they also have a password: each sign-in through the identity provider sets
+  their admin flag from the claim, so a promotion by hand was lost at their
+  next one. `POST /api/users/{name}/demote` (`evalkit users demote`) still
+  works for them: evalkit reads the claim at sign-in, not when a token renews,
+  so demote is how an admin removes admin before that person next signs in,
+  and it lasts while the identity provider agrees. Password accounts with no
+  subject and machine users are unchanged.
 - The `otel` extra is gone: `opentelemetry-sdk` and
   `opentelemetry-exporter-otlp-proto-http` are now base dependencies of
   `evalkit-py`, so `evalkit.sdk.tracing.register` and SDK runs with traces work
@@ -88,6 +164,21 @@
     would hide the installed `evalkit` package from `import evalkit`. The
     error says to delete the file or set `cases:` and `fixtures:` to another
     folder. Commands that sync nothing from disk are not affected.
+- The web UI's sign-in pages (`/login` and `/login/callback`) no longer show
+  the public navbar, so they have no theme switch. They use the theme last
+  chosen in that browser (the system's on a browser's first visit); to change
+  it, use the switch on any other page. The card shows the Evalkit wordmark
+  centred at its top; when a package extending evalkit sets a landing page,
+  the wordmark links to `/`, so a visitor can go back to it. `/login` has a
+  footer: **Docs** opens the in-app docs
+  at `/docs`, **GitHub** opens the repository in a new tab, and the version
+  the server runs (`evalkit-py v0.5.0`, from `GET /api/cli`) opens that
+  version's GitHub release in a new tab. A development build (`0.5.0.dev12`)
+  shows its version without a link, and when `GET /api/cli` fails the footer
+  leaves the version out. The footer reads the version without signing in, so
+  it shows even while the identity provider is unreachable. Every other
+  signed-out page, such as the docs and a wrapper's landing page and public
+  routes, keeps the navbar.
 
 ## 0.5.0
 

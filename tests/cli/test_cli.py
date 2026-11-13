@@ -1745,6 +1745,7 @@ def idp_providers(idp: FakeIdp, scopes: list[str]) -> dict:
             **idp.discovery(),
             "name": "Fake",
             "client_id": idp.client_id,
+            "cli_client_id": idp.client_id,
             "audience": idp.audience,
             "scopes": scopes,
             "authorize_params": {},
