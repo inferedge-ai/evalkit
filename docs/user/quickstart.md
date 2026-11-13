@@ -247,12 +247,6 @@ You see which cases it fixed, and how response time, cost and tokens moved.
 - Ran an experiment and got a scorecard.
 - Found what went wrong, fixed it, and measured the gain.
 
-Or, in the words of DHH:
-
-![Look at all the things I'm not doing](images/look-at-all-the-things-im-not-doing.png)
-
-[Source](https://youtu.be/vDjW_dRyKXY)
-
 ## Where next
 
 - [Beyond the quickstart](beyond-quickstart.md): write a case by hand, attach files, drive your agent through the Harness API, share cases with your team.

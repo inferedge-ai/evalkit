@@ -111,13 +111,3 @@ test("a tab block renders as tabs and switching shows the other panel", async ()
   expect(screen.getByText("Open the page.")).toBeVisible();
   expect(screen.queryByText("Run the command.")).not.toBeInTheDocument();
 });
-
-test("the quickstart's image points at the bundled file, not at the docs-relative path", async () => {
-  openDocs("/docs/quickstart");
-  const image = await screen.findByAltText(
-    "Look at all the things I'm not doing",
-  );
-  const src = image.getAttribute("src") ?? "";
-  expect(src).toContain("look-at-all-the-things-im-not-doing");
-  expect(src.startsWith("images/")).toBe(false);
-});
