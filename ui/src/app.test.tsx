@@ -120,17 +120,14 @@ afterEach(() => {
   localStorage.clear();
 });
 
-test("a signed-out visitor at / sees the wrapper's landing page under the public navbar", async () => {
+test("a signed-out visitor at / sees only the wrapper's landing page, with no evalkit bar", async () => {
   serve(null);
   openApp("/");
 
   expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
-  const navbar = screen.getByRole("banner");
-  expect(within(navbar).getByRole("link", { name: "Docs" })).toBeVisible();
-  expect(within(navbar).getByRole("link", { name: "Evalkit" })).toHaveAttribute(
-    "href",
-    "/",
-  );
+  expect(screen.queryByRole("link", { name: "evalkit" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Docs" })).toBeNull();
+  expect(screen.queryByRole("button", { name: /^Switch to/ })).toBeNull();
   expect(where()).toBe("/");
   expect(redirects).toEqual([]);
 });
@@ -167,35 +164,52 @@ test("a signed-in person at / gets the workspace list, not the landing page", as
   expect(screen.queryByText("Evals for your agents")).toBeNull();
 });
 
-test("the sign-in page has no navbar, while the docs pages keep it", async () => {
-  serve(null);
-  openApp("/login");
-  expect(
-    await screen.findByRole("heading", { name: "Evalkit" }),
-  ).toBeInTheDocument();
-  expect(screen.queryByRole("banner")).toBeNull();
-  expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
-  expect(screen.queryByRole("button", { name: /^Switch to/ })).toBeNull();
-  closePage();
-
+test("signed out, the docs page leads home, switches the theme and signs in from its own header", async () => {
   serve(null);
   openApp("/docs/quickstart");
-  const navbar = within(await screen.findByRole("banner"));
-  expect(navbar.getByRole("link", { name: "Sign in" })).toBeVisible();
-  expect(
-    navbar.getByRole("button", { name: "Switch to dark mode" }),
-  ).toBeVisible();
+  const user = userEvent.setup();
+
+  expect(await screen.findByRole("link", { name: "evalkit" })).toHaveAttribute(
+    "href",
+    "/",
+  );
+  expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+    "href",
+    "/login?next=%2Fdocs%2Fquickstart",
+  );
+  await user.click(screen.getByRole("button", { name: "Switch to dark mode" }));
+  expect(document.documentElement).toHaveClass("dark");
+  expect(screen.queryByRole("group", { name: "Evaluate" })).toBeNull();
+});
+
+test("without a landing page, the signed-out docs page's logo leads to the docs", async () => {
+  wrapper.landingPage = null;
+  serve(null);
+  openApp("/docs/quickstart");
+
+  expect(await screen.findByRole("link", { name: "evalkit" })).toHaveAttribute(
+    "href",
+    "/docs",
+  );
+});
+
+test("signed in, the docs page has the app shell and no docs header", async () => {
+  serve(writer);
+  openApp("/docs/quickstart");
+
+  expect(await screen.findByRole("group", { name: "Evaluate" })).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
 });
 
 test("the sign-in card's wordmark leads back to the wrapper's landing page", async () => {
   await logout();
   serve(null);
   openApp("/login");
-  const heading = await screen.findByRole("heading", { name: "Evalkit" });
+  const heading = await screen.findByRole("heading", { name: "evalkit" });
 
   await userEvent
     .setup()
-    .click(within(heading).getByRole("link", { name: "Evalkit" }));
+    .click(within(heading).getByRole("link", { name: "evalkit" }));
 
   expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
   expect(where()).toBe("/");
@@ -205,19 +219,18 @@ test("without a landing page, the sign-in card's wordmark is not a link", async 
   wrapper.landingPage = null;
   serve(null);
   openApp("/login");
-  const heading = await screen.findByRole("heading", { name: "Evalkit" });
+  const heading = await screen.findByRole("heading", { name: "evalkit" });
   expect(within(heading).queryByRole("link")).toBeNull();
 });
 
-test("a public page opens under the public navbar when signed out and in the app shell when signed in", async () => {
+test("a public page opens on its own when signed out and in the app shell when signed in", async () => {
   wrapper.publicRoutes = [{ path: "/terms", element: <h1>Terms of use</h1> }];
   serve(null);
   openApp("/terms");
 
   expect(await screen.findByText("Terms of use")).toBeInTheDocument();
-  expect(
-    within(screen.getByRole("banner")).getByRole("link", { name: "Sign in" }),
-  ).toBeVisible();
+  expect(screen.queryByRole("link", { name: "Sign in" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "evalkit" })).toBeNull();
   expect(redirects).toEqual([]);
   closePage();
 

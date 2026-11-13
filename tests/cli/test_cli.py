@@ -313,13 +313,15 @@ def test_run_prints_summary(env):
     )
     assert result.exit_code == 0, result.output
     exp_id = _exp_id(result.output)
-    assert f"experiment {exp_id}: {base_url}/experiments/{exp_id}" in result.output
+    assert f"experiment {exp_id}\nlink: {base_url}/experiments/{exp_id}\n" in result.output
     assert "completed (2/2 ran, 2/2 evaluated)" in result.output
     assert "buckets:" in result.output
     assert "answer_rubric_score" in result.output
+    assert result.output.rstrip().endswith(f"link: {base_url}/experiments/{exp_id}")
 
 
 def test_status_and_summary(env):
+    base_url, _ = env
     exp_id = _run_experiment()
     result = runner.invoke(cli_app, ["status", str(exp_id)])
     assert result.exit_code == 0, result.output
@@ -327,9 +329,11 @@ def test_status_and_summary(env):
     assert f"experiment {exp_id}  #{exp.number} of finance@canonical" in result.output
     assert "status=completed 2/2 ran, 2/2 evaluated" in result.output
     assert "held by" not in result.output
+    assert f"  link: {base_url}/experiments/{exp_id}" in result.output
     result = runner.invoke(cli_app, ["summary", str(exp_id)])
     assert result.exit_code == 0
     assert "buckets:" in result.output
+    assert result.output.rstrip().endswith(f"link: {base_url}/experiments/{exp_id}")
 
 
 def test_status_shows_the_lease_holder_of_an_active_experiment(monkeypatch):
@@ -356,11 +360,17 @@ def test_status_shows_the_lease_holder_of_an_active_experiment(monkeypatch):
             return StubResponse()
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    monkeypatch.setattr(
+        main_module,
+        "_active_connection",
+        lambda: connection.Connection("https://evalkit.example/", None, None),
+    )
     result = runner.invoke(cli_app, ["status", "7"])
     assert result.exit_code == 0, result.output
     assert "experiment 7  #3 of finance@dev  agent=fake@dev" in result.output
     assert "status=running 1/4 ran, 0/4 evaluated" in result.output
     assert re.search(r"held by cli:ravi@laptop:42 \(lease expires in 4\ds\)", result.output)
+    assert result.output.rstrip().endswith("  link: https://evalkit.example/experiments/7")
 
 
 def test_summary_lists_errored_cases(capsys):
@@ -396,6 +406,7 @@ def test_runs_pull_experiment_writes_every_run_flat(env, tmp_path, monkeypatch):
     )
     assert result.exit_code == 0, result.output
     assert f"pulled 2 run(s) to {out}" in result.output
+    assert result.output.rstrip().endswith(f"link: {env[0]}/experiments/{exp_id}")
     index = json.loads((out / "index.json").read_text())
     assert index["agent"] == "fake@canonical" and index["total_matching"] == 2
     for row in index["runs"]:
@@ -423,7 +434,7 @@ def test_runs_pull_pages_merge_into_one_index(env, tmp_path):
     assert len(list((out / "runs").iterdir())) == 2
 
 
-def test_runs_list_json_rows(env):
+def test_runs_list_json_rows(env, tmp_path):
     _run_experiment()
     result = runner.invoke(
         cli_app, ["runs", "list", "fake@canonical", "--source", "eval", "--limit", "2", "--json"]
@@ -431,6 +442,14 @@ def test_runs_list_json_rows(env):
     assert result.exit_code == 0, result.output
     rows = [json.loads(line) for line in result.stdout.splitlines()]
     assert len(rows) == 2 and all(row["source"] == "eval" for row in rows)
+    base_url, _ = env
+    assert rows[0]["url"] == f"{base_url}/runs/fake%40canonical/{rows[0]['run_id']}"
+    one = rows[0]["run_id"]
+    pulled = runner.invoke(
+        cli_app, ["runs", "pull", "fake@canonical", "--run-id", one, "--out", str(tmp_path / "p")]
+    )
+    assert pulled.exit_code == 0, pulled.output
+    assert pulled.output.rstrip().endswith(f"link: {rows[0]['url']}")
     assert "2 of " in result.stderr
 
 
@@ -492,6 +511,13 @@ def test_datasets_list(env):
     result = runner.invoke(cli_app, ["datasets", "list"])
     assert result.exit_code == 0
     assert "finance" in result.output
+    assert result.output.rstrip().endswith(
+        "evalkit datasets show <dataset> shows one dataset and its link"
+    )
+    cases = runner.invoke(cli_app, ["datasets", "list", "finance@canonical"])
+    assert cases.output.rstrip().endswith(
+        "evalkit review show <dataset> <case-id> shows one case and its link"
+    )
 
 
 def test_datasets_list_by_workspace(env):
@@ -514,6 +540,8 @@ def test_datasets_show(env):
     assert "dataset: finance@canonical" in shown.output
     assert re.search(r"cases: \d+", shown.output)
     assert "review: " in shown.output and "tags: " in shown.output
+    base_url, _ = env
+    assert shown.output.rstrip().endswith(f"link: {base_url}/datasets/finance%40canonical")
     assert runner.invoke(cli_app, ["datasets", "show", "nope@canonical"]).exit_code == 1
 
 
@@ -579,6 +607,7 @@ def test_dir_sync_uploads_yaml_and_registry_only(tmp_path, monkeypatch):
         cli_app, ["sync", str(case_dir), "--workspace", "canonical", "--version", "v9"]
     )
     assert result.exit_code == 0, result.output
+    assert re.search(r"^link: http\S+/datasets/cases%40canonical$", result.output, re.M)
     assert sent["path"] == "/api/sync"
     assert sent["names"] == ["fixtures.yaml", "one.yaml"]
     assert sent["params"] == {
@@ -814,10 +843,13 @@ def test_review_request_show_and_approve(env):
     shown = runner.invoke(cli_app, ["review", "show", "finance@canonical"])
     assert shown.exit_code == 0, shown.output
     assert re.search(r"case-2\s+review_requested\s+admin", shown.output)
+    case_hint = "evalkit review show <dataset> <case-id> shows one case and its link"
+    assert shown.output.rstrip().endswith(case_hint)
 
     queue = runner.invoke(cli_app, ["review", "queue"])
     assert queue.exit_code == 0, queue.output
     assert "case-2" in queue.output
+    assert queue.output.rstrip().endswith(case_hint)
     in_dataset = runner.invoke(cli_app, ["review", "queue", "finance@canonical"])
     assert in_dataset.exit_code == 0 and "case-2" in in_dataset.output
     assert runner.invoke(cli_app, ["review", "queue", "other@canonical"]).exit_code == 1
@@ -839,6 +871,9 @@ def test_review_request_show_and_approve(env):
     assert approved.exit_code == 0, approved.output
     assert "approving 1 case(s) in finance@canonical" in approved.output
     assert "case-2: approved" in approved.output
+    case_link = f"link: {env[0]}/datasets/finance%40canonical/cases/case-2"
+    assert approved.output.rstrip().endswith(case_link)
+    assert commented.output.rstrip().endswith(case_link)
     again = runner.invoke(cli_app, ["review", "approve", "finance@canonical", "--all-waiting"])
     assert "nothing waiting on you" in again.output
 
@@ -849,6 +884,7 @@ def test_review_request_show_and_approve(env):
     resolved = runner.invoke(cli_app, ["review", "resolve", comment_id])
     assert resolved.exit_code == 0, resolved.output
     assert f"comment {comment_id} resolved" in resolved.output
+    assert resolved.output.rstrip().endswith(case_link)
 
     detail = runner.invoke(cli_app, ["review", "show", "finance@canonical", "case-2"])
     assert detail.exit_code == 0, detail.output
@@ -856,6 +892,7 @@ def test_review_request_show_and_approve(env):
     assert "id: case-2" in detail.output
     assert "looks fine" in detail.output and "[resolved]" in detail.output
     assert "review_requested" in detail.output and "approved" in detail.output
+    assert detail.output.rstrip().endswith(case_link)
 
     empty = runner.invoke(cli_app, ["review", "queue"])
     assert "nothing waiting" in empty.output
@@ -1364,9 +1401,13 @@ def test_agents_commands(env, tmp_path):
     )
     assert result.exit_code == 0, result.output
     assert "cliagent@admin" in result.output and "driven by cli" in result.output
+    agent_link = f"link: {env[0]}/agents/cliagent%40admin"
+    assert result.output.rstrip().endswith(agent_link)
     result = runner.invoke(cli_app, ["agents", "edit", "cliagent", "--trajectory-wait", "9"])
     assert result.exit_code == 0, result.output
+    assert result.output.rstrip().endswith(agent_link)
     shown = runner.invoke(cli_app, ["agents", "show", "cliagent@admin"]).output
+    assert shown.rstrip().endswith(agent_link)
     assert "max_concurrent_runs" in shown and " 2" in shown and "trajectory_wait_seconds" in shown
     refused = runner.invoke(cli_app, ["agents", "edit", "cliagent", "--provides", "x=true"])
     assert refused.exit_code == 1 and "provides" in refused.output
@@ -1377,6 +1418,10 @@ def test_agents_commands(env, tmp_path):
         ["agents", "create", "clitraced", "--trajectory-source", "otel", "--mapping", str(mapping)],
     )
     assert result.exit_code == 0, result.output
+    assert result.output.rstrip().splitlines()[-2:] == [
+        "  mapping            v1, active (from m.json)",
+        f"link: {env[0]}/agents/clitraced%40admin",
+    ]
     missing = runner.invoke(cli_app, ["agents", "create", "nomap", "--trajectory-source", "otel"])
     assert missing.exit_code == 1 and "mapping" in missing.output
     result = runner.invoke(cli_app, ["agents", "edit", "clitraced", "--provides", "x=true"])
@@ -1384,7 +1429,10 @@ def test_agents_commands(env, tmp_path):
     assert "{'x': True}" in runner.invoke(cli_app, ["agents", "show", "clitraced"]).output
     listed = runner.invoke(cli_app, ["agents", "list", "--workspace", "admin"]).output
     assert "cliagent@admin" in listed and "clitraced@admin" in listed
-    assert runner.invoke(cli_app, ["agents", "archive", "cliagent"]).exit_code == 0
+    assert listed.rstrip().endswith("evalkit agents show <agent> shows one agent and its link")
+    archived = runner.invoke(cli_app, ["agents", "archive", "cliagent"])
+    assert archived.exit_code == 0
+    assert archived.output.rstrip().endswith(agent_link)
     assert "cliagent@admin" not in runner.invoke(cli_app, ["agents", "list"]).output
     bad = runner.invoke(cli_app, ["agents", "edit", "clitraced", "--provides", "x"])
     assert bad.exit_code == 1 and "key=true" in bad.output
@@ -1682,10 +1730,16 @@ def test_summary_with_baseline_reads_the_compare_endpoint(monkeypatch):
             return StubResponse()
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    monkeypatch.setattr(
+        main_module,
+        "_active_connection",
+        lambda: connection.Connection("https://evalkit.example/", None, None),
+    )
     result = runner.invoke(cli_app, ["summary", "4", "--baseline", "3"])
     assert result.exit_code == 0, result.output
     assert "vs experiment 3  #3 of finance@dev" in result.output
     assert re.search(r"c1\s+0\.00 → 1\.00  Δ\+1\.00$", result.output, re.M)
+    assert result.output.rstrip().endswith("link: https://evalkit.example/experiments/4")
 
 
 def test_offline_lint_refuses_a_file_that_is_not_a_case_file(tmp_path):
@@ -1942,6 +1996,9 @@ def test_experiments_list_filters_by_dataset(env):
         header, first = listed.output.splitlines()[:2]
         assert header.split()[:2] == ["id", "dataset"]
         assert first.split()[0] == str(rows[0]["id"])
+        assert listed.output.rstrip().endswith(
+            "evalkit status <id> shows one experiment and its link"
+        )
     else:
         assert "no experiments" in listed.output
     missing = runner.invoke(cli_app, ["experiments", "list", "--dataset", "nope@canonical"])

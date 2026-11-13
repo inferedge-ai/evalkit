@@ -332,6 +332,24 @@ def test_range_import_starts_follows_and_checks_the_sample_session(srv):
     assert lines[2] == "12   done     2026-10-04 12:00  100%  40 traces  800 spans"
     assert lines[3] == "check of session s9:"
     assert lines[4].startswith("  ✓ session")
+    assert lines[-1] == "link: http://srv/runs/sdk%40canonical/s9"
+
+
+@pytest.mark.httpx2(assert_all_called=False)
+def test_session_import_and_check_end_with_the_run_link(srv):
+    session = "http://srv/api/agents/sdk@canonical/sessions/s9"
+    srv.post("http://srv/api/agents/sdk@canonical/sessions/import").mock(
+        return_value=MockResponse(200, json={"imported": 3})
+    )
+    srv.get("http://srv/api/meta").mock(return_value=MockResponse(200, json={}))
+    srv.get(f"{session}/trajectory").mock(return_value=MockResponse(200, json=SESSION))
+    imported = CliRunner().invoke(cli_app, ["traces", "import", "sdk@canonical", "s9"])
+    assert imported.exit_code == 0, imported.output
+    assert imported.output.splitlines()[0] == "imported 3 spans"
+    assert imported.output.splitlines()[-1] == "link: http://srv/runs/sdk%40canonical/s9"
+    checked = CliRunner().invoke(cli_app, ["traces", "check", "sdk@canonical", "s9"])
+    assert checked.exit_code == 0, checked.output
+    assert checked.output.splitlines()[-1] == "link: http://srv/runs/sdk%40canonical/s9"
 
 
 @pytest.mark.httpx2(assert_all_called=False)

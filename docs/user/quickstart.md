@@ -201,8 +201,7 @@ def task(input: dict) -> str:
 
 
 if __name__ == "__main__":
-    result = run_experiment(dataset="mined", agent="myagent", task=task)
-    print(result.url)
+    run_experiment(dataset="mined", agent="myagent", task=task)
 ```
 
 Is your agent async? Write `async def task` and `await` it. Do not wrap it in `asyncio.run`. See [The task](sdk-runs.md#the-task).
@@ -213,7 +212,7 @@ Run it from your project's root:
 uv run python evalkit/run.py
 ```
 
-evalkit picks up each run's [trajectory](concepts.md#trajectory), scores it, and prints the [scorecard](concepts.md#scorecard). The script then prints the link to the [experiment](concepts.md#experiment).
+evalkit picks up each run's [trajectory](concepts.md#trajectory), scores it, and prints the [scorecard](concepts.md#scorecard) and a link to the [experiment](concepts.md#experiment).
 
 Some cases fail. Good: they came from runs that went wrong.
 

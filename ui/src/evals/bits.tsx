@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Check,
   ChevronDown,
@@ -12,18 +12,12 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import rehypeKatex from "rehype-katex";
-import "katex/dist/katex.min.css";
 import {
   elapsedMs,
   fmtScore,
   fmtWhen,
   formatElapsed,
   formatUsd,
-  normalizeMathDelimiters,
   severity,
   verdictKind,
   verdictWord,
@@ -59,20 +53,6 @@ import { httpUrl } from "../lib/safeUrl";
 import { Button } from "@/components/ui/button";
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-
-export function Markdown({ text }: { text: string }) {
-  const normalized = useMemo(() => normalizeMathDelimiters(text), [text]);
-  return (
-    <div className="md-body text-meta">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
-      >
-        {normalized}
-      </ReactMarkdown>
-    </div>
-  );
-}
 
 export function PreBlock({
   text,

@@ -146,7 +146,7 @@ test("⌘K finds an extension page and opens it", async () => {
   expect(screen.queryByRole("dialog", { name: "Search" })).toBeNull();
 });
 
-test("a signed-out page shows the public top bar, not the sidebar", () => {
+test("a signed-out docs page shows its own header, not the sidebar", () => {
   renderApp(null, "/docs/install");
 
   expect(
@@ -157,7 +157,6 @@ test("a signed-out page shows the public top bar, not the sidebar", () => {
     "href",
     "/login?next=%2Fdocs%2Finstall",
   );
-  expect(screen.getByRole("link", { name: "Docs" })).toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Switch to dark mode" }),
   ).toBeInTheDocument();
@@ -289,7 +288,7 @@ test("on a phone the navigation's wordmark goes home and closes it", async () =>
   expect(
     within(sheet).getByRole("button", { name: "Close navigation" }),
   ).toBeInTheDocument();
-  await user.click(within(sheet).getByRole("link", { name: "Evalkit" }));
+  await user.click(within(sheet).getByRole("link", { name: "evalkit" }));
 
   await waitFor(() => expect(sheet).not.toBeInTheDocument());
 });

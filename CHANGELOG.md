@@ -13,6 +13,29 @@
 - New skill `getting-started`: walks a coding agent through the quickstart in
   the developer's agent project. `evalkit skills install` copies it with the
   others.
+- **CLI**, **SDK**: `run_experiment`, `evaluate_experiment`, `evalkit run`, `evalkit evaluate` and `evalkit summary` end with `link: <server>/experiments/<id>`, the experiment's page in the web UI. `evalkit status <id>` prints the same link under the status line. A server run prints `experiment <id>` and then the `link:` line when it starts, where it used to print `experiment <id>: <url>`. `evalkit experiments list` ends with `evalkit status <id> shows one experiment and its link`. A dry run prints no experiment link.
+- **CLI**, **SDK**: commands that show, create or change one item with a page in the web UI end with `link: <url>` too. Datasets (`/datasets/<ref>`): `evalkit sync`, `evalkit run` when it syncs, `evalkit datasets create`, `evalkit datasets show`. Cases (`/datasets/<ref>/cases/<id>`): `evalkit review show <dataset> <case-id>`, `evalkit review approve` (one link under each case), `evalkit review request-changes`, `evalkit review comment`, `evalkit review resolve`. Agents (`/agents/<ref>`): `evalkit agents create`, `edit`, `show`, `archive`, `restore`. Agent runs (`/runs/<agent>/<run id>`): `evalkit traces check`, `evalkit traces import` (the checked session), `evalkit runs pull --run-id`; `evalkit runs list --json` adds a `url` field to each run. A personal agent with a harness gets neither, because the server cannot reach its runs. `evalkit runs pull --experiment <id>` ends with the experiment's link. `evalkit sync` prints the dataset link last, after its review lines. `evalkit datasets list` and `evalkit agents list` end with a line naming the show command, like `evalkit experiments list`; `evalkit datasets list <dataset>`, `evalkit review show <dataset>` and `evalkit review queue` end with `evalkit review show <dataset> <case-id> shows one case and its link`. In the SDK, `RunSummary` has a new `url` field (the experiment's page for its case, or after a dry run the agent run's page), and a dry run prints `  link: <url>` for each case whose session the server collected (not for a pushed trajectory, which a dry run does not store). The URL builders live in `evalkit.client.links`. Remote evaluators, workspaces, trace sources and LLM providers have no page of their own and print no link.
+- **Web UI**: the docs pages, a case's question, a run's answer, agent steps
+  in a trajectory and Markdown files in a run's workspace share one Markdown
+  look, at 14px. Code blocks have a header with their language and a copy
+  button, and syntax highlighting everywhere, not only in the docs; a block
+  over 20,000 characters shows as plain text. Tables scroll sideways in a
+  bordered frame. Links in answers, trajectories and workspace files open in
+  a new tab; footnote links stay on the page. Maths renders where it did
+  before: questions, answers and agent steps. User steps in a trajectory are
+  14px to match.
+- **Web UI**: signed-out pages no longer have evalkit's bar across the top.
+  The docs page carries its own header instead: the evalkit logo, the theme
+  switch and Sign in, above the docs menu. The sign-in page is unchanged.
+- **Web UI**, **Docs**: evalkit has a new logo, a `/e` mark beside
+  "evalkit" in lowercase mono. It replaces the "Evalkit" wordmark in the app
+  sidebar, the sign-in card and the docs page, the favicon (now also a
+  `favicon.ico`), the docs site's header and the README.
+- **Extending evalkit** (before you upgrade): a `landingPage` and
+  `publicRoutes` render with no evalkit bar for a signed-out visitor, inside
+  a plain scroll container that fills the window, so a package must draw its
+  own header and way home on them. `useOptionalMe`, `useTheme`, `Lockup`
+  (the logo) and `/favicon.svg` are now stable names.
 - **CLI**, **SDK**: the `env:` references in `evalkit.yaml` and `evalkit run --judge-api-key-env` read only the environment. The CLI and SDK no longer read the `.env` beside `evalkit.yaml` (or in the current directory). Export the variables in your shell instead. `evalkit serve` still reads the `.env` beside `config.yaml`.
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a

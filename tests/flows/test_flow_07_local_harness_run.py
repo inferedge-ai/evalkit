@@ -53,6 +53,7 @@ def test_flow_07_local_run_syncs_drives_scores_and_lands_in_my_workspace(
             assert f"run {case_id} #{rep} completed" in result.output
             assert f"scored {case_id} #{rep}" in result.output
     assert "buckets:" in result.output
+    assert lines[-1].startswith("link: http") and lines[-1].endswith(f"/experiments/{exp_id}")
 
     dataset = api_get("/api/datasets/flow07@admin")
     assert (dataset["workspace"], dataset["kind"]) == ("admin", "suite")
@@ -152,7 +153,9 @@ def test_flow_07_evaluate_is_safe_to_repeat_and_server_resume_points_at_the_cli(
     exp_id = _exp_id(run_cli("run", "flow07e", "--agent", "fake").output)
     before = {(e.name, e.value) for e in experiment_runs(exp_id)[0].evaluations}
     for _ in range(2):
-        run_cli("evaluate", str(exp_id))
+        evaluated = run_cli("evaluate", str(exp_id)).output.splitlines()
+        assert evaluated[-2] == f"evaluated {exp_id}"
+        assert evaluated[-1].endswith(f"/experiments/{exp_id}")
         after = {(e.name, e.value) for e in experiment_runs(exp_id)[0].evaluations}
         assert after == before
         assert api_get(f"/api/experiments/{exp_id}")["status"] == "completed"
