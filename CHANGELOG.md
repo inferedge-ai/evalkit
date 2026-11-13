@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **CLI**, **SDK**: `run_experiment`, `evaluate_experiment`, `evalkit run`, `evalkit evaluate` and `evalkit summary` end with `link: <server>/experiments/<id>`, the experiment's page in the web UI. `evalkit status <id>` prints the same link under the status line, and `evalkit experiments list` ends with a hint to use it. A dry run prints no link.
 - **CLI**, **SDK**: the `env:` references in `evalkit.yaml` and `evalkit run --judge-api-key-env` read only the environment. The CLI and SDK no longer read the `.env` beside `evalkit.yaml` (or in the current directory). Export the variables in your shell instead. `evalkit serve` still reads the `.env` beside `config.yaml`.
 - The user docs support tabs (`<!-- tabs -->` … `<!-- /tabs -->` around
   `####` headings), anchors on table rows (`<!-- anchor-rows -->` before a

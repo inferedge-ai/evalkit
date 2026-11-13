@@ -317,9 +317,11 @@ def test_run_prints_summary(env):
     assert "completed (2/2 ran, 2/2 evaluated)" in result.output
     assert "buckets:" in result.output
     assert "answer_rubric_score" in result.output
+    assert result.output.rstrip().endswith(f"link: {base_url}/experiments/{exp_id}")
 
 
 def test_status_and_summary(env):
+    base_url, _ = env
     exp_id = _run_experiment()
     result = runner.invoke(cli_app, ["status", str(exp_id)])
     assert result.exit_code == 0, result.output
@@ -327,9 +329,11 @@ def test_status_and_summary(env):
     assert f"experiment {exp_id}  #{exp.number} of finance@canonical" in result.output
     assert "status=completed 2/2 ran, 2/2 evaluated" in result.output
     assert "held by" not in result.output
+    assert f"  link: {base_url}/experiments/{exp_id}" in result.output
     result = runner.invoke(cli_app, ["summary", str(exp_id)])
     assert result.exit_code == 0
     assert "buckets:" in result.output
+    assert result.output.rstrip().endswith(f"link: {base_url}/experiments/{exp_id}")
 
 
 def test_status_shows_the_lease_holder_of_an_active_experiment(monkeypatch):
@@ -356,11 +360,17 @@ def test_status_shows_the_lease_holder_of_an_active_experiment(monkeypatch):
             return StubResponse()
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    monkeypatch.setattr(
+        main_module,
+        "_active_connection",
+        lambda: connection.Connection("https://evalkit.example/", None, None),
+    )
     result = runner.invoke(cli_app, ["status", "7"])
     assert result.exit_code == 0, result.output
     assert "experiment 7  #3 of finance@dev  agent=fake@dev" in result.output
     assert "status=running 1/4 ran, 0/4 evaluated" in result.output
     assert re.search(r"held by cli:ravi@laptop:42 \(lease expires in 4\ds\)", result.output)
+    assert result.output.rstrip().endswith("  link: https://evalkit.example/experiments/7")
 
 
 def test_summary_lists_errored_cases(capsys):
@@ -1682,10 +1692,16 @@ def test_summary_with_baseline_reads_the_compare_endpoint(monkeypatch):
             return StubResponse()
 
     monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    monkeypatch.setattr(
+        main_module,
+        "_active_connection",
+        lambda: connection.Connection("https://evalkit.example/", None, None),
+    )
     result = runner.invoke(cli_app, ["summary", "4", "--baseline", "3"])
     assert result.exit_code == 0, result.output
     assert "vs experiment 3  #3 of finance@dev" in result.output
     assert re.search(r"c1\s+0\.00 → 1\.00  Δ\+1\.00$", result.output, re.M)
+    assert result.output.rstrip().endswith("link: https://evalkit.example/experiments/4")
 
 
 def test_offline_lint_refuses_a_file_that_is_not_a_case_file(tmp_path):
@@ -1942,6 +1958,7 @@ def test_experiments_list_filters_by_dataset(env):
         header, first = listed.output.splitlines()[:2]
         assert header.split()[:2] == ["id", "dataset"]
         assert first.split()[0] == str(rows[0]["id"])
+        assert listed.output.rstrip().endswith("one experiment with its link: evalkit status <id>")
     else:
         assert "no experiments" in listed.output
     missing = runner.invoke(cli_app, ["experiments", "list", "--dataset", "nope@canonical"])

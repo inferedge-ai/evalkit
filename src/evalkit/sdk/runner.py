@@ -443,10 +443,6 @@ def _note_how_to_finish(
     progress(note)
 
 
-def _experiment_url(server_url: str, exp_id: int) -> str:
-    return f"{server_url.rstrip('/')}/experiments/{exp_id}"
-
-
 async def _session_summary(api: AsyncApi, path: str, session_id: str) -> str:
     try:
         session = (await api.get(path, params={"esf": "true"})).json()
@@ -769,9 +765,11 @@ async def arun_experiment(
         report = (await api.get(f"/api/experiments/{exp.id}/scorecard")).json()
         for line in summary_lines(report):
             progress(line)
+        url = connection.build_experiment_url(active.url, exp.id)
+        progress(f"link: {url}")
         return ExperimentResult(
             experiment_id=exp.id,
-            url=_experiment_url(active.url, exp.id),
+            url=url,
             runs=sorted(summaries, key=lambda s: (s.case_id, s.repetition)),
         )
     finally:
@@ -848,9 +846,11 @@ async def aevaluate_experiment(
             )
             for r in await store.run_details(experiment_id)
         ]
+        url = connection.build_experiment_url(active.url, experiment_id)
+        progress(f"link: {url}")
         return ExperimentResult(
             experiment_id=experiment_id,
-            url=_experiment_url(active.url, experiment_id),
+            url=url,
             runs=runs,
         )
     finally:
@@ -891,6 +891,7 @@ def run_experiment(
     from the current directory or a parent, and the login from `evalkit login`. The
     file is optional: without it, cases are read from `evalkit/cases/<dataset>/` and
     fixtures from `evalkit/fixtures/` under the current directory, with no credentials.
+    Prints the scorecard, then `link: <url>`, the experiment's page in the web UI.
 
     Args:
         dataset: The dataset to run. A bare name means your personal workspace; if it
@@ -971,6 +972,7 @@ def evaluate_experiment_sync(
 
     `evalkit evaluate` refuses such experiments, because the evaluators live in your
     script; call this from the script instead. Exported as `evaluate_experiment`.
+    Ends with `link: <url>`, the experiment's page in the web UI.
 
     Args:
         experiment_id: The experiment to re-score.

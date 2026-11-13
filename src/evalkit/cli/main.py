@@ -868,6 +868,7 @@ def run(
         ) as exc:
             raise ApiError(str(exc)) from exc
     _render_summary(_client().get(f"/api/experiments/{exp_id}/scorecard").json())
+    _echo_link(exp_id)
 
 
 def _judge_api_key(judge: dict | None, env_name: str | None, *, resuming: bool) -> str | None:
@@ -990,6 +991,7 @@ def evaluate(
     ) as exc:
         raise ApiError(str(exc)) from exc
     typer.echo(f"evaluated {experiment_id}")
+    _echo_link(experiment_id)
 
 
 def _progress_text(progress: dict) -> str:
@@ -998,7 +1000,11 @@ def _progress_text(progress: dict) -> str:
 
 
 def _experiment_url(exp_id: int) -> str:
-    return f"{_connection().url.rstrip('/')}/experiments/{exp_id}"
+    return connection.build_experiment_url(_active_connection().url, exp_id)
+
+
+def _echo_link(exp_id: int) -> None:
+    typer.echo(f"link: {_experiment_url(exp_id)}")
 
 
 def _lease_text(body: dict) -> str:
@@ -1013,7 +1019,9 @@ def _lease_text(body: dict) -> str:
 
 @app.command()
 def status(experiment_id: int):
-    """Show an experiment's status, progress and, while it runs, who holds it.
+    """Show one experiment: dataset, agent, status, progress, link, and who holds it.
+
+    `evalkit summary <id>` shows its scorecard.
 
     Example: evalkit status 42
     """
@@ -1024,6 +1032,7 @@ def status(experiment_id: int):
     )
     if body.get("status_error"):
         typer.secho(f"  error: {body['status_error']}", fg="red")
+    typer.echo(f"  link: {_experiment_url(body['id'])}")
 
 
 def _render_summary(report: dict, base: dict | None = None) -> None:
@@ -1036,19 +1045,20 @@ def summary(
     experiment_id: int,
     baseline: int = typer.Option(None, "--baseline", help="Baseline experiment id for deltas."),
 ):
-    """Render an experiment's scorecard as a console table.
+    """Render an experiment's scorecard as a console table, then its link.
 
     Example: evalkit summary <experiment-id> --baseline <older-id>
     """
     if baseline is None:
         _render_summary(_client().get(f"/api/experiments/{experiment_id}/scorecard").json())
-        return
-    reports = (
-        _client()
-        .get("/api/experiments/compare", params={"base": baseline, "compare": experiment_id})
-        .json()
-    )
-    _render_summary(reports["compare"], reports["base"])
+    else:
+        reports = (
+            _client()
+            .get("/api/experiments/compare", params={"base": baseline, "compare": experiment_id})
+            .json()
+        )
+        _render_summary(reports["compare"], reports["base"])
+    _echo_link(experiment_id)
 
 
 @experiments_app.command("list")
@@ -1058,6 +1068,8 @@ def experiments_list(
     limit: int = typer.Option(20, "--limit", help="How many, newest first."),
 ):
     """List experiments, newest first, with their bucket scores.
+
+    `evalkit status <id>` shows one of them with its link.
 
     Example: evalkit experiments list --dataset finance@dev
     """
@@ -1080,6 +1092,7 @@ def experiments_list(
             f"{exp['id']:>5}  {exp['dataset']:<28} {exp['agent']:<24} {exp['status']:<10} "
             f"{exp['started_at'][:16].replace('T', ' ')}  {scores or '-'}"
         )
+    typer.echo("one experiment with its link: evalkit status <id>")
 
 
 def _fmt_score(value: float | None) -> str:
