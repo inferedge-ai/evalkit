@@ -88,6 +88,7 @@ async def test_providers_with_an_idp(env, idp):
         "name": "Fake",
         "issuer": idp.issuer,
         "client_id": idp.client_id,
+        "cli_client_id": idp.client_id,
         "audience": idp.audience,
         "scopes": ["openid", "profile", "email", "offline_access"],
         "required_scopes": [],
@@ -291,6 +292,35 @@ async def register(
         headers=bearer(access),
         json={"id_token": idp.id_token(sub, email, preferred)},
     )
+
+
+async def register_with_id_token_for(client: httpx2.AsyncClient, idp: FakeIdp, audience: str):
+    return await client.post(
+        "/api/auth/oidc/register",
+        headers=bearer(idp.access_token("sub-ann")),
+        json={"id_token": idp.id_token("sub-ann", "ann@example.com", "ann", audience=audience)},
+    )
+
+
+async def test_the_cli_signs_in_with_its_own_client_when_one_is_set(env, idp):
+    async with sso_app(env, idp, cli_client_id="evalkit-cli") as client:
+        oidc = (await client.get("/api/auth/providers")).json()["oidc"]
+        assert oidc["client_id"] == idp.client_id
+        assert oidc["cli_client_id"] == "evalkit-cli"
+        from_cli = await register_with_id_token_for(client, idp, "evalkit-cli")
+        assert from_cli.status_code == 200, from_cli.text
+        from_web = await register_with_id_token_for(client, idp, idp.client_id)
+        assert from_web.status_code == 200, from_web.text
+        stranger = await register_with_id_token_for(client, idp, "someone-else")
+        assert stranger.status_code == 401
+
+
+async def test_without_a_cli_client_the_cli_signs_in_with_the_web_client(env, idp):
+    async with sso_app(env, idp) as client:
+        oidc = (await client.get("/api/auth/providers")).json()["oidc"]
+        assert oidc["cli_client_id"] == idp.client_id
+        unknown = await register_with_id_token_for(client, idp, "evalkit-cli")
+        assert unknown.status_code == 401
 
 
 async def test_register_creates_a_user_then_is_a_no_op(env, idp):

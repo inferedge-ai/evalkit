@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- New optional setting `auth.oidc.cli_client_id`: an OAuth client of
+  `evalkit login`'s own, for identity providers that skip the approval step
+  for evalkit's web client. When it's set, `evalkit login` uses it for the
+  browser sign-in, the device flow, the code exchange and later refreshes, and
+  the server accepts an ID token issued to either client. Unset, it defaults
+  to `client_id` and nothing changes. `GET /api/auth/providers` returns it in
+  `oidc.cli_client_id`. An older CLI still signs in with the web client, so
+  people need `evalkit update` before an operator removes the web client's
+  loopback redirect. `evalkit login` against a server it can't talk to now
+  says to run `evalkit update --server <url>`.
 - New server setting `auth.oidc.ui_resources`: other APIs the web UI signs
   in for, so pages a package extending evalkit adds can call them as the
   signed-in person. The web UI's sign-in names `authorize_params.resource`

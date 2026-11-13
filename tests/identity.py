@@ -211,7 +211,11 @@ class FakeIdp:
         return {
             "access_token": self.access_token(login["sub"]),
             "id_token": self.id_token(
-                login["sub"], login["email"], login["preferred_username"], nonce=login.get("nonce")
+                login["sub"],
+                login["email"],
+                login["preferred_username"],
+                nonce=login.get("nonce"),
+                audience=login.get("client_id"),
             ),
             "refresh_token": refresh,
             "expires_in": self.access_ttl,
@@ -240,6 +244,7 @@ class FakeIdp:
                 **self._login(),
                 "challenge": query.get("code_challenge"),
                 "nonce": query.get("nonce"),
+                "client_id": query.get("client_id"),
             }
             location = (
                 f"{query['redirect_uri']}?{urlencode({'code': code, 'state': query['state']})}"
@@ -247,7 +252,11 @@ class FakeIdp:
             return 302, {"location": location}, b""
         if path == "/device":
             device_code = secrets.token_urlsafe(8)
-            self.devices[device_code] = {**self._login(), "pending": self.device_pending}
+            self.devices[device_code] = {
+                **self._login(),
+                "pending": self.device_pending,
+                "client_id": form.get("client_id"),
+            }
             body = {
                 "device_code": device_code,
                 "user_code": "ABCD-EFGH",
@@ -272,6 +281,8 @@ class FakeIdp:
             challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
             if challenge != login["challenge"]:
                 return 400, headers, b'{"error": "invalid_grant", "error_description": "pkce"}'
+            if form.get("client_id") != login["client_id"]:
+                return 400, headers, b'{"error": "invalid_grant", "error_description": "client"}'
             return 200, headers, json.dumps(self._issue(login)).encode()
         if grant == "refresh_token":
             login = self.refresh_tokens.pop(form.get("refresh_token", ""), None)
@@ -299,6 +310,8 @@ class FakeIdp:
             pending = self.devices.get(form.get("device_code", ""))
             if pending is None:
                 return 400, headers, b'{"error": "expired_token"}'
+            if form.get("client_id") != pending["client_id"]:
+                return 400, headers, b'{"error": "invalid_grant", "error_description": "client"}'
             if pending["pending"] > 0:
                 pending["pending"] -= 1
                 return 400, headers, b'{"error": "authorization_pending"}'

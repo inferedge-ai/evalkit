@@ -20,7 +20,8 @@ auth:
   # password_login: admin # with oidc set: admin (default), all or none (needs admin_claim); ignored without oidc
   # oidc: # single sign-on through an OIDC identity provider; see evalkit-docs/sso.md
   #   issuer: https://id.example.com # discovery at <issuer>/.well-known/openid-configuration
-  #   client_id: 0oa1b2c3d4e5f6g7h8 # the one public client the UI and CLI share; no secret
+  #   client_id: 0oa1b2c3d4e5f6g7h8 # the web UI's public client, and the CLI's unless cli_client_id is set; no secret
+  #   cli_client_id: null # evalkit login's own public client; set it when the IdP skips approval for the web client
   #   audience: https://evalkit.example.com # what the IdP puts in access tokens' aud for evalkit
   #   name: Okta # the login button's label
   #   scopes: [openid, profile, email, offline_access] # default
