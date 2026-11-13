@@ -29,6 +29,7 @@ from evalkit.cli.local_run import (
     credentials as local_credentials,
 )
 from evalkit.cli.runs_commands import register as register_runs
+from evalkit.cli.skill_targets import DEFAULT_TARGETS as DEFAULT_SKILL_TARGETS
 from evalkit.cli.skill_targets import INSTALL_MANIFEST
 from evalkit.cli.skill_targets import record as record_skill_target
 from evalkit.cli.tokens_commands import register as register_tokens
@@ -352,7 +353,9 @@ def update(
     ./pyproject.toml to the server's version and runs `uv sync`, so the CLI and the SDK
     match the server again after a deploy. After a reinstall it runs the new
     `evalkit skills install` again in every skills directory installed before, and in
-    ./.claude/skills or ./.agents/skills if an earlier install put skills there.
+    ./.agents/skills or ./.claude/skills if an earlier install put skills there. When
+    either of those two holds an install, it refreshes both. A directory the install could
+    not fully refresh does not stop the others: they are named at the end, with an error.
 
     Example: evalkit update · evalkit update --no-skills
     """
@@ -1289,19 +1292,66 @@ INSTALL_LEAVES_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.p
 DOCS_LEAVE_OUT = shutil.ignore_patterns(".env", "*.whl", "__pycache__", "*.pyc", "images")
 
 
+def describe_installed(names: list[str]) -> str:
+    skills = [name for name in names if name != DOCS_DIR]
+    parts = [f"{len(skills)} skill{'' if len(skills) == 1 else 's'}"] if skills else []
+    return " and ".join([*parts, f"{DOCS_DIR}/"] if DOCS_DIR in names else parts)
+
+
+def install_skills_into(target: Path, sources: dict[str, Path]) -> list[Path]:
+    target.mkdir(parents=True, exist_ok=True)
+    manifest = target / INSTALL_MANIFEST
+    previous = manifest.read_text().split() if manifest.is_file() else []
+    for name in previous:
+        if name not in sources and (target / name).is_dir():
+            shutil.rmtree(target / name)
+            typer.echo(f"{target}: removed {name}, which an earlier install put there")
+    updated: list[str] = []
+    written: list[str] = []
+    skipped: list[str] = []
+    for name, source in sources.items():
+        destination = target / name
+        if destination.exists() and name not in previous:
+            skipped.append(name)
+            continue
+        if destination.exists():
+            shutil.rmtree(destination)
+            updated.append(name)
+        else:
+            written.append(name)
+        ignore = DOCS_LEAVE_OUT if name == DOCS_DIR else INSTALL_LEAVES_OUT
+        shutil.copytree(source, destination, ignore=ignore)
+    manifest.write_text("".join(f"{name}\n" for name in [*updated, *written]))
+    record_skill_target(target)
+    done = [
+        f"{verb} {describe_installed(names)}"
+        for verb, names in (("updated", updated), ("wrote", written))
+        if names
+    ]
+    typer.echo(f"{target}: {', '.join(done) or 'wrote nothing'}")
+    for name in skipped:
+        typer.echo(
+            f"{target}: skipped {name}: {target / name} is already there "
+            "and no evalkit install put it there"
+        )
+    return [target / name for name in skipped]
+
+
 @skills_app.command("install")
 def skills_install(
     target: Path = typer.Option(
         None,
         "--target",
-        help="Skills dir; default .claude/skills/ if .claude/ exists, else .agents/skills/",
+        help="Install into this one directory instead of .agents/skills/ and .claude/skills/",
     ),
 ):
-    """Copy the bundled skills, and the user docs they link to, into this repo's agent-skills
-    directory.
+    """Copy the bundled skills, and the user docs they link to, into this repo's
+    .agents/skills/ and .claude/skills/ directories.
 
     The docs go to evalkit-docs/ beside the skills. A directory an earlier install put there
-    that this version no longer ships is removed; other directories are left alone.
+    that this version no longer ships is removed. A directory with the name of an evalkit skill
+    (or evalkit-docs) that no evalkit install put there is never overwritten: the command skips
+    it, installs the rest and exits with an error.
     `evalkit update` refreshes every directory installed this way.
 
     Example: evalkit skills install
@@ -1310,25 +1360,18 @@ def skills_install(
     skills = sorted(p for p in root.iterdir() if (p / "SKILL.md").is_file())
     if not skills:
         raise ApiError(f"no skills found under {root}")
-    if target is None:
-        target = Path(".claude/skills") if Path(".claude").is_dir() else Path(".agents/skills")
-    target.mkdir(parents=True, exist_ok=True)
     sources = {skill.name: skill for skill in skills} | {DOCS_DIR: docs_root()}
-    manifest = target / INSTALL_MANIFEST
-    previous = manifest.read_text().split() if manifest.is_file() else []
-    for name in previous:
-        if name not in sources and (target / name).is_dir():
-            shutil.rmtree(target / name)
-            typer.echo(f"removed {name} (no longer shipped)")
-    for name, source in sources.items():
-        destination = target / name
-        if destination.exists():
-            shutil.rmtree(destination)
-        ignore = DOCS_LEAVE_OUT if name == DOCS_DIR else INSTALL_LEAVES_OUT
-        shutil.copytree(source, destination, ignore=ignore)
-        typer.echo(f"installed {name} → {destination}")
-    manifest.write_text("".join(f"{name}\n" for name in sources))
-    record_skill_target(target)
+    skipped = [
+        path
+        for directory in ([target] if target is not None else DEFAULT_SKILL_TARGETS)
+        for path in install_skills_into(directory, sources)
+    ]
+    if skipped:
+        raise ApiError(
+            f"did not overwrite {', '.join(str(path) for path in skipped)}. "
+            "Rename what is yours, remove what is an old copy of evalkit's skills, then run "
+            "`evalkit skills install` again; or pass --target DIR to install elsewhere."
+        )
 
 
 @contracts_app.command("export")

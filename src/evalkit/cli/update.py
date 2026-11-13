@@ -33,6 +33,10 @@ def _run_checked(command: list[str]) -> None:
     subprocess.run(command, check=True)
 
 
+def _run_for_exit_code(command: list[str]) -> int:
+    return subprocess.run(command).returncode
+
+
 def update_project_pin(cwd: Path, target: str, run: Callable[[list[str]], object]) -> bool:
     pyproject = cwd / "pyproject.toml"
     if not pyproject.is_file():
@@ -56,6 +60,7 @@ def run_update(
     *,
     prefix: Path | None = None,
     run: Callable[[list[str]], object] = _run_checked,
+    run_skills_install: Callable[[list[str]], object] = _run_for_exit_code,
     cwd: Path | None = None,
     skills: bool = True,
     targets_path: Path | None = None,
@@ -82,4 +87,11 @@ def run_update(
     run(command)
     typer.echo(f"installed evalkit {target}")
     if skills:
-        skill_targets.refresh(project, installed_cli(install_prefix), run, targets_path)
+        failed = skill_targets.refresh(
+            project, installed_cli(install_prefix), run_skills_install, targets_path
+        )
+        if failed:
+            raise ApiError(
+                f"skills not fully refreshed in {', '.join(str(path) for path in failed)}; "
+                "see the lines above for what to do in each"
+            )
