@@ -11,7 +11,7 @@ def run_experiment(
     *,
     dataset: str,
     agent: str,
-    task: Task,
+    task: Callable[..., Any],
     workspace: str | None = None,
     evaluators: Sequence[PythonEvaluator] = (),
     repetitions: int = 1,
@@ -22,8 +22,8 @@ def run_experiment(
     resume: int | None = None,
     dry_run: bool | int = False,
     trajectory_wait_seconds: int | None = None,
-    judge: JudgeSettings | None = None,
-    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
+    judge: Judge | None = None,
+    evaluation_concurrency: int = 16,
 ) -> ExperimentResult:
 ```
 
@@ -41,7 +41,7 @@ Prints the scorecard, then `link: <url>`, the experiment's page in the web UI.
 
 - `dataset` (`str`): The dataset to run. A bare name means your personal workspace; if it is also a directory under the cases root (`cases` in `evalkit.yaml`, `evalkit/cases` by default), it is synced first. `name@workspace` runs a shared dataset, every review state included.
 - `agent` (`str`): The code-driven agent on the server that the runs belong to, created once with `evalkit agents create`. A bare name means your personal workspace.
-- `task` (`Task`): Your function, called once per case and repetition, sync or async. Its parameters bind by name from `input` (the case input), `files` (`list[Fixture]`), `model` and `metadata` (`session_id`, `experiment_id`, `case_id`, `repetition`, `tags`). A task with one parameter of another name receives the input. Return a `str` (the answer), a `dict` (the structured output) or a `RunResult`. A task that raises records a failed run.
+- `task` (`Callable[..., Any]`): Your function, called once per case and repetition, sync or async. Its parameters bind by name from `input` (the case input), `files` (`list[Fixture]`), `model` and `metadata` (`session_id`, `experiment_id`, `case_id`, `repetition`, `tags`). A task with one parameter of another name receives the input. Return a `str` (the answer), a `dict` (the structured output) or a `RunResult`. A task that raises records a failed run.
 - `workspace` (`str | None`): The workspace of `dataset` when it is a bare name.
 - `evaluators` (`Sequence[PythonEvaluator]`): Python evaluators made with `evaluator`. A case selects one by name under `evaluators.custom`, like an HTTP evaluator.
 - `repetitions` (`int`): How many times each case runs.
@@ -52,7 +52,7 @@ Prints the scorecard, then `link: <url>`, the experiment's page in the web UI.
 - `resume` (`int | None`): An experiment id to resume: runs only the cases it has not finished.
 - `dry_run` (`bool | int`): `True` runs one case without creating an experiment and prints the answer and what the server made of the session; an int runs that many.
 - `trajectory_wait_seconds` (`int | None`): How long to wait for a run's spans to settle into a trajectory. Defaults to the agent's setting.
-- `judge` (`JudgeSettings | None`): The judge for LLM-graded built-in evaluators. Defaults to the server's default judge. `Judge(provider=...)` names an LLM provider configured on the server: they run on the server with its stored key. `Judge(base_url=..., api_key=...)` brings your own judge: they run on this machine. The key is never stored.
+- `judge` (`Judge | None`): The judge for LLM-graded built-in evaluators. Defaults to the server's default judge. `Judge(provider=...)` names an LLM provider configured on the server: they run on the server with its stored key. `Judge(base_url=..., api_key=...)` brings your own judge: they run on this machine. The key is never stored.
 - `evaluation_concurrency` (`int`): How many runs are scored at once.
 
 **Returns**
@@ -70,7 +70,7 @@ async def arun_experiment(
     *,
     dataset: str,
     agent: str,
-    task: Task,
+    task: Callable[..., Any],
     workspace: str | None = None,
     evaluators: Sequence[PythonEvaluator] = (),
     repetitions: int = 1,
@@ -81,11 +81,11 @@ async def arun_experiment(
     resume: int | None = None,
     dry_run: bool | int = False,
     trajectory_wait_seconds: int | None = None,
-    judge: JudgeSettings | None = None,
-    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
+    judge: Judge | None = None,
+    evaluation_concurrency: int = 16,
     api_transport: httpx2.AsyncBaseTransport | None = None,
     custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
-    progress: Progress = print,
+    progress: Callable[[str], None] = print,
     poll_interval: float = 5.0,
     tracer_provider: Any = None,
 ) -> ExperimentResult:
@@ -104,8 +104,8 @@ def evaluate_experiment(
     experiment_id: int,
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
-    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
-    judge: JudgeSettings | None = None,
+    evaluation_concurrency: int = 16,
+    judge: Judge | None = None,
 ) -> ExperimentResult:
 ```
 
@@ -121,7 +121,7 @@ Ends with `link: <url>`, the experiment's page in the web UI.
 - `evaluators` (`Sequence[PythonEvaluator]`): The Python evaluators the experiment ran with. Each must have been part of the experiment.
 - `refetch_trajectories` (`bool`): Read the trajectories of runs whose trajectory was `partial` or `unavailable` again before scoring.
 - `evaluation_concurrency` (`int`): How many runs are scored at once.
-- `judge` (`JudgeSettings | None`): The experiment's judge again, for an experiment that brought its own (`Judge(base_url=..., api_key=...)`): keys are never stored, so re-scoring asks for it again. It must be the judge the experiment recorded; a different judge is refused.
+- `judge` (`Judge | None`): The experiment's judge again, for an experiment that brought its own (`Judge(base_url=..., api_key=...)`): keys are never stored, so re-scoring asks for it again. It must be the judge the experiment recorded; a different judge is refused.
 
 **Returns**
 
@@ -139,11 +139,11 @@ async def aevaluate_experiment(
     experiment_id: int,
     evaluators: Sequence[PythonEvaluator] = (),
     refetch_trajectories: bool = False,
-    evaluation_concurrency: int = EVALUATION_CONCURRENCY,
-    judge: JudgeSettings | None = None,
+    evaluation_concurrency: int = 16,
+    judge: Judge | None = None,
     api_transport: httpx2.AsyncBaseTransport | None = None,
     custom_eval_transport: httpx2.AsyncBaseTransport | None = None,
-    progress: Progress = print,
+    progress: Callable[[str], None] = print,
 ) -> ExperimentResult:
 ```
 
@@ -159,7 +159,7 @@ Same arguments and result as `evaluate_experiment`. The arguments after
 ```python
 def register(
     agent: str,
-    only: SpanFilter | None = None,
+    only: Callable[[Any], bool] | None = None,
 ) -> None:
 ```
 
@@ -174,7 +174,7 @@ is not accepted, because it expires under a long-running process.
 **Args**
 
 - `agent` (`str`): The agent the spans belong to, e.g. `myagent` or `myagent@dev`.
-- `only` (`SpanFilter | None`): Export only the spans this function returns `True` for.
+- `only` (`Callable[[Any], bool] | None`): Export only the spans this function returns `True` for.
 
 ## Evaluators
 
@@ -186,7 +186,7 @@ def evaluator(
     /,
     *,
     name: str | None = None,
-    kind: Kind = 'evaluator',
+    kind: Literal['evaluator', 'gauge'] = 'evaluator',
     requires_trajectory: bool = False,
 ) -> PythonEvaluator | Callable[[Callable[..., Any]], PythonEvaluator]:
 ```
@@ -203,7 +203,7 @@ It returns a float, a `ScoreItem`, or a list of them.
 
 - `fn` (`Callable[..., Any] | None`): The function, when used bare.
 - `name` (`str | None`): The name cases use under `evaluators.custom`. Defaults to the function's name.
-- `kind` (`Kind`): `evaluator` for a score, `gauge` for a measurement.
+- `kind` (`Literal['evaluator', 'gauge']`): `evaluator` for a score, `gauge` for a measurement.
 - `requires_trajectory` (`bool`): Skip runs that have no trajectory.
 
 **Returns**
