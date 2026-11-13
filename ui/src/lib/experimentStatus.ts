@@ -1,5 +1,11 @@
 import type { BadgeVariant } from "@/components/ui/badge";
-import type { AgentInfo, Experiment, ExperimentState, Progress } from "./types";
+import type {
+  AgentInfo,
+  Experiment,
+  ExperimentState,
+  Progress,
+  Report,
+} from "./types";
 
 export const STATUSES: ExperimentState[] = [
   "completed",
@@ -21,13 +27,60 @@ export const STATUS_TONE: Record<string, BadgeVariant> = {
   failed: "fail",
 };
 
+export const RUN_STATUS_TONE: Record<string, BadgeVariant> = {
+  completed: "pass",
+  queued: "info",
+  running: "info",
+  failed: "fail",
+  timeout: "fail",
+  cancelled: "secondary",
+};
+
 export function progressLabel(progress: Progress): string {
   const { total, ran, evaluated } = progress;
-  return `${ran}/${total} ran · ${evaluated}/${total} evaluated`;
+  return [
+    `${ran}/${total} ran`,
+    `${evaluated}/${total} evaluated`,
+    ...erroredParts(progress, "errored", "partly errored"),
+  ].join(" · ");
+}
+
+function erroredParts(
+  progress: Progress,
+  errored: string,
+  partly: string,
+): string[] {
+  return [
+    ...(progress.errored ? [`${progress.errored} ${errored}`] : []),
+    ...(progress.partly_errored
+      ? [`${progress.partly_errored} ${partly}`]
+      : []),
+  ];
 }
 
 export function shortProgress(progress: Progress): string {
-  return `${progress.evaluated}/${progress.total}`;
+  return [
+    `${progress.evaluated}/${progress.total}`,
+    ...erroredParts(progress, "err", "part err"),
+  ].join(" · ");
+}
+
+export function selectedCases(report: Report): number {
+  return Math.max(report.selected_cases, report.cases.length);
+}
+
+export function erroredNote(report: Report): string | null {
+  const total = selectedCases(report);
+  const notes = [];
+  if (report.errored_cases)
+    notes.push(
+      `${report.errored_cases} of ${total} cases errored: no run completed with an answer, so they are left out of every score.`,
+    );
+  if (report.partly_errored_cases)
+    notes.push(
+      `${report.partly_errored_cases} of ${total} cases partly errored: scored only on the runs that completed.`,
+    );
+  return notes.length ? notes.join(" ") : null;
 }
 
 export function isIncomplete(progress: Progress): boolean {

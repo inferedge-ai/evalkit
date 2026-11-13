@@ -1009,7 +1009,21 @@ def evaluate(
 
 def _progress_text(progress: dict) -> str:
     total = progress["total"]
-    return f"{progress['ran']}/{total} ran, {progress['evaluated']}/{total} evaluated"
+    parts = [f"{progress['ran']}/{total} ran", f"{progress['evaluated']}/{total} evaluated"]
+    if progress.get("errored"):
+        parts.append(f"{progress['errored']} errored")
+    if progress.get("partly_errored"):
+        parts.append(f"{progress['partly_errored']} partly errored")
+    return ", ".join(parts)
+
+
+def _describe_errored(progress: dict) -> str:
+    parts = []
+    if progress.get("errored"):
+        parts.append(f"{progress['errored']} of {progress['total']} cases errored")
+    if progress.get("partly_errored"):
+        parts.append(f"{progress['partly_errored']} of {progress['total']} cases partly errored")
+    return ", ".join(parts)
 
 
 def _server_url() -> str:
@@ -1105,6 +1119,8 @@ def experiments_list(
     )
     for exp in found:
         scores = " ".join(f"{bucket} {_fmt_score(v)}" for bucket, v in exp["scores"].items())
+        if errored := _describe_errored(exp["progress"]):
+            scores = f"{errored}  {scores}".rstrip()
         typer.echo(
             f"{exp['id']:>5}  {exp['dataset']:<28} {exp['agent']:<24} {exp['status']:<10} "
             f"{exp['started_at'][:16].replace('T', ' ')}  {scores or '-'}"

@@ -373,7 +373,36 @@ def test_status_shows_the_lease_holder_of_an_active_experiment(monkeypatch):
     assert result.output.rstrip().endswith("  link: https://evalkit.example/experiments/7")
 
 
-def test_summary_lists_errored_cases(capsys):
+def test_status_and_experiments_list_tell_errored_from_partly_errored_cases(monkeypatch):
+    progress = {"total": 6, "ran": 6, "evaluated": 6, "errored": 3, "partly_errored": 1}
+    exp = {
+        "id": 7,
+        "number": 3,
+        "dataset": "finance@dev",
+        "agent": "fake@dev",
+        "status": "completed",
+        "status_error": None,
+        "started_at": "2026-11-13T10:00:00+00:00",
+        "scores": {"content": 1.0},
+        "progress": progress,
+    }
+
+    class StubClient:
+        def get(self, path, **kwargs):
+            return httpx2.Response(200, json=exp if path.endswith("/7") else [exp])
+
+    monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    monkeypatch.setattr(
+        main_module, "_connection", lambda: connection.Connection("u", "t", "admin")
+    )
+    status = runner.invoke(cli_app, ["status", "7"])
+    assert "6/6 ran, 6/6 evaluated, 3 errored, 1 partly errored" in status.output
+    listed = runner.invoke(cli_app, ["experiments", "list"])
+    assert listed.exit_code == 0, listed.output
+    assert "3 of 6 cases errored, 1 of 6 cases partly errored  content 1.00" in listed.output
+
+
+def test_summary_lists_run_and_evaluator_errors(capsys):
     case = {"overall": None, "delta": None, "errors": {}, "run_errors": []}
     report = {
         "name": "#4",
@@ -392,7 +421,7 @@ def test_summary_lists_errored_cases(capsys):
     out = capsys.readouterr().out
     assert "experiment 12  #4 of finance@dev" in out
     assert "(0 cases, 2 errored)" in out
-    assert "errored cases:" in out
+    assert "run and evaluator errors:" in out
     assert re.search(r"case-1\s+presentation_judge: 403$", out, re.M)
     assert re.search(r"case-2\s+run: agent crashed$", out, re.M)
     assert "case-3" not in out
@@ -1620,6 +1649,33 @@ def test_runs_list_notes_a_code_driven_agent_without_traces(env, monkeypatch):
     result = runner.invoke(cli_app, ["runs", "list", "task", "--source", "app"])
     assert result.exit_code == 0, result.output
     assert "only sees its eval runs" in result.output
+
+
+def test_runs_list_shows_status_and_duration(env, monkeypatch):
+    definition = fake_agent("task", "admin", shared=True, harness_url=None)
+    monkeypatch.setattr(main_module, "_agent_definition", lambda ref: definition)
+    monkeypatch.setattr(
+        main_module, "_connection", lambda: connection.Connection("u", "t", "admin")
+    )
+    rows = [
+        {"run_id": "s-ok", "source": "app", "status": "completed", "duration_ms": 1500.0},
+        {"run_id": "s-bad", "source": "app", "status": "failed", "duration_ms": 95_000.0},
+        {"run_id": "s-new", "source": "app", "status": None, "duration_ms": None},
+        {"run_id": "s-live", "source": "app", "status": "running", "duration_ms": 300.0},
+    ]
+
+    class StubClient:
+        def get(self, path, **kwargs):
+            return httpx2.Response(200, json={"runs": rows, "total": 4})
+
+    monkeypatch.setattr(main_module, "_client", lambda: StubClient())
+    result = runner.invoke(cli_app, ["runs", "list", "task@admin", "--source", "app"])
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    assert lines[0].split()[1:4] == ["app", "completed", "1.5s"]
+    assert lines[1].split()[1:4] == ["app", "failed", "1.6m"]
+    assert lines[2].split()[1:4] == ["app", "-", "-"]
+    assert lines[3].split()[1:4] == ["app", "running", "300ms"]
 
 
 def test_runs_pull_pages_server_calls_above_100(env, tmp_path, monkeypatch):

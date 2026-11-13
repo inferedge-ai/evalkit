@@ -391,7 +391,7 @@ Harness API page has the full table.
 | Check which server and user the CLI uses | `evalkit whoami` |
 | Show one experiment: dataset, agent, status, progress and its link in the web UI | `evalkit status <id>` (`evalkit experiments list` gives the ids) |
 | Read an experiment's scorecard, or compare it with another | `evalkit summary <id>` (`--baseline <id>`); it ends with the experiment's link |
-| List an agent's runs: app runs (outside any experiment) and eval runs | `evalkit runs list` (`--source app\|eval`, `--since`, `--until`) |
+| List an agent's runs: app runs (outside any experiment) and eval runs, with status and duration | `evalkit runs list` (`--source app\|eval`, `--since`, `--until`) |
 | Pull runs to a local directory (ATIF trajectories, case versions, scores) for diagnosis or profiling | `evalkit runs pull <agent>` (same filters, `--limit`, `--offset`) or `evalkit runs pull --experiment <id>` |
 | See or fetch a pulled run's workspace files and full tool outputs | `evalkit runs files <pull dir> <run_id>` lists the tree; add `--path <file or folder>` to fetch only those |
 | Generate new eval cases from an agent's app runs (production, staging or manual traffic) | the `eval-driven-development` skill, Loop 2 (`runs list` / `runs pull --source app`, then analysis and authoring) |

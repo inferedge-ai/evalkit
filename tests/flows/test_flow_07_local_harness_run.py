@@ -62,7 +62,13 @@ def test_flow_07_local_run_syncs_drives_scores_and_lands_in_my_workspace(
     assert (exp.workspace, exp.agent, exp.repetitions) == ("admin", "fake@admin", 2)
     assert exp.config.model == "gpt-x" and exp.lease_holder is None
     body = api_get(f"/api/experiments/{exp_id}")
-    assert body["progress"] == {"total": 2, "ran": 2, "evaluated": 2}
+    assert body["progress"] == {
+        "total": 2,
+        "ran": 2,
+        "evaluated": 2,
+        "errored": 0,
+        "partly_errored": 0,
+    }
 
     runs = experiment_runs(exp_id)
     assert sorted((r.case_id, r.repetition) for r in runs) == [
