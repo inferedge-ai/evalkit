@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
@@ -35,7 +35,7 @@ describe("LoginCallbackPage", () => {
     localStorage.clear();
   });
 
-  it("shows a cancelled provider sign-in under the same header bar as the sign-in page", async () => {
+  it("shows a cancelled provider sign-in on the sign-in card, without the navbar", async () => {
     setSessionForTest({
       getUser: async () => null,
       signinRedirect: async () => {},
@@ -44,6 +44,7 @@ describe("LoginCallbackPage", () => {
       },
       signinSilent: async () => null,
       removeUser: async () => {},
+      requestApiToken: async () => null,
     });
     render(
       <MemoryRouter initialEntries={["/login/callback"]}>
@@ -51,11 +52,11 @@ describe("LoginCallbackPage", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByText("The user cancelled")).toBeInTheDocument();
-    const header = screen.getByRole("banner");
-    expect(within(header).getByRole("link", { name: "Docs" })).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "Evalkit" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Try again" })).toHaveAttribute(
       "href",
-      "/docs",
+      "/login",
     );
-    expect(within(header).queryByRole("link", { name: "Sign in" })).toBeNull();
+    expect(screen.queryByRole("banner")).toBeNull();
   });
 });

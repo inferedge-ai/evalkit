@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { Moon, Sun } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { loginPath } from "./capabilities";
+import { SignInLink } from "../auth/SignInLink";
+import { extensions } from "../extensions";
 import { BrandLink } from "./Shell";
 import { useTheme } from "./theme";
 
@@ -14,7 +15,7 @@ export function PublicShell({ children }: { children?: ReactNode }) {
   return (
     <div className="flex h-dvh flex-col">
       <header className="flex min-h-12 shrink-0 items-center gap-4 border-b bg-card px-4">
-        <BrandLink to="/docs" />
+        <BrandLink to={extensions.landingPage ? "/" : "/docs"} />
         <NavLink
           to="/docs"
           className={({ isActive }) =>
@@ -36,14 +37,12 @@ export function PublicShell({ children }: { children?: ReactNode }) {
           >
             {theme === "dark" ? <Sun /> : <Moon />}
           </Button>
-          {!location.pathname.startsWith("/login") && (
-            <Link
-              to={loginPath(location)}
-              className={buttonVariants({ size: "sm" })}
-            >
-              Sign in
-            </Link>
-          )}
+          <SignInLink
+            next={location.pathname + location.search}
+            className={buttonVariants({ size: "sm" })}
+          >
+            Sign in
+          </SignInLink>
         </div>
       </header>
       <main className="min-h-0 flex-1 overflow-auto">

@@ -4,14 +4,10 @@ import { TraceSourcesPage } from "./pages/TraceSourcesPage";
 import { UsersAdminPage } from "./pages/UsersAdmin";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { WorkspacesPage } from "./pages/WorkspacesPage";
-import { useMe } from "./shell/capabilities";
-import { getSettingsSections, getWrapperSettings } from "./shell/nav";
-import { useWorkspace } from "./shell/workspace";
+import { getWrapperSettings, useSettingsSections } from "./shell/nav";
 
 function FirstSettingsPage() {
-  const me = useMe();
-  const { workspace } = useWorkspace();
-  const [first] = getSettingsSections(me.is_admin, workspace.name);
+  const [first] = useSettingsSections();
   return <Navigate to={first.items[0].to} replace />;
 }
 

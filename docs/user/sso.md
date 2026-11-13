@@ -12,8 +12,8 @@ who turns SSO on.
 
 | Piece | At the IdP | Standard |
 | --- | --- | --- |
-| The web UI and the CLI | One public client (no secret) | Authorization code with PKCE, RFC 6749 §4.1 and RFC 7636; refresh, RFC 6749 §6 |
-| The CLI on a machine without a browser | The same client | Device authorization grant, RFC 8628 |
+| The web UI and the CLI | One public client (no secret), or one each | Authorization code with PKCE, RFC 6749 §4.1 and RFC 7636; refresh, RFC 6749 §6 |
+| The CLI on a machine without a browser | The CLI's client | Device authorization grant, RFC 8628 |
 | Evalkit's API | An API or resource that access tokens name in `aud` | JWT access tokens, RFC 9068 |
 | A CI pipeline | One machine client per pipeline, with a secret | Client credentials, RFC 6749 §4.4 |
 | Discovery | `<issuer>/.well-known/openid-configuration` | OpenID Connect Discovery 1.0 |
@@ -48,6 +48,19 @@ Scopes to allow: `openid`, `profile`, `email`, `offline_access` (or the IdP's
 name for refresh tokens). PKCE S256 on. Refresh token rotation on. Copy the
 client id into `auth.oidc.client_id`.
 
+### A separate client for the CLI
+
+If your IdP skips the approval step for evalkit's web client, give the CLI
+a client of its own that keeps the approval step. It needs an IdP that gives
+a person the same `sub` in every client; Okta, Auth0 and Keycloak do.
+Entra ID doesn't, so keep one shared client there.
+
+Register it like the public client above, with only the
+`http://127.0.0.1/callback` redirect, evalkit's audience and scopes, and the
+approval step on. Put its client id in `auth.oidc.cli_client_id`. Then
+remove the `127.0.0.1` and `localhost` redirects and the device grant from
+the web client.
+
 ## Registering the audience
 
 Access tokens must name evalkit. How that is set up depends on the IdP:
@@ -62,6 +75,15 @@ Access tokens must name evalkit. How that is set up depends on the IdP:
 
 Evalkit sends `authorize_params` verbatim on the authorize request and the
 device authorization request; the server never interprets them.
+
+`ui_resources` lists other APIs the web UI signs in for, so that pages a
+package extending evalkit adds can call them with a token of their own. The
+web UI's sign-in names `authorize_params.resource` first and each of these
+after it, as repeated `resource` parameters (RFC 8707). Evalkit's own calls
+keep the token for evalkit's API. The setting needs
+`authorize_params.resource`, and the identity provider must issue a token for
+any API the sign-in named from the person's refresh token. `evalkit login`
+doesn't send them.
 
 ## Registering a machine client for CI
 
@@ -84,11 +106,13 @@ In the server's `config.yaml`:
       oidc:
         issuer: https://id.example.com
         client_id: 0oa1b2c3d4e5f6g7h8
+        cli_client_id: null         # evalkit login's own client; defaults to client_id
         audience: https://evalkit.example.com
         name: Okta                  # the login button's label
         scopes: [openid, profile, email, offline_access]
         required_scopes: []         # scopes an access token must carry
         authorize_params: {}
+        ui_resources: []            # other APIs the web UI signs in for
         algorithms: [RS256]
         admin_claim: null           # {name: roles, value: evalkit-admin}: who is an admin
 
@@ -167,10 +191,19 @@ With `admin_claim` set, every registration (each sign-in) sets the person's
 admin flag from the access token: admin when the claim equals the value, or
 is a list that contains it; not an admin otherwise. A person the IdP stops
 naming as an admin loses admin at their next sign-in, even when they are the
-tenant's last admin: the IdP owns admins once this is on, so `evalkit users
-demote`'s last-admin check does not apply. Unset (the default),
-registration never changes the flag, and admins are promoted with
-`evalkit users promote`. An admin's powers stay inside their tenant: users,
+tenant's last admin: the IdP owns admins once this is on, and a sign-in that
+removes admin does not apply the last-admin check that `evalkit users demote`
+has. For the same reason, `evalkit users promote` answers 400 for anyone
+bound to the IdP (a user with a subject, whether or not they also have a
+password, as after `evalkit users bind`): their next sign-in through the IdP
+would undo it. `evalkit users demote` still works for them, last-admin check
+included. evalkit reads the claim when someone signs in, not when their token
+renews, so demote is how an admin takes admin away before that person next
+signs in; it lasts while the IdP agrees, and a claim that still names them
+makes them an admin again at their next sign-in. Password accounts with no
+subject are promoted and demoted as before. Unset (the default),
+registration never changes the flag, and admins are promoted with `evalkit
+users promote`. An admin's powers stay inside their tenant: users,
 workspaces and members, LLM providers and the default judge, trace sources
 and agent tokens of that tenant only.
 
@@ -191,6 +224,12 @@ your identity provider session stays. With `none`, signing out shows a
 **Sign in again** button rather than sending you back to the provider at once,
 in every tab of that browser, until you next sign in.
 
+With `password_login: none`, Settings has no Users page: everyone who signs in
+comes from the identity provider, which also decides who is an admin. Admins
+list users with `evalkit users list`, archive one with `evalkit users
+archive`, and add the machine user CI signs in as with `evalkit users add
+<name> --subject <sub>`.
+
 ## Admin runbook
 
 1. Start with `EVALKIT_ADMIN_PASSWORD` set; `admin` is a password account.
@@ -198,14 +237,15 @@ in every tab of that browser, until you next sign in.
    `EVALKIT_ADMIN_PASSWORD`: the IdP names the admins through `admin_claim`,
    and evalkit refuses to make a password account or set a password.
 2. Ask the first person to sign in; evalkit creates their user on the first
-   sign-in. Then `evalkit users promote <username>`.
-   `password_login: none` requires `admin_claim`, so whoever the claim names
-   is an admin from their first sign-in and, as with `admin_claim` in any
-   mode, promoting by hand does not last past the next one. If
-   nobody can sign in as an admin (the claim is missing from the access
-   token, say), switch back to `password_login: admin` and start with
-   `EVALKIT_ADMIN_PASSWORD`: the server creates `admin` when no admin
-   exists.
+   sign-in. Then, unless `admin_claim` is set, `evalkit users promote
+   <username>`. `password_login: none` requires `admin_claim`, so whoever the
+   claim names is an admin from their first sign-in. As with `admin_claim` in
+   any mode, the server refuses to promote by hand anyone bound to the IdP (a
+   user with a subject, password or not). Demoting works, until the claim
+   names the person again at their next sign-in. If nobody can sign in as an
+   admin (the claim is missing from the access token, say), switch back to
+   `password_login: admin` and start with `EVALKIT_ADMIN_PASSWORD`: the server
+   creates `admin` when no admin exists.
 3. Bind machine users: `evalkit users add ci-bot --subject <sub>`, then
    `evalkit workspaces members add dev ci-bot --role writer`.
 4. The first sign-in names the user after the part before `@` in

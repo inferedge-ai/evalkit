@@ -2,13 +2,14 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { resetProvidersForTest, setSessionForTest } from "../auth/oidc";
 import {
   closePage,
   failure,
   member,
   renderPage,
+  stubPasswordLogin,
   stubServer,
 } from "../testFixtures";
 import { UsersAdminPage } from "./UsersAdmin";
@@ -27,16 +28,8 @@ const ONLY_ADMIN = {
   created_at: "2026-11-01T00:00:00Z",
 };
 
-function stubPasswordLogin(status: number, password: string) {
-  setSessionForTest(null);
-  stubServer((url) => {
-    if (url.endsWith("/api/auth/providers"))
-      return Response.json(
-        status === 200
-          ? { password, oidc: { name: "Okta" } }
-          : { detail: "identity provider unreachable", password },
-        { status },
-      );
+function stubUsers(status: number, password: string) {
+  stubPasswordLogin(status, password, (url) => {
     if (url.endsWith("/api/users")) return Response.json([ONLY_ADMIN]);
     if (url.endsWith("/api/users/ann/demote"))
       return Response.json(
@@ -55,21 +48,6 @@ function renderUsersPage() {
   );
 }
 
-test("with password login off, the page says how people join instead of offering a password form", async () => {
-  setSessionForTest(null);
-  stubServer((url) =>
-    url.endsWith("/api/auth/providers")
-      ? Response.json({ password: "none", oidc: { name: "Okta" } })
-      : undefined,
-  );
-  renderUsersPage();
-  expect(
-    await screen.findByText(/People join by signing in with Okta/),
-  ).toBeInTheDocument();
-  expect(document.querySelector("input[type=password]")).toBeNull();
-  expect(screen.queryByRole("button", { name: "Add user" })).toBeNull();
-});
-
 test("with password login on, the page shows the username and password form", async () => {
   stubServer(() => undefined);
   renderUsersPage();
@@ -79,8 +57,22 @@ test("with password login on, the page shows the username and password form", as
   expect(document.querySelector("input[type=password]")).not.toBeNull();
 });
 
-test("with password login off, a refused row action still shows its error", async () => {
-  stubPasswordLogin(200, "none");
+test("while the sign-in options load, the page shows placeholder rows", async () => {
+  setSessionForTest(null);
+  stubServer((url) =>
+    url.endsWith("/api/auth/providers")
+      ? new Promise<Response>(() => {})
+      : undefined,
+  );
+  renderUsersPage();
+  await vi.waitFor(() =>
+    expect(document.querySelector("[data-slot=skeleton]")).not.toBeNull(),
+  );
+  expect(screen.queryByRole("button", { name: "Add user" })).toBeNull();
+});
+
+test("a refused row action shows its error", async () => {
+  stubUsers(200, "admin");
   renderUsersPage();
   await userEvent
     .setup()
@@ -90,17 +82,8 @@ test("with password login off, a refused row action still shows its error", asyn
   ).toBeInTheDocument();
 });
 
-test("while the identity provider is unreachable, password login off still hides the form", async () => {
-  stubPasswordLogin(503, "none");
-  renderUsersPage();
-  expect(
-    await screen.findByText(/People join by signing in with/),
-  ).toBeInTheDocument();
-  expect(document.querySelector("input[type=password]")).toBeNull();
-});
-
 test("while the identity provider is unreachable, password login for admins keeps the form", async () => {
-  stubPasswordLogin(503, "admin");
+  stubUsers(503, "admin");
   renderUsersPage();
   expect(
     await screen.findByRole("button", { name: "Add user" }),

@@ -2,7 +2,7 @@ import { ErrorResponse } from "oidc-client-ts";
 import { session, type OidcSession, type SessionUser } from "../auth/oidc";
 import type { Me } from "./types";
 
-const API = import.meta.env.VITE_API_BASE_URL ?? "";
+export const API = import.meta.env.VITE_API_BASE_URL ?? "";
 
 const TOKEN_KEY = "evalkit.token";
 const SIGNED_OUT_KEY = "evalkit.signed_out";
@@ -33,12 +33,24 @@ const REFRESH_LOCK = "evalkit-oidc-refresh";
 
 let refreshing: Promise<SessionUser | null> | null = null;
 
-const NO_REDIRECT = new Set(["/auth/me", "/auth/oidc/register"]);
+const NO_REDIRECT = new Set([
+  "/auth/me",
+  "/auth/oidc/register",
+  "/auth/logout",
+]);
 
 function needsRefresh(user: SessionUser): boolean {
   return (
     user.expires_in !== undefined && user.expires_in < REFRESH_WINDOW_SECONDS
   );
+}
+
+// Every refresh-token use, in any tab, runs under this lock: the provider
+// rotates the token and revokes the person's tokens when a used one comes back.
+export function withRefreshLock<T>(refresh: () => Promise<T>): Promise<T> {
+  return typeof navigator !== "undefined" && navigator.locks
+    ? navigator.locks.request(REFRESH_LOCK, refresh)
+    : refresh();
 }
 
 async function refreshUser(s: OidcSession): Promise<SessionUser | null> {
@@ -65,11 +77,7 @@ export async function bearer(): Promise<string | null> {
   let user = await s.getUser();
   if (user === null) return null;
   if (needsRefresh(user)) {
-    refreshing ??= (
-      typeof navigator !== "undefined" && navigator.locks
-        ? navigator.locks.request(REFRESH_LOCK, () => refreshUser(s))
-        : refreshUser(s)
-    ).finally(() => {
+    refreshing ??= withRefreshLock(() => refreshUser(s)).finally(() => {
       refreshing = null;
     });
     user = await refreshing;

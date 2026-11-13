@@ -253,9 +253,7 @@ export function MappingsPanel({ agent }: { agent: string }) {
                   This agent&apos;s spans are stored without a session id. Push
                   a mapping with{" "}
                   <span className="font-mono">evalkit traces mapping push</span>
-                  , starting from the connect-traces skill&apos;s{" "}
-                  <span className="font-mono">gen_ai.json</span> or{" "}
-                  <span className="font-mono">openinference.json</span>.
+                  , giving a preset name or a mapping file.
                 </>
               }
             />

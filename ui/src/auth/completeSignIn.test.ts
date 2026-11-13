@@ -16,6 +16,7 @@ function sessionReturning(
     removeUser: async () => {
       s.removed = true;
     },
+    requestApiToken: async () => null,
   };
   return s;
 }

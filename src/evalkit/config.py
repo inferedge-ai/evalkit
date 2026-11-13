@@ -71,13 +71,24 @@ class AdminClaimConfig(ConfigModel):
 class OidcConfig(ConfigModel):
     issuer: str
     client_id: str
+    cli_client_id: str | None = None
     audience: str
     name: str
     scopes: list[str] = ["openid", "profile", "email", "offline_access"]
     required_scopes: list[str] = []
     authorize_params: dict[str, str] = {}
+    ui_resources: list[str] = []
     algorithms: list[str] = ["RS256"]
     admin_claim: AdminClaimConfig | None = None
+
+    @model_validator(mode="after")
+    def _ui_resources_follow_evalkit_resource(self) -> OidcConfig:
+        if self.ui_resources and "resource" not in self.authorize_params:
+            raise ValueError(
+                "auth.oidc.ui_resources needs auth.oidc.authorize_params.resource set to "
+                "evalkit's own API: the sign-in names it first, so evalkit's own tokens are for it"
+            )
+        return self
 
     @field_validator("scopes")
     @classmethod
@@ -100,6 +111,9 @@ class OidcConfig(ConfigModel):
     @classmethod
     def _issuer_has_no_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
+
+    def resolve_cli_client_id(self) -> str:
+        return self.cli_client_id or self.client_id
 
 
 class AuthConfig(ConfigModel):

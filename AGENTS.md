@@ -185,6 +185,39 @@ then add plain FastAPI routes with `app.include_router(...)`.
   `@/components/widgets/PageHeader` (title, description, breadcrumbs,
   actions), and show an empty state with `Empty` from
   `@/components/widgets/Empty`.
+- `publicRoutes` render for everyone, as evalkit's `/docs` pages do: under
+  the public navbar (Evalkit, Docs, the theme switch and Sign in) for a
+  signed-out visitor, and inside the app shell for a signed-in person. They
+  suit pages such as terms of use or pricing; their data must come from
+  public endpoints. A public route with the same path as one of evalkit's,
+  `/` included, loses to evalkit's page.
+- `landingPage` is what a signed-out visitor sees at `/`, under the public
+  navbar, whose Evalkit link then goes to `/`. Signing out lands there. A
+  signed-in person at `/` still gets the workspace
+  list, and a signed-out visitor opening any other page, such as
+  `/experiments/12`, still goes straight to sign-in and back. With
+  `landingPage: null`, `/` sends a signed-out visitor to sign in and
+  signing out lands on `/login`.
+- Link to sign-in with `SignInLink` from `@/auth/SignInLink` (`next`,
+  default `/`; `prompt`; `className`). It opens `/login`, which starts
+  sign-in at once even right after a sign-out in that browser; a plain link
+  to `/login` then stops at "You're signed out". `/login?prompt=<value>`
+  passes `prompt` to the identity provider's authorize request, so
+  `<SignInLink prompt="create">` opens the provider's sign-up form where it
+  supports OpenID Connect Prompt Create.
+- To call another API as the signed-in person, list it in the server's
+  `auth.oidc.ui_resources`; the web UI's sign-in then names it after
+  evalkit's own API. A page gets a token for it with
+  `getApiToken(resource)` from `@/auth/apiToken`. It returns `null` when
+  nobody is signed in through the identity provider or the provider refuses,
+  for example a session from before the setting; offer `SignInLink` then. It
+  throws for an API not in `ui_resources`. It refreshes with the person's
+  refresh token under the same cross-tab lock as evalkit's own refresh,
+  stores the rotated refresh token, keeps evalkit's access token, and reuses
+  the token until a minute before it expires.
+- Pages may use the shadcn components in `@/components/ui/` (`Button`,
+  `buttonVariants`, `Card` and the rest), which keep shadcn's names and
+  props.
 - A `NavItem` may set `icon`, a `lucide-react` icon; the collapsed sidebar
   shows a puzzle piece for one without. `nav` items get a sidebar section of
   their own after Observe.
@@ -201,7 +234,8 @@ then add plain FastAPI routes with `app.include_router(...)`.
 - Every `nav` item and every Settings page the person can see is a page in
   ⌘K search.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
-  `PageHeader`, `Empty`, `SIGNED_IN`, `get_config` and
+  `PageHeader`, `Empty`, `SignInLink`, `/login`'s `next` and `prompt`,
+  `getApiToken`, `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config` and
   `get_allow_private_endpoints` stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
