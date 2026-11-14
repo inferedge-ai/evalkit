@@ -70,24 +70,29 @@ def run_update(
     project = cwd or Path.cwd()
     synced = update_project_pin(project, target, run)
     local = version.current()
-    if local == target:
-        typer.echo(f"evalkit {local} is already current")
-        return
     install_prefix = prefix or Path(sys.prefix)
-    if synced and install_prefix.resolve() == (project / ".venv").resolve():
+    is_project_venv = synced and install_prefix.resolve() == (project / ".venv").resolve()
+
+    if not is_project_venv:
+        if local == target:
+            typer.echo(f"evalkit {local} is already current")
+            return
+        if server_extra is None:
+            server_extra = has_server_extra()
+        extra = "[server]" if server_extra else ""
+        requirement = f"{version.DISTRIBUTION}{extra}=={target}"
+        command = install_command(install_prefix, requirement)
+        if command is None:
+            typer.echo(f'  uv tool install --reinstall "{requirement}"')
+            typer.echo(f'  pipx install --force "{requirement}"')
+            raise ApiError(
+                "could not tell how evalkit was installed; run one of the commands above"
+            )
+        run(command)
+        typer.echo(f"installed evalkit {target}")
+    else:
         typer.echo(f"installed evalkit {target} into {install_prefix}")
-        return
-    if server_extra is None:
-        server_extra = has_server_extra()
-    extra = "[server]" if server_extra else ""
-    requirement = f"{version.DISTRIBUTION}{extra}=={target}"
-    command = install_command(install_prefix, requirement)
-    if command is None:
-        typer.echo(f'  uv tool install --reinstall "{requirement}"')
-        typer.echo(f'  pipx install --force "{requirement}"')
-        raise ApiError("could not tell how evalkit was installed; run one of the commands above")
-    run(command)
-    typer.echo(f"installed evalkit {target}")
+
     if skills:
         failed = skill_targets.refresh(
             project, installed_cli(install_prefix), run_skills_install, targets_path

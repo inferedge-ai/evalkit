@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Fixes
+
+- **CLI:** `evalkit update` in an agent project with a `.venv` now refreshes
+  installed skills in `.agents/skills` and `.claude/skills` after syncing the
+  project, rather than exiting immediately after `uv sync`.
+
 ## 0.6.0
 
 _Released 2026-11-13._ Experiments can take trajectories from the agent's own
