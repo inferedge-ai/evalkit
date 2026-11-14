@@ -127,6 +127,7 @@ class FakeIdp:
         self.access_ttl = 3600
         self.codes: dict[str, dict] = {}
         self.refresh_tokens: dict[str, dict] = {}
+        self.rotated_refresh_tokens: dict[str, dict] = {}
         self.devices: dict[str, dict] = {}
         self.jwks_fetches = 0
         self.scopes: str | list[str] | None = None
@@ -285,9 +286,19 @@ class FakeIdp:
                 return 400, headers, b'{"error": "invalid_grant", "error_description": "client"}'
             return 200, headers, json.dumps(self._issue(login)).encode()
         if grant == "refresh_token":
-            login = self.refresh_tokens.pop(form.get("refresh_token", ""), None)
+            presented = form.get("refresh_token", "")
+            reused = self.rotated_refresh_tokens.get(presented)
+            if reused is not None:
+                self.refresh_tokens = {
+                    token: owner
+                    for token, owner in self.refresh_tokens.items()
+                    if owner is not reused
+                }
+                return 400, headers, b'{"error": "invalid_grant"}'
+            login = self.refresh_tokens.pop(presented, None)
             if login is None:
                 return 400, headers, b'{"error": "invalid_grant"}'
+            self.rotated_refresh_tokens[presented] = login
             return 200, headers, json.dumps(self._issue(login)).encode()
         if grant == "client_credentials":
             client_id, secret = form.get("client_id"), form.get("client_secret")
