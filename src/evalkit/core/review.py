@@ -35,6 +35,7 @@ class CaseEventKind(StrEnum):
     REVIEW_REQUESTED = "review_requested"
     APPROVED = "approved"
     CHANGES_REQUESTED = "changes_requested"
+    REJECTED = "rejected"
 
 
 class CaseState(StrEnum):
@@ -42,6 +43,7 @@ class CaseState(StrEnum):
     REVIEW_REQUESTED = "review_requested"
     CHANGES_REQUESTED = "changes_requested"
     APPROVED = "approved"
+    REJECTED = "rejected"
 
 
 DECISIVE_EVENT_KINDS = frozenset(
@@ -49,6 +51,7 @@ DECISIVE_EVENT_KINDS = frozenset(
         CaseEventKind.REVIEW_REQUESTED,
         CaseEventKind.APPROVED,
         CaseEventKind.CHANGES_REQUESTED,
+        CaseEventKind.REJECTED,
     }
 )
 
@@ -56,6 +59,7 @@ _CASE_STATE_FOR = {
     CaseEventKind.REVIEW_REQUESTED: CaseState.REVIEW_REQUESTED,
     CaseEventKind.APPROVED: CaseState.APPROVED,
     CaseEventKind.CHANGES_REQUESTED: CaseState.CHANGES_REQUESTED,
+    CaseEventKind.REJECTED: CaseState.REJECTED,
 }
 
 OPEN_CASE_STATES = frozenset({CaseState.REVIEW_REQUESTED, CaseState.CHANGES_REQUESTED})
@@ -107,6 +111,7 @@ class CaseReview:
     last_event: CaseEvent | None
     requested_to: str | None
     requested_by: str | None = None
+    reason: str | None = None
 
     @classmethod
     def unreviewed(cls, dataset: str, case_id: str, content_hash: str) -> CaseReview:
@@ -139,6 +144,9 @@ class CaseReview:
     def request_changes(self, actor: str) -> NewCaseEvent:
         return self._event(CaseEventKind.CHANGES_REQUESTED, actor)
 
+    def reject(self, actor: str) -> NewCaseEvent:
+        return self._event(CaseEventKind.REJECTED, actor)
+
     def carry_over(self, actor: str, new_hash: str) -> NewCaseEvent | None:
         if self.last_event is None or self.state() not in OPEN_CASE_STATES:
             return None
@@ -164,11 +172,15 @@ class CaseReview:
 
 def review_summary(review: CaseReview) -> dict[str, Any]:
     state = review.state()
-    return {
+    out: dict[str, Any] = {
         "state": state.value,
         "requested_to": review.requested_to if state is CaseState.REVIEW_REQUESTED else None,
         "updated_at": review.last_event.created_at if review.last_event is not None else None,
     }
+    if state is CaseState.REJECTED:
+        out["reviewer"] = review.last_event.actor if review.last_event is not None else None
+        out["reason"] = review.reason
+    return out
 
 
 class ReviewLogProtocol(Protocol):

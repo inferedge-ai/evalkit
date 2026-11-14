@@ -13,6 +13,7 @@ const KIND_LABEL: Record<CaseEvent["kind"], string> = {
   review_requested: "review requested",
   approved: "approved",
   changes_requested: "changes requested",
+  rejected: "rejected",
 };
 
 const SHOWN_BY_DEFAULT = 4;

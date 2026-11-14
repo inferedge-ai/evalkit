@@ -152,6 +152,21 @@ async def test_decisions_are_reviewer_only_and_write_comment_with_event(env):
 
     approved = await clients["sme"].post(f"{BASE}/cases/case-1/review", json={"action": "approve"})
     assert approved.json()["state"] == "approved"
+
+    missing_reject = await clients["sme"].post(
+        f"{BASE}/cases/case-1/review", json={"action": "reject"}
+    )
+    assert missing_reject.status_code == 400
+
+    rejected = await clients["sme"].post(
+        f"{BASE}/cases/case-1/review",
+        json={"action": "reject", "comment": "invalid test case"},
+    )
+    assert rejected.status_code == 200
+    assert rejected.json()["state"] == "rejected"
+    assert rejected.json()["reviewer"] == "sme"
+    assert rejected.json()["reason"] == "invalid test case"
+
     unknown = await clients["sme"].post(f"{BASE}/cases/nope/review", json={"action": "approve"})
     assert unknown.status_code == 404
 
@@ -292,3 +307,21 @@ async def test_queue_author_survives_a_resync_by_someone_else(env):
         await clients["alice"].get("/api/review/queue", params={"state": "changes_requested"})
     ).json()
     assert [(i["case_id"], i["author"]) for i in changes["items"]] == [("case-1", "alice")]
+
+
+async def test_queue_can_list_rejected(env):
+    clients, *_ = env
+    await clients["alice"].post(
+        f"{BASE}/review-requests",
+        json={"selection": {"case_ids": ["case-1"]}, "reviewer": "sme"},
+    )
+    await clients["sme"].post(
+        f"{BASE}/cases/case-1/review",
+        json={"action": "reject", "comment": "invalid test case"},
+    )
+    rejected = (
+        await clients["alice"].get("/api/review/queue", params={"state": "rejected"})
+    ).json()
+    assert [(i["case_id"], i["requested_by"], i["reason"]) for i in rejected["items"]] == [
+        ("case-1", "sme", "invalid test case")
+    ]

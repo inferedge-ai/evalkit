@@ -543,12 +543,18 @@ export interface LintFinding {
 
 // ── Review ───────────────────────────────────────────────────────────────
 export type ReviewState =
-  "unreviewed" | "review_requested" | "changes_requested" | "approved";
+  | "unreviewed"
+  | "review_requested"
+  | "changes_requested"
+  | "approved"
+  | "rejected";
 
 export interface ReviewSummary {
   state: ReviewState;
   requested_to: string | null;
   updated_at: string | null;
+  reviewer?: string | null;
+  reason?: string | null;
 }
 
 export interface CaseEvent {
@@ -556,7 +562,7 @@ export interface CaseEvent {
   dataset: string;
   case_id: string;
   content_hash: string;
-  kind: "synced" | "review_requested" | "approved" | "changes_requested";
+  kind: "synced" | "review_requested" | "approved" | "changes_requested" | "rejected";
   actor: string;
   target: string | null;
   created_at: string;
@@ -586,6 +592,7 @@ export interface QueueItem {
   author: string | null;
   requested_at: string | null;
   input: string;
+  reason?: string | null;
 }
 
 export type CliInfo = {

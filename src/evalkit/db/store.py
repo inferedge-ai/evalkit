@@ -49,7 +49,7 @@ class PgStore:
         async with self._session() as s:
             row = await cases.dataset_by_ref(s, self._tenant_id, dataset)
             selected = select_cases(await cases.current_cases(s, row, agent=agent), selection)
-        return selected
+        return [case for case in selected if case.review_state != "rejected"]
 
     async def create_experiment(self, req: NewExperiment) -> Experiment:
         async with self._session() as s:

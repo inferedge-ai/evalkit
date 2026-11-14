@@ -26,13 +26,14 @@ def ev(kind, hash_="h1", actor="akshat", target=None, ts=1):
     )
 
 
-def review(last=None, requested_to=None, hash_="h1"):
+def review(last=None, requested_to=None, hash_="h1", reason=None):
     return CaseReview(
         dataset="finance",
         case_id="c1",
         content_hash=hash_,
         last_event=last,
         requested_to=requested_to,
+        reason=reason,
     )
 
 
@@ -46,6 +47,7 @@ def test_state_is_draft_without_decisive_event():
         (CaseEventKind.REVIEW_REQUESTED, CaseState.REVIEW_REQUESTED),
         (CaseEventKind.APPROVED, CaseState.APPROVED),
         (CaseEventKind.CHANGES_REQUESTED, CaseState.CHANGES_REQUESTED),
+        (CaseEventKind.REJECTED, CaseState.REJECTED),
     ],
 )
 def test_state_follows_latest_decisive_kind(kind, state):
@@ -59,10 +61,12 @@ def test_events_are_stamped_with_dataset_case_and_hash():
         r.request_review("akshat", "sme"),
         r.approve("sme"),
         r.request_changes("sme"),
+        r.reject("sme"),
     ):
         assert (event.dataset, event.case_id, event.content_hash) == ("finance", "c1", "abc")
     assert r.request_review("akshat", "sme").target == "sme"
     assert r.approve("sme").kind is CaseEventKind.APPROVED
+    assert r.reject("sme").kind is CaseEventKind.REJECTED
     assert r.synced("ci@x").actor == "ci@x"
 
 
@@ -82,7 +86,10 @@ def test_carry_over_from_changes_requested_falls_back_to_reviewer_who_acted():
     assert carried is not None and carried.target == "sme"
 
 
-@pytest.mark.parametrize("last", [None, ev(CaseEventKind.APPROVED, actor="sme")])
+@pytest.mark.parametrize(
+    "last",
+    [None, ev(CaseEventKind.APPROVED, actor="sme"), ev(CaseEventKind.REJECTED, actor="sme")],
+)
 def test_no_carry_over_from_draft_or_approved(last):
     assert review(last=last).carry_over("akshat", "h2") is None
 
@@ -93,6 +100,17 @@ def test_review_summary_shape():
         "state": "review_requested",
         "requested_to": "sme",
         "updated_at": datetime(2026, 9, 22, 0, 0, 5, tzinfo=UTC),
+    }
+    rejected = review(
+        last=ev(CaseEventKind.REJECTED, actor="sme", ts=6),
+        reason="duplicate case",
+    )
+    assert review_summary(rejected) == {
+        "state": "rejected",
+        "requested_to": None,
+        "updated_at": datetime(2026, 9, 22, 0, 0, 6, tzinfo=UTC),
+        "reviewer": "sme",
+        "reason": "duplicate case",
     }
     assert review_summary(review()) == {
         "state": "unreviewed",

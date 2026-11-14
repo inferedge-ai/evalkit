@@ -6,6 +6,7 @@ const LABEL: Record<ReviewState, string> = {
   review_requested: "Review requested",
   changes_requested: "Changes requested",
   approved: "Approved",
+  rejected: "Rejected",
 };
 
 const VARIANT: Record<ReviewState, BadgeVariant> = {
@@ -13,6 +14,7 @@ const VARIANT: Record<ReviewState, BadgeVariant> = {
   review_requested: "info",
   changes_requested: "partial",
   approved: "pass",
+  rejected: "fail",
 };
 
 export const REVIEW_STATES: ReviewState[] = [
@@ -20,6 +22,7 @@ export const REVIEW_STATES: ReviewState[] = [
   "review_requested",
   "changes_requested",
   "approved",
+  "rejected",
 ];
 
 export function stateLabel(state: ReviewState): string {

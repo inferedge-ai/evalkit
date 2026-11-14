@@ -248,6 +248,15 @@ export function DatasetCasesTab({
                       <ToArrow /> {ex.review.requested_to}
                     </span>
                   ) : null}
+                  {ex.review?.state === "rejected" && ex.review.reviewer ? (
+                    <span
+                      className="row-meta max-w-[200px] truncate"
+                      title={ex.review.reason ?? undefined}
+                    >
+                      by {ex.review.reviewer}
+                      {ex.review.reason ? `: ${ex.review.reason}` : ""}
+                    </span>
+                  ) : null}
                 </span>
               )),
             } satisfies ColDef<CaseView>,

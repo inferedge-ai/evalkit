@@ -109,6 +109,31 @@ class ReviewLog:
             for ref, row in latest.decisive.items():
                 [event] = await self._events(session, dataset, ids[ref], [row])
                 reviews[ids[ref]].last_event = event
+            rejected_refs = [
+                ref
+                for ref, row in latest.decisive.items()
+                if row.kind == CaseEventKind.REJECTED.value
+            ]
+            if rejected_refs:
+                comment_rows = await session.execute(
+                    select(models.CaseComment.case_ref, models.CaseComment.body)
+                    .where(
+                        models.CaseComment.dataset_id == dataset_id,
+                        models.CaseComment.case_ref.in_(rejected_refs),
+                        models.CaseComment.parent_id.is_(None),
+                    )
+                    .order_by(
+                        models.CaseComment.case_ref,
+                        models.CaseComment.created_at.desc(),
+                        models.CaseComment.id.desc(),
+                    )
+                )
+                reasons: dict[int, str] = {}
+                for ref, body in comment_rows.all():
+                    if ref not in reasons:
+                        reasons[ref] = body
+                for ref, body in reasons.items():
+                    reviews[ids[ref]].reason = body
             names = await _usernames(
                 session, set(latest.requested_to.values()) | set(latest.requested_by.values())
             )

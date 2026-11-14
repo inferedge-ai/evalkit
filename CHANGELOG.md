@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Features
+
+- **Review:** Reviewers can reject a case from the CLI (`evalkit review reject <dataset> <case_id>... --comment "<reason>"`) and API. A rejected case is excluded from runs and scores until re-requested, is not carried to promotion targets, and an active copy in a promotion target is withdrawn on rejection. Shows as `Rejected` with reviewer and reason in `evalkit review show`, `evalkit review queue --rejected`, and the UI cases table.
+
+
 ## 0.6.0
 
 _Released 2026-11-13._ Experiments can take trajectories from the agent's own

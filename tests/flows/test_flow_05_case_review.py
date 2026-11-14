@@ -48,8 +48,13 @@ def test_flow_05_request_queue_decide_and_changelog(cli):
     assert "rv5-1: approved" in cli.ok("review", "approve", "rv5@dev", "rv5-1", "--comment", "ok")
     cli.ok("review", "request-changes", "rv5@dev", "rv5-2", "--comment", "cite the filing")
     assert "rv5-2" in cli.ok("review", "queue", "--changes-requested")
+    assert cli.fails("review", "reject", "rv5@dev", "rv5-3")
+    assert "rv5-3: rejected" in cli.ok(
+        "review", "reject", "rv5@dev", "rv5-3", "--comment", "drop this case"
+    )
+    assert "rv5-3" in cli.ok("review", "queue", "--rejected")
     queue = cli.ok("review", "queue")
-    assert "rv5-3" in queue and "rv5-1" not in queue and "rv5-2" not in queue
+    assert "rv5-1" not in queue and "rv5-2" not in queue and "rv5-3" not in queue
 
     with api(cli.live, "ravi") as ravi:
         states = {
@@ -59,7 +64,7 @@ def test_flow_05_request_queue_decide_and_changelog(cli):
         assert states == {
             "rv5-1": "approved",
             "rv5-2": "changes_requested",
-            "rv5-3": "review_requested",
+            "rv5-3": "rejected",
         }
         events = ravi.get("/api/datasets/rv5@dev/cases/rv5-1/events").json()["events"][::-1]
         assert [e["kind"] for e in events] == ["synced", "review_requested", "approved"]
@@ -70,6 +75,8 @@ def test_flow_05_request_queue_decide_and_changelog(cli):
 
     shown = cli.ok("review", "show", "rv5@dev", "rv5-2")
     assert "state: changes_requested" in shown and "cite the filing" in shown
+    shown_rej = cli.ok("review", "show", "rv5@dev", "rv5-3")
+    assert "state: rejected" in shown_rej and "drop this case" in shown_rej
 
 
 def test_flow_05_comments_nest_once_and_resolve_rules(cli):
@@ -116,6 +123,23 @@ def test_flow_05_runs_ignore_review_state(cli):
     exp = experiment_id(cli.ok("run", "ap5@dev", "--agent", "ouragent@dev"))
     with api(cli.live, "alice") as alice:
         assert sorted(c["case_id"] for c in alice.get(f"/api/experiments/{exp}/cases").json()) == [
+            "ap5-1",
+            "ap5-2",
+        ]
+    with api(cli.live, "ravi") as ravi:
+        ravi.post(
+            "/api/datasets/ap5@dev/cases/ap5-2/review",
+            json={"action": "reject", "comment": "broken test"},
+        )
+    exp2 = experiment_id(cli.ok("run", "ap5@dev", "--agent", "ouragent@dev"))
+    with api(cli.live, "alice") as alice:
+        assert [c["case_id"] for c in alice.get(f"/api/experiments/{exp2}/cases").json()] == [
+            "ap5-1"
+        ]
+    cli.ok("review", "request", "ap5@dev", "--case-id", "ap5-2", "--reviewer", "ravi")
+    exp3 = experiment_id(cli.ok("run", "ap5@dev", "--agent", "ouragent@dev"))
+    with api(cli.live, "alice") as alice:
+        assert sorted(c["case_id"] for c in alice.get(f"/api/experiments/{exp3}/cases").json()) == [
             "ap5-1",
             "ap5-2",
         ]
