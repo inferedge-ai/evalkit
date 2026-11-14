@@ -2,12 +2,13 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from evalkit.api.access import ActorDep, StoresDep, TenantStores, require, workspace_ref
 from evalkit.api.auth import CurrentUser
 from evalkit.api.deps import SessionDep
-from evalkit.contracts.enums import WorkspaceRole
+from evalkit.contracts.enums import SyncSource, WorkspaceRole
 from evalkit.core.access import WorkspaceRef, can_review
 from evalkit.core.promotion import MissingTargetDataset, PromotionPlan
 from evalkit.core.review import (
@@ -22,6 +23,7 @@ from evalkit.core.review import (
     review_summary,
 )
 from evalkit.core.workspace import parse_slug
+from evalkit.db import models
 from evalkit.db.cases import current_cases, dataset_by_ref, find_dataset_row, list_datasets
 from evalkit.db.promotion import execute_promotion, plan_promotion
 from evalkit.store.base import CaseView, DatasetRow, Selection, select_cases
@@ -35,7 +37,7 @@ class ReviewRequest(BaseModel):
 
 
 class DecisionRequest(BaseModel):
-    action: Literal["approve", "request_changes"]
+    action: Literal["approve", "request_changes", "reject"]
     comment: str | None = None
 
 
@@ -133,8 +135,8 @@ async def decide(
     require(can_review(user, ws), "only reviewers of this workspace decide")
     await _not_target(stores, ws, slug, case_id)
     text = (body.comment or "").strip()
-    if body.action == "request_changes" and not text:
-        raise HTTPException(status_code=400, detail="request_changes needs a comment")
+    if body.action in ("request_changes", "reject") and not text:
+        raise HTTPException(status_code=400, detail=f"{body.action} needs a comment")
     review = await _load_case_review(stores, session, slug, case_id)
     plan: PromotionPlan | None = None
     if body.action == "approve" and ws.promotes_to is not None:
@@ -155,18 +157,65 @@ async def decide(
         if text
         else None
     )
-    event = (
-        review.approve(user.username)
-        if body.action == "approve"
-        else review.request_changes(user.username)
-    )
+    if body.action == "approve":
+        event = review.approve(user.username)
+    elif body.action == "reject":
+        event = review.reject(user.username)
+    else:
+        event = review.request_changes(user.username)
     actor_id = user.id
 
     async def promote(db: AsyncSession, event_id: int) -> None:
         assert plan is not None
         await execute_promotion(db, plan, actor_id=actor_id, event_id=event_id)
 
-    await stores.review.decide(event, comment, promote if plan is not None else None)
+    async def withdraw_from_target(db: AsyncSession, event_id: int) -> None:
+        assert ws.promotes_to is not None
+        target_ws = await stores.workspaces.get_by_id(ws.promotes_to)
+        target = await find_dataset_row(db, ws.tenant_id, target_ws.name, parse_slug(slug).name)
+        if target is None:
+            return
+        case_ref = await db.scalar(select(models.Case.id).where(models.Case.case_id == case_id))
+        if case_ref is None:
+            return
+        active = await db.scalar(
+            select(models.DatasetCase).where(
+                models.DatasetCase.dataset_id == target.id,
+                models.DatasetCase.case_ref == case_ref,
+                models.DatasetCase.removed_at.is_(None),
+            )
+        )
+        if active is not None:
+            await db.execute(
+                update(models.DatasetCase)
+                .where(
+                    models.DatasetCase.dataset_id == target.id,
+                    models.DatasetCase.case_ref == case_ref,
+                    models.DatasetCase.removed_at.is_(None),
+                )
+                .values(removed_at=func.now(), updated_at=func.now())
+            )
+            db.add(
+                models.DatasetSync(
+                    dataset_id=target.id,
+                    actor_id=actor_id,
+                    source=SyncSource.PROMOTION.value,
+                    detail={
+                        "from": slug,
+                        "case_id": case_id,
+                        "withdrawn": True,
+                        "event_id": event_id,
+                    },
+                )
+            )
+
+    after = None
+    if plan is not None:
+        after = promote
+    elif body.action == "reject" and ws.promotes_to is not None:
+        after = withdraw_from_target
+
+    await stores.review.decide(event, comment, after)
     summary = review_summary(await _load_case_review(stores, session, slug, case_id))
     return {**summary, "promoted_to": plan.target_ref if plan is not None else None}
 
@@ -276,7 +325,7 @@ async def resolve_comment_by_id(
     )
 
 
-QueueState = Literal["review_requested", "changes_requested"]
+QueueState = Literal["review_requested", "changes_requested", "rejected"]
 
 
 @router.get("/review/queue")
@@ -318,6 +367,7 @@ async def queue(
                     "requested_by": r.last_event.actor,
                     "author": r.requested_by,
                     "requested_at": r.last_event.created_at,
+                    "reason": r.reason,
                     "input": question if isinstance(question, str) else str(case.input),
                 }
             )

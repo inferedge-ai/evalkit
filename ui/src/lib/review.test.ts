@@ -7,10 +7,12 @@ describe("stateLabel / getStateVariant", () => {
     expect(stateLabel("review_requested")).toBe("Review requested");
     expect(stateLabel("changes_requested")).toBe("Changes requested");
     expect(stateLabel("approved")).toBe("Approved");
+    expect(stateLabel("rejected")).toBe("Rejected");
     expect(getStateVariant("approved")).toBe("pass");
     expect(getStateVariant("changes_requested")).toBe("partial");
     expect(getStateVariant("review_requested")).toBe("info");
     expect(getStateVariant("unreviewed")).toBe("secondary");
+    expect(getStateVariant("rejected")).toBe("fail");
   });
 });
 

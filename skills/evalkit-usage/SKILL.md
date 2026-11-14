@@ -414,7 +414,7 @@ with `link: <url>`, that page. Give the developer the link.
 |---|---|---|
 | Experiment | `/experiments/<id>` | `run`, `evaluate`, `status`, `summary`, `runs pull --experiment` |
 | Dataset | `/datasets/<dataset>` | `sync` (and `run`, which syncs first), `datasets create`, `datasets show` |
-| Case | `/datasets/<dataset>/cases/<case id>` | `review show <dataset> <case id>`, `review approve` (one link per case), `review request-changes`, `review comment`, `review resolve` |
+| Case | `/datasets/<dataset>/cases/<case id>` | `review show <dataset> <case id>`, `review approve` (one link per case), `review request-changes`, `review reject`, `review comment`, `review resolve` |
 | Agent | `/agents/<agent>` | `agents create`, `agents edit`, `agents show`, `agents archive`, `agents restore` |
 | Agent run | `/runs/<agent>/<run id>` | `traces check`, `traces import <agent> <session id>`; `runs pull --run-id` and `runs list --json` (each row's `url`), except for a personal agent with a harness, whose runs the server cannot reach |
 
@@ -522,11 +522,12 @@ the source row, `promoted from dev` on the target row); `promote-to <source>
 --none` clears it. One target per source, one source per target, no chains.
 
 Commands, in the order a case usually moves: `evalkit review request` →
-reviewer runs `evalkit review queue` → `evalkit review approve` or
-`evalkit review request-changes` → author edits, syncs (carry-over) →
-reviewer approves. `evalkit review show` prints state, changelog and comments
-for a case; `evalkit review comment` and `evalkit review resolve` handle
-discussion. The same actions are available on the case page in the web UI.
+reviewer runs `evalkit review queue` → `evalkit review approve`,
+`evalkit review request-changes` or `evalkit review reject` → author edits,
+syncs (carry-over) → reviewer approves. `evalkit review show` prints state,
+changelog and comments for a case; `evalkit review comment` and
+`evalkit review resolve` handle discussion. The same actions are available
+on the case page in the web UI.
 
 ## From an MCP client
 

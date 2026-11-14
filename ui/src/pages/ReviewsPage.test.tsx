@@ -26,6 +26,8 @@ function openReviews() {
     if (!url.includes("/api/review/queue?")) return undefined;
     if (url.includes("state=changes_requested"))
       return Response.json({ items: [queued("acme-gross-margin")] });
+    if (url.includes("state=rejected"))
+      return Response.json({ items: [queued("acme-rejected-case")] });
     if (url.includes("reviewer=akshat"))
       return Response.json({ items: [queued("acme-revenue")] });
     return Response.json({ items: [] });
@@ -57,6 +59,20 @@ test("a reviewer switches from their queue to the cases sent back to authors", a
     await screen.findByRole("link", { name: "acme-gross-margin" }),
   ).toBeInTheDocument();
   expect(screen.getByText("1 awaiting an edit")).toBeInTheDocument();
+});
+
+test("a reviewer switches to the rejected cases tab", async () => {
+  openReviews();
+  expect(
+    await screen.findByRole("link", { name: "acme-revenue" }),
+  ).toBeInTheDocument();
+  await userEvent
+    .setup()
+    .click(screen.getByRole("tab", { name: "Rejected" }));
+  expect(
+    await screen.findByRole("link", { name: "acme-rejected-case" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("1 rejected")).toBeInTheDocument();
 });
 
 test("Back from a case returns to the queue the reviewer was on", async () => {

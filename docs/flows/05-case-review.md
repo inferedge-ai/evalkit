@@ -45,6 +45,9 @@ sequenceDiagram
   else request changes
     R->>C: evalkit review request-changes finance@dev c --comment "…"
     C->>S: POST …/cases/c/review {action: request_changes, comment}
+  else reject
+    R->>C: evalkit review reject finance@dev c --comment "…"
+    C->>S: POST …/cases/c/review {action: reject, comment}
   end
   S-->>C: {state, requested_to, updated_at, promoted_to}
   C-->>R: "c: approved" / "c: changes_requested"

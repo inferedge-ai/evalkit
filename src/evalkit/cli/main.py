@@ -1706,10 +1706,12 @@ def review_show(
     if case_id is None:
         for ex in client.get(f"/api/datasets/{_dataset_ref(dataset)}/cases").json():
             review = ex.get("review") or {}
-            typer.echo(
-                f"{ex['case_id']:<40} {review.get('state', '-'):<18} "
-                f"{review.get('requested_to') or ''}"
-            )
+            extra = review.get("requested_to") or ""
+            if review.get("state") == "rejected":
+                by = f"by {review['reviewer']}" if review.get("reviewer") else ""
+                reason = f": {review['reason']}" if review.get("reason") else ""
+                extra = f"{by}{reason}".strip()
+            typer.echo(f"{ex['case_id']:<40} {review.get('state', '-'):<18} {extra}")
         typer.echo(CASE_HINT)
         return
     match = client.get(_case_path(dataset, case_id)).json()
@@ -1719,7 +1721,12 @@ def review_show(
         return
     typer.echo(case_yaml)
     review = match.get("review") or {}
-    typer.echo(f"state: {review.get('state', '-')}")
+    state_str = review.get("state", "-")
+    if review.get("state") == "rejected":
+        by = f" by {review['reviewer']}" if review.get("reviewer") else ""
+        reason = f": {review['reason']}" if review.get("reason") else ""
+        state_str = f"{state_str}{by}{reason}"
+    typer.echo(f"state: {state_str}")
     if review.get("requested_to"):
         typer.echo(f"requested to: {review['requested_to']}")
     typer.echo("changelog:")
@@ -1778,6 +1785,20 @@ def review_request_changes(
     Example: evalkit review request-changes finance us10k-conv-04 --comment "anchor the date"
     """
     _post_decision(dataset, case_id, "request_changes", comment)
+
+
+@review_app.command("reject")
+def review_reject(
+    dataset: str = typer.Argument(..., help="finance (yours) or finance@dev."),
+    case_ids: list[str] = typer.Argument(..., help="Case ids, one or more."),
+    comment: str = typer.Option(..., "--comment", help="Why this case is rejected."),
+):
+    """Reject one or more cases (reviewers only).
+
+    Example: evalkit review reject finance@dev us10k-conv-04 --comment "tests invalid policy"
+    """
+    for case_id in case_ids:
+        _post_decision(dataset, case_id, "reject", comment)
 
 
 @review_app.command("comment")
@@ -1841,11 +1862,12 @@ def review_queue(
     changes_requested: bool = typer.Option(
         False, "--changes-requested", help="Cases sent back to their authors instead."
     ),
+    rejected: bool = typer.Option(False, "--rejected", help="Cases rejected by reviewers."),
     workspace: str | None = typer.Option(
         None, "--workspace", help="Only cases in this workspace, e.g. dev; defaults to all."
     ),
 ):
-    """List cases waiting for review, or with --changes-requested, cases awaiting an edit.
+    """List cases waiting for review, or with --changes-requested / --rejected.
 
     Example: evalkit review queue · evalkit review queue finance@dev ·
     evalkit review queue --workspace dev
@@ -1854,7 +1876,9 @@ def review_queue(
         raise ApiError("pass a dataset or --workspace, not both")
     client = _client()
     params: dict = {} if workspace is None else {"workspace": workspace.removeprefix("@")}
-    if changes_requested:
+    if rejected:
+        params["state"] = "rejected"
+    elif changes_requested:
         params["state"] = "changes_requested"
     elif not everyone:
         params["reviewer"] = reviewer or client.get("/api/auth/me").json()["username"]
@@ -1863,9 +1887,16 @@ def review_queue(
         typer.echo("nothing waiting")
         return
     for item in items:
-        to = item["author"] if changes_requested else item["requested_to"]
-        typer.echo(
-            f"{item['dataset']:<20} {item['case_id']:<40} by {item['requested_by']:<16} "
-            f"to {to or '-':<16} {item['input'][:60]}"
-        )
+        if rejected:
+            reason = f": {item['reason']}" if item.get("reason") else ""
+            typer.echo(
+                f"{item['dataset']:<20} {item['case_id']:<40} "
+                f"rejected by {item['requested_by']:<16} {reason[:60]}"
+            )
+        else:
+            to = item["author"] if changes_requested else item["requested_to"]
+            typer.echo(
+                f"{item['dataset']:<20} {item['case_id']:<40} by {item['requested_by']:<16} "
+                f"to {to or '-':<16} {item['input'][:60]}"
+            )
     typer.echo(CASE_HINT)

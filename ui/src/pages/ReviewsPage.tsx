@@ -18,12 +18,13 @@ import { useMe } from "../shell/capabilities";
 import { useWorkspace } from "../shell/workspace";
 import { PageHeader } from "@/components/widgets/PageHeader";
 
-type View = "mine" | "all" | "changes";
+type View = "mine" | "all" | "changes" | "rejected";
 
 const VIEWS: { id: View; label: string }[] = [
   { id: "mine", label: "Requested to me" },
   { id: "all", label: "All under review" },
   { id: "changes", label: "Changes requested" },
+  { id: "rejected", label: "Rejected" },
 ];
 
 const NO_ITEMS: QueueItem[] = [];
@@ -31,9 +32,11 @@ const NO_ITEMS: QueueItem[] = [];
 const getItemId = (i: QueueItem) => `${i.dataset}/${i.case_id}`;
 
 function queueColumns(
-  changes: boolean,
+  view: View,
   everyWorkspace: boolean,
 ): ColDef<QueueItem>[] {
+  const changes = view === "changes";
+  const rejected = view === "rejected";
   return [
     {
       colId: "dataset",
@@ -60,11 +63,11 @@ function queueColumns(
     },
     {
       colId: "requested_by",
-      headerName: changes ? "reviewer" : "requested by",
+      headerName: rejected ? "rejected by" : changes ? "reviewer" : "requested by",
       type: "text",
       field: "requested_by",
     },
-    ...(changes
+    ...(changes || rejected
       ? []
       : [
           {
@@ -78,12 +81,28 @@ function queueColumns(
         ]),
     {
       colId: "requested_at",
-      headerName: changes ? "sent back" : "requested",
+      headerName: rejected ? "rejected" : changes ? "sent back" : "requested",
       valueGetter: readValue((i) => i.requested_at ?? ""),
       cellRenderer: renderCell<QueueItem>((i) => (
         <span className="row-meta">{fmtWhen(i.requested_at)}</span>
       )),
     },
+    ...(rejected
+      ? [
+          {
+            colId: "reason",
+            headerName: "reason",
+            type: "text",
+            initialFlex: 1,
+            valueGetter: readValue<QueueItem, string>((i) => i.reason ?? "—"),
+            cellRenderer: renderCell<QueueItem>((i) => (
+              <span className="text-ink-2 truncate" title={i.reason ?? undefined}>
+                {i.reason ?? "—"}
+              </span>
+            )),
+          } satisfies ColDef<QueueItem>,
+        ]
+      : []),
     {
       colId: "question",
       headerName: "question",
@@ -110,17 +129,21 @@ export function ReviewsPage() {
   const queue = useApi<{ items: QueueItem[] }>(
     `/review/queue${qs({
       reviewer: view === "mine" ? me.username : undefined,
-      state: view === "changes" ? "changes_requested" : undefined,
+      state:
+        view === "changes"
+          ? "changes_requested"
+          : view === "rejected"
+            ? "rejected"
+            : undefined,
       workspace: everyWorkspace ? undefined : workspace.name,
     })}`,
   );
   const items = queue.data?.items ?? null;
   const error = queue.error ? String(queue.error) : null;
 
-  const changes = view === "changes";
   const columns = useMemo(
-    () => queueColumns(changes, everyWorkspace),
-    [changes, everyWorkspace],
+    () => queueColumns(view, everyWorkspace),
+    [view, everyWorkspace],
   );
   const grid = useDataGrid<QueueItem>("review-queue");
 
@@ -137,7 +160,13 @@ export function ReviewsPage() {
             {error
               ? ""
               : items
-                ? `${grid.filteredCount ?? items.length} ${changes ? "awaiting an edit" : "waiting"}`
+                ? `${grid.filteredCount ?? items.length} ${
+                    view === "changes"
+                      ? "awaiting an edit"
+                      : view === "rejected"
+                        ? "rejected"
+                        : "waiting"
+                  }`
                 : "Loading…"}
           </span>
           <ColumnsMenu grid={grid} />
