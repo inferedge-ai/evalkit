@@ -265,7 +265,7 @@ per-table grid options, such as the side bar or pivoting, aren't exposed yet.
 - **Open pull requests as drafts** (`gh pr create --draft`). CI skips drafts, so run the tests locally and mark the PR ready (`gh pr ready <number>`) when it should be reviewed and run CI.
 
 `.github/workflows/ci.yml` runs on PRs to `develop`/`main` (non-draft; jobs are
-path-filtered against the PR base) and on pushes to those branches:
+path-filtered against the PR base) and on pushes to `develop`:
 
 - `python` — `ruff check`, `ruff format --check`, `mypy src/evalkit`, `pytest -n auto`
 - `ui` — `npm ci`, `tsc -b`, `vitest run`, `vite build` in `ui/`

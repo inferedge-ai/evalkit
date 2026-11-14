@@ -7,6 +7,14 @@
 - **CLI:** `evalkit update` in an agent project with a `.venv` now refreshes
   installed skills in `.agents/skills` and `.claude/skills` after syncing the
   project, rather than exiting immediately after `uv sync`.
+- **CLI, SDK:** Fixed `your login has expired` stopping a run when two
+  evalkit processes share one SSO login, such as two experiments at once.
+  The identity provider issues a new refresh token on each refresh and
+  revokes the whole login when an old one is sent again; a process
+  refreshed with the refresh token it read at startup. Now a process
+  refreshes under a lock on `~/.evalkit/config.toml.lock`, reads the saved
+  login first and uses tokens another process already refreshed. Adds the
+  `filelock` dependency.
 
 ## 0.6.0
 
