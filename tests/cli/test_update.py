@@ -207,3 +207,29 @@ def test_a_project_venv_is_updated_by_its_sync_alone(stale, tmp_path, capsys):
     run_update(client(), prefix=venv, run=calls.append, cwd=tmp_path, server_extra=False)
     assert calls == [["uv", "sync"]]
     assert f"installed evalkit {REMOTE}" in capsys.readouterr().out
+
+
+def test_a_project_venv_update_refreshes_installed_skills(stale, tmp_path):
+    (tmp_path / "pyproject.toml").write_text('dependencies = ["evalkit-py[otel]==0.3.0.dev57"]\n')
+    venv = tmp_path / ".venv"
+    venv.mkdir()
+    skills = tmp_path / ".claude" / "skills"
+    skills.mkdir(parents=True)
+    (skills / ".evalkit-installed").write_text("evalkit-usage\n")
+
+    sync_calls: list[list[str]] = []
+    install_calls: list[list[str]] = []
+    run_update(
+        client(),
+        prefix=venv,
+        run=sync_calls.append,
+        run_skills_install=install_calls.append,
+        cwd=tmp_path,
+        server_extra=False,
+    )
+    assert sync_calls == [["uv", "sync"]]
+    cli = str(venv / "bin" / "evalkit")
+    assert install_calls == [
+        [cli, "skills", "install", "--target", str(folder.resolve())]
+        for folder in (tmp_path / ".agents" / "skills", skills)
+    ]

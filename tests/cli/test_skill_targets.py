@@ -99,3 +99,10 @@ def test_refresh_drops_a_target_without_a_manifest(tmp_path, isolated_skill_targ
     record(target)
     refresh(tmp_path, CLI, [].append)
     assert isolated_skill_targets.read_text() == ""
+
+
+def test_find_default_siblings_accepts_relative_path(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    agents = (tmp_path / ".agents" / "skills").resolve()
+    claude = (tmp_path / ".claude" / "skills").resolve()
+    assert skill_targets.find_default_siblings(Path(".agents/skills")) == [agents, claude]
