@@ -6,6 +6,14 @@
 
 - **Review:** Reviewers can reject a case from the CLI (`evalkit review reject <dataset> <case_id>... --comment "<reason>"`) and API. A rejected case is excluded from runs and scores until re-requested, is not carried to promotion targets, and an active copy in a promotion target is withdrawn on rejection. Shows as `Rejected` with reviewer and reason in `evalkit review show`, `evalkit review queue --rejected`, and the UI cases table.
 
+- **CLI, SDK:** Fixed `your login has expired` stopping a run when two
+  evalkit processes share one SSO login, such as two experiments at once.
+  The identity provider issues a new refresh token on each refresh and
+  revokes the whole login when an old one is sent again; a process
+  refreshed with the refresh token it read at startup. Now a process
+  refreshes under a lock on `~/.evalkit/config.toml.lock`, reads the saved
+  login first and uses tokens another process already refreshed. Adds the
+  `filelock` dependency.
 
 ## 0.6.0
 

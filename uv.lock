@@ -687,6 +687,7 @@ version = "0.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },
+    { name = "filelock" },
     { name = "httpx2" },
     { name = "jsonschema" },
     { name = "opentelemetry-api" },
@@ -741,6 +742,7 @@ requires-dist = [
     { name = "cryptography", marker = "extra == 'server'", specifier = ">=50.0.2" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.141.1" },
     { name = "fastmcp", marker = "extra == 'server'", specifier = ">=4.0.0,<5.0.0" },
+    { name = "filelock", specifier = ">=4.2.4" },
     { name = "greenlet", marker = "extra == 'server'", specifier = ">=3.5.5" },
     { name = "httpx2", specifier = ">=2.16.0" },
     { name = "jsonschema", specifier = ">=4.26.0" },

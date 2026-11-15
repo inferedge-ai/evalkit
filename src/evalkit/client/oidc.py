@@ -14,6 +14,7 @@ import httpx2
 from authlib.common.security import generate_token
 from authlib.integrations.base_client import OAuthError
 from authlib.integrations.httpx_client import OAuth2Client
+from filelock import FileLock
 
 from evalkit import version
 from evalkit.client import connection
@@ -79,13 +80,22 @@ class StoredOidcLogin:
             assert login is not None
             if not expires_within(login.expires_at, REFRESH_WINDOW_SECONDS):
                 return login.access_token
-            refreshed = self.refresh(login)
-            if refreshed is None:
-                refreshed = self.adopt_newer(login)
-            if refreshed is None:
-                raise LoginExpired(self.conn.url)
-            self.conn = self.conn._replace(oidc=refreshed)
-            return refreshed.access_token
+            config_path = self.path or connection.CONFIG_PATH
+            with FileLock(config_path.with_name(f"{config_path.name}.lock")):
+                login = self.read_saved(config_path) or login
+                if expires_within(login.expires_at, REFRESH_WINDOW_SECONDS):
+                    refreshed = self.refresh(login)
+                    if refreshed is None:
+                        raise LoginExpired(self.conn.url)
+                    login = refreshed
+            self.conn = self.conn._replace(oidc=login)
+            return login.access_token
+
+    def read_saved(self, config_path: Path) -> OidcLogin | None:
+        saved = connection.load(config_path)
+        if saved is None or saved.url != self.conn.url:
+            return None
+        return saved.oidc
 
     def refresh(self, login: OidcLogin) -> OidcLogin | None:
         with OAuth2Client(
@@ -107,16 +117,6 @@ class StoredOidcLogin:
         )
         connection.save(self.conn._replace(oidc=refreshed), path=self.path)
         return refreshed
-
-    def adopt_newer(self, login: OidcLogin) -> OidcLogin | None:
-        fresh = connection.load(self.path or connection.CONFIG_PATH)
-        if fresh is None or fresh.oidc is None or fresh.url != self.conn.url:
-            return None
-        if fresh.oidc.access_token == login.access_token:
-            return None
-        if expires_within(fresh.oidc.expires_at, REFRESH_WINDOW_SECONDS):
-            return None
-        return fresh.oidc
 
 
 class ClientCredentials:

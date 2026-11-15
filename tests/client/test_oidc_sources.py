@@ -70,6 +70,25 @@ def test_stored_login_adopts_tokens_another_process_saved(tmp_path):
     assert stale.bearer() == rotated
 
 
+def test_stored_login_never_sends_a_refresh_token_another_process_rotated(tmp_path):
+    idp = FakeIdp()
+    conn, path = stored(idp, tmp_path, seconds_left=30)
+    arm_a = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    arm_b = StoredOidcLogin(conn, path=path, transport=idp.transport())
+    for _ in range(3):
+        arm_a.bearer()
+        assert arm_b.bearer() == arm_a.bearer()
+        for source in (arm_a, arm_b):
+            source.conn = source.conn._replace(
+                oidc=source.conn.oidc._replace(expires_at=datetime.now(UTC))
+            )
+        saved = connection.load(path)
+        connection.save(
+            saved._replace(oidc=saved.oidc._replace(expires_at=datetime.now(UTC))), path=path
+        )
+    assert len(idp.refresh_tokens) == 1
+
+
 def test_stored_login_raises_when_nothing_newer_exists(tmp_path):
     idp = FakeIdp()
     conn, path = stored(idp, tmp_path, seconds_left=30)
