@@ -245,7 +245,7 @@ describe("LoginPage", () => {
     return within(document.querySelector("footer")!);
   }
 
-  it("links the footer to the in-app docs, GitHub and the release the server runs", async () => {
+  it("links the footer to the in-app docs, GitHub, the Slack community and the release the server runs", async () => {
     const footer = openWithServer(() =>
       Response.json({ version: "0.5.0", package: "evalkit-py" }),
     );
@@ -255,6 +255,7 @@ describe("LoginPage", () => {
     expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
       "Docs",
       "GitHub",
+      "Slack",
       "evalkit-py v0.5.0",
     ]);
     const docs = footer.getByRole("link", { name: "Docs" });
@@ -265,11 +266,16 @@ describe("LoginPage", () => {
       "href",
       "https://github.com/inferedge-ai/evalkit",
     );
+    const slack = footer.getByRole("link", { name: "Slack" });
+    expect(slack).toHaveAttribute(
+      "href",
+      "https://join.slack.com/t/evalkit/shared_invite/zt-4h1l6idv8-QzqY3bIYT36h5wNpZ8HMHA",
+    );
     expect(release).toHaveAttribute(
       "href",
       "https://github.com/inferedge-ai/evalkit/releases/tag/v0.5.0",
     );
-    for (const link of [github, release]) {
+    for (const link of [github, slack, release]) {
       expect(link).toHaveAttribute("target", "_blank");
       expect(link).toHaveAttribute("rel", "noreferrer");
     }
@@ -284,6 +290,7 @@ describe("LoginPage", () => {
     expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
       "Docs",
       "GitHub",
+      "Slack",
     ]);
   });
 
@@ -313,6 +320,7 @@ describe("LoginPage", () => {
     expect(footer.getAllByRole("link").map((a) => a.textContent)).toEqual([
       "Docs",
       "GitHub",
+      "Slack",
     ]);
     expect(footer.queryByText(/evalkit-py/)).toBeNull();
   });
