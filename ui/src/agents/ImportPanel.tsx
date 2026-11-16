@@ -328,10 +328,10 @@ export function ImportPanel({
                     <FieldDescription>empty means now</FieldDescription>
                   </Field>
                   <p className="text-meta text-ink-3">
-                    Imports every trace that started in this range, oldest
-                    first, as a job on the server. Sessions come from the active
-                    mapping's <code>session_id</code> rule. Leaving this page
-                    does not stop it.
+                    Imports every trace that started in this range, as a job on
+                    the server. Sessions come from the active mapping's{" "}
+                    <code>session_id</code> rule. Leaving this page does not
+                    stop it.
                   </p>
                 </>
               )}
