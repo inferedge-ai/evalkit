@@ -12,7 +12,7 @@ Stuck at a step? Read the page that step links to, or [open an issue on GitHub](
 
 There are two paths. They differ only in step 3, which has a tab for each:
 
-- **My agent sends traces to Phoenix.** evalkit imports your trace history.
+- **My agent already sends traces somewhere.** evalkit imports your trace history from that [trace source](concepts.md#trace-source).
 - **No traces yet.** Your agent sends its traces straight to evalkit, and you use it a few times.
 
 This quickstart assumes a Python agent. Is yours in another language, or does it run in another process? evalkit still works:
@@ -98,12 +98,20 @@ In the UI: Agents › New agent, set Trajectories to "From traces (OTel spans)" 
 Each [session](concepts.md#trace-span-session) of your agent becomes an [app run](concepts.md#app-run). Pick your path:
 
 <!-- tabs -->
-#### My agent sends traces to Phoenix
+#### My agent already sends traces somewhere
 
-Tell evalkit where your traces live. This makes a [trace source](concepts.md#trace-source), and it needs an admin:
+evalkit imports traces from [trace sources](concepts.md#trace-source). Supported today: Phoenix and Langfuse. For another, [file a GitHub issue](https://github.com/inferedge-ai/evalkit/issues).
+
+Tell evalkit where your traces live. This makes a trace source, and it needs an admin:
 
 ```bash
 evalkit trace-sources create phoenix --url <your Phoenix URL> --api-key-env PHOENIX_API_KEY
+```
+
+For Langfuse, the env var holds the public key and secret key joined with a colon, and the agent uses the `langfuse` preset in step 2. See [Tracing](tracing.md#langfuse):
+
+```bash
+evalkit trace-sources create langfuse --provider langfuse --url https://cloud.langfuse.com --api-key-env LANGFUSE_KEYS
 ```
 
 In the UI: Settings › Organization › Trace sources.

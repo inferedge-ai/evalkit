@@ -11,12 +11,13 @@ export interface AgentFormValues {
   api_key: ApiKeyValue;
   trace_source: string;
   project: string;
+  trace_filter: string;
   settings: Record<NumericSetting, string>;
 }
 
 type NumericSetting = keyof Omit<
   AgentSettings,
-  "provides" | "trace_source" | "project"
+  "provides" | "trace_source" | "project" | "trace_filter"
 >;
 
 export const SETTING_FIELDS: {
@@ -61,6 +62,7 @@ export function emptyAgentForm(workspace: string): AgentFormValues {
     api_key: { key: "", clear: false },
     trace_source: "",
     project: "",
+    trace_filter: "",
     settings: { ...DEFAULTS },
   };
 }
@@ -79,6 +81,7 @@ export function agentFormFrom(agent: AgentInfo): AgentFormValues {
     api_key: { key: "", clear: false },
     trace_source: agent.settings.trace_source ?? "",
     project: agent.settings.project ?? "",
+    trace_filter: agent.settings.trace_filter ?? "",
     settings,
   };
 }
@@ -142,6 +145,8 @@ function settingsOf(values: AgentFormValues): Omit<AgentSettings, "provides"> {
     ...numbers,
     trace_source: source,
     project: source ? values.project.trim() : null,
+    trace_filter:
+      source && values.trace_filter.trim() ? values.trace_filter.trim() : null,
   };
 }
 

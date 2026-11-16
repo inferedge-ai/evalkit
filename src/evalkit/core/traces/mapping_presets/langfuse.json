@@ -1,0 +1,27 @@
+{
+  "schema_version": "1",
+  "kind": {
+    "attribute": "langfuse.observation.type",
+    "values": {
+      "generation": "llm", "tool": "tool", "agent": "agent", "span": "chain",
+      "chain": "chain", "retriever": "retriever"
+    }
+  },
+  "session_id": {"attribute": "session.id"},
+  "model": {"attribute": "langfuse.observation.model.name"},
+  "input_messages": {"attribute": "langfuse.observation.input", "message_format": "gen_ai"},
+  "output_messages": {"attribute": "langfuse.observation.output", "message_format": "gen_ai"},
+  "tokens": {"buckets": {"attribute": "langfuse.observation.usage_details", "json": true}},
+  "cost_usd": {"attribute": "langfuse.observation.cost_details", "path": "total"},
+  "tool": {
+    "call_id": {"attribute": "gen_ai.tool.call.id"},
+    "arguments": {"attribute": "langfuse.observation.input", "json": true},
+    "result": {"attribute": "langfuse.observation.output", "json": true}
+  },
+  "input": {"attribute": "langfuse.observation.input", "json": true},
+  "output": {"attribute": "langfuse.observation.output", "json": true},
+  "known_attributes": [
+    "langfuse.*", "user.id", "gen_ai.operation.name", "gen_ai.request.*", "gen_ai.response.*",
+    "gen_ai.usage.*", "gen_ai.tool.*", "gen_ai.agent.*", "gen_ai.provider.name", "gen_ai.system"
+  ]
+}

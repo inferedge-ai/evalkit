@@ -267,6 +267,7 @@ class TraceImport(AuditMixin, Base):
     until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     resume_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     resume_trace_ids: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    trace_filter: Mapped[str | None] = mapped_column(Text, default=None)
     status: Mapped[str] = mapped_column(String(16))
     traces: Mapped[int] = mapped_column(Integer, default=0)
     spans: Mapped[int] = mapped_column(BigInteger, default=0)

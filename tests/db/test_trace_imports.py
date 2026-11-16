@@ -14,6 +14,7 @@ from evalkit.db.trace_imports import (
     ImportRunning,
     TraceImportStore,
     UnknownTraceImport,
+    compute_progress,
     reap_imports,
 )
 from evalkit.db.trace_sources import TraceSourceStore, UnknownTraceSource
@@ -40,7 +41,7 @@ async def db(session_factory):
 
     async def start(holder: str = "pod:a") -> int:
         view = await store.create(
-            agent.id, source.id, "research-agent", SINCE, UNTIL, user.id, holder
+            agent.id, source.id, "research-agent", None, SINCE, UNTIL, user.id, holder
         )
         return view.id
 
@@ -206,7 +207,7 @@ async def test_create_refuses_an_agent_from_another_tenant(db, raw_session_facto
     )
     with pytest.raises(UnknownAgent):
         await TraceImportStore(raw_session_factory, "tenant-2").create(
-            agent_id, source.id, "proj", SINCE, UNTIL, root.id, "pod:x"
+            agent_id, source.id, "proj", None, SINCE, UNTIL, root.id, "pod:x"
         )
 
 
@@ -220,4 +221,15 @@ async def test_create_refuses_a_trace_source_from_another_tenant(db, raw_session
         u for u in await UserStore(raw_session_factory, "default").list() if u.username == "akshat"
     )
     with pytest.raises(UnknownTraceSource):
-        await store.create(agent_id, foreign.id, "proj", SINCE, UNTIL, user.id, "pod:x")
+        await store.create(agent_id, foreign.id, "proj", None, SINCE, UNTIL, user.id, "pod:x")
+
+
+def test_progress_counts_the_window_from_the_end_the_source_starts_at():
+    since, until = SINCE, SINCE + timedelta(days=4)
+    middle = SINCE + timedelta(days=1)
+    running = TraceImportStatus.RUNNING
+    assert compute_progress(running, TraceProvider.PHOENIX, since, until, middle) == 0.25
+    assert compute_progress(running, TraceProvider.LANGFUSE, since, until, middle) == 0.75
+    assert compute_progress(running, TraceProvider.LANGFUSE, since, until, until) == 0.0
+    done = TraceImportStatus.DONE
+    assert compute_progress(done, TraceProvider.LANGFUSE, since, until, until) == 1.0

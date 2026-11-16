@@ -24,7 +24,7 @@ from evalkit.api.session_pull import (
     build_source_client,
     load_active_mapping,
 )
-from evalkit.api.trace_checks import resolve_import_source
+from evalkit.api.trace_checks import check_import_target, resolve_import_source
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.access import can_use_agent, can_write
 from evalkit.core.agents import AgentDefinition, UnknownAgent, explicit
@@ -172,6 +172,7 @@ async def activate_mapping(
 class ImportRequest(BaseModel):
     source: str | None = None
     project: str | None = None
+    trace_filter: str | None = None
     session_id: str
 
 
@@ -199,14 +200,27 @@ async def import_session(
     rule: EndpointRuleDep,
 ) -> dict:
     _, record = await agent_or_404(stores.agents, agent)
-    if body.source is None and body.project is None:
+    overridden = body.source is not None or body.project is not None
+    if not overridden and body.trace_filter is None:
         ws = await workspace_ref(stores, record.workspace)
         require(can_use_agent(actor, ws), f"you cannot run {record.ref}")
     else:
         await require_write(stores, actor, record)
     require_otel(record)
     name, project = resolve_import_target(record, body.source, body.project)
+    trace_filter = (
+        body.trace_filter
+        if body.trace_filter is not None
+        else (record.settings.trace_filter if body.source is None else None)
+    )
     source = await resolve_import_source(stores, name, rule=rule)
+    if overridden or body.trace_filter is not None:
+        await check_import_target(
+            source,
+            project,
+            trace_filter,
+            page_traces=cfg.otel.import_page_traces,
+        )
     try:
         imported = await pull_session(
             build_source_client(source, cfg.otel.import_page_traces, PULL_TIMEOUT_SECONDS),
@@ -215,6 +229,7 @@ async def import_session(
             agent_id=record.id,
             source_id=source.id,
             project=project,
+            trace_filter=trace_filter,
             session_id=body.session_id,
         )
     except httpx2.HTTPError as exc:

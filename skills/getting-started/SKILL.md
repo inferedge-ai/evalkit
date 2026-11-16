@@ -23,8 +23,11 @@ Before anything else, ask the developer:
 - **Which pace.** "Just set it up": run straight through and explain at the
   end. "Walk me through it": say what each step does as you do it, from the
   quickstart and the pages it links to (`../evalkit-docs/concepts.md` first).
-- **Which path** (the tabs of the quickstart's step 3). "My agent sends
-  traces to Phoenix": evalkit imports its history. "No traces yet": the agent
+- **Which path** (the tabs of the quickstart's step 3). "My agent
+  already sends traces somewhere": evalkit imports its history from that
+  trace source. Supported today: Phoenix and Langfuse; for another, the
+  developer files a GitHub issue at
+  https://github.com/inferedge-ai/evalkit/issues. "No traces yet": the agent
   sends its traces straight to evalkit. Read the agent's code first and
   suggest the path it fits.
 
@@ -76,7 +79,7 @@ After that, stop for the developer only at the points under "When to stop".
   - Step 6, fixing the agent: the **eval-driven-development** skill, Loop 1,
     with `--apply`.
 - Mine a small first batch: pick the window so it holds 30 app runs or
-  fewer, and narrow it if `evalkit runs list` shows more. On the Phoenix path,
+  fewer, and narrow it if `evalkit runs list` shows more. On the trace source path,
   import only that window.
 - The cases stay in the developer's own workspace. Skip the review steps of
   the mining loop.
@@ -88,7 +91,8 @@ After that, stop for the developer only at the points under "When to stop".
 Stop and ask only for what you cannot do yourself:
 
 - The sign-in in the browser that `evalkit login` opens.
-- Phoenix path: the trace store's URL, project name and API key. Ask for the
+- Trace source path: the trace store's URL, project name and API key (for
+  Langfuse, the public and secret key joined with a colon in one variable). Ask for the
   name of the environment variable that holds the key; never ask for the key
   itself. Creating the trace source needs an admin: if it is refused, say so
   and stop.
@@ -105,7 +109,7 @@ session.
 Do not move on until each holds:
 
 1. After step 3: `evalkit runs list <agent> --source app` returns runs, and
-   one session checked with `evalkit traces import` (Phoenix) or
+   one session checked with `evalkit traces import` (trace source) or
    `evalkit traces check` (no traces yet) has a ✓ on every required line.
 2. After step 5: every run has a trajectory. A run with none says why in its
    trajectory note; follow the session id rule in

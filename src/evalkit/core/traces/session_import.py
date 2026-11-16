@@ -19,9 +19,10 @@ async def pull_session(
     agent_id: int,
     source_id: int,
     project: str,
+    trace_filter: str | None,
     session_id: str,
 ) -> int:
-    fetched = await client.session_spans(project, session_id)
+    fetched = await client.session_spans(project, trace_filter, session_id)
     for span in fetched:
         span.session_id_hint = session_id_of(span.attributes, mapping) or session_id
     return await spans.upsert(agent_id, fetched, external_trace_source_id=source_id)

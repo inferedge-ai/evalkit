@@ -21,6 +21,7 @@ from tests.flows.helpers_12_17 import DEV, flow_api
 PHOENIX = "https://phoenix.example.com"
 TRACES = f"{PHOENIX}/v1/projects/research-agent/traces"
 SPANS = f"{PHOENIX}/v1/projects/research-agent/spans"
+PROJECT = f"{PHOENIX}/v1/projects/research-agent"
 AGENT = f"deployed@{DEV}"
 NO_SESSION = 7
 
@@ -31,6 +32,7 @@ def serve_spans(router: Router) -> Route:
         data = [phoenix_span(n, None if n == NO_SESSION else f"sess-{n}") for n in ids]
         return MockResponse(200, json={"data": data})
 
+    router.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
     return router.get(SPANS).mock(side_effect=spans)
 
 
@@ -120,6 +122,7 @@ async def test_flow_14_errors(httpx2_mock, api):
     assert (
         await alice.post(f"/api/agents/{AGENT}/sessions/import", json=body())
     ).status_code == 403
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
     httpx2_mock.get(TRACES).mock(return_value=MockResponse(500))
     down = await api.post(f"/api/agents/{AGENT}/sessions/import", json=body())
     assert down.status_code == 502 and down.json()["detail"].startswith("phx: ")
@@ -300,6 +303,7 @@ async def test_flow_14_private_source_urls_are_refused_unless_allowed(api):
 
 
 async def test_flow_14_imports_refuse_a_stored_private_url(httpx2_mock, api):
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
     httpx2_mock.get(TRACES).mock(return_value=MockResponse(500))
     import_id = (await api.post(f"/api/agents/{AGENT}/imports", json=RANGE)).json()["id"]
     assert (await settled(api, import_id))["status"] == "failed"
@@ -328,12 +332,10 @@ async def test_flow_14_imports_refuse_a_stored_private_url(httpx2_mock, api):
     assert [(i["id"], i["status"]) for i in imports] == [(import_id, "failed")]
 
 
-PROJECT = f"{PHOENIX}/v1/projects/research-agent"
 SETTINGS = {"trace_source": "phx", "project": "research-agent"}
 
 
 async def test_flow_14_agent_settings_name_a_checked_source_and_default_imports(httpx2_mock, api):
-    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
     httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": [phoenix_trace(9)]}))
     serve_spans(httpx2_mock)
     none = await api.post(f"/api/agents/{AGENT}/sessions/import", json={"session_id": "sess-9"})
@@ -410,7 +412,6 @@ async def test_flow_14_server_puller_pulls_only_for_an_agent_with_a_source(httpx
 
 
 async def test_flow_14_anyone_who_may_run_the_agent_pulls_from_its_own_source(httpx2_mock, api):
-    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
     httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": [phoenix_trace(9)]}))
     serve_spans(httpx2_mock)
     assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200

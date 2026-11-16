@@ -214,13 +214,30 @@ lacks it. That is what a wrong mapping looks like in the check.
 
 ## An agent that keeps its own trace store
 
-When the agent already sends its spans to a registered trace source (Phoenix)
-and the developer would rather not add the exporter, skip step 3: name the
-store on the agent instead.
+When the agent already sends its spans to a registered trace source and the
+developer would rather not add the exporter, skip step 3: name the store on
+the agent instead. evalkit imports traces from trace sources. Supported
+today: Phoenix and Langfuse. For another, the developer files a GitHub issue
+at https://github.com/inferedge-ai/evalkit/issues.
 
 ```bash
 evalkit agents edit <agent> --trace-source <source> --project <project>
 ```
+
+When the project holds other agents' traces too, add `--trace-filter` with
+the store's own query (see "Picking the agent's traces" in
+[`tracing.md`](../evalkit-docs/tracing.md#picking-the-agents-traces-the-trace-filter)).
+
+For Langfuse (see [`tracing.md`](../evalkit-docs/tracing.md#langfuse)):
+
+- Use the `langfuse` preset whatever the agent sends Langfuse; a `gen_ai` or
+  `openinference` mapping finds no messages on spans read from Langfuse.
+- An `@observe` agent logs function arguments, not messages: point
+  `input_messages` at them with `path` (for example `args.0` with
+  `message_format: openai`), then check one session.
+- An OTel exporter must send the header `x-langfuse-ingestion-version: 4`
+  to Langfuse, or spans can take up to 15 minutes to show and experiments
+  miss them. Check the agent's exporter and add it.
 
 Experiments then import each run's session from the store (see "Experiments
 that read a trace source" in
@@ -235,7 +252,8 @@ Check with `run_experiment(..., dry_run=True)`, then read the run's
   trace or tracer provider. Pass `metadata["session_id"]` to the agent, or
   return `RunResult(session_id=...)`.
 - `session ... not found in project ...`: nothing in the store carries the
-  session id. Check the project and that the agent uses the id.
+  session id. Check the project and that the agent uses the id. For Langfuse,
+  check the exporter sends `x-langfuse-ingestion-version: 4`.
 - `spans still arriving after N s`: raise `--import-wait`.
 
 ## An agent in another process

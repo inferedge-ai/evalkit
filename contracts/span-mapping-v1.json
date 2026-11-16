@@ -47,6 +47,19 @@
           "default": null,
           "description": "Collect messages laid out per this format under the attribute key.",
           "title": "Message Format"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "A dotted path into the JSON-parsed value, e.g. args.0; numbers index lists. A path that does not resolve reads as nothing.",
+          "title": "Path"
         }
       },
       "required": [
@@ -231,6 +244,18 @@
             }
           ],
           "default": null
+        },
+        "buckets": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AttributeRule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "An attribute holding a JSON object of separate token buckets that add up to total, as Langfuse's usage_details. When it reads an object, the four counts come from it: keys with output or completion are completion, the rest prompt; keys with cache and read or cached are cached; keys with cache and creation or write are cache_write."
         }
       },
       "title": "TokenRules",

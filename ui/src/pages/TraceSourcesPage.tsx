@@ -5,6 +5,13 @@ import { apiJson } from "../lib/api";
 import { ENDPOINT_NOTE } from "../lib/endpoint";
 import { refreshQueries, useApi } from "../lib/query";
 import type { TraceSourceInfo } from "../lib/types";
+import { Select } from "../lib/Select";
+import { TraceSourcesNote } from "../lib/TraceSourcesNote";
+import {
+  KEY_PLACEHOLDERS,
+  PROVIDER_LABELS,
+  type TraceProvider,
+} from "../lib/traceSources";
 import { useMe } from "../shell/capabilities";
 import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
@@ -20,6 +27,7 @@ export function TraceSourcesPage() {
   const me = useMe();
   const listed = useApi<TraceSourceInfo[]>("/trace-sources");
   const rows = listed.data;
+  const [provider, setProvider] = useState<TraceProvider>("phoenix");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -32,7 +40,7 @@ export function TraceSourcesPage() {
     try {
       await apiJson("/trace-sources", "POST", {
         name: name.trim(),
-        provider: "phoenix",
+        provider,
         url: url.trim(),
         api_key: apiKey || null,
       });
@@ -77,9 +85,17 @@ export function TraceSourcesPage() {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
+              <Select
+                ariaLabel="provider"
+                value={provider}
+                onChange={(value) => setProvider(value as TraceProvider)}
+                options={(Object.keys(PROVIDER_LABELS) as TraceProvider[]).map(
+                  (value) => ({ value, label: PROVIDER_LABELS[value] }),
+                )}
+              />
               <Input
                 className="w-full sm:w-auto sm:min-w-48 sm:flex-1"
-                placeholder="Phoenix URL"
+                placeholder={`${PROVIDER_LABELS[provider]} URL`}
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 required
@@ -87,15 +103,25 @@ export function TraceSourcesPage() {
               <Input
                 className="w-full sm:w-40"
                 type="password"
-                placeholder="API key"
+                aria-label="API key"
+                placeholder={KEY_PLACEHOLDERS[provider]}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
               />
               <Button type="submit">Add trace source</Button>
             </form>
-            <p className="mb-3 max-w-3xl text-xs text-muted-foreground">
+            <p className="mb-1 max-w-3xl text-xs text-muted-foreground">
               {ENDPOINT_NOTE}
             </p>
+            {provider === "langfuse" && (
+              <p className="mb-1 max-w-3xl text-xs text-muted-foreground">
+                Langfuse keys belong to one project: enter the public key and
+                secret key joined with a colon, pk-lf-…:sk-lf-…
+              </p>
+            )}
+            <div className="mb-3">
+              <TraceSourcesNote />
+            </div>
           </>
         )}
         {error && <div className="pane-status error">{error}</div>}
@@ -121,7 +147,7 @@ export function TraceSourcesPage() {
               description={
                 me.is_admin ? (
                   <>
-                    Add a Phoenix server above to import an agent's past traces,
+                    Add a trace source above to import an agent's past traces,
                     or run{" "}
                     <span className="font-mono">
                       evalkit trace-sources create

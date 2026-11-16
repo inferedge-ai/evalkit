@@ -136,9 +136,10 @@ async def edit_agent(
     )
     source = body.trajectory_source or current.trajectory_source
     settings = body.settings or current.settings
-    moved = (settings.trace_source, settings.project) != (
+    moved = (settings.trace_source, settings.project, settings.trace_filter) != (
         current.settings.trace_source,
         current.settings.project,
+        current.settings.trace_filter,
     )
     if moved or source != current.trajectory_source:
         await check_trace_source(

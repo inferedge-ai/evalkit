@@ -2,6 +2,7 @@ import httpx2
 
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.agents import explicit
+from evalkit.core.retry import Retry
 from evalkit.core.traces.session_import import SessionPullFailed, pull_session
 from evalkit.core.traces.sources import TraceSourceClient, client_for
 from evalkit.core.workspace import parse_slug
@@ -14,7 +15,10 @@ PULL_TIMEOUT_SECONDS = 30.0
 
 
 def build_source_client(
-    source: ResolvedTraceSource, page_traces: int, timeout: float = 120.0
+    source: ResolvedTraceSource,
+    page_traces: int,
+    timeout: float = 120.0,
+    retry: Retry | None = None,
 ) -> TraceSourceClient:
     return client_for(
         source.provider,
@@ -22,6 +26,7 @@ def build_source_client(
         source.api_key.get_secret_value() if source.api_key else None,
         page_traces,
         timeout=timeout,
+        retry=retry,
     )
 
 
@@ -59,6 +64,7 @@ class ServerSessionPuller:
                 agent_id=record.id,
                 source_id=source.id,
                 project=settings.project,
+                trace_filter=settings.trace_filter,
                 session_id=session_id,
             )
         except (httpx2.HTTPError, UnknownTraceSource) as exc:

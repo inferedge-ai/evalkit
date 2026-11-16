@@ -26,6 +26,7 @@ async def test_shutdown_cancels_running_imports_and_marks_them_failed(session_fa
         agent.id,
         source.id,
         "research-agent",
+        None,
         datetime(2026, 10, 1, tzinfo=UTC),
         datetime(2026, 10, 8, tzinfo=UTC),
         user.id,

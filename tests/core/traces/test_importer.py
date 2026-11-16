@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import httpx2
 import pytest
 
-from evalkit.contracts.enums import TraceImportStatus
+from evalkit.contracts.enums import TraceImportStatus, TraceProvider
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.importer import ImportJob, guarded_import, run_import
 from evalkit.core.traces.raw import RawSpan
@@ -38,16 +38,20 @@ class FakeClient:
         self.asked: list[list[str]] = []
         self._fail = fail
 
+    def empty(self) -> "FakeClient":
+        self.pages.append(TracePage(traces=[]))
+        return self
+
     def page(self, *traces: tuple[int, datetime, str | None]) -> "FakeClient":
         self.pages.append(TracePage(traces=[(f"t{n}", start) for n, start, _ in traces]))
         for n, start, session in traces:
             self.spans[f"t{n}"] = spans_of(f"t{n}", start, session)
         return self
 
-    async def session_spans(self, project, session_id):
+    async def session_spans(self, project, trace_filter, session_id):
         return []
 
-    async def trace_pages(self, project, since, until):
+    async def trace_pages(self, project, trace_filter, since, until):
         self.windows.append((since, until))
         for p in self.pages:
             yield p
@@ -70,7 +74,9 @@ class FakeStore:
         replies: list[TraceImportStatus | None] | None = None,
         resume_from: datetime = SINCE + timedelta(days=1),
         resume_trace_ids: list[str] | None = None,
+        provider: TraceProvider = TraceProvider.PHOENIX,
     ):
+        self.provider = provider
         self.replies = list(replies or [])
         self.renew_replies: list[TraceImportStatus | None] = []
         self.renewed = 0
@@ -84,7 +90,10 @@ class FakeStore:
             id=import_id,
             agent_id=7,
             trace_source_id=3,
+            provider=self.provider,
             project="research-agent",
+            trace_filter=None,
+            since=SINCE,
             until=UNTIL,
             resume_from=self.resume_from,
             resume_trace_ids=self.resume_trace_ids,
@@ -198,3 +207,44 @@ async def test_a_lease_lost_mid_page_stops_before_the_next_batch():
     await run_import(12, "pod:a", client, store, spans, MAPPING)
     assert len(spans.calls) == 1
     assert store.advanced == [] and store.finished == []
+
+
+async def test_a_newest_first_source_walks_from_resume_from_down_to_since():
+    client = FakeClient().page((3, hour(3), "c"), (2, hour(2), None)).page((1, hour(1), "a"))
+    store = FakeStore(resume_from=UNTIL, provider=TraceProvider.LANGFUSE)
+    await run_import(12, "pod:a", client, store, FakeSpans(), MAPPING)
+    assert client.windows == [(SINCE, UNTIL)]
+    assert [a["resume_from"] for a in store.advanced] == [hour(2), hour(1)]
+    assert store.finished == [(TraceImportStatus.DONE, None)]
+
+
+async def test_a_newest_first_restart_at_the_boundary_writes_each_trace_once():
+    client = FakeClient().page((2, hour(2), None), (1, hour(1), None))
+    store = FakeStore(resume_from=hour(2), resume_trace_ids=["t2"], provider=TraceProvider.LANGFUSE)
+    await run_import(12, "pod:a", client, store, FakeSpans(), MAPPING)
+    assert client.windows == [(SINCE, hour(2) + timedelta(milliseconds=1))]
+    assert client.asked == [["t1"]]
+
+
+async def test_empty_pages_renew_the_lease_and_write_nothing():
+    client = FakeClient().empty().empty().page((1, hour(1), None))
+    store, spans = FakeStore(), FakeSpans()
+    await run_import(12, "pod:a", client, store, spans, MAPPING)
+    assert store.renewed >= 2 and len(store.advanced) == 1
+    assert store.finished == [(TraceImportStatus.DONE, None)]
+
+
+async def test_a_stop_during_empty_pages_finishes_stopped():
+    client = FakeClient().empty().empty().page((1, hour(1), None))
+    store = FakeStore()
+    store.renew_replies = [TraceImportStatus.RUNNING, TraceImportStatus.STOPPING]
+    await run_import(12, "pod:a", client, store, FakeSpans(), MAPPING)
+    assert client.asked == [] and store.finished == [(TraceImportStatus.STOPPED, None)]
+
+
+async def test_a_lost_lease_during_empty_pages_ends_without_finishing():
+    client = FakeClient().empty().page((1, hour(1), None))
+    store = FakeStore()
+    store.renew_replies = [None]
+    await run_import(12, "pod:a", client, store, FakeSpans(), MAPPING)
+    assert client.asked == [] and store.finished == []
