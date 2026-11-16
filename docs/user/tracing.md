@@ -237,6 +237,10 @@ evalkit trace-sources create lf --provider langfuse --url https://cloud.langfuse
   experiments miss them and imports skip them. Langfuse's own SDKs (Python
   4.7.0 and later, JS 5.4.0 and later) send it; a self-hosted Langfuse can
   instead set `LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct`.
+- Langfuse Cloud limits how many requests a project may make. When it
+  answers 429, a range import waits as long as Langfuse asks and goes on
+  where it stopped. It fails only after 10 minutes of rate limits without
+  progress; continue it later. A trace filter keeps imports small.
 - A time range import walks from `--until` back to `--since`, newest traces
   first. Traces that become readable after the import passed them are not
   imported: leave `--until` at least 15 minutes in the past, or import the

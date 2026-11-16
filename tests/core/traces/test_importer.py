@@ -5,9 +5,9 @@ import pytest
 
 from evalkit.contracts.enums import TraceImportStatus, TraceProvider
 from evalkit.contracts.esf import MappingDocument
-from evalkit.core.traces.importer import ImportJob, guarded_import, run_import
+from evalkit.core.traces.importer import ImportJob, ImportRateLimited, guarded_import, run_import
 from evalkit.core.traces.raw import RawSpan
-from evalkit.core.traces.sources import TracePage
+from evalkit.core.traces.sources import RateLimited, TracePage
 
 SINCE = datetime(2026, 10, 1, tzinfo=UTC)
 UNTIL = datetime(2026, 10, 8, tzinfo=UTC)
@@ -248,3 +248,62 @@ async def test_a_lost_lease_during_empty_pages_ends_without_finishing():
     store.renew_replies = [None]
     await run_import(12, "pod:a", client, store, FakeSpans(), MAPPING)
     assert client.asked == [] and store.finished == []
+
+
+def limited(retry_after: str = "45") -> RateLimited:
+    request = httpx2.Request("GET", "https://lf.example.com/api/public/v2/observations")
+    return RateLimited(httpx2.Response(429, headers={"Retry-After": retry_after}, request=request))
+
+
+class LimitedClient(FakeClient):
+    def __init__(self, refusals: int, retry_after: str = "45"):
+        super().__init__()
+        self.refusals = refusals
+        self.retry_after = retry_after
+
+    async def trace_pages(self, project, trace_filter, since, until):
+        self.windows.append((since, until))
+        for i, p in enumerate(self.pages):
+            if i == 1 and self.refusals:
+                self.refusals -= 1
+                raise limited(self.retry_after)
+            yield p
+
+
+class Sleeps:
+    def __init__(self):
+        self.calls: list[float] = []
+
+    async def __call__(self, seconds: float) -> None:
+        self.calls.append(seconds)
+
+
+async def test_a_rate_limit_waits_with_the_lease_renewed_then_resumes_where_it_stopped():
+    client = LimitedClient(refusals=1).page((1, hour(1), None)).page((2, hour(2), None))
+    store, sleeps = FakeStore(), Sleeps()
+    await run_import(12, "pod:a", client, store, FakeSpans(), MAPPING, sleep=sleeps)
+    assert sleeps.calls == [30, 15]
+    assert store.renewed >= 3
+    assert client.windows == [(SINCE + timedelta(days=1), UNTIL), (hour(1), UNTIL)]
+    assert client.asked == [["t1"], ["t2"]]
+    assert store.finished == [(TraceImportStatus.DONE, None)]
+
+
+async def test_a_stop_while_waiting_out_a_rate_limit_finishes_stopped():
+    client = LimitedClient(refusals=1).page((1, hour(1), None)).page((2, hour(2), None))
+    store = FakeStore()
+    store.renew_replies = [TraceImportStatus.RUNNING, TraceImportStatus.STOPPING]
+    await run_import(12, "pod:a", client, store, FakeSpans(), MAPPING, sleep=Sleeps())
+    assert client.asked == [["t1"]]
+    assert store.finished == [(TraceImportStatus.STOPPED, None)]
+
+
+async def test_an_import_gives_up_after_ten_minutes_of_rate_limits_without_progress():
+    client = LimitedClient(refusals=100, retry_after="120")
+    client.page((1, hour(1), None)).page((2, hour(2), None))
+    store, sleeps = FakeStore(), Sleeps()
+    with pytest.raises(ImportRateLimited):
+        await guarded_import(12, "pod:a", client, store, FakeSpans(), MAPPING, sleep=sleeps)
+    assert sum(sleeps.calls) == 600
+    [(status, error)] = store.finished
+    assert status is TraceImportStatus.FAILED and "429 Too Many Requests for 600 s" in error

@@ -2,6 +2,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import httpx2
 import pytest
 from respx import MockResponse
 
@@ -13,6 +14,7 @@ from evalkit.core.traces.mapping import to_esf
 from evalkit.core.traces.presets import read_preset
 from evalkit.core.traces.sources import (
     BadTraceFilter,
+    RateLimited,
     UnknownProject,
     check_api_key,
     client_for,
@@ -246,3 +248,15 @@ async def test_a_429_is_retried_with_the_import_policy(httpx2_mock):
     since = datetime(2026, 11, 16, tzinfo=UTC)
     pages = [p async for p in lf.trace_pages("e2e-test", None, since, since)]
     assert route.call_count == 2 and len(pages[0].traces) == 2
+
+
+@pytest.mark.parametrize(("header", "expected"), [({"Retry-After": "7"}, 7.0), ({}, 30.0)])
+async def test_a_429_left_after_retries_is_rate_limited_with_its_wait(
+    httpx2_mock, header, expected
+):
+    httpx2_mock.get(OBSERVATIONS).mock(return_value=MockResponse(429, headers=header))
+    since = datetime(2026, 11, 16, tzinfo=UTC)
+    with pytest.raises(RateLimited) as raised:
+        _ = [p async for p in client().trace_pages("e2e-test", None, since, since)]
+    assert raised.value.retry_after == expected
+    assert isinstance(raised.value, httpx2.HTTPStatusError)

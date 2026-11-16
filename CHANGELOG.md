@@ -13,6 +13,11 @@
   ignored the agent's trace filter and read the whole project. Before you
   upgrade: scripts passing those flags or fields must drop them. An agent
   with no trace source now gets 400 with how to set one.
+- **Tracing:** A range import that the trace store rate-limits (429 Too Many
+  Requests) now waits as long as the store's `Retry-After` asks, keeping its
+  lease, and goes on from where it stopped, instead of failing. It fails
+  only after 10 minutes of rate limits with no new traces written, with an
+  error that says so; **Continue** resumes it.
 
 ## 0.7.0
 

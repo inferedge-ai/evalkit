@@ -1,3 +1,7 @@
+import asyncio
+import logging
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Protocol
 
@@ -8,9 +12,12 @@ from evalkit.contracts.esf import MappingDocument
 from evalkit.core.errors import error_text
 from evalkit.core.traces.mapping import session_id_of
 from evalkit.core.traces.raw import RawSpan
-from evalkit.core.traces.sources import TraceSourceClient, newest_first
+from evalkit.core.traces.sources import RateLimited, TraceSourceClient, newest_first
 
+LOGGER = logging.getLogger(__name__)
 IMPORT_LEASE_SECONDS = 180
+RATE_LIMIT_GIVE_UP_SECONDS = 600
+RATE_LIMIT_STEP_SECONDS = 30
 IMPORT_STOPPED_ERROR = "the server stopped while importing"
 ACTIVE_IMPORT = frozenset({TraceImportStatus.RUNNING, TraceImportStatus.STOPPING})
 
@@ -56,32 +63,67 @@ class SpanWriter(Protocol):
     ) -> int: ...
 
 
-async def run_import(
+class ImportRateLimited(Exception):
+    pass
+
+
+@dataclass
+class _Progress:
+    boundary: datetime
+    written: set[str]
+    waited: float = 0.0
+
+
+async def _keep_lease(import_id: int, holder: str, store: ImportStore) -> bool:
+    state = await store.renew(import_id, holder)
+    if state is None:
+        return False
+    if state is TraceImportStatus.STOPPING:
+        await store.finish(import_id, holder, TraceImportStatus.STOPPED)
+        return False
+    return True
+
+
+async def _wait_out(
+    import_id: int,
+    holder: str,
+    store: ImportStore,
+    seconds: float,
+    sleep: Callable[[float], Awaitable[None]],
+) -> bool:
+    left = seconds
+    while left > 0:
+        step = min(left, RATE_LIMIT_STEP_SECONDS)
+        await sleep(step)
+        left -= step
+        if not await _keep_lease(import_id, holder, store):
+            return False
+    return True
+
+
+async def _walk(
     import_id: int,
     holder: str,
     client: TraceSourceClient,
     store: ImportStore,
     spans: SpanWriter,
     mapping: MappingDocument | None,
-) -> None:
-    job = await store.job(import_id)
-    boundary, written = job.resume_from, set(job.resume_trace_ids)
+    job: ImportJob,
+    progress: _Progress,
+) -> bool:
     if newest_first(job.provider):
-        restarted = timedelta(milliseconds=1) if job.resume_trace_ids else timedelta(0)
+        restarted = timedelta(milliseconds=1) if progress.written else timedelta(0)
         pages = client.trace_pages(
-            job.project, job.trace_filter, job.since, job.resume_from + restarted
+            job.project, job.trace_filter, job.since, progress.boundary + restarted
         )
     else:
-        pages = client.trace_pages(job.project, job.trace_filter, job.resume_from, job.until)
+        pages = client.trace_pages(job.project, job.trace_filter, progress.boundary, job.until)
     async for page in pages:
         if not page.traces:
-            state = await store.renew(import_id, holder)
-            if state is None:
-                return
-            if state is TraceImportStatus.STOPPING:
-                await store.finish(import_id, holder, TraceImportStatus.STOPPED)
-                return
+            if not await _keep_lease(import_id, holder, store):
+                return False
             continue
+        boundary, written = progress.boundary, progress.written
         fresh = [tid for tid, start in page.traces if start != boundary or tid not in written]
         span_count, sample = 0, None
         if fresh:
@@ -95,25 +137,59 @@ async def run_import(
                 roots = [s.session_id_hint for s in batch if s.parent_span_id is None]
                 sample = next((r for r in reversed(roots) if r), sample)
                 if await store.renew(import_id, holder) is None:
-                    return
+                    return False
         at_last = {tid for tid, start in page.traces if start == page.last_start}
-        written = written | at_last if page.last_start == boundary else at_last
-        boundary = page.last_start
+        progress.written = written | at_last if page.last_start == boundary else at_last
+        progress.boundary = page.last_start
+        if fresh:
+            progress.waited = 0.0
         state = await store.advance(
             import_id,
             holder,
-            resume_from=boundary,
-            resume_trace_ids=sorted(written),
+            resume_from=progress.boundary,
+            resume_trace_ids=sorted(progress.written),
             traces=len(fresh),
             spans=span_count,
             sample_session=sample,
         )
         if state is None:
-            return
+            return False
         if state is TraceImportStatus.STOPPING:
             await store.finish(import_id, holder, TraceImportStatus.STOPPED)
-            return
-    await store.finish(import_id, holder, TraceImportStatus.DONE)
+            return False
+    return True
+
+
+async def run_import(
+    import_id: int,
+    holder: str,
+    client: TraceSourceClient,
+    store: ImportStore,
+    spans: SpanWriter,
+    mapping: MappingDocument | None,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> None:
+    job = await store.job(import_id)
+    progress = _Progress(job.resume_from, set(job.resume_trace_ids))
+    while True:
+        try:
+            finished = await _walk(import_id, holder, client, store, spans, mapping, job, progress)
+        except RateLimited as limited:
+            if progress.waited + limited.retry_after > RATE_LIMIT_GIVE_UP_SECONDS:
+                raise ImportRateLimited(
+                    f"the trace source kept answering 429 Too Many Requests for "
+                    f"{RATE_LIMIT_GIVE_UP_SECONDS:g} s; continue the import later"
+                ) from limited
+            progress.waited += limited.retry_after
+            LOGGER.warning(
+                "trace import %s rate limited; waiting %s s", import_id, limited.retry_after
+            )
+            if not await _wait_out(import_id, holder, store, limited.retry_after, sleep):
+                return
+            continue
+        if finished:
+            await store.finish(import_id, holder, TraceImportStatus.DONE)
+        return
 
 
 async def guarded_import(
@@ -123,9 +199,10 @@ async def guarded_import(
     store: ImportStore,
     spans: SpanWriter,
     mapping: MappingDocument | None,
+    sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
 ) -> None:
     try:
-        await run_import(import_id, holder, client, store, spans, mapping)
+        await run_import(import_id, holder, client, store, spans, mapping, sleep)
     except Exception as exc:
         await store.finish(import_id, holder, TraceImportStatus.FAILED, error_text(exc))
         raise
