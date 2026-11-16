@@ -27,7 +27,9 @@
   time it reached. `POST /api/experiments/{id}/resume` checks the agent's
   trace source and project, as starting an experiment already did. A
   session import that sets `trace_filter` needs write access to the agent.
-
+- **CLI:** `evalkit update` now refreshes installed skills in `.agents/skills`
+  and `.claude/skills` even when the CLI is already current or when updating a
+  project virtualenv, rather than exiting before refreshing.
 - **CLI, SDK:** Fixed `your login has expired` stopping a run when two
   evalkit processes share one SSO login, such as two experiments at once.
   The identity provider issues a new refresh token on each refresh and
