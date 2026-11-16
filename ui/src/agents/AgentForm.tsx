@@ -26,6 +26,8 @@ import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import type { AgentFormValues } from "../lib/agentForm";
 import { Select } from "../lib/Select";
 import { MappingPresetPicker } from "./MappingPresetPicker";
+import { TraceSourcesNote } from "../lib/TraceSourcesNote";
+import { FILTER_DOCS, type TraceProvider } from "../lib/traceSources";
 import type { AgentInfo, TraceSourceInfo } from "../lib/types";
 import { useApi } from "../lib/query";
 import { Input } from "@/components/ui/input";
@@ -54,6 +56,10 @@ export function AgentForm({
   const [error, setError] = useState<string | null>(null);
   const errors = agentFormErrors(values, mode);
   const sources = useApi<TraceSourceInfo[]>("/trace-sources").data ?? [];
+  const chosen = sources.find((s) => s.name === values.trace_source);
+  const filterDocs = chosen
+    ? FILTER_DOCS[chosen.provider as TraceProvider]
+    : undefined;
 
   const set = <K extends keyof AgentFormValues>(
     key: K,
@@ -197,6 +203,7 @@ export function AgentForm({
                 The store the agent already sends its spans to. Experiments then
                 import each run's session from it.
               </FieldDescription>
+              <TraceSourcesNote />
             </Field>
           )}
           {values.trajectory_source === "otel" && values.trace_source && (
@@ -209,6 +216,34 @@ export function AgentForm({
                   value={values.project}
                   onChange={(e) => set("project", e.target.value)}
                 />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`${formId}-trace-filter`}>
+                  Trace filter
+                </FieldLabel>
+                <Textarea
+                  id={`${formId}-trace-filter`}
+                  className="font-mono"
+                  rows={3}
+                  placeholder="optional: the trace store's own query for this agent's traces"
+                  value={values.trace_filter}
+                  onChange={(e) => set("trace_filter", e.target.value)}
+                />
+                <FieldDescription>
+                  Leave empty to read every trace in the project.{" "}
+                  {filterDocs ? (
+                    <a
+                      className="underline"
+                      href={filterDocs}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      How to write the filter
+                    </a>
+                  ) : (
+                    "This trace source does not take a filter yet."
+                  )}
+                </FieldDescription>
               </Field>
               {IMPORT_FIELDS.map(({ key, label }) => (
                 <Field key={key}>

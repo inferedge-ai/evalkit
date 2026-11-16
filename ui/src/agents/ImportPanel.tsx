@@ -7,12 +7,7 @@ import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
 import { Select } from "../lib/Select";
 import { ToArrow } from "../lib/ui";
-import {
-  importAction,
-  importFraction,
-  isActiveImport,
-  localToIso,
-} from "../lib/traceImports";
+import { importAction, isActiveImport, localToIso } from "../lib/traceImports";
 import type { TraceImport } from "../lib/traceImports";
 import type {
   AgentSettings,
@@ -75,7 +70,7 @@ function ImportRow({
 }) {
   const [checking, setChecking] = useState(false);
   const action = importAction(item.status);
-  const pct = Math.round(100 * importFraction(item));
+  const pct = Math.round(100 * item.progress);
   return (
     <div className="row gap-2">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 md:grid md:grid-cols-[auto_auto_1fr_auto_auto_auto]">
@@ -109,7 +104,7 @@ function ImportRow({
             />
           </span>
           <span className="row-meta num">
-            {pct}% · {item.traces} traces · {item.spans} spans
+            {pct}% completed · {item.traces} traces · {item.spans} spans
           </span>
         </span>
         {action ? (
@@ -138,7 +133,7 @@ function ImportRow({
       </div>
       {item.error && (
         <div className="pane-status error">
-          {item.error}. Imported up to {fmtWhen(item.resume_from)}.
+          {item.error}. {item.traces} traces imported.
         </div>
       )}
       {checking && item.sample_session && (

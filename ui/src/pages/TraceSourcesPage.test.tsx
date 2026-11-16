@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
 import { afterEach, expect, test } from "vitest";
 import type { Me, TraceSourceInfo } from "../lib/types";
@@ -13,6 +14,8 @@ const phoenix: TraceSourceInfo = {
   url: "https://phoenix.example.com",
   archived: false,
 };
+
+Element.prototype.scrollIntoView = () => {};
 
 afterEach(closePage);
 
@@ -46,7 +49,7 @@ test("an admin sees the add form and archive buttons", async () => {
 test("without trace sources, an admin is told how to add one", async () => {
   openTraceSources({ ...member({}), is_admin: true }, []);
   expect(await screen.findByText("No trace sources")).toBeInTheDocument();
-  expect(screen.getByText(/Add a Phoenix server above/)).toBeInTheDocument();
+  expect(screen.getByText(/Add a trace source above/)).toBeInTheDocument();
 });
 
 test("a trace source list that fails without a message still says which error came back", async () => {
@@ -68,4 +71,21 @@ test("without trace sources, a member is told an admin adds them", async () => {
   expect(await screen.findByText("No trace sources")).toBeInTheDocument();
   expect(screen.getByText(/An admin adds them with/)).toBeInTheDocument();
   expect(screen.getByText("evalkit trace-sources create")).toBeInTheDocument();
+});
+
+test("an admin picks Langfuse and is told the key format and which stores are supported", async () => {
+  openTraceSources({ ...member({}), is_admin: true });
+  expect(await screen.findByText("phoenix-prod")).toBeInTheDocument();
+  expect(screen.getByRole("note")).toHaveTextContent(
+    "Supported today: Phoenix and Langfuse",
+  );
+  expect(screen.getByPlaceholderText("API key")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "provider" }));
+  await userEvent.click(
+    await screen.findByRole("option", { name: "Langfuse" }),
+  );
+  expect(
+    screen.getByPlaceholderText("public key:secret key"),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/joined with a colon/)).toBeInTheDocument();
 });

@@ -56,6 +56,7 @@ export interface AgentSettings {
   provides: Record<string, boolean> | null;
   trace_source: string | null;
   project: string | null;
+  trace_filter: string | null;
   import_settle_seconds: number;
   import_wait_seconds: number;
 }

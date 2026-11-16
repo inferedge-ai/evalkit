@@ -68,3 +68,56 @@ test("a preset picked in the new-agent form is the mapping the agent is created 
     mapping: preset.document,
   });
 });
+
+test("a Langfuse trace source takes a trace filter, linked to Langfuse's filter docs", async () => {
+  const created: Record<string, unknown>[] = [];
+  stubServer((url, init) => {
+    if (url.endsWith("/api/mapping-presets")) return Response.json([preset]);
+    if (url.endsWith("/api/trace-sources"))
+      return Response.json([
+        {
+          id: 1,
+          name: "lf",
+          provider: "langfuse",
+          url: "https://lf",
+          archived: false,
+        },
+      ]);
+    if (url.endsWith("/api/agents") && init?.method === "POST") {
+      created.push(JSON.parse(String(init.body)));
+      return Response.json({ ref: "tracer@dev" });
+    }
+  });
+  const onSaved = vi.fn<(agent: AgentInfo) => void>();
+  const user = userEvent.setup();
+  render(
+    <QueryClientProvider client={queryClient}>
+      <AgentForm
+        workspace="dev"
+        shared={false}
+        onSaved={onSaved}
+        onClose={() => {}}
+      />
+    </QueryClientProvider>,
+  );
+  await user.type(screen.getByLabelText("Name"), "tracer");
+  await choose(user, "trajectory source", "From traces (OTel spans)");
+  await choose(user, "mapping preset", "gen_ai");
+  expect(screen.getByRole("note")).toHaveTextContent(
+    "Supported today: Phoenix and Langfuse",
+  );
+  await choose(user, "trace source", "lf (langfuse)");
+  await user.type(screen.getByLabelText("Project"), "e2e-test");
+  const filter =
+    '[{"type": "string", "column": "traceName", "operator": "=", "value": "a"}]';
+  await user.click(screen.getByLabelText("Trace filter"));
+  await user.paste(filter);
+  expect(
+    screen.getByRole("link", { name: "How to write the filter" }),
+  ).toHaveAttribute("href", expect.stringContaining("langfuse.com"));
+  await user.click(screen.getByRole("button", { name: "Create agent" }));
+  await expect.poll(() => onSaved.mock.calls.length).toBe(1);
+  expect(created[0]).toMatchObject({
+    settings: { trace_source: "lf", project: "e2e-test", trace_filter: filter },
+  });
+});
