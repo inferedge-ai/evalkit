@@ -1247,7 +1247,7 @@
 <p>Stuck at a step? Read the page that step links to, or <a href="https://github.com/inferedge-ai/evalkit/issues">open an issue on GitHub</a>.</p>
 <p>There are two paths. They differ only in step 3, which has a tab for each:</p>
 <ul>
-<li><strong>My agent sends traces to Phoenix.</strong> evalkit imports your trace history.</li>
+<li><strong>My agent already sends traces somewhere.</strong> evalkit imports your trace history from that <a href="../concepts/#trace-source">trace source</a>.</li>
 <li><strong>No traces yet.</strong> Your agent sends its traces straight to evalkit, and you use it a few times.</li>
 </ul>
 <p>This quickstart assumes a Python agent. Is yours in another language, or does it run in another process? evalkit still works:</p>
@@ -1258,7 +1258,7 @@
 </ul>
 <h2 id="let-your-coding-agent-drive">Let your coding agent drive<a class="headerlink" href="#let-your-coding-agent-drive" title="Permanent link">&para;</a></h2>
 <p>Open your coding agent in your agent's project folder and tell it:</p>
-<div class="highlight"><pre><span></span><code>Install evalkit-py==0.6.0 into this project, run `evalkit skills install`, then use the getting-started skill to set up evalkit for this agent.
+<div class="highlight"><pre><span></span><code>Install evalkit-py==0.7.0 into this project, run `evalkit skills install`, then use the getting-started skill to set up evalkit for this agent.
 </code></pre></div>
 <p>On a server you run yourself, add: <code>Log in to http://localhost:8020.</code></p>
 <p>It runs every step below. It stops only when it needs you: how fast to go, which path you take, the sign-in in your browser, your trace store's URL and project and the name of the environment variable that holds its API key, and your OK on the plan for the cases.</p>
@@ -1269,15 +1269,15 @@
 <div class="tabbed-content">
 <div class="tabbed-block">
 <p>In the virtualenv your agent uses:</p>
-<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"evalkit-py==0.6.0"</span>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"evalkit-py==0.7.0"</span>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py==0.6.0"</span>
+<div class="highlight"><pre><span></span><code>uv<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py==0.7.0"</span>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code>poetry<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py==0.6.0"</span>
+<div class="highlight"><pre><span></span><code>poetry<span class="w"> </span>add<span class="w"> </span><span class="s2">"evalkit-py==0.7.0"</span>
 </code></pre></div>
 </div>
 </div>
@@ -1300,11 +1300,15 @@
 <p><img alt="The New agent dialog with Trajectories set to From traces and the langchain preset picked" src="../images/quickstart-create-agent.png" /></p>
 <h2 id="3-get-real-runs-onto-evalkit">3. Get real runs onto evalkit<a class="headerlink" href="#3-get-real-runs-onto-evalkit" title="Permanent link">&para;</a></h2>
 <p>Each <a href="../concepts/#trace-span-session">session</a> of your agent becomes an <a href="../concepts/#app-run">app run</a>. Pick your path:</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">My agent sends traces to Phoenix</label><label for="__tabbed_2_2">No traces yet</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">My agent already sends traces somewhere</label><label for="__tabbed_2_2">No traces yet</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<p>Tell evalkit where your traces live. This makes a <a href="../concepts/#trace-source">trace source</a>, and it needs an admin:</p>
+<p>evalkit imports traces from <a href="../concepts/#trace-source">trace sources</a>. Supported today: Phoenix and Langfuse. For another, <a href="https://github.com/inferedge-ai/evalkit/issues">file a GitHub issue</a>.</p>
+<p>Tell evalkit where your traces live. This makes a trace source, and it needs an admin:</p>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>trace-sources<span class="w"> </span>create<span class="w"> </span>phoenix<span class="w"> </span>--url<span class="w"> </span>&lt;your<span class="w"> </span>Phoenix<span class="w"> </span>URL&gt;<span class="w"> </span>--api-key-env<span class="w"> </span>PHOENIX_API_KEY
+</code></pre></div>
+<p>For Langfuse, the env var holds the public key and secret key joined with a colon, and the agent uses the <code>langfuse</code> preset in step 2. See <a href="../tracing/#langfuse">Tracing</a>:</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>trace-sources<span class="w"> </span>create<span class="w"> </span>langfuse<span class="w"> </span>--provider<span class="w"> </span>langfuse<span class="w"> </span>--url<span class="w"> </span>https://cloud.langfuse.com<span class="w"> </span>--api-key-env<span class="w"> </span>LANGFUSE_KEYS
 </code></pre></div>
 <p>In the UI: Settings › Organization › Trace sources.</p>
 <p><img alt="The Trace sources page with a trace source named phoenix" src="../images/quickstart-trace-source.png" /></p>

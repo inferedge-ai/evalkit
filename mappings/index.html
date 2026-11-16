@@ -1209,11 +1209,16 @@
 <td>the messages laid out under <code>K</code> per format <code>F</code>: <code>openinference</code> (flattened indexed keys), <code>gen_ai</code> (JSON list of messages with parts), <code>openai</code> (JSON list of chat messages)</td>
 </tr>
 <tr>
+<td><code>{"attribute": K, "path": P}</code></td>
+<td>the value parsed as JSON, then followed along the dotted path <code>P</code> (<code>args.0</code>: key <code>args</code>, then the first item); a path that does not resolve reads as null. Combines with <code>message_format</code> <code>gen_ai</code> or <code>openai</code>, not <code>openinference</code></td>
+</tr>
+<tr>
 <td><code>null</code></td>
 <td>never read</td>
 </tr>
 </tbody>
 </table>
+<p><code>tokens</code> takes <code>prompt</code>, <code>completion</code>, <code>cached</code> and <code>cache_write</code>, one rule each, or <code>buckets</code>: one rule for an attribute holding a JSON object of separate token counts that add up to its <code>total</code>, as Langfuse's <code>usage_details</code> does. From <code>buckets</code>, keys containing <code>output</code> or <code>completion</code> count as completion and every other key except <code>total</code> as prompt, so prompt includes cached tokens; keys containing <code>cache</code> and <code>read</code> or <code>cached</code> are the cached count, and keys containing <code>cache</code> and <code>creation</code> or <code>write</code> the cache writes.</p>
 <p>More fields shape the trajectory:</p>
 <ul>
 <li><code>answer</code>: where the run's answer comes from: <code>root</code>, a span name, or <code>&lt;span name&gt;.&lt;output key&gt;</code>. Default <code>root</code>.</li>
