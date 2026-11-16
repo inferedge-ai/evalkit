@@ -7,7 +7,7 @@ from typing import Any
 import httpx2
 
 from evalkit.core.traces.raw import RawSpan
-from evalkit.core.traces.sources.base import TracePage, UnknownProject
+from evalkit.core.traces.sources.base import BadTraceFilter, TracePage, UnknownProject
 
 OPENINFERENCE_KIND = "openinference.span.kind"
 
@@ -93,6 +93,10 @@ class PhoenixClient:
             raise UnknownProject(f"project {project} not found")
         resp.raise_for_status()
 
+    def check_filter(self, trace_filter: str | None) -> None:
+        if trace_filter:
+            raise BadTraceFilter("Phoenix trace filters are not supported yet")
+
     async def _pages(
         self, path: str, params: dict[str, str | list[str]]
     ) -> AsyncIterator[list[dict[str, Any]]]:
@@ -122,7 +126,10 @@ class PhoenixClient:
         async for spans in self._pages(f"/v1/projects/{project}/spans", params):
             yield [_to_raw(span) for span in spans]
 
-    async def session_spans(self, project: str, session_id: str) -> list[RawSpan]:
+    async def session_spans(
+        self, project: str, trace_filter: str | None, session_id: str
+    ) -> list[RawSpan]:
+        self.check_filter(trace_filter)
         found: list[RawSpan] = []
         async for traces in self._traces(project, {"session_identifier": session_id}):
             async for spans in self.trace_spans(project, [t["trace_id"] for t in traces]):
@@ -130,8 +137,9 @@ class PhoenixClient:
         return found
 
     async def trace_pages(
-        self, project: str, since: datetime, until: datetime
+        self, project: str, trace_filter: str | None, since: datetime, until: datetime
     ) -> AsyncIterator[TracePage]:
+        self.check_filter(trace_filter)
         window = {"start_time": since.isoformat(), "end_time": until.isoformat()}
         async for traces in self._traces(project, window):
             yield TracePage(

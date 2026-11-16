@@ -3,12 +3,12 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
-from evalkit.contracts.enums import TraceImportStatus
+from evalkit.contracts.enums import TraceImportStatus, TraceProvider
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.errors import error_text
 from evalkit.core.traces.mapping import session_id_of
 from evalkit.core.traces.raw import RawSpan
-from evalkit.core.traces.sources import TraceSourceClient
+from evalkit.core.traces.sources import TraceSourceClient, newest_first
 
 IMPORT_LEASE_SECONDS = 180
 IMPORT_STOPPED_ERROR = "the server stopped while importing"
@@ -19,7 +19,10 @@ class ImportJob(BaseModel):
     id: int
     agent_id: int
     trace_source_id: int
+    provider: TraceProvider
     project: str
+    trace_filter: str | None
+    since: datetime
     until: datetime
     resume_from: datetime
     resume_trace_ids: list[str]
@@ -63,7 +66,19 @@ async def run_import(
 ) -> None:
     job = await store.job(import_id)
     boundary, written = job.resume_from, set(job.resume_trace_ids)
-    async for page in client.trace_pages(job.project, job.resume_from, job.until):
+    if newest_first(job.provider):
+        pages = client.trace_pages(job.project, job.trace_filter, job.since, job.resume_from)
+    else:
+        pages = client.trace_pages(job.project, job.trace_filter, job.resume_from, job.until)
+    async for page in pages:
+        if not page.traces:
+            state = await store.renew(import_id, holder)
+            if state is None:
+                return
+            if state is TraceImportStatus.STOPPING:
+                await store.finish(import_id, holder, TraceImportStatus.STOPPED)
+                return
+            continue
         fresh = [tid for tid, start in page.traces if start != boundary or tid not in written]
         span_count, sample = 0, None
         if fresh:

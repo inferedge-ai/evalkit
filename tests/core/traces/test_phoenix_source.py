@@ -5,7 +5,7 @@ import pytest
 from respx import MockResponse
 
 from evalkit.contracts.enums import TraceProvider
-from evalkit.core.traces.sources import UnknownProject, client_for
+from evalkit.core.traces.sources import BadTraceFilter, UnknownProject, client_for
 from evalkit.core.traces.sources.phoenix import PhoenixClient, _to_raw, flatten_attributes
 
 PHOENIX = "https://phoenix.example.com"
@@ -85,7 +85,7 @@ async def test_session_spans_lists_the_traces_then_reads_their_spans_on_every_pa
             MockResponse(200, json={"data": [phoenix_span(2)]}),
         ]
     )
-    found = await client().session_spans("research-agent", "sess-9")
+    found = await client().session_spans("research-agent", None, "sess-9")
     assert [s.trace_id for s in found] == [f"{1:032x}", f"{11:032x}", f"{2:032x}"]
     first = traces.calls[0].request
     assert first.headers["authorization"] == "Bearer pk"
@@ -127,7 +127,10 @@ async def test_trace_pages_yield_ids_and_start_times_oldest_first(httpx2_mock):
     )
     since = datetime(2026, 10, 1, tzinfo=UTC)
     pages = [
-        p async for p in client().trace_pages("research-agent", since, since + timedelta(days=1))
+        p
+        async for p in client().trace_pages(
+            "research-agent", None, since, since + timedelta(days=1)
+        )
     ]
     assert [[tid for tid, _ in p.traces] for p in pages] == [
         [f"{1:032x}", f"{2:032x}"],
@@ -146,7 +149,10 @@ async def test_trace_pages_stop_on_an_empty_page(httpx2_mock):
     )
     since = datetime(2026, 10, 1, tzinfo=UTC)
     pages = [
-        p async for p in client().trace_pages("research-agent", since, since + timedelta(days=1))
+        p
+        async for p in client().trace_pages(
+            "research-agent", None, since, since + timedelta(days=1)
+        )
     ]
     assert pages == [] and route.call_count == 1
 
@@ -183,3 +189,11 @@ def test_span_kind_is_put_back_when_phoenix_moved_it_out_of_the_attributes():
     span["span_kind"] = "UNKNOWN"
     assert "openinference.span.kind" not in _to_raw(span).attributes
     assert _to_raw(phoenix_span(2)).attributes["openinference.span.kind"] == "LLM"
+
+
+def test_phoenix_refuses_a_trace_filter():
+    phoenix = client()
+    phoenix.check_filter(None)
+    phoenix.check_filter("")
+    with pytest.raises(BadTraceFilter, match="not supported yet"):
+        phoenix.check_filter('[{"x": 1}]')

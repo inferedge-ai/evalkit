@@ -1,0 +1,35 @@
+{
+  "data": [
+    {
+      "id": "840ccdbca71639c9",
+      "traceId": "41a20494e3ace79a9ecf9b27ba0fe881",
+      "startTime": "2026-11-16T10:36:08.053Z",
+      "endTime": "2026-11-16T10:36:08.054Z",
+      "projectId": "cmwj4dqdj01djad0k11wnyrdf",
+      "parentObservationId": null,
+      "type": "SPAN",
+      "latency": 0.001,
+      "timeToFirstToken": null,
+      "modelId": null,
+      "inputPrice": null,
+      "outputPrice": null,
+      "totalPrice": null
+    },
+    {
+      "id": "40c4fd492c43da13",
+      "traceId": "c047ace008d2fe1f20b3ac9c469de3ec",
+      "startTime": "2026-11-16T10:36:05.300Z",
+      "endTime": "2026-11-16T10:36:07.029Z",
+      "projectId": "cmwj4dqdj01djad0k11wnyrdf",
+      "parentObservationId": null,
+      "type": "AGENT",
+      "latency": 1.729,
+      "timeToFirstToken": null,
+      "modelId": null,
+      "inputPrice": null,
+      "outputPrice": null,
+      "totalPrice": null
+    }
+  ],
+  "meta": {}
+}
