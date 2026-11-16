@@ -1001,6 +1001,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#langfuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Langfuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#picking-the-agents-traces-the-trace-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Picking the agent's traces: the trace filter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#experiments-that-read-a-trace-source" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1325,6 +1347,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#langfuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Langfuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#picking-the-agents-traces-the-trace-filter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Picking the agent's traces: the trace filter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#experiments-that-read-a-trace-source" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1526,15 +1570,70 @@ evalkit<span class="w"> </span>tokens<span class="w"> </span>revoke<span class="
 <p>A harness agent created with <code>--trajectory-source otel</code> keeps the whole Harness API flow and skips <code>GET /runs/{id}/trajectory</code>: it puts the run id it returned on its spans, in the attribute its mapping's <code>session_id</code> rule names, and evalkit polls the session until it settles. The harness declares <code>provides.trajectory: false</code>; evalkit still runs the trajectory evaluators because the trajectory comes from the collector.</p>
 <p>The session evalkit polls is the <code>run_id</code> that <code>POST /runs</code> returns, so there is no separate session field. A queue-backed agent whose worker picks its own session id returns that id as <code>run_id</code>, or puts the <code>run_id</code> it returned on its spans in that session attribute. To export only eval runs from a harness that also serves production, see Choosing what a shared worker exports above.</p>
 <h2 id="importing-history-from-a-trace-source">Importing history from a trace source<a class="headerlink" href="#importing-history-from-a-trace-source" title="Permanent link">&para;</a></h2>
-<p>An admin registers a trace source (a Phoenix server) once. After that, any
-user can import traces from it into an OTel agent they can write, with
+<p>evalkit imports traces from trace sources. Supported today: Phoenix and
+Langfuse. For another, <a href="https://github.com/inferedge-ai/evalkit/issues">file a GitHub issue</a>.</p>
+<p>An admin registers a trace source once. After that, any user can import
+traces from it into an OTel agent they can write, with
 <code>evalkit traces import</code> or the agent page's Import tab.</p>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>trace-sources<span class="w"> </span>create<span class="w"> </span>phx<span class="w"> </span>--url<span class="w"> </span>https://phoenix.example.com<span class="w"> </span>--api-key-env<span class="w"> </span>PHOENIX_API_KEY
+evalkit<span class="w"> </span>trace-sources<span class="w"> </span>create<span class="w"> </span>lf<span class="w"> </span>--provider<span class="w"> </span>langfuse<span class="w"> </span>--url<span class="w"> </span>https://cloud.langfuse.com<span class="w"> </span>--api-key-env<span class="w"> </span>LANGFUSE_KEYS
+</code></pre></div>
 <ul>
 <li>The trace source's API key is shared with every user in effect: anyone can
   import any project that key can read.</li>
 <li>Imported traces land in the agent's workspace. Every user can read every
   workspace, so traces imported into your personal workspace are visible to
   everyone on the server. See <a href="../workspaces/">Where runs happen</a>.</li>
+</ul>
+<h3 id="langfuse">Langfuse<a class="headerlink" href="#langfuse" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Langfuse Cloud, or self-hosted Langfuse v4.59.0 or later.</li>
+<li>The key: a Langfuse key pair reads exactly one project. Put the public key
+  and secret key in one env var, joined with a colon:
+  <code>LANGFUSE_KEYS=pk-lf-...:sk-lf-...</code>. Any other shape is refused with 422.
+  <code>--project</code> is that project's name, and is checked against the key.</li>
+<li>The mapping: use the <code>langfuse</code> preset (<code>--mapping langfuse</code>). Langfuse
+  stores observations, not the spans the agent sent, and evalkit rebuilds
+  each one with the Langfuse SDK's attribute names (<code>langfuse.observation.*</code>,
+  <code>session.id</code>). So a <code>gen_ai</code> or <code>openinference</code> mapping finds no messages
+  on spans imported from Langfuse, whatever the agent sent.</li>
+<li>The preset reads the messages of agents that send OTel spans to Langfuse
+  as they are. Agents traced with Langfuse's <code>@observe</code> decorator log their
+  functions' arguments instead of chat messages, so for them only, point the
+  preset's <code>input_messages</code> at the messages with <code>path</code>, for example
+  <code>{"attribute": "langfuse.observation.input", "path": "args.0", "message_format": "openai"}</code>.
+  See <a href="../mappings/">Mappings</a>.</li>
+<li>OTel exporters: send the header <code>x-langfuse-ingestion-version: 4</code> to
+  Langfuse. Without it Langfuse
+  <a href="https://langfuse.com/docs/compatibility">can take up to 15 minutes</a> to show spans, so
+  experiments miss them and imports skip them. Langfuse's own SDKs (Python
+  4.7.0 and later, JS 5.4.0 and later) send it; a self-hosted Langfuse can
+  instead set <code>LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct</code>.</li>
+<li>A time range import walks from <code>--until</code> back to <code>--since</code>, newest traces
+  first. Traces that become readable after the import passed them are not
+  imported: leave <code>--until</code> at least 15 minutes in the past, or import the
+  recent part again.</li>
+<li>A trace's root span must be in the Langfuse project; traces without one
+  are not imported.</li>
+</ul>
+<h3 id="picking-the-agents-traces-the-trace-filter">Picking the agent's traces: the trace filter<a class="headerlink" href="#picking-the-agents-traces-the-trace-filter" title="Permanent link">&para;</a></h3>
+<p>A project often holds more than one agent's traces. <code>--trace-filter</code> (on
+<code>evalkit agents create</code>, <code>agents edit</code> and <code>traces import</code>, and as Trace
+filter in the agent form) is the trace store's own query, kept as you type
+it. Imports and experiments read only the traces it matches; leave it out to
+read the whole project.</p>
+<ul>
+<li>Langfuse: a JSON array of conditions in Langfuse's
+  <a href="https://langfuse.com/docs/api-and-data-platform/features/observations-api#observations-filters">filter format</a>,
+  matched against each trace's root observation. By trace name:</li>
+</ul>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>agents<span class="w"> </span>edit<span class="w"> </span>myagent<span class="w"> </span>--trace-filter<span class="w"> </span><span class="s1">'[{"type": "string", "column": "traceName", "operator": "=", "value": "stock-agent"}]'</span>
+</code></pre></div>
+<p>By OTel service name:</p>
+<div class="highlight"><pre><span></span><code><span class="p">[{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"stringObject"</span><span class="p">,</span><span class="w"> </span><span class="nt">"column"</span><span class="p">:</span><span class="w"> </span><span class="s2">"metadata"</span><span class="p">,</span><span class="w"> </span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"resourceAttributes.service.name"</span><span class="p">,</span><span class="w"> </span><span class="nt">"operator"</span><span class="p">:</span><span class="w"> </span><span class="s2">"="</span><span class="p">,</span><span class="w"> </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"stock-agent"</span><span class="p">}]</span>
+</code></pre></div>
+<ul>
+<li>Phoenix does not take a trace filter yet; one is refused with 400.</li>
 </ul>
 <h3 id="experiments-that-read-a-trace-source">Experiments that read a trace source<a class="headerlink" href="#experiments-that-read-a-trace-source" title="Permanent link">&para;</a></h3>
 <p>An agent that already sends its spans to its own trace store can skip the
@@ -1545,9 +1644,10 @@ agent keeps its own store and you would rather not add an exporter.</p>
 </code></pre></div>
 <ul>
 <li><code>--trace-source</code> names a registered trace source and <code>--project</code> the agent's
-  project in it. Both are checked when you save them: an unknown source, a
-  project the source does not have, or a source that does not answer is
-  refused. Only OTel agents take a trace source.</li>
+  project in it. Both, and <code>--trace-filter</code>, are checked when you save them
+  and again when an experiment starts or resumes: an unknown source, a
+  project the source does not have, a bad filter, or a source that does not
+  answer is refused. Only OTel agents take a trace source.</li>
 <li>Every SDK run and harness run of the agent then pulls its session from the
   store, with no <code>tracing.register</code> and no agent token. <code>evalkit traces import</code>
   and the Import tab default to the same source and project.</li>
@@ -1577,7 +1677,8 @@ agent keeps its own store and you would rather not add an exporter.</p>
     trace or another tracer provider. Pass <code>metadata["session_id"]</code> to the
     agent, or return <code>RunResult(session_id=...)</code>.</li>
 <li><code>session ... not found in project ...</code>: nothing in the store carries the
-    session id. Check the agent exports to that project and uses the id.</li>
+    session id. Check the agent exports to that project and uses the id. For
+    Langfuse, check the exporter sends <code>x-langfuse-ingestion-version: 4</code>.</li>
 <li><code>spans still arriving after N s</code>: raise <code>--import-wait</code>.</li>
 </ul>
 <h2 id="message-roles">Message roles<a class="headerlink" href="#message-roles" title="Permanent link">&para;</a></h2>
