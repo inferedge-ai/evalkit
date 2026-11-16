@@ -2,42 +2,58 @@
 
 ## Unreleased
 
+## 0.7.0
+
+_Released 2026-11-16._ Langfuse joins Phoenix as a trace source, an agent can
+name the trace store's own query for its traces, and two evalkit processes can
+share one SSO login.
+
+### Before you upgrade
+
+- **CLI:** Run `evalkit update --server <url>` once the server is on 0.7.0;
+  a 0.6 CLI refuses every other command against it.
+- **Server:** Run `evalkit db upgrade` before the server starts. Migration
+  `0020` allows the `langfuse` trace source provider and adds
+  `trace_imports.trace_filter`.
+
+### Features
+
 - **Tracing:** Langfuse is a trace source, for imports and for experiments
   that read the agent's own store: `evalkit trace-sources create NAME
   --provider langfuse`, with the public key and secret key joined by a colon
-  in `--api-key-env`. Needs Langfuse Cloud or self-hosted Langfuse v4.59.0
-  or later. A new `langfuse` mapping preset reads what evalkit imports from
-  Langfuse. A key in any other shape is refused with 422. Range imports from
-  Langfuse walk from `until` back to `since`, newest traces first.
-  Migration `0020` allows the `langfuse` provider and adds
-  `trace_imports.trace_filter`.
+  in `--api-key-env` (a key in any other shape gets a 422). Needs Langfuse
+  Cloud or self-hosted Langfuse v4.59.0 or later. A new `langfuse` mapping
+  preset reads what evalkit imports from Langfuse.
 - **Tracing:** An agent's settings take `trace_filter`, the trace store's own
-  query for its traces (`--trace-filter` on `agents create`, `agents edit`
-  and `traces import`, Trace filter in the agent form). Langfuse takes a
-  JSON array in its filter format; Phoenix refuses a filter for now. A
-  range import keeps the filter it started with.
-- **Tracing:** Span mappings take `path` on a rule (a dotted path into the
-  JSON value, for example `args.0`), `tokens.buckets` (token counts summed
-  from a JSON object of separate buckets, as Langfuse's `usage_details`),
-  one message object as a list of one in the `gen_ai` and `openai` formats,
-  and a plain `content` string in `gen_ai` messages.
-- **Tracing:** Import progress shows as percent completed from the new
-  `progress` field of an import; the CLI line no longer prints the time
-  reached, and a failed import says how many traces came in instead of the
-  time it reached. `POST /api/experiments/{id}/resume` checks the agent's
-  trace source and project, as starting an experiment already did. A
-  session import that sets `trace_filter` needs write access to the agent.
-- **CLI:** `evalkit update` now refreshes installed skills in `.agents/skills`
-  and `.claude/skills` even when the CLI is already current or when updating a
-  project virtualenv, rather than exiting before refreshing.
+  query for its traces: `--trace-filter` on `evalkit agents create`,
+  `agents edit` and `traces import`, and Trace filter in the agent form.
+  Langfuse takes a JSON array in its filter format; Phoenix refuses a filter
+  for now. A range import keeps the filter it started with.
+
+### Improvements
+
+- **Tracing:** Span mapping rules take `path`, a dotted path into a JSON
+  value (for example `args.0`), and `tokens.buckets`, which sums token counts
+  from a JSON object of separate buckets such as Langfuse's `usage_details`.
+  The `gen_ai` and `openai` formats read one message object as a list of
+  one, and `gen_ai` messages take a plain `content` string.
+- **Tracing:** Imports report percent completed in a new `progress` field,
+  shown in the CLI; a failed import says how many traces came in. Range
+  imports from Langfuse walk from `until` back to `since`, newest first.
+- **Server:** `POST /api/experiments/{id}/resume` checks the agent's trace
+  source and project, as starting an experiment does. A session import that
+  sets `trace_filter` needs write access to the agent.
+- **CLI:** `evalkit update` refreshes the installed skills in
+  `.agents/skills` and `.claude/skills` even when the CLI is already current
+  or when it updates a project virtualenv.
+
+### Fixes
+
 - **CLI, SDK:** Fixed `your login has expired` stopping a run when two
   evalkit processes share one SSO login, such as two experiments at once.
-  The identity provider issues a new refresh token on each refresh and
-  revokes the whole login when an old one is sent again; a process
-  refreshed with the refresh token it read at startup. Now a process
-  refreshes under a lock on `~/.evalkit/config.toml.lock`, reads the saved
-  login first and uses tokens another process already refreshed. Adds the
-  `filelock` dependency.
+  Each process now refreshes the login under a lock on
+  `~/.evalkit/config.toml.lock` and uses tokens another process already
+  refreshed. Adds the `filelock` dependency.
 
 ## 0.6.0
 
