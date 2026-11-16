@@ -19,7 +19,9 @@ export const KEY_PLACEHOLDERS: Record<TraceProvider, string> = {
 export const LANGFUSE_AGENT_NOTE =
   "Langfuse agents use the langfuse span mapping preset; other mappings find no messages. An OTel exporter must send the header x-langfuse-ingestion-version: 4, or Langfuse can take up to 15 minutes to show its spans and experiments miss them.";
 
-export const FILTER_DOCS: Partial<Record<TraceProvider, string>> = {
+export const FILTER_DOCS: Record<TraceProvider, string> = {
+  phoenix:
+    "https://arize.com/docs/phoenix/tracing/how-to-tracing/filter-expressions#trace-filters",
   langfuse:
     "https://langfuse.com/docs/api-and-data-platform/features/observations-api#observations-filters",
 };

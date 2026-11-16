@@ -131,7 +131,7 @@ class LangfuseClient:
             transport=self._transport,
         )
 
-    async def check_filter(self, trace_filter: str | None) -> None:
+    async def check_filter(self, project: str, trace_filter: str | None) -> None:
         conditions = parse_filter(trace_filter)
         if not conditions:
             return

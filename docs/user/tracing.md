@@ -270,7 +270,20 @@ read the whole project.
   [{"type": "stringObject", "column": "metadata", "key": "resourceAttributes.service.name", "operator": "=", "value": "stock-agent"}]
   ```
 
-- Phoenix does not take a trace filter yet; one is refused with 400.
+- Phoenix: a
+  [trace filter expression](https://arize.com/docs/phoenix/tracing/how-to-tracing/filter-expressions#trace-filters),
+  Phoenix's Python-like query over a whole trace, needing Phoenix 20.3.0 or
+  later. It reads the root span's `input`, `output`, `attributes[...]` and
+  `metadata[...]`, rollups such as `error_count`, and the trace's spans:
+
+  ```bash
+  evalkit agents edit myagent --trace-filter "any(span.name == 'stock-agent' and span.parent_span is None for span in spans)"
+  evalkit agents edit myagent --trace-filter "metadata['agent'] == 'stock-agent'"
+  ```
+
+- When you save the agent, evalkit sends the filter to the trace store once,
+  so a filter the store can't read is refused then, with the store's own
+  message.
 
 ### Experiments that read a trace source
 

@@ -232,7 +232,7 @@ export function AgentForm({
                 />
                 <FieldDescription>
                   Leave empty to read every trace in the project.{" "}
-                  {filterDocs ? (
+                  {filterDocs && (
                     <a
                       className="underline"
                       href={filterDocs}
@@ -241,8 +241,6 @@ export function AgentForm({
                     >
                       How to write the filter
                     </a>
-                  ) : (
-                    "This trace source does not take a filter yet."
                   )}
                 </FieldDescription>
               </Field>

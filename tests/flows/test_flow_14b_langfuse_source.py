@@ -107,13 +107,25 @@ async def test_agent_settings_check_the_trace_filter(httpx2_mock, api):
     assert lone.status_code == 422
 
 
-async def test_phoenix_refuses_a_trace_filter(httpx2_mock, api):
+async def test_a_phoenix_trace_filter_is_checked_by_phoenix_when_saved(httpx2_mock, api):
     phx = {"name": "phx", "provider": "phoenix", "url": "https://phx.example.com", "api_key": "k"}
     assert (await api.post("/api/trace-sources", json=phx)).status_code == 200
-    settings = {"trace_source": "phx", "project": "p", "trace_filter": "[]"}
+    httpx2_mock.get("https://phx.example.com/v1/projects/p").mock(
+        return_value=MockResponse(200, json={"data": {}})
+    )
+    httpx2_mock.get("https://phx.example.com/v1/projects/p/traces").mock(
+        side_effect=[
+            MockResponse(400, json={"detail": "unknown name: nmae"}),
+            MockResponse(200, json={"data": []}),
+        ]
+    )
+    settings = {"trace_source": "phx", "project": "p", "trace_filter": "nmae == 'x'"}
     refused = await api.patch(f"/api/agents/{AGENT}", json={"settings": settings})
-    assert refused.status_code == 400
-    assert refused.json()["detail"] == "Phoenix trace filters are not supported yet"
+    assert refused.status_code == 400 and "unknown name: nmae" in refused.json()["detail"]
+    good = {**settings, "trace_filter": "error_count == 0"}
+    saved = await api.patch(f"/api/agents/{AGENT}", json={"settings": good})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["settings"]["trace_filter"] == "error_count == 0"
 
 
 async def test_a_range_import_walks_newest_first_with_the_agent_filter(httpx2_mock, api):

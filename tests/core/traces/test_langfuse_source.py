@@ -112,7 +112,7 @@ def test_only_langfuse_walks_newest_first():
 )
 async def test_bad_filters_are_refused_with_a_reason(value, reason):
     with pytest.raises(BadTraceFilter, match=reason):
-        await client().check_filter(value)
+        await client().check_filter("e2e-test", value)
 
 
 async def test_a_filter_langfuse_refuses_comes_back_with_its_reason(httpx2_mock):
@@ -124,11 +124,11 @@ async def test_a_filter_langfuse_refuses_comes_back_with_its_reason(httpx2_mock)
     )
     bad = '[{"type": "string", "column": "nope", "operator": "=", "value": "x"}]'
     with pytest.raises(BadTraceFilter, match="Invalid filter column: nope"):
-        await client().check_filter(bad)
+        await client().check_filter("e2e-test", bad)
     good = '[{"type": "string", "column": "traceName", "operator": "=", "value": "x"}]'
-    await client().check_filter(good)
+    await client().check_filter("e2e-test", good)
     assert route.calls[1].request.url.params["limit"] == "1"
-    await client().check_filter(None)
+    await client().check_filter("e2e-test", None)
     assert route.call_count == 2
 
 

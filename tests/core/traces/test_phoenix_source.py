@@ -191,9 +191,26 @@ def test_span_kind_is_put_back_when_phoenix_moved_it_out_of_the_attributes():
     assert _to_raw(phoenix_span(2)).attributes["openinference.span.kind"] == "LLM"
 
 
-async def test_phoenix_refuses_a_trace_filter():
+async def test_a_trace_filter_goes_to_phoenix_and_a_refused_one_says_why(httpx2_mock):
+    checked = httpx2_mock.get(TRACES).mock(
+        side_effect=[
+            MockResponse(400, json={"detail": "unknown name: nmae; did you mean name?"}),
+            MockResponse(200, json={"data": []}),
+            MockResponse(200, json={"data": [phoenix_trace(1)]}),
+        ]
+    )
     phoenix = client()
-    await phoenix.check_filter(None)
-    await phoenix.check_filter("")
-    with pytest.raises(BadTraceFilter, match="not supported yet"):
-        await phoenix.check_filter('[{"x": 1}]')
+    await phoenix.check_filter("research-agent", None)
+    with pytest.raises(BadTraceFilter, match="did you mean name"):
+        await phoenix.check_filter("research-agent", "nmae == 'x'")
+    await phoenix.check_filter("research-agent", "latency_ms > 1000")
+    assert checked.calls[1].request.url.params["filter"] == "latency_ms > 1000"
+    since = datetime(2026, 10, 1, tzinfo=UTC)
+    pages = [
+        p
+        async for p in phoenix.trace_pages(
+            "research-agent", "error_count > 0", since, since + timedelta(days=1)
+        )
+    ]
+    assert len(pages) == 1
+    assert checked.calls[2].request.url.params["filter"] == "error_count > 0"
