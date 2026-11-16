@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from evalkit.contracts.enums import TraceImportStatus
+from evalkit.contracts.enums import TraceImportStatus, TraceProvider
 from evalkit.core.agents import UnknownAgent
 from evalkit.core.traces.importer import (
     ACTIVE_IMPORT,
@@ -12,6 +12,7 @@ from evalkit.core.traces.importer import (
     IMPORT_STOPPED_ERROR,
     ImportJob,
 )
+from evalkit.core.traces.sources import newest_first
 from evalkit.db import models
 from evalkit.db.locks import lock_name
 from evalkit.db.session import ALL_TENANTS, tenant_session
@@ -45,7 +46,9 @@ class TraceImportView(BaseModel):
     since: datetime
     until: datetime
     resume_from: datetime
+    trace_filter: str | None
     status: TraceImportStatus
+    progress: float
     traces: int
     spans: int
     sample_session: str | None
@@ -59,9 +62,28 @@ def _lease() -> datetime:
     return datetime.now(UTC) + timedelta(seconds=IMPORT_LEASE_SECONDS)
 
 
+def compute_progress(
+    status: TraceImportStatus,
+    provider: TraceProvider,
+    since: datetime,
+    until: datetime,
+    resume_from: datetime,
+) -> float:
+    if status is TraceImportStatus.DONE:
+        return 1.0
+    covered = (until - resume_from) if newest_first(provider) else (resume_from - since)
+    return min(1.0, max(0.0, covered / (until - since)))
+
+
 def _view(
-    row: models.TraceImport, agent: str, workspace: str, source: str, user: str
+    row: models.TraceImport,
+    agent: str,
+    workspace: str,
+    source: str,
+    provider: str,
+    user: str,
 ) -> TraceImportView:
+    status = TraceImportStatus(row.status)
     return TraceImportView(
         id=row.id,
         agent=f"{agent}@{workspace}",
@@ -70,7 +92,11 @@ def _view(
         since=row.since,
         until=row.until,
         resume_from=row.resume_from,
-        status=TraceImportStatus(row.status),
+        trace_filter=row.trace_filter,
+        status=status,
+        progress=compute_progress(
+            status, TraceProvider(provider), row.since, row.until, row.resume_from
+        ),
         traces=row.traces,
         spans=row.spans,
         sample_session=row.sample_session,
@@ -107,6 +133,7 @@ class TraceImportStore:
                 models.Agent.name,
                 models.Workspace.name,
                 models.TraceSource.name,
+                models.TraceSource.provider,
                 models.User.username,
             )
             .join(models.Agent, models.Agent.id == models.TraceImport.agent_id)
@@ -149,6 +176,7 @@ class TraceImportStore:
         agent_id: int,
         trace_source_id: int,
         project: str,
+        trace_filter: str | None,
         since: datetime,
         until: datetime,
         created_by: int,
@@ -157,14 +185,22 @@ class TraceImportStore:
         async with self._session() as session:
             await self._check_same_tenant(session, agent_id, trace_source_id)
             await _refuse_second(session, agent_id)
+            provider = TraceProvider(
+                await session.scalar(
+                    select(models.TraceSource.provider).where(
+                        models.TraceSource.id == trace_source_id
+                    )
+                )
+            )
             row = models.TraceImport(
                 agent_id=agent_id,
                 trace_source_id=trace_source_id,
                 project=project,
                 since=since,
                 until=until,
-                resume_from=since,
+                resume_from=until if newest_first(provider) else since,
                 resume_trace_ids=[],
+                trace_filter=trace_filter,
                 status=TraceImportStatus.RUNNING.value,
                 traces=0,
                 spans=0,
@@ -230,22 +266,32 @@ class TraceImportStore:
 
     async def job(self, import_id: int) -> ImportJob:
         async with self._session() as session:
-            row = await session.scalar(
-                select(models.TraceImport)
-                .join(models.Agent, models.Agent.id == models.TraceImport.agent_id)
-                .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
-                .where(
-                    models.TraceImport.id == import_id,
-                    models.Workspace.tenant_id == self._tenant_id,
+            found = (
+                await session.execute(
+                    select(models.TraceImport, models.TraceSource.provider)
+                    .join(
+                        models.TraceSource,
+                        models.TraceSource.id == models.TraceImport.trace_source_id,
+                    )
+                    .join(models.Agent, models.Agent.id == models.TraceImport.agent_id)
+                    .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
+                    .where(
+                        models.TraceImport.id == import_id,
+                        models.Workspace.tenant_id == self._tenant_id,
+                    )
                 )
-            )
-            if row is None:
+            ).one_or_none()
+            if found is None:
                 raise UnknownTraceImport(import_id)
+            row, provider = found
             return ImportJob(
                 id=row.id,
                 agent_id=row.agent_id,
                 trace_source_id=row.trace_source_id,
+                provider=TraceProvider(provider),
                 project=row.project,
+                trace_filter=row.trace_filter,
+                since=row.since,
                 until=row.until,
                 resume_from=row.resume_from,
                 resume_trace_ids=list(row.resume_trace_ids),

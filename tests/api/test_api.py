@@ -4,8 +4,10 @@ import json
 
 import httpx2
 import pytest
+from fastapi import HTTPException
 from sqlalchemy import func, select
 
+from evalkit.api import experiments as experiments_module
 from evalkit.contracts.enums import ExperimentStatus
 from evalkit.core import runner as runner_module
 from evalkit.core.blob import tenant_prefix
@@ -642,3 +644,19 @@ async def test_server_runs_score_with_the_asked_evaluation_concurrency(api, monk
     )
     assert too_many.status_code == 400
     assert "above this server's limit of 16" in too_many.json()["detail"]
+
+
+async def test_resume_checks_the_agents_trace_source_before_any_run(api, monkeypatch):
+    client, *_ = api
+    exp_id = (await run_shared(client))["id"]
+    checked: list[str | None] = []
+
+    async def gone(stores, settings, **_):
+        checked.append(settings.project)
+        raise HTTPException(status_code=400, detail="project research-agent not found")
+
+    monkeypatch.setattr(experiments_module, "check_trace_source", gone)
+    resumed = await client.post(f"/api/experiments/{exp_id}/resume")
+    assert resumed.status_code == 400 and "not found" in resumed.json()["detail"]
+    assert checked == [None]
+    assert (await client.get(f"/api/experiments/{exp_id}")).json()["status"] == "completed"

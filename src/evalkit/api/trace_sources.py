@@ -1,11 +1,12 @@
-from fastapi import APIRouter
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, model_validator
 
 from evalkit.api.access import StoresDep
 from evalkit.api.auth import AdminUser
 from evalkit.api.deps import EndpointRuleDep
 from evalkit.contracts.enums import TraceProvider
 from evalkit.core.endpoints import check_endpoint
+from evalkit.core.traces.sources import check_api_key
 
 router = APIRouter(prefix="/api/trace-sources", tags=["trace sources"])
 
@@ -21,6 +22,11 @@ class CreateTraceSource(BaseModel):
     provider: TraceProvider
     url: str
     api_key: str | None = None
+
+    @model_validator(mode="after")
+    def key_fits_provider(self) -> "CreateTraceSource":
+        check_api_key(self.provider, self.api_key)
+        return self
 
 
 @router.post("")
@@ -50,6 +56,12 @@ async def edit_trace_source(
 ) -> dict:
     if body.url is not None:
         await check_endpoint(body.url, rule=rule)
+    if body.api_key is not None:
+        current = await stores.sources.resolve(name)
+        try:
+            check_api_key(current.provider, body.api_key)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
     edited = await stores.sources.edit(name, url=body.url, api_key=body.api_key)
     return edited.model_dump(mode="json")
 
