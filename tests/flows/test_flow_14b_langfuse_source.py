@@ -107,6 +107,18 @@ async def test_agent_settings_check_the_trace_filter(httpx2_mock, api):
     assert lone.status_code == 422
 
 
+async def test_a_filter_with_an_unknown_phoenix_project_says_the_project_is_missing(
+    httpx2_mock, api
+):
+    phx = {"name": "phx", "provider": "phoenix", "url": "https://phx.example.com", "api_key": "k"}
+    assert (await api.post("/api/trace-sources", json=phx)).status_code == 200
+    httpx2_mock.get("https://phx.example.com/v1/projects/nope").mock(return_value=MockResponse(404))
+    settings = {"trace_source": "phx", "project": "nope", "trace_filter": "error_count == 0"}
+    refused = await api.patch(f"/api/agents/{AGENT}", json={"settings": settings})
+    assert refused.status_code == 400
+    assert refused.json()["detail"].startswith("project nope not found in trace source phx")
+
+
 async def test_a_phoenix_trace_filter_is_checked_by_phoenix_when_saved(httpx2_mock, api):
     phx = {"name": "phx", "provider": "phoenix", "url": "https://phx.example.com", "api_key": "k"}
     assert (await api.post("/api/trace-sources", json=phx)).status_code == 200
