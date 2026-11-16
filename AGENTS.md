@@ -59,6 +59,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | EDD | Eval-driven development: author case → run (red) → diagnose → fix agent → re-run (green). |
 | Experiment runner | evalkit's own two-phase engine (never "harness"). |
 | Phoenix | Arize Phoenix, usable as a trace source. |
+| Langfuse | Langfuse (Cloud, or self-hosted v4.59.0 or later), usable as a trace source. |
 | ATIF | Agent Trajectory Interchange Format — Harbor's open trajectory schema. |
 | SDK run | An experiment the client's own code runs with `evalkit.sdk.run_experiment`. Always a local run: the client's process drives the task and writes runs and scores through the API. |
 | Harness run | An experiment driven through the Harness API, by the server (shared agent) or the CLI (personal agent). |
@@ -73,7 +74,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Settled | A session whose newest span arrived longer ago than the settle window: the agent's `import_settle_seconds` when it has a trace source, otherwise `otel.settle_seconds`. The signal that no more spans are coming. |
 | Pushed trajectory | An ATIF document a task returns directly, bypassing the collector. |
 | Trajectory source | Where an agent's trajectories come from: `atif` (served by a harness or returned by a task) or `otel` (collected spans converted by evalkit). Recorded on the agent row and the experiment. |
-| Trace source | A third-party trace store (Phoenix), created by an admin. Used to import history, and to get the trajectories of experiments whose agent names it in its settings (`trace_source`, `project`). Its API key is stored encrypted with the server's `encryption_key`. |
+| Trace source | A third-party trace store (Phoenix or Langfuse), created by an admin. Used to import history, and to get the trajectories of experiments whose agent names it in its settings (`trace_source`, `project` and an optional `trace_filter`, the store's own query for the agent's traces). Its API key is stored encrypted with the server's `encryption_key`. |
 | Python evaluator | A custom evaluator written as a Python function and passed to `run_experiment`. The in-process twin of the Custom Evaluator API. |
 | Try-it stack | The Compose kit in `skills/evalkit-deployment/try/`: server and Postgres judging with the developer's LLM (`LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`) on host port `EVALKIT_PORT` (default 8020), plus a sample agent run through an SDK run with OTel traces. For trying evalkit on one machine; never a deployment. |
 | Sample agent | The try-it stack's `agent.py`: a small agent that calls the developer's LLM with one tool and emits GenAI-convention spans. Example client code, not part of the package. |
@@ -88,7 +89,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 ## Layout
 
 - `src/evalkit/contracts/` — pydantic models for the wire contracts (ATIF, Harness API, Custom Evaluator API, case YAML, ESF and the span mapping document)
-- `src/evalkit/core/` — business logic: runner (`prepare_experiment` server-side; `drive_experiment` / `evaluate_experiment` anywhere; the experiment state machine and lease), evaluators, gauges, importer, lint, scorecard, pull (`core/pull.py`, the per-run layout `evalkit runs pull` writes), run digests (`core/run_digest.py`, per-run and windowed metrics from ATIF), the `Blob` protocol, judge, workspace references, access rules (`core/access.py`), review (`core/review.py`, the review state model); `core/traces/` holds the mapping engine, the mapping presets (`mapping_presets/*.json`, read through `presets.py`; the only copy), the ESF → ATIF converter, the settle rule, the `SessionReader` protocol and the Phoenix import adapter; `core/python_eval.py` runs Python evaluators
+- `src/evalkit/core/` — business logic: runner (`prepare_experiment` server-side; `drive_experiment` / `evaluate_experiment` anywhere; the experiment state machine and lease), evaluators, gauges, importer, lint, scorecard, pull (`core/pull.py`, the per-run layout `evalkit runs pull` writes), run digests (`core/run_digest.py`, per-run and windowed metrics from ATIF), the `Blob` protocol, judge, workspace references, access rules (`core/access.py`), review (`core/review.py`, the review state model); `core/traces/` holds the mapping engine, the mapping presets (`mapping_presets/*.json`, read through `presets.py`; the only copy), the ESF → ATIF converter, the settle rule, the `SessionReader` protocol and the Phoenix and Langfuse import adapters; `core/python_eval.py` runs Python evaluators
 - `src/evalkit/store/` — `store/base.py` holds the store models and the runner's `Store` protocol; `store/blob.py` is the obstore `Blob`
 - `src/evalkit/client/` — the runner's `Store`, `Blob` and `SessionReader` over the evalkit HTTP API (`HttpStore`, `HttpBlobStore`, `HttpSessionReader`), the sync `SyncApi`, the stored server login (`client/connection.py`) and the dataset sync helpers; used by the CLI and the SDK
 - `src/evalkit/sdk/` — `run_experiment` / `evaluate_experiment`, task binding, the `@evaluator` decorator and `tracing.register`

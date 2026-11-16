@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- **Tracing:** Langfuse is a trace source, for imports and for experiments
+  that read the agent's own store: `evalkit trace-sources create NAME
+  --provider langfuse`, with the public key and secret key joined by a colon
+  in `--api-key-env`. Needs Langfuse Cloud or self-hosted Langfuse v4.59.0
+  or later. A new `langfuse` mapping preset reads what evalkit imports from
+  Langfuse. A key in any other shape is refused with 422. Range imports from
+  Langfuse walk from `until` back to `since`, newest traces first.
+  Migration `0020` allows the `langfuse` provider and adds
+  `trace_imports.trace_filter`.
+- **Tracing:** An agent's settings take `trace_filter`, the trace store's own
+  query for its traces (`--trace-filter` on `agents create`, `agents edit`
+  and `traces import`, Trace filter in the agent form). Langfuse takes a
+  JSON array in its filter format; Phoenix refuses a filter for now. A
+  range import keeps the filter it started with.
+- **Tracing:** Span mappings take `path` on a rule (a dotted path into the
+  JSON value, for example `args.0`), `tokens.buckets` (token counts summed
+  from a JSON object of separate buckets, as Langfuse's `usage_details`),
+  one message object as a list of one in the `gen_ai` and `openai` formats,
+  and a plain `content` string in `gen_ai` messages.
+- **Tracing:** Import progress shows as percent completed from the new
+  `progress` field of an import; the CLI line no longer prints the time
+  reached, and a failed import says how many traces came in instead of the
+  time it reached. `POST /api/experiments/{id}/resume` checks the agent's
+  trace source and project, as starting an experiment already did. A
+  session import that sets `trace_filter` needs write access to the agent.
+
 - **CLI, SDK:** Fixed `your login has expired` stopping a run when two
   evalkit processes share one SSO login, such as two experiments at once.
   The identity provider issues a new refresh token on each refresh and
