@@ -69,9 +69,11 @@ PROJECT = typer.Option(None, "--project", help="The agent's project in --trace-s
 TRACE_FILTER = typer.Option(
     None,
     "--trace-filter",
-    help="The trace store's own query that picks the agent's traces, e.g. a Langfuse filter "
-    'JSON array: \'[{"type": "string", "column": "traceName", "operator": "=", '
-    '"value": "my-agent"}]\'. Needs --trace-source.',
+    help="The trace store's own query that picks the agent's traces. Needs --trace-source. "
+    "Langfuse: a filter JSON array, e.g. "
+    '\'[{"type": "string", "column": "traceName", "operator": "=", "value": "my-agent"}]\'. '
+    "Phoenix: a trace filter expression, e.g. \"metadata['agent'] == 'my-agent'\". "
+    "The links to both query languages are in this command's description.",
 )
 IMPORT_SETTLE = typer.Option(
     None,
@@ -446,6 +448,10 @@ def register(
         evalkit agents create myagent --trajectory-source otel --mapping openinference;
         evalkit agents create myagent --trajectory-source otel --mapping openinference
         --trace-source phoenix --project myagent
+
+        Trace filter syntax. Langfuse:
+        https://langfuse.com/docs/api-and-data-platform/features/observations-api#observations-filters
+        Phoenix: https://arize.com/docs/phoenix/tracing/how-to-tracing/filter-expressions#trace-filters
         """
         settings = _settings(
             {
@@ -521,6 +527,10 @@ def register(
         they ran with.
 
         Example: evalkit agents edit mybot --trajectory-source otel --mapping gen_ai
+
+        Trace filter syntax. Langfuse:
+        https://langfuse.com/docs/api-and-data-platform/features/observations-api#observations-filters
+        Phoenix: https://arize.com/docs/phoenix/tracing/how-to-tracing/filter-expressions#trace-filters
         """
         path = f"/api/agents/{encode(ref_of(ref))}"
         client = client_factory()
