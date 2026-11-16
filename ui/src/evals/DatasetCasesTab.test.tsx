@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Route } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
@@ -60,8 +60,14 @@ test("with a column filter set, select all and Run selected take only the cases 
     await screen.findByRole("textbox", { name: "Filter Value" }),
     "billing",
   );
-  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
   await screen.findByText("2 cases");
+  // An open filter popup keeps an AG Grid timer that can fire after this
+  // file's jsdom is gone and throw there; close it before the test ends.
+  await userEvent.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(document.querySelector(".ag-popup-child")).toBeNull(),
+  );
 
   fireEvent.click(
     screen.getByRole("checkbox", { name: "Column with Header Selection" }),
