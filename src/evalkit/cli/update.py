@@ -55,6 +55,22 @@ def update_project_pin(cwd: Path, target: str, run: Callable[[list[str]], object
     return False
 
 
+def refresh_skills(
+    project: Path,
+    install_prefix: Path,
+    run_skills_install: Callable[[list[str]], object],
+    targets_path: Path | None,
+) -> None:
+    failed = skill_targets.refresh(
+        project, installed_cli(install_prefix), run_skills_install, targets_path
+    )
+    if failed:
+        raise ApiError(
+            f"skills not fully refreshed in {', '.join(str(path) for path in failed)}; "
+            "see the lines above for what to do in each"
+        )
+
+
 def run_update(
     client: ApiClient,
     *,
@@ -69,36 +85,28 @@ def run_update(
     target = client.get("/api/cli").json()["version"]
     project = cwd or Path.cwd()
     synced = update_project_pin(project, target, run)
-    local = version.current()
     install_prefix = prefix or Path(sys.prefix)
-    is_project_venv = synced and install_prefix.resolve() == (project / ".venv").resolve()
-
-    if not is_project_venv:
-        if local == target:
-            typer.echo(f"evalkit {local} is already current")
-            return
-        if server_extra is None:
-            server_extra = has_server_extra()
-        extra = "[server]" if server_extra else ""
-        requirement = f"{version.DISTRIBUTION}{extra}=={target}"
-        command = install_command(install_prefix, requirement)
-        if command is None:
-            typer.echo(f'  uv tool install --reinstall "{requirement}"')
-            typer.echo(f'  pipx install --force "{requirement}"')
-            raise ApiError(
-                "could not tell how evalkit was installed; run one of the commands above"
-            )
-        run(command)
-        typer.echo(f"installed evalkit {target}")
-    else:
+    if synced and install_prefix.resolve() == (project / ".venv").resolve():
         typer.echo(f"installed evalkit {target} into {install_prefix}")
-
+        if skills:
+            refresh_skills(project, install_prefix, run_skills_install, targets_path)
+        return
+    local = version.current()
+    if local == target:
+        typer.echo(f"evalkit {local} is already current")
+        if skills:
+            refresh_skills(project, install_prefix, run_skills_install, targets_path)
+        return
+    if server_extra is None:
+        server_extra = has_server_extra()
+    extra = "[server]" if server_extra else ""
+    requirement = f"{version.DISTRIBUTION}{extra}=={target}"
+    command = install_command(install_prefix, requirement)
+    if command is None:
+        typer.echo(f'  uv tool install --reinstall "{requirement}"')
+        typer.echo(f'  pipx install --force "{requirement}"')
+        raise ApiError("could not tell how evalkit was installed; run one of the commands above")
+    run(command)
+    typer.echo(f"installed evalkit {target}")
     if skills:
-        failed = skill_targets.refresh(
-            project, installed_cli(install_prefix), run_skills_install, targets_path
-        )
-        if failed:
-            raise ApiError(
-                f"skills not fully refreshed in {', '.join(str(path) for path in failed)}; "
-                "see the lines above for what to do in each"
-            )
+        refresh_skills(project, install_prefix, run_skills_install, targets_path)

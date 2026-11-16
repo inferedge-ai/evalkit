@@ -233,3 +233,25 @@ def test_a_project_venv_update_refreshes_installed_skills(stale, tmp_path):
         [cli, "skills", "install", "--target", str(folder.resolve())]
         for folder in (tmp_path / ".agents" / "skills", skills)
     ]
+
+
+def test_already_current_refreshes_installed_skills(monkeypatch, tmp_path):
+    monkeypatch.setattr(version, "current", lambda: REMOTE)
+    skills = tmp_path / ".claude" / "skills"
+    skills.mkdir(parents=True)
+    (skills / ".evalkit-installed").write_text("evalkit-usage\n")
+
+    calls: list[list[str]] = []
+    run_update(
+        client(),
+        prefix=UV_PREFIX,
+        run=calls.append,
+        run_skills_install=calls.append,
+        cwd=tmp_path,
+        server_extra=False,
+    )
+    cli = str(UV_PREFIX / "bin" / "evalkit")
+    assert calls == [
+        [cli, "skills", "install", "--target", str(folder.resolve())]
+        for folder in (tmp_path / ".agents" / "skills", skills)
+    ]
