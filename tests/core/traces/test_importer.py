@@ -307,3 +307,12 @@ async def test_an_import_gives_up_after_ten_minutes_of_rate_limits_without_progr
     assert sum(sleeps.calls) == 600
     [(status, error)] = store.finished
     assert status is TraceImportStatus.FAILED and "429 Too Many Requests for 600 s" in error
+
+
+async def test_a_single_wait_longer_than_ten_minutes_fails_at_once_and_says_so():
+    client = LimitedClient(refusals=1, retry_after="900")
+    client.page((1, hour(1), None)).page((2, hour(2), None))
+    sleeps = Sleeps()
+    with pytest.raises(ImportRateLimited, match="asked to wait 900 s"):
+        await run_import(12, "pod:a", client, FakeStore(), FakeSpans(), MAPPING, sleep=sleeps)
+    assert sleeps.calls == []

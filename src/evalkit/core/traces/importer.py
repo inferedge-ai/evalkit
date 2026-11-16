@@ -175,6 +175,12 @@ async def run_import(
         try:
             finished = await _walk(import_id, holder, client, store, spans, mapping, job, progress)
         except RateLimited as limited:
+            if limited.retry_after > RATE_LIMIT_GIVE_UP_SECONDS:
+                raise ImportRateLimited(
+                    f"the trace source answered 429 Too Many Requests and asked to wait "
+                    f"{limited.retry_after:g} s, longer than the "
+                    f"{RATE_LIMIT_GIVE_UP_SECONDS:g} s an import waits; continue the import later"
+                ) from limited
             if progress.waited + limited.retry_after > RATE_LIMIT_GIVE_UP_SECONDS:
                 raise ImportRateLimited(
                     f"the trace source kept answering 429 Too Many Requests for "

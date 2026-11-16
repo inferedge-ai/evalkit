@@ -5,7 +5,7 @@ import pytest
 from respx import MockResponse
 
 from evalkit.contracts.enums import TraceProvider
-from evalkit.core.traces.sources import BadTraceFilter, UnknownProject, client_for
+from evalkit.core.traces.sources import BadTraceFilter, RateLimited, UnknownProject, client_for
 from evalkit.core.traces.sources.phoenix import PhoenixClient, _to_raw, flatten_attributes
 
 PHOENIX = "https://phoenix.example.com"
@@ -214,3 +214,18 @@ async def test_a_trace_filter_goes_to_phoenix_and_a_refused_one_says_why(httpx2_
     ]
     assert len(pages) == 1
     assert checked.calls[2].request.url.params["filter"] == "error_count > 0"
+
+
+async def test_a_phoenix_429_is_rate_limited_and_a_failing_filter_probe_raises(httpx2_mock):
+    httpx2_mock.get(TRACES).mock(
+        side_effect=[
+            MockResponse(429, headers={"Retry-After": "5"}),
+            MockResponse(500),
+        ]
+    )
+    since = datetime(2026, 10, 1, tzinfo=UTC)
+    with pytest.raises(RateLimited) as raised:
+        _ = [p async for p in client().trace_pages("research-agent", None, since, since)]
+    assert raised.value.retry_after == 5.0
+    with pytest.raises(httpx2.HTTPStatusError):
+        await client().check_filter("research-agent", "error_count > 0")

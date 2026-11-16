@@ -7,7 +7,12 @@ from typing import Any
 import httpx2
 
 from evalkit.core.traces.raw import RawSpan
-from evalkit.core.traces.sources.base import BadTraceFilter, TracePage, UnknownProject
+from evalkit.core.traces.sources.base import (
+    BadTraceFilter,
+    RateLimited,
+    TracePage,
+    UnknownProject,
+)
 
 OPENINFERENCE_KIND = "openinference.span.kind"
 
@@ -102,6 +107,7 @@ class PhoenixClient:
             )
         if resp.status_code in (400, 422):
             raise BadTraceFilter(f"Phoenix refused the trace filter: {resp.text}")
+        resp.raise_for_status()
 
     async def _pages(
         self, path: str, params: dict[str, str | list[str]]
@@ -112,6 +118,8 @@ class PhoenixClient:
                 resp = await client.get(
                     path, params={**params, **({"cursor": cursor} if cursor else {})}
                 )
+                if resp.status_code == 429:
+                    raise RateLimited(resp)
                 resp.raise_for_status()
                 body = resp.json()
                 rows = body.get("data") or []
