@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **CLI:** `evalkit update` now refreshes installed skills in `.agents/skills`
+  and `.claude/skills` even when the CLI is already current or when updating a
+  project virtualenv, rather than exiting before refreshing.
 - **CLI, SDK:** Fixed `your login has expired` stopping a run when two
   evalkit processes share one SSO login, such as two experiments at once.
   The identity provider issues a new refresh token on each refresh and
