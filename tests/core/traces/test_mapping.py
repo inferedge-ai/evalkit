@@ -473,6 +473,7 @@ def llm_doc(**rules) -> MappingDocument:
         ('{"args": [1]}', "args.x", None),
         ('{"a": 3}', "a.b", None),
         ('{"a": null}', "a.b", None),
+        ('{"args": ["x"]}', "args.\u00b2", None),
         ("not json", "a", None),
     ],
 )
@@ -557,7 +558,9 @@ def test_shape_detection_still_needs_parts():
             },
             (1950, 20, 800, 150),
         ),
-        ({"prompt_tokens": 7, "completion_tokens": 3}, (7, 3, 0, 0)),
+        ({"prompt_tokens": 7, "completion_tokens": 3}, (7, 3, None, None)),
+        ({}, (1, None, None, None)),
+        ({"total": 9}, (1, None, None, None)),
     ],
 )
 def test_token_buckets_add_up_langfuse_usage(buckets, expected):

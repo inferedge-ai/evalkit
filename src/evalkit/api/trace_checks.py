@@ -48,7 +48,7 @@ async def check_import_target(
 ) -> None:
     client = build_source_client(source, page_traces)
     try:
-        client.check_filter(trace_filter)
+        await client.check_filter(trace_filter)
         if with_project:
             await client.check_project(project)
     except BadTraceFilter as exc:

@@ -15,7 +15,7 @@ from evalkit.contracts.esf import MappingDocument
 from evalkit.core.agents import AgentDefinition
 from evalkit.core.errors import error_text
 from evalkit.core.traces.importer import IMPORT_STOPPED_ERROR, guarded_import
-from evalkit.core.traces.sources import IMPORT_RETRY
+from evalkit.core.traces.sources import import_retry
 from evalkit.db.mappings import MappingStore
 from evalkit.db.trace_imports import TraceImportStore, TraceImportView, tenant_of_import
 from evalkit.db.trace_sources import ResolvedTraceSource
@@ -69,7 +69,7 @@ def _launch(
     mapping: MappingDocument,
 ) -> None:
     client = build_source_client(
-        source, request.app.state.cfg.otel.import_page_traces, retry=IMPORT_RETRY
+        source, request.app.state.cfg.otel.import_page_traces, retry=import_retry(source.provider)
     )
     task = asyncio.create_task(
         guarded_import(import_id, holder, client, stores.imports, stores.spans, mapping),

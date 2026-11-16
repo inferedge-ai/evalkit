@@ -264,7 +264,9 @@ read the whole project.
   ```
 
   evalkit sets `startTime`, `traceId`, `sessionId` and `isRootObservation`
-  itself; a filter that names them is refused with 400.
+  itself; a filter that names them is refused with 400. When you save the
+  agent, evalkit also sends the filter to Langfuse once, so an unknown column
+  or operator is refused then with Langfuse's own message.
 - Phoenix does not take a trace filter yet; one is refused with 400.
 - A filter given to a single import that differs from the agent's needs
   write access to the agent, like `--source` and `--project`.

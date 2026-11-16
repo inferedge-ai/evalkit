@@ -18,6 +18,7 @@ __all__ = [
     "TraceSourceClient",
     "UnknownProject",
     "check_api_key",
+    "import_retry",
     "client_for",
     "newest_first",
 ]
@@ -34,6 +35,10 @@ IMPORT_RETRY = Retry(
 
 def newest_first(provider: TraceProvider) -> bool:
     return provider is TraceProvider.LANGFUSE
+
+
+def import_retry(provider: TraceProvider) -> Retry | None:
+    return IMPORT_RETRY if provider is TraceProvider.LANGFUSE else None
 
 
 def check_api_key(provider: TraceProvider, api_key: str | None) -> None:

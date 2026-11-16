@@ -93,9 +93,12 @@ class PhoenixClient:
             raise UnknownProject(f"project {project} not found")
         resp.raise_for_status()
 
-    def check_filter(self, trace_filter: str | None) -> None:
+    def _refuse_filter(self, trace_filter: str | None) -> None:
         if trace_filter:
             raise BadTraceFilter("Phoenix trace filters are not supported yet")
+
+    async def check_filter(self, trace_filter: str | None) -> None:
+        self._refuse_filter(trace_filter)
 
     async def _pages(
         self, path: str, params: dict[str, str | list[str]]
@@ -129,7 +132,7 @@ class PhoenixClient:
     async def session_spans(
         self, project: str, trace_filter: str | None, session_id: str
     ) -> list[RawSpan]:
-        self.check_filter(trace_filter)
+        self._refuse_filter(trace_filter)
         found: list[RawSpan] = []
         async for traces in self._traces(project, {"session_identifier": session_id}):
             async for spans in self.trace_spans(project, [t["trace_id"] for t in traces]):
@@ -139,7 +142,7 @@ class PhoenixClient:
     async def trace_pages(
         self, project: str, trace_filter: str | None, since: datetime, until: datetime
     ) -> AsyncIterator[TracePage]:
-        self.check_filter(trace_filter)
+        self._refuse_filter(trace_filter)
         window = {"start_time": since.isoformat(), "end_time": until.isoformat()}
         async for traces in self._traces(project, window):
             yield TracePage(

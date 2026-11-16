@@ -80,6 +80,12 @@ async def test_agent_settings_check_the_trace_filter(httpx2_mock, api):
     httpx2_mock.get(PROJECTS).mock(
         return_value=MockResponse(200, json={"data": [{"id": "p", "name": "e2e-test"}]})
     )
+    checked = httpx2_mock.get(OBSERVATIONS).mock(
+        side_effect=[
+            MockResponse(200, json={"data": [], "meta": {}}),
+            MockResponse(400, json={"message": "Invalid filter column: nope"}),
+        ]
+    )
     saved = await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})
     assert saved.status_code == 200, saved.text
     assert saved.json()["settings"]["trace_filter"] == TRACE_FILTER
@@ -90,6 +96,13 @@ async def test_agent_settings_check_the_trace_filter(httpx2_mock, api):
         f"/api/agents/{AGENT}", json={"settings": {**SETTINGS, "trace_filter": reserved}}
     )
     assert refused.status_code == 400 and "sessionId" in refused.json()["detail"]
+    unknown = json.dumps([{"type": "string", "column": "nope", "operator": "=", "value": "x"}])
+    refused_by_langfuse = await api.patch(
+        f"/api/agents/{AGENT}", json={"settings": {**SETTINGS, "trace_filter": unknown}}
+    )
+    assert refused_by_langfuse.status_code == 400
+    assert "Invalid filter column: nope" in refused_by_langfuse.json()["detail"]
+    assert checked.call_count == 2
     lone = await api.patch(f"/api/agents/{AGENT}", json={"settings": {"trace_filter": "[]"}})
     assert lone.status_code == 422
 

@@ -191,9 +191,9 @@ def test_span_kind_is_put_back_when_phoenix_moved_it_out_of_the_attributes():
     assert _to_raw(phoenix_span(2)).attributes["openinference.span.kind"] == "LLM"
 
 
-def test_phoenix_refuses_a_trace_filter():
+async def test_phoenix_refuses_a_trace_filter():
     phoenix = client()
-    phoenix.check_filter(None)
-    phoenix.check_filter("")
+    await phoenix.check_filter(None)
+    await phoenix.check_filter("")
     with pytest.raises(BadTraceFilter, match="not supported yet"):
-        phoenix.check_filter('[{"x": 1}]')
+        await phoenix.check_filter('[{"x": 1}]')

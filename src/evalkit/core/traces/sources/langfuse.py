@@ -126,8 +126,16 @@ class LangfuseClient:
             transport=self._transport,
         )
 
-    def check_filter(self, trace_filter: str | None) -> None:
-        parse_filter(trace_filter)
+    async def check_filter(self, trace_filter: str | None) -> None:
+        conditions = parse_filter(trace_filter)
+        if not conditions:
+            return
+        params = {"filter": json.dumps([*conditions, ROOT]), "fields": "core", "limit": "1"}
+        async with self._client() as client:
+            resp = await client.get(OBSERVATIONS, params=params)
+        if resp.status_code == 400:
+            raise BadTraceFilter(f"Langfuse refused the trace filter: {resp.text}")
+        resp.raise_for_status()
 
     async def check_project(self, project: str) -> None:
         async with self._client() as client:

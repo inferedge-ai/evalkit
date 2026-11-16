@@ -6,7 +6,11 @@ import pytest
 from respx import MockResponse
 
 from evalkit.contracts.enums import TraceProvider
+from evalkit.contracts.esf import MappingDocument
 from evalkit.core.retry import Retry
+from evalkit.core.traces.convert import to_atif
+from evalkit.core.traces.mapping import to_esf
+from evalkit.core.traces.presets import read_preset
 from evalkit.core.traces.sources import (
     BadTraceFilter,
     UnknownProject,
@@ -104,9 +108,40 @@ def test_only_langfuse_walks_newest_first():
         ),
     ],
 )
-def test_bad_filters_are_refused_with_a_reason(value, reason):
+async def test_bad_filters_are_refused_with_a_reason(value, reason):
     with pytest.raises(BadTraceFilter, match=reason):
-        client().check_filter(value)
+        await client().check_filter(value)
+
+
+async def test_a_filter_langfuse_refuses_comes_back_with_its_reason(httpx2_mock):
+    route = httpx2_mock.get(OBSERVATIONS).mock(
+        side_effect=[
+            MockResponse(400, json={"message": "Invalid filter column: nope"}),
+            MockResponse(200, json={"data": [], "meta": {}}),
+        ]
+    )
+    bad = '[{"type": "string", "column": "nope", "operator": "=", "value": "x"}]'
+    with pytest.raises(BadTraceFilter, match="Invalid filter column: nope"):
+        await client().check_filter(bad)
+    good = '[{"type": "string", "column": "traceName", "operator": "=", "value": "x"}]'
+    await client().check_filter(good)
+    assert route.calls[1].request.url.params["limit"] == "1"
+    await client().check_filter(None)
+    assert route.call_count == 2
+
+
+def test_an_app_root_whose_parent_was_not_exported_still_roots_the_trajectory():
+    obs = [o for o in OBS if o["traceId"] == OTEL_TRACE]
+    root = next(o for o in obs if o["parentObservationId"] is None)
+    orphaned = [
+        {**o, "parentObservationId": "f" * 16, "isRootObservation": True} if o is root else o
+        for o in obs
+    ]
+    mapping = MappingDocument.model_validate_json(read_preset("langfuse"))
+    esf = [to_esf(to_raw(o), mapping) for o in orphaned]
+    assert to_raw(next(o for o in orphaned if o["id"] == root["id"])).parent_span_id == "f" * 16
+    trajectory = to_atif(esf, mapping, agent_name="a", session_id="s", mapping_version=1)
+    assert trajectory.steps[-1].message == "AAPL is 101.5"
 
 
 async def test_trace_pages_join_the_filter_root_and_window_and_yield_empty_pages(httpx2_mock):

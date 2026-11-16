@@ -383,7 +383,7 @@ def _str(value: Any) -> str | None:
 
 def step_into(value: Any, step: str) -> Any:
     if isinstance(value, list):
-        return value[int(step)] if step.isdigit() and int(step) < len(value) else None
+        return value[int(step)] if step.isdecimal() and int(step) < len(value) else None
     return value.get(step) if isinstance(value, dict) else None
 
 
@@ -391,20 +391,25 @@ def _is_output_bucket(key: str) -> bool:
     return "output" in key or "completion" in key
 
 
-def token_counts(buckets: dict[str, Any]) -> dict[str, int]:
+def _sum_of(counts: dict[str, int], keep: Callable[[str], bool]) -> int | None:
+    matched = [v for k, v in counts.items() if keep(k)]
+    return sum(matched) if matched else None
+
+
+def token_counts(buckets: dict[str, Any]) -> dict[str, int | None] | None:
     counts = {
         k: int(v)
         for k, v in buckets.items()
         if k != "total" and isinstance(v, int | float) and not isinstance(v, bool)
     }
+    if not counts:
+        return None
     return {
-        "prompt": sum(v for k, v in counts.items() if not _is_output_bucket(k)),
-        "completion": sum(v for k, v in counts.items() if _is_output_bucket(k)),
-        "cached": sum(
-            v for k, v in counts.items() if "cache" in k and ("read" in k or "cached" in k)
-        ),
-        "cache_write": sum(
-            v for k, v in counts.items() if "cache" in k and ("creation" in k or "write" in k)
+        "prompt": _sum_of(counts, lambda k: not _is_output_bucket(k)),
+        "completion": _sum_of(counts, _is_output_bucket),
+        "cached": _sum_of(counts, lambda k: "cache" in k and ("read" in k or "cached" in k)),
+        "cache_write": _sum_of(
+            counts, lambda k: "cache" in k and ("creation" in k or "write" in k)
         ),
     }
 
