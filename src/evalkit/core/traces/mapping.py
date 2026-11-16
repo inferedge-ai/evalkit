@@ -248,7 +248,7 @@ def _openinference_messages(
 def _as_message_list(value: Any) -> list[Any] | None:
     raw = try_json(value)
     if isinstance(raw, dict):
-        return [raw]
+        return [raw] if "role" in raw else None
     return raw if isinstance(raw, list) else None
 
 

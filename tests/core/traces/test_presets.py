@@ -5,7 +5,7 @@ import pytest
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.presets import list_preset_names, read_preset
 
-GENERIC = {"openinference", "gen_ai"}
+GENERIC = {"openinference", "gen_ai", "langfuse"}
 
 FRAMEWORK_MAPPINGS = {
     "langchain": (
