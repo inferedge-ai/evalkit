@@ -73,6 +73,17 @@ class AttributeRule(MappingModel):
         default=None,
         description="Collect messages laid out per this format under the attribute key.",
     )
+    path: str | None = Field(
+        default=None,
+        description="A dotted path into the JSON-parsed value, e.g. args.0; numbers index "
+        "lists. A path that does not resolve reads as nothing.",
+    )
+
+    @model_validator(mode="after")
+    def refuse_path_with_openinference(self) -> AttributeRule:
+        if self.path is not None and self.message_format == "openinference":
+            raise ValueError("path cannot be used with message_format openinference")
+        return self
 
 
 class SpanMatch(MappingModel):
@@ -108,6 +119,14 @@ class TokenRules(MappingModel):
     completion: AttributeRule | None = None
     cached: AttributeRule | None = None
     cache_write: AttributeRule | None = None
+    buckets: AttributeRule | None = Field(
+        default=None,
+        description="An attribute holding a JSON object of separate token buckets that add up "
+        "to total, as Langfuse's usage_details. When it reads an object, the four counts come "
+        "from it: keys with output or completion are completion, the rest prompt; keys with "
+        "cache and read or cached are cached; keys with cache and creation or write are "
+        "cache_write.",
+    )
 
 
 class ToolRules(MappingModel):
