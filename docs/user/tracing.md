@@ -223,13 +223,15 @@ evalkit trace-sources create lf --provider langfuse --url https://cloud.langfuse
   each one with the Langfuse SDK's attribute names (`langfuse.observation.*`,
   `session.id`). So a `gen_ai` or `openinference` mapping finds no messages
   on spans imported from Langfuse, whatever the agent sent.
-- Agents traced with Langfuse's `@observe` decorator log their functions'
-  arguments, not chat messages. Point the preset's `input_messages` at the
-  messages with `path`, for example
+- The preset reads the messages of agents that send OTel spans to Langfuse
+  as they are. Agents traced with Langfuse's `@observe` decorator log their
+  functions' arguments instead of chat messages, so for them only, point the
+  preset's `input_messages` at the messages with `path`, for example
   `{"attribute": "langfuse.observation.input", "path": "args.0", "message_format": "openai"}`.
   See [Mappings](mappings.md).
 - OTel exporters: send the header `x-langfuse-ingestion-version: 4` to
-  Langfuse. Without it Langfuse can take up to 15 minutes to show spans, so
+  Langfuse. Without it Langfuse
+  [can take up to 15 minutes](https://langfuse.com/docs/compatibility) to show spans, so
   experiments miss them and imports skip them. Langfuse's own SDKs (Python
   4.7.0 and later, JS 5.4.0 and later) send it; a self-hosted Langfuse can
   instead set `LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct`.
@@ -237,9 +239,8 @@ evalkit trace-sources create lf --provider langfuse --url https://cloud.langfuse
   first. Traces that become readable after the import passed them are not
   imported: leave `--until` at least 15 minutes in the past, or import the
   recent part again.
-- Only traces whose root span reached the Langfuse project are imported. A
-  trace whose root (an HTTP server span, say) went to another backend is
-  skipped.
+- A trace's root span must be in the Langfuse project; traces without one
+  are not imported.
 
 ### Picking the agent's traces: the trace filter
 
@@ -263,13 +264,7 @@ read the whole project.
   [{"type": "stringObject", "column": "metadata", "key": "resourceAttributes.service.name", "operator": "=", "value": "stock-agent"}]
   ```
 
-  evalkit sets `startTime`, `traceId`, `sessionId` and `isRootObservation`
-  itself; a filter that names them is refused with 400. When you save the
-  agent, evalkit also sends the filter to Langfuse once, so an unknown column
-  or operator is refused then with Langfuse's own message.
 - Phoenix does not take a trace filter yet; one is refused with 400.
-- A filter given to a single import that differs from the agent's needs
-  write access to the agent, like `--source` and `--project`.
 
 ### Experiments that read a trace source
 

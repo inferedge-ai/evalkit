@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Protocol
 
 from pydantic import BaseModel
@@ -67,7 +67,10 @@ async def run_import(
     job = await store.job(import_id)
     boundary, written = job.resume_from, set(job.resume_trace_ids)
     if newest_first(job.provider):
-        pages = client.trace_pages(job.project, job.trace_filter, job.since, job.resume_from)
+        restarted = timedelta(milliseconds=1) if job.resume_trace_ids else timedelta(0)
+        pages = client.trace_pages(
+            job.project, job.trace_filter, job.since, job.resume_from + restarted
+        )
     else:
         pages = client.trace_pages(job.project, job.trace_filter, job.resume_from, job.until)
     async for page in pages:

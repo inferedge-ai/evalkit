@@ -35,8 +35,8 @@ class TraceSourceClient(Protocol):
     def trace_pages(
         self, project: str, trace_filter: str | None, since: datetime, until: datetime
     ) -> AsyncIterator[TracePage]:
-        """Oldest-first sources yield since <= start < until in ascending order; newest-first
-        sources yield since <= start <= until in descending order. Pages may be empty."""
+        """Yields traces with since <= start < until, oldest first or newest first as the
+        provider's newest_first says. Pages may be empty."""
         ...
 
     def trace_spans(self, project: str, trace_ids: list[str]) -> AsyncIterator[list[RawSpan]]: ...

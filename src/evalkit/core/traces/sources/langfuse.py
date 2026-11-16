@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import json
 from collections.abc import AsyncIterator
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 import httpx2
@@ -173,7 +173,7 @@ class LangfuseClient:
                 "type": "datetime",
                 "column": "startTime",
                 "operator": "<",
-                "value": _iso(until + timedelta(milliseconds=1)),
+                "value": _iso(until),
             },
         ]
         conditions = [*parse_filter(trace_filter), ROOT, *window]

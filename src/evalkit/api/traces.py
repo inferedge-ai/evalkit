@@ -220,7 +220,6 @@ async def import_session(
             project,
             trace_filter,
             page_traces=cfg.otel.import_page_traces,
-            with_project=overridden,
         )
     try:
         imported = await pull_session(

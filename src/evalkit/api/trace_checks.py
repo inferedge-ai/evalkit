@@ -44,13 +44,11 @@ async def check_import_target(
     trace_filter: str | None,
     *,
     page_traces: int,
-    with_project: bool = True,
 ) -> None:
     client = build_source_client(source, page_traces)
     try:
         await client.check_filter(trace_filter)
-        if with_project:
-            await client.check_project(project)
+        await client.check_project(project)
     except BadTraceFilter as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except UnknownProject as exc:

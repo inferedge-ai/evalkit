@@ -222,7 +222,7 @@ async def test_a_newest_first_restart_at_the_boundary_writes_each_trace_once():
     client = FakeClient().page((2, hour(2), None), (1, hour(1), None))
     store = FakeStore(resume_from=hour(2), resume_trace_ids=["t2"], provider=TraceProvider.LANGFUSE)
     await run_import(12, "pod:a", client, store, FakeSpans(), MAPPING)
-    assert client.windows == [(SINCE, hour(2))]
+    assert client.windows == [(SINCE, hour(2) + timedelta(milliseconds=1))]
     assert client.asked == [["t1"]]
 
 

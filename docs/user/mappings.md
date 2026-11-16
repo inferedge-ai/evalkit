@@ -119,11 +119,7 @@ Rule shapes:
 | `{"attribute": K, "path": P}`           | the value parsed as JSON, then followed along the dotted path `P` (`args.0`: key `args`, then the first item); a path that does not resolve reads as null. Combines with `message_format` `gen_ai` or `openai`, not `openinference` |
 | `null`                                  | never read                                                                                                                                                                   |
 
-The `gen_ai` and `openai` formats also read one message object as a list of one, and `gen_ai` reads a message with a plain `content` string and no `parts` as text.
-
 `tokens` takes `prompt`, `completion`, `cached` and `cache_write`, one rule each, or `buckets`: one rule for an attribute holding a JSON object of separate token counts that add up to its `total`, as Langfuse's `usage_details` does. From `buckets`, keys containing `output` or `completion` count as completion and every other key except `total` as prompt, so prompt includes cached tokens; keys containing `cache` and `read` or `cached` are the cached count, and keys containing `cache` and `creation` or `write` the cache writes.
-
-The `langfuse` preset reads spans imported from Langfuse and spans the Langfuse SDK sends: `langfuse.observation.type` for the kind, `langfuse.observation.input` / `.output` as `gen_ai` messages, `tokens.buckets` from `langfuse.observation.usage_details` and `cost_usd` from `langfuse.observation.cost_details` at `path` `total`. See [Tracing](tracing.md#langfuse).
 
 More fields shape the trajectory:
 

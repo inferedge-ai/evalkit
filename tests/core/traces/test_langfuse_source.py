@@ -177,7 +177,7 @@ async def test_trace_pages_join_the_filter_root_and_window_and_yield_empty_pages
             "type": "datetime",
             "column": "startTime",
             "operator": "<",
-            "value": "2026-11-17T10:00:00.006+00:00",
+            "value": "2026-11-17T10:00:00.005+00:00",
         },
     ]
     assert route.calls[1].request.url.params["cursor"] == "c2"
