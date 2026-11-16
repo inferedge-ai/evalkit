@@ -1,8 +1,8 @@
 import httpx2
 import pytest
 
-from evalkit.client import retry as retry_module
-from evalkit.client.retry import Retry, RetryTransport
+from evalkit.core import retry as retry_module
+from evalkit.core.retry import Retry, RetryTransport
 
 
 def top(low: float, high: float) -> float:
