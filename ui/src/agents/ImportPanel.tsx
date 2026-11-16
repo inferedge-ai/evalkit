@@ -5,15 +5,10 @@ import { Link } from "react-router-dom";
 import { apiJson } from "../lib/api";
 import { fmtWhen } from "../lib/format";
 import { refreshQueries, useApi } from "../lib/query";
-import { Select } from "../lib/Select";
 import { ToArrow } from "../lib/ui";
 import { importAction, isActiveImport, localToIso } from "../lib/traceImports";
 import type { TraceImport } from "../lib/traceImports";
-import type {
-  AgentSettings,
-  SessionTrajectory,
-  TraceSourceInfo,
-} from "../lib/types";
+import type { AgentSettings, SessionTrajectory } from "../lib/types";
 import { Summary } from "./MappingsPanel";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -152,10 +147,9 @@ export function ImportPanel({
 }) {
   const formId = useId();
   const base = `/agents/${encodeURIComponent(agent)}`;
-  const [pickedSource, setPickedSource] = useState(
-    settings?.trace_source ?? "",
-  );
-  const [project, setProject] = useState(settings?.project ?? "");
+  const source = settings?.trace_source ?? null;
+  const project = settings?.project ?? null;
+  const traceFilter = settings?.trace_filter ?? null;
   const [mode, setMode] = useState<Mode>("range");
   const [sessionId, setSessionId] = useState("");
   const [since, setSince] = useState("");
@@ -167,9 +161,6 @@ export function ImportPanel({
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const listedSources = useApi<TraceSourceInfo[]>("/trace-sources");
-  const sources = listedSources.data ?? [];
-  const source = pickedSource || (sources[0]?.name ?? "");
   const listedImports = useApi<TraceImport[]>(`${base}/imports`, {
     refetchInterval: (q) =>
       q.state.data?.some((i) => isActiveImport(i.status)) ? POLL_MS : false,
@@ -196,14 +187,12 @@ export function ImportPanel({
         const body = await apiJson<{ imported: number }>(
           `${base}/sessions/import`,
           "POST",
-          { source, project, session_id: sessionId },
+          { session_id: sessionId },
         );
         setImported({ session: sessionId, spans: body.imported });
         return;
       }
       await apiJson<TraceImport>(`${base}/imports`, "POST", {
-        source,
-        project,
         since: localToIso(since),
         until: until ? localToIso(until) : new Date().toISOString(),
       });
@@ -230,21 +219,17 @@ export function ImportPanel({
       {actionError && <div className="pane-status error">{actionError}</div>}
       <section className="flex max-w-3xl flex-col gap-2">
         <h2 className="font-medium">Import from a trace source</h2>
-        {listedSources.error && (
-          <div className="pane-status error">{listedSources.error.message}</div>
-        )}
-        {!listedSources.data ? (
-          !listedSources.error && <Skeleton className="h-96 rounded-xl" />
-        ) : listedSources.data.length === 0 ? (
+        {!source ? (
           <Card className="py-8">
             <Empty
               icon={Cable}
-              title="No trace sources yet"
+              title="This agent has no trace source"
               description={
                 <>
-                  An admin adds one on the Trace sources page or with{" "}
+                  Imports read the agent&apos;s trace source and project. Set
+                  them with Edit, or with{" "}
                   <span className="font-mono">
-                    evalkit trace-sources create
+                    evalkit agents edit --trace-source --project
                   </span>
                   .
                 </>
@@ -254,27 +239,23 @@ export function ImportPanel({
         ) : (
           <Card size="sm">
             <CardContent className="flex flex-col gap-3">
-              <Field>
-                <FieldLabel htmlFor={`${formId}-source`}>Source</FieldLabel>
-                <Select
-                  id={`${formId}-source`}
-                  ariaLabel="trace source"
-                  value={source}
-                  onChange={setPickedSource}
-                  options={sources.map((s) => ({
-                    value: s.name,
-                    label: s.name,
-                  }))}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor={`${formId}-project`}>Project</FieldLabel>
-                <Input
-                  id={`${formId}-project`}
-                  value={project}
-                  onChange={(e) => setProject(e.target.value)}
-                />
-              </Field>
+              <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-sm">
+                <dt className="text-ink-3">Source</dt>
+                <dd>{source}</dd>
+                <dt className="text-ink-3">Project</dt>
+                <dd>{project}</dd>
+                <dt className="text-ink-3">Trace filter</dt>
+                <dd className="font-mono break-all">
+                  {traceFilter ?? (
+                    <span className="font-sans text-ink-3">
+                      none: every trace in the project
+                    </span>
+                  )}
+                </dd>
+              </dl>
+              <p className="text-meta text-ink-3">
+                The agent&apos;s settings. Change them with Edit.
+              </p>
               <Field>
                 <FieldTitle>What</FieldTitle>
                 <div>

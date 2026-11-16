@@ -6,7 +6,7 @@ from typing import Literal
 import httpx2
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 from pydantic_core import to_json
 
 from evalkit.api.access import (
@@ -24,7 +24,7 @@ from evalkit.api.session_pull import (
     build_source_client,
     load_active_mapping,
 )
-from evalkit.api.trace_checks import check_import_target, resolve_import_source
+from evalkit.api.trace_checks import resolve_import_source
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.access import can_use_agent, can_write
 from evalkit.core.agents import AgentDefinition, UnknownAgent, explicit
@@ -170,32 +170,20 @@ async def activate_mapping(
 
 
 class ImportRequest(BaseModel):
-    source: str | None = None
-    project: str | None = None
-    trace_filter: str | None = None
+    model_config = ConfigDict(extra="forbid")
+
     session_id: str
 
 
-def resolve_import_target(
-    record: AgentDefinition, source: str | None, project: str | None
-) -> tuple[str, str]:
-    source = source or record.settings.trace_source
-    project = project or record.settings.project
+def import_target(record: AgentDefinition) -> tuple[str, str]:
+    source, project = record.settings.trace_source, record.settings.project
     if source is None or project is None:
         raise HTTPException(
             status_code=400,
-            detail=f"no trace source given and agent {record.ref} has none; "
-            "pass source and project, or set them on the agent",
+            detail=f"agent {record.ref} has no trace source; set its trace source and project "
+            f"first: evalkit agents edit {record.ref} --trace-source <name> --project <project>",
         )
     return source, project
-
-
-def resolve_trace_filter(
-    record: AgentDefinition, source: str, trace_filter: str | None
-) -> str | None:
-    if trace_filter is not None:
-        return trace_filter
-    return record.settings.trace_filter if source == record.settings.trace_source else None
 
 
 @router.post("/agents/{agent}/sessions/import")
@@ -208,23 +196,11 @@ async def import_session(
     rule: EndpointRuleDep,
 ) -> dict:
     _, record = await agent_or_404(stores.agents, agent)
-    overridden = body.source is not None or body.project is not None
-    if not overridden and body.trace_filter is None:
-        ws = await workspace_ref(stores, record.workspace)
-        require(can_use_agent(actor, ws), f"you cannot run {record.ref}")
-    else:
-        await require_write(stores, actor, record)
+    ws = await workspace_ref(stores, record.workspace)
+    require(can_use_agent(actor, ws), f"you cannot run {record.ref}")
     require_otel(record)
-    name, project = resolve_import_target(record, body.source, body.project)
-    trace_filter = resolve_trace_filter(record, name, body.trace_filter)
+    name, project = import_target(record)
     source = await resolve_import_source(stores, name, rule=rule)
-    if overridden or body.trace_filter is not None:
-        await check_import_target(
-            source,
-            project,
-            trace_filter,
-            page_traces=cfg.otel.import_page_traces,
-        )
     try:
         imported = await pull_session(
             build_source_client(source, cfg.otel.import_page_traces, PULL_TIMEOUT_SECONDS),
@@ -233,7 +209,7 @@ async def import_session(
             agent_id=record.id,
             source_id=source.id,
             project=project,
-            trace_filter=trace_filter,
+            trace_filter=record.settings.trace_filter,
             session_id=body.session_id,
         )
     except httpx2.HTTPError as exc:

@@ -324,13 +324,11 @@ def test_range_import_starts_follows_and_checks_the_sample_session(srv):
     srv.get("http://srv/api/agents/sdk@canonical/sessions/s9/trajectory").mock(
         return_value=MockResponse(200, json=SESSION)
     )
-    args = ["traces", "import", "sdk@canonical", "--source", "phx", "--project", "research-agent"]
+    args = ["traces", "import", "sdk@canonical"]
     result = CliRunner().invoke(cli_app, [*args, "--since", "2026-10-01", "--until", "2026-10-05"])
     assert result.exit_code == 0, result.output
     body = json.loads(started.calls[0].request.content)
     assert body == {
-        "source": "phx",
-        "project": "research-agent",
         "since": "2026-10-01T00:00:00+00:00",
         "until": "2026-10-05T00:00:00+00:00",
     }
@@ -480,7 +478,7 @@ def test_render_check_warns_when_the_answer_span_is_missing():
     )
 
 
-def test_a_trace_filter_goes_with_a_session_import(srv):
+def test_a_session_import_sends_only_the_session_id(srv):
     imported = srv.post("http://srv/api/agents/sdk@canonical/sessions/import").mock(
         return_value=MockResponse(200, json={"imported": 3})
     )
@@ -488,10 +486,11 @@ def test_a_trace_filter_goes_with_a_session_import(srv):
     srv.get("http://srv/api/agents/sdk@canonical/sessions/s9/trajectory").mock(
         return_value=MockResponse(200, json=SESSION)
     )
-    trace_filter = '[{"type": "string", "column": "traceName", "operator": "=", "value": "a"}]'
-    result = CliRunner().invoke(
-        cli_app, ["traces", "import", "sdk@canonical", "s9", "--trace-filter", trace_filter]
-    )
+    result = CliRunner().invoke(cli_app, ["traces", "import", "sdk@canonical", "s9"])
     assert result.exit_code == 0, result.output
-    body = json.loads(imported.calls[0].request.content)
-    assert body == {"trace_filter": trace_filter, "session_id": "s9"}
+    assert json.loads(imported.calls[0].request.content) == {"session_id": "s9"}
+    for removed in ("--source", "--project", "--trace-filter"):
+        refused = CliRunner().invoke(
+            cli_app, ["traces", "import", "sdk@canonical", "s9", removed, "x"]
+        )
+        assert refused.exit_code == 2 and "No such option" in refused.output

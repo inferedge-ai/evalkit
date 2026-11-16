@@ -138,43 +138,35 @@ async def test_a_range_import_walks_newest_first_with_the_agent_filter(httpx2_mo
     } in roots
 
 
-async def test_a_session_import_with_a_filter_needs_write_and_the_puller_sends_the_filter(
-    httpx2_mock, api
-):
+async def test_every_import_and_pull_uses_the_agents_filter(httpx2_mock, api):
     asked = serve_langfuse(httpx2_mock)
     assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200
-    alice = await login_as(api, "alice", "password")
-    refused = await alice.post(
-        f"/api/agents/{AGENT}/sessions/import",
-        json={"session_id": "otel-session-1", "trace_filter": "[]"},
-    )
-    assert refused.status_code == 403
     asked.clear()
+    started = await api.post(f"/api/agents/{AGENT}/imports", json=RANGE)
+    assert started.status_code == 202, started.text
+    assert started.json()["trace_filter"] == TRACE_FILTER
+    await settled(api, started.json()["id"])
+    alice = await login_as(api, "alice", "password")
     own = await alice.post(
         f"/api/agents/{AGENT}/sessions/import", json={"session_id": "otel-session-1"}
     )
     assert own.status_code == 200 and own.json()["imported"] == 4
-    assert len(asked) == 2 and "sessionId" in {c["column"] for c in asked[0]}
     stores = build_tenant_stores(api.app.state, "default")
     puller = ServerSessionPuller(stores.agents, stores.sources, stores.mappings, stores.spans, 25)
-    asked.clear()
     await puller(AGENT, "otel-session-1")
-    assert asked[0][0] == json.loads(TRACE_FILTER)[0]
+    roots = [c for c in asked if any(x["column"] == "isRootObservation" for x in c)]
+    assert len(roots) == 4 and all(c[0] == json.loads(TRACE_FILTER)[0] for c in roots)
     await alice.aclose()
 
 
-async def test_imports_naming_the_agents_own_source_keep_its_filter(httpx2_mock, api):
-    asked = serve_langfuse(httpx2_mock)
+@pytest.mark.parametrize(
+    "override", [{"source": "lf"}, {"project": "e2e-test"}, {"trace_filter": "[]"}]
+)
+async def test_import_requests_cannot_override_the_agents_settings(httpx2_mock, api, override):
+    serve_langfuse(httpx2_mock)
     assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200
-    asked.clear()
-    target = {"source": "lf", "project": "e2e-test"}
-    started = await api.post(f"/api/agents/{AGENT}/imports", json={**target, **RANGE})
-    assert started.status_code == 202, started.text
-    assert started.json()["trace_filter"] == TRACE_FILTER
-    await settled(api, started.json()["id"])
     session = await api.post(
-        f"/api/agents/{AGENT}/sessions/import", json={**target, "session_id": "otel-session-1"}
+        f"/api/agents/{AGENT}/sessions/import", json={"session_id": "s", **override}
     )
-    assert session.status_code == 200, session.text
-    roots = [c for c in asked if any(x["column"] == "isRootObservation" for x in c)]
-    assert roots and all(c[0] == json.loads(TRACE_FILTER)[0] for c in roots)
+    ranged = await api.post(f"/api/agents/{AGENT}/imports", json={**RANGE, **override})
+    assert (session.status_code, ranged.status_code) == (422, 422)

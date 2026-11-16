@@ -163,18 +163,6 @@ test("a traced agent with an active mapping shows its rules", async () => {
   expect(screen.queryByText("No mapping yet")).toBeNull();
 });
 
-test("while the trace sources load, the Import tab does not say there are none", async () => {
-  stubServer((url) => {
-    if (url.endsWith("/api/trace-sources")) return new Promise(() => {});
-    if (url.endsWith(AGENT_URL)) return Response.json(traced);
-  });
-  openAgent("import");
-  expect(
-    await screen.findByRole("heading", { name: "Range imports" }),
-  ).toBeInTheDocument();
-  expect(screen.queryByText(/No trace sources yet/)).toBeNull();
-});
-
 test("when the mapping versions fail to load, the Mappings tab shows the error instead of loading forever", async () => {
   stubServer((url) => {
     if (url.endsWith(`${AGENT_URL}/mappings`))
@@ -256,49 +244,11 @@ test("when the range imports fail to load, the Import tab shows the error instea
   expect(placeholders(imports)).toHaveLength(0);
 });
 
-test("when the trace sources fail to load, the Import tab shows the error and does not say there are none", async () => {
-  stubServer((url) => {
-    if (url.endsWith("/api/trace-sources"))
-      return Response.json({ detail: "store unavailable" }, { status: 500 });
-    if (url.endsWith(AGENT_URL)) return Response.json(traced);
-  });
-  openAgent("import");
-  expect(await screen.findByText(/store unavailable/)).toBeInTheDocument();
-  expect(screen.queryByText(/No trace sources yet/)).toBeNull();
-  const sources = screen
-    .getByRole("heading", { name: "Import from a trace source" })
-    .closest("section")!;
-  expect(placeholders(sources)).toHaveLength(0);
-});
-
-test("when the trace sources and the range imports both fail, each section shows its own error", async () => {
-  stubServer((url) => {
-    if (url.endsWith("/api/trace-sources"))
-      return failure(500, "sources unavailable");
-    if (url.endsWith(`${AGENT_URL}/imports`))
-      return failure(500, "imports unavailable");
-    if (url.endsWith(AGENT_URL)) return Response.json(traced);
-  });
-  openAgent("import");
-  const section = async (name: string) =>
-    (await screen.findByRole("heading", { name })).closest(
-      "section",
-    ) as HTMLElement;
-  expect(
-    await within(await section("Import from a trace source")).findByText(
-      /sources unavailable/,
-    ),
-  ).toBeInTheDocument();
-  expect(
-    await within(await section("Range imports")).findByText(
-      /imports unavailable/,
-    ),
-  ).toBeInTheDocument();
-});
-
-test("importing traces without a trace source says how an admin adds one", async () => {
+test("an agent without a trace source is told to set one before importing", async () => {
   serveAgent(traced);
   openAgent("import");
-  expect(await screen.findByText("No trace sources yet")).toBeInTheDocument();
-  expect(screen.getByText(/evalkit trace-sources create/)).toBeInTheDocument();
+  expect(
+    await screen.findByText("This agent has no trace source"),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Start import" })).toBeNull();
 });

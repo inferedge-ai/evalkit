@@ -2,12 +2,17 @@
 
 ## Unreleased
 
-- **Tracing:** Fixed imports ignoring the agent's trace filter when the
-  request names the agent's own trace source, as the agent page's Import tab
-  always does. Such imports read every trace in the project, which can be
-  far more than the agent's and run into Langfuse's rate limit. Now an
-  import uses the agent's filter whenever it reads from the agent's own
-  trace source, unless the request sets `trace_filter`. Broken since 0.7.0.
+- **Tracing:** Imports always read the agent's own trace source, project and
+  trace filter. `POST /api/agents/{agent}/imports` and
+  `/sessions/import` no longer take `source`, `project` or `trace_filter`
+  (a request that sends them is refused with 422), `evalkit traces import`
+  drops `--source`, `--project` and `--trace-filter`, and the agent page's
+  Import tab shows the agent's settings instead of a source picker. To import
+  from another store or project, change the agent's settings first. This
+  also fixes imports from the Import tab, which always sent `source` and so
+  ignored the agent's trace filter and read the whole project. Before you
+  upgrade: scripts passing those flags or fields must drop them. An agent
+  with no trace source now gets 400 with how to set one.
 
 ## 0.7.0
 

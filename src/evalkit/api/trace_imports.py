@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import AwareDatetime, BaseModel, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 
 from evalkit.api.access import ActorDep, StoresDep, TenantStores
 from evalkit.api.deps import EndpointRuleDep, HolderDep
@@ -11,10 +11,9 @@ from evalkit.api.session_pull import build_source_client
 from evalkit.api.trace_checks import check_import_target, resolve_import_source
 from evalkit.api.traces import (
     agent_or_404,
+    import_target,
     require_otel,
     require_write,
-    resolve_import_target,
-    resolve_trace_filter,
 )
 from evalkit.contracts.enums import TraceImportStatus
 from evalkit.contracts.esf import MappingDocument
@@ -37,9 +36,8 @@ NO_SESSION_MAPPING = (
 
 
 class RangeImportRequest(BaseModel):
-    source: str | None = None
-    project: str | None = None
-    trace_filter: str | None = None
+    model_config = ConfigDict(extra="forbid")
+
     since: AwareDatetime
     until: AwareDatetime
 
@@ -114,8 +112,8 @@ async def start_import(
     await require_write(stores, actor, record)
     require_otel(record)
     mapping = await _session_mapping(stores.mappings, record)
-    name, project = resolve_import_target(record, body.source, body.project)
-    trace_filter = resolve_trace_filter(record, name, body.trace_filter)
+    name, project = import_target(record)
+    trace_filter = record.settings.trace_filter
     source = await resolve_import_source(stores, name, rule=rule)
     await check_import_target(
         source, project, trace_filter, page_traces=request.app.state.cfg.otel.import_page_traces
