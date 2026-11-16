@@ -116,7 +116,10 @@ Rule shapes:
 | `{"attribute": K, "json": true}`        | the value parsed as JSON when it is a string; the string stays when parsing fails                                                                                            |
 | `{"attribute": K, "values": {...}}`     | the value translated through the table; an unlisted kind becomes `other`                                                                                                     |
 | `{"attribute": K, "message_format": F}` | the messages laid out under `K` per format `F`: `openinference` (flattened indexed keys), `gen_ai` (JSON list of messages with parts), `openai` (JSON list of chat messages) |
+| `{"attribute": K, "path": P}`           | the value parsed as JSON, then followed along the dotted path `P` (`args.0`: key `args`, then the first item); a path that does not resolve reads as null. Combines with `message_format` `gen_ai` or `openai`, not `openinference` |
 | `null`                                  | never read                                                                                                                                                                   |
+
+`tokens` takes `prompt`, `completion`, `cached` and `cache_write`, one rule each, or `buckets`: one rule for an attribute holding a JSON object of separate token counts that add up to its `total`, as Langfuse's `usage_details` does. From `buckets`, keys containing `output` or `completion` count as completion and every other key except `total` as prompt, so prompt includes cached tokens; keys containing `cache` and `read` or `cached` are the cached count, and keys containing `cache` and `creation` or `write` the cache writes.
 
 More fields shape the trajectory:
 

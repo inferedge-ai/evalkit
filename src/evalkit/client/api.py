@@ -7,7 +7,7 @@ from urllib.parse import quote
 import httpx2
 
 from evalkit import version
-from evalkit.client.retry import Retry, RetryTransport
+from evalkit.core.retry import Retry, RetryTransport
 
 RETRY_STATUSES = (502, 503, 504)
 RETRY_ERRORS = (httpx2.NetworkError, httpx2.ConnectTimeout, httpx2.RemoteProtocolError)

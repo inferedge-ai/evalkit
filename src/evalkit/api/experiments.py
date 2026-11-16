@@ -633,6 +633,13 @@ async def resume(
 ) -> dict:
     exp = await _changeable(stores, session, actor, exp_id)
     agent = await _server_driven(stores.deps, exp, "resume")
+    await check_trace_source(
+        stores,
+        agent.settings,
+        otel=agent.is_otel,
+        rule=rule,
+        page_traces=request.app.state.cfg.otel.import_page_traces,
+    )
     asked = body.evaluation_concurrency if body is not None else None
     provider = (
         await require_provider_judge(stores.providers, exp.config.judge)

@@ -104,7 +104,7 @@ async def test_trace_import_refuses_a_source_from_another_tenant(raw_session_fac
     now = datetime.now(UTC)
     with pytest.raises(UnknownTraceSource):
         await TraceImportStore(raw_session_factory, "default").create(
-            agent.id, other.id, "proj", now - timedelta(days=1), now, admin.id, "pod:test"
+            agent.id, other.id, "proj", None, now - timedelta(days=1), now, admin.id, "pod:test"
         )
 
 

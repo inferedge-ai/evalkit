@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
 import { setSessionForTest } from "./auth/oidc";
 import { queryClient } from "./lib/query";
+import { closeGridPopups } from "./testAgGrid";
 import type { ExperimentInfo, Me, Report, WorkspaceInfo } from "./lib/types";
 import { MeContext } from "./shell/capabilities";
 import { WorkspaceGate } from "./shell/workspace";
@@ -145,6 +146,7 @@ export function renderPage(me: Me, path: string, routes: ReactNode) {
 }
 
 export function closePage() {
+  closeGridPopups();
   cleanup();
   queryClient.clear();
   vi.unstubAllGlobals();

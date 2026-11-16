@@ -35,6 +35,7 @@ function agent(name: string): AgentInfo {
       provides: null,
       trace_source: null,
       project: null,
+      trace_filter: null,
       import_settle_seconds: 15,
       import_wait_seconds: 120,
     },

@@ -41,6 +41,7 @@ class MappingStatus(StrEnum):
 
 class TraceProvider(StrEnum):
     PHOENIX = "phoenix"
+    LANGFUSE = "langfuse"
 
 
 class TraceImportStatus(StrEnum):

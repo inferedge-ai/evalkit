@@ -3,8 +3,12 @@ import { cleanup } from "@testing-library/react";
 import { provideGlobalGridOptions } from "ag-grid-community";
 import { afterEach } from "vitest";
 import { MOBILE_QUERY } from "./hooks/use-mobile";
+import { closeGridPopups } from "./testAgGrid";
 
-afterEach(cleanup);
+afterEach(() => {
+  closeGridPopups();
+  cleanup();
+});
 
 // AG Grid ends a column animation on a 200ms timer, which can fire after a
 // test file's jsdom is gone and throw there.

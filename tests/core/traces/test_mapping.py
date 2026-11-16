@@ -8,6 +8,7 @@ from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.mapping import (
     SDK_ROOT_MAPPING,
     AttributeKeys,
+    gen_ai_messages,
     input_context,
     kind_attributes,
     mapping_for,
@@ -456,3 +457,124 @@ def test_equals_matches_bools_and_whole_floats_by_their_plain_spelling():
 
     assert excluded("true", True) and excluded(True, "True") and excluded(1, 1.0)
     assert not excluded("true", False) and not excluded(1, 1.5)
+
+
+def llm_doc(**rules) -> MappingDocument:
+    return MappingDocument.model_validate(
+        {"schema_version": "1", "kind": {"attribute": "k", "values": {"g": "llm"}}, **rules}
+    )
+
+
+@pytest.mark.parametrize(
+    ("value", "path", "expected"),
+    [
+        ('{"args": [["a", "b"]]}', "args.0.1", "b"),
+        ('{"args": []}', "args.0", None),
+        ('{"args": [1]}', "args.x", None),
+        ('{"a": 3}', "a.b", None),
+        ('{"a": null}', "a.b", None),
+        ('{"args": ["x"]}', "args.\u00b2", None),
+        ("not json", "a", None),
+    ],
+)
+def test_path_reads_inside_json_and_misses_read_none(value, path, expected):
+    doc = MappingDocument.model_validate(
+        {"schema_version": "1", "model": {"attribute": "v", "path": path}}
+    )
+    assert to_esf(raw({"v": value}), doc).model == (None if expected is None else str(expected))
+
+
+def test_path_is_refused_with_openinference_messages():
+    with pytest.raises(ValidationError, match="openinference"):
+        MappingDocument.model_validate(
+            {
+                "schema_version": "1",
+                "input_messages": {
+                    "attribute": "llm.input_messages",
+                    "path": "0",
+                    "message_format": "openinference",
+                },
+            }
+        )
+
+
+def test_gen_ai_messages_read_through_a_path_a_single_dict_and_plain_content():
+    doc = llm_doc(
+        input_messages={"attribute": "in", "path": "args.0", "message_format": "openai"},
+        output_messages={"attribute": "out", "message_format": "gen_ai"},
+    )
+    span = to_esf(
+        raw(
+            {
+                "k": "g",
+                "in": json.dumps({"args": [[{"role": "user", "content": "q"}]], "kwargs": {}}),
+                "out": json.dumps(
+                    [
+                        {"role": "system", "content": "be brief"},
+                        {"role": "assistant", "parts": [{"type": "text", "content": "a"}]},
+                    ]
+                ),
+            }
+        ),
+        doc,
+    )
+    assert [(m.role, m.text) for m in span.input_messages or []] == [("user", "q")]
+    assert [(m.role, m.text) for m in span.output_messages or []] == [
+        ("system", "be brief"),
+        ("assistant", "a"),
+    ]
+
+
+def test_a_single_message_dict_reads_as_one_message():
+    doc = llm_doc(output_messages={"attribute": "out", "json": True, "message_format": "openai"})
+    span = to_esf(raw({"k": "g", "out": '{"role": "assistant", "content": "hi"}'}), doc)
+    assert [(m.role, m.text) for m in span.output_messages or []] == [("assistant", "hi")]
+
+
+def test_shape_detection_still_needs_parts():
+    assert gen_ai_messages([{"role": "user", "content": "x"}]) is None
+
+
+@pytest.mark.parametrize(
+    ("buckets", "expected"),
+    [
+        (
+            {
+                "input": 50,
+                "output": 20,
+                "input_cached_tokens": 800,
+                "input_cache_creation": 150,
+                "total": 1020,
+            },
+            (1000, 20, 800, 150),
+        ),
+        (
+            {
+                "input": 1000,
+                "output": 20,
+                "cache_read_input_tokens": 800,
+                "cache_creation_input_tokens": 150,
+                "total": 1970,
+            },
+            (1950, 20, 800, 150),
+        ),
+        ({"prompt_tokens": 7, "completion_tokens": 3}, (7, 3, None, None)),
+        ({}, (1, None, None, None)),
+        ({"total": 9}, (1, None, None, None)),
+    ],
+)
+def test_token_buckets_add_up_langfuse_usage(buckets, expected):
+    doc = llm_doc(
+        tokens={
+            "prompt": {"attribute": "ignored"},
+            "buckets": {"attribute": "usage", "json": True},
+        }
+    )
+    span = to_esf(raw({"k": "g", "usage": json.dumps(buckets), "ignored": 1}), doc)
+    assert (
+        span.prompt_tokens,
+        span.completion_tokens,
+        span.cached_tokens,
+        span.cache_write_tokens,
+    ) == expected
+    assert "usage" not in span.unmapped

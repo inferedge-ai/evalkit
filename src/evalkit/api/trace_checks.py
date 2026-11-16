@@ -5,7 +5,7 @@ from evalkit.api.access import TenantStores
 from evalkit.api.session_pull import build_source_client
 from evalkit.contracts.settings import AgentSettings
 from evalkit.core.endpoints import EndpointRule, check_endpoint
-from evalkit.core.traces.sources import UnknownProject
+from evalkit.core.traces.sources import BadTraceFilter, UnknownProject
 from evalkit.db.trace_sources import ResolvedTraceSource
 
 
@@ -33,12 +33,28 @@ async def check_trace_source(
             detail="only an OTel agent (trajectory_source otel) takes a trace source",
         )
     source = await resolve_import_source(stores, settings.trace_source, rule=rule)
+    await check_import_target(
+        source, settings.project, settings.trace_filter, page_traces=page_traces
+    )
+
+
+async def check_import_target(
+    source: ResolvedTraceSource,
+    project: str,
+    trace_filter: str | None,
+    *,
+    page_traces: int,
+) -> None:
+    client = build_source_client(source, page_traces)
     try:
-        await build_source_client(source, page_traces).check_project(settings.project)
+        await client.check_filter(trace_filter)
+        await client.check_project(project)
+    except BadTraceFilter as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except UnknownProject as exc:
         raise HTTPException(
             status_code=400,
-            detail=f"project {settings.project} not found in trace source {source.name} "
+            detail=f"project {project} not found in trace source {source.name} "
             f"(provider {source.provider.value}); check the name in its UI",
         ) from exc
     except httpx2.HTTPStatusError as exc:

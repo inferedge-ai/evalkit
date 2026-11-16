@@ -9,7 +9,9 @@ export interface TraceImport {
   since: string;
   until: string;
   resume_from: string;
+  trace_filter: string | null;
   status: TraceImportStatus;
+  progress: number;
   traces: number;
   spans: number;
   sample_session: string | null;
@@ -29,16 +31,6 @@ export function importAction(
   if (status === "running") return "stop";
   if (status === "failed" || status === "stopped") return "continue";
   return null;
-}
-
-export function importFraction(
-  i: Pick<TraceImport, "since" | "until" | "resume_from" | "status">,
-): number {
-  if (i.status === "done") return 1;
-  const since = Date.parse(i.since);
-  const span = Date.parse(i.until) - since;
-  const reached = (Date.parse(i.resume_from) - since) / span;
-  return Math.min(1, Math.max(0, reached));
 }
 
 export function localToIso(value: string): string {

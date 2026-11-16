@@ -110,7 +110,7 @@ def _rule_keys(rules: list[AttributeRule | None]) -> AttributeKeys:
 def _llm_reads(doc: MappingDocument, active: MappingDocument | None) -> AttributeKeys:
     tokens = doc.tokens
     rules = [doc.kind, doc.session_id, doc.model, doc.output_messages, doc.cost_usd]
-    rules += [tokens.prompt, tokens.completion, tokens.cached, tokens.cache_write]
+    rules += [tokens.prompt, tokens.completion, tokens.cached, tokens.cache_write, tokens.buckets]
     read = _rule_keys(rules)
     linked = {SDK_ROOT_ATTRIBUTE, TASK_SESSION_ATTRIBUTE, SDK_SESSION_ATTRIBUTE}
     if active is not None and active.session_id is not None:
@@ -245,9 +245,16 @@ def _openinference_messages(
     return out, read
 
 
+def _as_message_list(value: Any) -> list[Any] | None:
+    raw = try_json(value)
+    if isinstance(raw, dict):
+        return [raw] if "role" in raw else None
+    return raw if isinstance(raw, list) else None
+
+
 def _gen_ai_messages(attributes: dict[str, Any], key: str) -> tuple[list[EsfMessage], set[str]]:
-    raw = try_json(attributes.get(key))
-    if not isinstance(raw, list):
+    raw = _as_message_list(attributes.get(key))
+    if raw is None:
         return [], {key}
     out: list[EsfMessage] = []
     for message in raw:
@@ -257,6 +264,8 @@ def _gen_ai_messages(attributes: dict[str, Any], key: str) -> tuple[list[EsfMess
         reasoning: list[str] = []
         tool_calls: list[EsfToolCall] = []
         tool_call_id: str | None = None
+        if "parts" not in message and isinstance(message.get("content"), str):
+            texts.append(message["content"])
         for part in message.get("parts") or []:
             if not isinstance(part, dict):
                 continue
@@ -309,8 +318,8 @@ def _instructions(value: Any) -> str | None:
 
 
 def _openai_messages(attributes: dict[str, Any], key: str) -> tuple[list[EsfMessage], set[str]]:
-    raw = try_json(attributes.get(key))
-    if not isinstance(raw, list):
+    raw = _as_message_list(attributes.get(key))
+    if raw is None:
         return [], {key}
     out: list[EsfMessage] = []
     for message in raw:
@@ -372,6 +381,39 @@ def _str(value: Any) -> str | None:
     return None if value is None else str(value)
 
 
+def step_into(value: Any, step: str) -> Any:
+    if isinstance(value, list):
+        return value[int(step)] if step.isdecimal() and int(step) < len(value) else None
+    return value.get(step) if isinstance(value, dict) else None
+
+
+def _is_output_bucket(key: str) -> bool:
+    return "output" in key or "completion" in key
+
+
+def _sum_of(counts: dict[str, int], keep: Callable[[str], bool]) -> int | None:
+    matched = [v for k, v in counts.items() if keep(k)]
+    return sum(matched) if matched else None
+
+
+def token_counts(buckets: dict[str, Any]) -> dict[str, int | None] | None:
+    counts = {
+        k: int(v)
+        for k, v in buckets.items()
+        if k != "total" and isinstance(v, int | float) and not isinstance(v, bool)
+    }
+    if not counts:
+        return None
+    return {
+        "prompt": _sum_of(counts, lambda k: not _is_output_bucket(k)),
+        "completion": _sum_of(counts, _is_output_bucket),
+        "cached": _sum_of(counts, lambda k: "cache" in k and ("read" in k or "cached" in k)),
+        "cache_write": _sum_of(
+            counts, lambda k: "cache" in k and ("creation" in k or "write" in k)
+        ),
+    }
+
+
 def to_esf(raw: RawSpan, mapping: MappingDocument | None) -> EsfSpan:
     read: set[str] = set()
     attributes = raw.attributes
@@ -379,12 +421,18 @@ def to_esf(raw: RawSpan, mapping: MappingDocument | None) -> EsfSpan:
     def rule(r: AttributeRule | None) -> Any:
         if r is None:
             return None
-        if r.message_format is not None:
+        if r.message_format is not None and r.path is None:
             messages, keys = MESSAGE_FORMATS[r.message_format](attributes, r.attribute)
             read.update(keys)
             return messages
         read.add(r.attribute)
         value = attributes.get(r.attribute)
+        if r.path is not None:
+            value = try_json(value)
+            for step in r.path.split("."):
+                value = step_into(value, step)
+            if r.message_format is not None:
+                return MESSAGE_FORMATS[r.message_format]({r.attribute: value}, r.attribute)[0]
         if r.values is not None:
             value = r.values.get(str(value), "other") if value is not None else None
         if r.json_:
@@ -400,6 +448,8 @@ def to_esf(raw: RawSpan, mapping: MappingDocument | None) -> EsfSpan:
     read.update(match_attributes(doc))
     main = doc.main_agent is not None and span_matches(doc.main_agent, raw)
     is_llm = kind == "llm"
+    buckets = rule(doc.tokens.buckets)
+    counts = token_counts(buckets) if isinstance(buckets, dict) else None
     span = EsfSpan(
         span_id=raw.span_id,
         trace_id=raw.trace_id,
@@ -417,10 +467,10 @@ def to_esf(raw: RawSpan, mapping: MappingDocument | None) -> EsfSpan:
         tool_name=_str(rule(doc.tool.name)) if kind == "tool" else None,
         tool_call_id=_str(rule(doc.tool.call_id)) if kind in ("tool", "agent") else None,
         agent_name=_str(rule(doc.agent_name)) if kind == "agent" else None,
-        prompt_tokens=_int(rule(doc.tokens.prompt)),
-        completion_tokens=_int(rule(doc.tokens.completion)),
-        cached_tokens=_int(rule(doc.tokens.cached)),
-        cache_write_tokens=_int(rule(doc.tokens.cache_write)),
+        prompt_tokens=counts["prompt"] if counts else _int(rule(doc.tokens.prompt)),
+        completion_tokens=counts["completion"] if counts else _int(rule(doc.tokens.completion)),
+        cached_tokens=counts["cached"] if counts else _int(rule(doc.tokens.cached)),
+        cache_write_tokens=counts["cache_write"] if counts else _int(rule(doc.tokens.cache_write)),
         cost_usd=_float(rule(doc.cost_usd)),
         scope=raw.scope,
         dropped_attributes=raw.dropped_attributes_count,

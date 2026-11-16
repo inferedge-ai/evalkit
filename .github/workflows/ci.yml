@@ -6,7 +6,7 @@ on:
     types: [opened, ready_for_review, synchronize, reopened]
     branches: [main, develop]
   push:
-    branches: [main, develop]
+    branches: [develop]
 
 jobs:
   # A PR into main is a release: pyproject.toml's version must be bumped above

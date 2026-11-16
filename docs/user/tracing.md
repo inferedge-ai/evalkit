@@ -193,15 +193,78 @@ The session evalkit polls is the `run_id` that `POST /runs` returns, so there is
 
 ## Importing history from a trace source
 
-An admin registers a trace source (a Phoenix server) once. After that, any
-user can import traces from it into an OTel agent they can write, with
+evalkit imports traces from trace sources. Supported today: Phoenix and
+Langfuse. For another, [file a GitHub issue](https://github.com/inferedge-ai/evalkit/issues).
+
+An admin registers a trace source once. After that, any user can import
+traces from it into an OTel agent they can write, with
 `evalkit traces import` or the agent page's Import tab.
+
+```bash
+evalkit trace-sources create phx --url https://phoenix.example.com --api-key-env PHOENIX_API_KEY
+evalkit trace-sources create lf --provider langfuse --url https://cloud.langfuse.com --api-key-env LANGFUSE_KEYS
+```
 
 - The trace source's API key is shared with every user in effect: anyone can
   import any project that key can read.
 - Imported traces land in the agent's workspace. Every user can read every
   workspace, so traces imported into your personal workspace are visible to
   everyone on the server. See [Where runs happen](workspaces.md).
+
+### Langfuse
+
+- Langfuse Cloud, or self-hosted Langfuse v4.59.0 or later.
+- The key: a Langfuse key pair reads exactly one project. Put the public key
+  and secret key in one env var, joined with a colon:
+  `LANGFUSE_KEYS=pk-lf-...:sk-lf-...`. Any other shape is refused with 422.
+  `--project` is that project's name, and is checked against the key.
+- The mapping: use the `langfuse` preset (`--mapping langfuse`). Langfuse
+  stores observations, not the spans the agent sent, and evalkit rebuilds
+  each one with the Langfuse SDK's attribute names (`langfuse.observation.*`,
+  `session.id`). So a `gen_ai` or `openinference` mapping finds no messages
+  on spans imported from Langfuse, whatever the agent sent.
+- The preset reads the messages of agents that send OTel spans to Langfuse
+  as they are. Agents traced with Langfuse's `@observe` decorator log their
+  functions' arguments instead of chat messages, so for them only, point the
+  preset's `input_messages` at the messages with `path`, for example
+  `{"attribute": "langfuse.observation.input", "path": "args.0", "message_format": "openai"}`.
+  See [Mappings](mappings.md).
+- OTel exporters: send the header `x-langfuse-ingestion-version: 4` to
+  Langfuse. Without it Langfuse
+  [can take up to 15 minutes](https://langfuse.com/docs/compatibility) to show spans, so
+  experiments miss them and imports skip them. Langfuse's own SDKs (Python
+  4.7.0 and later, JS 5.4.0 and later) send it; a self-hosted Langfuse can
+  instead set `LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct`.
+- A time range import walks from `--until` back to `--since`, newest traces
+  first. Traces that become readable after the import passed them are not
+  imported: leave `--until` at least 15 minutes in the past, or import the
+  recent part again.
+- A trace's root span must be in the Langfuse project; traces without one
+  are not imported.
+
+### Picking the agent's traces: the trace filter
+
+A project often holds more than one agent's traces. `--trace-filter` (on
+`evalkit agents create`, `agents edit` and `traces import`, and as Trace
+filter in the agent form) is the trace store's own query, kept as you type
+it. Imports and experiments read only the traces it matches; leave it out to
+read the whole project.
+
+- Langfuse: a JSON array of conditions in Langfuse's
+  [filter format](https://langfuse.com/docs/api-and-data-platform/features/observations-api#observations-filters),
+  matched against each trace's root observation. By trace name:
+
+  ```bash
+  evalkit agents edit myagent --trace-filter '[{"type": "string", "column": "traceName", "operator": "=", "value": "stock-agent"}]'
+  ```
+
+  By OTel service name:
+
+  ```json
+  [{"type": "stringObject", "column": "metadata", "key": "resourceAttributes.service.name", "operator": "=", "value": "stock-agent"}]
+  ```
+
+- Phoenix does not take a trace filter yet; one is refused with 400.
 
 ### Experiments that read a trace source
 
@@ -215,9 +278,10 @@ evalkit agents edit myagent --trace-source phoenix --project myagent
 ```
 
 - `--trace-source` names a registered trace source and `--project` the agent's
-  project in it. Both are checked when you save them: an unknown source, a
-  project the source does not have, or a source that does not answer is
-  refused. Only OTel agents take a trace source.
+  project in it. Both, and `--trace-filter`, are checked when you save them
+  and again when an experiment starts or resumes: an unknown source, a
+  project the source does not have, a bad filter, or a source that does not
+  answer is refused. Only OTel agents take a trace source.
 - Every SDK run and harness run of the agent then pulls its session from the
   store, with no `tracing.register` and no agent token. `evalkit traces import`
   and the Import tab default to the same source and project.
@@ -247,7 +311,8 @@ evalkit agents edit myagent --trace-source phoenix --project myagent
     trace or another tracer provider. Pass `metadata["session_id"]` to the
     agent, or return `RunResult(session_id=...)`.
   - `session ... not found in project ...`: nothing in the store carries the
-    session id. Check the agent exports to that project and uses the id.
+    session id. Check the agent exports to that project and uses the id. For
+    Langfuse, check the exporter sends `x-langfuse-ingestion-version: 4`.
   - `spans still arriving after N s`: raise `--import-wait`.
 
 ## Message roles

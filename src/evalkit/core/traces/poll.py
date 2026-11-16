@@ -42,12 +42,18 @@ TASK_HINT = (
     "id with RunResult(session_id=...)"
 )
 HARNESS_HINT = "the harness must put the run id it returned on its spans as their session id"
+LANGFUSE_LATE_HINT = (
+    ". If the trace source is Langfuse and the agent sends it OTel spans, set the header "
+    "x-langfuse-ingestion-version: 4 on its exporter; without it Langfuse can take up to 15 "
+    "minutes to show them."
+)
 
 
 def describe_not_found(session_id: str, origin: str, deadline_seconds: float, hint: str) -> str:
+    late = "" if origin == COLLECTOR else LANGFUSE_LATE_HINT
     return (
         f"session {session_id} not found {origin} after {deadline_seconds:g} s. The agent's spans "
-        f"must carry session id {session_id}: {hint}"
+        f"must carry session id {session_id}: {hint}{late}"
     )
 
 

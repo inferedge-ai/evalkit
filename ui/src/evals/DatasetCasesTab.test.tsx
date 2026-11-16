@@ -33,6 +33,7 @@ const CASES = [
 afterEach(closePage);
 
 test("with a column filter set, select all and Run selected take only the cases the filter shows", async () => {
+  const user = userEvent.setup();
   stubServer((url) => {
     if (url.endsWith("/api/datasets/support%40dev/cases"))
       return Response.json(CASES);
@@ -56,11 +57,11 @@ test("with a column filter set, select all and Run selected take only the cases 
       '.ag-header-cell[col-id="tags"] .ag-header-cell-filter-button',
     )!,
   );
-  await userEvent.type(
+  await user.type(
     await screen.findByRole("textbox", { name: "Filter Value" }),
     "billing",
   );
-  fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Apply" }));
   await screen.findByText("2 cases");
 
   fireEvent.click(

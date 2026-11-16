@@ -7,14 +7,15 @@ from pydantic import AwareDatetime, BaseModel, model_validator
 from evalkit.api.access import ActorDep, StoresDep, TenantStores
 from evalkit.api.deps import EndpointRuleDep, HolderDep
 from evalkit.api.experiments import task_holder
-from evalkit.api.trace_checks import resolve_import_source
+from evalkit.api.session_pull import build_source_client
+from evalkit.api.trace_checks import check_import_target, resolve_import_source
 from evalkit.api.traces import agent_or_404, require_otel, require_write, resolve_import_target
 from evalkit.contracts.enums import TraceImportStatus
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.agents import AgentDefinition
 from evalkit.core.errors import error_text
 from evalkit.core.traces.importer import IMPORT_STOPPED_ERROR, guarded_import
-from evalkit.core.traces.sources import client_for
+from evalkit.core.traces.sources import import_retry
 from evalkit.db.mappings import MappingStore
 from evalkit.db.trace_imports import TraceImportStore, TraceImportView, tenant_of_import
 from evalkit.db.trace_sources import ResolvedTraceSource
@@ -32,6 +33,7 @@ NO_SESSION_MAPPING = (
 class RangeImportRequest(BaseModel):
     source: str | None = None
     project: str | None = None
+    trace_filter: str | None = None
     since: AwareDatetime
     until: AwareDatetime
 
@@ -66,11 +68,8 @@ def _launch(
     source: ResolvedTraceSource,
     mapping: MappingDocument,
 ) -> None:
-    client = client_for(
-        source.provider,
-        source.url,
-        source.api_key.get_secret_value() if source.api_key else None,
-        request.app.state.cfg.otel.import_page_traces,
+    client = build_source_client(
+        source, request.app.state.cfg.otel.import_page_traces, retry=import_retry(source.provider)
     )
     task = asyncio.create_task(
         guarded_import(import_id, holder, client, stores.imports, stores.spans, mapping),
@@ -110,10 +109,18 @@ async def start_import(
     require_otel(record)
     mapping = await _session_mapping(stores.mappings, record)
     name, project = resolve_import_target(record, body.source, body.project)
+    trace_filter = (
+        body.trace_filter
+        if body.trace_filter is not None
+        else (record.settings.trace_filter if body.source is None else None)
+    )
     source = await resolve_import_source(stores, name, rule=rule)
+    await check_import_target(
+        source, project, trace_filter, page_traces=request.app.state.cfg.otel.import_page_traces
+    )
     holder = task_holder(pod)
     view = await stores.imports.create(
-        record.id, source.id, project, body.since, body.until, actor.id, holder
+        record.id, source.id, project, trace_filter, body.since, body.until, actor.id, holder
     )
     _launch(request, stores, view.id, holder, source, mapping)
     return view
@@ -159,6 +166,12 @@ async def continue_import(
     mapping = await _session_mapping(stores.mappings, record)
     current = await stores.imports.get(record.id, import_id)
     source = await resolve_import_source(stores, current.source, rule=rule)
+    await check_import_target(
+        source,
+        current.project,
+        current.trace_filter,
+        page_traces=request.app.state.cfg.otel.import_page_traces,
+    )
     holder = task_holder(pod)
     view = await stores.imports.restart(record.id, import_id, holder)
     _launch(request, stores, view.id, holder, source, mapping)

@@ -17,8 +17,13 @@ workspaces_app = typer.Typer(no_args_is_help=True, help="Workspaces and their me
 members_app = typer.Typer(no_args_is_help=True, help="Writers and reviewers of a shared workspace.")
 workspaces_app.add_typer(members_app, name="members")
 agents_app = typer.Typer(no_args_is_help=True, help="Agents: create, edit, list, archive.")
+TRACE_SOURCES_NOTE = (
+    "evalkit imports traces from trace sources. Supported today: Phoenix and Langfuse. "
+    "For another, file a GitHub issue: https://github.com/inferedge-ai/evalkit/issues"
+)
 trace_sources_app = typer.Typer(
-    no_args_is_help=True, help="Third-party trace stores for evalkit traces import (admin only)."
+    no_args_is_help=True,
+    help=f"Third-party trace stores for evalkit traces import (admin only). {TRACE_SOURCES_NOTE}",
 )
 evaluators_app = typer.Typer(
     no_args_is_help=True, help="Remote evaluators (Custom Evaluator API endpoints) per workspace."
@@ -61,6 +66,13 @@ TRACE_SOURCE = typer.Option(
     "Experiments then import each run's session from it; needs --project. OTel agents only.",
 )
 PROJECT = typer.Option(None, "--project", help="The agent's project in --trace-source.")
+TRACE_FILTER = typer.Option(
+    None,
+    "--trace-filter",
+    help="The trace store's own query that picks the agent's traces, e.g. a Langfuse filter "
+    'JSON array: \'[{"type": "string", "column": "traceName", "operator": "=", '
+    '"value": "my-agent"}]\'. Needs --trace-source.',
+)
 IMPORT_SETTLE = typer.Option(
     None,
     "--import-settle",
@@ -154,14 +166,21 @@ def register(
     def trace_sources_create(
         name: str,
         url: str = typer.Option(..., "--url", help=ENDPOINT_NOTE),
-        provider: str = typer.Option("phoenix", "--provider"),
+        provider: str = typer.Option("phoenix", "--provider", help="phoenix or langfuse."),
         api_key_env: str | None = typer.Option(
-            None, "--api-key-env", help="Env var on this machine that holds the API key."
+            None,
+            "--api-key-env",
+            help="Env var on this machine that holds the API key. For Langfuse it holds the "
+            "public key and secret key joined with a colon: pk-lf-...:sk-lf-...",
         ),
     ):
-        """Register a trace source. The key is sent once and stored encrypted.
+        """Register a trace source. The key is sent once and stored encrypted. evalkit imports
+        traces from trace sources. Supported today: Phoenix and Langfuse. For another, file a
+        GitHub issue: https://github.com/inferedge-ai/evalkit/issues
 
-        Example: evalkit trace-sources create phx --url https://phx --api-key-env PHX_KEY
+        Examples: evalkit trace-sources create phx --url https://phx --api-key-env PHX_KEY;
+        evalkit trace-sources create lf --provider langfuse --url https://cloud.langfuse.com
+        --api-key-env LANGFUSE_KEYS
         """
         body = {"name": name, "provider": provider, "url": url, "api_key": env_value(api_key_env)}
         created = client_factory().post("/api/trace-sources", json=body).json()
@@ -412,6 +431,7 @@ def register(
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
         trace_source: str | None = TRACE_SOURCE,
         project: str | None = PROJECT,
+        trace_filter: str | None = TRACE_FILTER,
         import_settle: int | None = IMPORT_SETTLE,
         import_wait: int | None = IMPORT_WAIT,
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
@@ -436,6 +456,7 @@ def register(
                 "trajectory_wait_seconds": trajectory_wait,
                 "trace_source": trace_source,
                 "project": project,
+                "trace_filter": trace_filter,
                 "import_settle_seconds": import_settle,
                 "import_wait_seconds": import_wait,
             },
@@ -477,6 +498,7 @@ def register(
         trajectory_wait: int | None = typer.Option(None, "--trajectory-wait"),
         trace_source: str | None = TRACE_SOURCE,
         project: str | None = PROJECT,
+        trace_filter: str | None = TRACE_FILTER,
         import_settle: int | None = IMPORT_SETTLE,
         import_wait: int | None = IMPORT_WAIT,
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
@@ -512,6 +534,7 @@ def register(
                 "trajectory_wait_seconds": trajectory_wait,
                 "trace_source": trace_source,
                 "project": project,
+                "trace_filter": trace_filter,
                 "import_settle_seconds": import_settle,
                 "import_wait_seconds": import_wait,
             },
@@ -523,9 +546,9 @@ def register(
                 raise ApiError("pass --input-schema or --clear-input-schema, not both")
             changed["input_schema"] = None
         if clear_trace_source:
-            if trace_source is not None or project is not None:
+            if trace_source is not None or project is not None or trace_filter is not None:
                 raise ApiError("pass --trace-source and --project, or --clear-trace-source")
-            changed["trace_source"] = changed["project"] = None
+            changed["trace_source"] = changed["project"] = changed["trace_filter"] = None
         body: dict = {"settings": {**current["settings"], **changed}}
         if harness_url is not None:
             body["harness_url"] = harness_url

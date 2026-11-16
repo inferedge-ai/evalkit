@@ -50,11 +50,8 @@ def utc(value: str) -> datetime:
 
 
 def import_line(view: dict) -> str:
-    since, until = utc(view["since"]), utc(view["until"])
-    reached = utc(view["resume_from"])
-    done = 1.0 if view["status"] == "done" else (reached - since) / (until - since)
     return (
-        f"{view['id']:<4} {view['status']:<8} {reached:%Y-%m-%d %H:%M}  {round(100 * done):>3}%  "
+        f"{view['id']:<4} {view['status']:<8} {round(100 * view['progress']):>3}% completed  "
         f"{view['traces']} traces  {view['spans']} spans"
     )
 
@@ -155,6 +152,11 @@ def register(
         project: str | None = typer.Option(
             None, "--project", help="The project name in the trace source. Default: the agent's."
         ),
+        trace_filter: str | None = typer.Option(
+            None,
+            "--trace-filter",
+            help="The trace store's own query for the agent's traces. Default: the agent's.",
+        ),
         since: str | None = typer.Option(
             None,
             "--since",
@@ -165,7 +167,9 @@ def register(
             None, "--until", help="End of the range, exclusive (ISO 8601). Default: now."
         ),
     ):
-        """Import one session, or every trace in a time range, from a trace source.
+        """Import one session, or every trace in a time range, from a trace source. evalkit
+        imports traces from trace sources. Supported today: Phoenix and Langfuse. For another,
+        file a GitHub issue: https://github.com/inferedge-ai/evalkit/issues
 
         A session import prints its check summary. A range import runs on the server; the CLI
         follows its progress and Ctrl-C only stops following.
@@ -179,7 +183,11 @@ def register(
             raise typer.BadParameter("--until needs --since")
         client = client_factory()
         slug = agent_slug(agent)
-        target = {k: v for k, v in (("source", source), ("project", project)) if v is not None}
+        target = {
+            k: v
+            for k, v in (("source", source), ("project", project), ("trace_filter", trace_filter))
+            if v is not None
+        }
         if session_id is not None:
             body = client.post(
                 f"/api/agents/{encode(slug)}/sessions/import",

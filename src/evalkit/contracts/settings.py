@@ -62,6 +62,7 @@ class AgentSettings(BaseModel):
     input_schema: dict | None = None
     trace_source: str | None = None
     project: str | None = None
+    trace_filter: str | None = None
     import_settle_seconds: int = Field(default=15, ge=0)
     import_wait_seconds: int = Field(default=120, ge=0)
 
@@ -69,6 +70,8 @@ class AgentSettings(BaseModel):
     def _check_trace_source(self) -> "AgentSettings":
         if (self.trace_source is None) != (self.project is None):
             raise ValueError("trace_source and project go together: set both or neither")
+        if self.trace_filter is not None and self.trace_source is None:
+            raise ValueError("trace_filter needs trace_source")
         return self
 
     @field_validator("input_schema")

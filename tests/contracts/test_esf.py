@@ -19,7 +19,7 @@ def test_reference_mapping_documents_validate():
 def test_unknown_rule_key_is_rejected():
     with pytest.raises(ValidationError, match="extra"):
         MappingDocument.model_validate(
-            {"schema_version": "1", "kind": {"attribute": "k", "path": "x"}}
+            {"schema_version": "1", "kind": {"attribute": "k", "pointer": "x"}}
         )
     with pytest.raises(ValidationError):
         MappingDocument.model_validate({"schema_version": "1", "colour": {"attribute": "k"}})

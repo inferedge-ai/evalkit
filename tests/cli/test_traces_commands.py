@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime, timedelta
 
 import httpx2
 import pytest
@@ -202,7 +203,9 @@ def test_render_check_warns_when_llm_spans_carry_no_token_counts():
     assert llm.startswith("  ! llm") and "no token counts (check the tokens rule)" in llm
 
 
-PRESETS = "agno, claude-agent-sdk, crewai, gen_ai, google-adk, langchain, llamaindex, mastra"
+PRESETS = (
+    "agno, claude-agent-sdk, crewai, gen_ai, google-adk, langchain, langfuse, llamaindex, mastra"
+)
 
 
 def test_mapping_push_with_neither_a_file_nor_a_preset_is_a_one_line_error(tmp_path):
@@ -272,7 +275,12 @@ def import_view(status: str, reached: str = "2026-10-03T00:00:00Z", **extra) -> 
         "since": "2026-10-01T00:00:00Z",
         "until": "2026-10-05T00:00:00Z",
         "resume_from": reached,
+        "trace_filter": None,
         "status": status,
+        "progress": 1.0
+        if status == "done"
+        else (datetime.fromisoformat(reached) - datetime(2026, 10, 1, tzinfo=UTC))
+        / timedelta(days=4),
         "traces": 40,
         "spans": 800,
         "sample_session": None,
@@ -328,8 +336,8 @@ def test_range_import_starts_follows_and_checks_the_sample_session(srv):
     }
     lines = result.output.splitlines()
     assert lines[0].startswith("import 12 started")
-    assert lines[1] == "12   running  2026-10-03 00:00   50%  40 traces  800 spans"
-    assert lines[2] == "12   done     2026-10-04 12:00  100%  40 traces  800 spans"
+    assert lines[1] == "12   running   50% completed  40 traces  800 spans"
+    assert lines[2] == "12   done     100% completed  40 traces  800 spans"
     assert lines[3] == "check of session s9:"
     assert lines[4].startswith("  ✓ session")
     assert lines[-1] == "link: http://srv/runs/sdk%40canonical/s9"
@@ -470,3 +478,20 @@ def test_render_check_warns_when_the_answer_span_is_missing():
         '  ! answer         no span named "invoke_agent X", which the mapping\'s answer rule '
         "names; the trajectory has no answer"
     )
+
+
+def test_a_trace_filter_goes_with_a_session_import(srv):
+    imported = srv.post("http://srv/api/agents/sdk@canonical/sessions/import").mock(
+        return_value=MockResponse(200, json={"imported": 3})
+    )
+    srv.get("http://srv/api/meta").mock(return_value=MockResponse(200, json={}))
+    srv.get("http://srv/api/agents/sdk@canonical/sessions/s9/trajectory").mock(
+        return_value=MockResponse(200, json=SESSION)
+    )
+    trace_filter = '[{"type": "string", "column": "traceName", "operator": "=", "value": "a"}]'
+    result = CliRunner().invoke(
+        cli_app, ["traces", "import", "sdk@canonical", "s9", "--trace-filter", trace_filter]
+    )
+    assert result.exit_code == 0, result.output
+    body = json.loads(imported.calls[0].request.content)
+    assert body == {"trace_filter": trace_filter, "session_id": "s9"}
