@@ -16,6 +16,9 @@ export const KEY_PLACEHOLDERS: Record<TraceProvider, string> = {
   langfuse: "public key:secret key",
 };
 
+export const LANGFUSE_AGENT_NOTE =
+  "Langfuse agents use the langfuse span mapping preset; other mappings find no messages. An OTel exporter must send the header x-langfuse-ingestion-version: 4, or Langfuse can take up to 15 minutes to show its spans and experiments miss them.";
+
 export const FILTER_DOCS: Partial<Record<TraceProvider, string>> = {
   langfuse:
     "https://langfuse.com/docs/api-and-data-platform/features/observations-api#observations-filters",

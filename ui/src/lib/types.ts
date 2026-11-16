@@ -81,7 +81,7 @@ export interface LlmProviderInfo {
 export interface TraceSourceInfo {
   id: number;
   name: string;
-  provider: "phoenix";
+  provider: "phoenix" | "langfuse";
   url: string;
   archived: boolean;
 }

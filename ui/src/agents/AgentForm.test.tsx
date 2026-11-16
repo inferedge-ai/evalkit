@@ -106,7 +106,11 @@ test("a Langfuse trace source takes a trace filter, linked to Langfuse's filter 
   expect(screen.getByRole("note")).toHaveTextContent(
     "Supported today: Phoenix and Langfuse",
   );
+  expect(screen.queryByText(/x-langfuse-ingestion-version: 4/)).toBeNull();
   await choose(user, "trace source", "lf (langfuse)");
+  expect(
+    screen.getByText(/use the langfuse span mapping preset/),
+  ).toHaveTextContent("x-langfuse-ingestion-version: 4");
   await user.type(screen.getByLabelText("Project"), "e2e-test");
   const filter =
     '[{"type": "string", "column": "traceName", "operator": "=", "value": "a"}]';

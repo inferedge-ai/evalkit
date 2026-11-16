@@ -27,7 +27,7 @@ import type { AgentFormValues } from "../lib/agentForm";
 import { Select } from "../lib/Select";
 import { MappingPresetPicker } from "./MappingPresetPicker";
 import { TraceSourcesNote } from "../lib/TraceSourcesNote";
-import { FILTER_DOCS, type TraceProvider } from "../lib/traceSources";
+import { FILTER_DOCS, LANGFUSE_AGENT_NOTE } from "../lib/traceSources";
 import type { AgentInfo, TraceSourceInfo } from "../lib/types";
 import { useApi } from "../lib/query";
 import { Input } from "@/components/ui/input";
@@ -57,9 +57,7 @@ export function AgentForm({
   const errors = agentFormErrors(values, mode);
   const sources = useApi<TraceSourceInfo[]>("/trace-sources").data ?? [];
   const chosen = sources.find((s) => s.name === values.trace_source);
-  const filterDocs = chosen
-    ? FILTER_DOCS[chosen.provider as TraceProvider]
-    : undefined;
+  const filterDocs = chosen ? FILTER_DOCS[chosen.provider] : undefined;
 
   const set = <K extends keyof AgentFormValues>(
     key: K,
@@ -203,6 +201,9 @@ export function AgentForm({
                 The store the agent already sends its spans to. Experiments then
                 import each run's session from it.
               </FieldDescription>
+              {chosen?.provider === "langfuse" && (
+                <FieldDescription>{LANGFUSE_AGENT_NOTE}</FieldDescription>
+              )}
               <TraceSourcesNote />
             </Field>
           )}
