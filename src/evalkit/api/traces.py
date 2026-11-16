@@ -214,13 +214,14 @@ async def import_session(
         else (record.settings.trace_filter if body.source is None else None)
     )
     source = await resolve_import_source(stores, name, rule=rule)
-    await check_import_target(
-        source,
-        project,
-        trace_filter,
-        page_traces=cfg.otel.import_page_traces,
-        with_project=overridden,
-    )
+    if overridden or body.trace_filter is not None:
+        await check_import_target(
+            source,
+            project,
+            trace_filter,
+            page_traces=cfg.otel.import_page_traces,
+            with_project=overridden,
+        )
     try:
         imported = await pull_session(
             build_source_client(source, cfg.otel.import_page_traces, PULL_TIMEOUT_SECONDS),

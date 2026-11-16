@@ -149,10 +149,12 @@ async def test_a_session_import_with_a_filter_needs_write_and_the_puller_sends_t
         json={"session_id": "otel-session-1", "trace_filter": "[]"},
     )
     assert refused.status_code == 403
+    asked.clear()
     own = await alice.post(
         f"/api/agents/{AGENT}/sessions/import", json={"session_id": "otel-session-1"}
     )
     assert own.status_code == 200 and own.json()["imported"] == 4
+    assert len(asked) == 2 and "sessionId" in {c["column"] for c in asked[0]}
     stores = build_tenant_stores(api.app.state, "default")
     puller = ServerSessionPuller(stores.agents, stores.sources, stores.mappings, stores.spans, 25)
     asked.clear()
