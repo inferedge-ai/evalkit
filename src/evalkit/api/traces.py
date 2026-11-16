@@ -190,6 +190,14 @@ def resolve_import_target(
     return source, project
 
 
+def resolve_trace_filter(
+    record: AgentDefinition, source: str, trace_filter: str | None
+) -> str | None:
+    if trace_filter is not None:
+        return trace_filter
+    return record.settings.trace_filter if source == record.settings.trace_source else None
+
+
 @router.post("/agents/{agent}/sessions/import")
 async def import_session(
     agent: str,
@@ -208,11 +216,7 @@ async def import_session(
         await require_write(stores, actor, record)
     require_otel(record)
     name, project = resolve_import_target(record, body.source, body.project)
-    trace_filter = (
-        body.trace_filter
-        if body.trace_filter is not None
-        else (record.settings.trace_filter if body.source is None else None)
-    )
+    trace_filter = resolve_trace_filter(record, name, body.trace_filter)
     source = await resolve_import_source(stores, name, rule=rule)
     if overridden or body.trace_filter is not None:
         await check_import_target(

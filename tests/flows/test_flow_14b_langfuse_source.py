@@ -161,3 +161,20 @@ async def test_a_session_import_with_a_filter_needs_write_and_the_puller_sends_t
     await puller(AGENT, "otel-session-1")
     assert asked[0][0] == json.loads(TRACE_FILTER)[0]
     await alice.aclose()
+
+
+async def test_imports_naming_the_agents_own_source_keep_its_filter(httpx2_mock, api):
+    asked = serve_langfuse(httpx2_mock)
+    assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200
+    asked.clear()
+    target = {"source": "lf", "project": "e2e-test"}
+    started = await api.post(f"/api/agents/{AGENT}/imports", json={**target, **RANGE})
+    assert started.status_code == 202, started.text
+    assert started.json()["trace_filter"] == TRACE_FILTER
+    await settled(api, started.json()["id"])
+    session = await api.post(
+        f"/api/agents/{AGENT}/sessions/import", json={**target, "session_id": "otel-session-1"}
+    )
+    assert session.status_code == 200, session.text
+    roots = [c for c in asked if any(x["column"] == "isRootObservation" for x in c)]
+    assert roots and all(c[0] == json.loads(TRACE_FILTER)[0] for c in roots)

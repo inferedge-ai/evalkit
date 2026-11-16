@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Tracing:** Fixed imports ignoring the agent's trace filter when the
+  request names the agent's own trace source, as the agent page's Import tab
+  always does. Such imports read every trace in the project, which can be
+  far more than the agent's and run into Langfuse's rate limit. Now an
+  import uses the agent's filter whenever it reads from the agent's own
+  trace source, unless the request sets `trace_filter`. Broken since 0.7.0.
+
 ## 0.7.0
 
 _Released 2026-11-16._ Langfuse joins Phoenix as a trace source, an agent can

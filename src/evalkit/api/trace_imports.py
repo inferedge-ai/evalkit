@@ -9,7 +9,13 @@ from evalkit.api.deps import EndpointRuleDep, HolderDep
 from evalkit.api.experiments import task_holder
 from evalkit.api.session_pull import build_source_client
 from evalkit.api.trace_checks import check_import_target, resolve_import_source
-from evalkit.api.traces import agent_or_404, require_otel, require_write, resolve_import_target
+from evalkit.api.traces import (
+    agent_or_404,
+    require_otel,
+    require_write,
+    resolve_import_target,
+    resolve_trace_filter,
+)
 from evalkit.contracts.enums import TraceImportStatus
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.agents import AgentDefinition
@@ -109,11 +115,7 @@ async def start_import(
     require_otel(record)
     mapping = await _session_mapping(stores.mappings, record)
     name, project = resolve_import_target(record, body.source, body.project)
-    trace_filter = (
-        body.trace_filter
-        if body.trace_filter is not None
-        else (record.settings.trace_filter if body.source is None else None)
-    )
+    trace_filter = resolve_trace_filter(record, name, body.trace_filter)
     source = await resolve_import_source(stores, name, rule=rule)
     await check_import_target(
         source, project, trace_filter, page_traces=request.app.state.cfg.otel.import_page_traces
