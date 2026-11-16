@@ -26,10 +26,9 @@ def record(target: Path, path: Path | None = None) -> None:
 
 
 def find_default_siblings(target: Path) -> list[Path]:
-    resolved = target.resolve()
-    root = resolved.parent.parent
-    if not any(resolved == (root / candidate).resolve() for candidate in DEFAULT_TARGETS):
-        return [resolved]
+    root = target.parent.parent
+    if not any(target == (root / candidate).resolve() for candidate in DEFAULT_TARGETS):
+        return [target]
     return [(root / candidate).resolve() for candidate in DEFAULT_TARGETS]
 
 
