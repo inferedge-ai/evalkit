@@ -2,8 +2,6 @@
 
 ## Unreleased
 
-### Fixes
-
 - **CLI:** `evalkit update` now refreshes installed skills in `.agents/skills`
   and `.claude/skills` even when the CLI is already current or when updating a
   project virtualenv, rather than exiting before refreshing.
