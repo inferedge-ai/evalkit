@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- **Tracing:** Accept standard OpenTelemetry string enum names (`SPAN_KIND_*` and `STATUS_CODE_*`) in `/api/otel/v1/traces` when decoding OTLP/JSON payloads.
+
 ## 0.8.0
 
 _Released 2026-11-17._ Trace imports always read the agent's own trace
