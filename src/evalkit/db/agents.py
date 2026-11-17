@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import ExperimentStatus, TokenKind, TrajectorySource
@@ -291,10 +291,13 @@ class AgentStore:
             row, ws = await self._row(session, ref)
             row.archived_at = datetime.now(UTC)
             await session.execute(
-                delete(models.AuthToken).where(
+                update(models.AuthToken)
+                .where(
                     models.AuthToken.agent_id == row.id,
                     models.AuthToken.kind == TokenKind.AGENT.value,
+                    models.AuthToken.revoked_at.is_(None),
                 )
+                .values(revoked_at=row.archived_at)
             )
             await session.commit()
             return _definition(row, ws)
