@@ -11,6 +11,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import Status, StatusCode
 from sqlalchemy import select
 
+from evalkit.api.otel import decode_otlp
 from evalkit.contracts.enums import TrajectorySource, WorkspaceRole
 from evalkit.db.models import AuthToken
 from evalkit.db.users import UserStore
@@ -151,6 +152,61 @@ async def test_json_export_by_resource_attribute_and_gzip(api):
     assert spans[0]["trace_id"] == "0af7651916cd43dd8448eb211c80319c"
     assert spans[0]["scope"] == "mcp"
     assert spans[0]["dropped_attributes_count"] == 4
+
+
+def test_decode_otlp_json_accepts_standard_string_enums():
+    body = {
+        "resourceSpans": [
+            {
+                "resource": {"attributes": []},
+                "scopeSpans": [
+                    {
+                        "scope": {"name": "test"},
+                        "spans": [
+                            {
+                                "traceId": "0af7651916cd43dd8448eb211c80319c",
+                                "spanId": "b7ad6b7169203331",
+                                "name": "call_model",
+                                "kind": "SPAN_KIND_CLIENT",
+                                "startTimeUnixNano": "1700000000000000000",
+                                "endTimeUnixNano": "1700000001000000000",
+                                "status": {"code": "STATUS_CODE_OK"},
+                                "attributes": [],
+                            },
+                            {
+                                "traceId": "0af7651916cd43dd8448eb211c80319c",
+                                "spanId": "c8be7c8270314442",
+                                "name": "server_handler",
+                                "kind": "SERVER",
+                                "startTimeUnixNano": "1700000000000000000",
+                                "endTimeUnixNano": "1700000001000000000",
+                                "status": {"code": "ERROR", "message": "fail"},
+                                "attributes": [],
+                            },
+                            {
+                                "traceId": "0af7651916cd43dd8448eb211c80319c",
+                                "spanId": "d9cf8d9381425553",
+                                "name": "legacy_int",
+                                "kind": 1,
+                                "startTimeUnixNano": "1700000000000000000",
+                                "status": {"code": 2},
+                                "attributes": [],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    spans = decode_otlp(json.dumps(body).encode(), "application/json")
+    assert len(spans) == 3
+    assert spans[0].kind == "CLIENT" and spans[0].status_code == "OK"
+    assert (
+        spans[1].kind == "SERVER"
+        and spans[1].status_code == "ERROR"
+        and spans[1].status_message == "fail"
+    )
+    assert spans[2].kind == "INTERNAL" and spans[2].status_code == "ERROR"
 
 
 async def test_foreign_workspace_unknown_agent_and_size_cap(api):

@@ -47,6 +47,32 @@ SPAN_KINDS = {
 STATUS_CODES = {0: "UNSET", 1: "OK", 2: "ERROR"}
 
 
+def _kind_from_json(value: Any) -> str:
+    if isinstance(value, str):
+        if value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
+            return SPAN_KINDS.get(int(value), "INTERNAL")
+        name = value.removeprefix("SPAN_KIND_")
+        if name in ("INTERNAL", "SERVER", "CLIENT", "PRODUCER", "CONSUMER", "UNSPECIFIED"):
+            return name
+        return "INTERNAL"
+    if isinstance(value, int) and not isinstance(value, bool):
+        return SPAN_KINDS.get(value, "INTERNAL")
+    return "INTERNAL"
+
+
+def _status_from_json(value: Any) -> str:
+    if isinstance(value, str):
+        if value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
+            return STATUS_CODES.get(int(value), "UNSET")
+        name = value.removeprefix("STATUS_CODE_")
+        if name in ("UNSET", "OK", "ERROR"):
+            return name
+        return "UNSET"
+    if isinstance(value, int) and not isinstance(value, bool):
+        return STATUS_CODES.get(value, "UNSET")
+    return "UNSET"
+
+
 def _any_value(value: AnyValue) -> Any:
     kind = value.WhichOneof("value")
     if kind is None:
@@ -134,10 +160,10 @@ def _from_json(span: dict[str, Any], resource: dict[str, Any], scope: str | None
         span_id=span["spanId"],
         parent_span_id=span.get("parentSpanId") or None,
         name=span.get("name", ""),
-        kind=SPAN_KINDS.get(int(span.get("kind") or 0), "INTERNAL"),
+        kind=_kind_from_json(span.get("kind")),
         start_time=start,
         end_time=_time(int(span.get("endTimeUnixNano") or 0)),
-        status_code=STATUS_CODES.get(int(status.get("code") or 0), "UNSET"),
+        status_code=_status_from_json(status.get("code")),
         status_message=status.get("message") or None,
         attributes=_json_attributes(span.get("attributes")),
         events=[
