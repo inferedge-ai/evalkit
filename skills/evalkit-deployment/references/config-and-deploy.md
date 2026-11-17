@@ -351,21 +351,22 @@ give the agent's developers the same settings.
 
 Spans land in the `spans` table; mappings in `span_mappings`; agent tokens
 are rows in `auth_tokens` with `kind = agent`. History comes from a trace
-source registered with `evalkit trace-sources create`:
+source registered with `evalkit trace-sources create` and named on the agent
+(`evalkit agents edit <agent> --trace-source <name> --project <project>`,
+optionally `--trace-filter`). Imports always read the agent's trace source,
+project and filter:
 
-- `evalkit traces import <agent> <session id> --source <trace source> --project <name>`
-  pulls one session.
-- `evalkit traces import <agent> --source <trace source> --project <name> --since <time>
-  [--until <time>]` pulls every trace that started in the range as a job on the
+- `evalkit traces import <agent> <session id>` pulls one session.
+- `evalkit traces import <agent> --since <time> [--until <time>]` pulls every trace that started in the range as a job on the
   server, `otel.import_page_traces` traces per request to the source. Jobs are rows
   in `trace_imports`; `evalkit traces imports <agent>` lists them, and a failed or
   stopped job continues with `--continue`. A range import needs an active mapping
   with a `session_id` rule.
 - The agent page's Import tab does both.
 
-Trace sources are server-wide. Any user can import from any trace source
-into an agent they can write, so developers can mine cases from traces on
-their own. This means the source's API key is shared with every user in
+Trace sources are server-wide. Any user can point an agent they can write at
+any trace source and project and import from it, so developers can mine
+cases from traces on their own. This means the source's API key is shared with every user in
 effect: anyone can import any project that key can read. Give each trace
 source a key scoped to only the projects you are happy to share with every
 user. Imported traces are readable by every user too, since every user can

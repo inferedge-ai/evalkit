@@ -403,9 +403,12 @@ OTel or harness), then take one route:
 
 1. **OTel agent that exports app traffic to evalkit** — the runs are already
    on the server. Go to M2.
-2. **Traces live in an external tracing tool** — import them first with
-   `evalkit traces import` (Phoenix is the only supported source today), wait
-   for the import (`evalkit traces imports <agent> <id>`), then go to M2.
+2. **Traces live in an external tracing tool** (a trace source: Phoenix or
+   Langfuse today) — the agent must name it in its settings
+   (`evalkit agents edit <agent> --trace-source <name> --project <project>`,
+   plus `--trace-filter` when the project holds other agents' traces). Then
+   import with `evalkit traces import <agent> --since <time>`, wait for the
+   import (`evalkit traces imports <agent> <id>`), and go to M2.
 3. **Harness agent** — `evalkit runs list` reads the harness's run list (the
    server does it for a shared agent, your CLI for a personal one). Go to M2.
 

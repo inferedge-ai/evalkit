@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { Route } from "react-router-dom";
 import { afterEach, expect, test } from "vitest";
 import { closePage, member, renderPage, stubServer } from "../testFixtures";
@@ -22,25 +22,13 @@ const settings: AgentSettings = {
 
 afterEach(closePage);
 
-test("the import form starts from the agent's trace source and project", async () => {
-  stubServer(async (url) => {
-    if (url.includes("/trace-sources"))
-      return Response.json([
-        {
-          id: 1,
-          name: "phx-dev",
-          provider: "phoenix",
-          url: "https://a",
-          archived: false,
-        },
-        {
-          id: 2,
-          name: "phx-prod",
-          provider: "phoenix",
-          url: "https://b",
-          archived: false,
-        },
-      ]);
+test("the import form shows the agent's trace source, project and filter, and posts only the window", async () => {
+  const posted: Record<string, unknown>[] = [];
+  stubServer(async (url, init) => {
+    if (url.includes("/imports") && init?.method === "POST") {
+      posted.push(JSON.parse(String(init.body)));
+      return Response.json({});
+    }
     if (url.includes("/imports")) return Response.json([]);
   });
   renderPage(
@@ -48,11 +36,24 @@ test("the import form starts from the agent's trace source and project", async (
     "/import",
     <Route
       path="/import"
-      element={<ImportPanel agent="bot@dev" settings={settings} />}
+      element={
+        <ImportPanel
+          agent="bot@dev"
+          settings={{ ...settings, trace_filter: '[{"column": "name"}]' }}
+        />
+      }
     />,
   );
-  expect(await screen.findByDisplayValue("research-agent")).toBeInTheDocument();
   expect(await screen.findByText("phx-prod")).toBeInTheDocument();
+  expect(screen.getByText("research-agent")).toBeInTheDocument();
+  expect(screen.getByText('[{"column": "name"}]')).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "trace source" })).toBeNull();
+  fireEvent.change(screen.getByLabelText("Since"), {
+    target: { value: "2026-11-01T00:00" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Start import" }));
+  await expect.poll(() => posted.length).toBe(1);
+  expect(Object.keys(posted[0]).sort()).toEqual(["since", "until"]);
 });
 
 test("an import shows how much is done and, when it failed, how many traces came in", async () => {

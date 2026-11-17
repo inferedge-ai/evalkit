@@ -2,6 +2,47 @@
 
 ## Unreleased
 
+## 0.8.0
+
+_Released 2026-11-17._ Trace imports always read the agent's own trace
+settings, Phoenix agents take a trace filter, and range imports wait out a
+trace store's rate limits instead of failing.
+
+### Before you upgrade
+
+- **CLI:** Run `evalkit update --server <url>` once the server is on 0.8.0;
+  a 0.7 CLI refuses every other command against it.
+- **Tracing:** `evalkit traces import` no longer takes `--source`,
+  `--project` or `--trace-filter`, and `POST /api/agents/{agent}/imports`
+  and `/sessions/import` answer 422 to a request with `source`, `project` or
+  `trace_filter`. Drop them from scripts. To import from another store or
+  project, change the agent's settings first.
+
+### Features
+
+- **Tracing:** Phoenix agents take a trace filter: a Phoenix trace filter
+  expression (Phoenix 20.12.0 or later), sent as the `filter` of Phoenix's
+  trace list. Saving the agent sends the filter to the trace store once, so
+  one the store can't read, or any filter against an older Phoenix, is
+  refused with 400.
+
+### Improvements
+
+- **Tracing:** Imports always read the agent's trace source, project and
+  trace filter. The agent page's Import tab shows the agent's settings
+  instead of a source picker. An agent with no trace source gets 400 with
+  how to set one.
+- **Tracing:** A range import that the trace store rate-limits (429 Too Many
+  Requests) waits as long as the store's `Retry-After` asks, keeps its lease
+  and goes on from where it stopped. It fails only after 10 minutes of rate
+  limits with no new traces written, with an error that says so;
+  **Continue** resumes it.
+
+### Fixes
+
+- **Web UI:** Fixed imports from the agent page's Import tab ignoring the
+  agent's trace filter and reading the whole project (since 0.7.0).
+
 ## 0.7.0
 
 _Released 2026-11-16._ Langfuse joins Phoenix as a trace source, an agent can

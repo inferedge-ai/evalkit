@@ -107,13 +107,47 @@ async def test_agent_settings_check_the_trace_filter(httpx2_mock, api):
     assert lone.status_code == 422
 
 
-async def test_phoenix_refuses_a_trace_filter(httpx2_mock, api):
+async def test_a_filter_with_an_unknown_phoenix_project_says_the_project_is_missing(
+    httpx2_mock, api
+):
     phx = {"name": "phx", "provider": "phoenix", "url": "https://phx.example.com", "api_key": "k"}
     assert (await api.post("/api/trace-sources", json=phx)).status_code == 200
-    settings = {"trace_source": "phx", "project": "p", "trace_filter": "[]"}
+    httpx2_mock.get("https://phx.example.com/v1/projects/nope").mock(return_value=MockResponse(404))
+    settings = {"trace_source": "phx", "project": "nope", "trace_filter": "error_count == 0"}
     refused = await api.patch(f"/api/agents/{AGENT}", json={"settings": settings})
     assert refused.status_code == 400
-    assert refused.json()["detail"] == "Phoenix trace filters are not supported yet"
+    assert refused.json()["detail"].startswith("project nope not found in trace source phx")
+
+
+async def test_a_phoenix_trace_filter_is_checked_by_phoenix_when_saved(httpx2_mock, api):
+    phx = {"name": "phx", "provider": "phoenix", "url": "https://phx.example.com", "api_key": "k"}
+    assert (await api.post("/api/trace-sources", json=phx)).status_code == 200
+    httpx2_mock.get("https://phx.example.com/v1/projects/p").mock(
+        return_value=MockResponse(200, json={"data": {}})
+    )
+    httpx2_mock.get("https://phx.example.com/arize_phoenix_version").mock(
+        side_effect=[
+            MockResponse(200, text="20.11.0"),
+            MockResponse(200, text="20.12.0"),
+            MockResponse(200, text="20.12.0"),
+        ]
+    )
+    httpx2_mock.get("https://phx.example.com/v1/projects/p/traces").mock(
+        side_effect=[
+            MockResponse(400, json={"detail": "unknown name: nmae"}),
+            MockResponse(200, json={"data": []}),
+        ]
+    )
+    settings = {"trace_source": "phx", "project": "p", "trace_filter": "nmae == 'x'"}
+    too_old = await api.patch(f"/api/agents/{AGENT}", json={"settings": settings})
+    assert too_old.status_code == 400
+    assert "need Phoenix 20.12.0 or later; this server runs 20.11.0" in too_old.json()["detail"]
+    refused = await api.patch(f"/api/agents/{AGENT}", json={"settings": settings})
+    assert refused.status_code == 400 and "unknown name: nmae" in refused.json()["detail"]
+    good = {**settings, "trace_filter": "error_count == 0"}
+    saved = await api.patch(f"/api/agents/{AGENT}", json={"settings": good})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["settings"]["trace_filter"] == "error_count == 0"
 
 
 async def test_a_range_import_walks_newest_first_with_the_agent_filter(httpx2_mock, api):
@@ -138,26 +172,35 @@ async def test_a_range_import_walks_newest_first_with_the_agent_filter(httpx2_mo
     } in roots
 
 
-async def test_a_session_import_with_a_filter_needs_write_and_the_puller_sends_the_filter(
-    httpx2_mock, api
-):
+async def test_every_import_and_pull_uses_the_agents_filter(httpx2_mock, api):
     asked = serve_langfuse(httpx2_mock)
     assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200
-    alice = await login_as(api, "alice", "password")
-    refused = await alice.post(
-        f"/api/agents/{AGENT}/sessions/import",
-        json={"session_id": "otel-session-1", "trace_filter": "[]"},
-    )
-    assert refused.status_code == 403
     asked.clear()
+    started = await api.post(f"/api/agents/{AGENT}/imports", json=RANGE)
+    assert started.status_code == 202, started.text
+    assert started.json()["trace_filter"] == TRACE_FILTER
+    await settled(api, started.json()["id"])
+    alice = await login_as(api, "alice", "password")
     own = await alice.post(
         f"/api/agents/{AGENT}/sessions/import", json={"session_id": "otel-session-1"}
     )
     assert own.status_code == 200 and own.json()["imported"] == 4
-    assert len(asked) == 2 and "sessionId" in {c["column"] for c in asked[0]}
     stores = build_tenant_stores(api.app.state, "default")
     puller = ServerSessionPuller(stores.agents, stores.sources, stores.mappings, stores.spans, 25)
-    asked.clear()
     await puller(AGENT, "otel-session-1")
-    assert asked[0][0] == json.loads(TRACE_FILTER)[0]
+    roots = [c for c in asked if any(x["column"] == "isRootObservation" for x in c)]
+    assert len(roots) == 4 and all(c[0] == json.loads(TRACE_FILTER)[0] for c in roots)
     await alice.aclose()
+
+
+@pytest.mark.parametrize(
+    "override", [{"source": "lf"}, {"project": "e2e-test"}, {"trace_filter": "[]"}]
+)
+async def test_import_requests_cannot_override_the_agents_settings(httpx2_mock, api, override):
+    serve_langfuse(httpx2_mock)
+    assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200
+    session = await api.post(
+        f"/api/agents/{AGENT}/sessions/import", json={"session_id": "s", **override}
+    )
+    ranged = await api.post(f"/api/agents/{AGENT}/imports", json={**RANGE, **override})
+    assert (session.status_code, ranged.status_code) == (422, 422)

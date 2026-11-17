@@ -117,11 +117,48 @@ test("a Langfuse trace source takes a trace filter, linked to Langfuse's filter 
   await user.click(screen.getByLabelText("Trace filter"));
   await user.paste(filter);
   expect(
-    screen.getByRole("link", { name: "How to write the filter" }),
+    screen.getByRole("link", { name: "How to write a Langfuse filter" }),
   ).toHaveAttribute("href", expect.stringContaining("langfuse.com"));
   await user.click(screen.getByRole("button", { name: "Create agent" }));
   await expect.poll(() => onSaved.mock.calls.length).toBe(1);
   expect(created[0]).toMatchObject({
     settings: { trace_source: "lf", project: "e2e-test", trace_filter: filter },
   });
+});
+
+test("a Phoenix trace source shows a Phoenix filter example and links to Phoenix's filter docs", async () => {
+  stubServer((url) => {
+    if (url.endsWith("/api/mapping-presets")) return Response.json([preset]);
+    if (url.endsWith("/api/trace-sources"))
+      return Response.json([
+        {
+          id: 1,
+          name: "px",
+          provider: "phoenix",
+          url: "https://px",
+          archived: false,
+        },
+      ]);
+  });
+  const user = userEvent.setup();
+  render(
+    <QueryClientProvider client={queryClient}>
+      <AgentForm
+        workspace="dev"
+        shared={false}
+        onSaved={() => {}}
+        onClose={() => {}}
+      />
+    </QueryClientProvider>,
+  );
+  await choose(user, "trajectory source", "From traces (OTel spans)");
+  await choose(user, "trace source", "px (phoenix)");
+  expect(screen.getByLabelText("Trace filter")).toHaveAttribute(
+    "placeholder",
+    "optional, e.g. metadata['agent'] == 'my-agent'",
+  );
+  expect(
+    screen.getByRole("link", { name: "How to write a Phoenix filter" }),
+  ).toHaveAttribute("href", expect.stringContaining("arize.com/docs/phoenix"));
+  expect(screen.queryByText(/x-langfuse-ingestion-version/)).toBeNull();
 });

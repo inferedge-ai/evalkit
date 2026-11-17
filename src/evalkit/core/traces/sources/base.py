@@ -3,6 +3,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
+import httpx2
+
+from evalkit.core.retry import parse_retry_after
 from evalkit.core.traces.raw import RawSpan
 
 
@@ -23,10 +26,25 @@ class BadTraceFilter(ValueError):
     pass
 
 
+DEFAULT_RETRY_AFTER_SECONDS = 30.0
+
+
+class RateLimited(httpx2.HTTPStatusError):
+    def __init__(self, response: httpx2.Response):
+        super().__init__(
+            f"{response.request.url.host} answered 429 Too Many Requests",
+            request=response.request,
+            response=response,
+        )
+        self.retry_after = parse_retry_after(response.headers.get("Retry-After", "")) or (
+            DEFAULT_RETRY_AFTER_SECONDS
+        )
+
+
 class TraceSourceClient(Protocol):
     async def check_project(self, project: str) -> None: ...
 
-    async def check_filter(self, trace_filter: str | None) -> None: ...
+    async def check_filter(self, project: str, trace_filter: str | None) -> None: ...
 
     async def session_spans(
         self, project: str, trace_filter: str | None, session_id: str

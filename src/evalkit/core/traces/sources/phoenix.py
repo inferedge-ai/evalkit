@@ -7,9 +7,15 @@ from typing import Any
 import httpx2
 
 from evalkit.core.traces.raw import RawSpan
-from evalkit.core.traces.sources.base import BadTraceFilter, TracePage, UnknownProject
+from evalkit.core.traces.sources.base import (
+    BadTraceFilter,
+    RateLimited,
+    TracePage,
+    UnknownProject,
+)
 
 OPENINFERENCE_KIND = "openinference.span.kind"
+TRACE_FILTER_MIN_VERSION = (20, 12)
 
 
 def flatten_attributes(nested: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -93,12 +99,25 @@ class PhoenixClient:
             raise UnknownProject(f"project {project} not found")
         resp.raise_for_status()
 
-    def _refuse_filter(self, trace_filter: str | None) -> None:
-        if trace_filter:
-            raise BadTraceFilter("Phoenix trace filters are not supported yet")
-
-    async def check_filter(self, trace_filter: str | None) -> None:
-        self._refuse_filter(trace_filter)
+    async def check_filter(self, project: str, trace_filter: str | None) -> None:
+        if not trace_filter:
+            return
+        async with self._client() as client:
+            version = await client.get("/arize_phoenix_version")
+            version.raise_for_status()
+            running = version.text.strip()
+            major, minor = running.split(".")[:2]
+            if (int(major), int(minor)) < TRACE_FILTER_MIN_VERSION:
+                raise BadTraceFilter(
+                    "Phoenix trace filters need Phoenix 20.12.0 or later; this server runs "
+                    f"{running}, which ignores the filter"
+                )
+            resp = await client.get(
+                f"/v1/projects/{project}/traces", params={"filter": trace_filter, "limit": "1"}
+            )
+        if resp.status_code in (400, 422):
+            raise BadTraceFilter(f"Phoenix refused the trace filter: {resp.text}")
+        resp.raise_for_status()
 
     async def _pages(
         self, path: str, params: dict[str, str | list[str]]
@@ -109,6 +128,8 @@ class PhoenixClient:
                 resp = await client.get(
                     path, params={**params, **({"cursor": cursor} if cursor else {})}
                 )
+                if resp.status_code == 429:
+                    raise RateLimited(resp)
                 resp.raise_for_status()
                 body = resp.json()
                 rows = body.get("data") or []
@@ -118,10 +139,18 @@ class PhoenixClient:
                 if not cursor or not rows:
                     return
 
-    def _traces(self, project: str, params: dict[str, str]) -> AsyncIterator[list[dict[str, Any]]]:
+    def _traces(
+        self, project: str, trace_filter: str | None, params: dict[str, str]
+    ) -> AsyncIterator[list[dict[str, Any]]]:
         return self._pages(
             f"/v1/projects/{project}/traces",
-            {"sort": "start_time", "order": "asc", "limit": str(self._page_traces), **params},
+            {
+                "sort": "start_time",
+                "order": "asc",
+                "limit": str(self._page_traces),
+                **({"filter": trace_filter} if trace_filter else {}),
+                **params,
+            },
         )
 
     async def trace_spans(self, project: str, trace_ids: list[str]) -> AsyncIterator[list[RawSpan]]:
@@ -132,9 +161,9 @@ class PhoenixClient:
     async def session_spans(
         self, project: str, trace_filter: str | None, session_id: str
     ) -> list[RawSpan]:
-        self._refuse_filter(trace_filter)
         found: list[RawSpan] = []
-        async for traces in self._traces(project, {"session_identifier": session_id}):
+        session = {"session_identifier": session_id}
+        async for traces in self._traces(project, trace_filter, session):
             async for spans in self.trace_spans(project, [t["trace_id"] for t in traces]):
                 found.extend(spans)
         return found
@@ -142,9 +171,8 @@ class PhoenixClient:
     async def trace_pages(
         self, project: str, trace_filter: str | None, since: datetime, until: datetime
     ) -> AsyncIterator[TracePage]:
-        self._refuse_filter(trace_filter)
         window = {"start_time": since.isoformat(), "end_time": until.isoformat()}
-        async for traces in self._traces(project, window):
+        async for traces in self._traces(project, trace_filter, window):
             yield TracePage(
                 traces=[
                     (str(trace["trace_id"]), datetime.fromisoformat(trace["start_time"]))

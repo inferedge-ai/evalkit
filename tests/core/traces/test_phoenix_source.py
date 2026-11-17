@@ -5,11 +5,12 @@ import pytest
 from respx import MockResponse
 
 from evalkit.contracts.enums import TraceProvider
-from evalkit.core.traces.sources import BadTraceFilter, UnknownProject, client_for
+from evalkit.core.traces.sources import BadTraceFilter, RateLimited, UnknownProject, client_for
 from evalkit.core.traces.sources.phoenix import PhoenixClient, _to_raw, flatten_attributes
 
 PHOENIX = "https://phoenix.example.com"
 TRACES = f"{PHOENIX}/v1/projects/research-agent/traces"
+VERSION = f"{PHOENIX}/arize_phoenix_version"
 SPANS = f"{PHOENIX}/v1/projects/research-agent/spans"
 
 
@@ -191,9 +192,59 @@ def test_span_kind_is_put_back_when_phoenix_moved_it_out_of_the_attributes():
     assert _to_raw(phoenix_span(2)).attributes["openinference.span.kind"] == "LLM"
 
 
-async def test_phoenix_refuses_a_trace_filter():
+async def test_a_trace_filter_goes_to_phoenix_and_a_refused_one_says_why(httpx2_mock):
+    httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text="20.12.0"))
+    checked = httpx2_mock.get(TRACES).mock(
+        side_effect=[
+            MockResponse(400, json={"detail": "unknown name: nmae; did you mean name?"}),
+            MockResponse(200, json={"data": []}),
+            MockResponse(200, json={"data": [phoenix_trace(1)]}),
+        ]
+    )
     phoenix = client()
-    await phoenix.check_filter(None)
-    await phoenix.check_filter("")
-    with pytest.raises(BadTraceFilter, match="not supported yet"):
-        await phoenix.check_filter('[{"x": 1}]')
+    await phoenix.check_filter("research-agent", None)
+    with pytest.raises(BadTraceFilter, match="did you mean name"):
+        await phoenix.check_filter("research-agent", "nmae == 'x'")
+    await phoenix.check_filter("research-agent", "latency_ms > 1000")
+    assert checked.calls[1].request.url.params["filter"] == "latency_ms > 1000"
+    since = datetime(2026, 10, 1, tzinfo=UTC)
+    pages = [
+        p
+        async for p in phoenix.trace_pages(
+            "research-agent", "error_count > 0", since, since + timedelta(days=1)
+        )
+    ]
+    assert len(pages) == 1
+    assert checked.calls[2].request.url.params["filter"] == "error_count > 0"
+
+
+@pytest.mark.parametrize("running", ["20.11.3", "20.3.0", "19.0.0"])
+async def test_a_trace_filter_is_refused_on_a_phoenix_that_would_ignore_it(httpx2_mock, running):
+    asked = httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text=running))
+    with pytest.raises(BadTraceFilter, match=f"20.12.0 or later; this server runs {running}"):
+        await client().check_filter("research-agent", "error_count > 0")
+    assert asked.call_count == 1 and len(httpx2_mock.calls) == 1
+
+
+@pytest.mark.parametrize("running", ["20.12.0", "20.12.1rc1", "21.0.0\n"])
+async def test_a_trace_filter_is_probed_on_a_phoenix_that_reads_it(httpx2_mock, running):
+    httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text=running))
+    probe = httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": []}))
+    await client().check_filter("research-agent", "error_count > 0")
+    assert probe.call_count == 1
+
+
+async def test_a_phoenix_429_is_rate_limited_and_a_failing_filter_probe_raises(httpx2_mock):
+    httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text="21.0.0"))
+    httpx2_mock.get(TRACES).mock(
+        side_effect=[
+            MockResponse(429, headers={"Retry-After": "5"}),
+            MockResponse(500),
+        ]
+    )
+    since = datetime(2026, 10, 1, tzinfo=UTC)
+    with pytest.raises(RateLimited) as raised:
+        _ = [p async for p in client().trace_pages("research-agent", None, since, since)]
+    assert raised.value.retry_after == 5.0
+    with pytest.raises(httpx2.HTTPStatusError):
+        await client().check_filter("research-agent", "error_count > 0")

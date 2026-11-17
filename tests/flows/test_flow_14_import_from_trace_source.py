@@ -10,6 +10,7 @@ from evalkit.api.access import build_tenant_stores
 from evalkit.api.deps import get_allow_private_endpoints, get_config
 from evalkit.api.session_pull import ServerSessionPuller
 from evalkit.cli.traces_commands import render_check
+from evalkit.contracts.settings import AgentSettings
 from evalkit.core.traces.session_import import SessionPullFailed
 from evalkit.db.crypto import SecretBox
 from evalkit.db.models import Span
@@ -32,7 +33,6 @@ def serve_spans(router: Router) -> Route:
         data = [phoenix_span(n, None if n == NO_SESSION else f"sess-{n}") for n in ids]
         return MockResponse(200, json={"data": data})
 
-    router.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
     return router.get(SPANS).mock(side_effect=spans)
 
 
@@ -55,8 +55,15 @@ async def api(tmp_path, session_factory, stub_judges):
         yield client
 
 
-def body(session_id: str = "sess-9", source: str = "phx") -> dict:
-    return {"source": source, "project": "research-agent", "session_id": session_id}
+def body(session_id: str = "sess-9") -> dict:
+    return {"session_id": session_id}
+
+
+async def link_source(api, source: str = "phx", agent: str = AGENT) -> None:
+    stores = build_tenant_stores(api.app.state, "default")
+    await stores.agents.edit(
+        agent, settings=AgentSettings(trace_source=source, project="research-agent")
+    )
 
 
 async def span_rows(api) -> list[tuple[str, int | None]]:
@@ -70,6 +77,7 @@ async def test_flow_14_import_tags_spans_is_idempotent_and_checks(httpx2_mock, a
         return_value=MockResponse(200, json={"data": [phoenix_trace(9)]})
     )
     serve_spans(httpx2_mock)
+    await link_source(api)
     first = await api.post(f"/api/agents/{AGENT}/sessions/import", json=body())
     assert first.status_code == 200 and first.json() == {"imported": 1}
     assert route.calls[0].request.headers["authorization"] == "Bearer pk"
@@ -105,24 +113,24 @@ async def test_flow_14_session_id_comes_from_the_mapping_else_the_command_line(h
         ]
     )
     serve_spans(httpx2_mock)
+    await link_source(api)
     await api.post(f"/api/agents/{AGENT}/sessions/import", json=body("given-1"))
     await api.post(f"/api/agents/{AGENT}/sessions/import", json=body("given-2"))
     assert sorted(r[0] for r in await span_rows(api)) == ["given-2", "sess-9"]
 
 
 async def test_flow_14_errors(httpx2_mock, api):
-    unknown_source = await api.post(f"/api/agents/{AGENT}/sessions/import", json=body(source="x"))
+    await link_source(api, "x")
+    unknown_source = await api.post(f"/api/agents/{AGENT}/sessions/import", json=body())
     assert unknown_source.status_code == 404
     assert unknown_source.json()["detail"] == (
         "trace source x not found; evalkit trace-sources list shows the registered ones"
     )
+    await link_source(api)
     unknown_agent = await api.post(f"/api/agents/ghost@{DEV}/sessions/import", json=body())
     assert unknown_agent.status_code == 404
-    alice = await login_as(api, "alice", "password")
-    assert (
-        await alice.post(f"/api/agents/{AGENT}/sessions/import", json=body())
-    ).status_code == 403
-    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    named = await api.post(f"/api/agents/{AGENT}/sessions/import", json={**body(), "source": "phx"})
+    assert named.status_code == 422
     httpx2_mock.get(TRACES).mock(return_value=MockResponse(500))
     down = await api.post(f"/api/agents/{AGENT}/sessions/import", json=body())
     assert down.status_code == 502 and down.json()["detail"].startswith("phx: ")
@@ -147,7 +155,6 @@ async def test_flow_14_errors(httpx2_mock, api):
     assert (
         await api.post("/api/agents/traced@akshat/sessions/import", json=body())
     ).status_code == 403
-    await alice.aclose()
     await akshat.aclose()
 
 
@@ -157,8 +164,6 @@ def trace_page(starts: list[int], cursor: str | None = None) -> dict:
 
 
 RANGE = {
-    "source": "phx",
-    "project": "research-agent",
     "since": "2026-10-01T00:00:00Z",
     "until": "2026-10-02T00:00:00Z",
 }
@@ -175,6 +180,8 @@ async def settled(api, import_id: int) -> dict:
 
 async def test_flow_14_range_import_runs_to_done(httpx2_mock, api):
     serve_spans(httpx2_mock)
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    await link_source(api)
     route = httpx2_mock.get(TRACES).mock(
         side_effect=[
             MockResponse(200, json=trace_page([1, 2], cursor="c2")),
@@ -204,6 +211,8 @@ async def test_flow_14_range_import_runs_to_done(httpx2_mock, api):
 
 async def test_flow_14_stop_then_continue_from_resume_from(httpx2_mock, api):
     serve_spans(httpx2_mock)
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    await link_source(api)
     reached, release = asyncio.Event(), asyncio.Event()
 
     async def held(request):
@@ -237,6 +246,8 @@ async def test_flow_14_stop_then_continue_from_resume_from(httpx2_mock, api):
 
 async def test_flow_14_failed_import_records_the_error(httpx2_mock, api):
     serve_spans(httpx2_mock)
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    await link_source(api)
     httpx2_mock.get(TRACES).mock(return_value=MockResponse(500))
     import_id = (await api.post(f"/api/agents/{AGENT}/imports", json=RANGE)).json()["id"]
     view = await settled(api, import_id)
@@ -248,12 +259,14 @@ async def test_flow_14_failed_import_records_the_error(httpx2_mock, api):
 
 async def test_flow_14_range_import_rules(httpx2_mock, api):
     serve_spans(httpx2_mock)
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    await link_source(api)
     url = f"/api/agents/{AGENT}/imports"
     backwards = {**RANGE, "since": RANGE["until"], "until": RANGE["since"]}
     assert (await api.post(url, json=backwards)).status_code == 422
     naive = {**RANGE, "since": "2026-10-01T00:00:00"}
     assert (await api.post(url, json=naive)).status_code == 422
-    assert (await api.post(url, json={**RANGE, "source": "x"})).status_code == 404
+    assert (await api.post(url, json={**RANGE, "source": "phx"})).status_code == 422
     alice = await login_as(api, "alice", "password")
     assert (await alice.post(url, json=RANGE)).status_code == 403
     await alice.aclose()
@@ -304,6 +317,7 @@ async def test_flow_14_private_source_urls_are_refused_unless_allowed(api):
 
 async def test_flow_14_imports_refuse_a_stored_private_url(httpx2_mock, api):
     httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
+    await link_source(api)
     httpx2_mock.get(TRACES).mock(return_value=MockResponse(500))
     import_id = (await api.post(f"/api/agents/{AGENT}/imports", json=RANGE)).json()["id"]
     assert (await settled(api, import_id))["status"] == "failed"
@@ -338,11 +352,12 @@ SETTINGS = {"trace_source": "phx", "project": "research-agent"}
 async def test_flow_14_agent_settings_name_a_checked_source_and_default_imports(httpx2_mock, api):
     httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": [phoenix_trace(9)]}))
     serve_spans(httpx2_mock)
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
     none = await api.post(f"/api/agents/{AGENT}/sessions/import", json={"session_id": "sess-9"})
     assert none.status_code == 400
     assert none.json()["detail"] == (
-        f"no trace source given and agent {AGENT} has none; "
-        "pass source and project, or set them on the agent"
+        f"agent {AGENT} has no trace source; set its trace source and project first: "
+        f"evalkit agents edit {AGENT} --trace-source <name> --project <project>"
     )
     saved = await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})
     assert saved.status_code == 200, saved.text
@@ -414,12 +429,15 @@ async def test_flow_14_server_puller_pulls_only_for_an_agent_with_a_source(httpx
 async def test_flow_14_anyone_who_may_run_the_agent_pulls_from_its_own_source(httpx2_mock, api):
     httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": [phoenix_trace(9)]}))
     serve_spans(httpx2_mock)
+    httpx2_mock.get(PROJECT).mock(return_value=MockResponse(200, json={"data": {}}))
     assert (await api.patch(f"/api/agents/{AGENT}", json={"settings": SETTINGS})).status_code == 200
     alice = await login_as(api, "alice", "password")
     own = await alice.post(f"/api/agents/{AGENT}/sessions/import", json={"session_id": "sess-9"})
     assert own.status_code == 200, own.text
-    named = await alice.post(f"/api/agents/{AGENT}/sessions/import", json=body())
-    assert named.status_code == 403
+    named = await alice.post(
+        f"/api/agents/{AGENT}/sessions/import", json={**body(), "source": "phx"}
+    )
+    assert named.status_code == 422
 
 
 async def test_flow_14_a_refused_key_names_the_fix(httpx2_mock, api):
