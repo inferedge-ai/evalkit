@@ -220,11 +220,10 @@ async def test_a_trace_filter_goes_to_phoenix_and_a_refused_one_says_why(httpx2_
 
 @pytest.mark.parametrize("running", ["20.11.3", "20.3.0", "19.0.0"])
 async def test_a_trace_filter_is_refused_on_a_phoenix_that_would_ignore_it(httpx2_mock, running):
-    httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text=running))
-    probe = httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": []}))
+    asked = httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text=running))
     with pytest.raises(BadTraceFilter, match=f"20.12.0 or later; this server runs {running}"):
         await client().check_filter("research-agent", "error_count > 0")
-    assert probe.call_count == 0
+    assert asked.call_count == 1 and len(httpx2_mock.calls) == 1
 
 
 @pytest.mark.parametrize("running", ["20.12.0", "20.12.1rc1", "21.0.0\n"])
