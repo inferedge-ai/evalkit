@@ -7,7 +7,7 @@
 
 By [InferEdge](https://www.inferedge.com/).
 
-[![Docs](https://img.shields.io/badge/docs-quickstart-blue?logo=readthedocs&logoColor=white)](docs/user/quickstart.md)
+[![Docs](https://img.shields.io/badge/docs-quickstart-blue?logo=readthedocs&logoColor=white)](https://evalkit.inferedge.com/docs)
 [![PyPI](https://img.shields.io/pypi/v/evalkit-py?color=blue)](https://pypi.org/project/evalkit-py/)
 [![Downloads](https://static.pepy.tech/badge/evalkit-py)](https://pepy.tech/projects/evalkit-py)
 [![GitHub stars](https://img.shields.io/github/stars/inferedge-ai/evalkit?style=social)](https://github.com/inferedge-ai/evalkit/stargazers)
