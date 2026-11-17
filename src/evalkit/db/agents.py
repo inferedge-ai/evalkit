@@ -286,7 +286,7 @@ class AgentStore:
             row, _ = await self._row(session, ref)
             return row.api_key_encrypted
 
-    async def archive(self, ref: str) -> AgentDefinition:
+    async def archive(self, ref: str, *, archived_by: int) -> AgentDefinition:
         async with self._session() as session:
             row, ws = await self._row(session, ref)
             row.archived_at = datetime.now(UTC)
@@ -297,7 +297,7 @@ class AgentStore:
                     models.AuthToken.kind == TokenKind.AGENT.value,
                     models.AuthToken.revoked_at.is_(None),
                 )
-                .values(revoked_at=row.archived_at)
+                .values(revoked_at=row.archived_at, revoked_by=archived_by)
             )
             await session.commit()
             return _definition(row, ws)

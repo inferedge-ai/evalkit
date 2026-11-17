@@ -43,6 +43,8 @@ async def list_tokens(stores: StoresDep, user: CurrentUser) -> list[dict]:
 
 @router.delete("/{token_id}")
 async def revoke_token(token_id: int, stores: StoresDep, user: CurrentUser) -> dict:
-    if not await stores.tokens.revoke(token_id, user_id=None if user.is_admin else user.id):
+    if not await stores.tokens.revoke(
+        token_id, user_id=None if user.is_admin else user.id, revoked_by=user.id
+    ):
         raise HTTPException(status_code=404, detail="unknown token")
     return {"ok": True}

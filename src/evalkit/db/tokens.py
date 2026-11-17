@@ -100,7 +100,7 @@ class AgentTokens:
             )
             return await self._records(session, list(rows))
 
-    async def revoke(self, token_id: int, *, user_id: int | None) -> bool:
+    async def revoke(self, token_id: int, *, user_id: int | None, revoked_by: int) -> bool:
         where = [
             models.AuthToken.id == token_id,
             models.AuthToken.kind == TokenKind.AGENT,
@@ -115,7 +115,9 @@ class AgentTokens:
             result = cast(
                 CursorResult,
                 await session.execute(
-                    update(models.AuthToken).where(*where).values(revoked_at=datetime.now(UTC))
+                    update(models.AuthToken)
+                    .where(*where)
+                    .values(revoked_at=datetime.now(UTC), revoked_by=revoked_by)
                 ),
             )
             await session.commit()

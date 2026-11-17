@@ -17,7 +17,12 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column("auth_tokens", sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column(
+        "auth_tokens",
+        sa.Column("revoked_by", sa.Integer(), sa.ForeignKey("users.id"), nullable=True),
+    )
 
 
 def downgrade() -> None:
+    op.drop_column("auth_tokens", "revoked_by")
     op.drop_column("auth_tokens", "revoked_at")
