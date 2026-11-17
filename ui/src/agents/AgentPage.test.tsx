@@ -250,5 +250,10 @@ test("an agent without a trace source is told to set one before importing", asyn
   expect(
     await screen.findByText("This agent has no trace source"),
   ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "evalkit agents edit bot@dev --trace-source <name> --project <project>",
+    ),
+  ).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Start import" })).toBeNull();
 });

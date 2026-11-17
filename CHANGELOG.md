@@ -14,9 +14,11 @@
   upgrade: scripts passing those flags or fields must drop them. An agent
   with no trace source now gets 400 with how to set one.
 - **Tracing:** Phoenix agents take a trace filter too: a Phoenix trace filter
-  expression (Phoenix 20.3.0 or later), sent as the `filter` of Phoenix's
+  expression (Phoenix 20.12.0 or later), sent as the `filter` of Phoenix's
   trace list. It was refused with 400 before. Saving the agent sends the
-  filter to the trace store once, so one it can't read is refused then.
+  filter to the trace store once, so one it can't read is refused then. An
+  older Phoenix ignores the filter, so saving an agent with a filter against
+  one is refused with 400 too.
 - **Tracing:** A range import that the trace store rate-limits (429 Too Many
   Requests) now waits as long as the store's `Retry-After` asks, keeping its
   lease, and goes on from where it stopped, instead of failing. It fails

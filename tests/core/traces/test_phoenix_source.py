@@ -10,6 +10,7 @@ from evalkit.core.traces.sources.phoenix import PhoenixClient, _to_raw, flatten_
 
 PHOENIX = "https://phoenix.example.com"
 TRACES = f"{PHOENIX}/v1/projects/research-agent/traces"
+VERSION = f"{PHOENIX}/arize_phoenix_version"
 SPANS = f"{PHOENIX}/v1/projects/research-agent/spans"
 
 
@@ -192,6 +193,7 @@ def test_span_kind_is_put_back_when_phoenix_moved_it_out_of_the_attributes():
 
 
 async def test_a_trace_filter_goes_to_phoenix_and_a_refused_one_says_why(httpx2_mock):
+    httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text="20.12.0"))
     checked = httpx2_mock.get(TRACES).mock(
         side_effect=[
             MockResponse(400, json={"detail": "unknown name: nmae; did you mean name?"}),
@@ -216,7 +218,25 @@ async def test_a_trace_filter_goes_to_phoenix_and_a_refused_one_says_why(httpx2_
     assert checked.calls[2].request.url.params["filter"] == "error_count > 0"
 
 
+@pytest.mark.parametrize("running", ["20.11.3", "20.3.0", "19.0.0"])
+async def test_a_trace_filter_is_refused_on_a_phoenix_that_would_ignore_it(httpx2_mock, running):
+    httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text=running))
+    probe = httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": []}))
+    with pytest.raises(BadTraceFilter, match=f"20.12.0 or later; this server runs {running}"):
+        await client().check_filter("research-agent", "error_count > 0")
+    assert probe.call_count == 0
+
+
+@pytest.mark.parametrize("running", ["20.12.0", "20.12.1rc1", "21.0.0\n"])
+async def test_a_trace_filter_is_probed_on_a_phoenix_that_reads_it(httpx2_mock, running):
+    httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text=running))
+    probe = httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": []}))
+    await client().check_filter("research-agent", "error_count > 0")
+    assert probe.call_count == 1
+
+
 async def test_a_phoenix_429_is_rate_limited_and_a_failing_filter_probe_raises(httpx2_mock):
+    httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text="21.0.0"))
     httpx2_mock.get(TRACES).mock(
         side_effect=[
             MockResponse(429, headers={"Retry-After": "5"}),

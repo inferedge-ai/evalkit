@@ -229,7 +229,8 @@ export function ImportPanel({
                   Imports read the agent&apos;s trace source and project. Set
                   them with Edit, or with{" "}
                   <span className="font-mono">
-                    evalkit agents edit --trace-source --project
+                    evalkit agents edit {agent} --trace-source &lt;name&gt;
+                    --project &lt;project&gt;
                   </span>
                   .
                 </>

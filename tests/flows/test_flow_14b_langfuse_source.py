@@ -125,6 +125,13 @@ async def test_a_phoenix_trace_filter_is_checked_by_phoenix_when_saved(httpx2_mo
     httpx2_mock.get("https://phx.example.com/v1/projects/p").mock(
         return_value=MockResponse(200, json={"data": {}})
     )
+    httpx2_mock.get("https://phx.example.com/arize_phoenix_version").mock(
+        side_effect=[
+            MockResponse(200, text="20.11.0"),
+            MockResponse(200, text="20.12.0"),
+            MockResponse(200, text="20.12.0"),
+        ]
+    )
     httpx2_mock.get("https://phx.example.com/v1/projects/p/traces").mock(
         side_effect=[
             MockResponse(400, json={"detail": "unknown name: nmae"}),
@@ -132,6 +139,9 @@ async def test_a_phoenix_trace_filter_is_checked_by_phoenix_when_saved(httpx2_mo
         ]
     )
     settings = {"trace_source": "phx", "project": "p", "trace_filter": "nmae == 'x'"}
+    too_old = await api.patch(f"/api/agents/{AGENT}", json={"settings": settings})
+    assert too_old.status_code == 400
+    assert "need Phoenix 20.12.0 or later; this server runs 20.11.0" in too_old.json()["detail"]
     refused = await api.patch(f"/api/agents/{AGENT}", json={"settings": settings})
     assert refused.status_code == 400 and "unknown name: nmae" in refused.json()["detail"]
     good = {**settings, "trace_filter": "error_count == 0"}

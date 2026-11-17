@@ -272,8 +272,9 @@ read the whole project.
 
 - Phoenix: a
   [trace filter expression](https://arize.com/docs/phoenix/tracing/how-to-tracing/filter-expressions#trace-filters),
-  Phoenix's Python-like query over a whole trace, needing Phoenix 20.3.0 or
-  later. It reads the root span's `input`, `output`, `attributes[...]` and
+  Phoenix's Python-like query over a whole trace, needing Phoenix 20.12.0 or
+  later. An older Phoenix ignores the filter, so evalkit refuses to save an
+  agent with a filter against one. It reads the root span's `input`, `output`, `attributes[...]` and
   `metadata[...]`, rollups such as `error_count`, and the trace's spans:
 
   ```bash

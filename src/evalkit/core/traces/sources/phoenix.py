@@ -15,6 +15,7 @@ from evalkit.core.traces.sources.base import (
 )
 
 OPENINFERENCE_KIND = "openinference.span.kind"
+TRACE_FILTER_MIN_VERSION = (20, 12)
 
 
 def flatten_attributes(nested: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -102,6 +103,15 @@ class PhoenixClient:
         if not trace_filter:
             return
         async with self._client() as client:
+            version = await client.get("/arize_phoenix_version")
+            version.raise_for_status()
+            running = version.text.strip()
+            major, minor = running.split(".")[:2]
+            if (int(major), int(minor)) < TRACE_FILTER_MIN_VERSION:
+                raise BadTraceFilter(
+                    "Phoenix trace filters need Phoenix 20.12.0 or later; this server runs "
+                    f"{running}, which ignores the filter"
+                )
             resp = await client.get(
                 f"/v1/projects/{project}/traces", params={"filter": trace_filter, "limit": "1"}
             )
