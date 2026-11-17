@@ -338,6 +338,7 @@ async def create_experiment(
             revision=None
             if body.cases is not None
             else await _last_git_revision(session, stores.tenant_id, body.dataset),
+            extension_evaluators=stores.deps.extension_evaluators,
         )
     except (InvalidCaseInputs, NothingRunnable, NoJudge) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

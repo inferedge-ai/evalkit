@@ -172,6 +172,36 @@ then add plain FastAPI routes with `app.include_router(...)`.
   entry only in the config passed to it, so build any other config with
   `Config.model_validate`, not `model_copy`.
 
+**Evaluators.** `create_app(..., extension_evaluators={name: evaluator})` registers
+evaluators whose code lives in the other package, for every tenant of the server.
+
+- Each is a `PythonEvaluator` (`evalkit.core.python_eval`): `name`, `kind`, `fn`,
+  `requires_trajectory` and `uses_judge`. `fn` takes the `EvalCase` and `EvalRun`
+  of `evalkit.contracts.custom_evaluator` and returns a float, a `ScoreItem` or a
+  list of them, as a Python evaluator does.
+- A case selects one by naming it under `evaluators.custom`; the block there
+  arrives as `case.config`. A name a local or SDK run passes as a Python evaluator
+  wins over a remote evaluator of the agent's workspace, and that one wins over
+  the extension's, so registering an evaluator never changes how a tenant's own is
+  scored.
+- With `uses_judge=True`, `fn` takes a third argument, an `EvaluatorJudge`:
+  `await judge.ask(system=..., user=..., output_type=Model)` calls the experiment's
+  judge with its stored key and returns the parsed model. Its tokens count in
+  `gauge_judge_cost_usd`. A case naming such an evaluator needs a judge like one
+  naming a judge-using built-in: without one the experiment is refused.
+- Its evaluations have source `extension`. Server runs score them. A local or SDK
+  run does not yet: the name is "not configured" there.
+
+**Datasets.** A route of the other package can write a dataset with
+`import_cases` (`evalkit.core.importer`), as evalkit's own sync route does:
+`stores.store` from `StoresDep` as the catalog, `workspace_ref`, `require`,
+`ensure_active` and `load_actor` from `evalkit.api.access`, `can_write` from
+`evalkit.core.access`, and `source=SyncSource.EXTENSION`. `detail` is the
+package's own record of what it wrote; evalkit adds `counts` to it and returns
+both on the dataset's `last_sync`. `import_cases` checks neither who may write
+nor whether the workspace is archived, and writes into a promotion target too,
+so the route does its own checks.
+
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
 `UiExtensions` (`ui/src/lib/extensions.ts`). In evalkit it is empty.
@@ -248,8 +278,11 @@ then add plain FastAPI routes with `app.include_router(...)`.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
   `PageHeader`, `Empty`, `SignInLink`, `useOptionalMe`, `useTheme`,
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
-  `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config` and
-  `get_allow_private_endpoints` stable: other packages build against them.
+  `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,
+  `get_allow_private_endpoints`, `extension_evaluators`, `PythonEvaluator`,
+  `EvaluatorJudge.ask`, `import_cases`, `SyncSource.EXTENSION`, `StoresDep`,
+  `workspace_ref`, `require`, `ensure_active`, `load_actor` and `can_write`
+  stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
 (`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,

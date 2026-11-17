@@ -36,7 +36,11 @@ export function syncLabel(ds: Dataset): string[] {
   if (sync.detail.dirty) parts.push("dirty");
   if (typeof sync.detail.row_count === "number")
     parts.push(`${sync.detail.row_count} rows`);
-  parts.push(`synced by ${sync.detail.actor ?? sync.actor}`);
+  parts.push(
+    sync.source === "extension"
+      ? "written by an extension"
+      : `synced by ${sync.detail.actor ?? sync.actor}`,
+  );
   const when = fmtWhen(sync.created_at);
   if (when) parts.push(when);
   return parts;

@@ -609,7 +609,7 @@ class Evaluation(AuditMixin, Base):
     producer: Mapped[str] = mapped_column(String(150))
     name: Mapped[str] = mapped_column(String(150))
     kind: Mapped[str] = mapped_column(String(8))
-    source: Mapped[str] = mapped_column(String(8))
+    source: Mapped[str] = mapped_column(String(16))
     scored_on: Mapped[str] = mapped_column(String(8))
     bucket: Mapped[str | None] = mapped_column(String(32), default=None)
     value: Mapped[float | None] = mapped_column(Float, default=None)

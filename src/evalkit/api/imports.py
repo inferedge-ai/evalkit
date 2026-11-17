@@ -103,7 +103,7 @@ async def lint_endpoint(
         schema = await _agent_input_schema(stores.deps, agent) if agent is not None else None
         if input_schema is not None:
             schema = _input_schema(input_schema)
-        known = await stores.evaluators.names()
+        known = await stores.evaluators.names() | set(stores.deps.extension_evaluators)
         findings.extend(
             lint_cases(
                 [case for case, _ in sourced_cases],
@@ -162,7 +162,8 @@ async def sync(
             dataset=dataset,
             files=paths,
             full=prune,
-            known_custom_evaluators=await stores.evaluators.names(),
+            known_custom_evaluators=await stores.evaluators.names()
+            | set(stores.deps.extension_evaluators),
             actor_id=user.id,
             detail=detail,
             root=root,

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Before you upgrade
+
+- **Server:** Run `evalkit db upgrade` (migration 0021).
+
+### Features
+
+- **Extending evalkit:** A package built on evalkit can register evaluators
+  with `create_app(extension_evaluators=...)`. Cases name them under
+  `evaluators.custom`, server runs score them, and one that sets `uses_judge`
+  is passed the experiment's judge. Such a package can also write a dataset
+  with `import_cases` and the sync source `extension`.
+
 ## 0.8.0
 
 _Released 2026-11-17._ Trace imports always read the agent's own trace

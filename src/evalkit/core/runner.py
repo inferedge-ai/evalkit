@@ -20,7 +20,7 @@ import logging
 import tempfile
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Coroutine, Iterable
+from collections.abc import Awaitable, Callable, Coroutine, Iterable, Mapping
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -69,9 +69,14 @@ from evalkit.core.evaluators.base import (
 )
 from evalkit.core.harness import HarnessClient, RunTimeout
 from evalkit.core.paths import is_safe_path
-from evalkit.core.python_eval import PythonEvaluator, score_with_python_evaluator
+from evalkit.core.python_eval import (
+    EvaluatorJudge,
+    PythonEvaluator,
+    score_with_python_evaluator,
+)
 from evalkit.core.remote_evaluators import EvaluatorLookup, RemoteEvaluator
 from evalkit.core.server_evaluators import (
+    NO_EXTENSION_EVALUATORS,
     Location,
     ServerEvaluators,
     ServerScore,
@@ -164,6 +169,7 @@ class RunnerDeps:
     progress: Callable[[str], None] = _no_progress
     sessions: SessionReader | None = None
     python_evaluators: dict[str, PythonEvaluator] = field(default_factory=dict)
+    extension_evaluators: Mapping[str, PythonEvaluator] = field(default_factory=dict)
     agent_keys: AgentKeySource | None = None
     evaluation_concurrency: int = EVALUATION_CONCURRENCY
     server_evaluators: ServerEvaluators | None = None
@@ -543,6 +549,7 @@ async def prepare_experiment(
     runner: str,
     holder: str,
     revision: GitRevision | None = None,
+    extension_evaluators: Mapping[str, PythonEvaluator] = NO_EXTENSION_EVALUATORS,
 ) -> tuple[Experiment, list[str]]:
     model = req.model
     if model is not None and not caps.accepts.model_override:
@@ -557,7 +564,7 @@ async def prepare_experiment(
     if not cases:
         raise NothingRunnable(dataset.ref, dropped)
     check_inputs(req.agent, caps, cases)
-    if judge is None and needs_judge(cases):
+    if judge is None and needs_judge(cases, extension_evaluators):
         raise NoJudge()
     config = ExperimentConfig(
         model=model,
@@ -726,9 +733,12 @@ async def rescore_experiment(
 
 
 def judge_key_for(
-    judge: JudgeSettings | None, api_key: str | None, cases: Iterable[CaseView]
+    judge: JudgeSettings | None,
+    api_key: str | None,
+    cases: Iterable[CaseView],
+    extension_evaluators: Mapping[str, PythonEvaluator] = NO_EXTENSION_EVALUATORS,
 ) -> str | None:
-    if judge is None or judge.base_url is None or not needs_judge(cases):
+    if judge is None or judge.base_url is None or not needs_judge(cases, extension_evaluators):
         return None
     if api_key is None:
         raise MissingJudgeKey(judge.base_url)
@@ -758,7 +768,7 @@ def check_rescore_judge(exp: Experiment, judge: JudgeSettings | None) -> None:
 def judge_key(
     deps: RunnerDeps, judge: JudgeSettings | None, cases: Iterable[CaseView]
 ) -> str | None:
-    return judge_key_for(judge, deps.judge_api_key, cases)
+    return judge_key_for(judge, deps.judge_api_key, cases, deps.extension_evaluators)
 
 
 def resolve_judge(
@@ -767,7 +777,7 @@ def resolve_judge(
     cases = list(cases)
     if judge is None or judge.provider is None:
         return judge, judge_key(deps, judge, cases)
-    if deps.server_evaluators is not None or not needs_judge(cases):
+    if deps.server_evaluators is not None or not needs_judge(cases, deps.extension_evaluators):
         return judge, None
     base_url, api_key = deps.credentials.provider_judge(judge.provider)
     resolved = JudgeSettings(
@@ -997,6 +1007,29 @@ async def _evaluate_run(
             rows.extend(_custom_rows(name, python_evaluator.kind, EvaluationSource.CODE, outcome))
             continue
         evaluator_cfg = configured_custom.get(name)
+        extension_evaluator = deps.extension_evaluators.get(name)
+        if evaluator_cfg is None and extension_evaluator is not None:
+            if extension_evaluator.requires_trajectory and view is None:
+                rows.extend(
+                    _rows(
+                        name,
+                        EvaluationSource.EXTENSION,
+                        [neutral_skip(name, "run has no trajectory")],
+                    )
+                )
+                continue
+            outcome = await score_with_python_evaluator(
+                extension_evaluator,
+                case=eval_case.model_copy(update={"config": config}),
+                answer=answer,
+                output=structured,
+                trajectory=trajectory_doc,
+                judge=EvaluatorJudge(ctx, name) if extension_evaluator.uses_judge else None,
+            )
+            rows.extend(
+                _custom_rows(name, extension_evaluator.kind, EvaluationSource.EXTENSION, outcome)
+            )
+            continue
         if evaluator_cfg is None:
             rows.extend(
                 _rows(

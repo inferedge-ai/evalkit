@@ -89,7 +89,7 @@ export interface TraceSourceInfo {
 // ── Datasets (mirrors store/base.py DatasetRow, CaseView) ──────────────
 export interface DatasetSync {
   id: number;
-  source: "git" | "promotion";
+  source: "git" | "promotion" | "extension";
   detail: {
     sha?: string;
     branch?: string;
@@ -311,7 +311,7 @@ export interface EvaluationRow {
   producer: string;
   name: string;
   kind: "score" | "gauge";
-  source: "builtin" | "remote" | "code";
+  source: "builtin" | "remote" | "code" | "extension";
   scored_on: "local" | "server";
   value: number | null;
   label: string | null;
