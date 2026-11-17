@@ -1572,9 +1572,11 @@ evalkit<span class="w"> </span>tokens<span class="w"> </span>revoke<span class="
 <h2 id="importing-history-from-a-trace-source">Importing history from a trace source<a class="headerlink" href="#importing-history-from-a-trace-source" title="Permanent link">&para;</a></h2>
 <p>evalkit imports traces from trace sources. Supported today: Phoenix and
 Langfuse. For another, <a href="https://github.com/inferedge-ai/evalkit/issues">file a GitHub issue</a>.</p>
-<p>An admin registers a trace source once. After that, any user can import
-traces from it into an OTel agent they can write, with
-<code>evalkit traces import</code> or the agent page's Import tab.</p>
+<p>An admin registers a trace source once. An OTel agent then names it in its
+settings, with the agent's project in that store and, optionally, a trace
+filter. Imports always read from there: <code>evalkit traces import</code> and the agent
+page's Import tab take no source, project or filter of their own. To import
+from somewhere else, change the agent's settings first.</p>
 <div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>trace-sources<span class="w"> </span>create<span class="w"> </span>phx<span class="w"> </span>--url<span class="w"> </span>https://phoenix.example.com<span class="w"> </span>--api-key-env<span class="w"> </span>PHOENIX_API_KEY
 evalkit<span class="w"> </span>trace-sources<span class="w"> </span>create<span class="w"> </span>lf<span class="w"> </span>--provider<span class="w"> </span>langfuse<span class="w"> </span>--url<span class="w"> </span>https://cloud.langfuse.com<span class="w"> </span>--api-key-env<span class="w"> </span>LANGFUSE_KEYS
 </code></pre></div>
@@ -1609,6 +1611,10 @@ evalkit<span class="w"> </span>trace-sources<span class="w"> </span>create<span 
   experiments miss them and imports skip them. Langfuse's own SDKs (Python
   4.7.0 and later, JS 5.4.0 and later) send it; a self-hosted Langfuse can
   instead set <code>LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct</code>.</li>
+<li>Langfuse Cloud limits how many requests a project may make. When it
+  answers 429, a range import waits as long as Langfuse asks and goes on
+  where it stopped. It fails only after 10 minutes of rate limits without
+  progress; continue it later. A trace filter keeps imports small.</li>
 <li>A time range import walks from <code>--until</code> back to <code>--since</code>, newest traces
   first. Traces that become readable after the import passed them are not
   imported: leave <code>--until</code> at least 15 minutes in the past, or import the
@@ -1617,8 +1623,8 @@ evalkit<span class="w"> </span>trace-sources<span class="w"> </span>create<span 
   are not imported.</li>
 </ul>
 <h3 id="picking-the-agents-traces-the-trace-filter">Picking the agent's traces: the trace filter<a class="headerlink" href="#picking-the-agents-traces-the-trace-filter" title="Permanent link">&para;</a></h3>
-<p>A project often holds more than one agent's traces. <code>--trace-filter</code> (on
-<code>evalkit agents create</code>, <code>agents edit</code> and <code>traces import</code>, and as Trace
+<p>A project often holds more than one agent's traces. The agent's trace
+filter (<code>--trace-filter</code> on <code>evalkit agents create</code> and <code>agents edit</code>, Trace
 filter in the agent form) is the trace store's own query, kept as you type
 it. Imports and experiments read only the traces it matches; leave it out to
 read the whole project.</p>
@@ -1633,7 +1639,20 @@ read the whole project.</p>
 <div class="highlight"><pre><span></span><code><span class="p">[{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"stringObject"</span><span class="p">,</span><span class="w"> </span><span class="nt">"column"</span><span class="p">:</span><span class="w"> </span><span class="s2">"metadata"</span><span class="p">,</span><span class="w"> </span><span class="nt">"key"</span><span class="p">:</span><span class="w"> </span><span class="s2">"resourceAttributes.service.name"</span><span class="p">,</span><span class="w"> </span><span class="nt">"operator"</span><span class="p">:</span><span class="w"> </span><span class="s2">"="</span><span class="p">,</span><span class="w"> </span><span class="nt">"value"</span><span class="p">:</span><span class="w"> </span><span class="s2">"stock-agent"</span><span class="p">}]</span>
 </code></pre></div>
 <ul>
-<li>Phoenix does not take a trace filter yet; one is refused with 400.</li>
+<li>Phoenix: a
+  <a href="https://arize.com/docs/phoenix/tracing/how-to-tracing/filter-expressions#trace-filters">trace filter expression</a>,
+  Phoenix's Python-like query over a whole trace, needing Phoenix 20.12.0 or
+  later. An older Phoenix ignores the filter, so evalkit refuses to save an
+  agent with a filter against one. It reads the root span's <code>input</code>, <code>output</code>, <code>attributes[...]</code> and
+  <code>metadata[...]</code>, rollups such as <code>error_count</code>, and the trace's spans:</li>
+</ul>
+<div class="highlight"><pre><span></span><code>evalkit<span class="w"> </span>agents<span class="w"> </span>edit<span class="w"> </span>myagent<span class="w"> </span>--trace-filter<span class="w"> </span><span class="s2">"any(span.name == 'stock-agent' and span.parent_span is None for span in spans)"</span>
+evalkit<span class="w"> </span>agents<span class="w"> </span>edit<span class="w"> </span>myagent<span class="w"> </span>--trace-filter<span class="w"> </span><span class="s2">"metadata['agent'] == 'stock-agent'"</span>
+</code></pre></div>
+<ul>
+<li>When you save the agent, evalkit sends the filter to the trace store once,
+  so a filter the store can't read is refused then, with the store's own
+  message.</li>
 </ul>
 <h3 id="experiments-that-read-a-trace-source">Experiments that read a trace source<a class="headerlink" href="#experiments-that-read-a-trace-source" title="Permanent link">&para;</a></h3>
 <p>An agent that already sends its spans to its own trace store can skip the
@@ -1650,7 +1669,7 @@ agent keeps its own store and you would rather not add an exporter.</p>
   answer is refused. Only OTel agents take a trace source.</li>
 <li>Every SDK run and harness run of the agent then pulls its session from the
   store, with no <code>tracing.register</code> and no agent token. <code>evalkit traces import</code>
-  and the Import tab default to the same source and project.</li>
+  and the Import tab read the same source, project and filter.</li>
 <li>The session id: the SDK opens its <code>evalkit.run</code> span on your process's
   global tracer provider, which is the agent's own. An agent that runs in the
   task's process and continues the current trace needs no change. Any other
@@ -1665,9 +1684,8 @@ agent keeps its own store and you would rather not add an exporter.</p>
   (120). Stores ingest spans late, and an agent's batch processor holds them
   for up to 5 seconds. A run whose session is still filling in at the end is
   <code>partial</code>, or <code>unavailable</code> without a root; raise <code>--import-wait</code>.</li>
-<li>Running needs no write access: anyone who may run the agent can pull its
-  sessions from the agent's own trace source. Importing from another source
-  or project still needs write access.</li>
+<li>Running needs no write access: anyone who may run the agent can import one
+  of its sessions. A range import needs write access to the agent.</li>
 <li>Load on your store: each unsettled session costs one session read there
   every 5 seconds. With 4 runs at a time and fast tasks, expect about 10
   sessions settling at once, so about 2 session reads a second.</li>
