@@ -7,6 +7,8 @@
 
 By [InferEdge](https://www.inferedge.com/).
 
+[![Join our Slack](https://img.shields.io/badge/Slack-join%20the%20community-4A154B?logo=slack&logoColor=white)](https://join.slack.com/t/evalkit/shared_invite/zt-4h1l6idv8-QzqY3bIYT36h5wNpZ8HMHA)
+
 **Make your AI agent better, end to end.**
 
 evalkit is a self-hosted system for improving AI agents. Real traffic goes
