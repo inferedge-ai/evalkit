@@ -7,6 +7,13 @@
 
 By [InferEdge](https://www.inferedge.com/).
 
+[![Docs](https://img.shields.io/badge/docs-quickstart-blue?logo=readthedocs&logoColor=white)](docs/user/quickstart.md)
+[![PyPI](https://img.shields.io/pypi/v/evalkit-py?color=blue)](https://pypi.org/project/evalkit-py/)
+[![Downloads](https://static.pepy.tech/badge/evalkit-py)](https://pepy.tech/projects/evalkit-py)
+[![GitHub stars](https://img.shields.io/github/stars/inferedge-ai/evalkit?style=social)](https://github.com/inferedge-ai/evalkit/stargazers)
+[![License](https://img.shields.io/github/license/inferedge-ai/evalkit)](LICENSE)
+[![Commit activity](https://img.shields.io/github/commit-activity/m/inferedge-ai/evalkit)](https://github.com/inferedge-ai/evalkit/commits/develop)
+[![Y Combinator W22](https://img.shields.io/badge/Y%20Combinator-W22-orange)](https://www.ycombinator.com/companies/inferedge)
 [![Join our Slack](https://img.shields.io/badge/Slack-join%20the%20community-4A154B?logo=slack&logoColor=white)](https://join.slack.com/t/evalkit/shared_invite/zt-4h1l6idv8-QzqY3bIYT36h5wNpZ8HMHA)
 
 **Make your AI agent better, end to end.**
