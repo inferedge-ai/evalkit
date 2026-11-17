@@ -24,5 +24,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("DELETE FROM auth_tokens WHERE revoked_at IS NOT NULL")
     op.drop_column("auth_tokens", "revoked_by")
     op.drop_column("auth_tokens", "revoked_at")
