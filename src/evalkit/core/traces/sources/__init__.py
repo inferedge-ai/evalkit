@@ -4,6 +4,7 @@ from evalkit.contracts.enums import TraceProvider
 from evalkit.core.retry import Retry, RetryTransport
 from evalkit.core.traces.sources.base import (
     BadTraceFilter,
+    RateLimited,
     TracePage,
     TraceSourceClient,
     UnknownProject,
@@ -14,6 +15,7 @@ from evalkit.core.traces.sources.phoenix import PhoenixClient
 __all__ = [
     "IMPORT_RETRY",
     "BadTraceFilter",
+    "RateLimited",
     "TracePage",
     "TraceSourceClient",
     "UnknownProject",

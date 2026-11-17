@@ -225,7 +225,11 @@ evalkit agents edit <agent> --trace-source <source> --project <project>
 ```
 
 When the project holds other agents' traces too, add `--trace-filter` with
-the store's own query (see "Picking the agent's traces" in
+the store's own query: a Langfuse
+[filter JSON array](https://langfuse.com/docs/api-and-data-platform/features/observations-api#observations-filters),
+or a Phoenix
+[trace filter expression](https://arize.com/docs/phoenix/tracing/how-to-tracing/filter-expressions#trace-filters)
+such as `metadata['agent'] == 'stock-agent'` (see "Picking the agent's traces" in
 [`tracing.md`](../evalkit-docs/tracing.md#picking-the-agents-traces-the-trace-filter)).
 
 For Langfuse (see [`tracing.md`](../evalkit-docs/tracing.md#langfuse)):

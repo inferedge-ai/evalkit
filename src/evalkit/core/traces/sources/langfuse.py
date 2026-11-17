@@ -9,7 +9,12 @@ from typing import Any
 import httpx2
 
 from evalkit.core.traces.raw import RawSpan
-from evalkit.core.traces.sources.base import BadTraceFilter, TracePage, UnknownProject
+from evalkit.core.traces.sources.base import (
+    BadTraceFilter,
+    RateLimited,
+    TracePage,
+    UnknownProject,
+)
 
 OBSERVATIONS = "/api/public/v2/observations"
 SPAN_FIELDS = "core,basic,time,io,metadata,model,usage"
@@ -126,7 +131,7 @@ class LangfuseClient:
             transport=self._transport,
         )
 
-    async def check_filter(self, trace_filter: str | None) -> None:
+    async def check_filter(self, project: str, trace_filter: str | None) -> None:
         conditions = parse_filter(trace_filter)
         if not conditions:
             return
@@ -157,6 +162,8 @@ class LangfuseClient:
                 resp = await client.get(
                     OBSERVATIONS, params={**params, **({"cursor": cursor} if cursor else {})}
                 )
+                if resp.status_code == 429:
+                    raise RateLimited(resp)
                 resp.raise_for_status()
                 body = resp.json()
                 yield body.get("data") or []

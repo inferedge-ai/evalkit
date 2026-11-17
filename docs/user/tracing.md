@@ -196,9 +196,11 @@ The session evalkit polls is the `run_id` that `POST /runs` returns, so there is
 evalkit imports traces from trace sources. Supported today: Phoenix and
 Langfuse. For another, [file a GitHub issue](https://github.com/inferedge-ai/evalkit/issues).
 
-An admin registers a trace source once. After that, any user can import
-traces from it into an OTel agent they can write, with
-`evalkit traces import` or the agent page's Import tab.
+An admin registers a trace source once. An OTel agent then names it in its
+settings, with the agent's project in that store and, optionally, a trace
+filter. Imports always read from there: `evalkit traces import` and the agent
+page's Import tab take no source, project or filter of their own. To import
+from somewhere else, change the agent's settings first.
 
 ```bash
 evalkit trace-sources create phx --url https://phoenix.example.com --api-key-env PHOENIX_API_KEY
@@ -235,6 +237,10 @@ evalkit trace-sources create lf --provider langfuse --url https://cloud.langfuse
   experiments miss them and imports skip them. Langfuse's own SDKs (Python
   4.7.0 and later, JS 5.4.0 and later) send it; a self-hosted Langfuse can
   instead set `LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct`.
+- Langfuse Cloud limits how many requests a project may make. When it
+  answers 429, a range import waits as long as Langfuse asks and goes on
+  where it stopped. It fails only after 10 minutes of rate limits without
+  progress; continue it later. A trace filter keeps imports small.
 - A time range import walks from `--until` back to `--since`, newest traces
   first. Traces that become readable after the import passed them are not
   imported: leave `--until` at least 15 minutes in the past, or import the
@@ -244,8 +250,8 @@ evalkit trace-sources create lf --provider langfuse --url https://cloud.langfuse
 
 ### Picking the agent's traces: the trace filter
 
-A project often holds more than one agent's traces. `--trace-filter` (on
-`evalkit agents create`, `agents edit` and `traces import`, and as Trace
+A project often holds more than one agent's traces. The agent's trace
+filter (`--trace-filter` on `evalkit agents create` and `agents edit`, Trace
 filter in the agent form) is the trace store's own query, kept as you type
 it. Imports and experiments read only the traces it matches; leave it out to
 read the whole project.
@@ -264,7 +270,21 @@ read the whole project.
   [{"type": "stringObject", "column": "metadata", "key": "resourceAttributes.service.name", "operator": "=", "value": "stock-agent"}]
   ```
 
-- Phoenix does not take a trace filter yet; one is refused with 400.
+- Phoenix: a
+  [trace filter expression](https://arize.com/docs/phoenix/tracing/how-to-tracing/filter-expressions#trace-filters),
+  Phoenix's Python-like query over a whole trace, needing Phoenix 20.12.0 or
+  later. An older Phoenix ignores the filter, so evalkit refuses to save an
+  agent with a filter against one. It reads the root span's `input`, `output`, `attributes[...]` and
+  `metadata[...]`, rollups such as `error_count`, and the trace's spans:
+
+  ```bash
+  evalkit agents edit myagent --trace-filter "any(span.name == 'stock-agent' and span.parent_span is None for span in spans)"
+  evalkit agents edit myagent --trace-filter "metadata['agent'] == 'stock-agent'"
+  ```
+
+- When you save the agent, evalkit sends the filter to the trace store once,
+  so a filter the store can't read is refused then, with the store's own
+  message.
 
 ### Experiments that read a trace source
 
@@ -284,7 +304,7 @@ evalkit agents edit myagent --trace-source phoenix --project myagent
   answer is refused. Only OTel agents take a trace source.
 - Every SDK run and harness run of the agent then pulls its session from the
   store, with no `tracing.register` and no agent token. `evalkit traces import`
-  and the Import tab default to the same source and project.
+  and the Import tab read the same source, project and filter.
 - The session id: the SDK opens its `evalkit.run` span on your process's
   global tracer provider, which is the agent's own. An agent that runs in the
   task's process and continues the current trace needs no change. Any other
@@ -299,9 +319,8 @@ evalkit agents edit myagent --trace-source phoenix --project myagent
   (120). Stores ingest spans late, and an agent's batch processor holds them
   for up to 5 seconds. A run whose session is still filling in at the end is
   `partial`, or `unavailable` without a root; raise `--import-wait`.
-- Running needs no write access: anyone who may run the agent can pull its
-  sessions from the agent's own trace source. Importing from another source
-  or project still needs write access.
+- Running needs no write access: anyone who may run the agent can import one
+  of its sessions. A range import needs write access to the agent.
 - Load on your store: each unsettled session costs one session read there
   every 5 seconds. With 4 runs at a time and fast tasks, expect about 10
   sessions settling at once, so about 2 session reads a second.

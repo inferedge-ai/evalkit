@@ -144,19 +144,6 @@ def register(
         session_id: str | None = typer.Argument(
             None, help="One session to import. Leave out and pass --since for a time range."
         ),
-        source: str | None = typer.Option(
-            None,
-            "--source",
-            help="A trace source name (evalkit trace-sources list). Default: the agent's.",
-        ),
-        project: str | None = typer.Option(
-            None, "--project", help="The project name in the trace source. Default: the agent's."
-        ),
-        trace_filter: str | None = typer.Option(
-            None,
-            "--trace-filter",
-            help="The trace store's own query for the agent's traces. Default: the agent's.",
-        ),
         since: str | None = typer.Option(
             None,
             "--since",
@@ -167,15 +154,17 @@ def register(
             None, "--until", help="End of the range, exclusive (ISO 8601). Default: now."
         ),
     ):
-        """Import one session, or every trace in a time range, from a trace source. evalkit
-        imports traces from trace sources. Supported today: Phoenix and Langfuse. For another,
-        file a GitHub issue: https://github.com/inferedge-ai/evalkit/issues
+        """Import one session, or every trace in a time range, from the agent's trace source.
+        The import reads the agent's trace source and project, filtered by its trace filter;
+        set them with evalkit agents edit. evalkit imports traces from trace sources. Supported
+        today: Phoenix and Langfuse. For another, file a GitHub issue:
+        https://github.com/inferedge-ai/evalkit/issues
 
         A session import prints its check summary. A range import runs on the server; the CLI
         follows its progress and Ctrl-C only stops following.
 
-        Examples: evalkit traces import research-agent abc --source phoenix --project ra;
-        evalkit traces import research-agent --source phoenix --project ra --since 2026-10-01
+        Examples: evalkit traces import research-agent abc;
+        evalkit traces import research-agent --since 2026-10-01
         """
         if (session_id is None) == (since is None):
             raise typer.BadParameter("give either SESSION_ID or --since, not both")
@@ -183,15 +172,10 @@ def register(
             raise typer.BadParameter("--until needs --since")
         client = client_factory()
         slug = agent_slug(agent)
-        target = {
-            k: v
-            for k, v in (("source", source), ("project", project), ("trace_filter", trace_filter))
-            if v is not None
-        }
         if session_id is not None:
             body = client.post(
                 f"/api/agents/{encode(slug)}/sessions/import",
-                json={**target, "session_id": session_id},
+                json={"session_id": session_id},
             ).json()
             typer.echo(f"imported {body['imported']} spans")
             print_session_check(client, slug, session_id)
@@ -203,7 +187,7 @@ def register(
         }
         view = client.post(
             f"/api/agents/{encode(slug)}/imports",
-            json={**target, **window},
+            json=window,
         ).json()
         typer.echo(f"import {view['id']} started: {view['since']} → {view['until']}")
         follow(client, agent, slug, view["id"])

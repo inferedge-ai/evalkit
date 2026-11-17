@@ -2097,4 +2097,4 @@ def test_trace_source_flags_go_together_and_imports_default_to_the_agent(
     assert unknown.exit_code == 1 and "trace source nope not found" in unknown.output
     imported = runner.invoke(cli_app, ["traces", "import", "sdk", "s-1"])
     assert imported.exit_code == 1
-    assert "no trace source given and agent sdk@admin has none" in imported.output
+    assert "agent sdk@admin has no trace source" in imported.output
