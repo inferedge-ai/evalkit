@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import DatasetKind, ExperimentStatus, SyncSource
 from evalkit.core.access import WorkspaceRef
+from evalkit.core.dataset_readme import DatasetReadme
 from evalkit.core.overlays import OverlayBlock
-from evalkit.core.readme import DatasetReadme
 from evalkit.db import cases, experiments, fixture_blobs, models, runs, scorecard
 from evalkit.db.cases import sync_dataset
 from evalkit.db.session import tenant_session

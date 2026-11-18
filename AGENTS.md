@@ -191,7 +191,7 @@ affected.
 (`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route
 does (`api/imports.py`). `import_cases` does no access checks, so the route does
 its own with the helpers in `api/access.py`. Pass `readme=DatasetReadme(...)`
-(`core/readme.py`) to set the dataset's README and metadata. While a dataset's
+(`core/dataset_readme.py`) to set the dataset's README and metadata. While a dataset's
 latest sync has that source, only the extension changes it: `evalkit sync` and
 promotion into it answer 409, and case review does not apply, so its cases are
 never promoted either. The reverse holds too: an extension cannot replace a
@@ -277,7 +277,7 @@ transaction (`check_writer` in `db/cases.py`), under a lock on the dataset row.
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
   `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,
   `get_allow_private_endpoints`, `extension_evaluators`, `PythonEvaluator`,
-  `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_readme`,
+  `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_dataset_readme`,
   `DatasetAbout` (`@/evals/DatasetAbout`), `SyncSource.EXTENSION`, `StoresDep`,
   `workspace_ref`, `require`, `ensure_active`, `load_actor` and `can_write`
   stable: other packages build against them.

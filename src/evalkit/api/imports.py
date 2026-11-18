@@ -14,7 +14,7 @@ from evalkit.contracts.cases import REGISTRY_FILENAME
 from evalkit.core.access import can_write
 from evalkit.core.agents import explicit, server_may_drive
 from evalkit.core.fixtures import load_registries
-from evalkit.core.importer import import_dataset, load_files, read_readme
+from evalkit.core.importer import import_dataset, load_files, read_dataset_readme
 from evalkit.core.lint import fixture_findings
 from evalkit.core.lint import lint as lint_cases
 from evalkit.core.runner import RunnerDeps
@@ -96,7 +96,7 @@ async def lint_endpoint(
                     warn_unused=warn_unused_fixtures,
                 )
             )
-        findings.extend(read_readme(paths, Path(tmp))[1])
+        findings.extend(read_dataset_readme(paths, Path(tmp))[1])
         other_cases: dict[str, str] | None = None
         if dataset is not None:
             ref = parse_slug(dataset)
