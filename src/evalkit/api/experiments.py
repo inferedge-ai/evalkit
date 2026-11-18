@@ -56,7 +56,7 @@ from evalkit.core.runner import (
     rescore_experiment,
     run_experiment,
     score_builtin,
-    score_extension,
+    score_extension_evaluator,
     stored_trajectory_doc,
 )
 from evalkit.core.scorecard import assemble_report
@@ -563,7 +563,7 @@ async def score_on_server(
         deps, agent, load_cost_map(deps.cfg.cost_map), run, resolved, api_key
     )
     if extension is not None and custom_config is not None:
-        rows = await score_extension(
+        rows = await score_extension_evaluator(
             extension, name, ctx, view, custom_eval_case(run.case, custom_config)
         )
     else:

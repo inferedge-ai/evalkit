@@ -971,7 +971,7 @@ def trajectory_document(view: TrajectoryView | None) -> dict:
     return {} if view is None else view.trajectory.model_dump(exclude_none=True)
 
 
-async def score_extension(
+async def score_extension_evaluator(
     evaluator: PythonEvaluator,
     name: str,
     ctx: EvalContext,
@@ -991,7 +991,7 @@ async def score_extension(
     return _custom_scores(name, evaluator.kind, outcome)
 
 
-async def score_extension_on_server(
+async def score_extension_evaluator_on_server(
     server: ServerEvaluators,
     exp: Experiment,
     ctx: EvalContext,
@@ -1071,7 +1071,7 @@ async def _evaluate_run(
         evaluator_cfg = configured_custom.get(name)
         extension_evaluator = deps.extension_evaluators.get(name)
         if evaluator_cfg is None and extension_evaluator is not None:
-            scores = await score_extension(
+            scores = await score_extension_evaluator(
                 extension_evaluator, name, ctx, view, custom_eval_case(run.case, config)
             )
             rows.extend(_rows(name, EvaluationSource.EXTENSION, scores))
@@ -1082,7 +1082,7 @@ async def _evaluate_run(
             and server_extension is not None
             and deps.server_evaluators is not None
         ):
-            scores, scored_on = await score_extension_on_server(
+            scores, scored_on = await score_extension_evaluator_on_server(
                 deps.server_evaluators,
                 exp,
                 ctx,
