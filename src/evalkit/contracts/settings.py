@@ -19,7 +19,8 @@ class JudgeSettings(BaseModel):
         api_key: The key for `base_url`. Sent only to `base_url`; never stored on the
             evalkit server or shown.
         model: The model name at that endpoint.
-        reasoning_effort: Passed to the model as `reasoning_effort`.
+        reasoning_effort: Sent as `reasoning_effort`, unless it is empty or the endpoint
+            rejects it.
         max_tokens: The most tokens one judge reply may use.
     """
 

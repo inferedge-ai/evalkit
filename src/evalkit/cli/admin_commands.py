@@ -384,6 +384,9 @@ def register(
         provider: str = typer.Option(..., "--provider", help="An LLM provider name."),
         model: str = typer.Option(..., "--model"),
         effort: str | None = typer.Option(None, "--effort", help="Reasoning effort."),
+        no_effort: bool = typer.Option(
+            False, "--no-effort", help="Send the judge no reasoning effort."
+        ),
         max_tokens: int | None = typer.Option(None, "--max-tokens"),
     ):
         """Set the judge experiments use unless they pick their own (admin). Options you
@@ -391,6 +394,10 @@ def register(
 
         Example: evalkit judge-default set --provider openai --model gpt-5
         """
+        if no_effort and effort is not None:
+            raise ApiError("pass --effort or --no-effort, not both")
+        if no_effort:
+            effort = ""
         client = client_factory()
         base_url = client.get(f"/api/llm-providers/{encode(provider)}").json()["base_url"]
         judge = {
