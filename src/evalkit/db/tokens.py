@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import cast
 
 from pydantic import BaseModel
-from sqlalchemy import CursorResult, delete, select
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import TokenKind
@@ -78,7 +78,11 @@ class AgentTokens:
         return out
 
     async def list(self, *, user_id: int | None) -> list[AgentTokenRecord]:
-        where = [models.AuthToken.kind == TokenKind.AGENT, models.User.tenant_id == self._tenant_id]
+        where = [
+            models.AuthToken.kind == TokenKind.AGENT,
+            models.AuthToken.revoked_at.is_(None),
+            models.User.tenant_id == self._tenant_id,
+        ]
         if user_id is not None:
             where.append(models.AuthToken.user_id == user_id)
         async with self._session() as session:
@@ -96,10 +100,11 @@ class AgentTokens:
             )
             return await self._records(session, list(rows))
 
-    async def revoke(self, token_id: int, *, user_id: int | None) -> bool:
+    async def revoke(self, token_id: int, *, user_id: int | None, revoked_by: int) -> bool:
         where = [
             models.AuthToken.id == token_id,
             models.AuthToken.kind == TokenKind.AGENT,
+            models.AuthToken.revoked_at.is_(None),
             models.AuthToken.user_id.in_(
                 select(models.User.id).where(models.User.tenant_id == self._tenant_id)
             ),
@@ -108,7 +113,12 @@ class AgentTokens:
             where.append(models.AuthToken.user_id == user_id)
         async with self._session() as session:
             result = cast(
-                CursorResult, await session.execute(delete(models.AuthToken).where(*where))
+                CursorResult,
+                await session.execute(
+                    update(models.AuthToken)
+                    .where(*where)
+                    .values(revoked_at=datetime.now(UTC), revoked_by=revoked_by)
+                ),
             )
             await session.commit()
         return bool(result.rowcount)

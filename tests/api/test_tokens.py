@@ -68,3 +68,40 @@ async def test_agent_token_row_has_kind_agent(api, session_factory):
             await session.scalars(select(AuthToken.kind).where(AuthToken.agent_id.isnot(None)))
         ).all()
     assert kinds == ["agent"]
+
+
+async def fetch_revocations(session_factory) -> list[tuple[int, bool, int | None]]:
+    async with session_factory() as session:
+        rows = (
+            await session.execute(
+                select(AuthToken.id, AuthToken.revoked_at, AuthToken.revoked_by)
+                .where(AuthToken.kind == "agent")
+                .order_by(AuthToken.id)
+            )
+        ).all()
+    return [(token_id, at is not None, by) for token_id, at, by in rows]
+
+
+async def test_revoke_keeps_the_row_and_refuses_the_token(api, session_factory):
+    body = (await api.post("/api/tokens", json={"agent": "sdk@admin"})).json()
+    agent = bearer(api, body["token"])
+    assert (await api.delete(f"/api/tokens/{body['id']}")).json() == {"ok": True}
+    assert await fetch_revocations(session_factory) == [(body["id"], True, 1)]
+    assert (await api.get("/api/tokens")).json() == []
+    assert (await api.delete(f"/api/tokens/{body['id']}")).status_code == 404
+    assert (await agent.post("/api/otel/v1/traces", content=b"")).status_code == 401
+    await agent.aclose()
+
+
+async def test_archiving_an_agent_revokes_its_tokens(api, session_factory):
+    kept = (await api.post("/api/tokens", json={"agent": "x@admin"})).json()
+    body = (await api.post("/api/tokens", json={"agent": "sdk@admin"})).json()
+    agent = bearer(api, body["token"])
+    assert (await api.post("/api/agents/sdk@admin/archive")).status_code == 200
+    assert await fetch_revocations(session_factory) == [
+        (kept["id"], False, None),
+        (body["id"], True, 1),
+    ]
+    assert [t["id"] for t in (await api.get("/api/tokens")).json()] == [kept["id"]]
+    assert (await agent.post("/api/otel/v1/traces", content=b"")).status_code == 401
+    await agent.aclose()

@@ -175,6 +175,12 @@ class AuthToken(AuditMixin, Base):
     last_used_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None
     )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
+    revoked_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True, default=None
+    )
 
 
 class Agent(AuditMixin, Base):
