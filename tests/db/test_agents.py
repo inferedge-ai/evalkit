@@ -72,7 +72,7 @@ async def test_archive_hides_and_edit_keeps_trajectory_source(store, session_fac
     )
     assert edited.harness_url == "http://b" and edited.settings.max_concurrent_runs == 9
     assert edited.trajectory_source is TrajectorySource.ATIF
-    await store.archive("ouragent@dev")
+    await store.archive("ouragent@dev", archived_by=1)
     assert await store.list_agents() == []
     assert (await store.get("ouragent@dev")).archived
 

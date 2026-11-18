@@ -4,7 +4,7 @@
 
 ### Before you upgrade
 
-- **Server:** Run `evalkit db upgrade` (migrations 0021 and 0022).
+- **Server:** Run `evalkit db upgrade` (migrations 0021, 0022 and 0023).
 - **Datasets:** `evalkit sync` now uploads a `README.md` at the root of the
   dataset folder and shows it on the dataset. If yours starts with a `---`
   block, that block must be YAML frontmatter that passes `evalkit lint`, or the
@@ -26,6 +26,15 @@
   is passed the experiment's judge. Such a package can also write a dataset
   with `import_cases` and the sync source `extension`, with a README and
   metadata of its own.
+
+### Improvements
+
+- **Server:** Revoking an agent token (Settings › API keys, `evalkit tokens
+  revoke`, `DELETE /api/tokens/{id}`) and archiving an agent now keep the
+  token's row and set its new `revoked_at` and `revoked_by` columns (who
+  revoked the token or archived the agent), instead of deleting it.
+  The token is refused with 401 and drops off the list as before. Migration
+  0021 adds the columns; run `evalkit db upgrade` before the server starts.
 
 ## 0.8.0
 
