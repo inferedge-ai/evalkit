@@ -53,6 +53,7 @@ from evalkit.config import Config, check_trusted_endpoints
 from evalkit.core.agents import UnknownAgent
 from evalkit.core.blob import BlobStore
 from evalkit.core.endpoints import BlockedEndpoint
+from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
 from evalkit.core.python_eval import PythonEvaluator
 from evalkit.core.remote_evaluators import UnknownEvaluator
 from evalkit.core.runner import (
@@ -233,6 +234,11 @@ def create_app(
         )
     )
     if extension_evaluators is not None:
+        builtin_names = sorted(set(extension_evaluators) & set(BUILTIN_EVALUATORS))
+        if builtin_names:
+            raise ValueError(
+                f"extension evaluators named like built-ins: {', '.join(builtin_names)}"
+            )
         resolved_deps = replace(resolved_deps, extension_evaluators=dict(extension_evaluators))
 
     @asynccontextmanager

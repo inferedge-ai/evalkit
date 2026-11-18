@@ -22,8 +22,11 @@
   them from the dataset the case came from.
 - **Extending evalkit:** A package built on evalkit can register evaluators
   with `create_app(extension_evaluators=...)`. Cases name them under
-  `evaluators.custom`, server runs score them, and one that sets `uses_judge`
-  is passed the experiment's judge. Such a package can also write a dataset
+  `evaluators.custom`, and one that sets `uses_judge` is passed the
+  experiment's judge. The server scores them for every run: a local or SDK
+  run asks it to, and `evalkit evaluate` re-scores the same way. With a judge
+  you bring yourself (`--judge-base-url`), an experiment whose cases use a
+  judge-using one is refused before any agent runs. Such a package can also write a dataset
   with `import_cases` and the sync source `extension`, with a README and
   metadata of its own.
 

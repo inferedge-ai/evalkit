@@ -15,7 +15,12 @@ from evalkit.core.runner import (
     harness_capabilities,
     prepare_experiment,
 )
-from evalkit.core.server_evaluators import Location, ServerScore, resolve_location
+from evalkit.core.server_evaluators import (
+    ExtensionEvaluatorInfo,
+    Location,
+    ServerScore,
+    resolve_location,
+)
 from evalkit.core.workspace import parse_slug
 from evalkit.store.base import ScoreRow
 from tests.fake_agents import JUDGE_URL
@@ -39,6 +44,9 @@ class FakeServer:
             rows=[ScoreRow(name=emit, score=0.9, label="pass") for emit in ANSWER_RUBRIC_EMITS],
             judge_usage=JudgeUsage(input_tokens=1000, output_tokens=100),
         )
+
+    async def extension_evaluators(self) -> dict[str, ExtensionEvaluatorInfo]:
+        return {}
 
 
 @pytest.mark.parametrize(

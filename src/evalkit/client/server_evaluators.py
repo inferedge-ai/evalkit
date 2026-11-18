@@ -1,7 +1,11 @@
 from typing import Any
 
 from evalkit.client.api import AsyncApi, encode
-from evalkit.core.server_evaluators import ServerScore, server_evaluator_timeout
+from evalkit.core.server_evaluators import (
+    ExtensionEvaluatorInfo,
+    ServerScore,
+    server_evaluator_timeout,
+)
 
 
 class HttpServerEvaluators:
@@ -16,3 +20,7 @@ class HttpServerEvaluators:
             retry=False,
         )
         return ServerScore.model_validate(resp.json())
+
+    async def extension_evaluators(self) -> dict[str, ExtensionEvaluatorInfo]:
+        rows = (await self._api.get("/api/extension-evaluators")).json()
+        return {row["name"]: ExtensionEvaluatorInfo.model_validate(row) for row in rows}

@@ -28,6 +28,7 @@ from evalkit.api.trace_checks import check_trace_source
 from evalkit.contracts.atif import validate_trajectory
 from evalkit.contracts.enums import ExperimentStatus, ScoredOn, SyncSource
 from evalkit.contracts.harness import Capabilities
+from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.access import (
     Actor,
     can_change_experiment,
@@ -44,19 +45,26 @@ from evalkit.core.runner import (
     REFETCHABLE,
     ExperimentRequest,
     InvalidCaseInputs,
+    NeedsServerJudge,
     NoJudge,
     NothingRunnable,
     RunnerDeps,
     build_context,
+    custom_eval_case,
     harness_capabilities,
     prepare_experiment,
     rescore_experiment,
     run_experiment,
     score_builtin,
+    score_extension_evaluator,
     stored_trajectory_doc,
 )
 from evalkit.core.scorecard import assemble_report
-from evalkit.core.server_evaluators import ServerEvaluationRequest, ServerScore
+from evalkit.core.server_evaluators import (
+    NEEDS_SERVER_JUDGE,
+    ServerEvaluationRequest,
+    ServerScore,
+)
 from evalkit.core.trajectory import backfill_step_costs
 from evalkit.core.workspace import Reference, parse_slug
 from evalkit.db import experiments as db_experiments
@@ -340,7 +348,7 @@ async def create_experiment(
             else await _last_git_revision(session, stores.tenant_id, body.dataset),
             extension_evaluators=stores.deps.extension_evaluators,
         )
-    except (InvalidCaseInputs, NothingRunnable, NoJudge) as exc:
+    except (InvalidCaseInputs, NothingRunnable, NoJudge, NeedsServerJudge) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx2.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"could not start experiment: {exc}") from exc
@@ -520,29 +528,47 @@ async def score_on_server(
     agent = await _runner_written(session, stores.tenant_id, exp)
     await session.close()
     evaluator = BUILTIN_EVALUATORS.get(name)
-    if evaluator is None:
-        raise HTTPException(status_code=404, detail=f"unknown built-in evaluator: {name}")
-    if evaluator.local_only:
+    extension = stores.deps.extension_evaluators.get(name)
+    if evaluator is None and extension is None:
+        raise HTTPException(status_code=404, detail=f"unknown server evaluator: {name}")
+    if evaluator is not None and evaluator.local_only:
         raise HTTPException(status_code=400, detail=f"{name} runs on your machine, not the server")
     judge = exp.config.judge
-    if judge is None or judge.provider is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"experiment {exp_id} has no provider judge; its built-ins run on your machine",
-        )
-    provider = await require_provider_judge(stores.providers, judge)
-    keys = StoredKeys({}, await stores.keys.provider_judges(provider))
-    base_url, api_key = keys.provider_judge(provider)
+    deps = replace(stores.deps, scored_on=ScoredOn.SERVER)
+    resolved: JudgeSettings | None = None
+    api_key: str | None = None
+    if evaluator is not None or (extension is not None and extension.uses_judge):
+        if judge is None or judge.provider is None:
+            raise HTTPException(
+                status_code=400,
+                detail=NEEDS_SERVER_JUDGE.format(name=name)
+                if evaluator is None
+                else f"experiment {exp_id} has no provider judge; its built-ins run on your "
+                "machine",
+            )
+        provider = await require_provider_judge(stores.providers, judge)
+        keys = StoredKeys({}, await stores.keys.provider_judges(provider))
+        base_url, api_key = keys.provider_judge(provider)
+        deps = with_keys(deps, keys)
+        resolved = judge.model_copy(update={"provider": None, "base_url": base_url})
     run = await stores.store.run_to_score(exp_id, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} has nothing to score")
-    deps = replace(with_keys(stores.deps, keys), scored_on=ScoredOn.SERVER)
-    resolved = judge.model_copy(update={"provider": None, "base_url": base_url})
-    ctx, _ = await build_context(
+    custom_config = (run.case.effective_evaluators.get("custom") or {}).get(name)
+    if extension is not None and custom_config is None:
+        raise HTTPException(
+            status_code=400, detail=f"case {run.case.case_id} does not name the evaluator {name}"
+        )
+    ctx, view = await build_context(
         deps, agent, load_cost_map(deps.cfg.cost_map), run, resolved, api_key
     )
-    caps = Capabilities.model_validate(exp.config.snapshot.capabilities)
-    rows, _ = await score_builtin(deps, exp, ctx, caps, run_id, name, body.config)
+    if extension is not None and custom_config is not None:
+        rows = await score_extension_evaluator(
+            extension, name, ctx, view, custom_eval_case(run.case, custom_config)
+        )
+    else:
+        caps = Capabilities.model_validate(exp.config.snapshot.capabilities)
+        rows, _ = await score_builtin(deps, exp, ctx, caps, run_id, name, body.config)
     return ServerScore(rows=rows, judge_usage=ctx.judge_usage).model_dump(mode="json")
 
 

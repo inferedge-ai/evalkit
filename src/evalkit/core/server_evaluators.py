@@ -28,10 +28,24 @@ class ServerEvaluationRequest(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class ExtensionEvaluatorInfo(BaseModel):
+    name: str
+    uses_judge: bool = False
+    requires_trajectory: bool = False
+
+
 class ServerEvaluators(Protocol):
     async def score(
         self, experiment_run_id: int, name: str, config: dict[str, Any]
     ) -> ServerScore: ...
+
+    async def extension_evaluators(self) -> dict[str, ExtensionEvaluatorInfo]: ...
+
+
+NEEDS_SERVER_JUDGE = (
+    "this dataset needs a judge configured on the server: {name} is graded there, "
+    "not with a judge you bring yourself"
+)
 
 
 def resolve_location(evaluator: BuiltinEval, judge: JudgeSettings | None) -> Location:
@@ -54,21 +68,31 @@ def configured_builtins(evaluators: dict) -> dict[str, dict]:
 NO_EXTENSION_EVALUATORS: Mapping[str, PythonEvaluator] = {}
 
 
+def judging_extension_evaluators(
+    cases: Iterable[CaseView], extension_evaluators: Mapping[str, PythonEvaluator]
+) -> list[str]:
+    return sorted(
+        {
+            name
+            for case in cases
+            for name in case.effective_evaluators.get("custom") or {}
+            if name in extension_evaluators and extension_evaluators[name].uses_judge
+        }
+    )
+
+
 def needs_judge(
     cases: Iterable[CaseView],
     extension_evaluators: Mapping[str, PythonEvaluator] = NO_EXTENSION_EVALUATORS,
 ) -> bool:
+    cases = list(cases)
     return any(
         any(
             BUILTIN_EVALUATORS[name].uses_judge
             for name in configured_builtins(case.effective_evaluators)
         )
-        or any(
-            name in extension_evaluators and extension_evaluators[name].uses_judge
-            for name in case.effective_evaluators.get("custom") or {}
-        )
         for case in cases
-    )
+    ) or bool(judging_extension_evaluators(cases, extension_evaluators))
 
 
 def server_evaluator_timeout() -> float:

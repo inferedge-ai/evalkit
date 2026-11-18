@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -65,7 +66,16 @@ def _on_disk(candidate: Path, cases_root: Path) -> tuple[Path, str]:
     return resolved.parent, resolved.name
 
 
-def resolve_path(arg: str, cases_root: Path, my_workspace: str) -> ResolvedPath:
+def always_from_disk(ref: Reference) -> bool:
+    return True
+
+
+def resolve_path(
+    arg: str,
+    cases_root: Path,
+    my_workspace: str,
+    comes_from_disk: Callable[[Reference], bool] = always_from_disk,
+) -> ResolvedPath:
     candidate = Path(arg)
     if candidate.exists():
         dataset_dir, subpath = _on_disk(candidate, cases_root)
@@ -77,7 +87,7 @@ def resolve_path(arg: str, cases_root: Path, my_workspace: str) -> ResolvedPath:
     ref = parse_reference(ref_text, my_workspace)
     own = ref.workspace == my_workspace
     on_disk = cases_root / ref.name if (cases_root / ref.name).is_dir() else None
-    if own and on_disk is None:
+    if own and on_disk is None and comes_from_disk(ref):
         raise ValueError(
             f"no dataset directory {ref.name!r} under {cases_root}; {ref.name} is in your "
             f"workspace, so it syncs from disk: put its cases in {cases_root / ref.name}/, "
