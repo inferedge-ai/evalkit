@@ -1,9 +1,13 @@
+import pytest
+
 from evalkit.contracts.cases import Case
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.core.importer import ImportReport, import_cases
 from evalkit.db.store import PgStore
 from evalkit.db.workspaces import WorkspaceStore
+from evalkit.store.base import WrittenByExtension, WrittenByUsers
 from tests.api.test_promotion_api import CASES_YAML, _cases, _decide, env  # noqa: F401
+from tests.native import suite_case, sync_cases
 
 REFUSAL = "was written by an extension of this server and cannot be changed"
 
@@ -88,3 +92,12 @@ async def test_review_does_not_apply_to_a_dataset_an_extension_wrote(env):  # no
     assert (decided.status_code, decided.json()["detail"]) == (409, message)
     queue = (await clients["sme"].get("/api/review/queue", params={"workspace": "dev"})).json()
     assert all(item["dataset"] != "bench@dev" for item in queue["items"])
+
+
+async def test_the_writer_of_a_dataset_is_checked_where_it_is_written(env):  # noqa: F811
+    _, ctx = env
+    await write_by_extension(ctx, "bench", "dev", ["bench-1"])
+    with pytest.raises(WrittenByExtension, match="bench@dev"):
+        await sync_cases(ctx, [suite_case("mine-1", "q")], workspace="dev", dataset="bench")
+    with pytest.raises(WrittenByUsers, match="finance@dev was not written by an extension"):
+        await write_by_extension(ctx, "finance", "dev", ["bench-2"])

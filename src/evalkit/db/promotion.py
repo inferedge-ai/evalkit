@@ -17,7 +17,7 @@ from evalkit.core.promotion import (
 )
 from evalkit.core.review import CaseEvent, CaseEventKind, CaseReview
 from evalkit.db import models
-from evalkit.db.cases import find_dataset_row
+from evalkit.db.cases import check_writer, find_dataset_row
 from evalkit.db.review_state import latest_events
 from evalkit.db.workspaces import load_ref
 from evalkit.store.base import CaseView, DatasetRow, WrittenByExtension
@@ -118,6 +118,7 @@ async def plan_promotion(
 async def execute_promotion(
     session: AsyncSession, plan: PromotionPlan, *, actor_id: int, event_id: int
 ) -> int:
+    await check_writer(session, plan.target_dataset_id, plan.target_ref, SyncSource.PROMOTION)
     sync = models.DatasetSync(
         dataset_id=plan.target_dataset_id,
         actor_id=actor_id,

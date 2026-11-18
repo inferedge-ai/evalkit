@@ -24,6 +24,8 @@ from evalkit.store.base import (
     IncomingOverlay,
     SyncResult,
     UnknownDataset,
+    WrittenByExtension,
+    WrittenByUsers,
 )
 
 Change = Literal["created", "patched", "unchanged"]
@@ -336,6 +338,27 @@ async def _replace_overlays(
     return applied
 
 
+async def check_writer(
+    session: AsyncSession, dataset_id: int, ref: str, source: SyncSource
+) -> None:
+    await session.execute(
+        select(models.Dataset.id).where(models.Dataset.id == dataset_id).with_for_update()
+    )
+    latest = await session.scalar(
+        select(models.DatasetSync.source)
+        .where(models.DatasetSync.dataset_id == dataset_id)
+        .order_by(models.DatasetSync.id.desc())
+        .limit(1)
+    )
+    if latest is None:
+        return
+    by_extension = latest == SyncSource.EXTENSION.value
+    if by_extension and source is not SyncSource.EXTENSION:
+        raise WrittenByExtension(ref)
+    if not by_extension and source is SyncSource.EXTENSION:
+        raise WrittenByUsers(ref)
+
+
 async def sync_dataset(
     session: AsyncSession,
     *,
@@ -351,6 +374,7 @@ async def sync_dataset(
     readme: DatasetReadme | None = None,
 ) -> SyncResult:
     dataset_id = await ensure_dataset(session, workspace, dataset, kind)
+    await check_writer(session, dataset_id, f"{dataset}@{workspace.name}", source)
     sync = models.DatasetSync(
         dataset_id=dataset_id, actor_id=actor_id, source=source.value, detail=dict(detail)
     )
@@ -619,7 +643,11 @@ async def current_cases(
         select(models.Dataset.workspace_id).where(models.Dataset.id == dataset.id)
     )
     assert workspace_id is not None
-    reviewed = dataset.workspace_is_shared and dataset.kind == DatasetKind.SUITE
+    reviewed = (
+        dataset.workspace_is_shared
+        and dataset.kind == DatasetKind.SUITE
+        and not dataset.written_by_extension
+    )
     return await case_views(
         session,
         workspace_id,

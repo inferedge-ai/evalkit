@@ -102,6 +102,15 @@ class WrittenByExtension(Exception):
         )
 
 
+class WrittenByUsers(Exception):
+    def __init__(self, dataset: str):
+        self.dataset = dataset
+        super().__init__(
+            f"{dataset} was not written by an extension of this server; "
+            "an extension cannot replace it"
+        )
+
+
 class Selection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

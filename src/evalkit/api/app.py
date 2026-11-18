@@ -101,7 +101,13 @@ from evalkit.db.users import (
 )
 from evalkit.db.workspaces import PromotionLinkError, SharedOnly, UnknownWorkspace
 from evalkit.paths import ui_root
-from evalkit.store.base import Conflict, UnknownDataset, UnknownExperiment
+from evalkit.store.base import (
+    Conflict,
+    UnknownDataset,
+    UnknownExperiment,
+    WrittenByExtension,
+    WrittenByUsers,
+)
 from evalkit.store.blob import Obstore
 
 LOGGER = logging.getLogger(__name__)
@@ -311,6 +317,11 @@ def create_app(
     @app.exception_handler(BadTenantId)
     async def bad_tenant_id(request: Request, exc: BadTenantId) -> JSONResponse:
         return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+    @app.exception_handler(WrittenByExtension)
+    @app.exception_handler(WrittenByUsers)
+    async def other_writer(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     @app.exception_handler(UnknownDataset)
     async def unknown_dataset(request: Request, exc: UnknownDataset) -> JSONResponse:
