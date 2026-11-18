@@ -2,8 +2,8 @@ import httpx2
 import pytest
 
 from evalkit.contracts.enums import WorkspaceRole
-from evalkit.core.readme import DatasetReadme
-from evalkit.db.cases import find_dataset_row, set_readme
+from evalkit.core.dataset_readme import DatasetMetadata, DatasetReadme
+from evalkit.db.cases import find_dataset_row, set_dataset_readme
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from tests.fake_harness import FakeHarness
@@ -186,10 +186,10 @@ async def test_a_promoted_dataset_takes_the_readme_and_metadata_of_its_source(en
     async with ctx.session_factory() as session:
         dataset = await find_dataset_row(session, "default", "dev", "finance")
         assert dataset is not None
-        await set_readme(
+        await set_dataset_readme(
             session,
             dataset.id,
-            DatasetReadme(readme="# Finance\n", metadata={"description": "Filings."}),
+            DatasetReadme(readme="# Finance\n", metadata=DatasetMetadata(description="Filings.")),
         )
         await session.commit()
     assert workspace.promotes_to is not None

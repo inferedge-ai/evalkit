@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from evalkit.core.lint import Finding
 
@@ -31,20 +31,20 @@ class DatasetMetadata(BaseModel):
     links: list[MetadataLink] | None = None
     license: MetadataLicense | None = None
     attribution: str | None = None
-    __pydantic_extra__: dict[str, str]
+    __pydantic_extra__: dict[str, str] = Field(init=False)
 
 
 @dataclass(frozen=True)
 class DatasetReadme:
     readme: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: DatasetMetadata = field(default_factory=DatasetMetadata)
 
 
 def _finding(message: str) -> Finding:
     return Finding(severity="error", code="E-README", case_id=README_FILENAME, message=message)
 
 
-def split_readme(text: str) -> tuple[Any, str]:
+def _split_readme(text: str) -> tuple[Any, str]:
     lines = text.splitlines(keepends=True)
     if not lines or lines[0].strip() != FENCE:
         return {}, text
@@ -55,9 +55,9 @@ def split_readme(text: str) -> tuple[Any, str]:
     return ({} if frontmatter is None else frontmatter), "".join(lines[end + 1 :]).lstrip("\n")
 
 
-def parse_readme(text: str) -> tuple[DatasetReadme, list[Finding]]:
+def parse_dataset_readme(text: str) -> tuple[DatasetReadme, list[Finding]]:
     try:
-        frontmatter, body = split_readme(text)
+        frontmatter, body = _split_readme(text)
     except (ValueError, yaml.YAMLError) as exc:
         return DatasetReadme(), [_finding(f"the frontmatter cannot be read: {exc}")]
     if not isinstance(frontmatter, dict):
@@ -70,9 +70,6 @@ def parse_readme(text: str) -> tuple[DatasetReadme, list[Finding]]:
             for error in exc.errors()
         ]
     return (
-        DatasetReadme(
-            readme=body if body.strip() else None,
-            metadata=metadata.model_dump(mode="json", exclude_none=True),
-        ),
+        DatasetReadme(readme=body if body.strip() else None, metadata=metadata),
         [],
     )

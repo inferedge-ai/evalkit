@@ -23,11 +23,11 @@ from evalkit.contracts.cases import (
 )
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.core.access import WorkspaceRef
+from evalkit.core.dataset_readme import README_FILENAME, DatasetReadme, parse_dataset_readme
 from evalkit.core.fixtures import load_registries
 from evalkit.core.lint import Finding, fixture_findings, has_errors
 from evalkit.core.lint import lint as lint_cases
 from evalkit.core.overlays import OverlayBlock, incoming_overlay, overlay_clashes
-from evalkit.core.readme import README_FILENAME, DatasetReadme, parse_readme
 from evalkit.store.base import (
     CarriedReview,
     CaseFile,
@@ -110,11 +110,13 @@ def load_files(
     return cases, overlays, findings
 
 
-def read_readme(files: list[Path], root: Path | None) -> tuple[DatasetReadme, list[Finding]]:
+def read_dataset_readme(
+    files: list[Path], root: Path | None
+) -> tuple[DatasetReadme, list[Finding]]:
     at_root = root / README_FILENAME if root is not None else None
     if at_root is None or at_root not in files:
         return DatasetReadme(), []
-    return parse_readme(at_root.read_text(encoding="utf-8"))
+    return parse_dataset_readme(at_root.read_text(encoding="utf-8"))
 
 
 def case_files(case: Case, entries: dict[str, FixtureEntry]) -> list[CaseFile]:
@@ -259,7 +261,7 @@ async def import_dataset(
     sourced_cases, overlays, findings = load_files(files, root)
     entries, registry_findings = load_registries([p for p in files if p.name == REGISTRY_FILENAME])
     sourced: list[tuple[Case, Path | None]] = list(sourced_cases)
-    readme, readme_findings = read_readme(files, root)
+    readme, readme_findings = read_dataset_readme(files, root)
     return await import_cases(
         catalog,
         workspace=workspace,
