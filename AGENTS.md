@@ -283,7 +283,8 @@ so the route does its own checks.
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
   `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,
   `get_allow_private_endpoints`, `extension_evaluators`, `PythonEvaluator`,
-  `EvaluatorJudge.ask`, `import_cases`, `SyncSource.EXTENSION`, `StoresDep`,
+  `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_readme`,
+  `DatasetAbout` (`@/evals/DatasetAbout`), `SyncSource.EXTENSION`, `StoresDep`,
   `workspace_ref`, `require`, `ensure_active`, `load_actor` and `can_write`
   stable: other packages build against them.
 
