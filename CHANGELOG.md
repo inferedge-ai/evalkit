@@ -30,6 +30,8 @@
   with `import_cases` and the sync source `extension`, with a README and
   metadata of its own. Such a dataset is read-only for users: `evalkit sync` and
   promotion into it are refused, and case review does not apply to it.
+  A nav item of such a package can set `section` to sit under Evaluate or
+  Observe in the sidebar.
 
 ### Improvements
 

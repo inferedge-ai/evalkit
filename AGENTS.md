@@ -258,7 +258,8 @@ transaction (`check_writer` in `db/cases.py`), under a lock on the dataset row.
   props.
 - A `NavItem` may set `icon`, a `lucide-react` icon; the collapsed sidebar
   shows a puzzle piece for one without. `nav` items get a sidebar section of
-  their own after Observe.
+  their own after Observe; one that sets `section` (`"Evaluate"` or
+  `"Observe"`) goes at the end of that section instead.
 - Settings pages go in `accountSettings` (everyone) and
   `organizationSettings` (admins only). Each is a `SettingsPage`: `name`,
   `label`, optional `icon` and `element`. The page renders at
