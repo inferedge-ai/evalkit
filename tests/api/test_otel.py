@@ -373,7 +373,7 @@ async def test_agent_token_outlives_its_creator_losing_access(api, session_facto
     await token.aclose()
 
 
-async def test_archiving_the_agent_deletes_its_tokens(api, session_factory):
+async def test_archiving_the_agent_revokes_its_tokens(api, session_factory):
     minted = (await api.post("/api/tokens", json={"agent": "deployed"})).json()
     token = bearer(api, minted["token"])
     assert await export(token, otlp_payload(session_id="a-1"), PROTO) == 200
@@ -381,7 +381,7 @@ async def test_archiving_the_agent_deletes_its_tokens(api, session_factory):
     assert await export(token, otlp_payload(session_id="a-2"), PROTO) == 401
     async with session_factory() as session:
         left = await session.scalar(select(AuthToken).where(AuthToken.id == minted["id"]))
-    assert left is None
+    assert left is not None and left.revoked_at is not None
     await token.aclose()
 
 

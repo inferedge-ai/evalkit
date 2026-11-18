@@ -168,7 +168,7 @@ async def edit_agent(
 async def archive_agent(ref: str, stores: StoresDep, actor: ActorDep) -> dict:
     current = await stores.agents.get(ref)
     await writable(stores, actor, current.workspace)
-    return agent_view(await stores.agents.archive(ref))
+    return agent_view(await stores.agents.archive(ref, archived_by=actor.id))
 
 
 @router.post("/{ref}/restore")
