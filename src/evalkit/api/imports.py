@@ -19,7 +19,9 @@ from evalkit.core.lint import fixture_findings
 from evalkit.core.lint import lint as lint_cases
 from evalkit.core.runner import RunnerDeps
 from evalkit.core.workspace import parse_slug
+from evalkit.db.cases import find_dataset_row
 from evalkit.db.models import User
+from evalkit.store.base import WrittenByExtension
 
 router = APIRouter(prefix="/api", tags=["imports"])
 
@@ -139,6 +141,9 @@ async def sync(
     target_ws = await workspace_ref(stores, target)
     require(can_write(await load_actor(session, user), target_ws), f"you cannot sync to @{target}")
     ensure_active(target_ws)
+    existing = await find_dataset_row(session, stores.tenant_id, target, dataset)
+    if existing is not None and existing.written_by_extension:
+        raise HTTPException(status_code=409, detail=str(WrittenByExtension(existing.ref)))
     if target_ws.is_target:
         assert target_ws.promoted_from is not None
         source_ws = await stores.workspaces.get_by_id(target_ws.promoted_from)

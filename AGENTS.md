@@ -189,7 +189,10 @@ judge the user brings, its score is an error row.
 (`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route
 does (`api/imports.py`). `import_cases` does no access checks, so the route does
 its own with the helpers in `api/access.py`. Pass `readme=DatasetReadme(...)`
-(`core/readme.py`) to set the dataset's README and metadata.
+(`core/readme.py`) to set the dataset's README and metadata. While a dataset's
+latest sync has that source, only the extension changes it: `evalkit sync` and
+promotion into it answer 409, and case review does not apply, so its cases are
+never promoted either. Archiving it still works.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type

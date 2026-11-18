@@ -27,10 +27,16 @@
   run asks it to, and `evalkit evaluate` re-scores the same way. With a judge
   you bring yourself (`--judge-base-url`), a judge-using one is an error row. Such a package can also write a dataset
   with `import_cases` and the sync source `extension`, with a README and
-  metadata of its own.
+  metadata of its own. Such a dataset is read-only for users: `evalkit sync` and
+  promotion into it are refused, and case review does not apply to it.
 
 ### Improvements
 
+- **Lint:** The error `E-JARGON` is now the warning `W-JARGON`. Case text
+  that looks like agent internals (an `mcp__` prefix, a `__dunder__` token, a
+  `snake_case(` call) is still reported by `evalkit lint` and `evalkit sync`,
+  and no longer stops a sync. Questions about code or maths contain such
+  text.
 - **Server:** Revoking an agent token (Settings › API keys, `evalkit tokens
   revoke`, `DELETE /api/tokens/{id}`) and archiving an agent now keep the
   token's row and set its new `revoked_at` and `revoked_by` columns (who

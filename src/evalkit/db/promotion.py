@@ -20,7 +20,7 @@ from evalkit.db import models
 from evalkit.db.cases import find_dataset_row
 from evalkit.db.review_state import latest_events
 from evalkit.db.workspaces import load_ref
-from evalkit.store.base import CaseView, DatasetRow
+from evalkit.store.base import CaseView, DatasetRow, WrittenByExtension
 
 
 async def overlays_extending(
@@ -87,6 +87,8 @@ async def plan_promotion(
     target = await find_dataset_row(session, target_ws.tenant_id, target_ws.name, dataset.name)
     if target is None or target.kind != "suite":
         raise MissingTargetDataset(f"{dataset.name}@{target_ws.name}")
+    if target.written_by_extension:
+        raise WrittenByExtension(target.ref)
     overlays = (await overlays_extending(session, source_ws.id, [case.case_ref])).get(
         case.case_ref, []
     )
