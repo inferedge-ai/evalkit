@@ -279,8 +279,9 @@ transaction (`check_writer` in `db/cases.py`), under a lock on the dataset row.
   `get_allow_private_endpoints`, `extension_evaluators`, `PythonEvaluator`,
   `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_dataset_readme`,
   `DatasetAbout` (`@/evals/DatasetAbout`), `SyncSource.EXTENSION`, `StoresDep`,
-  `workspace_ref`, `require`, `ensure_active`, `load_actor` and `can_write`
-  stable: other packages build against them.
+  `workspace_ref`, `require`, `ensure_active`, `load_actor`, `can_write` and
+  the UI test helpers `renderPage`, `stubServer`, `member`, `failure` and
+  `closePage` (`@/testFixtures`) stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
 (`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,
