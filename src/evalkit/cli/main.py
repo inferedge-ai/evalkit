@@ -50,6 +50,7 @@ from evalkit.core.harness import HarnessClient
 from evalkit.core.importer import load_files
 from evalkit.core.lint import fixture_findings
 from evalkit.core.lint import lint as lint_cases
+from evalkit.core.readme import README_FILENAME, parse_readme
 from evalkit.core.review import CaseState
 from evalkit.core.runner import EVALUATION_CONCURRENCY, ScoringFailed, dropped_cases_text
 from evalkit.core.workspace import Reference, parse_reference, slug
@@ -415,6 +416,8 @@ def lint(
         findings.extend(registry_findings)
         registry_in_scope = registry is not None and registry.parent == path
         findings.extend(fixture_findings(all_cases, entries, warn_unused=registry_in_scope))
+        if (path / README_FILENAME).is_file():
+            findings.extend(parse_readme((path / README_FILENAME).read_text(encoding="utf-8"))[1])
         _print_findings([f.__dict__ for f in findings])
         errors = sum(1 for f in findings if f.severity == "error")
         warnings = sum(1 for f in findings if f.severity == "warning")
@@ -453,6 +456,8 @@ def lint(
     if registry is not None:
         files.append((REGISTRY_FILENAME, registry))
         params["warn_unused_fixtures"] = str(registry.parent == path).lower()
+    if (path / README_FILENAME).is_file():
+        files.append((README_FILENAME, path / README_FILENAME))
     body = _client().post_files("/api/lint", files, params=params, data=form).json()
     _print_findings(body["findings"])
     typer.echo(f"{body['errors']} error(s), {body['warnings']} warning(s)")
@@ -491,6 +496,7 @@ def _sync_and_report(
         f"synced {slug(Reference(name, workspace))}: created={report['created']} "
         f"patched={report['patched']} deleted={report['deleted']} "
         f"overlays_applied={report['overlays_applied']}"
+        + (" readme=updated" if report.get("readme_changed") else "")
     )
     review = report.get("review") or {}
     if review.get("now_unreviewed"):
@@ -605,7 +611,11 @@ def datasets_list(
         for ds in found:
             last = ds.get("last_sync") or {}
             sha = (last.get("detail") or {}).get("sha") or "-"
-            typer.echo(f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}")
+            description = (ds.get("metadata") or {}).get("description")
+            typer.echo(
+                f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}"
+                + (f"  {description}" if description else "")
+            )
         if found:
             typer.echo("evalkit datasets show <dataset> shows one dataset and its link")
         return
@@ -663,7 +673,20 @@ def datasets_show(
             states[state] = states.get(state, 0) + 1
         typer.echo("review: " + (", ".join(f"{k} {v}" for k, v in sorted(states.items())) or "-"))
     typer.echo("tags: " + (", ".join(f"{t['name']} {t['count']}" for t in tags) or "-"))
+    for key, value in (ds.get("metadata") or {}).items():
+        typer.echo(f"{key}: {_metadata_text(key, value)}")
     _echo_link(links.build_dataset_url(_server_url(), ds["ref"]))
+    if ds.get("readme"):
+        typer.echo("")
+        typer.echo(ds["readme"].rstrip())
+
+
+def _metadata_text(key: str, value: object) -> str:
+    if key == "license" and isinstance(value, dict):
+        return " ".join(str(part) for part in (value.get("name"), value.get("url")) if part)
+    if key == "links" and isinstance(value, list):
+        return ", ".join(f"{link['label']} {link['url']}" for link in value)
+    return str(value)
 
 
 class _Progress:

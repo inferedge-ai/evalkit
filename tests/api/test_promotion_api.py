@@ -2,6 +2,8 @@ import httpx2
 import pytest
 
 from evalkit.contracts.enums import WorkspaceRole
+from evalkit.core.readme import DatasetReadme
+from evalkit.db.cases import find_dataset_row, set_readme
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from tests.fake_harness import FakeHarness
@@ -176,3 +178,28 @@ async def test_twin_on_both_sides(env):
     await sync_cases(ctx, [suite_case("case-2", "q2")], workspace="dev", full=True)
     assert (await _cases(sme, PROD))["case-1"]["twin"]["state"] == "absent"
     assert (await _cases(sme, "finance@canonical"))["case-1"]["twin"] is None
+
+
+async def test_a_promoted_dataset_takes_the_readme_and_metadata_of_its_source(env):
+    clients, ctx = env
+    workspace = await WorkspaceStore(ctx.session_factory, "default").get_by_name("dev")
+    async with ctx.session_factory() as session:
+        dataset = await find_dataset_row(session, "default", "dev", "finance")
+        assert dataset is not None
+        await set_readme(
+            session,
+            dataset.id,
+            DatasetReadme(readme="# Finance\n", metadata={"description": "Filings."}),
+        )
+        await session.commit()
+    assert workspace.promotes_to is not None
+    await clients["admin"].post("/api/datasets", json={"name": "finance", "workspace": "prod"})
+
+    resp = await _decide(clients["sme"], DEV, "case-1", "approve")
+
+    assert resp.status_code == 200, resp.text
+    promoted = (await clients["sme"].get(f"/api/datasets/{PROD}")).json()
+    assert (promoted["readme"], promoted["metadata"]) == (
+        "# Finance\n",
+        {"description": "Filings."},
+    )

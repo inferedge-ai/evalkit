@@ -8,6 +8,7 @@ from pathlib import Path
 from evalkit.client.api import SyncApi
 from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml, load_cases_from_yaml
 from evalkit.core.fixtures import load_registries, sha256_hex
+from evalkit.core.readme import README_FILENAME
 from evalkit.core.workspace import Reference, parse_reference
 from evalkit.store.base import GitRevision, Selection
 
@@ -143,6 +144,9 @@ def sync_files(dataset_dir: Path, subpath: str | None = None) -> list[tuple[str,
     registry = _nearest_registry(dataset_dir)
     if registry is not None:
         out.append((REGISTRY_FILENAME, registry))
+    readme = dataset_dir / README_FILENAME
+    if readme.is_file():
+        out.append((README_FILENAME, readme))
     return out
 
 
@@ -153,7 +157,7 @@ def upload_fixtures(
     entries, _ = load_registries(registry)
     referenced: set[str] = set()
     for name, path in files:
-        if name == REGISTRY_FILENAME:
+        if name in (REGISTRY_FILENAME, README_FILENAME):
             continue
         cases, _ = load_cases_from_yaml(path)
         referenced.update(key for case in cases for key in case.fixtures)

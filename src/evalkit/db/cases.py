@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.core.access import WorkspaceRef
 from evalkit.core.overlays import OverlayBlock, apply_overlay_blocks
+from evalkit.core.readme import DatasetReadme
 from evalkit.core.review import CaseEventKind, CaseState
 from evalkit.core.workspace import Reference, parse_slug
 from evalkit.db import models
@@ -71,6 +72,7 @@ async def _rows(session: AsyncSession, query) -> list[DatasetRow]:
             workspace_is_shared=w.owner_user_id is None,
             name=d.name,
             kind=d.kind,
+            metadata=d.meta,
             last_sync=syncs.get(d.id),
         )
         for d, w in found
@@ -273,6 +275,21 @@ async def ensure_dataset(
     return found
 
 
+async def set_readme(session: AsyncSession, dataset_id: int, readme: DatasetReadme) -> bool:
+    row = await session.get_one(models.Dataset, dataset_id)
+    if (row.readme, row.meta) == (readme.readme, readme.metadata):
+        return False
+    row.readme = readme.readme
+    row.meta = readme.metadata
+    return True
+
+
+async def dataset_readme(session: AsyncSession, dataset_id: int) -> str | None:
+    return await session.scalar(
+        select(models.Dataset.readme).where(models.Dataset.id == dataset_id)
+    )
+
+
 async def _usernames(session: AsyncSession, ids: set[int]) -> dict[int, str]:
     if not ids:
         return {}
@@ -330,6 +347,7 @@ async def sync_dataset(
     actor_id: int,
     source: SyncSource,
     detail: dict,
+    readme: DatasetReadme | None = None,
 ) -> SyncResult:
     dataset_id = await ensure_dataset(session, workspace, dataset, kind)
     sync = models.DatasetSync(
@@ -442,8 +460,10 @@ async def sync_dataset(
     result.overlays = await _replace_overlays(session, workspace.tenant_id, dataset_id, overlays)
     names = await _usernames(session, {target for _, target in carried})
     result.carried = [CarriedReview(case_id=c, reviewer=names.get(t, "")) for c, t in carried]
+    result.readme_changed = readme is not None and await set_readme(session, dataset_id, readme)
     sync.detail = {
         **sync.detail,
+        **({"readme_changed": True} if result.readme_changed else {}),
         "counts": {
             "created": len(result.created),
             "patched": len(result.patched),

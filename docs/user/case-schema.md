@@ -207,3 +207,39 @@ overlays:
         required_tools_called:
           tools: [get_financials]
 ```
+
+## Dataset README
+
+A `README.md` at the root of a dataset folder describes the dataset. `evalkit sync` uploads it, and the dataset page shows it.
+
+- The YAML frontmatter is the dataset's metadata. The rest of the file is its README, shown on a README tab.
+- Syncing the whole dataset mirrors the file. Delete `README.md` and sync, and the dataset has neither. Syncing one file or folder of the dataset leaves both as they are.
+- `evalkit lint` checks the frontmatter.
+
+```markdown
+---
+description: Questions about quarterly filings.
+license:
+  name: MIT
+  url: https://opensource.org/license/mit
+attribution: Written by the finance team.
+links:
+  - label: Wiki
+    url: https://example.com/wiki
+owner: finance
+---
+
+# Filings
+
+How these cases were written, and what a good answer looks like.
+```
+
+| Key | Value | Where it shows |
+| -- | -- | -- |
+| `description` | One line of text. | Under the dataset's name in the list and on its page; in `evalkit datasets list`. |
+| `license` | `name`, and optionally `url`. | A badge on the dataset page. |
+| `attribution` | Text. | A credit line on the dataset page. |
+| `links` | A list of `label` and `url`. | A row of links on the dataset page. A `url` is `http`, `https` or a path in the evalkit UI. |
+| any other key | Text. | Listed as key and value on the dataset page. |
+
+`evalkit datasets show <dataset>` prints the metadata and the README.

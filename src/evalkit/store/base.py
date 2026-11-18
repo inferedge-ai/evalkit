@@ -80,6 +80,7 @@ class DatasetRow(BaseModel):
     workspace_is_shared: bool
     name: str
     kind: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
     last_sync: DatasetSyncView | None = None
 
     @property
@@ -128,6 +129,7 @@ class SyncResult(BaseModel):
     removed: list[str] = Field(default_factory=list)
     unchanged: int = 0
     overlays: int = 0
+    readme_changed: bool = False
     carried: list[CarriedReview] = Field(default_factory=list)
     now_unreviewed: list[str] = Field(default_factory=list)
 

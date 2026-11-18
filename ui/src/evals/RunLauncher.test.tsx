@@ -19,6 +19,7 @@ const support: Dataset = {
   workspace_is_shared: true,
   name: "support",
   kind: "suite",
+  metadata: {},
   last_sync: null,
   ref: "support@dev",
 };

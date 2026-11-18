@@ -16,6 +16,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Suite | A directory of case YAML synced into one dataset with `evalkit sync`. The directory name is the dataset name. |
 | Dataset | A named set of cases in the store, synced from YAML (kind `suite`). Every dataset belongs to a workspace. |
 | Sync | One write of case YAML into a dataset, recorded as a `dataset_syncs` row. |
+| Dataset README | The `README.md` at the root of a suite. Its YAML frontmatter is the dataset's metadata (`description`, `license`, `attribution`, `links`, other text keys) and the rest its README. A sync of the whole suite mirrors it: no file clears both. Never edited in the UI or the API. |
 | Workspace | A named namespace for datasets, agents and remote evaluators. Either personal or shared. |
 | Personal workspace | A workspace owned by one user, created with the user and named after them (`@akshat`). |
 | Shared workspace | A workspace with no owner. Admins create it, e.g. `@dev`, `@prod`. There is no special canonical workspace. |
@@ -198,7 +199,9 @@ evaluators whose code lives in the other package, for every tenant of the server
 `ensure_active` and `load_actor` from `evalkit.api.access`, `can_write` from
 `evalkit.core.access`, and `source=SyncSource.EXTENSION`. `detail` is the
 package's own record of what it wrote; evalkit adds `counts` to it and returns
-both on the dataset's `last_sync`. `import_cases` checks neither who may write
+both on the dataset's `last_sync`. Pass `readme=DatasetReadme(readme=...,
+metadata=...)` (`evalkit.core.readme`) to set the dataset's README and metadata;
+leave it out to keep what the dataset has. `import_cases` checks neither who may write
 nor whether the workspace is archived, and writes into a promotion target too,
 so the route does its own checks.
 

@@ -99,6 +99,7 @@ async def plan_promotion(
     path_tags, source = await _placement(session, dataset.id, case.case_ref)
     return PromotionPlan(
         source_ref=dataset.ref,
+        source_dataset_id=dataset.id,
         target_ref=target.ref,
         target_workspace_id=target_ws.id,
         target_dataset_id=target.id,
@@ -129,6 +130,10 @@ async def execute_promotion(
     )
     session.add(sync)
     await session.flush()
+    source_dataset = await session.get_one(models.Dataset, plan.source_dataset_id)
+    target_dataset = await session.get_one(models.Dataset, plan.target_dataset_id)
+    target_dataset.readme = source_dataset.readme
+    target_dataset.meta = source_dataset.meta
     current = (
         await session.execute(
             select(models.DatasetCase.content_hash, models.DatasetCase.removed_at).where(

@@ -408,6 +408,8 @@ class Dataset(AuditMixin, Base):
     name: Mapped[str] = mapped_column(String(150))
     kind: Mapped[str] = mapped_column(String(16))
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    readme: Mapped[str | None] = mapped_column(Text, default=None)
+    meta: Mapped[dict] = mapped_column("metadata", JSONB, default=dict, server_default="{}")
 
 
 class DatasetSync(AuditMixin, Base):
