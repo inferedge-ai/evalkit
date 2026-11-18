@@ -43,6 +43,7 @@ def test_flow_19_a_readme_in_the_dataset_folder_is_synced_shown_and_cleared(cli)
     assert "license: MIT https://opensource.org/license/mit" in shown
     assert "links: Wiki https://example.com/wiki" in shown
     assert "How these cases were written." in shown
+    assert shown.index("description:") < shown.index("attribution:") < shown.index("license:")
 
     (root / "sub").mkdir()
     (root / "sub" / "b.yaml").write_text(cases_yaml("rd19-2"))

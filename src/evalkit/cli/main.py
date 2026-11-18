@@ -673,12 +673,20 @@ def datasets_show(
             states[state] = states.get(state, 0) + 1
         typer.echo("review: " + (", ".join(f"{k} {v}" for k, v in sorted(states.items())) or "-"))
     typer.echo("tags: " + (", ".join(f"{t['name']} {t['count']}" for t in tags) or "-"))
-    for key, value in (ds.get("metadata") or {}).items():
-        typer.echo(f"{key}: {_metadata_text(key, value)}")
+    metadata = ds.get("metadata") or {}
+    for key in sorted(metadata, key=_metadata_order):
+        typer.echo(f"{key}: {_metadata_text(key, metadata[key])}")
     _echo_link(links.build_dataset_url(_server_url(), ds["ref"]))
     if ds.get("readme"):
         typer.echo("")
         typer.echo(ds["readme"].rstrip())
+
+
+METADATA_KEYS = ("description", "attribution", "license", "links")
+
+
+def _metadata_order(key: str) -> tuple[int, str]:
+    return (METADATA_KEYS.index(key) if key in METADATA_KEYS else len(METADATA_KEYS), key)
 
 
 def _metadata_text(key: str, value: object) -> str:
