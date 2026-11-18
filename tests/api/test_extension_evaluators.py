@@ -32,6 +32,7 @@ from evalkit.db.store import PgStore
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from tests.fake_agents import JUDGE_URL, TEST_BOX, TEST_CREDENTIALS_CONFIG, TEST_ENV
+from tests.fake_harness import FakeHarness
 from tests.identity import seed_agent
 from tests.native import seed_env, serve, start, wait_for
 
@@ -415,3 +416,52 @@ async def test_an_extension_evaluator_cannot_take_a_built_ins_name(tmp_path, ses
     with pytest.raises(ValueError, match="named like built-ins: answer_rubrics"):
         async with serve(env, tmp_path, extension_evaluators=clash):
             pass
+
+
+OWN_JUDGE_BODY = {
+    "dataset": "ext@canonical",
+    "agent": "fake@admin",
+    "capabilities": FakeHarness().capabilities,
+    "holder": "cli:admin@laptop:1",
+    "judge": {"base_url": JUDGE_URL, "model": "judge-model"},
+}
+
+
+async def test_a_judge_the_user_brings_is_refused_before_any_run_for_a_judging_extension_evaluator(
+    tmp_path, session_factory
+):
+    async with local_runner(tmp_path, session_factory, BOTH) as (client, _):
+        refused = await client.post("/api/experiments", json=OWN_JUDGE_BODY)
+        assert refused.status_code == 400
+        assert refused.json()["detail"] == (
+            "this dataset needs a judge configured on the server: ext_answer_match is graded "
+            "there, not with a judge you bring yourself"
+        )
+        assert (await client.get("/api/experiments")).json() == []
+
+        own_code = {**OWN_JUDGE_BODY, "code_evaluators": ["ext_answer_match"]}
+        assert (await client.post("/api/experiments", json=own_code)).status_code == 200
+
+
+async def test_a_judge_the_user_brings_still_runs_built_ins_and_python_evaluators(
+    tmp_path, session_factory
+):
+    mixed = Case.model_validate(
+        {
+            "id": "ext-1",
+            "input": {"question": "Who?"},
+            "evaluators": {
+                "output": {
+                    "answer_rubrics": {
+                        "rubrics": [{"rubric": "Names a person.", "type": "factual_retrieval"}]
+                    }
+                },
+                "custom": {"ext_length": {}, "my_check": {}},
+            },
+        }
+    )
+    async with local_runner(tmp_path, session_factory, [mixed]) as (client, _):
+        body = {**OWN_JUDGE_BODY, "code_evaluators": ["my_check"]}
+        created = await client.post("/api/experiments", json=body)
+        assert created.status_code == 200, created.text
+        assert created.json()["config"]["judge"]["base_url"] == JUDGE_URL

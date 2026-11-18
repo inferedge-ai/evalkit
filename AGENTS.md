@@ -181,8 +181,10 @@ score them, after a Python evaluator passed to the run and a remote evaluator of
 the agent's workspace with the same name (`_evaluate_run` in `core/runner.py`).
 A local or SDK run has no code for them: it reads their names from
 `GET /api/extension-evaluators` and asks the server to score each one, as it does
-for a server evaluator. One that uses the judge needs a provider judge; with a
-judge the user brings, its score is an error row.
+for a server evaluator. One that uses the judge needs a provider judge: with a
+judge the user brings, the server refuses the experiment when it is created,
+before any agent call. Built-ins and the run's own Python evaluators are not
+affected.
 `tests/api/test_extension_evaluators.py` shows one end to end.
 
 **Datasets.** A route of the other package writes a dataset with `import_cases`

@@ -83,6 +83,7 @@ from evalkit.core.server_evaluators import (
     ServerEvaluators,
     ServerScore,
     configured_builtins,
+    judging_extension_evaluators,
     needs_judge,
     resolve_location,
 )
@@ -235,6 +236,11 @@ class NoJudge(ValueError):
             "no judge: a selected case uses a judge-using evaluator and the server has no "
             "default judge; pass a judge, or an admin sets one with evalkit judge-default set"
         )
+
+
+class NeedsServerJudge(ValueError):
+    def __init__(self, evaluator: str):
+        super().__init__(NEEDS_SERVER_JUDGE.format(name=evaluator))
 
 
 class NothingRunnable(ValueError):
@@ -568,6 +574,15 @@ async def prepare_experiment(
     check_inputs(req.agent, caps, cases)
     if judge is None and needs_judge(cases, extension_evaluators):
         raise NoJudge()
+    if judge is not None and judge.provider is None:
+        shadowed = set(remote_evaluators) | set(req.code_evaluators or [])
+        judging = [
+            name
+            for name in judging_extension_evaluators(cases, extension_evaluators)
+            if name not in shadowed
+        ]
+        if judging:
+            raise NeedsServerJudge(judging[0])
     config = ExperimentConfig(
         model=model,
         judge=judge,
