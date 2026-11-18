@@ -82,6 +82,7 @@ class DatasetRow(BaseModel):
     name: str
     kind: str
     metadata: dict[str, Any] = Field(default_factory=dict)
+    archived: bool = False
     last_sync: DatasetSyncView | None = None
 
     @property

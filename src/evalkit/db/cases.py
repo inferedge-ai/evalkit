@@ -73,6 +73,7 @@ async def _rows(session: AsyncSession, query) -> list[DatasetRow]:
             name=d.name,
             kind=d.kind,
             metadata=d.meta,
+            archived=d.archived_at is not None,
             last_sync=syncs.get(d.id),
         )
         for d, w in found
