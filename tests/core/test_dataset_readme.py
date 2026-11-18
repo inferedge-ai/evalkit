@@ -1,6 +1,6 @@
 import pytest
 
-from evalkit.core.readme import DatasetReadme, parse_readme
+from evalkit.core.dataset_readme import DatasetMetadata, DatasetReadme, parse_dataset_readme
 
 FULL = """---
 description: Multi-hop questions.
@@ -21,11 +21,11 @@ Body text.
 
 
 def test_frontmatter_is_the_metadata_and_the_rest_is_the_readme():
-    readme, findings = parse_readme(FULL)
+    readme, findings = parse_dataset_readme(FULL)
 
     assert findings == []
     assert readme.readme == "# Title\n\nBody text.\n"
-    assert readme.metadata == {
+    assert readme.metadata.model_dump(mode="json", exclude_none=True) == {
         "description": "Multi-hop questions.",
         "license": {"name": "Apache-2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0"},
         "attribution": "By someone.",
@@ -35,13 +35,17 @@ def test_frontmatter_is_the_metadata_and_the_rest_is_the_readme():
 
 
 def test_a_readme_without_frontmatter_has_no_metadata():
-    assert parse_readme("# Title\n") == (DatasetReadme(readme="# Title\n"), [])
+    assert parse_dataset_readme("# Title\n") == (DatasetReadme(readme="# Title\n"), [])
 
 
 def test_frontmatter_alone_leaves_the_readme_empty():
-    readme, findings = parse_readme("---\ndescription: Short.\n---\n")
+    readme, findings = parse_dataset_readme("---\ndescription: Short.\n---\n")
 
-    assert (readme.readme, readme.metadata, findings) == (None, {"description": "Short."}, [])
+    assert (readme.readme, readme.metadata, findings) == (
+        None,
+        DatasetMetadata(description="Short."),
+        [],
+    )
 
 
 @pytest.mark.parametrize(
@@ -66,7 +70,7 @@ def test_frontmatter_alone_leaves_the_readme_empty():
     ],
 )
 def test_a_bad_frontmatter_is_an_error_finding(text, message):
-    readme, findings = parse_readme(text)
+    readme, findings = parse_dataset_readme(text)
 
     assert readme == DatasetReadme()
     assert [(f.severity, f.code, f.case_id) for f in findings] == [

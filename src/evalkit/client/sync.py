@@ -7,8 +7,8 @@ from pathlib import Path
 
 from evalkit.client.api import SyncApi
 from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml, load_cases_from_yaml
+from evalkit.core.dataset_readme import README_FILENAME
 from evalkit.core.fixtures import load_registries, sha256_hex
-from evalkit.core.readme import README_FILENAME
 from evalkit.core.workspace import Reference, parse_reference
 from evalkit.store.base import GitRevision, Selection
 

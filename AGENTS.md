@@ -186,7 +186,7 @@ shows one end to end.
 (`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route
 does (`api/imports.py`). `import_cases` does no access checks, so the route does
 its own with the helpers in `api/access.py`. Pass `readme=DatasetReadme(...)`
-(`core/readme.py`) to set the dataset's README and metadata.
+(`core/dataset_readme.py`) to set the dataset's README and metadata.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
@@ -266,7 +266,7 @@ its own with the helpers in `api/access.py`. Pass `readme=DatasetReadme(...)`
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
   `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,
   `get_allow_private_endpoints`, `extension_evaluators`, `PythonEvaluator`,
-  `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_readme`,
+  `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_dataset_readme`,
   `DatasetAbout` (`@/evals/DatasetAbout`), `SyncSource.EXTENSION`, `StoresDep`,
   `workspace_ref`, `require`, `ensure_active`, `load_actor` and `can_write`
   stable: other packages build against them.
