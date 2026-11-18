@@ -983,23 +983,21 @@ async def score_extension_on_server(
     run_id: int,
     evaluator: ExtensionEvaluatorInfo,
     config: dict,
-) -> list[ScoreRow]:
+    local: ScoredOn,
+) -> tuple[list[ScoreRow], ScoredOn]:
     name = evaluator.name
     judge = exp.config.judge
     if evaluator.uses_judge and (judge is None or judge.provider is None):
-        return [
-            ScoreRow(
-                name=name, score=None, label="error", error=NEEDS_SERVER_JUDGE.format(name=name)
-            )
-        ]
+        error = NEEDS_SERVER_JUDGE.format(name=name)
+        return [ScoreRow(name=name, score=None, label="error", error=error)], local
     try:
         result = await server.score(run_id, name, config)
     except Exception as exc:
         error = error_text(exc)
         LOGGER.warning("evaluator %s errored on run %s: %s", name, run_id, error)
-        return [ScoreRow(name=name, score=None, label="error", error=error)]
+        return [ScoreRow(name=name, score=None, label="error", error=error)], ScoredOn.SERVER
     ctx.record_judge_usage(result.judge_usage)
-    return result.rows
+    return result.rows, ScoredOn.SERVER
 
 
 async def _evaluate_run(
@@ -1069,15 +1067,16 @@ async def _evaluate_run(
             and server_extension is not None
             and deps.server_evaluators is not None
         ):
-            scores = await score_extension_on_server(
+            scores, scored_on = await score_extension_on_server(
                 deps.server_evaluators,
                 exp,
                 ctx,
                 run.experiment_run_id,
                 server_extension,
                 config,
+                deps.scored_on,
             )
-            rows.extend(_rows(name, EvaluationSource.EXTENSION, scores, ScoredOn.SERVER))
+            rows.extend(_rows(name, EvaluationSource.EXTENSION, scores, scored_on))
             continue
         if evaluator_cfg is None:
             rows.extend(

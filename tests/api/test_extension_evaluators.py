@@ -377,6 +377,7 @@ async def test_a_local_run_with_its_own_judge_cannot_use_a_judging_extension_eva
             "this dataset needs a judge configured on the server: ext_answer_match is graded "
             "there, not with a judge you bring yourself"
         )
+        assert rows["ext_answer_match"].scored_on is ScoredOn.LOCAL
         assert rows["ext_length"].value == 1.0
         assert rows["ext_length"].scored_on is ScoredOn.SERVER
         assert asked == []

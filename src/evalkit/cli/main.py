@@ -5,6 +5,7 @@ import os
 import shutil
 import time
 import webbrowser
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -39,9 +40,16 @@ from evalkit.client import connection, links, oidc
 from evalkit.client.agents import definition_of
 from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
-from evalkit.client.sync import ResolvedPath, git_revision, resolve_path, sync_dataset
+from evalkit.client.sync import (
+    ResolvedPath,
+    always_from_disk,
+    git_revision,
+    resolve_path,
+    sync_dataset,
+)
 from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, load_config
 from evalkit.contracts.cases import REGISTRY_FILENAME, CaseEvaluators, is_case_yaml
+from evalkit.contracts.enums import SyncSource
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import AgentDefinition, Driver, driver, explicit, server_may_drive
 from evalkit.core.capabilities import sdk_capabilities
@@ -161,9 +169,20 @@ def _parse(text: str, workspace: str) -> Reference:
         raise ApiError(str(exc)) from exc
 
 
-def _resolve(arg: str, cases_root: Path, workspace: str):
+def _comes_from_disk(ref: Reference) -> bool:
+    listed = _client().get("/api/datasets", params={"workspace": ref.workspace}).json()
+    last_sync = next((d["last_sync"] for d in listed if d["name"] == ref.name), None)
+    return last_sync is None or last_sync["source"] != SyncSource.EXTENSION.value
+
+
+def _resolve(
+    arg: str,
+    cases_root: Path,
+    workspace: str,
+    comes_from_disk: Callable[[Reference], bool] = always_from_disk,
+):
     try:
-        return resolve_path(arg, cases_root, workspace)
+        return resolve_path(arg, cases_root, workspace, comes_from_disk)
     except ValueError as exc:
         raise ApiError(str(exc)) from exc
 
@@ -848,7 +867,7 @@ def run(
     if route is Driver.CLI:
         local = _with_secrets(local, scoring=True)
         _require_agent_key(local, conn, definition)
-    resolved = _resolve(dataset, local.cases, me)
+    resolved = _resolve(dataset, local.cases, me, _comes_from_disk)
     selection = _run_selection(resolved, tag, case_id)
     revision = git_revision(resolved.dataset_dir) if resolved.dataset_dir else GitRevision()
     if resolved.dataset_dir is not None and resume is None:
