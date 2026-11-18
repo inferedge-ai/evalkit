@@ -35,12 +35,14 @@ class EvaluatorJudge:
     ctx: EvalContext
     evaluator_name: str
 
-    async def ask[T: BaseModel](self, *, system: str, user: str, output_type: type[T]) -> T:
+    async def ask[T: BaseModel](
+        self, *, system_prompt: str, user_prompt: str, output_type: type[T]
+    ) -> T:
         answer, usage = await call_judge(
             self.ctx.require_judge(),
             api_key=self.ctx.judge_api_key,
-            system_prompt=system,
-            user_prompt=user,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
             output_type=output_type,
             session_id=self.ctx.session_id,
             evaluator_name=self.evaluator_name,

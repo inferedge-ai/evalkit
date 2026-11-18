@@ -174,36 +174,19 @@ then add plain FastAPI routes with `app.include_router(...)`.
   `Config.model_validate`, not `model_copy`.
 
 **Evaluators.** `create_app(..., extension_evaluators={name: evaluator})` registers
-evaluators whose code lives in the other package, for every tenant of the server.
+evaluators for every tenant. Each is a `PythonEvaluator`, which a case selects by
+naming it under `evaluators.custom`; with `uses_judge=True` its function also gets
+an `EvaluatorJudge` for the experiment's judge (`core/python_eval.py`). Server runs
+score them, after a Python evaluator passed to the run and a remote evaluator of
+the agent's workspace with the same name (`_evaluate_run` in `core/runner.py`).
+Local and SDK runs do not score them yet. `tests/api/test_extension_evaluators.py`
+shows one end to end.
 
-- Each is a `PythonEvaluator` (`evalkit.core.python_eval`): `name`, `kind`, `fn`,
-  `requires_trajectory` and `uses_judge`. `fn` takes the `EvalCase` and `EvalRun`
-  of `evalkit.contracts.custom_evaluator` and returns a float, a `ScoreItem` or a
-  list of them, as a Python evaluator does.
-- A case selects one by naming it under `evaluators.custom`; the block there
-  arrives as `case.config`. A name a local or SDK run passes as a Python evaluator
-  wins over a remote evaluator of the agent's workspace, and that one wins over
-  the extension's, so registering an evaluator never changes how a tenant's own is
-  scored.
-- With `uses_judge=True`, `fn` takes a third argument, an `EvaluatorJudge`:
-  `await judge.ask(system=..., user=..., output_type=Model)` calls the experiment's
-  judge with its stored key and returns the parsed model. Its tokens count in
-  `gauge_judge_cost_usd`. A case naming such an evaluator needs a judge like one
-  naming a judge-using built-in: without one the experiment is refused.
-- Its evaluations have source `extension`. Server runs score them. A local or SDK
-  run does not yet: the name is "not configured" there.
-
-**Datasets.** A route of the other package can write a dataset with
-`import_cases` (`evalkit.core.importer`), as evalkit's own sync route does:
-`stores.store` from `StoresDep` as the catalog, `workspace_ref`, `require`,
-`ensure_active` and `load_actor` from `evalkit.api.access`, `can_write` from
-`evalkit.core.access`, and `source=SyncSource.EXTENSION`. `detail` is the
-package's own record of what it wrote; evalkit adds `counts` to it and returns
-both on the dataset's `last_sync`. Pass `readme=DatasetReadme(readme=...,
-metadata=...)` (`evalkit.core.readme`) to set the dataset's README and metadata;
-leave it out to keep what the dataset has. `import_cases` checks neither who may write
-nor whether the workspace is archived, and writes into a promotion target too,
-so the route does its own checks.
+**Datasets.** A route of the other package writes a dataset with `import_cases`
+(`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route
+does (`api/imports.py`). `import_cases` does no access checks, so the route does
+its own with the helpers in `api/access.py`. Pass `readme=DatasetReadme(...)`
+(`core/readme.py`) to set the dataset's README and metadata.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type

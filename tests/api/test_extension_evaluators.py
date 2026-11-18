@@ -32,8 +32,8 @@ class Verdict(BaseModel):
 
 async def ext_answer_match(case: EvalCase, run: EvalRun, judge: EvaluatorJudge) -> list[ScoreItem]:
     verdict = await judge.ask(
-        system="Grade the answer.",
-        user=f"reference: {case.config['reference_answer']}\nanswer: {run.answer}",
+        system_prompt="Grade the answer.",
+        user_prompt=f"reference: {case.config['reference_answer']}\nanswer: {run.answer}",
         output_type=Verdict,
     )
     return [
