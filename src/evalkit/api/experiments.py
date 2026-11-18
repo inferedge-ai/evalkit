@@ -45,6 +45,7 @@ from evalkit.core.runner import (
     REFETCHABLE,
     ExperimentRequest,
     InvalidCaseInputs,
+    NeedsServerJudge,
     NoJudge,
     NothingRunnable,
     RunnerDeps,
@@ -347,7 +348,7 @@ async def create_experiment(
             else await _last_git_revision(session, stores.tenant_id, body.dataset),
             extension_evaluators=stores.deps.extension_evaluators,
         )
-    except (InvalidCaseInputs, NothingRunnable, NoJudge) as exc:
+    except (InvalidCaseInputs, NothingRunnable, NoJudge, NeedsServerJudge) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except httpx2.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"could not start experiment: {exc}") from exc

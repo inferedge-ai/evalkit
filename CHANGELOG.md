@@ -25,7 +25,8 @@
   `evaluators.custom`, and one that sets `uses_judge` is passed the
   experiment's judge. The server scores them for every run: a local or SDK
   run asks it to, and `evalkit evaluate` re-scores the same way. With a judge
-  you bring yourself (`--judge-base-url`), a judge-using one is an error row. Such a package can also write a dataset
+  you bring yourself (`--judge-base-url`), an experiment whose cases use a
+  judge-using one is refused before any agent runs. Such a package can also write a dataset
   with `import_cases` and the sync source `extension`, with a README and
   metadata of its own. Such a dataset is read-only for users: `evalkit sync` and
   promotion into it are refused, and case review does not apply to it.
