@@ -172,6 +172,20 @@ then add plain FastAPI routes with `app.include_router(...)`.
   entry only in the config passed to it, so build any other config with
   `Config.model_validate`, not `model_copy`.
 
+**Evaluators.** `create_app(..., extension_evaluators={name: evaluator})` registers
+evaluators for every tenant. Each is a `PythonEvaluator`, which a case selects by
+naming it under `evaluators.custom`; with `uses_judge=True` its function also gets
+an `EvaluatorJudge` for the experiment's judge (`core/python_eval.py`). Server runs
+score them, after a Python evaluator passed to the run and a remote evaluator of
+the agent's workspace with the same name (`_evaluate_run` in `core/runner.py`).
+Local and SDK runs do not score them yet. `tests/api/test_extension_evaluators.py`
+shows one end to end.
+
+**Datasets.** A route of the other package writes a dataset with `import_cases`
+(`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route
+does (`api/imports.py`). `import_cases` does no access checks, so the route does
+its own with the helpers in `api/access.py`.
+
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
 `UiExtensions` (`ui/src/lib/extensions.ts`). In evalkit it is empty.
@@ -248,8 +262,11 @@ then add plain FastAPI routes with `app.include_router(...)`.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
   `PageHeader`, `Empty`, `SignInLink`, `useOptionalMe`, `useTheme`,
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
-  `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config` and
-  `get_allow_private_endpoints` stable: other packages build against them.
+  `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,
+  `get_allow_private_endpoints`, `extension_evaluators`, `PythonEvaluator`,
+  `EvaluatorJudge.ask`, `import_cases`, `SyncSource.EXTENSION`, `StoresDep`,
+  `workspace_ref`, `require`, `ensure_active`, `load_actor` and `can_write`
+  stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
 (`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,

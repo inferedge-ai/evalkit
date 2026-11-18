@@ -5,8 +5,9 @@ import os
 import signal
 import socket
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -52,6 +53,7 @@ from evalkit.config import Config, check_trusted_endpoints
 from evalkit.core.agents import UnknownAgent
 from evalkit.core.blob import BlobStore
 from evalkit.core.endpoints import BlockedEndpoint
+from evalkit.core.python_eval import PythonEvaluator
 from evalkit.core.remote_evaluators import UnknownEvaluator
 from evalkit.core.runner import (
     LEASE_SECONDS,
@@ -203,6 +205,7 @@ def create_app(
     holder: str | None = None,
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
     resolve_tenant: TenantResolver = default_resolve_tenant,
+    extension_evaluators: Mapping[str, PythonEvaluator] | None = None,
 ) -> FastAPI:
     check_trusted_endpoints(cfg.trusted_endpoints)
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
@@ -229,6 +232,8 @@ def create_app(
             credentials=NoKeysLoaded(),
         )
     )
+    if extension_evaluators is not None:
+        resolved_deps = replace(resolved_deps, extension_evaluators=dict(extension_evaluators))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

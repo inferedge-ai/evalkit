@@ -7,9 +7,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from pydantic import BaseModel
+
 from evalkit.contracts.custom_evaluator import EvalCase, EvalRun, ScoreItem
 from evalkit.core.custom_eval import EvalError
 from evalkit.core.errors import error_text
+from evalkit.core.evaluators.base import EvalContext
+from evalkit.core.judge import call_judge
 
 LOGGER = logging.getLogger(__name__)
 
@@ -18,11 +22,33 @@ LOGGER = logging.getLogger(__name__)
 class PythonEvaluator:
     name: str
     kind: Literal["evaluator", "gauge"]
-    fn: Callable[[EvalCase, EvalRun], Any]
+    fn: Callable[..., Any]
     requires_trajectory: bool = False
+    uses_judge: bool = False
 
-    def __call__(self, case: EvalCase, run: EvalRun) -> Any:
-        return self.fn(case, run)
+    def __call__(self, *args: Any) -> Any:
+        return self.fn(*args)
+
+
+@dataclass(frozen=True)
+class EvaluatorJudge:
+    ctx: EvalContext
+    evaluator_name: str
+
+    async def ask[T: BaseModel](
+        self, *, system_prompt: str, user_prompt: str, output_type: type[T]
+    ) -> T:
+        answer, usage = await call_judge(
+            self.ctx.require_judge(),
+            api_key=self.ctx.judge_api_key,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            output_type=output_type,
+            session_id=self.ctx.session_id,
+            evaluator_name=self.evaluator_name,
+        )
+        self.ctx.record_judge_usage(usage)
+        return answer
 
 
 def _normalise(name: str, result: Any) -> list[ScoreItem]:
@@ -45,13 +71,15 @@ async def score_with_python_evaluator(
     answer: str,
     output: dict | None,
     trajectory: dict,
+    judge: EvaluatorJudge | None = None,
 ) -> list[ScoreItem] | EvalError:
     run = EvalRun(answer=answer, output=output, trajectory=trajectory)
+    args = (case, run) if judge is None else (case, run, judge)
     try:
         if inspect.iscoroutinefunction(evaluator.fn):
-            result = await evaluator.fn(case, run)
+            result = await evaluator.fn(*args)
         else:
-            result = await asyncio.to_thread(evaluator.fn, case, run)
+            result = await asyncio.to_thread(evaluator.fn, *args)
             if inspect.isawaitable(result):
                 result = await result
         return _normalise(evaluator.name, result)

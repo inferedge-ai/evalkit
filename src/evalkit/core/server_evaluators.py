@@ -1,5 +1,5 @@
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from enum import StrEnum
 from typing import Any, Protocol
 
@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.evaluators.base import BUILTIN_EVALUATORS, BuiltinEval
 from evalkit.core.judge import JudgeUsage
+from evalkit.core.python_eval import PythonEvaluator
 from evalkit.store.base import CaseView, ScoreRow
 
 SERVER_EVALUATOR_TIMEOUT_SECONDS = 900
@@ -50,11 +51,23 @@ def configured_builtins(evaluators: dict) -> dict[str, dict]:
     return configured
 
 
-def needs_judge(cases: Iterable[CaseView]) -> bool:
+NO_EXTENSION_EVALUATORS: Mapping[str, PythonEvaluator] = {}
+
+
+def needs_judge(
+    cases: Iterable[CaseView],
+    extension_evaluators: Mapping[str, PythonEvaluator] = NO_EXTENSION_EVALUATORS,
+) -> bool:
     return any(
-        BUILTIN_EVALUATORS[name].uses_judge
+        any(
+            BUILTIN_EVALUATORS[name].uses_judge
+            for name in configured_builtins(case.effective_evaluators)
+        )
+        or any(
+            name in extension_evaluators and extension_evaluators[name].uses_judge
+            for name in case.effective_evaluators.get("custom") or {}
+        )
         for case in cases
-        for name in configured_builtins(case.effective_evaluators)
     )
 
 
