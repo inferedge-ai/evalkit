@@ -38,7 +38,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Evaluator | A scoring function. Compares expected vs actual, returns score + explanation. |
 | Remote evaluator | A client-hosted evaluator reached through the Custom Evaluator API, stored in a workspace (`evalkit evaluators create`). |
 | Evaluation | One evaluator's output on one run: a `score` or a `gauge` reading. |
-| Server evaluator | A built-in evaluator the evalkit server runs for a local or SDK run, over `POST /api/experiment-runs/{id}/server-evaluations/{name}`: one call per run per evaluator; the server scores from what it stored and returns rows, the runner publishes them. |
+| Server evaluator | A built-in or extension evaluator the evalkit server runs for a local or SDK run, over `POST /api/experiment-runs/{id}/server-evaluations/{name}`: one call per run per evaluator; the server scores from what it stored and returns rows, the runner publishes them. |
 | Local-only evaluator | A built-in that always runs on the developer's machine (`builtin_evaluator(..., local_only=True)`): `tool_trajectory_match`, `required_tools_called`, `max_response_time`. |
 | Scored on | Where an evaluation was computed: `local` (the CLI or SDK process) or `server`. A column on every evaluation, separate from its `source`. |
 | Gauge | A measurement, not a score: tokens, cost, time, tool-call counts. |
@@ -179,8 +179,11 @@ naming it under `evaluators.custom`; with `uses_judge=True` its function also ge
 an `EvaluatorJudge` for the experiment's judge (`core/python_eval.py`). Server runs
 score them, after a Python evaluator passed to the run and a remote evaluator of
 the agent's workspace with the same name (`_evaluate_run` in `core/runner.py`).
-Local and SDK runs do not score them yet. `tests/api/test_extension_evaluators.py`
-shows one end to end.
+A local or SDK run has no code for them: it reads their names from
+`GET /api/extension-evaluators` and asks the server to score each one, as it does
+for a server evaluator. One that uses the judge needs a provider judge; with a
+judge the user brings, its score is an error row.
+`tests/api/test_extension_evaluators.py` shows one end to end.
 
 **Datasets.** A route of the other package writes a dataset with `import_cases`
 (`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route

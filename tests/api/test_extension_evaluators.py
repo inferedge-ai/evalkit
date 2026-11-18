@@ -1,26 +1,38 @@
+from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import timedelta
 
 import httpx2
 from pydantic import BaseModel
 
 from evalkit.api.auth import issue_token
+from evalkit.client.api import AsyncApi
+from evalkit.client.server_evaluators import HttpServerEvaluators
 from evalkit.contracts.cases import Case
 from evalkit.contracts.custom_evaluator import EvalCase, EvalRun, ScoreItem
-from evalkit.contracts.enums import DatasetKind, SyncSource
+from evalkit.contracts.enums import (
+    DatasetKind,
+    EvaluationSource,
+    ExperimentStatus,
+    ScoredOn,
+    SyncSource,
+)
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core import python_eval
 from evalkit.core.importer import import_cases
 from evalkit.core.judge import JudgeUsage
 from evalkit.core.python_eval import EvaluatorJudge, PythonEvaluator
+from evalkit.core.runner import ExperimentRequest, evaluate_experiment
+from evalkit.credentials import CredentialRegistry
 from evalkit.db.llm_providers import LlmProviderStore
 from evalkit.db.models import TenantSettings
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.store import PgStore
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
-from tests.fake_agents import JUDGE_URL, TEST_BOX, TEST_ENV
+from tests.fake_agents import JUDGE_URL, TEST_BOX, TEST_CREDENTIALS_CONFIG, TEST_ENV
 from tests.identity import seed_agent
-from tests.native import seed_env, serve, wait_for
+from tests.native import seed_env, serve, start, wait_for
 
 OTHER_JUDGE_URL = "http://other-judge.test"
 
@@ -228,3 +240,141 @@ async def test_a_workspaces_own_remote_evaluator_wins_over_an_extensions(tmp_pat
         rows = {e["name"]: e for e in run["evaluations"]}
         assert rows["required_tool_calls"]["source"] == "remote"
         assert rows["tool_call_efficiency"]["value"] == 0.5
+
+
+class Bearer(httpx2.Auth):
+    def __init__(self, header: str):
+        self.header = header
+
+    def auth_flow(self, request):
+        request.headers["Authorization"] = self.header
+        yield request
+
+
+@asynccontextmanager
+async def local_runner(tmp_path, session_factory, cases: list[Case]):
+    env = await seed_env(session_factory, tmp_path)
+    await write_dataset(session_factory, "default", env.user_ids["admin"], cases)
+    await seed_agent(session_factory, "fake", "admin")
+    agents = {**TEST_CREDENTIALS_CONFIG.agents, "fake@admin": "env:FAKE_AGENT_KEY"}
+    async with serve(env, tmp_path, extension_evaluators=EXTENSION_EVALUATORS) as client:
+        api = AsyncApi(
+            "http://test", Bearer(client.headers["Authorization"]), transport=client._transport
+        )
+        env.deps = replace(
+            env.deps,
+            server_evaluators=HttpServerEvaluators(api),
+            credentials=CredentialRegistry(
+                TEST_CREDENTIALS_CONFIG.model_copy(update={"agents": agents}), TEST_ENV
+            ),
+        )
+        assert not env.deps.extension_evaluators
+        yield client, env
+        await api.aclose()
+
+
+def judge_recorder(monkeypatch, *, fail: bool = False) -> list[tuple[str | None, str | None]]:
+    asked: list[tuple[str | None, str | None]] = []
+
+    async def fake_call_judge(cfg, **kwargs):
+        asked.append((cfg.base_url, kwargs["api_key"]))
+        if fail:
+            raise ConnectionError("judge down")
+        verdict = Verdict(correct="Ada" in kwargs["user_prompt"], reasoning="checked")
+        return verdict, JudgeUsage(input_tokens=1000, output_tokens=100)
+
+    monkeypatch.setattr(python_eval, "call_judge", fake_call_judge)
+    return asked
+
+
+BOTH = [
+    extension_case("ext-1", {"ext_answer_match": {"reference_answer": "Bob"}, "ext_length": {}})
+]
+LOCAL_RUN = ExperimentRequest(
+    dataset="ext@canonical",
+    agent="fake@admin",
+    judge=JudgeSettings(provider="judge", model="judge-model"),
+)
+
+
+async def test_the_server_lists_its_extension_evaluators(tmp_path, session_factory):
+    env = await seed_env(session_factory, tmp_path)
+    async with serve(env, tmp_path, extension_evaluators=EXTENSION_EVALUATORS) as client:
+        assert (await client.get("/api/extension-evaluators")).json() == [
+            {"name": "ext_answer_match", "uses_judge": True, "requires_trajectory": False},
+            {"name": "ext_length", "uses_judge": False, "requires_trajectory": False},
+        ]
+    async with serve(env, tmp_path) as client:
+        assert (await client.get("/api/extension-evaluators")).json() == []
+
+
+async def test_a_local_run_gets_its_extension_scores_from_the_server(
+    tmp_path, session_factory, monkeypatch
+):
+    asked = judge_recorder(monkeypatch)
+    async with local_runner(tmp_path, session_factory, BOTH) as (client, env):
+        exp = await start(env, LOCAL_RUN)
+        assert exp.status is ExperimentStatus.COMPLETED, exp.status_error
+        [run] = await env.details(exp.id)
+        rows = {e.name: e for e in run.evaluations}
+        assert (rows["ext_answer_match"].value, rows["ext_answer_match"].explanation) == (
+            0.0,
+            "checked",
+        )
+        assert rows["ext_length"].value == 1.0
+        for name in ("ext_answer_match", "ext_length"):
+            assert rows[name].source is EvaluationSource.EXTENSION
+            assert rows[name].scored_on is ScoredOn.SERVER
+        assert rows["gauge_judge_cost_usd"].value > 0
+        assert asked == [(JUDGE_URL, TEST_ENV["JUDGE_KEY"])]
+
+        unknown = await client.post(
+            f"/api/experiment-runs/{run.experiment_run_id}/server-evaluations/ext_missing",
+            json={"config": {}},
+        )
+        assert unknown.status_code == 404
+
+
+async def test_re_scoring_a_local_run_asks_the_server_again(tmp_path, session_factory, monkeypatch):
+    judge_recorder(monkeypatch, fail=True)
+    async with local_runner(tmp_path, session_factory, BOTH) as (_, env):
+        exp = await start(env, LOCAL_RUN)
+        [run] = await env.details(exp.id)
+        rows = {e.name: e for e in run.evaluations}
+        assert "judge down" in rows["ext_answer_match"].error
+        assert rows["ext_length"].value == 1.0
+
+        asked = judge_recorder(monkeypatch)
+        await evaluate_experiment(env.deps, exp.id)
+        [run] = await env.details(exp.id)
+        rows = {e.name: e for e in run.evaluations}
+        assert (rows["ext_answer_match"].value, rows["ext_answer_match"].error) == (0.0, None)
+        assert rows["ext_answer_match"].scored_on is ScoredOn.SERVER
+        assert len(asked) == 1
+
+
+async def test_a_local_run_with_its_own_judge_cannot_use_a_judging_extension_evaluator(
+    tmp_path, session_factory, monkeypatch
+):
+    asked = judge_recorder(monkeypatch)
+    async with local_runner(tmp_path, session_factory, BOTH) as (client, env):
+        own = JudgeSettings(base_url=JUDGE_URL, model="judge-model")
+        exp = await start(env, LOCAL_RUN.model_copy(update={"judge": own}))
+        assert exp.status is ExperimentStatus.COMPLETED, exp.status_error
+        [run] = await env.details(exp.id)
+        rows = {e.name: e for e in run.evaluations}
+        assert rows["ext_answer_match"].value is None
+        assert rows["ext_answer_match"].error == (
+            "this dataset needs a judge configured on the server: ext_answer_match is graded "
+            "there, not with a judge you bring yourself"
+        )
+        assert rows["ext_length"].value == 1.0
+        assert rows["ext_length"].scored_on is ScoredOn.SERVER
+        assert asked == []
+
+        direct = await client.post(
+            f"/api/experiment-runs/{run.experiment_run_id}/server-evaluations/ext_answer_match",
+            json={"config": {"reference_answer": "Bob"}},
+        )
+        assert direct.status_code == 400
+        assert direct.json()["detail"] == rows["ext_answer_match"].error

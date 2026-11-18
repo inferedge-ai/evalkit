@@ -76,7 +76,9 @@ from evalkit.core.python_eval import (
 )
 from evalkit.core.remote_evaluators import EvaluatorLookup, RemoteEvaluator
 from evalkit.core.server_evaluators import (
+    NEEDS_SERVER_JUDGE,
     NO_EXTENSION_EVALUATORS,
+    ExtensionEvaluatorInfo,
     Location,
     ServerEvaluators,
     ServerScore,
@@ -851,32 +853,30 @@ def _rows(
     ]
 
 
+def _custom_scores(
+    name: str, kind: Literal["evaluator", "gauge"], outcome: list[ScoreItem] | EvalError
+) -> list[ScoreRow]:
+    if isinstance(outcome, EvalError):
+        return [ScoreRow(name=name, kind=kind, score=None, label="error", error=outcome.message)]
+    return [
+        ScoreRow(
+            name=item.name,
+            kind=kind,
+            score=item.score,
+            label=item.label,
+            explanation=item.explanation,
+        )
+        for item in outcome
+    ]
+
+
 def _custom_rows(
     name: str,
     kind: Literal["evaluator", "gauge"],
     source: EvaluationSource,
     outcome: list[ScoreItem] | EvalError,
 ) -> list[EvaluationRow]:
-    if isinstance(outcome, EvalError):
-        return _rows(
-            name,
-            source,
-            [ScoreRow(name=name, kind=kind, score=None, label="error", error=outcome.message)],
-        )
-    return _rows(
-        name,
-        source,
-        [
-            ScoreRow(
-                name=item.name,
-                kind=kind,
-                score=item.score,
-                label=item.label,
-                explanation=item.explanation,
-            )
-            for item in outcome
-        ],
-    )
+    return _rows(name, source, _custom_scores(name, kind, outcome))
 
 
 def custom_case_input(case: CaseView) -> dict:
@@ -946,6 +946,62 @@ async def score_builtin(
         return [ScoreRow(name=name, score=None, label="error", error=error)], scored_on
 
 
+def custom_eval_case(case: CaseView, config: dict) -> EvalCase:
+    return EvalCase(
+        id=case.case_id, input=custom_case_input(case), expected=case.expected, config=config
+    )
+
+
+def trajectory_document(view: TrajectoryView | None) -> dict:
+    return {} if view is None else view.trajectory.model_dump(exclude_none=True)
+
+
+async def score_extension(
+    evaluator: PythonEvaluator,
+    name: str,
+    ctx: EvalContext,
+    view: TrajectoryView | None,
+    case: EvalCase,
+) -> list[ScoreRow]:
+    if evaluator.requires_trajectory and view is None:
+        return [neutral_skip(name, "run has no trajectory")]
+    outcome = await score_with_python_evaluator(
+        evaluator,
+        case=case,
+        answer=ctx.answer,
+        output=ctx.output,
+        trajectory=trajectory_document(view),
+        judge=EvaluatorJudge(ctx, name) if evaluator.uses_judge else None,
+    )
+    return _custom_scores(name, evaluator.kind, outcome)
+
+
+async def score_extension_on_server(
+    server: ServerEvaluators,
+    exp: Experiment,
+    ctx: EvalContext,
+    run_id: int,
+    evaluator: ExtensionEvaluatorInfo,
+    config: dict,
+) -> list[ScoreRow]:
+    name = evaluator.name
+    judge = exp.config.judge
+    if evaluator.uses_judge and (judge is None or judge.provider is None):
+        return [
+            ScoreRow(
+                name=name, score=None, label="error", error=NEEDS_SERVER_JUDGE.format(name=name)
+            )
+        ]
+    try:
+        result = await server.score(run_id, name, config)
+    except Exception as exc:
+        error = error_text(exc)
+        LOGGER.warning("evaluator %s errored on run %s: %s", name, run_id, error)
+        return [ScoreRow(name=name, score=None, label="error", error=error)]
+    ctx.record_judge_usage(result.judge_usage)
+    return result.rows
+
+
 async def _evaluate_run(
     deps: RunnerDeps,
     exp: Experiment,
@@ -956,6 +1012,7 @@ async def _evaluate_run(
     judge: JudgeSettings | None,
     judge_api_key: str | None,
     configured_custom: dict[str, RemoteEvaluator],
+    server_extensions: Mapping[str, ExtensionEvaluatorInfo],
     holder: str | None,
     *,
     force: bool = False,
@@ -976,15 +1033,7 @@ async def _evaluate_run(
         rows.extend(_rows(name, EvaluationSource.BUILTIN, scores, scored_on))
 
     custom_config = evaluators.get("custom") or {}
-    trajectory_doc: dict = {}
-    if view is not None:
-        trajectory_doc = view.trajectory.model_dump(exclude_none=True)
-    eval_case = EvalCase(
-        id=run.case.case_id,
-        input=custom_case_input(run.case),
-        expected=run.case.expected,
-        config={},
-    )
+    trajectory_doc = trajectory_document(view)
     for name, config in custom_config.items():
         if name in already:
             continue
@@ -999,7 +1048,7 @@ async def _evaluate_run(
                 continue
             outcome = await score_with_python_evaluator(
                 python_evaluator,
-                case=eval_case.model_copy(update={"config": config}),
+                case=custom_eval_case(run.case, config),
                 answer=answer,
                 output=structured,
                 trajectory=trajectory_doc,
@@ -1009,26 +1058,26 @@ async def _evaluate_run(
         evaluator_cfg = configured_custom.get(name)
         extension_evaluator = deps.extension_evaluators.get(name)
         if evaluator_cfg is None and extension_evaluator is not None:
-            if extension_evaluator.requires_trajectory and view is None:
-                rows.extend(
-                    _rows(
-                        name,
-                        EvaluationSource.EXTENSION,
-                        [neutral_skip(name, "run has no trajectory")],
-                    )
-                )
-                continue
-            outcome = await score_with_python_evaluator(
-                extension_evaluator,
-                case=eval_case.model_copy(update={"config": config}),
-                answer=answer,
-                output=structured,
-                trajectory=trajectory_doc,
-                judge=EvaluatorJudge(ctx, name) if extension_evaluator.uses_judge else None,
+            scores = await score_extension(
+                extension_evaluator, name, ctx, view, custom_eval_case(run.case, config)
             )
-            rows.extend(
-                _custom_rows(name, extension_evaluator.kind, EvaluationSource.EXTENSION, outcome)
+            rows.extend(_rows(name, EvaluationSource.EXTENSION, scores))
+            continue
+        server_extension = server_extensions.get(name)
+        if (
+            evaluator_cfg is None
+            and server_extension is not None
+            and deps.server_evaluators is not None
+        ):
+            scores = await score_extension_on_server(
+                deps.server_evaluators,
+                exp,
+                ctx,
+                run.experiment_run_id,
+                server_extension,
+                config,
             )
+            rows.extend(_rows(name, EvaluationSource.EXTENSION, scores, ScoredOn.SERVER))
             continue
         if evaluator_cfg is None:
             rows.extend(
@@ -1051,7 +1100,7 @@ async def _evaluate_run(
             deps.credentials.key_for(
                 "evaluator", evaluator_cfg.ref, evaluator_cfg.settings.endpoint
             ),
-            case=eval_case.model_copy(update={"config": config}),
+            case=custom_eval_case(run.case, config),
             answer=answer,
             output=structured,
             trajectory=trajectory_doc,
@@ -1136,9 +1185,11 @@ async def evaluate_experiment(
     runs = await deps.store.runs_to_score(exp_id, force=False)
     refetched = await _refetch(deps, exp, agent, runs) if refetch_trajectories else set()
     judge, api_key = resolve_judge(deps, exp.config.judge, [run.case for run in runs])
-    configured_custom = (
-        await deps.evaluators.in_workspace(agent.workspace)
-        if any(run.case.effective_evaluators.get("custom") for run in runs)
+    has_custom = any(run.case.effective_evaluators.get("custom") for run in runs)
+    configured_custom = await deps.evaluators.in_workspace(agent.workspace) if has_custom else {}
+    server_extensions = (
+        await deps.server_evaluators.extension_evaluators()
+        if has_custom and deps.server_evaluators is not None
         else {}
     )
     results = await gather_bounded(
@@ -1154,6 +1205,7 @@ async def evaluate_experiment(
                 judge,
                 api_key,
                 configured_custom,
+                server_extensions,
                 holder,
                 force=run.experiment_run_id in refetched,
             )

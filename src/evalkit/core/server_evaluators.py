@@ -28,10 +28,24 @@ class ServerEvaluationRequest(BaseModel):
     config: dict[str, Any] = Field(default_factory=dict)
 
 
+class ExtensionEvaluatorInfo(BaseModel):
+    name: str
+    uses_judge: bool = False
+    requires_trajectory: bool = False
+
+
 class ServerEvaluators(Protocol):
     async def score(
         self, experiment_run_id: int, name: str, config: dict[str, Any]
     ) -> ServerScore: ...
+
+    async def extension_evaluators(self) -> dict[str, ExtensionEvaluatorInfo]: ...
+
+
+NEEDS_SERVER_JUDGE = (
+    "this dataset needs a judge configured on the server: {name} is graded there, "
+    "not with a judge you bring yourself"
+)
 
 
 def resolve_location(evaluator: BuiltinEval, judge: JudgeSettings | None) -> Location:
