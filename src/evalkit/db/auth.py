@@ -15,7 +15,7 @@ async def find_token(
                 .join(User, User.id == AuthToken.user_id)
                 .outerjoin(Agent, Agent.id == AuthToken.agent_id)
                 .outerjoin(Workspace, Workspace.id == Agent.workspace_id)
-                .where(AuthToken.token_hash == token_hash)
+                .where(AuthToken.token_hash == token_hash, AuthToken.revoked_at.is_(None))
             )
         ).one_or_none()
     if found is None:
