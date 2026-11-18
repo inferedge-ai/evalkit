@@ -553,12 +553,17 @@ async def score_on_server(
     run = await stores.store.run_to_score(exp_id, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} has nothing to score")
+    custom_config = (run.case.effective_evaluators.get("custom") or {}).get(name)
+    if extension is not None and custom_config is None:
+        raise HTTPException(
+            status_code=400, detail=f"case {run.case.case_id} does not name the evaluator {name}"
+        )
     ctx, view = await build_context(
         deps, agent, load_cost_map(deps.cfg.cost_map), run, resolved, api_key
     )
-    if evaluator is None and extension is not None:
+    if extension is not None and custom_config is not None:
         rows = await score_extension(
-            extension, name, ctx, view, custom_eval_case(run.case, body.config)
+            extension, name, ctx, view, custom_eval_case(run.case, custom_config)
         )
     else:
         caps = Capabilities.model_validate(exp.config.snapshot.capabilities)

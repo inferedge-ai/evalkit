@@ -3,6 +3,7 @@ from dataclasses import replace
 from datetime import timedelta
 
 import httpx2
+import pytest
 from pydantic import BaseModel
 
 from evalkit.api.auth import issue_token
@@ -334,6 +335,14 @@ async def test_a_local_run_gets_its_extension_scores_from_the_server(
         )
         assert unknown.status_code == 404
 
+        asked.clear()
+        made_up = await client.post(
+            f"/api/experiment-runs/{run.experiment_run_id}/server-evaluations/ext_answer_match",
+            json={"config": {"reference_answer": "Ada"}},
+        )
+        assert made_up.json()["rows"][0]["score"] == 0.0
+        assert len(asked) == 1
+
 
 async def test_re_scoring_a_local_run_asks_the_server_again(tmp_path, session_factory, monkeypatch):
     judge_recorder(monkeypatch, fail=True)
@@ -378,3 +387,30 @@ async def test_a_local_run_with_its_own_judge_cannot_use_a_judging_extension_eva
         )
         assert direct.status_code == 400
         assert direct.json()["detail"] == rows["ext_answer_match"].error
+
+
+async def test_the_server_scores_only_an_extension_evaluator_the_case_names(
+    tmp_path, session_factory, monkeypatch
+):
+    asked = judge_recorder(monkeypatch)
+    only_length = [extension_case("ext-1", {"ext_length": {}})]
+    async with local_runner(tmp_path, session_factory, only_length) as (client, env):
+        exp = await start(env, LOCAL_RUN)
+        [run] = await env.details(exp.id)
+        refused = await client.post(
+            f"/api/experiment-runs/{run.experiment_run_id}/server-evaluations/ext_answer_match",
+            json={"config": {"reference_answer": "Ada"}},
+        )
+        assert refused.status_code == 400
+        assert refused.json()["detail"] == "case ext-1 does not name the evaluator ext_answer_match"
+        assert asked == []
+
+
+async def test_an_extension_evaluator_cannot_take_a_built_ins_name(tmp_path, session_factory):
+    env = await seed_env(session_factory, tmp_path)
+    clash = {
+        "answer_rubrics": PythonEvaluator(name="answer_rubrics", kind="evaluator", fn=ext_length)
+    }
+    with pytest.raises(ValueError, match="named like built-ins: answer_rubrics"):
+        async with serve(env, tmp_path, extension_evaluators=clash):
+            pass
