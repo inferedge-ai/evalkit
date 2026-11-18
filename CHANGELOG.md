@@ -4,15 +4,28 @@
 
 ### Before you upgrade
 
-- **Server:** Run `evalkit db upgrade` (migrations 0021 and 0022).
+- **Server:** Run `evalkit db upgrade` (migrations 0021, 0022 and 0023).
+- **Datasets:** `evalkit sync` now uploads a `README.md` at the root of the
+  dataset folder and shows it on the dataset. If yours starts with a `---`
+  block, that block must be YAML frontmatter that passes `evalkit lint`, or the
+  sync is refused.
 
 ### Features
 
+- **Datasets:** A dataset can carry a README and metadata. Put a `README.md`
+  at the root of the dataset folder: its YAML frontmatter is the metadata
+  (`description`, `license`, `attribution`, `links`, and any other key with a
+  text value) and the rest is the README. `evalkit sync` of the whole dataset
+  mirrors the file, so deleting it clears both. The dataset page shows the
+  metadata and a README tab, `evalkit datasets list` shows the description and
+  `evalkit datasets show` prints both. A dataset filled by promotion takes
+  them from the dataset the case came from.
 - **Extending evalkit:** A package built on evalkit can register evaluators
   with `create_app(extension_evaluators=...)`. Cases name them under
   `evaluators.custom`, server runs score them, and one that sets `uses_judge`
   is passed the experiment's judge. Such a package can also write a dataset
-  with `import_cases` and the sync source `extension`.
+  with `import_cases` and the sync source `extension`, with a README and
+  metadata of its own.
 
 ### Improvements
 

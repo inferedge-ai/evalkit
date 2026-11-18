@@ -20,6 +20,7 @@ from evalkit.db.cases import (
     create_dataset,
     current_cases,
     dataset_by_ref,
+    get_dataset_readme,
     list_datasets,
     tag_counts,
 )
@@ -67,7 +68,8 @@ async def create(
 
 @router.get("/{ref}")
 async def get_dataset(ref: str, stores: StoresDep, session: SessionDep) -> dict:
-    return _dataset(await dataset_by_ref(session, stores.tenant_id, ref))
+    row = await dataset_by_ref(session, stores.tenant_id, ref)
+    return {**_dataset(row), "readme": await get_dataset_readme(session, row.id)}
 
 
 async def _with_review(

@@ -47,6 +47,7 @@ class OverlayCopy:
 @dataclass(frozen=True)
 class PromotionPlan:
     source_ref: str
+    source_dataset_id: int
     target_ref: str
     target_workspace_id: int
     target_dataset_id: int

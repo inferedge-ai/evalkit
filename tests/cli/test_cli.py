@@ -622,7 +622,7 @@ SYNC_OK = {
 }
 
 
-def test_dir_sync_uploads_yaml_and_registry_only(tmp_path, monkeypatch):
+def test_dir_sync_uploads_yaml_the_registry_and_the_readme(tmp_path, monkeypatch):
     sent = _capture_post_files(monkeypatch, SYNC_OK)
     case_dir = tmp_path / "cases"
     (case_dir / "fixtures").mkdir(parents=True)
@@ -632,13 +632,14 @@ def test_dir_sync_uploads_yaml_and_registry_only(tmp_path, monkeypatch):
         "- id: cli-fx\n  input: {question: 'summarize as of 2024-01-01'}\n  fixtures: [doc.pdf]\n"
     )
     (case_dir / "README.md").write_text("notes")
+    (case_dir / "NOTES.md").write_text("not uploaded")
     result = runner.invoke(
         cli_app, ["sync", str(case_dir), "--workspace", "canonical", "--version", "v9"]
     )
     assert result.exit_code == 0, result.output
     assert re.search(r"^link: http\S+/datasets/cases%40canonical$", result.output, re.M)
     assert sent["path"] == "/api/sync"
-    assert sent["names"] == ["fixtures.yaml", "one.yaml"]
+    assert sent["names"] == ["README.md", "fixtures.yaml", "one.yaml"]
     assert sent["params"] == {
         "dataset": "cases",
         "workspace": "canonical",

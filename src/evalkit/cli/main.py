@@ -45,6 +45,7 @@ from evalkit.contracts.cases import REGISTRY_FILENAME, CaseEvaluators, is_case_y
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import AgentDefinition, Driver, driver, explicit, server_may_drive
 from evalkit.core.capabilities import sdk_capabilities
+from evalkit.core.dataset_readme import README_FILENAME, parse_dataset_readme
 from evalkit.core.fixtures import load_registries
 from evalkit.core.harness import HarnessClient
 from evalkit.core.importer import load_files
@@ -415,6 +416,10 @@ def lint(
         findings.extend(registry_findings)
         registry_in_scope = registry is not None and registry.parent == path
         findings.extend(fixture_findings(all_cases, entries, warn_unused=registry_in_scope))
+        if (path / README_FILENAME).is_file():
+            findings.extend(
+                parse_dataset_readme((path / README_FILENAME).read_text(encoding="utf-8"))[1]
+            )
         _print_findings([f.__dict__ for f in findings])
         errors = sum(1 for f in findings if f.severity == "error")
         warnings = sum(1 for f in findings if f.severity == "warning")
@@ -453,6 +458,8 @@ def lint(
     if registry is not None:
         files.append((REGISTRY_FILENAME, registry))
         params["warn_unused_fixtures"] = str(registry.parent == path).lower()
+    if (path / README_FILENAME).is_file():
+        files.append((README_FILENAME, path / README_FILENAME))
     body = _client().post_files("/api/lint", files, params=params, data=form).json()
     _print_findings(body["findings"])
     typer.echo(f"{body['errors']} error(s), {body['warnings']} warning(s)")
@@ -491,6 +498,7 @@ def _sync_and_report(
         f"synced {slug(Reference(name, workspace))}: created={report['created']} "
         f"patched={report['patched']} deleted={report['deleted']} "
         f"overlays_applied={report['overlays_applied']}"
+        + (" readme=updated" if report.get("readme_changed") else "")
     )
     review = report.get("review") or {}
     if review.get("now_unreviewed"):
@@ -605,7 +613,11 @@ def datasets_list(
         for ds in found:
             last = ds.get("last_sync") or {}
             sha = (last.get("detail") or {}).get("sha") or "-"
-            typer.echo(f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}")
+            description = (ds.get("metadata") or {}).get("description")
+            typer.echo(
+                f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}"
+                + (f"  {description}" if description else "")
+            )
         if found:
             typer.echo("evalkit datasets show <dataset> shows one dataset and its link")
         return
@@ -663,7 +675,28 @@ def datasets_show(
             states[state] = states.get(state, 0) + 1
         typer.echo("review: " + (", ".join(f"{k} {v}" for k, v in sorted(states.items())) or "-"))
     typer.echo("tags: " + (", ".join(f"{t['name']} {t['count']}" for t in tags) or "-"))
+    metadata = ds.get("metadata") or {}
+    for key in sorted(metadata, key=_metadata_order):
+        typer.echo(f"{key}: {_metadata_text(key, metadata[key])}")
     _echo_link(links.build_dataset_url(_server_url(), ds["ref"]))
+    if ds.get("readme"):
+        typer.echo("")
+        typer.echo(ds["readme"].rstrip())
+
+
+METADATA_KEYS = ("description", "attribution", "license", "links")
+
+
+def _metadata_order(key: str) -> tuple[int, str]:
+    return (METADATA_KEYS.index(key) if key in METADATA_KEYS else len(METADATA_KEYS), key)
+
+
+def _metadata_text(key: str, value: object) -> str:
+    if key == "license" and isinstance(value, dict):
+        return " ".join(str(part) for part in (value.get("name"), value.get("url")) if part)
+    if key == "links" and isinstance(value, list):
+        return ", ".join(f"{link['label']} {link['url']}" for link in value)
+    return str(value)
 
 
 class _Progress:

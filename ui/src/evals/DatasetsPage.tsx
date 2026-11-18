@@ -35,7 +35,14 @@ function DatasetRow({ ds }: { ds: Dataset }) {
       className="row grid-cols-[minmax(0,1fr)_auto_minmax(0,18rem)]"
       to={`/datasets/${encodeURIComponent(ds.ref)}`}
     >
-      <span className="row-strong">{ds.name}</span>
+      <span className="flex min-w-0 flex-col">
+        <span className="row-strong">{ds.name}</span>
+        {ds.metadata?.description && (
+          <span className="row-meta truncate" title={ds.metadata.description}>
+            {ds.metadata.description}
+          </span>
+        )}
+      </span>
       <Badge variant="secondary">{ds.kind}</Badge>
       <span
         className="row-meta num truncate text-right"

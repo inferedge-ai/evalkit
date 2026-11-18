@@ -16,6 +16,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Suite | A directory of case YAML synced into one dataset with `evalkit sync`. The directory name is the dataset name. |
 | Dataset | A named set of cases in the store, synced from YAML (kind `suite`). Every dataset belongs to a workspace. |
 | Sync | One write of case YAML into a dataset, recorded as a `dataset_syncs` row. |
+| Dataset README | The `README.md` at the root of a suite. Its YAML frontmatter is the dataset's metadata (`description`, `license`, `attribution`, `links`, other text keys) and the rest its README. A sync of the whole suite mirrors it: no file clears both. Never edited in the UI or the API. |
 | Workspace | A named namespace for datasets, agents and remote evaluators. Either personal or shared. |
 | Personal workspace | A workspace owned by one user, created with the user and named after them (`@akshat`). |
 | Shared workspace | A workspace with no owner. Admins create it, e.g. `@dev`, `@prod`. There is no special canonical workspace. |
@@ -184,7 +185,8 @@ shows one end to end.
 **Datasets.** A route of the other package writes a dataset with `import_cases`
 (`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route
 does (`api/imports.py`). `import_cases` does no access checks, so the route does
-its own with the helpers in `api/access.py`.
+its own with the helpers in `api/access.py`. Pass `readme=DatasetReadme(...)`
+(`core/dataset_readme.py`) to set the dataset's README and metadata.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
@@ -264,7 +266,8 @@ its own with the helpers in `api/access.py`.
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
   `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,
   `get_allow_private_endpoints`, `extension_evaluators`, `PythonEvaluator`,
-  `EvaluatorJudge.ask`, `import_cases`, `SyncSource.EXTENSION`, `StoresDep`,
+  `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_dataset_readme`,
+  `DatasetAbout` (`@/evals/DatasetAbout`), `SyncSource.EXTENSION`, `StoresDep`,
   `workspace_ref`, `require`, `ensure_active`, `load_actor` and `can_write`
   stable: other packages build against them.
 

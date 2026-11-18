@@ -102,12 +102,23 @@ export interface DatasetSync {
   created_at: string;
 }
 
+// The frontmatter of the dataset folder's README.md.
+export type DatasetMetadata = {
+  description?: string;
+  attribution?: string;
+  license?: { name: string; url?: string | null };
+  links?: { label: string; url: string }[];
+} & Record<string, unknown>;
+
 export interface Dataset {
   id: number;
   workspace: string;
   workspace_is_shared: boolean;
   name: string;
   kind: "suite";
+  metadata: DatasetMetadata;
+  // The README.md body; only on GET /api/datasets/{ref}.
+  readme?: string | null;
   last_sync: DatasetSync | null;
   // name@workspace, the reference every API path takes.
   ref: string;
