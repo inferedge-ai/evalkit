@@ -108,7 +108,11 @@ function DatasetView() {
           {tab === "cases" && (
             <DatasetCasesTab
               dataset={ref}
-              reviewed={!!info?.workspace_is_shared && info.kind === "suite"}
+              reviewed={
+                !!info?.workspace_is_shared &&
+                info.kind === "suite" &&
+                info.last_sync?.source !== "extension"
+              }
               onRun={(caseIds) => setLaunch({ caseIds })}
             />
           )}

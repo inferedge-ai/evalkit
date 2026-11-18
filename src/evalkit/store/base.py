@@ -11,6 +11,7 @@ from evalkit.contracts.enums import (
     ExperimentStatus,
     RunStatus,
     ScoredOn,
+    SyncSource,
     TrajectorySource,
     TrajectoryStatus,
 )
@@ -81,11 +82,33 @@ class DatasetRow(BaseModel):
     name: str
     kind: str
     metadata: dict[str, Any] = Field(default_factory=dict)
+    archived: bool = False
     last_sync: DatasetSyncView | None = None
 
     @property
     def ref(self) -> str:
         return f"{self.name}@{self.workspace}"
+
+    @property
+    def written_by_extension(self) -> bool:
+        return self.last_sync is not None and self.last_sync.source == SyncSource.EXTENSION.value
+
+
+class WrittenByExtension(Exception):
+    def __init__(self, dataset: str):
+        self.dataset = dataset
+        super().__init__(
+            f"{dataset} was written by an extension of this server and cannot be changed"
+        )
+
+
+class WrittenByUsers(Exception):
+    def __init__(self, dataset: str):
+        self.dataset = dataset
+        super().__init__(
+            f"{dataset} was not written by an extension of this server; "
+            "an extension cannot replace it"
+        )
 
 
 class Selection(BaseModel):

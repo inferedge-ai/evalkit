@@ -191,7 +191,12 @@ affected.
 (`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route
 does (`api/imports.py`). `import_cases` does no access checks, so the route does
 its own with the helpers in `api/access.py`. Pass `readme=DatasetReadme(...)`
-(`core/dataset_readme.py`) to set the dataset's README and metadata.
+(`core/dataset_readme.py`) to set the dataset's README and metadata. While a dataset's
+latest sync has that source, only the extension changes it: `evalkit sync` and
+promotion into it answer 409, and case review does not apply, so its cases are
+never promoted either. The reverse holds too: an extension cannot replace a
+dataset whose latest sync is a user's. Both are checked inside the sync
+transaction (`check_writer` in `db/cases.py`), under a lock on the dataset row.
 
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
@@ -253,7 +258,8 @@ its own with the helpers in `api/access.py`. Pass `readme=DatasetReadme(...)`
   props.
 - A `NavItem` may set `icon`, a `lucide-react` icon; the collapsed sidebar
   shows a puzzle piece for one without. `nav` items get a sidebar section of
-  their own after Observe.
+  their own after Observe; one that sets `section` (`"Evaluate"` or
+  `"Observe"`) goes at the end of that section instead.
 - Settings pages go in `accountSettings` (everyone) and
   `organizationSettings` (admins only). Each is a `SettingsPage`: `name`,
   `label`, optional `icon` and `element`. The page renders at

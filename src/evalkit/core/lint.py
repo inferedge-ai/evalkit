@@ -74,15 +74,15 @@ def _jargon_hits(text: str) -> set[str]:
     return hits
 
 
-def _e_jargon(case: Case) -> list[Finding]:
+def _w_jargon(case: Case) -> list[Finding]:
     findings = []
     for surface, text in _blackbox_texts(case):
         hits = _jargon_hits(text)
         if hits:
             findings.append(
                 Finding(
-                    severity="error",
-                    code="E-JARGON",
+                    severity="warning",
+                    code="W-JARGON",
                     case_id=case.id,
                     message=(
                         f"{surface} leaks agent internals ({', '.join(sorted(hits))}) "
@@ -228,7 +228,7 @@ def lint(
         seen_targets.add(overlay.extends)
 
     for case in cases:
-        findings.extend(_e_jargon(case))
+        findings.extend(_w_jargon(case))
         findings.extend(_e_reserved_tags(case.id, case.tags))
         findings.extend(_w_custom_unknown(case.id, case.evaluators.custom, known_custom_evaluators))
         findings.extend(_w_undated(case))

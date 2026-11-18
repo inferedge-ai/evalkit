@@ -37,6 +37,7 @@ export function getNavSections(): NavSection[] {
         { to: "/datasets", label: "Datasets", icon: Database },
         { to: "/experiments", label: "Experiments", icon: FlaskConical },
         { to: "/reviews", label: "Reviews", icon: ClipboardCheck },
+        ...extensions.nav.filter((item) => item.section === "Evaluate"),
       ],
     },
     {
@@ -44,9 +45,10 @@ export function getNavSections(): NavSection[] {
       items: [
         { to: "/runs", label: "Runs", icon: Activity },
         { to: "/agents", label: "Agents", icon: Bot },
+        ...extensions.nav.filter((item) => item.section === "Observe"),
       ],
     },
-    { items: extensions.nav },
+    { items: extensions.nav.filter((item) => !item.section) },
   ];
   return sections.filter((section) => section.items.length > 0);
 }
