@@ -263,3 +263,5 @@ def test_gen_ai_messages_without_parts_read_openai_tool_calls():
         ("c1", "ls", {"path": "/"})
     ]
     assert (messages[1].text, messages[1].tool_call_id) == ("a.txt", "7")
+    openai, _ = MESSAGE_FORMATS["openai"]({"m": json.dumps([result])}, "m")
+    assert openai[0].tool_call_id == "7"
