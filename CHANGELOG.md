@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **CLI:** `evalkit sync <suite>/<folder>` deleted every overlay in the
+  dataset except those in the uploaded files. It now replaces only the
+  overlays from the files it uploads; overlays in other files stay. A full
+  sync still replaces all of them. Overlays now record their file's path
+  within the suite (`a/overlays.yaml`), so files with the same name in
+  different folders are kept apart. Overlays saved before this change record
+  only the file name: until the next full sync, an incremental sync of a
+  file in a subfolder leaves behind overlays removed from that file.
 - **Server:** Revoking an agent token (Settings › API keys, `evalkit tokens
   revoke`, `DELETE /api/tokens/{id}`) and archiving an agent now keep the
   token's row and set its new `revoked_at` and `revoked_by` columns (who

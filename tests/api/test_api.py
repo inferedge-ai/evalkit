@@ -356,6 +356,72 @@ async def test_lint_endpoint_with_dataset_checks_overlay_targets(api):
         assert ("E-OVERLAY-TARGET" in codes) is expected, codes
 
 
+async def test_incremental_sync_keeps_overlays_outside_uploaded_files(api):
+    client, *_ = api
+    resp = await client.post(
+        "/api/sync",
+        params={"dataset": "client-cases", "workspace": "canonical"},
+        files=[("files", ("overlays.yaml", overlay_yaml("case-1")))],
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["overlays_applied"] == 1
+    resp = await client.post(
+        "/api/sync",
+        params={"dataset": "client-cases", "workspace": "canonical"},
+        files=[
+            (
+                "files",
+                ("c.yaml", b"- id: client-case\n  input: {question: 'q as of 2024-01-01'}\n"),
+            )
+        ],
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["overlays_applied"] == 0
+    selected = (
+        await client.post(
+            f"/api/datasets/{FINANCE}/cases/select",
+            json={"selection": {"all": True}, "agent": AGENT},
+        )
+    ).json()
+    case = next(case for case in selected if case["case_id"] == "case-1")
+    assert case["effective_evaluators"]["custom"] == {
+        "required_tool_calls": {"tools": ["retrieve_passages"]}
+    }
+
+
+async def test_incremental_sync_tells_overlay_files_apart_by_folder(api):
+    client, *_ = api
+    params = {"dataset": "client-cases", "workspace": "canonical"}
+
+    def tone(target: str) -> bytes:
+        return (
+            f"- extends: {target}\n  agents: [fake]\n  evaluators:\n    custom:\n"
+            "      tone: {strict: true}\n"
+        ).encode()
+
+    resp = await client.post(
+        "/api/sync",
+        params={**params, "prune": True},
+        files=[
+            ("files", ("a/overlays.yaml", tone("case-1"))),
+            ("files", ("b/overlays.yaml", tone("case-2"))),
+        ],
+    )
+    assert resp.json()["overlays_applied"] == 2, resp.text
+    resp = await client.post(
+        "/api/sync", params=params, files=[("files", ("a/overlays.yaml", b"[]\n"))]
+    )
+    assert resp.status_code == 200, resp.text
+    selected = (
+        await client.post(
+            f"/api/datasets/{FINANCE}/cases/select",
+            json={"selection": {"all": True}, "agent": AGENT},
+        )
+    ).json()
+    toned = {c["case_id"]: "tone" in c["effective_evaluators"].get("custom", {}) for c in selected}
+    assert toned == {"case-1": False, "case-2": True}
+
+
 async def test_sync_with_no_files_prunes_existing_dataset(api):
     client, *_ = api
     assert (await client.get(f"/api/datasets/{FINANCE}/cases")).json()

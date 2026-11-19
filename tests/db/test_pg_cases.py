@@ -3,7 +3,7 @@ from sqlalchemy import select
 
 from evalkit.core.review import CaseEventKind
 from evalkit.db.cases import case_ref_for, current_cases, get_dataset, tag_counts
-from evalkit.db.models import Case, CaseEvent, CaseVersion, DatasetSync, TenantSettings
+from evalkit.db.models import Case, CaseEvent, CaseVersion, DatasetSync, Overlay, TenantSettings
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.store.base import UnknownDataset
 from tests.seed import World, count, incoming, overlay, seed_world, sync
@@ -97,6 +97,80 @@ async def test_partial_sync_never_removes(session_factory, world):
         await s.commit()
     assert result.removed == []
     assert [v.case_id for v in cases] == ["q-a", "q-b"]
+
+
+async def test_partial_sync_keeps_overlays_outside_uploaded_files(session_factory, world):
+    async with session_factory() as s:
+        await sync(s, world.dev, world.admin_id, [incoming("q-a"), incoming("q-b")])
+        await sync(
+            s,
+            world.dev,
+            world.admin_id,
+            [],
+            dataset="client-cases",
+            overlays=(overlay("q-a", ["support-bot"]), overlay("q-b", ["support-bot"])),
+        )
+        result = await sync(
+            s,
+            world.dev,
+            world.admin_id,
+            [],
+            dataset="client-cases",
+            full=False,
+            source_files={"cases.yaml"},
+        )
+        overlays_dataset = await get_dataset(s, "default", "dev", "client-cases")
+        overlays = (
+            await s.scalars(select(Overlay).where(Overlay.source_dataset_id == overlays_dataset.id))
+        ).all()
+        cases = await current_cases(
+            s, await get_dataset(s, "default", "dev", "finance"), agent="support-bot"
+        )
+        await s.commit()
+    assert result.overlays == 0
+    assert len(overlays) == 2
+    assert all(case.effective_evaluators["custom"] == {"tone": {"strict": True}} for case in cases)
+
+
+async def test_partial_sync_replaces_overlays_from_uploaded_files(session_factory, world):
+    async with session_factory() as s:
+        await sync(s, world.dev, world.admin_id, [incoming("q-a"), incoming("q-b")])
+        await sync(
+            s,
+            world.dev,
+            world.admin_id,
+            [],
+            dataset="client-cases",
+            overlays=(overlay("q-a", ["support-bot"]), overlay("q-b", ["support-bot"])),
+        )
+        updated = overlay("q-a", ["support-bot"]).model_copy(
+            update={"evaluators": {"custom": {"tone": {"strict": False}}}}
+        )
+        result = await sync(
+            s,
+            world.dev,
+            world.admin_id,
+            [],
+            dataset="client-cases",
+            overlays=(updated,),
+            full=False,
+            source_files={"overlays.yaml"},
+        )
+        overlays_dataset = await get_dataset(s, "default", "dev", "client-cases")
+        overlays = (
+            await s.scalars(select(Overlay).where(Overlay.source_dataset_id == overlays_dataset.id))
+        ).all()
+        cases = {
+            case.case_id: case
+            for case in await current_cases(
+                s, await get_dataset(s, "default", "dev", "finance"), agent="support-bot"
+            )
+        }
+        await s.commit()
+    assert result.overlays == 1
+    assert [overlay.target_case for overlay in overlays] == [cases["q-a"].case_ref]
+    assert cases["q-a"].effective_evaluators["custom"] == {"tone": {"strict": False}}
+    assert "custom" not in cases["q-b"].effective_evaluators
 
 
 async def test_overlay_applies_in_every_dataset_of_workspace_holding_target(session_factory, world):
