@@ -11,9 +11,10 @@
 - **Tracing:** The `gen_ai` and `openai` message formats now read tool calls
   in LangChain's shape (`{id, name, args}`) as well as OpenAI's, and the
   `gen_ai` format reads `tool_calls`, `tool_call_id` and a `content` list of
-  text parts on messages without `parts`. Before, agents traced with Langfuse's LangChain callback got
-  trajectories with no tool calls, whether their spans reached the collector
-  or were imported from Langfuse with the `langfuse` preset.
+  text parts on messages without `parts`. Before, agents traced with
+  Langfuse's LangChain callback got trajectories with no tool calls, whether
+  their spans reached the collector or were imported from Langfuse with the
+  `langfuse` preset.
 
 ## 0.8.0
 

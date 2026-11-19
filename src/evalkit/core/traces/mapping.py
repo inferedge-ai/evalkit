@@ -264,7 +264,7 @@ def _gen_ai_messages(attributes: dict[str, Any], key: str) -> tuple[list[EsfMess
         reasoning: list[str] = []
         tool_calls: list[EsfToolCall] = []
         tool_call_id: str | None = None
-        if "parts" not in message:
+        if not message.get("parts"):
             text = _text(message.get("content"))
             if text:
                 texts.append(text)
@@ -326,12 +326,13 @@ def _flat_tool_calls(message: dict[str, Any]) -> list[EsfToolCall]:
     for c in message.get("tool_calls") or []:
         if not isinstance(c, dict):
             continue
-        function = c["function"] if isinstance(c.get("function"), dict) else c
+        if isinstance(c.get("function"), dict):
+            name, arguments = c["function"].get("name"), c["function"].get("arguments")
+        else:
+            name, arguments = c.get("name"), c.get("args")
         out.append(
             EsfToolCall(
-                id=str(c.get("id") or ""),
-                name=str(function.get("name") or ""),
-                arguments=_arguments(function.get("arguments", function.get("args"))),
+                id=str(c.get("id") or ""), name=str(name or ""), arguments=_arguments(arguments)
             )
         )
     return out
@@ -351,7 +352,7 @@ def _openai_messages(attributes: dict[str, Any], key: str) -> tuple[list[EsfMess
                 role=_normalize_role(message.get("role")),
                 text=_text(message.get("content")),
                 tool_calls=tool_calls or None,
-                tool_call_id=message.get("tool_call_id"),
+                tool_call_id=_str(message.get("tool_call_id")),
             )
         )
     return out, {key}

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.traces.convert import to_atif
-from evalkit.core.traces.mapping import to_esf
+from evalkit.core.traces.mapping import MESSAGE_FORMATS, to_esf
 from evalkit.core.traces.presets import read_preset
 from evalkit.core.traces.raw import RawSpan
 from evalkit.core.traces.sources.langfuse import to_raw
@@ -83,15 +83,18 @@ def test_a_langfuse_sdk_span_at_the_collector_gives_the_same_tokens():
     assert span.cost_usd == 0.00099
 
 
-def langchain_span(span_id: str, second: int, attributes: dict) -> RawSpan:
+def make_langchain_span(span_id: str, second: int, attributes: dict) -> RawSpan:
     return RawSpan(
         trace_id="t" * 32,
         span_id=span_id * 16,
         parent_span_id="r" * 16,
-        name=attributes.pop("name"),
+        name=attributes["name"],
         start_time=datetime(2026, 11, 16, 0, 0, second, tzinfo=UTC),
         end_time=datetime(2026, 11, 16, 0, 0, second + 1, tzinfo=UTC),
-        attributes={"session.id": "lc-session", **attributes},
+        attributes={
+            "session.id": "lc-session",
+            **{k: v for k, v in attributes.items() if k != "name"},
+        },
     )
 
 
@@ -107,7 +110,7 @@ def test_langchain_callback_tool_calls_pair_with_tool_spans_without_ids():
         {"role": "tool", "content": "402.0", "tool_call_id": "c2"},
     ]
     raws = [
-        langchain_span(
+        make_langchain_span(
             "a",
             0,
             {
@@ -117,7 +120,7 @@ def test_langchain_callback_tool_calls_pair_with_tool_spans_without_ids():
                 "langfuse.observation.output": json.dumps(first),
             },
         ),
-        langchain_span(
+        make_langchain_span(
             "b",
             2,
             {
@@ -127,7 +130,7 @@ def test_langchain_callback_tool_calls_pair_with_tool_spans_without_ids():
                 "langfuse.observation.output": "101.5",
             },
         ),
-        langchain_span(
+        make_langchain_span(
             "c",
             3,
             {
@@ -137,7 +140,7 @@ def test_langchain_callback_tool_calls_pair_with_tool_spans_without_ids():
                 "langfuse.observation.output": "402.0",
             },
         ),
-        langchain_span(
+        make_langchain_span(
             "d",
             5,
             {
@@ -203,7 +206,7 @@ def test_a_langchain_callback_generation_from_langfuse_sdk_4():
             }
         ],
     }
-    raw = langchain_span(
+    raw = make_langchain_span(
         "a",
         0,
         {
@@ -239,3 +242,24 @@ def test_a_langchain_callback_generation_from_langfuse_sdk_4():
     assert out.text is None
     assert (span.prompt_tokens, span.completion_tokens, span.cached_tokens) == (14517, 71, 6097)
     assert span.cost_usd == 0.00288641
+
+
+def test_gen_ai_messages_without_parts_read_openai_tool_calls():
+    message = {
+        "role": "assistant",
+        "parts": None,
+        "content": "",
+        "tool_calls": [
+            {
+                "id": "c1",
+                "type": "function",
+                "function": {"name": "ls", "arguments": '{"path": "/"}'},
+            }
+        ],
+    }
+    result = {"role": "tool", "parts": [], "content": "a.txt", "tool_call_id": 7}
+    messages, _ = MESSAGE_FORMATS["gen_ai"]({"m": json.dumps([message, result])}, "m")
+    assert [(c.id, c.name, c.arguments) for c in messages[0].tool_calls or []] == [
+        ("c1", "ls", {"path": "/"})
+    ]
+    assert (messages[1].text, messages[1].tool_call_id) == ("a.txt", "7")
