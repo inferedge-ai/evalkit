@@ -119,11 +119,13 @@ def active(path: Path | None = None) -> Connection:
 def require_credentials(connection: Connection) -> None:
     if connection.token or connection.oidc is not None or connection.machine is not None:
         return
-    raise LookupError(
-        f"EVALKIT_SERVER_URL is {connection.url} but EVALKIT_TOKEN is not set, and you have no "
-        f"stored login for that server: set EVALKIT_TOKEN, or run "
-        f"`evalkit login --url {connection.url}`"
-    )
+    login = f"`evalkit login --url {connection.url}`"
+    if connection.from_env:
+        raise LookupError(
+            f"EVALKIT_SERVER_URL is {connection.url} but EVALKIT_TOKEN is not set, and you have "
+            f"no stored login for that server: set EVALKIT_TOKEN, or run {login}"
+        )
+    raise LookupError(f"you are not logged in to {connection.url}: run {login}")
 
 
 def renew_hint(connection: Connection) -> str:

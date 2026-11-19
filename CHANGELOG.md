@@ -60,9 +60,9 @@
 - **SDK:** Fixed `run_experiment` failing with a raw 401 from `/api/auth/me`
   when `EVALKIT_SERVER_URL` is set without `EVALKIT_TOKEN`. The CLI and the
   SDK now use your `evalkit login` when it is for the same server. For any
-  other server, `run_experiment` and `evaluate_experiment` stop before their
-  first call with an error that names `EVALKIT_TOKEN` and
-  `evalkit login --url <url>`.
+  other server, `run_experiment`, `evaluate_experiment` and CLI commands that
+  need a signed-in user stop before their first call with an error that names
+  `EVALKIT_TOKEN` and `evalkit login --url <url>`.
 
 ## 0.8.0
 

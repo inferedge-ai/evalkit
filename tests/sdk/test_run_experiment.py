@@ -932,3 +932,16 @@ async def test_a_server_url_without_a_token_or_stored_login_names_evalkit_token(
     monkeypatch.chdir(tmp_path)
     with pytest.raises(LookupError, match="EVALKIT_TOKEN is not set"):
         await arun_experiment(task=lambda question: "x", dataset="d", agent="a")
+
+
+async def test_evaluate_experiment_without_a_token_or_stored_login_names_evalkit_token(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "http://127.0.0.1:9")
+    monkeypatch.delenv("EVALKIT_TOKEN", raising=False)
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_ID", raising=False)
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_SECRET", raising=False)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(LookupError, match="EVALKIT_TOKEN is not set"):
+        await aevaluate_experiment(experiment_id=1)

@@ -149,3 +149,12 @@ def test_active_uses_the_stored_login_for_the_same_server_without_a_token(tmp_pa
     with pytest.raises(LookupError, match="EVALKIT_TOKEN.*evalkit login --url https://other"):
         connection.require_credentials(other)
     connection.require_credentials(Connection("https://dev", "t1", "a"))
+
+
+def test_require_credentials_names_the_login_for_a_stored_url_without_a_token():
+    with pytest.raises(LookupError) as raised:
+        connection.require_credentials(Connection("https://dev", None, None))
+    assert (
+        str(raised.value)
+        == "you are not logged in to https://dev: run `evalkit login --url https://dev`"
+    )
