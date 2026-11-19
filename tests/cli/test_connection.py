@@ -133,3 +133,19 @@ def test_active_refuses_half_of_the_client_credentials(tmp_path, monkeypatch, pr
     monkeypatch.setenv(present, "x")
     with pytest.raises(LookupError, match=missing):
         connection.active(path=tmp_path / "config.toml")
+
+
+def test_active_uses_the_stored_login_for_the_same_server_without_a_token(tmp_path, monkeypatch):
+    path = tmp_path / "config.toml"
+    connection.save(Connection("https://dev/", "t1", "a"), path=path)
+    monkeypatch.delenv("EVALKIT_TOKEN", raising=False)
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_ID", raising=False)
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_SECRET", raising=False)
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "https://dev")
+    assert connection.active(path=path) == Connection("https://dev/", "t1", "a")
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "https://other")
+    other = connection.active(path=path)
+    assert other == Connection("https://other", None, None, from_env=True)
+    with pytest.raises(LookupError, match="EVALKIT_TOKEN.*evalkit login --url https://other"):
+        connection.require_credentials(other)
+    connection.require_credentials(Connection("https://dev", "t1", "a"))

@@ -628,6 +628,7 @@ async def arun_experiment(
             "parameter, so the agent never sees it"
         )
     active = connection.active()
+    connection.require_credentials(active)
     api = AsyncApi(active.url, oidc.build_auth(active), transport=api_transport)
     try:
         await api.require_same_version()
@@ -815,6 +816,7 @@ async def aevaluate_experiment(
     """
     local = LocalConfig.find_or_default(_config_search_starts()).resolve_env(scoring=True)
     active = connection.active()
+    connection.require_credentials(active)
     api = AsyncApi(active.url, oidc.build_auth(active), transport=api_transport)
     try:
         await api.require_same_version()

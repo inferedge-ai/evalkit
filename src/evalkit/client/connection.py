@@ -104,11 +104,26 @@ def active(path: Path | None = None) -> Connection:
             return Connection(
                 env_url, None, None, from_env=True, machine=MachineLogin(client_id, client_secret)
             )
-        return Connection(env_url, os.environ.get("EVALKIT_TOKEN"), None, from_env=True)
+        env_token = os.environ.get("EVALKIT_TOKEN")
+        if not env_token:
+            stored = load(path or CONFIG_PATH)
+            if stored is not None and stored.url.rstrip("/") == env_url.rstrip("/"):
+                return stored
+        return Connection(env_url, env_token, None, from_env=True)
     stored = load(path or CONFIG_PATH)
     if stored is None:
         raise LookupError(f"no server configured — run {LOGIN_HINT}, or set EVALKIT_SERVER_URL")
     return stored
+
+
+def require_credentials(connection: Connection) -> None:
+    if connection.token or connection.oidc is not None or connection.machine is not None:
+        return
+    raise LookupError(
+        f"EVALKIT_SERVER_URL is {connection.url} but EVALKIT_TOKEN is not set, and you have no "
+        f"stored login for that server: set EVALKIT_TOKEN, or run "
+        f"`evalkit login --url {connection.url}`"
+    )
 
 
 def renew_hint(connection: Connection) -> str:
