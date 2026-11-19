@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from evalkit.client.api import SyncApi
 from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml, load_cases_from_yaml
+from evalkit.core.dataset_readme import README_FILENAME
 from evalkit.core.fixtures import load_registries, sha256_hex
 from evalkit.core.workspace import Reference, parse_reference
 from evalkit.store.base import GitRevision, Selection
@@ -64,7 +66,16 @@ def _on_disk(candidate: Path, cases_root: Path) -> tuple[Path, str]:
     return resolved.parent, resolved.name
 
 
-def resolve_path(arg: str, cases_root: Path, my_workspace: str) -> ResolvedPath:
+def always_from_disk(ref: Reference) -> bool:
+    return True
+
+
+def resolve_path(
+    arg: str,
+    cases_root: Path,
+    my_workspace: str,
+    comes_from_disk: Callable[[Reference], bool] = always_from_disk,
+) -> ResolvedPath:
     candidate = Path(arg)
     if candidate.exists():
         dataset_dir, subpath = _on_disk(candidate, cases_root)
@@ -76,7 +87,7 @@ def resolve_path(arg: str, cases_root: Path, my_workspace: str) -> ResolvedPath:
     ref = parse_reference(ref_text, my_workspace)
     own = ref.workspace == my_workspace
     on_disk = cases_root / ref.name if (cases_root / ref.name).is_dir() else None
-    if own and on_disk is None:
+    if own and on_disk is None and comes_from_disk(ref):
         raise ValueError(
             f"no dataset directory {ref.name!r} under {cases_root}; {ref.name} is in your "
             f"workspace, so it syncs from disk: put its cases in {cases_root / ref.name}/, "
@@ -143,6 +154,9 @@ def sync_files(dataset_dir: Path, subpath: str | None = None) -> list[tuple[str,
     registry = _nearest_registry(dataset_dir)
     if registry is not None:
         out.append((REGISTRY_FILENAME, registry))
+    readme = dataset_dir / README_FILENAME
+    if not subpath and readme.is_file():
+        out.append((README_FILENAME, readme))
     return out
 
 
@@ -153,7 +167,7 @@ def upload_fixtures(
     entries, _ = load_registries(registry)
     referenced: set[str] = set()
     for name, path in files:
-        if name == REGISTRY_FILENAME:
+        if name in (REGISTRY_FILENAME, README_FILENAME):
             continue
         cases, _ = load_cases_from_yaml(path)
         referenced.update(key for case in cases for key in case.fixtures)

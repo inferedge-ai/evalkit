@@ -56,8 +56,8 @@ def test_jargon_leak():
         }
     )
     findings = run_lint([case])
-    assert "E-JARGON" in codes(findings)
-    assert has_errors(findings)
+    assert "W-JARGON" in codes(findings)
+    assert not has_errors(findings)
 
 
 def test_jargon_snake_call():
@@ -66,7 +66,7 @@ def test_jargon_snake_call():
             "trajectory": {"trajectory_rubrics": {"rubrics": ["Uses retrieve_passages(query)."]}}
         }
     )
-    assert "E-JARGON" in codes(run_lint([case]))
+    assert "W-JARGON" in codes(run_lint([case]))
 
 
 def test_custom_unknown():

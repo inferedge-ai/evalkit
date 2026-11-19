@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import DatasetKind, ExperimentStatus, SyncSource
 from evalkit.core.access import WorkspaceRef
+from evalkit.core.dataset_readme import DatasetReadme
 from evalkit.core.overlays import OverlayBlock
 from evalkit.db import cases, experiments, fixture_blobs, models, runs, scorecard
 from evalkit.db.cases import sync_dataset
@@ -204,6 +205,7 @@ class PgStore:
         actor_id: int,
         source: SyncSource,
         detail: dict,
+        readme: DatasetReadme | None = None,
     ) -> SyncResult:
         if workspace.tenant_id != self._tenant_id:
             raise UnknownWorkspace(workspace.name)
@@ -219,6 +221,7 @@ class PgStore:
                 actor_id=actor_id,
                 source=source,
                 detail=detail,
+                readme=readme,
             )
             await s.commit()
             return result

@@ -259,3 +259,11 @@ def test_sync_refuses_cases_inside_an_evalkit_package_folder(tmp_path):
     with pytest.raises(ValueError, match="hides the installed evalkit package"):
         refuse_package_folder(dataset_dir)
     refuse_package_folder(tmp_path / "suites" / "finance")
+
+
+def test_my_dataset_without_a_directory_needs_one_unless_it_does_not_come_from_disk(cases_root):
+    with pytest.raises(ValueError, match="syncs from disk"):
+        resolve_path("installed", cases_root, "akshat")
+    r = resolve_path("installed", cases_root, "akshat", lambda ref: False)
+    assert r.ref == Reference("installed", "akshat")
+    assert r.dataset_dir is None and r.selection == Selection(all=True)

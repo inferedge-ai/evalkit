@@ -1,7 +1,14 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactElement } from "react";
 
-export type NavItem = { to: string; label: string; icon?: LucideIcon };
+export type NavSectionName = "Evaluate" | "Observe";
+
+export type NavItem = {
+  to: string;
+  label: string;
+  icon?: LucideIcon;
+  section?: NavSectionName;
+};
 
 export type ExtensionRoute = { path: string; element: ReactElement };
 

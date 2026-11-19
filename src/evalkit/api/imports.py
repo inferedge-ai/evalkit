@@ -14,12 +14,14 @@ from evalkit.contracts.cases import REGISTRY_FILENAME
 from evalkit.core.access import can_write
 from evalkit.core.agents import explicit, server_may_drive
 from evalkit.core.fixtures import load_registries
-from evalkit.core.importer import import_dataset, load_files
+from evalkit.core.importer import import_dataset, load_files, read_dataset_readme
 from evalkit.core.lint import fixture_findings
 from evalkit.core.lint import lint as lint_cases
 from evalkit.core.runner import RunnerDeps
 from evalkit.core.workspace import parse_slug
+from evalkit.db.cases import find_dataset_row
 from evalkit.db.models import User
+from evalkit.store.base import WrittenByExtension
 
 router = APIRouter(prefix="/api", tags=["imports"])
 
@@ -94,6 +96,7 @@ async def lint_endpoint(
                     warn_unused=warn_unused_fixtures,
                 )
             )
+        findings.extend(read_dataset_readme(paths, Path(tmp))[1])
         other_cases: dict[str, str] | None = None
         if dataset is not None:
             ref = parse_slug(dataset)
@@ -103,7 +106,7 @@ async def lint_endpoint(
         schema = await _agent_input_schema(stores.deps, agent) if agent is not None else None
         if input_schema is not None:
             schema = _input_schema(input_schema)
-        known = await stores.evaluators.names()
+        known = await stores.evaluators.names() | set(stores.deps.extension_evaluators)
         findings.extend(
             lint_cases(
                 [case for case, _ in sourced_cases],
@@ -138,6 +141,9 @@ async def sync(
     target_ws = await workspace_ref(stores, target)
     require(can_write(await load_actor(session, user), target_ws), f"you cannot sync to @{target}")
     ensure_active(target_ws)
+    existing = await find_dataset_row(session, stores.tenant_id, target, dataset)
+    if existing is not None and existing.written_by_extension:
+        raise HTTPException(status_code=409, detail=str(WrittenByExtension(existing.ref)))
     if target_ws.is_target:
         assert target_ws.promoted_from is not None
         source_ws = await stores.workspaces.get_by_id(target_ws.promoted_from)
@@ -162,7 +168,8 @@ async def sync(
             dataset=dataset,
             files=paths,
             full=prune,
-            known_custom_evaluators=await stores.evaluators.names(),
+            known_custom_evaluators=await stores.evaluators.names()
+            | set(stores.deps.extension_evaluators),
             actor_id=user.id,
             detail=detail,
             root=root,

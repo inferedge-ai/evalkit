@@ -2,6 +2,45 @@
 
 ## Unreleased
 
+### Before you upgrade
+
+- **Server:** Run `evalkit db upgrade` (migrations 0021, 0022 and 0023).
+- **Datasets:** `evalkit sync` now uploads a `README.md` at the root of the
+  dataset folder and shows it on the dataset. The file must be UTF-8, and if
+  it starts with a `---` block, that block must be YAML frontmatter that passes
+  `evalkit lint`, or the sync is refused. A sync of one folder or file leaves
+  the README alone.
+
+### Features
+
+- **Datasets:** A dataset can carry a README and metadata. Put a `README.md`
+  at the root of the dataset folder: its YAML frontmatter is the metadata
+  (`description`, `license`, `attribution`, `links`, and any other key with a
+  text value) and the rest is the README. `evalkit sync` of the whole dataset
+  mirrors the file, so deleting it clears both. The dataset page shows the
+  metadata and a README tab, `evalkit datasets list` shows the description and
+  `evalkit datasets show` prints both. A dataset filled by promotion takes
+  them from the dataset the case came from.
+- **Extending evalkit:** A package built on evalkit can register evaluators
+  with `create_app(extension_evaluators=...)`. Cases name them under
+  `evaluators.custom`, and one that sets `uses_judge` is passed the
+  experiment's judge. The server scores them for every run: a local or SDK
+  run asks it to, and `evalkit evaluate` re-scores the same way. With a judge
+  you bring yourself (`--judge-base-url`), an experiment whose cases use a
+  judge-using one is refused before any agent runs. Such a package can also write a dataset
+  with `import_cases` and the sync source `extension`, with a README and
+  metadata of its own. Such a dataset is read-only for users: `evalkit sync` and
+  promotion into it are refused, and case review does not apply to it.
+  A nav item of such a package can set `section` to sit under Evaluate or
+  Observe in the sidebar.
+
+### Improvements
+
+- **Lint:** The error `E-JARGON` is now the warning `W-JARGON`. Case text
+  that looks like agent internals (an `mcp__` prefix, a `__dunder__` token, a
+  `snake_case(` call) is still reported by `evalkit lint` and `evalkit sync`,
+  and no longer stops a sync. Questions about code or maths contain such
+  text.
 - **Server:** Revoking an agent token (Settings › API keys, `evalkit tokens
   revoke`, `DELETE /api/tokens/{id}`) and archiving an agent now keep the
   token's row and set its new `revoked_at` and `revoked_by` columns (who

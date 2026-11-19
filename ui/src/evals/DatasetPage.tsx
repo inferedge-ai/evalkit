@@ -12,15 +12,18 @@ import { DatasetTagsTab } from "./DatasetTagsTab";
 import { RunLauncher } from "./RunLauncher";
 import { splitRef } from "../lib/workspace";
 import { useFollowWorkspace } from "../shell/workspace";
+import { Markdown } from "@/components/widgets/Markdown";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { DatasetAbout } from "./DatasetAbout";
 import { Button } from "@/components/ui/button";
 
-type Tab = "experiments" | "cases" | "tags";
+type Tab = "experiments" | "cases" | "tags" | "readme";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "experiments", label: "Experiments" },
   { id: "cases", label: "Cases" },
   { id: "tags", label: "Tags" },
+  { id: "readme", label: "README" },
 ];
 
 const NO_TAGS: TagInfo[] = [];
@@ -36,7 +39,11 @@ export function syncLabel(ds: Dataset): string[] {
   if (sync.detail.dirty) parts.push("dirty");
   if (typeof sync.detail.row_count === "number")
     parts.push(`${sync.detail.row_count} rows`);
-  parts.push(`synced by ${sync.detail.actor ?? sync.actor}`);
+  parts.push(
+    sync.source === "extension"
+      ? "written by an extension"
+      : `synced by ${sync.detail.actor ?? sync.actor}`,
+  );
   const when = fmtWhen(sync.created_at);
   if (when) parts.push(when);
   return parts;
@@ -89,8 +96,9 @@ function DatasetView() {
       />
       <div className="page">
         {error && <div className="pane-status error">{error}</div>}
+        {info && <DatasetAbout metadata={info.metadata ?? {}} />}
         <Tabs<Tab>
-          tabs={TABS}
+          tabs={TABS.filter((t) => t.id !== "readme" || !!info?.readme)}
           active={tab as Tab}
           onSelect={(t) =>
             navigate(`/datasets/${encodeURIComponent(ref)}/${t}`)
@@ -100,12 +108,19 @@ function DatasetView() {
           {tab === "cases" && (
             <DatasetCasesTab
               dataset={ref}
-              reviewed={!!info?.workspace_is_shared && info.kind === "suite"}
+              reviewed={
+                !!info?.workspace_is_shared &&
+                info.kind === "suite" &&
+                info.last_sync?.source !== "extension"
+              }
               onRun={(caseIds) => setLaunch({ caseIds })}
             />
           )}
           {tab === "experiments" && <DatasetExperimentsTab dataset={ref} />}
           {tab === "tags" && <DatasetTagsTab tags={tags} dataset={ref} />}
+          {tab === "readme" && info?.readme && (
+            <Markdown className="max-w-3xl" text={info.readme} />
+          )}
         </div>
         {launch && (
           <RunLauncher

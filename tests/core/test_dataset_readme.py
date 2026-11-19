@@ -1,0 +1,106 @@
+import pytest
+
+from evalkit.core.dataset_readme import (
+    DatasetMetadata,
+    DatasetReadme,
+    parse_dataset_readme,
+    parse_dataset_readme_file,
+)
+
+FULL = """---
+description: Multi-hop questions.
+license:
+  name: Apache-2.0
+  url: https://www.apache.org/licenses/LICENSE-2.0
+attribution: By someone.
+links:
+  - label: Paper
+    url: https://example.com/paper
+team: research
+---
+
+# Title
+
+Body text.
+"""
+
+
+def test_frontmatter_is_the_metadata_and_the_rest_is_the_readme():
+    readme, findings = parse_dataset_readme(FULL)
+
+    assert findings == []
+    assert readme.readme == "# Title\n\nBody text.\n"
+    assert readme.metadata.model_dump(mode="json", exclude_none=True) == {
+        "description": "Multi-hop questions.",
+        "license": {"name": "Apache-2.0", "url": "https://www.apache.org/licenses/LICENSE-2.0"},
+        "attribution": "By someone.",
+        "links": [{"label": "Paper", "url": "https://example.com/paper"}],
+        "team": "research",
+    }
+
+
+def test_a_readme_without_frontmatter_has_no_metadata():
+    assert parse_dataset_readme("# Title\n") == (DatasetReadme(readme="# Title\n"), [])
+
+
+def test_frontmatter_alone_leaves_the_readme_empty():
+    readme, findings = parse_dataset_readme("---\ndescription: Short.\n---\n")
+
+    assert (readme.readme, readme.metadata, findings) == (
+        None,
+        DatasetMetadata(description="Short."),
+        [],
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("---\ndescription: x\n# Title\n", "the frontmatter cannot be read"),
+        ("---\n- a\n- b\n---\n", "the frontmatter must be a mapping"),
+        ("---\ndescription: [a]\n---\n", "description: Input should be a valid string"),
+        ("---\nlicense: MIT\n---\n", "license: Input should be a valid dictionary"),
+        ("---\nlinks:\n  - url: https://x\n---\n", "links.0.label: Field required"),
+        ("---\nteam:\n  size: 3\n---\n", "team: Input should be a valid string"),
+        ("---\nkey: [unclosed\n---\n", "the frontmatter cannot be read"),
+    ],
+    ids=[
+        "never closed",
+        "a list",
+        "description not text",
+        "licence not a mapping",
+        "link without a label",
+        "another key that is not text",
+        "broken YAML",
+    ],
+)
+def test_a_bad_frontmatter_is_an_error_finding(text, message):
+    readme, findings = parse_dataset_readme(text)
+
+    assert readme == DatasetReadme()
+    assert [(f.severity, f.code, f.case_id) for f in findings] == [
+        ("error", "E-README", "README.md")
+    ]
+    assert findings[0].message.startswith(message), findings[0].message
+
+
+def test_a_readme_file_with_a_byte_order_mark_keeps_its_frontmatter(tmp_path):
+    path = tmp_path / "README.md"
+    path.write_bytes(b"\xef\xbb\xbf" + FULL.encode())
+
+    parsed, findings = parse_dataset_readme_file(path)
+
+    assert findings == []
+    assert parsed.metadata.description == "Multi-hop questions."
+    assert parsed.readme == "# Title\n\nBody text.\n"
+
+
+def test_a_readme_file_that_is_not_utf_8_is_an_error_finding(tmp_path):
+    path = tmp_path / "README.md"
+    path.write_bytes(FULL.encode("utf-16"))
+
+    parsed, [finding] = parse_dataset_readme_file(path)
+
+    assert parsed == DatasetReadme()
+    assert (finding.code, finding.severity) == ("E-README", "error")
+    assert finding.message == "the file is not UTF-8 text; save it as UTF-8"

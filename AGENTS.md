@@ -16,6 +16,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Suite | A directory of case YAML synced into one dataset with `evalkit sync`. The directory name is the dataset name. |
 | Dataset | A named set of cases in the store, synced from YAML (kind `suite`). Every dataset belongs to a workspace. |
 | Sync | One write of case YAML into a dataset, recorded as a `dataset_syncs` row. |
+| Dataset README | The `README.md` at the root of a suite. Its YAML frontmatter is the dataset's metadata (`description`, `license`, `attribution`, `links`, other text keys) and the rest its README. A sync of the whole suite mirrors it: no file clears both. Never edited in the UI or the API. |
 | Workspace | A named namespace for datasets, agents and remote evaluators. Either personal or shared. |
 | Personal workspace | A workspace owned by one user, created with the user and named after them (`@akshat`). |
 | Shared workspace | A workspace with no owner. Admins create it, e.g. `@dev`, `@prod`. There is no special canonical workspace. |
@@ -37,7 +38,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Evaluator | A scoring function. Compares expected vs actual, returns score + explanation. |
 | Remote evaluator | A client-hosted evaluator reached through the Custom Evaluator API, stored in a workspace (`evalkit evaluators create`). |
 | Evaluation | One evaluator's output on one run: a `score` or a `gauge` reading. |
-| Server evaluator | A built-in evaluator the evalkit server runs for a local or SDK run, over `POST /api/experiment-runs/{id}/server-evaluations/{name}`: one call per run per evaluator; the server scores from what it stored and returns rows, the runner publishes them. |
+| Server evaluator | A built-in or extension evaluator the evalkit server runs for a local or SDK run, over `POST /api/experiment-runs/{id}/server-evaluations/{name}`: one call per run per evaluator; the server scores from what it stored and returns rows, the runner publishes them. |
 | Local-only evaluator | A built-in that always runs on the developer's machine (`builtin_evaluator(..., local_only=True)`): `tool_trajectory_match`, `required_tools_called`, `max_response_time`. |
 | Scored on | Where an evaluation was computed: `local` (the CLI or SDK process) or `server`. A column on every evaluation, separate from its `source`. |
 | Gauge | A measurement, not a score: tokens, cost, time, tool-call counts. |
@@ -172,6 +173,31 @@ then add plain FastAPI routes with `app.include_router(...)`.
   entry only in the config passed to it, so build any other config with
   `Config.model_validate`, not `model_copy`.
 
+**Evaluators.** `create_app(..., extension_evaluators={name: evaluator})` registers
+evaluators for every tenant. Each is a `PythonEvaluator`, which a case selects by
+naming it under `evaluators.custom`; with `uses_judge=True` its function also gets
+an `EvaluatorJudge` for the experiment's judge (`core/python_eval.py`). Server runs
+score them, after a Python evaluator passed to the run and a remote evaluator of
+the agent's workspace with the same name (`_evaluate_run` in `core/runner.py`).
+A local or SDK run has no code for them: it reads their names from
+`GET /api/extension-evaluators` and asks the server to score each one, as it does
+for a server evaluator. One that uses the judge needs a provider judge: with a
+judge the user brings, the server refuses the experiment when it is created,
+before any agent call. Built-ins and the run's own Python evaluators are not
+affected.
+`tests/api/test_extension_evaluators.py` shows one end to end.
+
+**Datasets.** A route of the other package writes a dataset with `import_cases`
+(`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route
+does (`api/imports.py`). `import_cases` does no access checks, so the route does
+its own with the helpers in `api/access.py`. Pass `readme=DatasetReadme(...)`
+(`core/dataset_readme.py`) to set the dataset's README and metadata. While a dataset's
+latest sync has that source, only the extension changes it: `evalkit sync` and
+promotion into it answer 409, and case review does not apply, so its cases are
+never promoted either. The reverse holds too: an extension cannot replace a
+dataset whose latest sync is a user's. Both are checked inside the sync
+transaction (`check_writer` in `db/cases.py`), under a lock on the dataset row.
+
 **UI pages.** The UI takes extra pages and nav items from
 `ui/src/extensions/index.tsx`, which exports `extensions` of type
 `UiExtensions` (`ui/src/lib/extensions.ts`). In evalkit it is empty.
@@ -232,7 +258,8 @@ then add plain FastAPI routes with `app.include_router(...)`.
   props.
 - A `NavItem` may set `icon`, a `lucide-react` icon; the collapsed sidebar
   shows a puzzle piece for one without. `nav` items get a sidebar section of
-  their own after Observe.
+  their own after Observe; one that sets `section` (`"Evaluate"` or
+  `"Observe"`) goes at the end of that section instead.
 - Settings pages go in `accountSettings` (everyone) and
   `organizationSettings` (admins only). Each is a `SettingsPage`: `name`,
   `label`, optional `icon` and `element`. The page renders at
@@ -248,8 +275,12 @@ then add plain FastAPI routes with `app.include_router(...)`.
 - Keep the folder path, the `extensions` export, `UiExtensions`,
   `PageHeader`, `Empty`, `SignInLink`, `useOptionalMe`, `useTheme`,
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
-  `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config` and
-  `get_allow_private_endpoints` stable: other packages build against them.
+  `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,
+  `get_allow_private_endpoints`, `extension_evaluators`, `PythonEvaluator`,
+  `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_dataset_readme`,
+  `DatasetAbout` (`@/evals/DatasetAbout`), `SyncSource.EXTENSION`, `StoresDep`,
+  `workspace_ref`, `require`, `ensure_active`, `load_actor` and `can_write`
+  stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids
 (`ui/src/lib/DataGrid.tsx`), and evalkit never imports `ag-grid-enterprise`,

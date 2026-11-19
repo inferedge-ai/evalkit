@@ -23,6 +23,11 @@ from evalkit.contracts.cases import (
 )
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.core.access import WorkspaceRef
+from evalkit.core.dataset_readme import (
+    README_FILENAME,
+    DatasetReadme,
+    parse_dataset_readme_file,
+)
 from evalkit.core.fixtures import load_registries
 from evalkit.core.lint import Finding, fixture_findings, has_errors
 from evalkit.core.lint import lint as lint_cases
@@ -61,6 +66,7 @@ class CaseCatalog(Protocol):
         actor_id: int,
         source: SyncSource,
         detail: dict,
+        readme: DatasetReadme | None = None,
     ) -> SyncResult: ...
 
 
@@ -73,6 +79,7 @@ class ImportReport(BaseModel):
     created: int = 0
     patched: int = 0
     deleted: int = 0
+    readme_changed: bool = False
     overlays_applied: int = 0
     findings: list[Finding] = Field(default_factory=list)
     aborted: bool = False
@@ -105,6 +112,15 @@ def load_files(
         cases.extend((case, path) for case in file_cases)
         overlays.extend((ov, path.name) for ov in file_overlays)
     return cases, overlays, findings
+
+
+def read_dataset_readme(
+    files: list[Path], root: Path | None
+) -> tuple[DatasetReadme, list[Finding]]:
+    at_root = root / README_FILENAME if root is not None else None
+    if at_root is None or at_root not in files:
+        return DatasetReadme(), []
+    return parse_dataset_readme_file(at_root)
 
 
 def case_files(case: Case, entries: dict[str, FixtureEntry]) -> list[CaseFile]:
@@ -173,6 +189,7 @@ async def import_cases(
     detail: dict,
     entries: dict[str, FixtureEntry] | None = None,
     root: Path | None = None,
+    readme: DatasetReadme | None = None,
 ) -> ImportReport:
     cases = [case for case, _ in sourced_cases]
     entries = entries or {}
@@ -195,7 +212,12 @@ async def import_cases(
     findings.extend(await missing_blobs(catalog, cases, entries))
     if has_errors(findings):
         return ImportReport(findings=findings, aborted=True)
-    if not sourced_cases and not overlays and not await catalog.has_dataset(workspace, dataset):
+    if (
+        not sourced_cases
+        and not overlays
+        and readme in (None, DatasetReadme())
+        and not await catalog.has_dataset(workspace, dataset)
+    ):
         return ImportReport(findings=findings)
     result = await catalog.sync(
         workspace=workspace,
@@ -215,11 +237,13 @@ async def import_cases(
         actor_id=actor_id,
         source=source,
         detail=detail,
+        readme=readme,
     )
     return ImportReport(
         created=len(result.created),
         patched=len(result.patched),
         deleted=len(result.removed),
+        readme_changed=result.readme_changed,
         overlays_applied=result.overlays,
         findings=findings,
         review=ReviewReport(now_unreviewed=result.now_unreviewed, carried=result.carried),
@@ -241,6 +265,7 @@ async def import_dataset(
     sourced_cases, overlays, findings = load_files(files, root)
     entries, registry_findings = load_registries([p for p in files if p.name == REGISTRY_FILENAME])
     sourced: list[tuple[Case, Path | None]] = list(sourced_cases)
+    readme, readme_findings = read_dataset_readme(files, root)
     return await import_cases(
         catalog,
         workspace=workspace,
@@ -248,7 +273,7 @@ async def import_dataset(
         kind=DatasetKind.SUITE,
         sourced_cases=sourced,
         overlays=overlays,
-        findings=findings + registry_findings,
+        findings=findings + registry_findings + (readme_findings if full else []),
         full=full,
         known_custom_evaluators=known_custom_evaluators,
         actor_id=actor_id,
@@ -256,4 +281,5 @@ async def import_dataset(
         detail=detail,
         entries=entries,
         root=root,
+        readme=readme if full else None,
     )

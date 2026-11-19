@@ -5,6 +5,7 @@ import os
 import shutil
 import time
 import webbrowser
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -39,12 +40,20 @@ from evalkit.client import connection, links, oidc
 from evalkit.client.agents import definition_of
 from evalkit.client.api import ApiRequestError, VersionMismatch, encode
 from evalkit.client.summary import summary_lines
-from evalkit.client.sync import ResolvedPath, git_revision, resolve_path, sync_dataset
+from evalkit.client.sync import (
+    ResolvedPath,
+    always_from_disk,
+    git_revision,
+    resolve_path,
+    sync_dataset,
+)
 from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, load_config
 from evalkit.contracts.cases import REGISTRY_FILENAME, CaseEvaluators, is_case_yaml
+from evalkit.contracts.enums import SyncSource
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import AgentDefinition, Driver, driver, explicit, server_may_drive
 from evalkit.core.capabilities import sdk_capabilities
+from evalkit.core.dataset_readme import README_FILENAME, parse_dataset_readme_file
 from evalkit.core.fixtures import load_registries
 from evalkit.core.harness import HarnessClient
 from evalkit.core.importer import load_files
@@ -160,9 +169,20 @@ def _parse(text: str, workspace: str) -> Reference:
         raise ApiError(str(exc)) from exc
 
 
-def _resolve(arg: str, cases_root: Path, workspace: str):
+def _comes_from_disk(ref: Reference) -> bool:
+    listed = _client().get("/api/datasets", params={"workspace": ref.workspace}).json()
+    last_sync = next((d["last_sync"] for d in listed if d["name"] == ref.name), None)
+    return last_sync is None or last_sync["source"] != SyncSource.EXTENSION.value
+
+
+def _resolve(
+    arg: str,
+    cases_root: Path,
+    workspace: str,
+    comes_from_disk: Callable[[Reference], bool] = always_from_disk,
+):
     try:
-        return resolve_path(arg, cases_root, workspace)
+        return resolve_path(arg, cases_root, workspace, comes_from_disk)
     except ValueError as exc:
         raise ApiError(str(exc)) from exc
 
@@ -415,6 +435,8 @@ def lint(
         findings.extend(registry_findings)
         registry_in_scope = registry is not None and registry.parent == path
         findings.extend(fixture_findings(all_cases, entries, warn_unused=registry_in_scope))
+        if (path / README_FILENAME).is_file():
+            findings.extend(parse_dataset_readme_file(path / README_FILENAME)[1])
         _print_findings([f.__dict__ for f in findings])
         errors = sum(1 for f in findings if f.severity == "error")
         warnings = sum(1 for f in findings if f.severity == "warning")
@@ -453,6 +475,8 @@ def lint(
     if registry is not None:
         files.append((REGISTRY_FILENAME, registry))
         params["warn_unused_fixtures"] = str(registry.parent == path).lower()
+    if (path / README_FILENAME).is_file():
+        files.append((README_FILENAME, path / README_FILENAME))
     body = _client().post_files("/api/lint", files, params=params, data=form).json()
     _print_findings(body["findings"])
     typer.echo(f"{body['errors']} error(s), {body['warnings']} warning(s)")
@@ -491,6 +515,7 @@ def _sync_and_report(
         f"synced {slug(Reference(name, workspace))}: created={report['created']} "
         f"patched={report['patched']} deleted={report['deleted']} "
         f"overlays_applied={report['overlays_applied']}"
+        + (" readme=updated" if report.get("readme_changed") else "")
     )
     review = report.get("review") or {}
     if review.get("now_unreviewed"):
@@ -605,7 +630,11 @@ def datasets_list(
         for ds in found:
             last = ds.get("last_sync") or {}
             sha = (last.get("detail") or {}).get("sha") or "-"
-            typer.echo(f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}")
+            description = (ds.get("metadata") or {}).get("description")
+            typer.echo(
+                f"{ds['ref']:<32} kind={ds['kind']:<10} sha={sha[:12]}"
+                + (f"  {description}" if description else "")
+            )
         if found:
             typer.echo("evalkit datasets show <dataset> shows one dataset and its link")
         return
@@ -663,7 +692,28 @@ def datasets_show(
             states[state] = states.get(state, 0) + 1
         typer.echo("review: " + (", ".join(f"{k} {v}" for k, v in sorted(states.items())) or "-"))
     typer.echo("tags: " + (", ".join(f"{t['name']} {t['count']}" for t in tags) or "-"))
+    metadata = ds.get("metadata") or {}
+    for key in sorted(metadata, key=_metadata_order):
+        typer.echo(f"{key}: {_metadata_text(key, metadata[key])}")
     _echo_link(links.build_dataset_url(_server_url(), ds["ref"]))
+    if ds.get("readme"):
+        typer.echo("")
+        typer.echo(ds["readme"].rstrip())
+
+
+METADATA_KEYS = ("description", "attribution", "license", "links")
+
+
+def _metadata_order(key: str) -> tuple[int, str]:
+    return (METADATA_KEYS.index(key) if key in METADATA_KEYS else len(METADATA_KEYS), key)
+
+
+def _metadata_text(key: str, value: object) -> str:
+    if key == "license" and isinstance(value, dict):
+        return " ".join(str(part) for part in (value.get("name"), value.get("url")) if part)
+    if key == "links" and isinstance(value, list):
+        return ", ".join(f"{link['label']} {link['url']}" for link in value)
+    return str(value)
 
 
 class _Progress:
@@ -817,7 +867,7 @@ def run(
     if route is Driver.CLI:
         local = _with_secrets(local, scoring=True)
         _require_agent_key(local, conn, definition)
-    resolved = _resolve(dataset, local.cases, me)
+    resolved = _resolve(dataset, local.cases, me, _comes_from_disk)
     selection = _run_selection(resolved, tag, case_id)
     revision = git_revision(resolved.dataset_dir) if resolved.dataset_dir else GitRevision()
     if resolved.dataset_dir is not None and resume is None:
