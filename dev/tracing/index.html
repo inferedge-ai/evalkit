@@ -1605,6 +1605,10 @@ evalkit<span class="w"> </span>trace-sources<span class="w"> </span>create<span 
   preset's <code>input_messages</code> at the messages with <code>path</code>, for example
   <code>{"attribute": "langfuse.observation.input", "path": "args.0", "message_format": "openai"}</code>.
   See <a href="../mappings/">Mappings</a>.</li>
+<li>The preset also reads LangChain and LangGraph agents traced with Langfuse's
+  LangChain callback (<code>CallbackHandler</code>) as they are. Their tool spans carry no
+  call id, so evalkit matches tool results to calls by time and order, and
+  <code>evalkit traces check</code> reports "0 matched to calls by id".</li>
 <li>OTel exporters: send the header <code>x-langfuse-ingestion-version: 4</code> to
   Langfuse. Without it Langfuse
   <a href="https://langfuse.com/docs/compatibility">can take up to 15 minutes</a> to show spans, so
