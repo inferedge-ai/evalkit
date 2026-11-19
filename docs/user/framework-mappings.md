@@ -44,12 +44,14 @@ Tool spans from most OpenInference instrumentors carry no `tool.id`. The check t
 `langchain`: `openinference` with `input.value`, `output.value`, `llm.input_messages.*` and `llm.output_messages.*` in `known_attributes`. LangGraph's CHAIN spans carry flattened messages that the trajectory does not need.
 
 - A graph node named `agent` (the tutorial's default) is emitted as an AGENT span. If every model step shows up as a subagent, rename the node, or add `"rekind_spans": [{"name": "agent", "kind": "chain"}]`.
+- Set `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096`. The default of 128 attributes per span drops messages from long conversations ("Attributes dict is full" in the agent's log). `evalkit traces check` warns on its `llm` line when a span lost attributes this way.
 
 ## LangChain
 
 `langchain`: `openinference` with `input.value`, `output.value`, `llm.input_messages.*` and `llm.output_messages.*` in `known_attributes`. LangChain's CHAIN spans carry flattened messages that the trajectory does not need.
 
 - Put the session id on a span of your own around each turn (see above).
+- Set `OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096`. The default of 128 attributes per span drops messages from long conversations ("Attributes dict is full" in the agent's log). `evalkit traces check` warns on its `llm` line when a span lost attributes this way.
 
 ## CrewAI
 

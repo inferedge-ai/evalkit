@@ -231,6 +231,10 @@ evalkit trace-sources create lf --provider langfuse --url https://cloud.langfuse
   preset's `input_messages` at the messages with `path`, for example
   `{"attribute": "langfuse.observation.input", "path": "args.0", "message_format": "openai"}`.
   See [Mappings](mappings.md).
+- The preset also reads LangChain and LangGraph agents traced with Langfuse's
+  LangChain callback (`CallbackHandler`) as they are. Their tool spans carry no
+  call id, so evalkit matches tool results to calls by time and order, and
+  `evalkit traces check` reports "0 matched to calls by id".
 - OTel exporters: send the header `x-langfuse-ingestion-version: 4` to
   Langfuse. Without it Langfuse
   [can take up to 15 minutes](https://langfuse.com/docs/compatibility) to show spans, so

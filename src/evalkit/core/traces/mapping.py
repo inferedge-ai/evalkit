@@ -264,8 +264,12 @@ def _gen_ai_messages(attributes: dict[str, Any], key: str) -> tuple[list[EsfMess
         reasoning: list[str] = []
         tool_calls: list[EsfToolCall] = []
         tool_call_id: str | None = None
-        if "parts" not in message and isinstance(message.get("content"), str):
-            texts.append(message["content"])
+        if "parts" not in message:
+            text = _text(message.get("content"))
+            if text:
+                texts.append(text)
+            tool_calls = _flat_tool_calls(message)
+            tool_call_id = _str(message.get("tool_call_id"))
         for part in message.get("parts") or []:
             if not isinstance(part, dict):
                 continue
@@ -317,6 +321,22 @@ def _instructions(value: Any) -> str | None:
     return _str(value) or None
 
 
+def _flat_tool_calls(message: dict[str, Any]) -> list[EsfToolCall]:
+    out: list[EsfToolCall] = []
+    for c in message.get("tool_calls") or []:
+        if not isinstance(c, dict):
+            continue
+        function = c["function"] if isinstance(c.get("function"), dict) else c
+        out.append(
+            EsfToolCall(
+                id=str(c.get("id") or ""),
+                name=str(function.get("name") or ""),
+                arguments=_arguments(function.get("arguments", function.get("args"))),
+            )
+        )
+    return out
+
+
 def _openai_messages(attributes: dict[str, Any], key: str) -> tuple[list[EsfMessage], set[str]]:
     raw = _as_message_list(attributes.get(key))
     if raw is None:
@@ -325,15 +345,7 @@ def _openai_messages(attributes: dict[str, Any], key: str) -> tuple[list[EsfMess
     for message in raw:
         if not isinstance(message, dict):
             continue
-        tool_calls = [
-            EsfToolCall(
-                id=str(c.get("id") or ""),
-                name=str((c.get("function") or {}).get("name") or ""),
-                arguments=_arguments((c.get("function") or {}).get("arguments")),
-            )
-            for c in message.get("tool_calls") or []
-            if isinstance(c, dict)
-        ]
+        tool_calls = _flat_tool_calls(message)
         out.append(
             EsfMessage(
                 role=_normalize_role(message.get("role")),
