@@ -57,6 +57,11 @@ binds the client once: see [CI sync](ci-sync.md). Without single sign-on,
 `EVALKIT_SERVER_URL` and `EVALKIT_TOKEN` carry an evalkit token, or the job
 logs in with a dedicated non-admin password user.
 
+`EVALKIT_SERVER_URL` without a token or client credentials uses your
+`evalkit login` for that server. Without one, `run_experiment`,
+`evaluate_experiment` and CLI commands that need a signed-in user stop and
+ask for `EVALKIT_TOKEN`.
+
 ## Timeout
 
 The CLI and the SDK wait up to 120 seconds for each server call. Set `EVALKIT_TIMEOUT` (seconds) to wait longer, for example on a slow network:

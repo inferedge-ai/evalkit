@@ -133,8 +133,17 @@ def _client() -> ApiClient:
     return ApiClient(active.url, auth)
 
 
-def _connection() -> connection.Connection:
+def _signed_in_connection() -> connection.Connection:
     active = _active_connection()
+    try:
+        connection.require_credentials(active)
+    except LookupError as exc:
+        raise ApiError(str(exc)) from exc
+    return active
+
+
+def _connection() -> connection.Connection:
+    active = _signed_in_connection()
     me = _client().get("/api/auth/me").json()
     warning = connection.token_expiry_warning(active, me.get("token_expires_at"), datetime.now(UTC))
     if warning is not None:
@@ -331,7 +340,7 @@ def whoami():
     Exits 1 when the server rejects the token. Run it before a long run or
     before handing the token to an exporter. Example: evalkit whoami
     """
-    active = _active_connection()
+    active = _signed_in_connection()
     me = _client().get("/api/auth/me").json()
     source = " (from EVALKIT_SERVER_URL)" if active.from_env else ""
     typer.echo(f"{me['username']} on {active.url}{source}")

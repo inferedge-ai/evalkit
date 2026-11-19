@@ -2099,3 +2099,14 @@ def test_trace_source_flags_go_together_and_imports_default_to_the_agent(
     imported = runner.invoke(cli_app, ["traces", "import", "sdk", "s-1"])
     assert imported.exit_code == 1
     assert "agent sdk@admin has no trace source" in imported.output
+
+
+def test_a_command_needing_a_user_names_evalkit_token_without_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(connection, "CONFIG_PATH", tmp_path / "config.toml")
+    monkeypatch.setenv("EVALKIT_SERVER_URL", "http://127.0.0.1:9")
+    monkeypatch.delenv("EVALKIT_TOKEN", raising=False)
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_ID", raising=False)
+    monkeypatch.delenv("EVALKIT_OIDC_CLIENT_SECRET", raising=False)
+    result = runner.invoke(cli_app, ["whoami"])
+    assert result.exit_code == 1
+    assert "EVALKIT_TOKEN is not set" in result.output
