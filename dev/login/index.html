@@ -1124,6 +1124,10 @@ with <code>evalkit users bind</code>; see <a href="../sso/">Single sign-on</a>.<
 binds the client once: see <a href="../ci-sync/">CI sync</a>. Without single sign-on,
 <code>EVALKIT_SERVER_URL</code> and <code>EVALKIT_TOKEN</code> carry an evalkit token, or the job
 logs in with a dedicated non-admin password user.</p>
+<p><code>EVALKIT_SERVER_URL</code> without a token or client credentials uses your
+<code>evalkit login</code> for that server. Without one, <code>run_experiment</code>,
+<code>evaluate_experiment</code> and CLI commands that need a signed-in user stop and
+ask for <code>EVALKIT_TOKEN</code>.</p>
 <h2 id="timeout">Timeout<a class="headerlink" href="#timeout" title="Permanent link">&para;</a></h2>
 <p>The CLI and the SDK wait up to 120 seconds for each server call. Set <code>EVALKIT_TIMEOUT</code> (seconds) to wait longer, for example on a slow network:</p>
 <div class="highlight"><pre><span></span><code><span class="nb">export</span><span class="w"> </span><span class="nv">EVALKIT_TIMEOUT</span><span class="o">=</span><span class="m">300</span>
