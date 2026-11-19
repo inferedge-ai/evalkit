@@ -293,6 +293,10 @@ docker compose down -v     # stop and delete all data
   older than 0.22.0. Add `OPENSSL_armcap: "0"` to the server's
   `environment:` in `docker-compose.yml`, or use a newer image.
 - The judge fails on every case: your endpoint must support structured
-  output (`response_format` with a JSON schema). Try another model.
+  output (`response_format` with a JSON schema). A model that rejects
+  `max_tokens` in favour of `max_completion_tokens`, rejects
+  `reasoning_effort`, or allows fewer output tokens than the judge's
+  `max_tokens`, is retried with the parameters it takes; any other error
+  comes from the endpoint or the model.
 - `evalkit` or `run.py` talks to another server: run the `evalkit login` above
   again, or check `EVALKIT_SERVER_URL`.

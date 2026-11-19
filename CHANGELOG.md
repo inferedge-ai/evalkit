@@ -47,6 +47,19 @@
   revoked the token or archived the agent), instead of deleting it.
   The token is refused with 401 and drops off the list as before. Migration
   0021 adds the columns; run `evalkit db upgrade` before the server starts.
+- **Evaluators:** The judge retries a request an OpenAI-compatible endpoint
+  rejects for its parameters: a model that refuses `max_tokens` gets
+  `max_completion_tokens`, an endpoint that does not take
+  `reasoning_effort` gets the request without it, and a model whose output
+  limit is below the judge's `max_tokens` (such as gpt-4o, at 16384) gets
+  its limit. Judge calls to OpenAI directly (such as gpt-5, gpt-4.1 and
+  gpt-4o) now work; endpoints that accept both fields still get them. The
+  server or CLI process remembers what each endpoint and model rejected, so
+  only its first judge call after a start is retried.
+- **CLI:** `evalkit judge-default set --no-effort` makes the default judge
+  send no `reasoning_effort`. An empty effort, from `--no-effort` or a blank
+  effort field on the LLM providers settings page, leaves it out of every
+  judge request. Passing `--effort` with `--no-effort` is refused.
 
 ## 0.8.0
 

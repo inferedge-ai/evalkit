@@ -332,7 +332,7 @@ own judge: those evaluators run on your machine, with `api_key`.
 - `base_url` (`str | None`): An OpenAI-compatible endpoint that supports structured output.
 - `api_key` (`str | None`): The key for `base_url`. Sent only to `base_url`; never stored on the evalkit server or shown.
 - `model` (`str`): The model name at that endpoint.
-- `reasoning_effort` (`str`): Passed to the model as `reasoning_effort`.
+- `reasoning_effort` (`str`): Sent as `reasoning_effort`, unless it is empty or the endpoint rejects it.
 - `max_tokens` (`int`): The most tokens one judge reply may use.
 
 ### ExperimentResult

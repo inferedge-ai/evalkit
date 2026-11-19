@@ -298,4 +298,23 @@ def test_flow_17_key_commands_store_keys_and_providers(live):
     assert judge.exit_code == 0, judge.output
     shown = live.run("judge-default", "show").output
     assert "openai" in shown and "gpt-5" in shown
+    assert "reasoning_effort   high" in shown
+    cleared = live.run(
+        "judge-default", "set", "--provider", "openai", "--model", "gpt-5", "--no-effort"
+    )
+    assert cleared.exit_code == 0, cleared.output
+    assert "reasoning_effort   \n" in live.run("judge-default", "show").output
+    both = live.run(
+        "judge-default",
+        "set",
+        "--provider",
+        "openai",
+        "--model",
+        "gpt-5",
+        "--effort",
+        "low",
+        "--no-effort",
+    )
+    assert both.exit_code == 1
+    assert "pass --effort or --no-effort" in both.output
     assert live.run("llm-providers", "archive", "openai").exit_code == 1
