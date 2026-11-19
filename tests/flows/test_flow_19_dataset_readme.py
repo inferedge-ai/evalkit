@@ -74,3 +74,36 @@ def test_flow_19_a_bad_frontmatter_fails_lint_and_stops_the_sync(cli):
         assert "E-README" in output and "license: Input should be a valid dictionary" in output
     with api(cli.live, "alice") as alice:
         assert alice.get("/api/datasets/bad19@alice").status_code == 404
+
+
+def test_flow_19_a_readme_that_is_not_utf_8_fails_lint_and_stops_the_sync(cli):
+    cli.as_user("alice")
+    root = cli.suite("enc19", {"a.yaml": cases_yaml("enc19-1")})
+    (root / "README.md").write_bytes(README.encode("utf-16"))
+
+    for output in (
+        cli.fails("lint", "suites/enc19"),
+        cli.fails("lint", "--offline", "suites/enc19"),
+        cli.fails("sync", "enc19"),
+    ):
+        assert "E-README" in output and "the file is not UTF-8 text" in output
+
+
+def test_flow_19_a_sync_of_one_folder_ignores_the_readme(cli):
+    cli.as_user("alice")
+    cli.suite(
+        "sub19",
+        {
+            "a.yaml": cases_yaml("sub19-1"),
+            "more/b.yaml": cases_yaml("sub19-2"),
+            "README.md": README,
+        },
+    )
+    assert "readme=updated" in cli.ok("sync", "sub19")
+    cli.suite("sub19", {"README.md": "---\nlicense: MIT\n---\n# Bad\n"})
+
+    assert "readme=updated" not in cli.ok("sync", "sub19/more")
+    with api(cli.live, "alice") as alice:
+        dataset = alice.get("/api/datasets/sub19@alice").json()
+        assert dataset["metadata"]["license"]["name"] == "MIT"
+    assert "E-README" in cli.fails("sync", "sub19")

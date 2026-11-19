@@ -23,7 +23,11 @@ from evalkit.contracts.cases import (
 )
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.core.access import WorkspaceRef
-from evalkit.core.dataset_readme import README_FILENAME, DatasetReadme, parse_dataset_readme
+from evalkit.core.dataset_readme import (
+    README_FILENAME,
+    DatasetReadme,
+    parse_dataset_readme_file,
+)
 from evalkit.core.fixtures import load_registries
 from evalkit.core.lint import Finding, fixture_findings, has_errors
 from evalkit.core.lint import lint as lint_cases
@@ -116,7 +120,7 @@ def read_dataset_readme(
     at_root = root / README_FILENAME if root is not None else None
     if at_root is None or at_root not in files:
         return DatasetReadme(), []
-    return parse_dataset_readme(at_root.read_text(encoding="utf-8"))
+    return parse_dataset_readme_file(at_root)
 
 
 def case_files(case: Case, entries: dict[str, FixtureEntry]) -> list[CaseFile]:
@@ -269,7 +273,7 @@ async def import_dataset(
         kind=DatasetKind.SUITE,
         sourced_cases=sourced,
         overlays=overlays,
-        findings=findings + registry_findings + readme_findings,
+        findings=findings + registry_findings + (readme_findings if full else []),
         full=full,
         known_custom_evaluators=known_custom_evaluators,
         actor_id=actor_id,

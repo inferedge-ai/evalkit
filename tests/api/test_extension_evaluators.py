@@ -465,3 +465,23 @@ async def test_a_judge_the_user_brings_still_runs_built_ins_and_python_evaluator
         created = await client.post("/api/experiments", json=body)
         assert created.status_code == 200, created.text
         assert created.json()["config"]["judge"]["base_url"] == JUDGE_URL
+
+
+async def test_without_a_judge_a_run_whose_own_evaluator_replaces_the_judging_one_is_created(
+    tmp_path, session_factory, raw_session_factory
+):
+    async with local_runner(tmp_path, session_factory, BOTH) as (client, _):
+        async with tenant_session(raw_session_factory, "default") as s:
+            settings = await s.get(TenantSettings, "default")
+            assert settings is not None
+            settings.default_judge = None
+            await s.commit()
+        body = {key: value for key, value in OWN_JUDGE_BODY.items() if key != "judge"}
+
+        refused = await client.post("/api/experiments", json=body)
+        assert refused.status_code == 400
+        assert refused.json()["detail"].startswith("no judge:")
+
+        own = {**body, "code_evaluators": ["ext_answer_match"]}
+        created = await client.post("/api/experiments", json=own)
+        assert created.status_code == 200, created.text

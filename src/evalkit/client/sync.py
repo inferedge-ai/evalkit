@@ -155,7 +155,7 @@ def sync_files(dataset_dir: Path, subpath: str | None = None) -> list[tuple[str,
     if registry is not None:
         out.append((REGISTRY_FILENAME, registry))
     readme = dataset_dir / README_FILENAME
-    if readme.is_file():
+    if not subpath and readme.is_file():
         out.append((README_FILENAME, readme))
     return out
 
