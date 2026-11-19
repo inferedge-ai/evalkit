@@ -1,9 +1,11 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from sqlalchemy import delete, func, select, true, tuple_, update
+from sqlalchemy import Text, and_, cast, delete, func, or_, select, true, tuple_, update
+from sqlalchemy import case as sql_case
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from evalkit.contracts.enums import DatasetKind, SyncSource
 from evalkit.core.access import WorkspaceRef
@@ -17,6 +19,7 @@ from evalkit.db.users import check_name
 from evalkit.store.base import (
     CarriedReview,
     CaseFile,
+    CaseSummary,
     CaseView,
     DatasetRow,
     DatasetSyncView,
@@ -29,6 +32,8 @@ from evalkit.store.base import (
 )
 
 Change = Literal["created", "patched", "unchanged"]
+QUESTION_KEYS = ("question", "query", "prompt", "input")
+QUESTION_CHARS = 500
 
 
 def _sync_view(row: models.DatasetSync, actor: str) -> DatasetSyncView:
@@ -639,6 +644,14 @@ async def current_versions(session: AsyncSession, dataset_id: int) -> list[tuple
     return [(ref, h) for ref, h in rows.all()]
 
 
+def _is_reviewed(dataset: DatasetRow) -> bool:
+    return (
+        dataset.workspace_is_shared
+        and dataset.kind == DatasetKind.SUITE
+        and not dataset.written_by_extension
+    )
+
+
 async def current_cases(
     session: AsyncSession, dataset: DatasetRow, *, agent: str | None = None
 ) -> list[CaseView]:
@@ -646,24 +659,138 @@ async def current_cases(
         select(models.Dataset.workspace_id).where(models.Dataset.id == dataset.id)
     )
     assert workspace_id is not None
-    reviewed = (
-        dataset.workspace_is_shared
-        and dataset.kind == DatasetKind.SUITE
-        and not dataset.written_by_extension
-    )
     return await case_views(
         session,
         workspace_id,
         await current_versions(session, dataset.id),
         agent=agent,
         dataset_id=dataset.id,
-        review_dataset_id=dataset.id if reviewed else None,
+        review_dataset_id=dataset.id if _is_reviewed(dataset) else None,
     )
+
+
+async def current_case(
+    session: AsyncSession, dataset: DatasetRow, case_id: str, *, agent: str | None = None
+) -> CaseView | None:
+    version = (
+        await session.execute(
+            select(models.DatasetCase.case_ref, models.DatasetCase.content_hash)
+            .join(models.Case, models.Case.id == models.DatasetCase.case_ref)
+            .where(
+                models.DatasetCase.dataset_id == dataset.id,
+                models.DatasetCase.removed_at.is_(None),
+                models.Case.case_id == case_id,
+            )
+        )
+    ).one_or_none()
+    if version is None:
+        return None
+    workspace_id = await session.scalar(
+        select(models.Dataset.workspace_id).where(models.Dataset.id == dataset.id)
+    )
+    assert workspace_id is not None
+    [view] = await case_views(
+        session,
+        workspace_id,
+        [(version.case_ref, version.content_hash)],
+        agent=agent,
+        dataset_id=dataset.id,
+        review_dataset_id=dataset.id if _is_reviewed(dataset) else None,
+    )
+    return view
+
+
+def _question_text() -> ColumnElement[str | None]:
+    return func.left(
+        func.coalesce(
+            *(
+                sql_case(
+                    (
+                        func.jsonb_typeof(models.CaseVersion.input[key]) == "string",
+                        models.CaseVersion.input[key].astext,
+                    )
+                )
+                for key in QUESTION_KEYS
+            )
+        ),
+        QUESTION_CHARS,
+    )
+
+
+async def case_summaries(
+    session: AsyncSession, dataset: DatasetRow, *, q: str | None = None
+) -> list[CaseSummary]:
+    query = (
+        select(
+            models.DatasetCase.case_ref,
+            models.DatasetCase.content_hash,
+            models.DatasetCase.path_tags,
+            models.DatasetCase.source,
+            models.Case.case_id,
+            models.CaseVersion.tags,
+            _question_text().label("question"),
+        )
+        .join(models.Case, models.Case.id == models.DatasetCase.case_ref)
+        .join(
+            models.CaseVersion,
+            and_(
+                models.CaseVersion.case_ref == models.DatasetCase.case_ref,
+                models.CaseVersion.content_hash == models.DatasetCase.content_hash,
+            ),
+        )
+        .where(models.DatasetCase.dataset_id == dataset.id, models.DatasetCase.removed_at.is_(None))
+    )
+    if q:
+        query = query.where(
+            or_(
+                models.Case.case_id.icontains(q, autoescape=True),
+                cast(models.CaseVersion.input, Text).icontains(q, autoescape=True),
+            )
+        )
+    rows = (await session.execute(query)).all()
+    if not rows:
+        return []
+    workspace_id = await session.scalar(
+        select(models.Dataset.workspace_id).where(models.Dataset.id == dataset.id)
+    )
+    assert workspace_id is not None
+    versions = [(row.case_ref, row.content_hash) for row in rows]
+    blocks = await _overlay_blocks(session, workspace_id, [ref for ref, _ in versions])
+    files = await files_for(session, versions)
+    states: dict[int, str] = {}
+    if _is_reviewed(dataset):
+        events = await latest_events(session, dataset.id, dict(versions))
+        states = {
+            ref: (
+                CaseState(events.decisive[ref].kind).value
+                if ref in events.decisive
+                else CaseState.UNREVIEWED.value
+            )
+            for ref, _ in versions
+        }
+    summaries: list[CaseSummary] = []
+    for row in rows:
+        tags = list(dict.fromkeys([*row.tags, *row.path_tags]))
+        overlay_tags = [tag for block in blocks.get(row.case_ref, []) for tag in block.tags]
+        summaries.append(
+            CaseSummary(
+                case_ref=row.case_ref,
+                case_id=row.case_id,
+                content_hash=row.content_hash,
+                question=row.question,
+                tags=tags,
+                split_tags=list(dict.fromkeys([*tags, *overlay_tags])),
+                source=row.source,
+                files=files.get((row.case_ref, row.content_hash), []),
+                review_state=states.get(row.case_ref),
+            )
+        )
+    return sorted(summaries, key=lambda s: s.case_id)
 
 
 async def tag_counts(session: AsyncSession, dataset: DatasetRow) -> list[tuple[str, int]]:
     counts: dict[str, int] = {}
-    for view in await current_cases(session, dataset):
+    for view in await case_summaries(session, dataset):
         for tag in view.split_tags:
             counts[tag] = counts.get(tag, 0) + 1
     return sorted(counts.items())

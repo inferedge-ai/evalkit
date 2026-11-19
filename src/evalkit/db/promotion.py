@@ -20,7 +20,7 @@ from evalkit.db import models
 from evalkit.db.cases import check_writer, find_dataset_row
 from evalkit.db.review_state import latest_events
 from evalkit.db.workspaces import load_ref
-from evalkit.store.base import CaseView, DatasetRow, WrittenByExtension
+from evalkit.store.base import CaseSummary, CaseView, DatasetRow, WrittenByExtension
 
 
 async def overlays_extending(
@@ -230,7 +230,10 @@ async def _review_of(
 
 
 async def twin_status(
-    session: AsyncSession, ws: WorkspaceRef, dataset: DatasetRow, cases: list[CaseView]
+    session: AsyncSession,
+    ws: WorkspaceRef,
+    dataset: DatasetRow,
+    cases: list[CaseView] | list[CaseSummary],
 ) -> dict[str, dict[str, Any] | None]:
     other_id = ws.promotes_to if ws.promotes_to is not None else ws.promoted_from
     if other_id is None or dataset.kind != "suite" or not cases:

@@ -67,6 +67,18 @@ class CaseView(BaseModel):
     review_state: str | None = None
 
 
+class CaseSummary(BaseModel):
+    case_ref: int
+    case_id: str
+    content_hash: str
+    question: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    split_tags: list[str] = Field(default_factory=list)
+    source: str | None = None
+    files: list[CaseFile] = Field(default_factory=list)
+    review_state: str | None = None
+
+
 class DatasetSyncView(BaseModel):
     id: int
     source: str

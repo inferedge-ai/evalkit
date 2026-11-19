@@ -8,7 +8,7 @@ from typing import Any, NamedTuple, Protocol
 
 from pydantic import BaseModel
 
-from evalkit.store.base import CaseView, DatasetRow
+from evalkit.store.base import CaseSummary, CaseView, DatasetRow
 
 __all__ = [
     "DECISIVE_EVENT_KINDS",
@@ -66,7 +66,7 @@ class CaseVersion(NamedTuple):
     content_hash: str
 
     @classmethod
-    def of(cls, case: CaseView) -> CaseVersion:
+    def of(cls, case: CaseView | CaseSummary) -> CaseVersion:
         return cls(case.case_id, case.content_hash)
 
 

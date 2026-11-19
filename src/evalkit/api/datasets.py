@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 
 from evalkit.api.access import (
@@ -17,8 +17,9 @@ from evalkit.core.review import CaseVersion, is_reviewable, review_summary
 from evalkit.db import experiments as db_experiments
 from evalkit.db.agents import agent_id_for
 from evalkit.db.cases import (
+    case_summaries,
     create_dataset,
-    current_cases,
+    current_case,
     dataset_by_ref,
     get_dataset_readme,
     list_datasets,
@@ -26,7 +27,7 @@ from evalkit.db.cases import (
 )
 from evalkit.db.promotion import twin_status
 from evalkit.db.scorecard import case_history
-from evalkit.store.base import CaseView, DatasetRow, Selection
+from evalkit.store.base import CaseSummary, CaseView, DatasetRow, Selection
 
 router = APIRouter(prefix="/api/datasets", tags=["datasets"])
 
@@ -73,7 +74,10 @@ async def get_dataset(ref: str, stores: StoresDep, session: SessionDep) -> dict:
 
 
 async def _with_review(
-    stores: TenantStores, session: SessionDep, dataset: DatasetRow, cases: list[CaseView]
+    stores: TenantStores,
+    session: SessionDep,
+    dataset: DatasetRow,
+    cases: list[CaseView] | list[CaseSummary],
 ) -> list[dict]:
     ws = await workspace_ref(stores, dataset.workspace)
     twins = await twin_status(session, ws, dataset, cases)
@@ -95,27 +99,25 @@ async def list_cases(
     ref: str,
     stores: StoresDep,
     session: SessionDep,
+    response: Response,
     tag: str | None = None,
     q: str | None = None,
+    limit: int | None = Query(default=None, ge=1),
+    offset: int = Query(default=0, ge=0),
 ) -> list[dict]:
     dataset = await dataset_by_ref(session, stores.tenant_id, ref)
-    cases = await current_cases(session, dataset)
+    cases = await case_summaries(session, dataset, q=q)
     if tag:
         cases = [case for case in cases if tag in case.split_tags]
-    if q:
-        needle = q.lower()
-        cases = [
-            case
-            for case in cases
-            if needle in case.case_id.lower() or needle in str(case.input).lower()
-        ]
-    return await _with_review(stores, session, dataset, cases)
+    response.headers["X-Total-Count"] = str(len(cases))
+    page = cases[offset:] if limit is None else cases[offset : offset + limit]
+    return await _with_review(stores, session, dataset, page)
 
 
 @router.get("/{ref}/cases/{case_id}")
 async def get_case(ref: str, case_id: str, stores: StoresDep, session: SessionDep) -> dict:
     dataset = await dataset_by_ref(session, stores.tenant_id, ref)
-    case = next((c for c in await current_cases(session, dataset) if c.case_id == case_id), None)
+    case = await current_case(session, dataset, case_id)
     if case is None:
         raise HTTPException(status_code=404, detail=f"unknown case: {case_id}")
     [row] = await _with_review(stores, session, dataset, [case])
@@ -159,7 +161,7 @@ async def list_experiments(
 @router.get("/{ref}/cases/{case_id}/history")
 async def case_revisions(ref: str, case_id: str, stores: StoresDep, session: SessionDep) -> dict:
     dataset = await dataset_by_ref(session, stores.tenant_id, ref)
-    current = next((c for c in await current_cases(session, dataset) if c.case_id == case_id), None)
+    current = await current_case(session, dataset, case_id)
     if current is None:
         raise HTTPException(status_code=404, detail=f"unknown case: {case_id}")
     return {
