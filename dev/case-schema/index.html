@@ -872,6 +872,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#dataset-readme" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dataset README
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1316,6 +1327,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#dataset-readme" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dataset README
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1579,6 +1601,66 @@
 <span class="w">        </span><span class="nt">required_tools_called</span><span class="p">:</span>
 <span class="w">          </span><span class="nt">tools</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">get_financials</span><span class="p p-Indicator">]</span>
 </code></pre></div>
+<h2 id="dataset-readme">Dataset README<a class="headerlink" href="#dataset-readme" title="Permanent link">&para;</a></h2>
+<p>A <code>README.md</code> at the root of a dataset folder describes the dataset. <code>evalkit sync</code> uploads it, and the dataset page shows it.</p>
+<ul>
+<li>The YAML frontmatter is the dataset's metadata. The rest of the file is its README, shown on a README tab.</li>
+<li>Syncing the whole dataset mirrors the file. Delete <code>README.md</code> and sync, and the dataset has neither. Syncing one file or folder of the dataset leaves both as they are.</li>
+<li><code>evalkit lint</code> checks the frontmatter.</li>
+</ul>
+<div class="highlight"><pre><span></span><code>---
+description: Questions about quarterly filings.
+license:
+  name: MIT
+  url: https://opensource.org/license/mit
+attribution: Written by the finance team.
+links:
+<span class="w">  </span><span class="k">-</span><span class="w"> </span>label: Wiki
+    url: https://example.com/wiki
+<span class="gu">owner: finance</span>
+<span class="gu">---</span>
+
+<span class="gh"># Filings</span>
+
+How these cases were written, and what a good answer looks like.
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Value</th>
+<th>Where it shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>description</code></td>
+<td>One line of text.</td>
+<td>Under the dataset's name in the list and on its page; in <code>evalkit datasets list</code>.</td>
+</tr>
+<tr>
+<td><code>license</code></td>
+<td><code>name</code>, and optionally <code>url</code>.</td>
+<td>A badge on the dataset page.</td>
+</tr>
+<tr>
+<td><code>attribution</code></td>
+<td>Text.</td>
+<td>A credit line on the dataset page.</td>
+</tr>
+<tr>
+<td><code>links</code></td>
+<td>A list of <code>label</code> and <code>url</code>.</td>
+<td>A row of links on the dataset page. A <code>url</code> is <code>http</code>, <code>https</code> or a path in the evalkit UI.</td>
+</tr>
+<tr>
+<td>any other key</td>
+<td>Text.</td>
+<td>Listed as key and value on the dataset page.</td>
+</tr>
+</tbody>
+</table>
+<p><code>evalkit datasets show &lt;dataset&gt;</code> prints the metadata and the README.</p>
 
 
 
