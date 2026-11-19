@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -73,3 +74,11 @@ def parse_dataset_readme(text: str) -> tuple[DatasetReadme, list[Finding]]:
         DatasetReadme(readme=body if body.strip() else None, metadata=metadata),
         [],
     )
+
+
+def parse_dataset_readme_file(path: Path) -> tuple[DatasetReadme, list[Finding]]:
+    try:
+        text = path.read_bytes().decode("utf-8-sig")
+    except UnicodeDecodeError:
+        return DatasetReadme(), [_finding("the file is not UTF-8 text; save it as UTF-8")]
+    return parse_dataset_readme(text)

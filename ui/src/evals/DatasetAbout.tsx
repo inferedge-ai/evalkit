@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { safeNext } from "../auth/next";
+import { httpUrl } from "../lib/safeUrl";
 import type { DatasetMetadata } from "../lib/types";
 
 const KNOWN = new Set(["description", "links", "license", "attribution"]);
@@ -9,15 +11,21 @@ const LINK_CLASS =
 // Metadata comes from a README anyone with write access can sync, so only
 // http(s) links and paths inside this app become links.
 export function MetadataLink({ label, url }: { label: string; url: string }) {
-  if (url.startsWith("/") && !url.startsWith("//"))
+  if (url.startsWith("/") && safeNext(url) === url)
     return (
       <Link className={LINK_CLASS} to={url}>
         {label}
       </Link>
     );
-  if (/^https?:\/\//i.test(url))
+  const external = httpUrl(url);
+  if (external)
     return (
-      <a className={LINK_CLASS} href={url} target="_blank" rel="noreferrer">
+      <a
+        className={LINK_CLASS}
+        href={external}
+        target="_blank"
+        rel="noreferrer"
+      >
         {label}
       </a>
     );

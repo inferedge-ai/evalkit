@@ -40,11 +40,13 @@ describe("DatasetAbout", () => {
     expect(screen.getByText("research")).toBeTruthy();
   });
 
-  it("does not turn a script or protocol-relative URL into a link", () => {
+  it("does not turn a script URL or a path that leaves the app into a link", () => {
     show({
       links: [
         { label: "Script", url: "javascript:alert(1)" },
         { label: "Elsewhere", url: "//evil.example" },
+        { label: "Backslash", url: "/\\evil.example" },
+        { label: "Tab", url: "/\t/evil.example" },
       ],
     });
 

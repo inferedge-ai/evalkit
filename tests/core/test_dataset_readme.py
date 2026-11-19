@@ -1,6 +1,11 @@
 import pytest
 
-from evalkit.core.dataset_readme import DatasetMetadata, DatasetReadme, parse_dataset_readme
+from evalkit.core.dataset_readme import (
+    DatasetMetadata,
+    DatasetReadme,
+    parse_dataset_readme,
+    parse_dataset_readme_file,
+)
 
 FULL = """---
 description: Multi-hop questions.
@@ -77,3 +82,25 @@ def test_a_bad_frontmatter_is_an_error_finding(text, message):
         ("error", "E-README", "README.md")
     ]
     assert findings[0].message.startswith(message), findings[0].message
+
+
+def test_a_readme_file_with_a_byte_order_mark_keeps_its_frontmatter(tmp_path):
+    path = tmp_path / "README.md"
+    path.write_bytes(b"\xef\xbb\xbf" + FULL.encode())
+
+    parsed, findings = parse_dataset_readme_file(path)
+
+    assert findings == []
+    assert parsed.metadata.description == "Multi-hop questions."
+    assert parsed.readme == "# Title\n\nBody text.\n"
+
+
+def test_a_readme_file_that_is_not_utf_8_is_an_error_finding(tmp_path):
+    path = tmp_path / "README.md"
+    path.write_bytes(FULL.encode("utf-16"))
+
+    parsed, [finding] = parse_dataset_readme_file(path)
+
+    assert parsed == DatasetReadme()
+    assert (finding.code, finding.severity) == ("E-README", "error")
+    assert finding.message == "the file is not UTF-8 text; save it as UTF-8"

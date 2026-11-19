@@ -6,9 +6,10 @@
 
 - **Server:** Run `evalkit db upgrade` (migrations 0021, 0022 and 0023).
 - **Datasets:** `evalkit sync` now uploads a `README.md` at the root of the
-  dataset folder and shows it on the dataset. If yours starts with a `---`
-  block, that block must be YAML frontmatter that passes `evalkit lint`, or the
-  sync is refused.
+  dataset folder and shows it on the dataset. The file must be UTF-8, and if
+  it starts with a `---` block, that block must be YAML frontmatter that passes
+  `evalkit lint`, or the sync is refused. A sync of one folder or file leaves
+  the README alone.
 
 ### Features
 

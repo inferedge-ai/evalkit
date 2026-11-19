@@ -572,10 +572,10 @@ async def prepare_experiment(
     if not cases:
         raise NothingRunnable(dataset.ref, dropped)
     check_inputs(req.agent, caps, cases)
-    if judge is None and needs_judge(cases, extension_evaluators):
+    shadowed = set(remote_evaluators) | set(req.code_evaluators or [])
+    if judge is None and needs_judge(cases, extension_evaluators, shadowed):
         raise NoJudge()
     if judge is not None and judge.provider is None:
-        shadowed = set(remote_evaluators) | set(req.code_evaluators or [])
         judging = [
             name
             for name in judging_extension_evaluators(cases, extension_evaluators)

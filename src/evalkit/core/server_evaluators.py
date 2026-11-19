@@ -1,5 +1,5 @@
 import os
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from enum import StrEnum
 from typing import Any, Protocol
 
@@ -84,15 +84,21 @@ def judging_extension_evaluators(
 def needs_judge(
     cases: Iterable[CaseView],
     extension_evaluators: Mapping[str, PythonEvaluator] = NO_EXTENSION_EVALUATORS,
+    shadowed: Collection[str] = (),
 ) -> bool:
     cases = list(cases)
+    judging = [
+        name
+        for name in judging_extension_evaluators(cases, extension_evaluators)
+        if name not in shadowed
+    ]
     return any(
         any(
             BUILTIN_EVALUATORS[name].uses_judge
             for name in configured_builtins(case.effective_evaluators)
         )
         for case in cases
-    ) or bool(judging_extension_evaluators(cases, extension_evaluators))
+    ) or bool(judging)
 
 
 def server_evaluator_timeout() -> float:

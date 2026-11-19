@@ -343,7 +343,9 @@ async def check_writer(
     session: AsyncSession, dataset_id: int, ref: str, source: SyncSource
 ) -> None:
     await session.execute(
-        select(models.Dataset.id).where(models.Dataset.id == dataset_id).with_for_update()
+        select(models.Dataset.id)
+        .where(models.Dataset.id == dataset_id)
+        .with_for_update(key_share=True)
     )
     latest = await session.scalar(
         select(models.DatasetSync.source)

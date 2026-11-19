@@ -53,7 +53,7 @@ from evalkit.contracts.enums import SyncSource
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import AgentDefinition, Driver, driver, explicit, server_may_drive
 from evalkit.core.capabilities import sdk_capabilities
-from evalkit.core.dataset_readme import README_FILENAME, parse_dataset_readme
+from evalkit.core.dataset_readme import README_FILENAME, parse_dataset_readme_file
 from evalkit.core.fixtures import load_registries
 from evalkit.core.harness import HarnessClient
 from evalkit.core.importer import load_files
@@ -436,9 +436,7 @@ def lint(
         registry_in_scope = registry is not None and registry.parent == path
         findings.extend(fixture_findings(all_cases, entries, warn_unused=registry_in_scope))
         if (path / README_FILENAME).is_file():
-            findings.extend(
-                parse_dataset_readme((path / README_FILENAME).read_text(encoding="utf-8"))[1]
-            )
+            findings.extend(parse_dataset_readme_file(path / README_FILENAME)[1])
         _print_findings([f.__dict__ for f in findings])
         errors = sum(1 for f in findings if f.severity == "error")
         warnings = sum(1 for f in findings if f.severity == "warning")
