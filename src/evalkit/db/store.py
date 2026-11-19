@@ -204,6 +204,7 @@ class PgStore:
         actor_id: int,
         source: SyncSource,
         detail: dict,
+        source_files: set[str] | None = None,
     ) -> SyncResult:
         if workspace.tenant_id != self._tenant_id:
             raise UnknownWorkspace(workspace.name)
@@ -219,6 +220,7 @@ class PgStore:
                 actor_id=actor_id,
                 source=source,
                 detail=detail,
+                source_files=source_files,
             )
             await s.commit()
             return result

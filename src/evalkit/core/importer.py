@@ -61,6 +61,7 @@ class CaseCatalog(Protocol):
         actor_id: int,
         source: SyncSource,
         detail: dict,
+        source_files: set[str] | None = None,
     ) -> SyncResult: ...
 
 
@@ -77,6 +78,12 @@ class ImportReport(BaseModel):
     findings: list[Finding] = Field(default_factory=list)
     aborted: bool = False
     review: ReviewReport = Field(default_factory=ReviewReport)
+
+
+def _source_name(path: Path, root: Path | None) -> str:
+    if root is not None and path.is_relative_to(root):
+        return path.relative_to(root).as_posix()
+    return path.name
 
 
 def load_files(
@@ -103,7 +110,7 @@ def load_files(
             )
             continue
         cases.extend((case, path) for case in file_cases)
-        overlays.extend((ov, path.name) for ov in file_overlays)
+        overlays.extend((ov, _source_name(path, root)) for ov in file_overlays)
     return cases, overlays, findings
 
 
@@ -173,6 +180,7 @@ async def import_cases(
     detail: dict,
     entries: dict[str, FixtureEntry] | None = None,
     root: Path | None = None,
+    source_files: set[str] | None = None,
 ) -> ImportReport:
     cases = [case for case, _ in sourced_cases]
     entries = entries or {}
@@ -215,6 +223,7 @@ async def import_cases(
         actor_id=actor_id,
         source=source,
         detail=detail,
+        source_files=source_files,
     )
     return ImportReport(
         created=len(result.created),
@@ -241,6 +250,7 @@ async def import_dataset(
     sourced_cases, overlays, findings = load_files(files, root)
     entries, registry_findings = load_registries([p for p in files if p.name == REGISTRY_FILENAME])
     sourced: list[tuple[Case, Path | None]] = list(sourced_cases)
+    source_files = {_source_name(path, root) for path in files if is_case_yaml(path)}
     return await import_cases(
         catalog,
         workspace=workspace,
@@ -256,4 +266,5 @@ async def import_dataset(
         detail=detail,
         entries=entries,
         root=root,
+        source_files=source_files,
     )

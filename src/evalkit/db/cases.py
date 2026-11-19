@@ -282,13 +282,12 @@ async def _usernames(session: AsyncSession, ids: set[int]) -> dict[int, str]:
     return {uid: name for uid, name in rows.all()}
 
 
-async def _replace_overlays(
-    session: AsyncSession, tenant_id: str, dataset_id: int, overlays: list[IncomingOverlay]
-) -> int:
-    await session.execute(
-        delete(models.Overlay).where(models.Overlay.source_dataset_id == dataset_id)
-    )
-    targets = {
+async def _overlay_targets(
+    session: AsyncSession, tenant_id: str, overlays: list[IncomingOverlay]
+) -> dict[str, int]:
+    if not overlays:
+        return {}
+    return {
         case_id: ref
         for case_id, ref in (
             await session.execute(
@@ -299,6 +298,15 @@ async def _replace_overlays(
             )
         ).all()
     }
+
+
+async def _replace_overlays(
+    session: AsyncSession, tenant_id: str, dataset_id: int, overlays: list[IncomingOverlay]
+) -> int:
+    await session.execute(
+        delete(models.Overlay).where(models.Overlay.source_dataset_id == dataset_id)
+    )
+    targets = await _overlay_targets(session, tenant_id, overlays)
     applied = 0
     for overlay in overlays:
         target = targets.get(overlay.target_case_id)
@@ -318,6 +326,50 @@ async def _replace_overlays(
     return applied
 
 
+async def _merge_overlays(
+    session: AsyncSession,
+    tenant_id: str,
+    dataset_id: int,
+    overlays: list[IncomingOverlay],
+    source_files: set[str] | None,
+) -> int:
+    if source_files:
+        await session.execute(
+            delete(models.Overlay).where(
+                models.Overlay.source_dataset_id == dataset_id,
+                models.Overlay.source_file.in_(source_files),
+            )
+        )
+    targets = await _overlay_targets(session, tenant_id, overlays)
+    applied = 0
+    for overlay in overlays:
+        target = targets.get(overlay.target_case_id)
+        if target is None:
+            continue
+        statement = insert(models.Overlay).values(
+            source_dataset_id=dataset_id,
+            target_case=target,
+            agents=overlay.agents,
+            tags=overlay.tags,
+            evaluators=overlay.evaluators,
+            source_file=overlay.source_file,
+        )
+        await session.execute(
+            statement.on_conflict_do_update(
+                index_elements=["source_dataset_id", "target_case"],
+                set_={
+                    "agents": statement.excluded.agents,
+                    "tags": statement.excluded.tags,
+                    "evaluators": statement.excluded.evaluators,
+                    "source_file": statement.excluded.source_file,
+                    "updated_at": func.now(),
+                },
+            )
+        )
+        applied += 1
+    return applied
+
+
 async def sync_dataset(
     session: AsyncSession,
     *,
@@ -330,6 +382,7 @@ async def sync_dataset(
     actor_id: int,
     source: SyncSource,
     detail: dict,
+    source_files: set[str] | None = None,
 ) -> SyncResult:
     dataset_id = await ensure_dataset(session, workspace, dataset, kind)
     sync = models.DatasetSync(
@@ -439,7 +492,14 @@ async def sync_dataset(
                 .values(removed_at=datetime.now(UTC))
             )
             result.removed = sorted(case_id for _, case_id in stale)
-    result.overlays = await _replace_overlays(session, workspace.tenant_id, dataset_id, overlays)
+    if full:
+        result.overlays = await _replace_overlays(
+            session, workspace.tenant_id, dataset_id, overlays
+        )
+    else:
+        result.overlays = await _merge_overlays(
+            session, workspace.tenant_id, dataset_id, overlays, source_files
+        )
     names = await _usernames(session, {target for _, target in carried})
     result.carried = [CarriedReview(case_id=c, reviewer=names.get(t, "")) for c, t in carried]
     sync.detail = {
