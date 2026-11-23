@@ -11,7 +11,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from opentelemetry.trace import Status, StatusCode
 from sqlalchemy import select
 
-from evalkit.api.otel import decode_otlp
 from evalkit.contracts.enums import TrajectorySource, WorkspaceRole
 from evalkit.db.models import AuthToken
 from evalkit.db.users import UserStore
@@ -154,11 +153,13 @@ async def test_json_export_by_resource_attribute_and_gzip(api):
     assert spans[0]["dropped_attributes_count"] == 4
 
 
-def test_decode_otlp_json_accepts_standard_string_enums():
+async def test_json_export_accepts_standard_string_enums(api):
     body = {
         "resourceSpans": [
             {
-                "resource": {"attributes": []},
+                "resource": {
+                    "attributes": [{"key": "evalkit.agent", "value": {"stringValue": "sdk"}}]
+                },
                 "scopeSpans": [
                     {
                         "scope": {"name": "test"},
@@ -171,26 +172,33 @@ def test_decode_otlp_json_accepts_standard_string_enums():
                                 "startTimeUnixNano": "1700000000000000000",
                                 "endTimeUnixNano": "1700000001000000000",
                                 "status": {"code": "STATUS_CODE_OK"},
-                                "attributes": [],
+                                "attributes": [
+                                    {"key": "session.id", "value": {"stringValue": "enums-1"}}
+                                ],
                             },
                             {
                                 "traceId": "0af7651916cd43dd8448eb211c80319c",
                                 "spanId": "c8be7c8270314442",
                                 "name": "server_handler",
-                                "kind": "SERVER",
-                                "startTimeUnixNano": "1700000000000000000",
-                                "endTimeUnixNano": "1700000001000000000",
-                                "status": {"code": "ERROR", "message": "fail"},
-                                "attributes": [],
+                                "kind": "SPAN_KIND_SERVER",
+                                "startTimeUnixNano": "1700000001000000000",
+                                "endTimeUnixNano": "1700000002000000000",
+                                "status": {"code": "STATUS_CODE_ERROR", "message": "fail"},
+                                "attributes": [
+                                    {"key": "session.id", "value": {"stringValue": "enums-1"}}
+                                ],
                             },
                             {
                                 "traceId": "0af7651916cd43dd8448eb211c80319c",
                                 "spanId": "d9cf8d9381425553",
                                 "name": "legacy_int",
                                 "kind": 1,
-                                "startTimeUnixNano": "1700000000000000000",
+                                "startTimeUnixNano": "1700000002000000000",
+                                "endTimeUnixNano": "1700000003000000000",
                                 "status": {"code": 2},
-                                "attributes": [],
+                                "attributes": [
+                                    {"key": "session.id", "value": {"stringValue": "enums-1"}}
+                                ],
                             },
                         ],
                     }
@@ -198,15 +206,21 @@ def test_decode_otlp_json_accepts_standard_string_enums():
             }
         ]
     }
-    spans = decode_otlp(json.dumps(body).encode(), "application/json")
-    assert len(spans) == 3
-    assert spans[0].kind == "CLIENT" and spans[0].status_code == "OK"
-    assert (
-        spans[1].kind == "SERVER"
-        and spans[1].status_code == "ERROR"
-        and spans[1].status_message == "fail"
+    resp = await api.post(
+        "/api/otel/v1/traces",
+        content=json.dumps(body).encode(),
+        headers={"content-type": "application/json"},
     )
-    assert spans[2].kind == "INTERNAL" and spans[2].status_code == "ERROR"
+    assert resp.status_code == 200, resp.text
+    spans = (await api.get("/api/agents/sdk@admin/sessions/enums-1/spans")).json()
+    assert len(spans) == 3
+    assert spans[0]["kind"] == "CLIENT"
+    assert spans[0]["status_code"] == "OK"
+    assert spans[1]["kind"] == "SERVER"
+    assert spans[1]["status_code"] == "ERROR"
+    assert spans[1]["status_message"] == "fail"
+    assert spans[2]["kind"] == "INTERNAL"
+    assert spans[2]["status_code"] == "ERROR"
 
 
 async def test_foreign_workspace_unknown_agent_and_size_cap(api):

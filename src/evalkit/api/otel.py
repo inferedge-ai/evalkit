@@ -15,7 +15,12 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceResponse,
 )
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue
-from opentelemetry.proto.trace.v1.trace_pb2 import Span as ProtoSpan
+from opentelemetry.proto.trace.v1.trace_pb2 import (
+    Span as ProtoSpan,
+)
+from opentelemetry.proto.trace.v1.trace_pb2 import (
+    Status as ProtoStatus,
+)
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
@@ -47,30 +52,11 @@ SPAN_KINDS = {
 STATUS_CODES = {0: "UNSET", 1: "OK", 2: "ERROR"}
 
 
-def _kind_from_json(value: Any) -> str:
-    if isinstance(value, str):
-        if value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
-            return SPAN_KINDS.get(int(value), "INTERNAL")
-        name = value.removeprefix("SPAN_KIND_")
-        if name in ("INTERNAL", "SERVER", "CLIENT", "PRODUCER", "CONSUMER", "UNSPECIFIED"):
-            return name
-        return "INTERNAL"
-    if isinstance(value, int) and not isinstance(value, bool):
-        return SPAN_KINDS.get(value, "INTERNAL")
-    return "INTERNAL"
-
-
-def _status_from_json(value: Any) -> str:
-    if isinstance(value, str):
-        if value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
-            return STATUS_CODES.get(int(value), "UNSET")
-        name = value.removeprefix("STATUS_CODE_")
-        if name in ("UNSET", "OK", "ERROR"):
-            return name
-        return "UNSET"
-    if isinstance(value, int) and not isinstance(value, bool):
-        return STATUS_CODES.get(value, "UNSET")
-    return "UNSET"
+def _enum_from_json(value: Any, enum: Any, names: dict[int, str], default: str) -> str:
+    number = (
+        enum.Value(value) if isinstance(value, str) and not value.isdigit() else int(value or 0)
+    )
+    return names.get(number, default)
 
 
 def _any_value(value: AnyValue) -> Any:
@@ -160,10 +146,12 @@ def _from_json(span: dict[str, Any], resource: dict[str, Any], scope: str | None
         span_id=span["spanId"],
         parent_span_id=span.get("parentSpanId") or None,
         name=span.get("name", ""),
-        kind=_kind_from_json(span.get("kind")),
+        kind=_enum_from_json(span.get("kind"), ProtoSpan.SpanKind, SPAN_KINDS, "INTERNAL"),
         start_time=start,
         end_time=_time(int(span.get("endTimeUnixNano") or 0)),
-        status_code=_status_from_json(status.get("code")),
+        status_code=_enum_from_json(
+            status.get("code"), ProtoStatus.StatusCode, STATUS_CODES, "UNSET"
+        ),
         status_message=status.get("message") or None,
         attributes=_json_attributes(span.get("attributes")),
         events=[
