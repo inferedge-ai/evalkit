@@ -42,7 +42,7 @@ from evalkit.db.review import ReviewLog
 from evalkit.db.store import PgStore
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
-from evalkit.store.base import CaseFile, Experiment, RunDetail, Selection
+from evalkit.store.base import CaseFile, Experiment, RunDetail, Selection, SyncResult
 from tests.fake_agents import JUDGE_URL, TEST_ENCRYPTION_KEY, TEST_ENV, fake_credentials
 from tests.fake_blob import DictBlobStore
 from tests.fake_harness import FakeHarness
@@ -155,9 +155,9 @@ async def sync_cases(
     full: bool = False,
     kind: DatasetKind = DatasetKind.SUITE,
     actor: str = "admin",
-) -> None:
+) -> SyncResult:
     ws = await WorkspaceStore(env.session_factory, "default").get_by_name(workspace)
-    await env.store.sync(
+    return await env.store.sync(
         workspace=ws,
         dataset=dataset,
         kind=kind,

@@ -1,9 +1,11 @@
 import httpx2
 import pytest
+from sqlalchemy import select
 
 from evalkit.contracts.enums import WorkspaceRole
 from evalkit.core.dataset_readme import DatasetMetadata, DatasetReadme
 from evalkit.db.cases import find_dataset_row, set_dataset_readme
+from evalkit.db.models import DatasetSync
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from tests.fake_harness import FakeHarness
@@ -176,7 +178,7 @@ async def test_twin_on_both_sides(env):
     assert back["state"] == "differs" and back["review"]["state"] == "unreviewed"
 
     await sync_cases(ctx, [suite_case("case-2", "q2")], workspace="dev", full=True)
-    assert (await _cases(sme, PROD))["case-1"]["twin"]["state"] == "absent"
+    assert "case-1" not in await _cases(sme, PROD)
     assert (await _cases(sme, "finance@canonical"))["case-1"]["twin"] is None
 
 
@@ -203,3 +205,44 @@ async def test_a_promoted_dataset_takes_the_readme_and_metadata_of_its_source(en
         "# Finance\n",
         {"description": "Filings."},
     )
+
+
+async def _latest_sync_detail(ctx, ref):
+    workspace, name = ref.split("@")[1], ref.split("@")[0]
+    async with ctx.session_factory() as session:
+        dataset = await find_dataset_row(session, "default", workspace, name)
+        assert dataset is not None
+        row = await session.scalar(
+            select(DatasetSync)
+            .where(DatasetSync.dataset_id == dataset.id)
+            .order_by(DatasetSync.id.desc())
+            .limit(1)
+        )
+    assert row is not None
+    return row.source, row.detail
+
+
+async def test_removing_a_case_from_the_source_removes_it_from_the_target(env):
+    clients, ctx = env
+    await clients["admin"].post("/api/datasets", json={"name": "finance", "workspace": "prod"})
+    assert (await _decide(clients["sme"], DEV, "case-1", "approve")).status_code == 200
+
+    result = await sync_cases(ctx, [suite_case("case-2", "q2")], workspace="dev", full=True)
+
+    assert result.removed == ["case-1"]
+    assert result.unpromoted is not None
+    assert (result.unpromoted.target, result.unpromoted.removed) == (PROD, ["case-1"])
+    assert "case-1" not in await _cases(clients["sme"], PROD)
+    assert await _latest_sync_detail(ctx, PROD) == (
+        "promotion",
+        {"from": DEV, "removed": ["case-1"], "removal_reason": "removed_from_source"},
+    )
+
+
+async def test_removing_an_unpromoted_case_leaves_the_target_alone(env):
+    clients, ctx = env
+    await clients["admin"].post("/api/datasets", json={"name": "finance", "workspace": "prod"})
+
+    result = await sync_cases(ctx, [suite_case("case-2", "q2")], workspace="dev", full=True)
+
+    assert result.removed == ["case-1"] and result.unpromoted is None

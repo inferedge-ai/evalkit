@@ -493,6 +493,10 @@ def lint(
         raise typer.Exit(code=1)
 
 
+def _echo_unpromoted(target: str, removed: list[str]) -> None:
+    typer.echo(f"removed from {target}: " + ", ".join(removed))
+
+
 def _sync_and_report(
     dataset_dir: Path,
     *,
@@ -537,6 +541,8 @@ def _sync_and_report(
             + ", ".join(report["missing"])
             + f". Sync the whole dataset (evalkit sync {name}) to remove them."
         )
+    if report.get("unpromoted"):
+        _echo_unpromoted(report["unpromoted"]["target"], report["unpromoted"]["removed"])
     review = report.get("review") or {}
     if review.get("now_unreviewed"):
         typer.echo(

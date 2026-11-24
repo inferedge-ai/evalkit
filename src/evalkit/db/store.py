@@ -6,7 +6,8 @@ from evalkit.core.access import WorkspaceRef
 from evalkit.core.dataset_readme import DatasetReadme
 from evalkit.core.overlays import OverlayBlock
 from evalkit.db import cases, experiments, fixture_blobs, models, runs, scorecard
-from evalkit.db.cases import sync_dataset
+from evalkit.db.cases import case_refs_for, sync_dataset
+from evalkit.db.promotion import unpromote
 from evalkit.db.session import tenant_session
 from evalkit.db.workspaces import UnknownWorkspace
 from evalkit.store.base import (
@@ -225,5 +226,15 @@ class PgStore:
                 readme=readme,
                 under=under,
             )
+            if result.removed and source is SyncSource.GIT:
+                refs = await case_refs_for(s, workspace.tenant_id, result.removed)
+                result.unpromoted = await unpromote(
+                    s,
+                    workspace,
+                    dataset,
+                    dict.fromkeys(refs.values()),
+                    removal_reason="removed_from_source",
+                    actor_id=actor_id,
+                )
             await s.commit()
             return result
