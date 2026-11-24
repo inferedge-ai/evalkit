@@ -26,7 +26,8 @@ from evalkit.core.pull import (
     index_row,
     run_body,
 )
-from evalkit.core.runner import RunnerDeps, stored_trajectory_doc
+from evalkit.core.runner import RunnerDeps
+from evalkit.core.scoring import stored_trajectory_doc
 from evalkit.core.trajectory import backfill_step_costs
 from evalkit.db.runs import (
     RunSource,

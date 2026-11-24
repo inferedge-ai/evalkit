@@ -15,7 +15,6 @@ renews it while it works.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import tempfile
 import time
@@ -34,7 +33,6 @@ from evalkit.contracts.atif import Trajectory, TrajectoryValidationError, valida
 from evalkit.contracts.custom_evaluator import EvalCase, ScoreItem
 from evalkit.contracts.enums import (
     EvaluationSource,
-    EvaluatorKind,
     ExperimentStatus,
     RunStatus,
     ScoredOn,
@@ -44,16 +42,15 @@ from evalkit.contracts.harness import (
     Capabilities,
     FileRef,
     RunMetadata,
-    answer_text,
     input_errors,
 )
 from evalkit.contracts.settings import JudgeSettings
+from evalkit.core.agent_runs import build_agent_run, store_trajectory
 from evalkit.core.agents import AgentDefinition, AgentLookup, explicit
 from evalkit.core.blob import (
     BlobStore,
     artifact_key,
     fixture_blob_key,
-    trajectory_key,
     workspace_key,
 )
 from evalkit.core.capabilities import SDK_CONTRACT_VERSION, traced_capabilities
@@ -62,7 +59,6 @@ from evalkit.core.custom_eval import EvalError, score_with_custom_evaluator
 from evalkit.core.errors import error_text
 from evalkit.core.evaluators.base import (
     BUILTIN_EVALUATORS,
-    BUILTIN_GAUGES,
     EvalContext,
     execute,
     neutral_skip,
@@ -75,6 +71,12 @@ from evalkit.core.python_eval import (
     score_with_python_evaluator,
 )
 from evalkit.core.remote_evaluators import EvaluatorLookup, RemoteEvaluator
+from evalkit.core.scoring import (
+    REFETCHABLE,
+    build_context,
+    evaluation_rows,
+    run_gauges,
+)
 from evalkit.core.server_evaluators import (
     NEEDS_SERVER_JUDGE,
     NO_EXTENSION_EVALUATORS,
@@ -90,15 +92,11 @@ from evalkit.core.server_evaluators import (
 from evalkit.core.traces.poll import HARNESS_HINT, TASK_HINT, choose_poll_budget, poll_trajectory
 from evalkit.core.traces.sessions import SessionReader
 from evalkit.core.trajectory import (
-    RunMetrics,
     TrajectoryView,
-    backfill_step_costs,
-    derive_metrics,
 )
 from evalkit.core.workspace import parse_slug
 from evalkit.credentials import KeySource
 from evalkit.store.base import (
-    AgentRunRecord,
     CaseView,
     DatasetRow,
     EvaluationRow,
@@ -416,24 +414,6 @@ def reused_run_id(harness_run_id: str) -> str:
     return f"{harness_run_id}#reused-{uuid.uuid4().hex[:12]}"
 
 
-async def store_trajectory(
-    deps: RunnerDeps,
-    agent_id: int,
-    harness_run_id: str,
-    trajectory: Trajectory,
-    status: TrajectoryStatus | None,
-    model: str | None,
-) -> str:
-    backfill_step_costs(trajectory, load_cost_map(deps.cfg.cost_map), model)
-    if status == TrajectoryStatus.PARTIAL:
-        trajectory.extra = {**(trajectory.extra or {}), "trajectory_status": "partial"}
-    key = trajectory_key(agent_id, harness_run_id)
-    await deps.blob_store.put_object(
-        key, json.dumps(trajectory.model_dump(exclude_none=True)).encode()
-    )
-    return key
-
-
 async def _record_one(
     deps: RunnerDeps,
     exp: Experiment,
@@ -470,38 +450,28 @@ async def _record_one(
         driven.trajectory_status = TrajectoryStatus(status)
         if doc is not None:
             driven.trajectory = validate_trajectory(doc)
-    key: str | None = None
-    if driven.trajectory is not None:
-        key = await store_trajectory(
-            deps,
-            agent.id,
-            driven.harness_run_id,
-            driven.trajectory,
-            driven.trajectory_status,
-            exp.config.model or driven.reported_model,
-        )
-        view = TrajectoryView(driven.trajectory)
-        driven.metrics.update(derive_metrics(view, driven.wall_ms).model_dump(exclude_none=True))
-    driven.metrics.setdefault("duration_ms", driven.wall_ms)
+    record = await build_agent_run(
+        deps.blob_store,
+        load_cost_map(deps.cfg.cost_map),
+        agent.id,
+        harness_run_id=driven.harness_run_id,
+        status=driven.run_status,
+        started_at=driven.started,
+        ended_at=datetime.now(UTC),
+        trajectory=driven.trajectory,
+        trajectory_status=driven.trajectory_status,
+        trajectory_note=driven.trajectory_note,
+        answer=driven.answer,
+        output=driven.output,
+        error=driven.error,
+        metrics=driven.metrics,
+        wall_ms=driven.wall_ms,
+        title=case_title(driven.case.input),
+        model=exp.config.model or driven.reported_model,
+    )
+    driven.metrics = record.metrics
     await deps.store.record_run(
-        exp.id,
-        driven.case.case_id,
-        driven.repetition,
-        AgentRunRecord(
-            harness_run_id=driven.harness_run_id,
-            status=driven.run_status,
-            answer=driven.answer,
-            output=driven.output,
-            error=driven.error,
-            started_at=driven.started,
-            ended_at=datetime.now(UTC),
-            trajectory_key=key,
-            trajectory_status=driven.trajectory_status,
-            trajectory_note=driven.trajectory_note,
-            metrics=driven.metrics,
-            title=case_title(driven.case.input),
-        ),
-        holder=holder,
+        exp.id, driven.case.case_id, driven.repetition, record, holder=holder
     )
     deps.progress(f"run {driven.case.case_id} #{driven.repetition} {driven.run_status}")
     if caps.provides.workspace and driven.metrics.get("artifacts"):
@@ -806,7 +776,6 @@ def resolve_judge(
     return resolved, api_key
 
 
-REFETCHABLE = (TrajectoryStatus.PARTIAL, TrajectoryStatus.UNAVAILABLE)
 REFETCH_CONCURRENCY = 8
 
 
@@ -820,52 +789,6 @@ async def gather_bounded[T](
             return await coro
 
     return await asyncio.gather(*(one(c) for c in coros), return_exceptions=return_exceptions)
-
-
-SCORABLE = (TrajectoryStatus.VALID, TrajectoryStatus.PARTIAL)
-
-
-async def stored_trajectory_doc(
-    blob_store: BlobStore, agent_id: int, run: AgentRunRecord
-) -> tuple[dict | None, TrajectoryStatus | None]:
-    status = run.trajectory_status
-    if status in REFETCHABLE:
-        candidate = trajectory_key(agent_id, run.harness_run_id)
-        if await blob_store.object_exists(candidate):
-            doc = json.loads(await blob_store.get_object(candidate))
-            return doc, TrajectoryStatus((doc.get("extra") or {}).get("trajectory_status", "valid"))
-    if run.trajectory_key and status in SCORABLE:
-        return json.loads(await blob_store.get_object(run.trajectory_key)), status
-    return None, status
-
-
-async def _load_view(deps: RunnerDeps, agent_id: int, run: AgentRunRecord) -> TrajectoryView | None:
-    doc, status = await stored_trajectory_doc(deps.blob_store, agent_id, run)
-    if doc is None or status not in SCORABLE:
-        return None
-    return TrajectoryView(validate_trajectory(doc))
-
-
-def _rows(
-    producer: str,
-    source: EvaluationSource,
-    scores: Iterable[ScoreRow],
-    scored_on: ScoredOn = ScoredOn.LOCAL,
-) -> list[EvaluationRow]:
-    return [
-        EvaluationRow(
-            producer=producer,
-            name=score.name,
-            kind=EvaluatorKind.GAUGE if score.kind == "gauge" else EvaluatorKind.SCORE,
-            source=source,
-            scored_on=scored_on,
-            value=score.score,
-            label=score.label,
-            explanation=score.explanation,
-            error=score.error,
-        )
-        for score in scores
-    ]
 
 
 def _custom_scores(
@@ -891,46 +814,13 @@ def _custom_rows(
     source: EvaluationSource,
     outcome: list[ScoreItem] | EvalError,
 ) -> list[EvaluationRow]:
-    return _rows(name, source, _custom_scores(name, kind, outcome))
+    return evaluation_rows(name, source, _custom_scores(name, kind, outcome))
 
 
 def custom_case_input(case: CaseView) -> dict:
     if not case.files:
         return dict(case.input)
     return {**case.input, "files": [file.model_dump() for file in case.files]}
-
-
-async def build_context(
-    deps: RunnerDeps,
-    agent: AgentDefinition,
-    cost_map: dict,
-    run: RunForScoring,
-    judge: JudgeSettings | None,
-    judge_api_key: str | None,
-) -> tuple[EvalContext, TrajectoryView | None]:
-    record = run.agent_run
-    structured = record.output
-    answer = (
-        answer_text(record.answer, structured) if structured is not None else record.answer or ""
-    )
-    metrics_dict = dict(record.metrics)
-    view = await _load_view(deps, agent.id, record)
-    if view is not None:
-        wall = metrics_dict.get("duration_ms")
-        metrics_dict = {**metrics_dict, **derive_metrics(view, wall).model_dump(exclude_none=True)}
-    ctx = EvalContext(
-        case=run.case,
-        answer=answer,
-        output=structured,
-        trajectory_view=view,
-        wall_ms=metrics_dict.get("duration_ms") or 0,
-        judge_cfg=judge,
-        judge_api_key=judge_api_key,
-        metrics=RunMetrics.model_validate(metrics_dict) if metrics_dict else None,
-        session_id=record.harness_run_id,
-        cost_map=cost_map,
-    )
-    return ctx, view
 
 
 async def score_builtin(
@@ -1030,7 +920,9 @@ async def _evaluate_run(
     *,
     force: bool = False,
 ) -> None:
-    ctx, view = await build_context(deps, agent, cost_map, run, judge, judge_api_key)
+    ctx, view = await build_context(
+        deps.blob_store, agent, cost_map, run.agent_run, run.case, judge, judge_api_key
+    )
     answer = ctx.answer
     structured = ctx.output
     already = set() if force else run.done
@@ -1043,7 +935,7 @@ async def _evaluate_run(
         scores, scored_on = await score_builtin(
             deps, exp, ctx, caps, run.experiment_run_id, name, config
         )
-        rows.extend(_rows(name, EvaluationSource.BUILTIN, scores, scored_on))
+        rows.extend(evaluation_rows(name, EvaluationSource.BUILTIN, scores, scored_on))
 
     custom_config = evaluators.get("custom") or {}
     trajectory_doc = trajectory_document(view)
@@ -1054,7 +946,7 @@ async def _evaluate_run(
         if python_evaluator is not None:
             if python_evaluator.requires_trajectory and view is None:
                 rows.extend(
-                    _rows(
+                    evaluation_rows(
                         name, EvaluationSource.CODE, [neutral_skip(name, "run has no trajectory")]
                     )
                 )
@@ -1074,7 +966,7 @@ async def _evaluate_run(
             scores = await score_extension_evaluator(
                 extension_evaluator, name, ctx, view, custom_eval_case(run.case, config)
             )
-            rows.extend(_rows(name, EvaluationSource.EXTENSION, scores))
+            rows.extend(evaluation_rows(name, EvaluationSource.EXTENSION, scores))
             continue
         server_extension = server_extensions.get(name)
         if (
@@ -1091,11 +983,11 @@ async def _evaluate_run(
                 config,
                 deps.scored_on,
             )
-            rows.extend(_rows(name, EvaluationSource.EXTENSION, scores, scored_on))
+            rows.extend(evaluation_rows(name, EvaluationSource.EXTENSION, scores, scored_on))
             continue
         if evaluator_cfg is None:
             rows.extend(
-                _rows(
+                evaluation_rows(
                     name,
                     EvaluationSource.REMOTE,
                     [
@@ -1122,10 +1014,7 @@ async def _evaluate_run(
         )
         rows.extend(_custom_rows(name, evaluator_cfg.wire_kind, EvaluationSource.REMOTE, result))
 
-    for name, gauge in BUILTIN_GAUGES.items():
-        if name in already:
-            continue
-        rows.extend(_rows(name, EvaluationSource.BUILTIN, await execute(gauge, ctx, {}, caps)))
+    rows.extend(await run_gauges(ctx, caps, already))
 
     if deps.scored_on is ScoredOn.SERVER:
         rows = [row.model_copy(update={"scored_on": ScoredOn.SERVER}) for row in rows]
@@ -1168,7 +1057,8 @@ async def _refetch(
             "trajectory_note": note or "",
         }
         await store_trajectory(
-            deps,
+            deps.blob_store,
+            load_cost_map(deps.cfg.cost_map),
             agent.id,
             run.agent_run.harness_run_id,
             trajectory,

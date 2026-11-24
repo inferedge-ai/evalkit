@@ -42,14 +42,12 @@ from evalkit.core.errors import error_text
 from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
 from evalkit.core.runner import (
     ACTIVE,
-    REFETCHABLE,
     ExperimentRequest,
     InvalidCaseInputs,
     NeedsServerJudge,
     NoJudge,
     NothingRunnable,
     RunnerDeps,
-    build_context,
     custom_eval_case,
     harness_capabilities,
     prepare_experiment,
@@ -57,9 +55,9 @@ from evalkit.core.runner import (
     run_experiment,
     score_builtin,
     score_extension_evaluator,
-    stored_trajectory_doc,
 )
 from evalkit.core.scorecard import assemble_report
+from evalkit.core.scoring import REFETCHABLE, build_context, stored_trajectory_doc
 from evalkit.core.server_evaluators import (
     NEEDS_SERVER_JUDGE,
     ServerEvaluationRequest,
@@ -560,7 +558,13 @@ async def score_on_server(
             status_code=400, detail=f"case {run.case.case_id} does not name the evaluator {name}"
         )
     ctx, view = await build_context(
-        deps, agent, load_cost_map(deps.cfg.cost_map), run, resolved, api_key
+        deps.blob_store,
+        agent,
+        load_cost_map(deps.cfg.cost_map),
+        run.agent_run,
+        run.case,
+        resolved,
+        api_key,
     )
     if extension is not None and custom_config is not None:
         rows = await score_extension_evaluator(

@@ -183,7 +183,8 @@ async def trajectory_rubrics(ctx: EvalContext, config: dict[str, Any]) -> list[S
         return [neutral_skip(SCORE_NAME, "no trajectory recorded for this run")]
 
     trajectory = trajectory_json(ctx.trajectory_view.trajectory)
-    question = str(compose_input(ctx.case.input, ctx.case.files).get("question", ""))
+    case = ctx.require_case()
+    question = str(compose_input(case.input, case.files).get("question", ""))
     parsed = await _judge(
         ctx, user_prompt(question, cfg.rubrics, trajectory, ctx.answer), len(cfg.rubrics)
     )

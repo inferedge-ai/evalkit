@@ -451,7 +451,8 @@ def _row(name: str, score: float | None, explanation: str, skip_reason: str) -> 
 @builtin_evaluator("answer_rubrics", emits=ANSWER_RUBRIC_EMITS, uses_judge=True)
 async def answer_rubrics(ctx: EvalContext, config: dict[str, Any]) -> list[ScoreRow]:
     cfg = AnswerRubrics.model_validate(config)
-    question = str(compose_input(ctx.case.input, ctx.case.files).get("question", ""))
+    case = ctx.require_case()
+    question = str(compose_input(case.input, case.files).get("question", ""))
     parsed = await _judge_verdicts(ctx, cfg.rubrics, user_prompt(question, cfg.rubrics, ctx.answer))
 
     graded = _grade(cfg.rubrics, parsed.verdicts)
