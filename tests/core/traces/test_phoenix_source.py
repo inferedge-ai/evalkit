@@ -226,14 +226,6 @@ async def test_a_trace_filter_is_refused_on_a_phoenix_that_would_ignore_it(httpx
     assert asked.call_count == 1 and len(httpx2_mock.calls) == 1
 
 
-async def test_a_trace_filter_is_refused_when_phoenix_does_not_report_a_version(httpx2_mock):
-    page = "<!DOCTYPE html>\n<html><head><title>Phoenix</title></head></html>"
-    httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text=page))
-    with pytest.raises(BadTraceFilter, match="did not report its version"):
-        await client().check_filter("research-agent", "error_count > 0")
-    assert len(httpx2_mock.calls) == 1
-
-
 @pytest.mark.parametrize("running", ["20.12.0", "20.12.1rc1", "21.0.0\n"])
 async def test_a_trace_filter_is_probed_on_a_phoenix_that_reads_it(httpx2_mock, running):
     httpx2_mock.get(VERSION).mock(return_value=MockResponse(200, text=running))

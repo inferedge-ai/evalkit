@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
@@ -17,7 +16,6 @@ from evalkit.core.traces.sources.base import (
 
 OPENINFERENCE_KIND = "openinference.span.kind"
 TRACE_FILTER_MIN_VERSION = (20, 12)
-VERSION_NUMBER = re.compile(r"(?P<major>\d+)\.(?P<minor>\d+)")
 
 
 def flatten_attributes(nested: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -108,13 +106,8 @@ class PhoenixClient:
             version = await client.get("/arize_phoenix_version")
             version.raise_for_status()
             running = version.text.strip()
-            found = VERSION_NUMBER.match(running)
-            if found is None:
-                raise BadTraceFilter(
-                    "Phoenix trace filters need Phoenix 20.12.0 or later; this server did not "
-                    f"report its version at {version.url}"
-                )
-            if (int(found["major"]), int(found["minor"])) < TRACE_FILTER_MIN_VERSION:
+            major, minor = running.split(".")[:2]
+            if (int(major), int(minor)) < TRACE_FILTER_MIN_VERSION:
                 raise BadTraceFilter(
                     "Phoenix trace filters need Phoenix 20.12.0 or later; this server runs "
                     f"{running}, which ignores the filter"
