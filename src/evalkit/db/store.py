@@ -206,6 +206,7 @@ class PgStore:
         source: SyncSource,
         detail: dict,
         readme: DatasetReadme | None = None,
+        under: tuple[str, ...] | None = None,
     ) -> SyncResult:
         if workspace.tenant_id != self._tenant_id:
             raise UnknownWorkspace(workspace.name)
@@ -222,6 +223,7 @@ class PgStore:
                 source=source,
                 detail=detail,
                 readme=readme,
+                under=under,
             )
             await s.commit()
             return result

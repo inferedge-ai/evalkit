@@ -39,7 +39,16 @@ def test_flow_03_sync_targets_your_workspace_and_prunes_only_whole_datasets(cli)
         out = cli.ok("sync", "fin3")
         counts = sync_counts(out)
         assert (counts["patched"], counts["deleted"]) == (1, 1)
+        assert "removed 1 case(s) no longer on disk: f3-2" in out
         assert case_ids(alice, "fin3@alice") == ["f3-1", "f3-3"]
+
+        (root / "sub/b.yaml").write_text(cases_yaml("f3-4"))
+        out = cli.ok("sync", "fin3/sub")
+        assert "1 case(s) under sub/ are no longer on disk: f3-3" in out
+        assert "evalkit sync fin3" in out
+        assert case_ids(alice, "fin3@alice") == ["f3-1", "f3-3", "f3-4"]
+        out = cli.ok("sync", "fin3/sub/b.yaml")
+        assert "no longer on disk" not in out
 
 
 def test_flow_03_who_may_sync_a_shared_workspace(cli):

@@ -167,6 +167,27 @@ async def test_split_counts_include_overlay_tags(session_factory, world):
     assert counts == [("client-only", 1), ("core", 2), ("hard", 1)]
 
 
+def _under(case_id: str, *folders: str):
+    return incoming(case_id).model_copy(update={"path_tags": list(folders)})
+
+
+async def test_subfolder_sync_names_cases_missing_under_it(session_factory, world):
+    a1, a2, deep, b1 = (
+        _under("a-1", "a"),
+        _under("a-2", "a"),
+        _under("a-3", "a", "x"),
+        _under("b-1", "b"),
+    )
+    async with session_factory() as s:
+        await sync(s, world.dev, world.admin_id, [a1, a2, deep, b1])
+        folder = await sync(s, world.dev, world.admin_id, [a1], full=False, under=("a",))
+        file = await sync(s, world.dev, world.admin_id, [a1], full=False)
+        await s.commit()
+    assert folder.missing == ["a-2", "a-3"]
+    assert folder.removed == []
+    assert file.missing == []
+
+
 async def test_dataset_syncs_row_records_git_detail_and_counts(session_factory, world):
     detail = {"sha": "abc123", "branch": "develop"}
     async with session_factory() as s:
@@ -180,6 +201,7 @@ async def test_dataset_syncs_row_records_git_detail_and_counts(session_factory, 
     assert row is not None
     assert row.detail == {
         **detail,
+        "removed": ["q-2"],
         "counts": {"created": 0, "patched": 1, "removed": 1, "unchanged": 0},
     }
     assert dataset.last_sync is not None

@@ -150,6 +150,7 @@ class SyncResult(BaseModel):
     created: list[str] = Field(default_factory=list)
     patched: list[str] = Field(default_factory=list)
     removed: list[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
     unchanged: int = 0
     overlays: int = 0
     readme_changed: bool = False

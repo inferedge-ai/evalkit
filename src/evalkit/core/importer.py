@@ -67,6 +67,7 @@ class CaseCatalog(Protocol):
         source: SyncSource,
         detail: dict,
         readme: DatasetReadme | None = None,
+        under: tuple[str, ...] | None = None,
     ) -> SyncResult: ...
 
 
@@ -79,6 +80,8 @@ class ImportReport(BaseModel):
     created: int = 0
     patched: int = 0
     deleted: int = 0
+    removed: list[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
     readme_changed: bool = False
     overlays_applied: int = 0
     findings: list[Finding] = Field(default_factory=list)
@@ -190,6 +193,7 @@ async def import_cases(
     entries: dict[str, FixtureEntry] | None = None,
     root: Path | None = None,
     readme: DatasetReadme | None = None,
+    under: tuple[str, ...] | None = None,
 ) -> ImportReport:
     cases = [case for case, _ in sourced_cases]
     entries = entries or {}
@@ -238,11 +242,14 @@ async def import_cases(
         source=source,
         detail=detail,
         readme=readme,
+        under=under,
     )
     return ImportReport(
         created=len(result.created),
         patched=len(result.patched),
         deleted=len(result.removed),
+        removed=result.removed,
+        missing=result.missing,
         readme_changed=result.readme_changed,
         overlays_applied=result.overlays,
         findings=findings,
@@ -261,6 +268,7 @@ async def import_dataset(
     actor_id: int,
     detail: dict,
     root: Path | None = None,
+    under: tuple[str, ...] | None = None,
 ) -> ImportReport:
     sourced_cases, overlays, findings = load_files(files, root)
     entries, registry_findings = load_registries([p for p in files if p.name == REGISTRY_FILENAME])
@@ -282,4 +290,5 @@ async def import_dataset(
         entries=entries,
         root=root,
         readme=readme if full else None,
+        under=under,
     )

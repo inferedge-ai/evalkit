@@ -375,6 +375,7 @@ async def sync_dataset(
     source: SyncSource,
     detail: dict,
     readme: DatasetReadme | None = None,
+    under: tuple[str, ...] | None = None,
 ) -> SyncResult:
     dataset_id = await ensure_dataset(session, workspace, dataset, kind)
     await check_writer(session, dataset_id, f"{dataset}@{workspace.name}", source)
@@ -485,6 +486,22 @@ async def sync_dataset(
                 .values(removed_at=datetime.now(UTC))
             )
             result.removed = sorted(case_id for _, case_id in stale)
+    elif under is not None:
+        result.missing = sorted(
+            case_id
+            for case_ref, case_id in (
+                await session.execute(
+                    select(models.DatasetCase.case_ref, models.Case.case_id)
+                    .join(models.Case, models.Case.id == models.DatasetCase.case_ref)
+                    .where(
+                        models.DatasetCase.dataset_id == dataset_id,
+                        models.DatasetCase.removed_at.is_(None),
+                        models.DatasetCase.path_tags[1 : len(under)] == list(under),
+                    )
+                )
+            ).all()
+            if case_ref not in incoming
+        )
     result.overlays = await _replace_overlays(session, workspace.tenant_id, dataset_id, overlays)
     names = await _usernames(session, {target for _, target in carried})
     result.carried = [CarriedReview(case_id=c, reviewer=names.get(t, "")) for c, t in carried]
@@ -494,6 +511,7 @@ async def sync_dataset(
     sync.detail = {
         **sync.detail,
         **({"readme_changed": True} if result.readme_changed else {}),
+        **({"removed": result.removed} if result.removed else {}),
         "counts": {
             "created": len(result.created),
             "patched": len(result.patched),

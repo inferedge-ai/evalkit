@@ -526,6 +526,17 @@ def _sync_and_report(
         f"overlays_applied={report['overlays_applied']}"
         + (" readme=updated" if report.get("readme_changed") else "")
     )
+    if report.get("removed"):
+        typer.echo(
+            f"removed {len(report['removed'])} case(s) no longer on disk: "
+            + ", ".join(report["removed"])
+        )
+    if report.get("missing"):
+        typer.echo(
+            f"{len(report['missing'])} case(s) under {subpath}/ are no longer on disk: "
+            + ", ".join(report["missing"])
+            + f". Sync the whole dataset (evalkit sync {name}) to remove them."
+        )
     review = report.get("review") or {}
     if review.get("now_unreviewed"):
         typer.echo(

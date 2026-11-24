@@ -218,6 +218,8 @@ def sync_dataset(
     if actor is not None:
         params["actor"] = actor
     refuse_package_folder(dataset_dir)
+    if subpath is not None and (dataset_dir / subpath).is_dir():
+        params["under"] = Path(subpath).as_posix()
     files = sync_files(dataset_dir, subpath)
     if fixtures_dir is not None:
         refuse_package_folder(fixtures_dir)
