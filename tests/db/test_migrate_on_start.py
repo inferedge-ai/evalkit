@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 from evalkit.api.app import create_app
 from evalkit.config import AdminClaimConfig, AuthConfig, DbConfig, OidcConfig
 from evalkit.core.runner import RunnerDeps
-from evalkit.db.session import head_revision, make_session_factory, migrate_under_lock
+from evalkit.db.session import head_revisions, make_session_factory, migrate_under_lock
 from evalkit.db.store import PgStore
 from tests.fake_agents import FakeAgents, FakeEvaluators, fake_credentials
 from tests.fake_blob import DictBlobStore
@@ -15,10 +15,10 @@ from tests.identity import FakeIdp
 from tests.native import make_cfg
 
 
-def revision(db_url: str) -> str | None:
+def revisions(db_url: str) -> set[str]:
     engine = create_engine(db_url)
     with engine.connect() as conn:
-        current = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+        current = set(conn.execute(text("SELECT version_num FROM alembic_version")).scalars())
     engine.dispose()
     return current
 
@@ -54,7 +54,7 @@ def app_for(
 
 async def test_two_starts_migrate_a_fresh_database_one_after_the_other(fresh_db_url):
     await asyncio.gather(migrate_under_lock(fresh_db_url), migrate_under_lock(fresh_db_url))
-    assert revision(fresh_db_url) == head_revision()
+    assert revisions(fresh_db_url) == head_revisions()
 
 
 async def test_migrate_on_start_brings_a_fresh_database_to_head(
@@ -63,7 +63,7 @@ async def test_migrate_on_start_brings_a_fresh_database_to_head(
     monkeypatch.setenv("EVALKIT_ADMIN_PASSWORD", "first-start")
     app = app_for(tmp_path, fresh_db_url, migrate_on_start=True)
     async with app.router.lifespan_context(app):
-        assert revision(fresh_db_url) == head_revision()
+        assert revisions(fresh_db_url) == head_revisions()
 
 
 async def test_without_migrate_on_start_a_fresh_database_stops_the_server(tmp_path, fresh_db_url):

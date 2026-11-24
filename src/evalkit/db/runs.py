@@ -10,6 +10,7 @@ from evalkit.contracts.enums import (
     EvaluationSource,
     EvaluatorKind,
     ExperimentStatus,
+    RunKind,
     RunStatus,
     ScoredOn,
 )
@@ -103,6 +104,48 @@ async def harness_run_id_used(
     return await _used_harness_run_id(session, exp.agent_id, harness_run_id)
 
 
+async def insert_agent_run(
+    session: AsyncSession,
+    agent_id: int,
+    run: AgentRunRecord,
+    kind: RunKind,
+    *,
+    created_by: int | None = None,
+) -> int | None:
+    values = {
+        "agent_id": agent_id,
+        "kind": kind.value,
+        "created_by": created_by,
+        **run.model_dump(mode="json", exclude_none=True),
+    }
+    statement = insert(models.AgentRun).values(**values)
+    if kind is RunKind.APP:
+        return await session.scalar(
+            statement.on_conflict_do_nothing(
+                constraint="uq_agent_runs_agent_harness_run"
+            ).returning(models.AgentRun.id)
+        )
+    # An eval run's session can be stored as an app run before the experiment
+    # records it. The eval run takes that row over and its app-run readings go.
+    replaced = {
+        column.name: statement.excluded[column.name]
+        for column in models.AgentRun.__table__.columns
+        if column.name not in ("id", "agent_id", "harness_run_id", "created_at")
+    }
+    agent_run_id = await session.scalar(
+        statement.on_conflict_do_update(
+            constraint="uq_agent_runs_agent_harness_run",
+            set_=replaced,
+            where=models.AgentRun.kind == RunKind.APP.value,
+        ).returning(models.AgentRun.id)
+    )
+    if agent_run_id is not None:
+        await session.execute(
+            delete(models.Evaluation).where(models.Evaluation.agent_run_id == agent_run_id)
+        )
+    return agent_run_id
+
+
 async def record_run(
     session: AsyncSession,
     exp_id: int,
@@ -137,15 +180,12 @@ async def record_run(
     ).one_or_none()
     if current is not None and current[1] == RunStatus.COMPLETED.value:
         raise Conflict(f"{case_id} #{repetition} already has a completed run")
-    agent_run_id = await session.scalar(
-        insert(models.AgentRun)
-        .values(
-            agent_id=exp.agent_id,
-            created_by=created_by if created_by is not None else exp.created_by,
-            **run.model_dump(mode="json", exclude_none=True),
-        )
-        .on_conflict_do_nothing(constraint="uq_agent_runs_agent_harness_run")
-        .returning(models.AgentRun.id)
+    agent_run_id = await insert_agent_run(
+        session,
+        exp.agent_id,
+        run,
+        RunKind.EVAL,
+        created_by=created_by if created_by is not None else exp.created_by,
     )
     if agent_run_id is None:
         raise Conflict(await _used_harness_run_id(session, exp.agent_id, run.harness_run_id))
@@ -161,11 +201,6 @@ async def record_run(
     else:
         experiment_run = current[0]
         experiment_run.agent_run_id = agent_run_id
-        await session.execute(
-            delete(models.Evaluation).where(
-                models.Evaluation.experiment_run_id == experiment_run.id
-            )
-        )
         await session.flush()
     return RunRef(experiment_run_id=experiment_run.id, agent_run_id=agent_run_id)
 
@@ -239,12 +274,12 @@ async def runs_to_score(
     if not force:
         evaluations = await session.execute(
             select(
-                models.Evaluation.experiment_run_id,
+                models.Evaluation.agent_run_id,
                 models.Evaluation.producer,
                 models.Evaluation.name,
                 models.Evaluation.error,
                 models.Evaluation.label,
-            ).where(models.Evaluation.experiment_run_id.in_([er.id for er, _, _ in rows]))
+            ).where(models.Evaluation.agent_run_id.in_([ar.id for _, ar, _ in rows]))
         )
         found = evaluations.all()
         errored = {
@@ -264,7 +299,7 @@ async def runs_to_score(
             repetition=er.repetition,
             agent_run=_record(ar),
             agent_run_id=ar.id,
-            done=done.get(er.id, set()),
+            done=done.get(ar.id, set()),
         )
         for er, ar, _ in rows
     ]
@@ -288,22 +323,24 @@ async def publish_evaluations(
     holder: str | None = None,
     experiment_id: int | None = None,
 ) -> None:
+    experiment_run = await session.get(models.ExperimentRun, experiment_run_id)
+    if experiment_run is None:
+        raise InvalidRun(f"unknown experiment run: {experiment_run_id}")
     if holder is not None:
-        exp_id = experiment_id or await session.scalar(
-            select(models.ExperimentRun.experiment_id).where(
-                models.ExperimentRun.id == experiment_run_id
-            )
-        )
-        if exp_id is None:
-            raise InvalidRun(f"unknown experiment run: {experiment_run_id}")
-        await _leased_experiment(session, exp_id, holder)
+        await _leased_experiment(session, experiment_id or experiment_run.experiment_id, holder)
+    await publish_agent_run_evaluations(session, experiment_run.agent_run_id, rows, force=force)
+
+
+async def publish_agent_run_evaluations(
+    session: AsyncSession, agent_run_id: int, rows: list[EvaluationRow], *, force: bool = False
+) -> None:
     published: dict[str, set[str]] = {}
     for row in rows:
         published.setdefault(row.producer, set()).add(row.name)
     for producer, names in published.items():
         await session.execute(
             delete(models.Evaluation).where(
-                models.Evaluation.experiment_run_id == experiment_run_id,
+                models.Evaluation.agent_run_id == agent_run_id,
                 models.Evaluation.producer == producer,
                 models.Evaluation.name.not_in(names),
             )
@@ -311,11 +348,11 @@ async def publish_evaluations(
     for row in rows:
         values = {
             **row.model_dump(mode="json"),
-            "experiment_run_id": experiment_run_id,
+            "agent_run_id": agent_run_id,
             "bucket": _bucket(row),
         }
         statement = insert(models.Evaluation).values(**values)
-        update_set = {k: statement.excluded[k] for k in values if k != "experiment_run_id"}
+        update_set = {k: statement.excluded[k] for k in values if k != "agent_run_id"}
         upsert = statement.on_conflict_do_update(
             constraint="uq_evaluations_run_name",
             set_=update_set,
@@ -353,11 +390,11 @@ async def run_details(session: AsyncSession, exp_id: int) -> list[RunDetail]:
     if rows:
         found = await session.scalars(
             select(models.Evaluation)
-            .where(models.Evaluation.experiment_run_id.in_([er.id for er, _, _ in rows]))
+            .where(models.Evaluation.agent_run_id.in_([ar.id for _, ar, _ in rows]))
             .order_by(models.Evaluation.id)
         )
         for row in found.all():
-            evaluations.setdefault(row.experiment_run_id, []).append(_evaluation(row))
+            evaluations.setdefault(row.agent_run_id, []).append(_evaluation(row))
     return [
         RunDetail(
             experiment_run_id=er.id,
@@ -365,7 +402,7 @@ async def run_details(session: AsyncSession, exp_id: int) -> list[RunDetail]:
             repetition=er.repetition,
             agent_run_id=ar.id,
             agent_run=_record(ar),
-            evaluations=evaluations.get(er.id, []),
+            evaluations=evaluations.get(ar.id, []),
         )
         for er, ar, case_id in rows
     ]
@@ -451,9 +488,9 @@ async def list_agent_runs(
     if until is not None:
         stmt = stmt.where(models.AgentRun.started_at < until)
     if source == "eval":
-        stmt = stmt.where(models.ExperimentRun.id.is_not(None))
+        stmt = stmt.where(models.AgentRun.kind == RunKind.EVAL.value)
     elif source == "app":
-        stmt = stmt.where(models.ExperimentRun.id.is_(None))
+        stmt = stmt.where(models.AgentRun.kind == RunKind.APP.value)
     if created_by is not None:
         stmt = stmt.where(
             models.User.tenant_id == _tenant_of(session), models.User.username == created_by
@@ -474,10 +511,8 @@ async def list_agent_runs(
 
 
 def eval_run_ids(agent_id: int) -> Select:
-    return (
-        select(models.AgentRun.harness_run_id)
-        .join(models.ExperimentRun, models.ExperimentRun.agent_run_id == models.AgentRun.id)
-        .where(models.AgentRun.agent_id == agent_id)
+    return select(models.AgentRun.harness_run_id).where(
+        models.AgentRun.agent_id == agent_id, models.AgentRun.kind == RunKind.EVAL.value
     )
 
 
@@ -555,7 +590,7 @@ async def eval_context(
     )
     found = await session.scalars(
         select(models.Evaluation)
-        .where(models.Evaluation.experiment_run_id == experiment_run.id)
+        .where(models.Evaluation.agent_run_id == experiment_run.agent_run_id)
         .order_by(models.Evaluation.id)
     )
     return RunEvalContext(

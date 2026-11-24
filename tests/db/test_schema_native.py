@@ -48,6 +48,7 @@ async def _run(s, exp, case, agent, harness_run_id):
     run = AgentRun(
         agent_id=agent.id,
         harness_run_id=harness_run_id,
+        kind="eval",
         status="completed",
         started_at=datetime.now(UTC),
     )
@@ -83,7 +84,7 @@ async def _experiment_run(s) -> int:
     exp, case, agent = await _experiment(s)
     await _run(s, exp, case, agent, "r1")
     await s.flush()
-    return await s.scalar(select(ExperimentRun.id))
+    return await s.scalar(select(ExperimentRun.agent_run_id))
 
 
 async def test_one_experiment_run_per_case_and_repetition(session_factory):
@@ -98,10 +99,10 @@ async def test_one_experiment_run_per_case_and_repetition(session_factory):
 
 async def test_evaluation_kind_is_checked(session_factory):
     async with session_factory() as s:
-        exp_run_id = await _experiment_run(s)
+        agent_run_id = await _experiment_run(s)
         s.add(
             Evaluation(
-                experiment_run_id=exp_run_id,
+                agent_run_id=agent_run_id,
                 producer="p",
                 name="n",
                 kind="bogus",

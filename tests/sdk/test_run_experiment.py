@@ -504,7 +504,7 @@ async def test_deadline_gives_partial_then_refetch_rescored(env):
     )
     await srv.execute(
         sa.delete(models.Evaluation).where(
-            models.Evaluation.experiment_run_id == run.experiment_run_id,
+            models.Evaluation.agent_run_id == run.agent_run_id,
             models.Evaluation.name == "gauge_input_tokens",
         )
     )

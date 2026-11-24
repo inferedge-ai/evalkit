@@ -39,7 +39,7 @@ def _scores(exp_ids: list[int]) -> Select:
             array_agg(aggregate_order_by(Evaluation.explanation, ExperimentRun.repetition))[1],
             func.min(Evaluation.bucket),
         )
-        .join(ExperimentRun, ExperimentRun.id == Evaluation.experiment_run_id)
+        .join(ExperimentRun, ExperimentRun.agent_run_id == Evaluation.agent_run_id)
         .join(Case, Case.id == ExperimentRun.case_ref)
         .where(
             ExperimentRun.experiment_id.in_(exp_ids),
@@ -56,7 +56,7 @@ async def aggregate(session: AsyncSession, exp_id: int) -> AggregateRows:
     scores = await session.execute(_scores([exp_id]))
     gauges = await session.execute(
         select(Case.case_id, Evaluation.name, func.avg(Evaluation.value))
-        .join(ExperimentRun, ExperimentRun.id == Evaluation.experiment_run_id)
+        .join(ExperimentRun, ExperimentRun.agent_run_id == Evaluation.agent_run_id)
         .join(Case, Case.id == ExperimentRun.case_ref)
         .where(
             ExperimentRun.experiment_id == exp_id,
@@ -68,7 +68,7 @@ async def aggregate(session: AsyncSession, exp_id: int) -> AggregateRows:
     )
     errors = await session.execute(
         select(Case.case_id, Evaluation.name, func.max(Evaluation.error))
-        .join(ExperimentRun, ExperimentRun.id == Evaluation.experiment_run_id)
+        .join(ExperimentRun, ExperimentRun.agent_run_id == Evaluation.agent_run_id)
         .join(Case, Case.id == ExperimentRun.case_ref)
         .where(ExperimentRun.experiment_id == exp_id, Evaluation.error.is_not(None))
         .group_by(Case.case_id, Evaluation.name)
@@ -84,7 +84,7 @@ async def aggregate(session: AsyncSession, exp_id: int) -> AggregateRows:
     ).all()
     sources = await session.execute(
         select(Evaluation.name, Evaluation.source, Evaluation.producer)
-        .join(ExperimentRun, ExperimentRun.id == Evaluation.experiment_run_id)
+        .join(ExperimentRun, ExperimentRun.agent_run_id == Evaluation.agent_run_id)
         .where(ExperimentRun.experiment_id == exp_id)
         .distinct()
     )
@@ -150,7 +150,7 @@ async def _case_facts(
         .where(models.ExperimentCase.experiment_id.in_(exp_ids))
     )
     has_evaluation = (
-        select(Evaluation.id).where(Evaluation.experiment_run_id == ExperimentRun.id).exists()
+        select(Evaluation.id).where(Evaluation.agent_run_id == ExperimentRun.agent_run_id).exists()
     )
     runs = await session.execute(
         select(
@@ -250,7 +250,7 @@ async def case_history(
         select(
             ExperimentRun.experiment_id, Case.case_id, Evaluation.name, func.avg(Evaluation.value)
         )
-        .join(ExperimentRun, ExperimentRun.id == Evaluation.experiment_run_id)
+        .join(ExperimentRun, ExperimentRun.agent_run_id == Evaluation.agent_run_id)
         .join(Case, Case.id == ExperimentRun.case_ref)
         .where(
             ExperimentRun.experiment_id.in_([e.id for e in experiments]),
@@ -300,7 +300,7 @@ async def list_costs(
         return {}
     costs = await session.execute(
         select(ExperimentRun.experiment_id, func.avg(Evaluation.value))
-        .join(ExperimentRun, ExperimentRun.id == Evaluation.experiment_run_id)
+        .join(ExperimentRun, ExperimentRun.agent_run_id == Evaluation.agent_run_id)
         .where(
             ExperimentRun.experiment_id.in_(exp_ids),
             Evaluation.name == COST_GAUGE,

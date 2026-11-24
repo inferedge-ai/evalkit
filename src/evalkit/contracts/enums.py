@@ -29,6 +29,11 @@ class EvaluationSource(StrEnum):
     EXTENSION = "extension"
 
 
+class RunKind(StrEnum):
+    EVAL = "eval"
+    APP = "app"
+
+
 class ScoredOn(StrEnum):
     LOCAL = "local"
     SERVER = "server"

@@ -3,10 +3,18 @@ from datetime import UTC, datetime
 import pytest
 from sqlalchemy import select
 
-from evalkit.contracts.enums import EvaluationSource, EvaluatorKind, RunStatus
+from evalkit.contracts.enums import EvaluationSource, EvaluatorKind, RunKind, RunStatus
 from evalkit.db.experiments import create_experiment
-from evalkit.db.models import AgentRun, Evaluation
-from evalkit.db.runs import pending_runs, publish_evaluations, record_run, runs_to_score
+from evalkit.db.models import AgentRun, Evaluation, Experiment, ExperimentRun
+from evalkit.db.runs import (
+    insert_agent_run,
+    list_agent_runs,
+    pending_runs,
+    publish_agent_run_evaluations,
+    publish_evaluations,
+    record_run,
+    runs_to_score,
+)
 from evalkit.store.base import AgentRunRecord, CaseRep, Conflict, EvaluationRow, InvalidRun
 from tests.db.test_pg_experiments import new
 from tests.identity import seed_agent
@@ -40,7 +48,11 @@ def score(name: str, producer: str = "answer_rubric", **kw) -> EvaluationRow:
 
 
 async def _evaluations(s, run_id: int) -> dict[str, Evaluation]:
-    rows = await s.scalars(select(Evaluation).where(Evaluation.experiment_run_id == run_id))
+    rows = await s.scalars(
+        select(Evaluation)
+        .join(ExperimentRun, ExperimentRun.agent_run_id == Evaluation.agent_run_id)
+        .where(ExperimentRun.id == run_id)
+    )
     return {row.name: row for row in rows.all()}
 
 
@@ -231,3 +243,45 @@ async def test_bucket_is_resolved_at_write_time(session_factory, exp_id):
         "tokens": None,
         "broken": None,
     }
+
+
+async def _agent_id(s, exp_id: int) -> int:
+    return await s.scalar(select(Experiment.agent_id).where(Experiment.id == exp_id))
+
+
+async def test_eval_run_takes_over_a_session_stored_as_an_app_run(session_factory, exp_id):
+    async with session_factory() as s:
+        agent_id = await _agent_id(s, exp_id)
+        app_id = await insert_agent_run(
+            s, agent_id, attempt("session-1", RunStatus.COMPLETED), RunKind.APP
+        )
+        await publish_agent_run_evaluations(s, app_id, [score("gauge_turns")])
+        ref = await record_run(s, exp_id, "q-1", 1, attempt("session-1", RunStatus.COMPLETED), None)
+        await s.commit()
+        row = await s.get(AgentRun, ref.agent_run_id)
+        assert (ref.agent_run_id, row.kind) == (app_id, "eval")
+        assert await _evaluations(s, ref.experiment_run_id) == {}
+
+
+async def test_an_app_run_is_stored_once(session_factory, exp_id):
+    async with session_factory() as s:
+        agent_id = await _agent_id(s, exp_id)
+        first = await insert_agent_run(
+            s, agent_id, attempt("session-1", RunStatus.COMPLETED), RunKind.APP
+        )
+        again = await insert_agent_run(
+            s, agent_id, attempt("session-1", RunStatus.COMPLETED), RunKind.APP
+        )
+    assert first is not None and again is None
+
+
+async def test_a_replaced_attempt_stays_an_eval_run(session_factory, exp_id):
+    async with session_factory() as s:
+        await record_run(s, exp_id, "q-1", 1, attempt("h1", RunStatus.FAILED, "x"), None)
+        await record_run(s, exp_id, "q-1", 1, attempt("h2", RunStatus.COMPLETED), None)
+        await s.commit()
+        agent_id = await _agent_id(s, exp_id)
+        app, app_total = await list_agent_runs(s, agent_id, query=None, limit=10, source="app")
+        evals, eval_total = await list_agent_runs(s, agent_id, query=None, limit=10, source="eval")
+    assert (app, app_total) == ([], 0)
+    assert {r.harness_run_id for r in evals} == {"h1", "h2"}

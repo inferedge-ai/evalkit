@@ -34,6 +34,7 @@ server = [
     "greenlet>=3.5.5",
     "obstore>=0.11.1",
     "opentelemetry-proto>=1.44.0",
+    "procrastinate[alembic]>=3.12",
     "psycopg[binary]>=3.3.6",
     "pyjwt[crypto]>=2.15.1",
     "python-multipart>=0.0.32",

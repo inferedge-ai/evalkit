@@ -995,9 +995,7 @@ def test_local_evaluate_rescores(env, tmp_path, monkeypatch, harness_url, module
 
     async def wipe(session):
         await session.execute(
-            sa.delete(models.Evaluation).where(
-                models.Evaluation.experiment_run_id == run.experiment_run_id
-            )
+            sa.delete(models.Evaluation).where(models.Evaluation.agent_run_id == run.agent_run_id)
         )
 
     in_db(module_db_url, wipe)
@@ -1511,7 +1509,13 @@ def test_run_judge_flags_start_from_the_server_default(
             text("SELECT min(id) FROM experiment_runs WHERE experiment_id = :e"),
             {"e": byok.id},
         ).scalar()
-        conn.execute(text("DELETE FROM evaluations WHERE experiment_run_id = :r"), {"r": run_id})
+        conn.execute(
+            text(
+                "DELETE FROM evaluations WHERE agent_run_id = "
+                "(SELECT agent_run_id FROM experiment_runs WHERE id = :r)"
+            ),
+            {"r": run_id},
+        )
         conn.execute(text("DELETE FROM experiment_runs WHERE id = :r"), {"r": run_id})
         conn.execute(text("UPDATE experiments SET status = 'failed' WHERE id = :e"), {"e": byok.id})
     engine.dispose()
