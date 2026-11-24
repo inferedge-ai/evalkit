@@ -15,7 +15,12 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceResponse,
 )
 from opentelemetry.proto.common.v1.common_pb2 import AnyValue
-from opentelemetry.proto.trace.v1.trace_pb2 import Span as ProtoSpan
+from opentelemetry.proto.trace.v1.trace_pb2 import (
+    Span as ProtoSpan,
+)
+from opentelemetry.proto.trace.v1.trace_pb2 import (
+    Status as ProtoStatus,
+)
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
@@ -45,6 +50,13 @@ SPAN_KINDS = {
     5: "CONSUMER",
 }
 STATUS_CODES = {0: "UNSET", 1: "OK", 2: "ERROR"}
+
+
+def _enum_from_json(value: Any, enum: Any, names: dict[int, str], default: str) -> str:
+    number = (
+        enum.Value(value) if isinstance(value, str) and not value.isdigit() else int(value or 0)
+    )
+    return names.get(number, default)
 
 
 def _any_value(value: AnyValue) -> Any:
@@ -134,10 +146,12 @@ def _from_json(span: dict[str, Any], resource: dict[str, Any], scope: str | None
         span_id=span["spanId"],
         parent_span_id=span.get("parentSpanId") or None,
         name=span.get("name", ""),
-        kind=SPAN_KINDS.get(int(span.get("kind") or 0), "INTERNAL"),
+        kind=_enum_from_json(span.get("kind"), ProtoSpan.SpanKind, SPAN_KINDS, "INTERNAL"),
         start_time=start,
         end_time=_time(int(span.get("endTimeUnixNano") or 0)),
-        status_code=STATUS_CODES.get(int(status.get("code") or 0), "UNSET"),
+        status_code=_enum_from_json(
+            status.get("code"), ProtoStatus.StatusCode, STATUS_CODES, "UNSET"
+        ),
         status_message=status.get("message") or None,
         attributes=_json_attributes(span.get("attributes")),
         events=[

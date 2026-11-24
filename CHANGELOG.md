@@ -63,6 +63,7 @@
   other server, `run_experiment`, `evaluate_experiment` and CLI commands that
   need a signed-in user stop before their first call with an error that names
   `EVALKIT_TOKEN` and `evalkit login --url <url>`.
+- **Tracing:** Accept standard OpenTelemetry string enum names (`SPAN_KIND_*` and `STATUS_CODE_*`) in `/api/otel/v1/traces` when decoding OTLP/JSON payloads instead of rejecting the batch with a 400.
 
 ## 0.8.0
 
