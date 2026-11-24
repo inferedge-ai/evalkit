@@ -351,6 +351,17 @@ evalkit reads message roles in any letter case and maps the names some framework
 
 The trajectory drops messages with any other role, along with their tool calls. `evalkit traces check` warns on its `llm` line and names the unknown roles it found.
 
+## Stored app runs
+
+The server stores the [app runs](concepts.md#app-run) of every agent that sends traces.
+
+- Every 5 minutes it looks at the sessions that received spans since its last pass.
+- It stores each [settled](concepts.md#trace-span-session) session that is not an eval run: the trajectory as ATIF, and the run's gauge readings (tokens, cost, duration, tool calls, errored tool calls, subagents, turns).
+- The run's page shows the readings under the header. `GET /api/agents/{agent}/runs/{run_id}/evaluations` returns them.
+- The first pass for an agent goes back one day.
+- A session that gets more spans after it was stored keeps the trajectory it was stored with.
+- A session that cannot be read as a trajectory is stored without one, with the reason.
+
 ## Checking a session
 
 ```bash

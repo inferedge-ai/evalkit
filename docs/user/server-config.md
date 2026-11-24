@@ -17,6 +17,7 @@ Any value can be `env:NAME` (required) or `env:NAME:<default>`. Unknown keys fai
 
 - One server holds at most `pool_size + max_overflow` connections.
 - Keep `(pool_size + max_overflow) × servers` well under Postgres `max_connections` (`100` on a stock Postgres), with room for migrations and `psql`. Ten servers at the defaults need 300 and fail with `FATAL: sorry, too many clients already`.
+- The job worker inside each server opens up to 4 more connections of its own; count them too.
 - Keep `evaluation_concurrency` under `pool_size`: each run being scored holds a connection while it saves.
 - The CLI and the SDK retry a `503`. A server run does not; if one fails for lack of a connection, `evalkit evaluate <experiment>` finishes it.
 
@@ -31,6 +32,8 @@ Any value can be `env:NAME` (required) or `env:NAME:<default>`. Unknown keys fai
 | `db.pool_size`, `db.max_overflow`, `db.pool_timeout_seconds` | `20`, `10`, `5` | See [Database pool and scoring](#database-pool-and-scoring). |
 | `blob.url` | required | Where trajectories, artifacts and fixtures go: `file:///path` or `s3://bucket/prefix`. |
 | `runner.evaluation_concurrency` | `16` | See [Database pool and scoring](#database-pool-and-scoring). |
+| `worker.embedded` | `true` | The server runs the job worker that [stores app runs](tracing.md#stored-app-runs). `false` turns it off. |
+| `worker.concurrency` | `2` | Jobs one worker runs at once. |
 | `cost_map.source` | `bundled` | The LiteLLM cost map: `bundled`, or a path or URL. |
 | `auth.token_ttl_hours` | `720` | How long a login token lasts. |
 | `mcp.oauth` | none | Also accept an OAuth provider's JWTs at `/mcp`: `issuer`, `jwks_uri`, `audience` (none), `algorithm` (`RS256`), `scope` (`evalkit:read`). See [MCP](mcp.md). |
