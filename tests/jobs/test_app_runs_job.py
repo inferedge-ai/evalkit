@@ -4,6 +4,7 @@ from typing import Any
 
 from procrastinate import App, testing
 
+from evalkit.config import WorkerConfig
 from evalkit.jobs.app import build_job_app
 from evalkit.jobs.app_runs import SERVICES, STORE_TASK, TICK_TASK, AppRunServices, tick
 from tests.app_run_world import session_spans
@@ -17,7 +18,7 @@ class Context:
 
 def job_app(world):
     connector = testing.InMemoryConnector()
-    app = build_job_app(world.factory.kw["bind"].url, connector=connector)
+    app = build_job_app(world.factory.kw["bind"].url, WorkerConfig(), connector=connector)
 
     async def agent(tenant_id: str, agent_id: int):
         assert (tenant_id, agent_id) == ("default", world.agent.id)
@@ -53,8 +54,10 @@ async def test_the_worker_stores_the_app_runs_a_tick_asks_for(app_run_world):
     app, connector, context = job_app(app_run_world)
     async with app.open_async():
         await app.configure_task(TICK_TASK).defer_async(timestamp=1)
+        # One job at a time: with wait=False a second idle slot would stop the
+        # worker before the tick has deferred the pass.
         await app.run_worker_async(
-            wait=False, install_signal_handlers=False, additional_context=context
+            wait=False, concurrency=1, install_signal_handlers=False, additional_context=context
         )
     [run] = await app_run_world.runs()
     assert (run.kind, run.harness_run_id) == ("app", "chat-1")

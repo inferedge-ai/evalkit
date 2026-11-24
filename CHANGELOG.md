@@ -9,9 +9,12 @@
   Postgres 13 or later. Migration 0024 moves every evaluation from its
   experiment run to that run's agent run, and builds an index on
   `spans (agent_id, received_at)` without blocking writes.
-- **Server:** `evalkit serve` runs a job worker in its own process and opens up
-  to 4 more Postgres connections for it. Set `worker.embedded: false` in
-  `config.yaml` to turn the worker off; nothing else runs the jobs yet.
+- **Server:** `evalkit serve` runs a job worker in its own process and opens 5
+  more Postgres connections for it at the defaults (`worker.pool_max_size`,
+  never fewer than `worker.concurrency + 3`). Finished jobs stay in
+  `procrastinate_jobs` for 7 days (`worker.delete_jobs`,
+  `worker.job_retention_hours`). Set `worker.embedded: false` in `config.yaml`
+  to turn the worker off; nothing else runs the jobs yet.
 - **Datasets:** `evalkit sync` now uploads a `README.md` at the root of the
   dataset folder and shows it on the dataset. The file must be UTF-8, and if
   it starts with a `---` block, that block must be YAML frontmatter that passes

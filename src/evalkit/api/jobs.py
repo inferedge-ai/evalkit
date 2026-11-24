@@ -50,13 +50,11 @@ async def embedded_worker(state: State) -> AsyncIterator[None]:
     if not state.cfg.worker.embedded:
         yield
         return
-    job_app = build_job_app(state.session_factory.kw["bind"].url)
+    job_app = build_job_app(state.session_factory.kw["bind"].url, state.cfg.worker)
     async with job_app.open_async():
         worker = asyncio.create_task(
             job_app.run_worker_async(
                 install_signal_handlers=False,
-                concurrency=state.cfg.worker.concurrency,
-                delete_jobs="successful",
                 additional_context={SERVICES: app_run_services(state)},
             )
         )

@@ -17,7 +17,7 @@ Any value can be `env:NAME` (required) or `env:NAME:<default>`. Unknown keys fai
 
 - One server holds at most `pool_size + max_overflow` connections.
 - Keep `(pool_size + max_overflow) × servers` well under Postgres `max_connections` (`100` on a stock Postgres), with room for migrations and `psql`. Ten servers at the defaults need 300 and fail with `FATAL: sorry, too many clients already`.
-- The job worker inside each server opens up to 4 more connections of its own; count them too.
+- The job worker inside each server opens its own connections: `worker.pool_max_size`, and never fewer than `worker.concurrency + 3`. That is 5 at the defaults; count them too.
 - Keep `evaluation_concurrency` under `pool_size`: each run being scored holds a connection while it saves.
 - The CLI and the SDK retry a `503`. A server run does not; if one fails for lack of a connection, `evalkit evaluate <experiment>` finishes it.
 
@@ -34,6 +34,9 @@ Any value can be `env:NAME` (required) or `env:NAME:<default>`. Unknown keys fai
 | `runner.evaluation_concurrency` | `16` | See [Database pool and scoring](#database-pool-and-scoring). |
 | `worker.embedded` | `true` | The server runs the job worker that [stores app runs](tracing.md#stored-app-runs). `false` turns it off. |
 | `worker.concurrency` | `2` | Jobs one worker runs at once. |
+| `worker.pool_max_size` | `2` | The worker's own Postgres connections. See [Database pool and scoring](#database-pool-and-scoring). |
+| `worker.delete_jobs` | `never` | Which finished jobs the worker deletes from `procrastinate_jobs` at once: `never`, `successful` or `always`. Kept jobs show what ran and when. |
+| `worker.job_retention_hours` | `168` | A daily job deletes finished jobs older than this. |
 | `cost_map.source` | `bundled` | The LiteLLM cost map: `bundled`, or a path or URL. |
 | `auth.token_ttl_hours` | `720` | How long a login token lasts. |
 | `mcp.oauth` | none | Also accept an OAuth provider's JWTs at `/mcp`: `issuer`, `jwks_uri`, `audience` (none), `algorithm` (`RS256`), `scope` (`evalkit:read`). See [MCP](mcp.md). |
