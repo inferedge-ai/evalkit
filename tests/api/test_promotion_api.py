@@ -246,3 +246,35 @@ async def test_removing_an_unpromoted_case_leaves_the_target_alone(env):
     result = await sync_cases(ctx, [suite_case("case-2", "q2")], workspace="dev", full=True)
 
     assert result.removed == ["case-1"] and result.unpromoted is None
+
+
+async def test_changes_requested_on_the_promoted_version_removes_it_from_the_target(env):
+    clients, ctx = env
+    await clients["admin"].post("/api/datasets", json={"name": "finance", "workspace": "prod"})
+    assert (await _decide(clients["sme"], DEV, "case-1", "approve")).status_code == 200
+
+    resp = await _decide(clients["sme"], DEV, "case-1", "request_changes", "wrong date")
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["removed_from"] == PROD
+    assert "case-1" not in await _cases(clients["sme"], PROD)
+    assert await _latest_sync_detail(ctx, PROD) == (
+        "promotion",
+        {"from": DEV, "removed": ["case-1"], "removal_reason": "changes_requested"},
+    )
+
+    resp = await _decide(clients["sme"], DEV, "case-1", "approve")
+    assert resp.json()["promoted_to"] == PROD
+    assert (await _cases(clients["sme"], PROD))["case-1"]["review"]["state"] == "approved"
+
+
+async def test_changes_requested_on_a_newer_version_leaves_the_target_alone(env):
+    clients, ctx = env
+    await clients["admin"].post("/api/datasets", json={"name": "finance", "workspace": "prod"})
+    assert (await _decide(clients["sme"], DEV, "case-1", "approve")).status_code == 200
+    await sync_cases(ctx, [suite_case("case-1", "q1 v2")], workspace="dev")
+
+    resp = await _decide(clients["sme"], DEV, "case-1", "request_changes", "still wrong")
+
+    assert resp.json()["removed_from"] is None
+    assert (await _cases(clients["sme"], PROD))["case-1"]["review"]["state"] == "approved"

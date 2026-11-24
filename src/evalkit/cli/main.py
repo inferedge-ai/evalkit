@@ -1738,6 +1738,8 @@ def _post_decision(dataset: str, case_id: str, action: str, comment: str | None)
     body = {"action": action, "comment": comment}
     result = _client().post(f"{_case_path(dataset, case_id)}/review", json=body).json()
     typer.echo(f"{case_id}: {result['state']}")
+    if result.get("removed_from"):
+        _echo_unpromoted(result["removed_from"], [case_id])
     _echo_link(_case_url(dataset, case_id))
 
 

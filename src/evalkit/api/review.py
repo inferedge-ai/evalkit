@@ -23,11 +23,12 @@ from evalkit.core.review import (
 )
 from evalkit.core.workspace import parse_slug
 from evalkit.db.cases import current_cases, dataset_by_ref, find_dataset_row, list_datasets
-from evalkit.db.promotion import execute_promotion, plan_promotion
+from evalkit.db.promotion import execute_promotion, plan_promotion, unpromote
 from evalkit.store.base import (
     CaseView,
     DatasetRow,
     Selection,
+    Unpromoted,
     WrittenByExtension,
     select_cases,
 )
@@ -142,10 +143,10 @@ async def decide(
     if body.action == "request_changes" and not text:
         raise HTTPException(status_code=400, detail="request_changes needs a comment")
     review = await _load_case_review(stores, session, slug, case_id)
+    dataset, cases = await _suite(stores, session, slug)
+    case = next(c for c in cases if c.case_id == case_id)
     plan: PromotionPlan | None = None
     if body.action == "approve" and ws.promotes_to is not None:
-        dataset, cases = await _suite(stores, session, slug)
-        case = next(c for c in cases if c.case_id == case_id)
         try:
             plan = await plan_promotion(session, ws, dataset, case)
         except (MissingTargetDataset, WrittenByExtension) as exc:
@@ -167,14 +168,38 @@ async def decide(
         else review.request_changes(user.username)
     )
     actor_id = user.id
+    unpromoted: list[Unpromoted] = []
 
     async def promote(db: AsyncSession, event_id: int) -> None:
         assert plan is not None
         await execute_promotion(db, plan, actor_id=actor_id, event_id=event_id)
 
-    await stores.review.decide(event, comment, promote if plan is not None else None)
+    async def withdraw(db: AsyncSession, event_id: int) -> None:
+        found = await unpromote(
+            db,
+            ws,
+            dataset.name,
+            {case.case_ref: review.content_hash},
+            removal_reason="changes_requested",
+            actor_id=actor_id,
+        )
+        if found is not None:
+            unpromoted.append(found)
+
+    after = (
+        promote
+        if plan is not None
+        else withdraw
+        if body.action == "request_changes" and ws.promotes_to is not None
+        else None
+    )
+    await stores.review.decide(event, comment, after)
     summary = review_summary(await _load_case_review(stores, session, slug, case_id))
-    return {**summary, "promoted_to": plan.target_ref if plan is not None else None}
+    return {
+        **summary,
+        "promoted_to": plan.target_ref if plan is not None else None,
+        "removed_from": unpromoted[0].target if unpromoted else None,
+    }
 
 
 async def _source_dataset(stores: TenantStores, session: SessionDep, slug: str) -> str | None:
