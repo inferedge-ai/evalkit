@@ -557,6 +557,18 @@ async def agent_run(
     return None if row is None else _record(row)
 
 
+async def agent_run_evaluations(
+    session: AsyncSession, agent_id: int, harness_run_id: str
+) -> list[EvaluationRow]:
+    found = await session.scalars(
+        select(models.Evaluation)
+        .join(models.AgentRun, models.AgentRun.id == models.Evaluation.agent_run_id)
+        .where(_match_agent(session, agent_id), models.AgentRun.harness_run_id == harness_run_id)
+        .order_by(models.Evaluation.id)
+    )
+    return [_evaluation(row) for row in found.all()]
+
+
 async def eval_context(
     session: AsyncSession, agent_id: int, harness_run_id: str
 ) -> RunEvalContext | None:

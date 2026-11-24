@@ -36,11 +36,13 @@ from evalkit.db.runs import (
     AgentRunItem,
     RunSource,
     agent_run,
+    agent_run_evaluations,
     list_agent_runs,
     runs_by_harness_ids,
 )
 from evalkit.db.sessions import DbSessionReader
 from evalkit.db.spans import SessionSummary, SpanStore
+from evalkit.store.base import EvaluationRow
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -332,6 +334,15 @@ async def live_trajectory(
     # scorecard gauge (see backfill_step_costs).
     backfill_step_costs(trajectory, load_cost_map(stores.deps.cfg.cost_map))
     return trajectory.model_dump(exclude_none=True)
+
+
+@router.get("/{agent}/runs/{run_id}/evaluations")
+async def list_evaluations(
+    agent: str, run_id: str, stores: StoresDep, session: SessionDep
+) -> list[EvaluationRow]:
+    _run_id_or_400(run_id)
+    record = await agent_or_404(stores.agents, agent)
+    return await agent_run_evaluations(session, record.id, run_id)
 
 
 NOT_ON_HARNESS = "not found on the harness: wrong path, or the harness no longer has it"

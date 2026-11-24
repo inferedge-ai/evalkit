@@ -4,7 +4,14 @@
 
 ### Before you upgrade
 
-- **Server:** Run `evalkit db upgrade` (migrations 0021, 0022 and 0023).
+- **Server:** Run `evalkit db upgrade` (migrations 0021, 0022, 0023 and 0024).
+  It now also creates the job queue's tables (`procrastinate_*`), which need
+  Postgres 13 or later. Migration 0024 moves every evaluation from its
+  experiment run to that run's agent run, and builds an index on
+  `spans (agent_id, received_at)` without blocking writes.
+- **Server:** `evalkit serve` runs a job worker in its own process and opens up
+  to 4 more Postgres connections for it. Set `worker.embedded: false` in
+  `config.yaml` to turn the worker off; nothing else runs the jobs yet.
 - **Datasets:** `evalkit sync` now uploads a `README.md` at the root of the
   dataset folder and shows it on the dataset. The file must be UTF-8, and if
   it starts with a `---` block, that block must be YAML frontmatter that passes
@@ -13,6 +20,15 @@
 
 ### Features
 
+- **Tracing:** evalkit stores the app runs of every agent whose trajectories
+  come from traces. Every 5 minutes the server looks at the sessions that
+  received spans since its last pass, and stores each settled one that is not
+  an eval run: its trajectory as ATIF and its gauge readings (tokens, cost,
+  duration, tool calls, errored tool calls, subagents, turns). The run page
+  shows the readings under the header, and
+  `GET /api/agents/{agent}/runs/{run_id}/evaluations` returns them. The first
+  pass for an agent goes back one day. A session that gets more spans after it
+  was stored keeps the trajectory it was stored with.
 - **Datasets:** A dataset can carry a README and metadata. Put a `README.md`
   at the root of the dataset folder: its YAML frontmatter is the metadata
   (`description`, `license`, `attribution`, `links`, and any other key with a
@@ -36,6 +52,8 @@
 
 ### Improvements
 
+- **Server:** A replaced attempt of a resumed experiment run stays an eval
+  run. The Runs page used to list it under app runs.
 - **Lint:** The error `E-JARGON` is now the warning `W-JARGON`. Case text
   that looks like agent internals (an `mcp__` prefix, a `__dunder__` token, a
   `snake_case(` call) is still reported by `evalkit lint` and `evalkit sync`,

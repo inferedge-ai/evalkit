@@ -43,10 +43,12 @@ import type {
   CaseFile,
   CaseScorePoint,
   EvalScore,
+  EvaluationRow,
   LintFinding,
 } from "../lib/types";
 import { CodeBlock, CopyButton, InfoTip } from "../lib/ui";
-import { toYaml } from "../lib/format";
+import { fmtGauge, toYaml } from "../lib/format";
+import { gaugeRows } from "../lib/scores";
 import { downloadFile, serverNow } from "../lib/api";
 import { fixtureEntries } from "../lib/fixtures";
 import { httpUrl } from "../lib/safeUrl";
@@ -1062,5 +1064,25 @@ export function TimeSpan({
       {took !== null &&
         ` · ${live ? "running" : doneLabel} ${formatElapsed(took)}`}
     </span>
+  );
+}
+
+export function GaugeReadings({ rows }: { rows: EvaluationRow[] }) {
+  const gauges = gaugeRows(rows).filter((g) => g.value !== null);
+  if (gauges.length === 0) return null;
+  return (
+    <div className="num mt-1 flex flex-wrap gap-3 text-micro text-ink-3">
+      {gauges.map((g) => (
+        <span
+          key={g.name}
+          className="inline-flex items-center gap-1"
+          title={g.explanation ?? g.name}
+        >
+          {g.name.replace(/^gauge_/, "").replaceAll("_", " ")}{" "}
+          {fmtGauge(g.name, g.value)}
+          <InfoTip term={g.name} />
+        </span>
+      ))}
+    </div>
   );
 }
