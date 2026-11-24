@@ -295,6 +295,7 @@ class Span(Base):
         UniqueConstraint("agent_id", "trace_id", "span_id", name="uq_spans_agent_trace_span"),
         Index("ix_spans_agent_session", "agent_id", "session_id"),
         Index("ix_spans_agent_trace", "agent_id", "trace_id"),
+        Index("ix_spans_agent_received", "agent_id", "received_at"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)

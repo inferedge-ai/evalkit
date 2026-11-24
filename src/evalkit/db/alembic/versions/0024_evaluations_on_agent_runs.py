@@ -43,9 +43,17 @@ def upgrade() -> None:
     op.drop_column("evaluations", "experiment_run_id")
     op.create_unique_constraint("uq_evaluations_run_name", "evaluations", ["agent_run_id", "name"])
     op.create_index("ix_evaluations_agent_run_id", "evaluations", ["agent_run_id"])
+    with op.get_context().autocommit_block():
+        op.create_index(
+            "ix_spans_agent_received",
+            "spans",
+            ["agent_id", "received_at"],
+            postgresql_concurrently=True,
+        )
 
 
 def downgrade() -> None:
+    op.drop_index("ix_spans_agent_received", "spans")
     op.add_column("evaluations", sa.Column("experiment_run_id", sa.Integer(), nullable=True))
     op.execute(
         "UPDATE evaluations SET experiment_run_id = experiment_runs.id "
