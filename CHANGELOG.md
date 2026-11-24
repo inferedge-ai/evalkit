@@ -75,6 +75,10 @@
 
 ### Fixes
 
+- **Tracing:** Fixed a 500 when an agent with a Phoenix trace filter is saved
+  against a Phoenix that answers `/arize_phoenix_version` with something other
+  than a version, such as its web page. The server now answers 400 and says
+  trace filters need Phoenix 20.12.0 or later.
 - **SDK:** Fixed `run_experiment` failing with a raw 401 from `/api/auth/me`
   when `EVALKIT_SERVER_URL` is set without `EVALKIT_TOKEN`. The CLI and the
   SDK now use your `evalkit login` when it is for the same server. For any
