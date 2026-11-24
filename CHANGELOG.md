@@ -36,6 +36,18 @@
 
 ### Improvements
 
+- **Review:** A case removed from a promotion source by a whole-dataset sync is
+  now removed from the promotion target too, and so is a case whose promoted
+  version gets changes requested in the source. Before, the target kept the
+  approved copy until a newer version was approved. The target's sync row
+  records `removed` and `removal_reason`; `evalkit sync` and `evalkit review
+  request-changes` print `removed from <target>: <case ids>`, and the decision
+  endpoint returns `removed_from`.
+- **CLI:** `evalkit sync` of a whole dataset names the cases it removed
+  (`removed` in the `POST /api/sync` report and on the sync row). A sync of one
+  folder names the cases under that folder that are no longer on disk
+  (`missing`, new `under` query parameter) and asks for a whole-dataset sync
+  to remove them.
 - **Lint:** The error `E-JARGON` is now the warning `W-JARGON`. Case text
   that looks like agent internals (an `mcp__` prefix, a `__dunder__` token, a
   `snake_case(` call) is still reported by `evalkit lint` and `evalkit sync`,

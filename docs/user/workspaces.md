@@ -100,6 +100,12 @@ Changing a case starts the loop again. The new version is Unreviewed in
 `@dev`, and `@prod` keeps the old approved version until the new one is
 approved.
 
+To take a case out of `@prod`, either request changes in `@dev` on the
+version `@prod` holds, or delete the case from the YAML and sync the whole
+dataset. Both remove it from `finance@prod` and print `removed from
+finance@prod: <case id>`. Approving a fixed version in `@dev` promotes it
+again.
+
 A change to a case that is waiting for review, or was sent back with
 changes requested, goes back to the same reviewer on sync: you don't need
 to run `review request` again. If you do, cases already waiting on that

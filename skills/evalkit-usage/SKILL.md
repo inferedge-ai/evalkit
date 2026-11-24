@@ -210,7 +210,10 @@ provider configured on the server or a base URL, never both:
 Each score records where it ran (`scored_on`: `local` or `server`).
 
 Inside a dataset directory, subfolders become tags (`finance/statement-analysis/x.yaml`
-gets the tag `statement-analysis`). `evalkit run finance --tag statement-analysis`
+gets the tag `statement-analysis`). `evalkit sync finance` removes cases no longer
+on disk and names them. `evalkit sync finance/statement-analysis` never removes:
+it names the cases under that folder that are gone from disk and asks for a
+whole-dataset sync. `evalkit run finance --tag statement-analysis`
 runs the cases carrying that tag; repeat `--tag` to run the cases carrying any
 of several tags. Local runs require the CLI and server versions to match.
 
@@ -504,9 +507,14 @@ it. Nothing else reaches the target:
 - `evalkit sync --workspace prod` and review decisions on `prod` datasets are
   refused with a 409 that names the source. Comments are still allowed; the
   case page on the target links to the same case in the source.
-- Removing a case from the source, or requesting changes on a newer version,
-  leaves the target untouched. The target keeps the last approved version
-  until a newer one is approved.
+- A whole-dataset sync that removes a case from the source also removes it
+  from the target. A reviewer who requests changes on the version the target
+  holds also removes it from the target. Both print `removed from
+  finance@prod: <case id>`, and the target's sync row records `removed` and
+  `removal_reason` (`removed_from_source` or `changes_requested`). Approving a
+  fixed version promotes it again.
+- Requesting changes on a newer version leaves the target untouched. The
+  target keeps the last approved version until a newer one is approved.
 - Approving the same content again changes nothing in the target except the
   overlays, which are refreshed.
 - The target dataset must exist first: `evalkit datasets create finance@prod`

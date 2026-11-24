@@ -687,11 +687,17 @@ def test_subfolder_sync_keeps_dataset_name_and_relative_paths(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     result = runner.invoke(cli_app, ["sync", "evalkit/cases/finance/equity"])
     assert result.exit_code == 0, result.output
-    assert sent["params"] == {"dataset": "finance", "workspace": "admin", "prune": False}
+    assert sent["params"] == {
+        "dataset": "finance",
+        "workspace": "admin",
+        "prune": False,
+        "under": "equity",
+    }
     assert sent["names"] == ["equity/tcs.yaml"]
     result = runner.invoke(cli_app, ["sync", "finance/equity/tcs.yaml"])
     assert result.exit_code == 0, result.output
     assert sent["params"]["dataset"] == "finance" and sent["names"] == ["equity/tcs.yaml"]
+    assert "under" not in sent["params"]
     result = runner.invoke(cli_app, ["sync", "finance"])
     assert sent["params"]["prune"] is True
     assert sent["names"] == ["equity/tcs.yaml", "mf.yaml"]
