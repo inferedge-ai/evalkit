@@ -70,6 +70,8 @@ calls traced through Langfuse now show up in trajectories.
   other server, `run_experiment`, `evaluate_experiment` and CLI commands that
   need a signed-in user stop before their first call with an error that
   names `EVALKIT_TOKEN` and `evalkit login --url <url>`.
+- **Sign-in:** Fixed the server refusing tokens signed with a newly rotated
+  IdP key, with 401, for up to a minute after its host booted.
 - **Tracing:** Fixed `/api/otel/v1/traces` answering 400 to OTLP/JSON
   batches that use the standard string enum names (`SPAN_KIND_*`,
   `STATUS_CODE_*`).

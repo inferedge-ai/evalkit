@@ -36,7 +36,7 @@ class JwkCache:
         self.jwks_uri = jwks_uri
         self.http = http
         self.keys: dict[str, jwt.PyJWK] = {}
-        self.last_fetch = 0.0
+        self.last_fetch = float("-inf")
         self.lock = asyncio.Lock()
 
     async def fetch(self) -> None:
