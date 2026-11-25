@@ -79,7 +79,10 @@ async def test_evalkit_worker_stores_app_runs_and_stops_on_sigterm(tmp_path, db_
     output, _ = worker.communicate(timeout=WAIT_SECONDS)
     assert stored_app_runs(db_url) == ["chat-1"]
     assert worker.returncode == 0, output
-    assert "stored app runs of agent support-bot@akshat: 1 stored, 0 not finished yet" in output
+    assert (
+        "stored app runs of agent support-bot@akshat: 1 stored, 0 not finished yet, 0 failed"
+        in output
+    )
 
 
 def test_evalkit_worker_stops_when_the_schema_is_behind(tmp_path, fresh_db_url):
