@@ -89,7 +89,7 @@ export interface TraceSourceInfo {
 // ── Datasets (mirrors store/base.py DatasetRow, CaseView) ──────────────
 export interface DatasetSync {
   id: number;
-  source: "git" | "promotion";
+  source: "git" | "promotion" | "extension";
   detail: {
     sha?: string;
     branch?: string;
@@ -102,12 +102,23 @@ export interface DatasetSync {
   created_at: string;
 }
 
+// The frontmatter of the dataset folder's README.md.
+export type DatasetMetadata = {
+  description?: string;
+  attribution?: string;
+  license?: { name: string; url?: string | null };
+  links?: { label: string; url: string }[];
+} & Record<string, unknown>;
+
 export interface Dataset {
   id: number;
   workspace: string;
   workspace_is_shared: boolean;
   name: string;
   kind: "suite";
+  metadata: DatasetMetadata;
+  // The README.md body; only on GET /api/datasets/{ref}.
+  readme?: string | null;
   last_sync: DatasetSync | null;
   // name@workspace, the reference every API path takes.
   ref: string;
@@ -311,7 +322,7 @@ export interface EvaluationRow {
   producer: string;
   name: string;
   kind: "score" | "gauge";
-  source: "builtin" | "remote" | "code";
+  source: "builtin" | "remote" | "code" | "extension";
   scored_on: "local" | "server";
   value: number | null;
   label: string | null;

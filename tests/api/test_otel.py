@@ -153,6 +153,76 @@ async def test_json_export_by_resource_attribute_and_gzip(api):
     assert spans[0]["dropped_attributes_count"] == 4
 
 
+async def test_json_export_accepts_standard_string_enums(api):
+    body = {
+        "resourceSpans": [
+            {
+                "resource": {
+                    "attributes": [{"key": "evalkit.agent", "value": {"stringValue": "sdk"}}]
+                },
+                "scopeSpans": [
+                    {
+                        "scope": {"name": "test"},
+                        "spans": [
+                            {
+                                "traceId": "0af7651916cd43dd8448eb211c80319c",
+                                "spanId": "b7ad6b7169203331",
+                                "name": "call_model",
+                                "kind": "SPAN_KIND_CLIENT",
+                                "startTimeUnixNano": "1700000000000000000",
+                                "endTimeUnixNano": "1700000001000000000",
+                                "status": {"code": "STATUS_CODE_OK"},
+                                "attributes": [
+                                    {"key": "session.id", "value": {"stringValue": "enums-1"}}
+                                ],
+                            },
+                            {
+                                "traceId": "0af7651916cd43dd8448eb211c80319c",
+                                "spanId": "c8be7c8270314442",
+                                "name": "server_handler",
+                                "kind": "SPAN_KIND_SERVER",
+                                "startTimeUnixNano": "1700000001000000000",
+                                "endTimeUnixNano": "1700000002000000000",
+                                "status": {"code": "STATUS_CODE_ERROR", "message": "fail"},
+                                "attributes": [
+                                    {"key": "session.id", "value": {"stringValue": "enums-1"}}
+                                ],
+                            },
+                            {
+                                "traceId": "0af7651916cd43dd8448eb211c80319c",
+                                "spanId": "d9cf8d9381425553",
+                                "name": "legacy_int",
+                                "kind": 1,
+                                "startTimeUnixNano": "1700000002000000000",
+                                "endTimeUnixNano": "1700000003000000000",
+                                "status": {"code": 2},
+                                "attributes": [
+                                    {"key": "session.id", "value": {"stringValue": "enums-1"}}
+                                ],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    resp = await api.post(
+        "/api/otel/v1/traces",
+        content=json.dumps(body).encode(),
+        headers={"content-type": "application/json"},
+    )
+    assert resp.status_code == 200, resp.text
+    spans = (await api.get("/api/agents/sdk@admin/sessions/enums-1/spans")).json()
+    assert len(spans) == 3
+    assert spans[0]["kind"] == "CLIENT"
+    assert spans[0]["status_code"] == "OK"
+    assert spans[1]["kind"] == "SERVER"
+    assert spans[1]["status_code"] == "ERROR"
+    assert spans[1]["status_message"] == "fail"
+    assert spans[2]["kind"] == "INTERNAL"
+    assert spans[2]["status_code"] == "ERROR"
+
+
 async def test_foreign_workspace_unknown_agent_and_size_cap(api):
     alice = await login_as(api, "alice", "password")
     payload = otlp_payload()
@@ -373,7 +443,7 @@ async def test_agent_token_outlives_its_creator_losing_access(api, session_facto
     await token.aclose()
 
 
-async def test_archiving_the_agent_deletes_its_tokens(api, session_factory):
+async def test_archiving_the_agent_revokes_its_tokens(api, session_factory):
     minted = (await api.post("/api/tokens", json={"agent": "deployed"})).json()
     token = bearer(api, minted["token"])
     assert await export(token, otlp_payload(session_id="a-1"), PROTO) == 200
@@ -381,7 +451,7 @@ async def test_archiving_the_agent_deletes_its_tokens(api, session_factory):
     assert await export(token, otlp_payload(session_id="a-2"), PROTO) == 401
     async with session_factory() as session:
         left = await session.scalar(select(AuthToken).where(AuthToken.id == minted["id"]))
-    assert left is None
+    assert left is not None and left.revoked_at is not None
     await token.aclose()
 
 

@@ -2,6 +2,80 @@
 
 ## Unreleased
 
+## 0.9.0
+
+_Released 2026-11-25._ Datasets carry a README and metadata, packages that
+extend evalkit can add their own evaluators and datasets, and LangChain tool
+calls traced through Langfuse now show up in trajectories.
+
+### Before you upgrade
+
+- **CLI:** Run `evalkit update --server <url>` once the server is on 0.9.0;
+  a 0.8 CLI refuses every other command against it.
+- **Server:** Run `evalkit db upgrade` before the server starts (migrations
+  0021, 0022 and 0023).
+- **Datasets:** `evalkit sync` of a whole dataset folder now uploads the
+  `README.md` at its root. The file must be UTF-8, and a leading `---` block
+  must be YAML frontmatter that passes `evalkit lint`, or the sync is refused.
+  Check existing `README.md` files before you sync.
+
+### Features
+
+- **Datasets:** A dataset can carry a README and metadata. Put a `README.md`
+  at the root of the dataset folder: its YAML frontmatter is the metadata
+  (`description`, `license`, `attribution`, `links`, and any other key with a
+  text value) and the rest is the README. `evalkit sync` of the whole dataset
+  mirrors the file, so deleting it clears both; a sync of one folder or file
+  leaves it alone. The dataset page shows the metadata and a README tab,
+  `evalkit datasets list` shows the description and `evalkit datasets show`
+  prints both. A dataset filled by promotion takes them from the dataset the
+  case came from.
+- **Extending evalkit:** A package built on evalkit can register evaluators
+  with `create_app(extension_evaluators=...)`. Cases name them under
+  `evaluators.custom`, and one that sets `uses_judge` gets the experiment's
+  judge. The server scores them for every run, local and SDK runs included,
+  and `evalkit evaluate` re-scores the same way. With a judge you bring
+  yourself (`--judge-base-url`), an experiment whose cases use a judge-using
+  one is refused before any agent runs. Such a package can also write
+  datasets with `import_cases` and the sync source `extension`, with their
+  own README and metadata. Users can't change those datasets: `evalkit sync`
+  and promotion into them are refused, and case review does not apply. A nav
+  item of such a package can set `section` to sit under Evaluate or Observe
+  in the sidebar.
+
+### Improvements
+
+- **Lint:** The error `E-JARGON` is now the warning `W-JARGON`. Case text
+  that looks like agent internals (an `mcp__` prefix, a `__dunder__` token, a
+  `snake_case(` call) is still reported by `evalkit lint` and `evalkit sync`,
+  but no longer stops a sync, since questions about code or maths contain
+  such text.
+- **Server:** Revoking an agent token (Settings › API keys, `evalkit tokens
+  revoke`, `DELETE /api/tokens/{id}`) and archiving an agent keep the
+  token's row and record when and by whom it was revoked, instead of
+  deleting it. The token is refused with 401 and drops off the list as
+  before.
+- **Tracing:** The `gen_ai` and `openai` message formats read tool calls in
+  LangChain's shape (`{id, name, args}`) as well as OpenAI's, and `gen_ai`
+  reads `tool_calls`, `tool_call_id` and a `content` list of text parts on
+  messages without `parts`. Agents traced with Langfuse's LangChain callback
+  now get their tool calls in trajectories, whether their spans reach the
+  collector or are imported with the `langfuse` preset.
+
+### Fixes
+
+- **SDK:** Fixed `run_experiment` failing with a raw 401 from `/api/auth/me`
+  when `EVALKIT_SERVER_URL` is set without `EVALKIT_TOKEN`. The CLI and the
+  SDK now use your `evalkit login` when it is for the same server. For any
+  other server, `run_experiment`, `evaluate_experiment` and CLI commands that
+  need a signed-in user stop before their first call with an error that
+  names `EVALKIT_TOKEN` and `evalkit login --url <url>`.
+- **Sign-in:** Fixed the server refusing tokens signed with a newly rotated
+  IdP key, with 401, for up to a minute after its host booted.
+- **Tracing:** Fixed `/api/otel/v1/traces` answering 400 to OTLP/JSON
+  batches that use the standard string enum names (`SPAN_KIND_*`,
+  `STATUS_CODE_*`).
+
 ## 0.8.0
 
 _Released 2026-11-17._ Trace imports always read the agent's own trace

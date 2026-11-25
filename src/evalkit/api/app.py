@@ -5,8 +5,9 @@ import os
 import signal
 import socket
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -52,6 +53,8 @@ from evalkit.config import Config, check_trusted_endpoints
 from evalkit.core.agents import UnknownAgent
 from evalkit.core.blob import BlobStore
 from evalkit.core.endpoints import BlockedEndpoint
+from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
+from evalkit.core.python_eval import PythonEvaluator
 from evalkit.core.remote_evaluators import UnknownEvaluator
 from evalkit.core.runner import (
     LEASE_SECONDS,
@@ -98,7 +101,13 @@ from evalkit.db.users import (
 )
 from evalkit.db.workspaces import PromotionLinkError, SharedOnly, UnknownWorkspace
 from evalkit.paths import ui_root
-from evalkit.store.base import Conflict, UnknownDataset, UnknownExperiment
+from evalkit.store.base import (
+    Conflict,
+    UnknownDataset,
+    UnknownExperiment,
+    WrittenByExtension,
+    WrittenByUsers,
+)
 from evalkit.store.blob import Obstore
 
 LOGGER = logging.getLogger(__name__)
@@ -203,6 +212,7 @@ def create_app(
     holder: str | None = None,
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
     resolve_tenant: TenantResolver = default_resolve_tenant,
+    extension_evaluators: Mapping[str, PythonEvaluator] | None = None,
 ) -> FastAPI:
     check_trusted_endpoints(cfg.trusted_endpoints)
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
@@ -229,6 +239,13 @@ def create_app(
             credentials=NoKeysLoaded(),
         )
     )
+    if extension_evaluators is not None:
+        builtin_names = sorted(set(extension_evaluators) & set(BUILTIN_EVALUATORS))
+        if builtin_names:
+            raise ValueError(
+                f"extension evaluators named like built-ins: {', '.join(builtin_names)}"
+            )
+        resolved_deps = replace(resolved_deps, extension_evaluators=dict(extension_evaluators))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -300,6 +317,11 @@ def create_app(
     @app.exception_handler(BadTenantId)
     async def bad_tenant_id(request: Request, exc: BadTenantId) -> JSONResponse:
         return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+    @app.exception_handler(WrittenByExtension)
+    @app.exception_handler(WrittenByUsers)
+    async def other_writer(request: Request, exc: Exception) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     @app.exception_handler(UnknownDataset)
     async def unknown_dataset(request: Request, exc: UnknownDataset) -> JSONResponse:

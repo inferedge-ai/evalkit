@@ -62,7 +62,7 @@ sequenceDiagram
   CLI->>S: fetch experiment runs + pinned cases
   loop each run with an answer
     alt judge served by a server-side LLM provider (default)
-      CLI->>S: POST experiment-runs/#lt;id#gt;/server-evaluations/#lt;name#gt; per judge-using built-in
+      CLI->>S: POST experiment-runs/#lt;id#gt;/server-evaluations/#lt;name#gt; per judge-using built-in and per extension evaluator
       S->>J: judge with the provider's stored key
       S-->>CLI: score rows + judge token usage (nothing written)
     else own judge (--judge-base-url, --judge-api-key-env)

@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 import json
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Iterable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
@@ -25,6 +25,7 @@ from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.agents import explicit
 from evalkit.core.blob import TenantBlobStore, fixture_blob_key, tenant_prefix
 from evalkit.core.importer import incoming_case
+from evalkit.core.python_eval import PythonEvaluator
 from evalkit.core.review import CaseReview
 from evalkit.core.runner import (
     ExperimentRequest,
@@ -277,7 +278,13 @@ async def start(env: Env, req: ExperimentRequest, *, holder: str = HOLDER) -> Ex
 
 
 @asynccontextmanager
-async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[httpx2.AsyncClient]:
+async def serve(
+    env: Env,
+    tmp_path,
+    *,
+    user: str = "admin",
+    extension_evaluators: Mapping[str, PythonEvaluator] | None = None,
+) -> AsyncIterator[httpx2.AsyncClient]:
     app = create_app(
         env.deps.cfg,  # type: ignore[arg-type]
         blob_store=env.blob,
@@ -285,6 +292,7 @@ async def serve(env: Env, tmp_path, *, user: str = "admin") -> AsyncIterator[htt
         session_factory=env.session_factory,
         check_schema=False,
         holder=HOLDER,
+        extension_evaluators=extension_evaluators,
     )
     async with app.router.lifespan_context(app):
         transport = httpx2.ASGITransport(app=app)

@@ -17,10 +17,10 @@ from evalkit.core.promotion import (
 )
 from evalkit.core.review import CaseEvent, CaseEventKind, CaseReview
 from evalkit.db import models
-from evalkit.db.cases import find_dataset_row
+from evalkit.db.cases import check_writer, find_dataset_row
 from evalkit.db.review_state import latest_events
 from evalkit.db.workspaces import load_ref
-from evalkit.store.base import CaseView, DatasetRow
+from evalkit.store.base import CaseView, DatasetRow, WrittenByExtension
 
 
 async def overlays_extending(
@@ -87,6 +87,8 @@ async def plan_promotion(
     target = await find_dataset_row(session, target_ws.tenant_id, target_ws.name, dataset.name)
     if target is None or target.kind != "suite":
         raise MissingTargetDataset(f"{dataset.name}@{target_ws.name}")
+    if target.written_by_extension:
+        raise WrittenByExtension(target.ref)
     overlays = (await overlays_extending(session, source_ws.id, [case.case_ref])).get(
         case.case_ref, []
     )
@@ -99,6 +101,7 @@ async def plan_promotion(
     path_tags, source = await _placement(session, dataset.id, case.case_ref)
     return PromotionPlan(
         source_ref=dataset.ref,
+        source_dataset_id=dataset.id,
         target_ref=target.ref,
         target_workspace_id=target_ws.id,
         target_dataset_id=target.id,
@@ -115,6 +118,7 @@ async def plan_promotion(
 async def execute_promotion(
     session: AsyncSession, plan: PromotionPlan, *, actor_id: int, event_id: int
 ) -> int:
+    await check_writer(session, plan.target_dataset_id, plan.target_ref, SyncSource.PROMOTION)
     sync = models.DatasetSync(
         dataset_id=plan.target_dataset_id,
         actor_id=actor_id,
@@ -129,6 +133,10 @@ async def execute_promotion(
     )
     session.add(sync)
     await session.flush()
+    source_dataset = await session.get_one(models.Dataset, plan.source_dataset_id)
+    target_dataset = await session.get_one(models.Dataset, plan.target_dataset_id)
+    target_dataset.readme = source_dataset.readme
+    target_dataset.meta = source_dataset.meta
     current = (
         await session.execute(
             select(models.DatasetCase.content_hash, models.DatasetCase.removed_at).where(

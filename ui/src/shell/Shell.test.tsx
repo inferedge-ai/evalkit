@@ -17,7 +17,10 @@ import { ThemeProvider } from "./theme";
 vi.mock("../extensions", () => ({
   extensions: {
     routes: [],
-    nav: [{ to: "/billing", label: "Billing" }],
+    nav: [
+      { to: "/billing", label: "Billing" },
+      { to: "/library", label: "Library", section: "Evaluate" },
+    ],
     accountSettings: [],
     organizationSettings: [],
   },
@@ -118,7 +121,7 @@ test("the sidebar groups evalkit's pages and puts a wrapper's items after them",
     within(section("Evaluate"))
       .getAllByRole("link")
       .map((a) => a.textContent),
-  ).toEqual(["Datasets", "Experiments", "Reviews"]);
+  ).toEqual(["Datasets", "Experiments", "Reviews", "Library"]);
   expect(
     within(section("Observe"))
       .getAllByRole("link")

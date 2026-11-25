@@ -207,15 +207,19 @@ def group_threads(comments: list[CaseComment]) -> list[dict[str, Any]]:
 
 
 class NotReviewable(Exception):
-    def __init__(self, dataset: str):
+    def __init__(self, dataset: str, reason: str = "is not a suite in a shared workspace"):
         self.dataset = dataset
-        super().__init__(f"{dataset} is not a suite in a shared workspace; review does not apply")
+        super().__init__(f"{dataset} {reason}; review does not apply")
 
 
 def is_reviewable(dataset: DatasetRow) -> bool:
-    return dataset.kind == "suite" and dataset.workspace_is_shared
+    return (
+        dataset.kind == "suite" and dataset.workspace_is_shared and not dataset.written_by_extension
+    )
 
 
 def ensure_reviewable(dataset: DatasetRow) -> None:
+    if dataset.written_by_extension:
+        raise NotReviewable(dataset.ref, "was written by an extension of this server")
     if not is_reviewable(dataset):
         raise NotReviewable(dataset.ref)

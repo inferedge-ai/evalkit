@@ -24,7 +24,13 @@ from evalkit.core.review import (
 from evalkit.core.workspace import parse_slug
 from evalkit.db.cases import current_cases, dataset_by_ref, find_dataset_row, list_datasets
 from evalkit.db.promotion import execute_promotion, plan_promotion
-from evalkit.store.base import CaseView, DatasetRow, Selection, select_cases
+from evalkit.store.base import (
+    CaseView,
+    DatasetRow,
+    Selection,
+    WrittenByExtension,
+    select_cases,
+)
 
 router = APIRouter(prefix="/api", tags=["review"])
 
@@ -142,7 +148,7 @@ async def decide(
         case = next(c for c in cases if c.case_id == case_id)
         try:
             plan = await plan_promotion(session, ws, dataset, case)
-        except MissingTargetDataset as exc:
+        except (MissingTargetDataset, WrittenByExtension) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
     comment = (
         NewCaseComment(

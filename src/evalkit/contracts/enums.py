@@ -26,6 +26,7 @@ class EvaluationSource(StrEnum):
     BUILTIN = "builtin"
     REMOTE = "remote"
     CODE = "code"
+    EXTENSION = "extension"
 
 
 class ScoredOn(StrEnum):
@@ -59,6 +60,7 @@ class DatasetKind(StrEnum):
 class SyncSource(StrEnum):
     GIT = "git"
     PROMOTION = "promotion"
+    EXTENSION = "extension"
 
 
 class ExperimentStatus(StrEnum):
