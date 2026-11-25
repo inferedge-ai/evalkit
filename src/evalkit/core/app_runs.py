@@ -110,7 +110,11 @@ async def build_app_run(
     try:
         result = await deps.sessions.trajectory(agent.ref, session.session_id)
         if result.trajectory is None or not result.trajectory.get("steps"):
-            note = result.reason or "the session has no steps"
+            note = result.reason or (
+                f"mapping v{result.mapping_version} read no LLM or tool steps from the "
+                f"session's {result.span_count} spans; check the agent's mapping with "
+                f"evalkit traces check {agent.ref} {session.session_id}"
+            )
         else:
             trajectory = validate_trajectory(result.trajectory)
     except (SessionTooLarge, TrajectoryValidationError) as exc:

@@ -361,7 +361,7 @@ The server stores the [app runs](concepts.md#app-run) of every agent that sends 
 - The first pass for an agent goes back one day.
 - The agent's form sets both: "App runs schedule" is a cron expression of five fields, in UTC, and "Store app runs since" is where the first pass starts. On the CLI they are `--app-runs-cron` and `--app-runs-since` of `evalkit agents create` and `evalkit agents edit`. `evalkit agents show` prints how far the agent's app runs are stored. Setting an earlier "Store app runs since" later makes the next pass go back to it.
 - A session that gets more spans after it was stored keeps the trajectory it was stored with.
-- A session that cannot be read as a trajectory is stored without one, with the reason.
+- A session that cannot be read as a trajectory is stored without one, with the reason: most often the agent's mapping does not fit its spans. Fix the mapping, then set "Store app runs since" to an earlier time: the next pass reads those sessions again and fills in their trajectories and gauges.
 - For an agent with a [trace source](#importing-history-from-a-trace-source), each pass first imports the agent's new traces from it, then stores their sessions. The import shows on the agent's Import tab as "by schedule". It starts 15 minutes before the previous scheduled import ended, so traces that reached the trace source late are picked up; the first one goes back one day. A pass starts no import while another one is running for the agent. The agent needs an active mapping with a session id.
 
 A shared agent that serves its own trajectories through the Harness API has its app runs stored too: see [Stored app runs of a harness agent](harness-api.md#stored-app-runs).

@@ -47,6 +47,12 @@
   schedule that is not a cron expression. Every agent read carries
   `app_runs_stored_until`; saving an earlier "Store app runs since" makes the
   next pass go back to it.
+- **Server:** A stored app run that has no trajectory, because the agent's
+  mapping read no steps from its spans or the harness answered 404, is read
+  again when a pass lists it. After fixing a mapping, set "Store app runs
+  since" to an earlier time and the next pass fills in the trajectories and
+  gauges of those runs. Its note now names the mapping version and the
+  `evalkit traces check` command to run.
 - **Tracing:** For an agent with a trace source, the server imports the
   agent's new traces from Phoenix or Langfuse every 5 minutes, before it
   stores their sessions as app runs. The import shows on the agent's Import

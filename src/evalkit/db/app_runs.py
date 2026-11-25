@@ -1,10 +1,10 @@
 from datetime import datetime
 
 from pydantic import BaseModel
-from sqlalchemy import and_, delete, func, or_, select, update
+from sqlalchemy import ColumnElement, and_, delete, func, not_, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from evalkit.contracts.enums import RunKind, TrajectorySource
+from evalkit.contracts.enums import RunKind, TrajectorySource, TrajectoryStatus
 from evalkit.contracts.settings import AgentSettings
 from evalkit.core.app_runs import AppSession, SavedRun
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE
@@ -13,6 +13,15 @@ from evalkit.db.runs import eval_run_ids, insert_agent_run, publish_agent_run_ev
 from evalkit.db.session import ALL_TENANTS, tenant_session
 from evalkit.db.spans import is_failed_root
 from evalkit.store.base import AgentRunRecord, EvaluationRow
+
+
+# An app run stored without a trajectory is read again when a pass lists it:
+# its mapping may have been fixed, or the harness may have it now.
+def is_unread_app_run() -> ColumnElement[bool]:
+    return and_(
+        models.AgentRun.kind == RunKind.APP.value,
+        models.AgentRun.trajectory_status == TrajectoryStatus.UNAVAILABLE.value,
+    )
 
 
 class StoredAgent(BaseModel):
@@ -142,6 +151,7 @@ class PgAppRunStore:
                 select(models.AgentRun.harness_run_id).where(
                     models.AgentRun.agent_id == agent_id,
                     models.AgentRun.harness_run_id.in_(run_ids),
+                    not_(is_unread_app_run()),
                 )
             )
             return set(found.all())
@@ -157,7 +167,7 @@ class PgAppRunStore:
 
     async def save(self, agent_id: int, run: AgentRunRecord, rows: list[EvaluationRow]) -> SavedRun:
         async with self._session() as session:
-            earlier = await self._earlier_run_of_session(session, agent_id, run)
+            earlier = await self._run_to_replace(session, agent_id, run)
             if earlier is not None:
                 replaced = earlier.trajectory_key
                 for column, value in run.model_dump().items():
@@ -175,18 +185,20 @@ class PgAppRunStore:
             await session.commit()
             return SavedRun(stored=True)
 
-    async def _earlier_run_of_session(
+    async def _run_to_replace(
         self, session: AsyncSession, agent_id: int, run: AgentRunRecord
     ) -> models.AgentRun | None:
-        if run.session_id is None:
-            return None
+        same_run = and_(models.AgentRun.harness_run_id == run.harness_run_id, is_unread_app_run())
+        earlier_run_of_session = and_(
+            models.AgentRun.session_id == run.session_id,
+            models.AgentRun.session_id.is_not(None),
+            models.AgentRun.kind == RunKind.APP.value,
+            models.AgentRun.harness_run_id != run.harness_run_id,
+        )
         return await session.scalar(
             select(models.AgentRun)
-            .where(
-                models.AgentRun.agent_id == agent_id,
-                models.AgentRun.session_id == run.session_id,
-                models.AgentRun.kind == RunKind.APP.value,
-                models.AgentRun.harness_run_id != run.harness_run_id,
-            )
+            .where(models.AgentRun.agent_id == agent_id, or_(same_run, earlier_run_of_session))
+            .order_by(models.AgentRun.id)
+            .limit(1)
             .with_for_update()
         )

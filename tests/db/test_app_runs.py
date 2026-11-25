@@ -4,10 +4,12 @@ from evalkit.contracts.enums import RunKind, RunStatus, TraceProvider
 from evalkit.contracts.settings import AgentSettings
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE
 from evalkit.db.agents import AgentStore
+from evalkit.db.mappings import MappingStore, activate_document
 from evalkit.db.runs import insert_agent_run
 from evalkit.db.trace_sources import TraceSourceStore
 from evalkit.store.base import AgentRunRecord
 from tests.app_run_world import session_spans
+from tests.fake_agents import reference_mapping
 
 GAUGES = {
     "gauge_duration_seconds",
@@ -100,3 +102,33 @@ async def test_a_pass_imports_new_traces_only_for_an_agent_with_a_trace_source(
     cursor = await world.cursor(world.agent.id)
     await world.run_pass(after_seconds=120)
     assert world.imports == [(world.agent.ref, cursor, world.at)]
+
+
+async def test_a_run_stored_without_a_trajectory_is_read_again_when_a_pass_lists_it(
+    app_run_world, session_factory
+):
+    world = app_run_world
+    mappings = MappingStore(session_factory, "default")
+    good = (await mappings.active(world.agent.id)).document
+    async with session_factory() as s:
+        await activate_document(s, world.agent.id, reference_mapping("gen_ai"), None)
+        await s.commit()
+    await world.spans.upsert(world.agent.id, session_spans("chat-1", "a"))
+    since = await world.cursor(world.agent.id)
+    await world.run_pass(after_seconds=60)
+    [unread] = await world.runs()
+    assert unread.trajectory_status == "unavailable"
+    assert "read no LLM or tool steps" in unread.trajectory_note
+    assert "evalkit traces check" in unread.trajectory_note
+    async with session_factory() as s:
+        await activate_document(s, world.agent.id, good, None)
+        await s.commit()
+    assert (await world.run_pass(after_seconds=120)).stored == 0
+    await world.deps.store.move_cursor(world.agent.id, since)
+    assert (await world.run_pass(after_seconds=180)).stored == 1
+    [repaired] = await world.runs()
+    assert (repaired.id, repaired.trajectory_status) == (unread.id, "valid")
+    assert repaired.trajectory_note is None and repaired.trajectory_key
+    assert (await world.gauges(repaired.id))["gauge_total_tool_calls"] == 4
+    await world.deps.store.move_cursor(world.agent.id, since)
+    assert (await world.run_pass(after_seconds=240)).stored == 0

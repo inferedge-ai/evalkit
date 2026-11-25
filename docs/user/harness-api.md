@@ -65,6 +65,7 @@ The server stores the [app runs](concepts.md#app-run) of a shared agent whose ha
 - Runs evalkit started for an experiment are not stored again.
 - A pass stores at most the agent's "Runs per pass" (100 by default, `--app-runs-per-pass`) and makes one request at a time. It retries a `429` or a `5xx`, waiting the time in `Retry-After` when the harness sends it. When the harness keeps failing, the pass stops and the next one carries on from the same run.
 - A list item needs a `created_at`; one without is not stored.
+- A run whose trajectory the harness answers 404 for is stored without one, and read again whenever a pass lists it.
 
 ## Checking
 

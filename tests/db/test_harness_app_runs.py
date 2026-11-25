@@ -145,3 +145,17 @@ async def test_a_harness_that_does_not_list_runs_has_nothing_stored(app_run_worl
     result = await world.harness_pass()
     assert (result.stored, result.stopped) == (0, app_runs.NO_RUN_LISTING)
     assert await world.runs() == []
+
+
+async def test_a_harness_run_stored_without_a_trajectory_is_read_again_when_listed(
+    app_run_world,
+):
+    world = app_run_world
+    world.add_run("r1", minutes_ago=10, no_trajectory=True)
+    await world.harness_pass()
+    [unread] = await world.runs()
+    del world.harness.runs["r1"]["no_trajectory"]
+    assert (await world.harness_pass()).stored == 1
+    [run] = await world.runs()
+    assert (run.id, run.trajectory_status, run.trajectory_note) == (unread.id, "valid", None)
+    assert (await world.harness_pass()).stored == 0
