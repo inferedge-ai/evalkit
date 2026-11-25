@@ -1206,7 +1206,7 @@
 </tr>
 <tr>
 <td><code>{"attribute": K, "message_format": F}</code></td>
-<td>the messages laid out under <code>K</code> per format <code>F</code>: <code>openinference</code> (flattened indexed keys), <code>gen_ai</code> (JSON list of messages with parts), <code>openai</code> (JSON list of chat messages)</td>
+<td>the messages laid out under <code>K</code> per format <code>F</code>: <code>openinference</code> (flattened indexed keys), <code>gen_ai</code> (JSON list of messages with parts; a message without parts is read as <code>openai</code>), <code>openai</code> (JSON list of chat messages; <code>tool_calls</code> in OpenAI's shape <code>{id, function: {name, arguments}}</code> or LangChain's <code>{id, name, args}</code>)</td>
 </tr>
 <tr>
 <td><code>{"attribute": K, "path": P}</code></td>

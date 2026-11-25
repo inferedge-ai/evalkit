@@ -1371,11 +1371,13 @@ evalkit<span class="w"> </span>traces<span class="w"> </span>mapping<span class=
 <p><code>langchain</code>: <code>openinference</code> with <code>input.value</code>, <code>output.value</code>, <code>llm.input_messages.*</code> and <code>llm.output_messages.*</code> in <code>known_attributes</code>. LangGraph's CHAIN spans carry flattened messages that the trajectory does not need.</p>
 <ul>
 <li>A graph node named <code>agent</code> (the tutorial's default) is emitted as an AGENT span. If every model step shows up as a subagent, rename the node, or add <code>"rekind_spans": [{"name": "agent", "kind": "chain"}]</code>.</li>
+<li>Set <code>OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096</code>. The default of 128 attributes per span drops messages from long conversations ("Attributes dict is full" in the agent's log). <code>evalkit traces check</code> warns on its <code>llm</code> line when a span lost attributes this way.</li>
 </ul>
 <h2 id="langchain">LangChain<a class="headerlink" href="#langchain" title="Permanent link">&para;</a></h2>
 <p><code>langchain</code>: <code>openinference</code> with <code>input.value</code>, <code>output.value</code>, <code>llm.input_messages.*</code> and <code>llm.output_messages.*</code> in <code>known_attributes</code>. LangChain's CHAIN spans carry flattened messages that the trajectory does not need.</p>
 <ul>
 <li>Put the session id on a span of your own around each turn (see above).</li>
+<li>Set <code>OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT=4096</code>. The default of 128 attributes per span drops messages from long conversations ("Attributes dict is full" in the agent's log). <code>evalkit traces check</code> warns on its <code>llm</code> line when a span lost attributes this way.</li>
 </ul>
 <h2 id="crewai">CrewAI<a class="headerlink" href="#crewai" title="Permanent link">&para;</a></h2>
 <p><code>crewai</code>: <code>openinference</code> with CrewAI's agent and tool attributes (<code>agent.backstory</code>, <code>agent.goal</code>, <code>agent.tools</code>, <code>conversation.turn_index</code>, <code>tool.cache_function</code>, <code>tool.current_usage_count</code>, <code>tool.description_updated</code>, <code>tool.result_as_answer</code>) in <code>known_attributes</code>.</p>
