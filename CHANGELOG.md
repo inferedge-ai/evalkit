@@ -80,6 +80,12 @@
   pass for an agent goes back one day. A session that gets more spans after it
   was stored keeps the trajectory it was stored with.
 
+- **Extending evalkit:** A package built on evalkit can keep tables of its own
+  in the same database. It declares its alembic revisions in the entry point
+  group `evalkit.migrations`; `evalkit db upgrade` then applies them with
+  evalkit's own, and `evalkit serve` and `evalkit worker` refuse to start until
+  they are applied.
+
 ### Improvements
 
 - **Web UI:** The agent, evaluator, LLM provider and workspace forms show

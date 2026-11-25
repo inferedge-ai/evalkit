@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
+from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Any, Final
 
@@ -66,17 +67,23 @@ ALEMBIC_ROOT = Path(__file__).parent / "alembic"
 EVALKIT_BRANCH = "evalkit"
 JOBS_VERSIONS = "procrastinate.contrib.alembic:versions"
 JOBS_TABLE_PREFIX = "procrastinate_"
+EXTENSION_MIGRATIONS_GROUP = "evalkit.migrations"
 
 
 def include_name(name: str | None, type_: str, parent_names: Mapping[Any, str | None]) -> bool:
     return not (type_ == "table" and name is not None and name.startswith(JOBS_TABLE_PREFIX))
 
 
+def version_locations() -> list[str]:
+    extensions = sorted(point.value for point in entry_points(group=EXTENSION_MIGRATIONS_GROUP))
+    return [str(ALEMBIC_ROOT / "versions"), JOBS_VERSIONS, *extensions]
+
+
 def alembic_config(db_url: str | None = None) -> AlembicConfig:
     cfg = AlembicConfig()
     cfg.set_main_option("script_location", str(ALEMBIC_ROOT))
     cfg.set_main_option("path_separator", "newline")
-    cfg.set_main_option("version_locations", f"{ALEMBIC_ROOT / 'versions'}\n{JOBS_VERSIONS}")
+    cfg.set_main_option("version_locations", "\n".join(version_locations()))
     if db_url is not None:
         cfg.set_main_option("sqlalchemy.url", db_url)
     return cfg
