@@ -105,7 +105,7 @@ async def build_app_run(
     status = RunStatus.FAILED if session.failed else RunStatus.COMPLETED
     trajectory = None
     note: str | None = None
-    # Spec "Decided for later TBs": a session that cannot be read as ATIF is
+    # A session that cannot be read as ATIF is
     # stored as unavailable, so one bad session never blocks an agent's pass.
     try:
         result = await deps.sessions.trajectory(agent.ref, session.session_id)
