@@ -90,7 +90,15 @@ After that, stop for the developer only at the points under "When to stop".
 
 Stop and ask only for what you cannot do yourself:
 
-- The sign-in in the browser that `evalkit login` opens.
+- The sign-in in the browser that `evalkit login` opens. When you run where
+  the developer has no browser, such as a remote sandbox, run
+  `evalkit login --no-browser` and give them the URL and code it prints. If
+  it says the identity provider has no device authorization endpoint, ask
+  the developer to set `EVALKIT_SERVER_URL`, `EVALKIT_OIDC_CLIENT_ID` and
+  `EVALKIT_OIDC_CLIENT_SECRET` for a machine client in your environment,
+  never in a file the repo tracks; skip `evalkit login`. You then act as
+  that machine user, so the quickstart's dataset and experiments go in its
+  own workspace, which the developer can read.
 - Trace source path: the trace store's URL, project name and API key (for
   Langfuse, the public and secret key joined with a colon in one variable). Ask for the
   name of the environment variable that holds the key; never ask for the key

@@ -232,7 +232,8 @@ class NoDeviceGrant(Exception):
     def __init__(self) -> None:
         super().__init__(
             "this identity provider has no device authorization endpoint; "
-            "log in from a machine with a browser"
+            "log in from a machine with a browser, or set EVALKIT_SERVER_URL, "
+            "EVALKIT_OIDC_CLIENT_ID and EVALKIT_OIDC_CLIENT_SECRET for a machine client"
         )
 
 

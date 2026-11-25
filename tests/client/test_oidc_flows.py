@@ -170,9 +170,9 @@ def test_device_flow_polls_until_the_person_finishes():
     assert claims["sub"] == "sub-2" and claims["aud"] == CLI_CLIENT
 
 
-def test_device_flow_needs_the_endpoint():
+def test_device_flow_without_endpoint_names_machine_client():
     idp = FakeIdp()
-    with pytest.raises(NoDeviceGrant):
+    with pytest.raises(NoDeviceGrant, match="EVALKIT_OIDC_CLIENT_SECRET for a machine client"):
         run_device_flow(providers_for(idp, device=False), print, transport=idp.transport())
 
 

@@ -16,9 +16,14 @@ On a self-hosted server, always pass `--url`.
 With single sign-on configured on the server, the command opens your browser
 at your identity provider. Sign in there; the browser comes back to the CLI
 on a local port, and the CLI stores the identity provider's tokens in
-`~/.evalkit/config.toml`. They refresh themselves. On a machine without a
-browser, `evalkit login --url {{origin}} --no-browser` prints a URL and a code
-to enter on any device.
+`~/.evalkit/config.toml`. They refresh themselves.
+
+On a machine without a browser, such as a remote sandbox a coding agent runs
+in, `evalkit login --url {{origin}} --no-browser` prints a URL and a code to
+enter on any device. That needs the device authorization grant at the
+identity provider; without it the command stops and says so. Use a machine
+client there instead, as under [Scripts and CI](#scripts-and-ci): commands
+then act as that machine user, not as you.
 
 Without single sign-on, or with `--username`, the command asks for a username
 and password and stores an evalkit token instead. With single sign-on
