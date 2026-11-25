@@ -5,10 +5,10 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FormDialogFooter } from "../lib/FormDialogFooter";
 import { apiJson } from "../lib/api";
 import {
   agentFormErrors,
@@ -352,21 +352,15 @@ export function AgentForm({
               />
             </Field>
           ))}
-          {errors.map((message) => (
-            <div key={message} className="text-meta text-err-text">
-              {message}
-            </div>
-          ))}
-          {error && <div className="text-meta text-err-text">{error}</div>}
         </div>
-        <DialogFooter>
+        <FormDialogFooter errors={[...errors, error]}>
           <DialogClose render={<Button variant="outline" />}>
             Cancel
           </DialogClose>
           <Button disabled={busy || errors.length > 0} onClick={save}>
             {agent ? "Save" : "Create agent"}
           </Button>
-        </DialogFooter>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
   );

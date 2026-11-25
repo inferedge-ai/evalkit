@@ -5,10 +5,10 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FormDialogFooter } from "../lib/FormDialogFooter";
 import { apiJson } from "../lib/api";
 import { ApiKeyField } from "../lib/ApiKeyField";
 import type { ApiKeyValue } from "../lib/ApiKeyField";
@@ -125,16 +125,15 @@ export function LlmProviderForm({
               for the new URL above.
             </p>
           )}
-          {error && <div className="text-meta text-err-text">{error}</div>}
         </div>
-        <DialogFooter>
+        <FormDialogFooter errors={[error]}>
           <DialogClose render={<Button variant="outline" />}>
             Cancel
           </DialogClose>
           <Button disabled={busy || missing} onClick={save}>
             {provider ? "Save" : "Create provider"}
           </Button>
-        </DialogFooter>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
   );

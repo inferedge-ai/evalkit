@@ -162,3 +162,18 @@ test("a Phoenix trace source shows a Phoenix filter example and links to Phoenix
   ).toHaveAttribute("href", expect.stringContaining("arize.com/docs/phoenix"));
   expect(screen.queryByText(/x-langfuse-ingestion-version/)).toBeNull();
 });
+
+test("a form error shows beside the buttons, where it stays in view", async () => {
+  stubServer((url) => {
+    if (url.includes("/trace-sources")) return Response.json([]);
+  });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <AgentForm workspace="dev" shared onSaved={() => {}} onClose={() => {}} />
+    </QueryClientProvider>,
+  );
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent("Name is required.");
+  expect(alert.closest('[data-slot="dialog-footer"]')).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Create agent" })).toBeDisabled();
+});

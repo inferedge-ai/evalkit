@@ -5,10 +5,10 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FormDialogFooter } from "../lib/FormDialogFooter";
 import { apiJson } from "../lib/api";
 import { ApiKeyField } from "../lib/ApiKeyField";
 import type { ApiKeyValue } from "../lib/ApiKeyField";
@@ -189,21 +189,15 @@ export function EvaluatorForm({
               for the new endpoint above.
             </p>
           )}
-          {errors.map((message) => (
-            <div key={message} className="text-meta text-err-text">
-              {message}
-            </div>
-          ))}
-          {error && <div className="text-meta text-err-text">{error}</div>}
         </div>
-        <DialogFooter>
+        <FormDialogFooter errors={[...errors, error]}>
           <DialogClose render={<Button variant="outline" />}>
             Cancel
           </DialogClose>
           <Button disabled={busy || errors.length > 0} onClick={save}>
             {evaluator ? "Save" : "Create evaluator"}
           </Button>
-        </DialogFooter>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
   );

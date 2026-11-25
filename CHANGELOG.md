@@ -88,6 +88,9 @@
 
 ### Improvements
 
+- **Web UI:** The agent, evaluator, LLM provider and workspace forms show
+  their errors above the Cancel and Save buttons, where they stay in view
+  while the fields scroll. They used to sit under the last field.
 - **Server:** A replaced attempt of a resumed experiment run stays an eval
   run. The Runs page used to list it under app runs.
 - **Lint:** The error `E-JARGON` is now the warning `W-JARGON`. Case text
