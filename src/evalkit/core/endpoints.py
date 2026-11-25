@@ -24,18 +24,25 @@ def get_origin(url: httpx2.URL) -> tuple[str, str, int | None]:
     return url.scheme, url.host, url.port
 
 
-async def check_endpoint(url: str, *, rule: EndpointRule) -> None:
-    if rule.allow_private:
-        return
+def parse_endpoint(url: str) -> httpx2.URL:
     try:
         parsed = httpx2.URL(url)
     except httpx2.InvalidURL as exc:
         raise BlockedEndpoint(f"{url} is not a valid URL: {exc}") from exc
+    if parsed.scheme not in ("http", "https"):
+        raise BlockedEndpoint(f"{url} is not a URL that starts with http:// or https://")
+    if not parsed.host:
+        raise BlockedEndpoint(f"{url} has no host; a URL looks like https://host/path")
+    return parsed
+
+
+async def check_endpoint(url: str, *, rule: EndpointRule) -> None:
+    parsed = parse_endpoint(url)
+    if rule.allow_private:
+        return
     if get_origin(parsed) in {get_origin(httpx2.URL(t)) for t in rule.trusted}:
         return
     host = parsed.host
-    if not host:
-        raise BlockedEndpoint(f"{url} has no host")
     try:
         infos = await asyncio.get_running_loop().getaddrinfo(host, None)
     except (socket.gaierror, UnicodeError) as exc:

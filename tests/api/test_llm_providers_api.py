@@ -178,3 +178,23 @@ async def test_judge_default_patch_switches_provider(api):
     await api.post("/api/llm-providers", json={"name": "other", "base_url": "http://other/v1"})
     patched = await api.patch("/api/judge-default", json={"provider": "other"})
     assert patched.json()["provider"] == "other" and patched.json()["model"] == "judge-model"
+
+
+@pytest.mark.parametrize("url", ["https:/llm.example.com/v1", "llm.example.com/v1"])
+async def test_a_provider_url_without_a_scheme_or_host_is_refused(api, url):
+    created = await api.post("/api/llm-providers", json={"name": "typo", "base_url": url})
+    assert created.status_code == 400 and url in created.json()["detail"]
+    ok = await api.post(
+        "/api/llm-providers", json={"name": "fine", "base_url": "https://llm.example.com/v1"}
+    )
+    assert ok.status_code == 200, ok.text
+    edited = await api.patch("/api/llm-providers/fine", json={"base_url": url})
+    assert edited.status_code == 400
+
+
+@pytest.mark.parametrize("url", ["https:/phoenix.example.com", "phoenix.example.com"])
+async def test_a_trace_source_url_without_a_scheme_or_host_is_refused(api, url):
+    body = {"name": "typo", "provider": "phoenix", "url": url}
+    created = await api.post("/api/trace-sources", json=body)
+    assert created.status_code == 400 and url in created.json()["detail"]
+    assert (await api.get("/api/trace-sources")).json() == []

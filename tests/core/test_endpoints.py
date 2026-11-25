@@ -63,3 +63,21 @@ async def test_a_trusted_default_port_matches_either_spelling():
 async def test_only_the_trusted_origin_passes(url):
     with pytest.raises(BlockedEndpoint):
         await check_endpoint(url, rule=GATEWAY)
+
+
+@pytest.mark.parametrize(
+    ("url", "reason"),
+    [
+        ("https:/phoenix.example.com", "has no host"),
+        ("https://", "has no host"),
+        ("phoenix.example.com", "starts with http:// or https://"),
+        ("ftp://phoenix.example.com", "starts with http:// or https://"),
+        ("", "starts with http:// or https://"),
+    ],
+)
+async def test_a_url_without_a_scheme_or_host_is_refused_even_when_private_addresses_are_allowed(
+    url, reason
+):
+    for rule in (REFUSE, EndpointRule(allow_private=True)):
+        with pytest.raises(BlockedEndpoint, match=reason):
+            await check_endpoint(url, rule=rule)
