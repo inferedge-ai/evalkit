@@ -191,6 +191,8 @@ class FakeHarness:
         async def trajectory(run_id: str):
             if self._get(run_id).get("no_trajectory"):
                 raise HTTPException(status_code=404, detail="no trajectory")
+            if self._get(run_id).get("trajectory_error"):
+                raise HTTPException(status_code=500, detail="trajectory failed")
             return self.trajectory_doc
 
         @app.get("/evalkit/v1/runs/{run_id}/files")

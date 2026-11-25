@@ -35,6 +35,13 @@ TOO_MANY_FAILURES = (
     f"{MAX_FAILURES_IN_A_ROW} runs in a row could not be stored; the next pass tries them again"
 )
 HARNESS_GIVE_UP_AFTER = timedelta(hours=24)
+HARNESS_WINDOW = timedelta(hours=6)
+HARNESS_MIN_WINDOW = timedelta(minutes=1)
+HARNESS_CLOCK_MARGIN = timedelta(hours=1)
+TOO_MANY_RUNS = (
+    f"the harness lists more than {MAX_HARNESS_SCAN} runs created within one minute; "
+    "none of them was stored"
+)
 HARNESS_FINAL = frozenset({"completed", "failed", "cancelled"})
 HARNESS_RETRY = Retry(
     total=2,
@@ -326,65 +333,116 @@ async def build_harness_run(
     )
 
 
+async def list_harness_window(
+    deps: AppRunDeps, agent: AgentDefinition, client: HarnessClient, since: datetime, now: datetime
+) -> tuple[list[RunListItem], datetime] | None:
+    async def eval_runs(run_ids: list[str]) -> set[str]:
+        return await deps.store.eval_run_ids(agent.id, run_ids)
+
+    # The harness lists newest first and a listing stops at MAX_HARNESS_SCAN
+    # runs, so a window that reaches it is halved: its oldest runs were not
+    # listed, and moving the cursor past them would lose them.
+    span = HARNESS_WINDOW
+    while span >= HARNESS_MIN_WINDOW:
+        until = min(since + span, now)
+        listed = await list_harness_runs(
+            client, wanted=MAX_HARNESS_SCAN + 1, since=since, until=until, exclude=eval_runs
+        )
+        if not listed.capped:
+            dated = [item for item in listed.runs if item.created_at is not None]
+            return sorted(dated, key=lambda item: item.created_at or now), until
+        span /= 2
+    return None
+
+
 async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassResult:
     now = deps.now()
-    start = cursor = await deps.store.cursor(agent.id)
+    start = cursor = since = await deps.store.cursor(agent.id)
     stored = waiting = 0
     failures = Failures()
     hold: datetime | None = None
     stopped: str | None = None
+    full = False
     client = await deps.harness(agent)
 
-    async def eval_runs(run_ids: list[str]) -> set[str]:
-        return await deps.store.eval_run_ids(agent.id, run_ids)
-
-    # When the harness keeps failing after its retries the
-    # pass stops, keeps the cursor before the run it failed on, and the next
-    # scheduled pass tries again.
+    # When the harness cannot be reached after its retries the pass stops,
+    # keeps the cursor before the run it failed on, and the next scheduled
+    # pass tries again.
     try:
         caps = await client.capabilities()
         if not caps.provides.run_listing:
             return PassResult(stored=0, waiting=0, stopped=NO_RUN_LISTING)
-        listed = await list_harness_runs(
-            client, wanted=MAX_HARNESS_SCAN, since=cursor, exclude=eval_runs
-        )
-        dated = [item for item in listed.runs if item.created_at is not None]
-        runs = sorted(dated, key=lambda item: item.created_at or now)
-        known = await deps.store.stored_run_ids(agent.id, [item.run_id for item in runs])
-        for item in runs:
-            assert item.created_at is not None
-            if item.run_id not in known:
-                if stored == agent.settings.app_runs_per_pass:
-                    break
-                # As for sessions: one run that cannot be stored is recorded
-                # and the pass goes on. A harness that keeps failing is not
-                # one bad run, so it still stops the pass.
-                try:
-                    run = await build_harness_run(deps, agent, client, item)
-                    if run is None and item.created_at > now - HARNESS_GIVE_UP_AFTER:
-                        waiting += 1
-                        hold = hold or item.created_at
-                        continue
-                    if run is not None:
-                        stored += await save_app_run(deps, agent, run, caps)
-                    failures.reset()
-                except httpx2.HTTPError:
-                    raise
-                except Exception as exc:
-                    if failures.add():
-                        cursor, hold, stopped = start, None, TOO_MANY_FAILURES
+        while since < now and not full and stopped is None:
+            window = await list_harness_window(deps, agent, client, since, now)
+            if window is None:
+                stopped = TOO_MANY_RUNS
+                break
+            runs, until = window
+            known = await deps.store.stored_run_ids(agent.id, [item.run_id for item in runs])
+            for item in runs:
+                assert item.created_at is not None
+                if item.run_id not in known:
+                    if stored == agent.settings.app_runs_per_pass:
+                        full = True
                         break
-                    await record_unstored_run(
-                        deps,
-                        agent,
-                        exc,
-                        run_id=item.run_id,
-                        status=RunStatus.FAILED,
-                        started_at=item.created_at,
-                        title=item.title,
-                        session_id=item.session_id,
-                    )
-            cursor = item.created_at
+                    # As for sessions: one run that cannot be stored is recorded
+                    # and the pass goes on. So is one the harness answers with an
+                    # error, once it is too old to wait for; until then the
+                    # cursor stays at it and each pass asks again.
+                    error: Exception | None = None
+                    asked_too_early = False
+                    try:
+                        run = await build_harness_run(deps, agent, client, item)
+                        if run is None and item.created_at > now - HARNESS_GIVE_UP_AFTER:
+                            waiting += 1
+                            hold = hold or item.created_at
+                            continue
+                        if run is not None:
+                            stored += await save_app_run(deps, agent, run, caps)
+                        failures.reset()
+                    except httpx2.HTTPStatusError as exc:
+                        error = exc
+                        asked_too_early = item.created_at > now - HARNESS_GIVE_UP_AFTER
+                    except httpx2.HTTPError:
+                        raise
+                    except Exception as exc:
+                        error = exc
+                    if error is not None:
+                        if failures.add():
+                            cursor, hold = start, None
+                            stopped = (
+                                str(error)
+                                if isinstance(error, httpx2.HTTPStatusError)
+                                else TOO_MANY_FAILURES
+                            )
+                            break
+                        if asked_too_early:
+                            LOGGER.warning(
+                                "the harness of agent %s could not serve app run %s, "
+                                "the next pass asks again: %s",
+                                agent.ref,
+                                item.run_id,
+                                error,
+                            )
+                            hold = hold or item.created_at
+                            continue
+                        await record_unstored_run(
+                            deps,
+                            agent,
+                            error,
+                            run_id=item.run_id,
+                            status=RunStatus.FAILED,
+                            started_at=item.created_at,
+                            title=item.title,
+                            session_id=item.session_id,
+                        )
+                cursor = item.created_at
+            # A window the pass finished is behind the cursor for good, unless it
+            # is recent enough that a harness whose clock runs behind could still
+            # add a run to it.
+            if not full and stopped is None and until <= now - HARNESS_CLOCK_MARGIN:
+                cursor = until
+            since = until
     except httpx2.HTTPError as exc:
         stopped = str(exc)
     finally:

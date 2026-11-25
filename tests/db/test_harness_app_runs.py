@@ -1,8 +1,8 @@
 import dataclasses
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from evalkit.contracts.enums import RunKind, RunStatus
-from evalkit.core import app_runs
+from evalkit.core import app_runs, pull
 from evalkit.core.blob import trajectory_key
 from evalkit.db.agents import AgentStore
 from evalkit.db.app_runs import agents_with_app_runs
@@ -112,7 +112,7 @@ async def test_a_run_still_running_after_a_day_is_passed_over(app_run_world):
     world.add_run("r1", minutes_ago=10)
     result = await world.harness_pass(days_later=2)
     assert (result.stored, result.waiting) == (1, 0)
-    assert await world.cursor(world.harness_agent.id) == world.harness.runs["r1"]["created_at"]
+    assert await world.cursor(world.harness_agent.id) > world.harness.runs["r1"]["created_at"]
 
 
 async def test_a_pass_stores_at_most_the_agents_limit_and_the_next_carries_on(
@@ -187,3 +187,75 @@ async def test_one_harness_run_that_cannot_be_stored_is_recorded_and_the_rest_ar
     assert runs["r2"].trajectory_status == "unavailable"
     assert runs["r2"].trajectory_note.startswith("evalkit could not store this run: OSError")
     assert await world.cursor(world.harness_agent.id) == world.harness.runs["r3"]["created_at"]
+
+
+async def test_a_run_the_harness_cannot_serve_is_asked_again_and_the_others_are_stored(
+    app_run_world,
+):
+    world = app_run_world
+    world.add_run("r1", minutes_ago=30)
+    world.add_run("r2", minutes_ago=20, trajectory_error=True)
+    world.add_run("r3", minutes_ago=10)
+    first = await world.harness_pass()
+    assert (first.stored, first.failed, first.stopped) == (2, 1, None)
+    assert app_run_ids(await world.runs()) == ["r1", "r3"]
+    assert await world.cursor(world.harness_agent.id) == world.harness.runs["r2"]["created_at"]
+    world.add_run("r4", minutes_ago=5)
+    second = await world.harness_pass()
+    assert (second.stored, second.failed, second.stopped) == (1, 1, None)
+    later = await world.harness_pass(days_later=2)
+    assert (later.stored, later.failed, later.stopped) == (0, 1, None)
+    runs = {run.harness_run_id: run for run in await world.runs()}
+    assert runs["r2"].trajectory_status == "unavailable" and "500" in runs["r2"].trajectory_note
+    assert await world.cursor(world.harness_agent.id) > world.harness.runs["r4"]["created_at"]
+
+
+async def test_three_runs_in_a_row_the_harness_cannot_serve_stop_the_pass(app_run_world):
+    world = app_run_world
+    for index, minutes in enumerate((40, 30, 20, 10), start=1):
+        world.add_run(f"r{index}", minutes_ago=minutes, trajectory_error=True)
+    start = await world.cursor(world.harness_agent.id)
+    result = await world.harness_pass()
+    assert (result.stored, result.failed) == (0, 3) and "500" in result.stopped
+    assert await world.cursor(world.harness_agent.id) == start
+    assert await world.runs() == []
+
+
+async def test_a_backlog_larger_than_one_listing_is_stored_oldest_first_with_none_lost(
+    app_run_world, session_factory, monkeypatch
+):
+    world = app_run_world
+    monkeypatch.setattr(pull, "MAX_HARNESS_SCAN", 2)
+    monkeypatch.setattr(app_runs, "MAX_HARNESS_SCAN", 2)
+    world.harness.page_cap = 1
+    world.harness_agent = await AgentStore(session_factory, "default").edit(
+        world.harness_agent.ref,
+        settings=world.harness_agent.settings.model_copy(update={"app_runs_per_pass": 3}),
+    )
+    await world.deps.store.move_cursor(
+        world.harness_agent.id, datetime.now(UTC) - timedelta(days=3)
+    )
+    ages = (4000, 3990, 3980, 3970, 1500, 30, 20, 10)
+    for index, minutes in enumerate(ages):
+        world.add_run(f"r{index}", minutes_ago=minutes)
+    assert (await world.harness_pass()).stored == 3
+    assert app_run_ids(await world.runs()) == ["r0", "r1", "r2"]
+    assert (await world.harness_pass()).stored == 3
+    assert (await world.harness_pass()).stored == 2
+    assert app_run_ids(await world.runs()) == [f"r{index}" for index in range(len(ages))]
+    assert (await world.harness_pass()).stored == 0
+
+
+async def test_more_runs_in_one_minute_than_a_listing_holds_stop_the_pass(
+    app_run_world, monkeypatch
+):
+    world = app_run_world
+    monkeypatch.setattr(pull, "MAX_HARNESS_SCAN", 2)
+    monkeypatch.setattr(app_runs, "MAX_HARNESS_SCAN", 2)
+    world.harness.page_cap = 1
+    created = datetime.now(UTC) - timedelta(minutes=10)
+    for index in range(4):
+        world.add_run(f"r{index}", minutes_ago=0, created_at=created + timedelta(seconds=index))
+    result = await world.harness_pass()
+    assert (result.stored, result.stopped) == (0, app_runs.TOO_MANY_RUNS)
+    assert await world.cursor(world.harness_agent.id) <= created

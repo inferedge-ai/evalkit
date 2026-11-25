@@ -26,8 +26,12 @@
   session; when the session gets a newer run, that stored run is replaced. A
   run that is still running is looked at again by the next pass, for up to 24
   hours. A pass stores at most 100 runs, makes one request at a time and
-  retries a 429 or a 5xx; when the harness keeps failing, the pass stops and
-  the next one carries on. Runs of experiments are not stored again. A harness
+  retries a 429 or a 5xx; when the harness cannot be reached, the pass stops
+  and the next one carries on. When the harness keeps answering an error for
+  one run, the pass stores the others and asks for that run again for up to
+  24 hours, then stores it without a trajectory. The server lists 6 hours of
+  runs at a time with `since` and `until`, so a harness must apply `until`.
+  Runs of experiments are not stored again. A harness
   with one run id per session and no `session_id` is stored once: later
   messages do not update it.
 - **Server:** `evalkit worker --config config.yaml` runs the job worker as its
