@@ -53,7 +53,7 @@ class TraceImportView(BaseModel):
     spans: int
     sample_session: str | None
     error: str | None
-    created_by: str
+    created_by: str | None
     created_at: datetime
     finished_at: datetime | None
 
@@ -81,7 +81,7 @@ def _view(
     workspace: str,
     source: str,
     provider: str,
-    user: str,
+    user: str | None,
 ) -> TraceImportView:
     status = TraceImportStatus(row.status)
     return TraceImportView(
@@ -139,7 +139,7 @@ class TraceImportStore:
             .join(models.Agent, models.Agent.id == models.TraceImport.agent_id)
             .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
             .join(models.TraceSource, models.TraceSource.id == models.TraceImport.trace_source_id)
-            .join(models.User, models.User.id == models.TraceImport.created_by)
+            .outerjoin(models.User, models.User.id == models.TraceImport.created_by)
             .where(models.Workspace.tenant_id == self._tenant_id)
         )
 
@@ -179,7 +179,7 @@ class TraceImportStore:
         trace_filter: str | None,
         since: datetime,
         until: datetime,
-        created_by: int,
+        created_by: int | None,
         holder: str,
     ) -> TraceImportView:
         async with self._session() as session:
@@ -211,6 +211,16 @@ class TraceImportStore:
             session.add(row)
             await session.commit()
             return await self._one(session, agent_id, row.id)
+
+    async def scheduled_until(self, agent_id: int) -> datetime | None:
+        async with self._session() as session:
+            return await session.scalar(
+                select(func.max(models.TraceImport.until)).where(
+                    models.TraceImport.agent_id == agent_id,
+                    models.TraceImport.created_by.is_(None),
+                    models.TraceImport.status == TraceImportStatus.DONE.value,
+                )
+            )
 
     async def get(self, agent_id: int, import_id: int) -> TraceImportView:
         async with self._session() as session:

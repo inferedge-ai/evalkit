@@ -1,8 +1,11 @@
 from datetime import UTC, datetime
 
-from evalkit.contracts.enums import RunKind, RunStatus
+from evalkit.contracts.enums import RunKind, RunStatus, TraceProvider
+from evalkit.contracts.settings import AgentSettings
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE
+from evalkit.db.agents import AgentStore
 from evalkit.db.runs import insert_agent_run
+from evalkit.db.trace_sources import TraceSourceStore
 from evalkit.store.base import AgentRunRecord
 from tests.app_run_world import session_spans
 
@@ -80,3 +83,20 @@ async def test_a_session_with_no_steps_is_stored_as_unavailable(app_run_world):
     [run] = await app_run_world.runs()
     assert result.stored == 1
     assert run.trajectory_status == "unavailable" and run.trajectory_note
+
+
+async def test_a_pass_imports_new_traces_only_for_an_agent_with_a_trace_source(
+    app_run_world, session_factory
+):
+    world = app_run_world
+    await world.run_pass(after_seconds=60)
+    assert world.imports == []
+    await TraceSourceStore(session_factory, "default", None).create(
+        "phx", TraceProvider.PHOENIX, "https://phoenix.example.com", None
+    )
+    world.agent = await AgentStore(session_factory, "default").edit(
+        world.agent.ref, settings=AgentSettings(trace_source="phx", project="support")
+    )
+    cursor = await world.cursor(world.agent.id)
+    await world.run_pass(after_seconds=120)
+    assert world.imports == [(world.agent.ref, cursor, world.at)]

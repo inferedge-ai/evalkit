@@ -4,11 +4,13 @@ import os
 import signal
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 import httpx2
 from starlette.datastructures import State
 
 from evalkit.api.access import build_tenant_stores
+from evalkit.api.trace_imports import import_new_traces
 from evalkit.core.agents import AgentDefinition
 from evalkit.core.app_runs import HARNESS_RETRY, AppRunDeps
 from evalkit.core.costmap import load_cost_map
@@ -36,6 +38,9 @@ def app_run_services(state: State) -> AppRunServices:
                 transport=RetryTransport(transport, HARNESS_RETRY),
             )
 
+        async def import_traces(agent: AgentDefinition, cursor: datetime, now: datetime) -> None:
+            await import_new_traces(state, stores, agent, cursor, now)
+
         return AppRunDeps(
             store=PgAppRunStore(state.session_factory, tenant_id),
             sessions=stores.sessions,
@@ -43,6 +48,7 @@ def app_run_services(state: State) -> AppRunServices:
             cost_map=load_cost_map(state.cfg.cost_map),
             settle_seconds=stores.sessions.settle_seconds,
             harness=harness,
+            import_traces=import_traces,
         )
 
     async def agent(tenant_id: str, agent_id: int) -> AgentDefinition:

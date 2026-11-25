@@ -361,6 +361,7 @@ The server stores the [app runs](concepts.md#app-run) of every agent that sends 
 - The first pass for an agent goes back one day.
 - A session that gets more spans after it was stored keeps the trajectory it was stored with.
 - A session that cannot be read as a trajectory is stored without one, with the reason.
+- For an agent with a [trace source](#importing-history-from-a-trace-source), each pass first imports the agent's new traces from it, then stores their sessions. The import shows on the agent's Import tab as "by schedule". It starts 15 minutes before the previous scheduled import ended, so traces that reached the trace source late are picked up; the first one goes back one day. A pass starts no import while another one is running for the agent. The agent needs an active mapping with a session id.
 
 A shared agent that serves its own trajectories through the Harness API has its app runs stored too: see [Stored app runs of a harness agent](harness-api.md#stored-app-runs).
 

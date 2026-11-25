@@ -48,6 +48,7 @@ class AppRunWorld:
         self.deps = deps
         self.at = datetime.now(UTC)
         self.harness = FakeHarness()
+        self.imports: list[tuple[str, datetime, datetime]] = []
         self.harness_agent: AgentDefinition | None = None
 
     async def run_pass(self, after_seconds: int):
@@ -59,6 +60,9 @@ class AppRunWorld:
         return HarnessClient(
             agent, self.harness.api_key, transport=RetryTransport(transport, FAST_RETRY)
         )
+
+    async def import_traces(self, agent: AgentDefinition, cursor: datetime, now: datetime) -> None:
+        self.imports.append((agent.ref, cursor, now))
 
     async def harness_pass(self, days_later: int = 0):
         self.at = datetime.now(UTC) + timedelta(days=days_later)
@@ -106,6 +110,7 @@ async def app_run_world(session_factory) -> AppRunWorld:
         cost_map={},
         settle_seconds=lambda _: SETTLE_SECONDS,
         harness=built.harness_client,
+        import_traces=built.import_traces,
         now=lambda: built.at,
     )
     return built

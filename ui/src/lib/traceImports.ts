@@ -16,7 +16,7 @@ export interface TraceImport {
   spans: number;
   sample_session: string | null;
   error: string | null;
-  created_by: string;
+  created_by: string | null;
   created_at: string;
   finished_at: string | null;
 }

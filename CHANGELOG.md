@@ -4,7 +4,7 @@
 
 ### Before you upgrade
 
-- **Server:** Run `evalkit db upgrade` (migrations 0021, 0022, 0023, 0024 and 0025).
+- **Server:** Run `evalkit db upgrade` (migrations 0021 to 0026).
   It now also creates the job queue's tables (`procrastinate_*`), which need
   Postgres 13 or later. Migration 0024 moves every evaluation from its
   experiment run to that run's agent run, and builds an index on
@@ -36,6 +36,15 @@
   the next one carries on. Runs of experiments are not stored again. A harness
   with one run id per session and no `session_id` is stored once: later
   messages do not update it.
+- **Tracing:** For an agent with a trace source, the server imports the
+  agent's new traces from Phoenix or Langfuse every 5 minutes, before it
+  stores their sessions as app runs. The import shows on the agent's Import
+  tab as "by schedule" (`created_by` is null on `GET
+  /api/agents/{agent}/imports`). It starts 15 minutes before the previous
+  scheduled import ended, and the first goes back one day. A pass starts no
+  import while another is running for the agent. The job checks the trace
+  source's URL against the server config (`allow_private_endpoints`,
+  `trusted_endpoints`), not against a per-request rule.
 - **Tracing:** evalkit stores the app runs of every agent whose trajectories
   come from traces. Every 5 minutes the server looks at the sessions that
   received spans since its last pass, and stores each settled one that is not

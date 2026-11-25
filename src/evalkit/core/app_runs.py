@@ -80,6 +80,7 @@ class AppRunDeps:
     cost_map: dict[str, Any]
     settle_seconds: Callable[[AgentDefinition], int]
     harness: Callable[[AgentDefinition], Awaitable[HarnessClient]]
+    import_traces: Callable[[AgentDefinition, datetime, datetime], Awaitable[None]]
     now: Callable[[], datetime] = lambda: datetime.now(UTC)
 
 
@@ -163,6 +164,8 @@ async def store_session_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
     now = deps.now()
     settle = deps.settle_seconds(agent)
     cursor = await deps.store.cursor(agent.id)
+    if agent.settings.trace_source is not None:
+        await deps.import_traces(agent, cursor, now)
     sessions = sorted(
         await deps.store.list_app_sessions(agent.id, cursor), key=lambda s: s.last_received_at
     )

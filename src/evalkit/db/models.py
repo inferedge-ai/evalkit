@@ -285,7 +285,7 @@ class TraceImport(AuditMixin, Base):
     error: Mapped[str | None] = mapped_column(Text, default=None)
     lease_holder: Mapped[str | None] = mapped_column(String(255), default=None)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
 

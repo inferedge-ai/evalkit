@@ -95,3 +95,38 @@ test("an import shows how much is done and, when it failed, how many traces came
     screen.getByText("HTTPStatusError: 500. 40 traces imported."),
   ).toBeInTheDocument();
 });
+
+test("an import the schedule started says so in place of a user", async () => {
+  const scheduled = {
+    id: 8,
+    agent: "bot@dev",
+    source: "lf",
+    project: "research-agent",
+    since: "2026-11-01T00:00:00Z",
+    until: "2026-11-01T00:05:00Z",
+    resume_from: "2026-11-01T00:05:00Z",
+    trace_filter: null,
+    status: "done",
+    progress: 1,
+    traces: 3,
+    spans: 30,
+    sample_session: "s-1",
+    error: null,
+    created_by: null,
+    created_at: "2026-11-01T00:05:00Z",
+    finished_at: "2026-11-01T00:05:02Z",
+  };
+  stubServer(async (url) => {
+    if (url.includes("/trace-sources")) return Response.json([]);
+    if (url.includes("/imports")) return Response.json([scheduled]);
+  });
+  renderPage(
+    member({ dev: ["writer"] }),
+    "/import",
+    <Route
+      path="/import"
+      element={<ImportPanel agent="bot@dev" settings={settings} />}
+    />,
+  );
+  expect(await screen.findByText(/by schedule/)).toBeInTheDocument();
+});
