@@ -106,7 +106,7 @@ async def build_app_run(
     status = RunStatus.FAILED if session.failed else RunStatus.COMPLETED
     trajectory = None
     note: str | None = None
-    # Spec "Decided for later TBs": a session that cannot be read as ATIF is
+    # A session that cannot be read as ATIF is
     # stored as unavailable, so one bad session never blocks an agent's pass.
     try:
         result = await deps.sessions.trajectory(agent.ref, session.session_id)
@@ -194,7 +194,7 @@ async def build_harness_run(
     deps: AppRunDeps, agent: AgentDefinition, client: HarnessClient, item: RunListItem
 ) -> AgentRunRecord | None:
     assert item.created_at is not None
-    # Spec "TB2, Rules": a run the harness no longer has, or whose trajectory
+    # A run the harness no longer has, or whose trajectory
     # is not ATIF, is stored as unavailable; any other failure stops the pass.
     try:
         status = await client.status(item.run_id)
@@ -263,7 +263,7 @@ async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
     async def eval_runs(run_ids: list[str]) -> set[str]:
         return await deps.store.eval_run_ids(agent.id, run_ids)
 
-    # Spec "TB2, Rules": when the harness keeps failing after its retries the
+    # When the harness keeps failing after its retries the
     # pass stops, keeps the cursor before the run it failed on, and the next
     # scheduled pass tries again.
     try:
