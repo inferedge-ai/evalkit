@@ -57,12 +57,9 @@
 
 ### Fixes
 
-- **Server:** Fixed a URL with no scheme or no host, such as
-  `https:/phoenix.example.com`, being saved for a trace source, an LLM
-  provider, an agent's harness or a remote evaluator on a server with
-  `allow_private_endpoints: true`. The server now answers 400 with the reason
-  when the URL is saved. Before, creating an agent on such a trace source
-  answered 500.
+- **Server:** Fixed a URL with no scheme or host, such as `https:/host`, being
+  saved on a server with `allow_private_endpoints: true`. Saving it now
+  answers 400.
 - **SDK:** Fixed `run_experiment` failing with a raw 401 from `/api/auth/me`
   when `EVALKIT_SERVER_URL` is set without `EVALKIT_TOKEN`. The CLI and the
   SDK now use your `evalkit login` when it is for the same server. For any
