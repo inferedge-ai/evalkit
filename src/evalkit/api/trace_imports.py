@@ -113,7 +113,7 @@ async def import_new_traces(
     last = await stores.imports.scheduled_until(record.id)
     since = last - SCHEDULED_IMPORT_OVERLAP if last is not None else cursor
     holder = task_holder(state.holder)
-    # Spec "TB3": a pass starts no import while another is running for the agent.
+    # A pass starts no import while another is running for the agent.
     try:
         view = await stores.imports.create(
             record.id, source.id, settings.project, settings.trace_filter, since, now, None, holder
