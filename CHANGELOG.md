@@ -13,8 +13,7 @@
   more Postgres connections for it at the defaults (`worker.pool_max_size`,
   never fewer than `worker.concurrency + 3`). Finished jobs stay in
   `procrastinate_jobs` for 7 days (`worker.delete_jobs`,
-  `worker.job_retention_hours`). Set `worker.embedded: false` in `config.yaml`
-  to turn the worker off; nothing else runs the jobs yet.
+  `worker.job_retention_hours`).
 - **Datasets:** `evalkit sync` now uploads a `README.md` at the root of the
   dataset folder and shows it on the dataset. The file must be UTF-8, and if
   it starts with a `---` block, that block must be YAML frontmatter that passes
@@ -36,6 +35,11 @@
   the next one carries on. Runs of experiments are not stored again. A harness
   with one run id per session and no `session_id` is stored once: later
   messages do not update it.
+- **Server:** `evalkit worker --config config.yaml` runs the job worker as its
+  own process. Set `worker.embedded: false` so that `evalkit serve` runs none.
+  The worker needs the server's config and environment and no port; it stops
+  at start when the schema is behind, and on `SIGTERM` it lets running jobs
+  finish. Several may run at once.
 - **Server:** Each agent has its own schedule and start time for storing app
   runs. The agent form has "App runs schedule" (a cron expression of five
   fields, in UTC, `*/5 * * * *` by default), "Store app runs since" (one day

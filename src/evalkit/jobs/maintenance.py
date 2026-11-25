@@ -18,6 +18,12 @@ async def retry_stalled_jobs(context: JobContext, timestamp: int) -> int:
         await job_manager.get_stalled_jobs(seconds_since_heartbeat=STALLED_JOB_HEARTBEAT_SECONDS)
     )
     for job in stalled:
+        # After a long pause every job of this worker looks stalled, this check
+        # included. The worker running the check is alive, so its jobs are not.
+        if job.id == context.job.id or (
+            job.worker_id is not None and job.worker_id == context.job.worker_id
+        ):
+            continue
         if job.attempts + 1 >= MAX_STALLED_ATTEMPTS:
             LOGGER.error(
                 "stalled job %s (%s) failed after %s attempts",

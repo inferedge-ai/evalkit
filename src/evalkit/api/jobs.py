@@ -18,6 +18,7 @@ from evalkit.core.harness import HarnessClient
 from evalkit.core.retry import RetryTransport
 from evalkit.db.agents import AgentStore
 from evalkit.db.app_runs import PgAppRunStore
+from evalkit.db.session import verify_schema
 from evalkit.jobs.app import build_job_app
 from evalkit.jobs.app_runs import SERVICES, AppRunServices
 
@@ -62,6 +63,14 @@ def stop_if_worker_died(task: asyncio.Task) -> None:
         return
     LOGGER.critical("the job worker stopped; shutting the server down", exc_info=task.exception())
     os.kill(os.getpid(), signal.SIGTERM)
+
+
+async def run_worker(state: State) -> None:
+    await verify_schema(state.cfg.db.url)
+    job_app = build_job_app(state.session_factory.kw["bind"].url, state.cfg.worker)
+    async with job_app.open_async():
+        await job_app.run_worker_async(additional_context={SERVICES: app_run_services(state)})
+    await state.session_factory.kw["bind"].dispose()
 
 
 @asynccontextmanager

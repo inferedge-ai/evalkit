@@ -1623,6 +1623,22 @@ def serve(
     server_commands.serve(cfg, host, port or cfg.server.port)
 
 
+@app.command()
+def worker(
+    config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),
+):
+    """Run the evalkit job worker as its own process: it stores agents' app runs on
+    their schedules. Set worker.embedded: false in the server's config so that
+    `evalkit serve` runs no worker of its own. It needs the same config and
+    environment as the server, and the schema `evalkit db upgrade` applies.
+
+    Example: evalkit worker --config /etc/evalkit/config.yaml
+    """
+    if server_commands is None:
+        raise ApiError("`evalkit worker` needs the server extra — pip install 'evalkit-py[server]'")
+    server_commands.worker(_server_config(config))
+
+
 @db_app.command("upgrade")
 def db_upgrade(
     config: Path = typer.Option(Path("config.yaml"), "--config", help="Path to config.yaml."),

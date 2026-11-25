@@ -10,7 +10,7 @@ db:
   # keep (pool_size + max_overflow) x server replicas well under Postgres max_connections, with room for migrations and psql
 
 # worker:
-#   embedded: true # the server runs the job worker that stores app runs (default true)
+#   embedded: true # the server runs the job worker that stores app runs (default true); false when `evalkit worker` runs as its own process
 #   concurrency: 2 # jobs one worker runs at once (default 2)
 #   pool_max_size: 2 # the worker's own Postgres connections; never fewer than concurrency + 3, so 5 per replica at the defaults
 #   delete_jobs: never # finished jobs kept in procrastinate_jobs: never (default), successful or always

@@ -32,7 +32,7 @@ Any value can be `env:NAME` (required) or `env:NAME:<default>`. Unknown keys fai
 | `db.pool_size`, `db.max_overflow`, `db.pool_timeout_seconds` | `20`, `10`, `5` | See [Database pool and scoring](#database-pool-and-scoring). |
 | `blob.url` | required | Where trajectories, artifacts and fixtures go: `file:///path` or `s3://bucket/prefix`. |
 | `runner.evaluation_concurrency` | `16` | See [Database pool and scoring](#database-pool-and-scoring). |
-| `worker.embedded` | `true` | The server runs the job worker that [stores app runs](tracing.md#stored-app-runs). `false` turns it off. |
+| `worker.embedded` | `true` | The server runs the job worker that [stores app runs](tracing.md#stored-app-runs). Set it to `false` and run `evalkit worker --config config.yaml` as its own process to keep jobs away from API requests. With `false` and no such process, no job runs. |
 | `worker.concurrency` | `2` | Jobs one worker runs at once. |
 | `worker.pool_max_size` | `2` | The worker's own Postgres connections. See [Database pool and scoring](#database-pool-and-scoring). |
 | `worker.delete_jobs` | `never` | Which finished jobs the worker deletes from `procrastinate_jobs` at once: `never`, `successful` or `always`. Kept jobs show what ran and when. |
