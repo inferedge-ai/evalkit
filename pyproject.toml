@@ -28,6 +28,7 @@ evalkit = "evalkit.cli.main:app"
 server = [
     "alembic>=1.19.1",
     "bcrypt>=5.0.0",
+    "croniter>=6",
     "cryptography>=50.0.2",
     "fastapi>=0.141.1",
     "fastmcp>=4.0.0,<5.0.0",

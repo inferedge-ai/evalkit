@@ -724,6 +724,7 @@ dependencies = [
 server = [
     { name = "alembic" },
     { name = "bcrypt" },
+    { name = "croniter" },
     { name = "cryptography" },
     { name = "fastapi" },
     { name = "fastmcp" },
@@ -761,6 +762,7 @@ requires-dist = [
     { name = "alembic", marker = "extra == 'server'", specifier = ">=1.19.1" },
     { name = "authlib", specifier = ">=1.9.1" },
     { name = "bcrypt", marker = "extra == 'server'", specifier = ">=5.0.0" },
+    { name = "croniter", marker = "extra == 'server'", specifier = ">=6" },
     { name = "cryptography", marker = "extra == 'server'", specifier = ">=50.0.2" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.141.1" },
     { name = "fastmcp", marker = "extra == 'server'", specifier = ">=4.0.0,<5.0.0" },

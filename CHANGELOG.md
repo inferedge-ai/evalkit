@@ -36,6 +36,17 @@
   the next one carries on. Runs of experiments are not stored again. A harness
   with one run id per session and no `session_id` is stored once: later
   messages do not update it.
+- **Server:** Each agent has its own schedule and start time for storing app
+  runs. The agent form has "App runs schedule" (a cron expression of five
+  fields, in UTC, `*/5 * * * *` by default), "Store app runs since" (one day
+  ago by default) and, for a shared harness agent, "Runs per pass" (100 by
+  default). The same are `--app-runs-cron`, `--app-runs-since` and
+  `--app-runs-per-pass` on `evalkit agents create` and `evalkit agents edit`,
+  and `settings.app_runs_cron`, `app_runs_since` and
+  `settings.app_runs_per_pass` on the agents API, which answers 400 to a
+  schedule that is not a cron expression. Every agent read carries
+  `app_runs_stored_until`; saving an earlier "Store app runs since" makes the
+  next pass go back to it.
 - **Tracing:** For an agent with a trace source, the server imports the
   agent's new traces from Phoenix or Langfuse every 5 minutes, before it
   stores their sessions as app runs. The import shows on the agent's Import

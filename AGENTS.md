@@ -29,7 +29,7 @@ Use this vocabulary everywhere — code, specs, PRs, UI copy.
 | Experiment | One run of one dataset against one agent (× N repetitions). |
 | Run | One case executed once against the agent, in a fresh session. |
 | App run | A run of an agent outside any experiment: production, staging, or a developer using the agent by hand. Never "production run" when you mean "not an eval run". |
-| Stored app run | An app run with an `agent_runs` row (`kind` `app`), its trajectory saved as ATIF and its gauge readings. The server stores them on a schedule (`core/app_runs.py`): the settled sessions of every OTel agent (after importing the new traces of one with a trace source), and the runs with a final status of every shared harness agent, one per harness session (`agent_runs.session_id`). |
+| Stored app run | An app run with an `agent_runs` row (`kind` `app`), its trajectory saved as ATIF and its gauge readings. The server stores them on each agent's schedule (`app_runs_cron`, `core/app_runs.py`), from the agent's cursor (`agents.app_runs_stored_until`): the settled sessions of every OTel agent (after importing the new traces of one with a trace source), and the runs with a final status of every shared harness agent, one per harness session (`agent_runs.session_id`). |
 | Eval run | A run that answers one (experiment, case, repetition): an agent run linked from an experiment run. |
 | Agent run | One execution of an agent: answer, status, trajectory, metrics. Owns the trajectory. |
 | Experiment run | Links one (experiment, case, repetition) to the agent run that answers it. A resumed run points at the newest attempt. |

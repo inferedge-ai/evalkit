@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from tests.api.native_api import CAPS, api_env, login_as
@@ -226,3 +228,55 @@ async def test_writers_set_shared_agent_urls_and_keys(api):
     personal_key = await bob.patch("/api/agents/mine@bob", json={"api_key": "k"})
     assert personal_key.status_code == 400 and "evalkit.yaml" in personal_key.json()["detail"]
     await bob.aclose()
+
+
+async def test_an_agent_keeps_its_app_runs_schedule_limit_and_start_time(api):
+    client = api
+    body = {
+        "workspace": "admin",
+        "name": "scheduled",
+        "trajectory_source": "otel",
+        "mapping": reference_mapping(),
+        "settings": {"app_runs_cron": "*/2 * * * *", "app_runs_per_pass": 20},
+        "app_runs_since": "2026-11-20T10:00:00Z",
+    }
+    created = await client.post("/api/agents", json=body)
+    assert created.status_code == 200, created.text
+    agent = created.json()
+    assert agent["app_runs_stored_until"] == "2026-11-20T10:00:00Z"
+    assert agent["settings"]["app_runs_cron"] == "*/2 * * * *"
+    assert agent["settings"]["app_runs_per_pass"] == 20
+    moved = await client.patch(
+        "/api/agents/scheduled@admin", json={"app_runs_since": "2026-11-19T10:00:00Z"}
+    )
+    assert moved.json()["app_runs_stored_until"] == "2026-11-19T10:00:00Z"
+    kept = await client.patch("/api/agents/scheduled@admin", json={"repo_url": "https://r.test"})
+    assert kept.json()["app_runs_stored_until"] == "2026-11-19T10:00:00Z"
+
+
+async def test_an_agent_created_without_a_start_time_stores_app_runs_from_a_day_ago(api):
+    client = api
+    body = {
+        "workspace": "admin",
+        "name": "plain",
+        "trajectory_source": "otel",
+        "mapping": reference_mapping(),
+    }
+    agent = (await client.post("/api/agents", json=body)).json()
+    since = datetime.fromisoformat(agent["app_runs_stored_until"])
+    assert timedelta(hours=23) < datetime.now(UTC) - since < timedelta(hours=25)
+    assert agent["settings"]["app_runs_cron"] == "*/5 * * * *"
+
+
+@pytest.mark.parametrize("cron", ["hourly", "* * * *", "* * * * * *", "61 * * * *"])
+async def test_an_app_runs_schedule_that_is_not_five_cron_fields_is_refused(api, cron):
+    client = api
+    body = {"workspace": "admin", "name": "bad", "settings": {"app_runs_cron": cron}}
+    created = await client.post("/api/agents", json=body)
+    assert created.status_code == 400 and "app_runs_cron" in created.json()["detail"]
+    ok = await client.post("/api/agents", json={"workspace": "admin", "name": "good"})
+    edited = await client.patch(
+        "/api/agents/good@admin",
+        json={"settings": {**ok.json()["settings"], "app_runs_cron": cron}},
+    )
+    assert edited.status_code == 400

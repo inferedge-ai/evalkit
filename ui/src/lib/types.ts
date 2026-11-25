@@ -59,6 +59,9 @@ export interface AgentSettings {
   trace_filter: string | null;
   import_settle_seconds: number;
   import_wait_seconds: number;
+  // A cron expression of five fields, in UTC.
+  app_runs_cron: string;
+  app_runs_per_pass: number;
 }
 
 export interface RemoteEvaluatorInfo {
@@ -361,6 +364,8 @@ export interface AgentInfo {
   archived: boolean;
   // A key is stored on the server (shared agents only); its value is never returned.
   has_api_key: boolean;
+  // Up to when the server has stored this agent's app runs.
+  app_runs_stored_until: string | null;
 }
 
 // ── Traces (mirrors db/mappings.py and core/traces/sessions.py) ──────────

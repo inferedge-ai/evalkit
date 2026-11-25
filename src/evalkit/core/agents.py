@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import StrEnum
 from typing import Protocol
 
@@ -18,6 +19,7 @@ class AgentDefinition(BaseModel):
     repo_url: str | None
     settings: AgentSettings
     archived: bool = False
+    app_runs_stored_until: datetime | None = None
     has_api_key: bool = False
 
     @property

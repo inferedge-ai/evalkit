@@ -5,6 +5,7 @@ from sqlalchemy import select, text
 from evalkit.api.app import create_app
 from evalkit.config import DbConfig, OtelConfig, WorkerConfig
 from evalkit.contracts.enums import TrajectorySource
+from evalkit.contracts.settings import AgentSettings
 from evalkit.db.agents import AgentStore
 from evalkit.db.models import AgentRun, Evaluation
 from evalkit.db.session import make_session_factory, tenant_session
@@ -49,10 +50,11 @@ async def test_the_server_runs_a_worker_that_stores_app_runs(tmp_path, db_url, m
         "support-bot",
         trajectory_source=TrajectorySource.OTEL,
         mapping=reference_mapping(),
+        settings=AgentSettings(app_runs_cron="* * * * *"),
     )
     await SpanStore(factory, "default").upsert(agent.id, session_spans("chat-1", "a"))
     app = create_app(cfg, session_factory=factory)
-    # A worker that starts defers the tick of the current 5-minute period at once.
+    # A worker that starts defers the tick of the current minute at once.
     async with app.router.lifespan_context(app):
         async with asyncio.timeout(WAIT_SECONDS):
             while not await stored_runs(factory):

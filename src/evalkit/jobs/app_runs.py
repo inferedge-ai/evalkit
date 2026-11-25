@@ -1,7 +1,9 @@
 import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
+from croniter import croniter
 from procrastinate import Blueprint, JobContext
 from procrastinate.exceptions import AlreadyEnqueued
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -12,7 +14,7 @@ from evalkit.db.app_runs import agents_with_app_runs
 
 LOGGER = logging.getLogger(__name__)
 
-TICK_CRON = "*/5 * * * *"
+TICK_CRON = "* * * * *"
 SERVICES = "app_runs"
 NAMESPACE = "app_runs"
 STORE_TASK = f"{NAMESPACE}:store"
@@ -44,12 +46,15 @@ async def store(context: JobContext, tenant_id: str, agent_id: int) -> None:
 
 async def tick(context: JobContext, timestamp: int) -> None:
     services: AppRunServices = context.additional_context[SERVICES]
-    for tenant_id, agent_id in await agents_with_app_runs(services.session_factory):
-        lock = agent_lock(agent_id)
+    minute = datetime.fromtimestamp(timestamp, UTC)
+    for agent in await agents_with_app_runs(services.session_factory):
+        if not croniter.match(agent.cron, minute):
+            continue
+        lock = agent_lock(agent.agent_id)
         # A pass for this agent is already waiting: one is enough.
         try:
             await context.app.configure_task(STORE_TASK, lock=lock, queueing_lock=lock).defer_async(
-                tenant_id=tenant_id, agent_id=agent_id
+                tenant_id=agent.tenant_id, agent_id=agent.agent_id
             )
         except AlreadyEnqueued:
             continue

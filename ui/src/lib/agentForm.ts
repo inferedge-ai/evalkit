@@ -12,13 +12,49 @@ export interface AgentFormValues {
   trace_source: string;
   project: string;
   trace_filter: string;
+  app_runs_cron: string;
+  // A datetime-local value, in the browser's time zone.
+  app_runs_since: string;
   settings: Record<NumericSetting, string>;
 }
 
 type NumericSetting = keyof Omit<
   AgentSettings,
-  "provides" | "trace_source" | "project" | "trace_filter"
+  "provides" | "trace_source" | "project" | "trace_filter" | "app_runs_cron"
 >;
+
+export const DEFAULT_APP_RUNS_CRON = "*/5 * * * *";
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const RUNS_PER_PASS_FIELD: {
+  key: keyof AgentFormValues["settings"];
+  label: string;
+  min: number;
+} = { key: "app_runs_per_pass", label: "Runs per pass", min: 1 };
+
+export function toLocalInput(moment: Date): string {
+  const local = new Date(moment.getTime() - moment.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+// The server stores the app runs of agents that send traces, and of shared
+// agents it can reach through their harness.
+export function storesAppRuns(
+  values: AgentFormValues,
+  shared: boolean,
+): boolean {
+  return (
+    values.trajectory_source === "otel" ||
+    (shared && values.harness_url.trim() !== "")
+  );
+}
+
+export function listsHarnessRuns(
+  values: AgentFormValues,
+  shared: boolean,
+): boolean {
+  return storesAppRuns(values, shared) && values.trajectory_source === "atif";
+}
 
 export const SETTING_FIELDS: {
   key: keyof AgentFormValues["settings"];
@@ -49,6 +85,7 @@ const DEFAULTS: AgentFormValues["settings"] = {
   trajectory_wait_seconds: "60",
   import_settle_seconds: "15",
   import_wait_seconds: "120",
+  app_runs_per_pass: "100",
 };
 
 export function emptyAgentForm(workspace: string): AgentFormValues {
@@ -63,13 +100,19 @@ export function emptyAgentForm(workspace: string): AgentFormValues {
     trace_source: "",
     project: "",
     trace_filter: "",
+    app_runs_cron: DEFAULT_APP_RUNS_CRON,
+    app_runs_since: toLocalInput(new Date(Date.now() - DAY_MS)),
     settings: { ...DEFAULTS },
   };
 }
 
 export function agentFormFrom(agent: AgentInfo): AgentFormValues {
   const settings = { ...DEFAULTS };
-  for (const { key } of [...SETTING_FIELDS, ...IMPORT_FIELDS])
+  for (const { key } of [
+    ...SETTING_FIELDS,
+    ...IMPORT_FIELDS,
+    RUNS_PER_PASS_FIELD,
+  ])
     settings[key] = String(agent.settings[key] ?? DEFAULTS[key]);
   return {
     workspace: agent.workspace,
@@ -82,6 +125,10 @@ export function agentFormFrom(agent: AgentInfo): AgentFormValues {
     trace_source: agent.settings.trace_source ?? "",
     project: agent.settings.project ?? "",
     trace_filter: agent.settings.trace_filter ?? "",
+    app_runs_cron: agent.settings.app_runs_cron ?? DEFAULT_APP_RUNS_CRON,
+    app_runs_since: agent.app_runs_stored_until
+      ? toLocalInput(new Date(agent.app_runs_stored_until))
+      : "",
     settings,
   };
 }
@@ -100,6 +147,7 @@ function parseMapping(text: string): Record<string, unknown> | null {
 export function agentFormErrors(
   values: AgentFormValues,
   mode: "create" | "edit",
+  shared = false,
 ): string[] {
   const errors: string[] = [];
   if (mode === "create") {
@@ -125,7 +173,19 @@ export function agentFormErrors(
     errors.push("A trace source needs the agent's project in it.");
   const numeric = traced
     ? [...SETTING_FIELDS, ...IMPORT_FIELDS]
-    : SETTING_FIELDS;
+    : [...SETTING_FIELDS];
+  if (listsHarnessRuns(values, shared)) numeric.push(RUNS_PER_PASS_FIELD);
+  if (storesAppRuns(values, shared)) {
+    if (values.app_runs_cron.trim().split(/\s+/).length !== 5)
+      errors.push(
+        "The app runs schedule is a cron expression of five fields, such as */5 * * * *.",
+      );
+    if (
+      values.app_runs_since &&
+      Number.isNaN(new Date(values.app_runs_since).getTime())
+    )
+      errors.push("Store app runs since is not a date and time.");
+  }
   for (const { key, label, min } of numeric) {
     const raw = values.settings[key].trim();
     const n = Number(raw);
@@ -137,17 +197,26 @@ export function agentFormErrors(
 
 function settingsOf(values: AgentFormValues): Omit<AgentSettings, "provides"> {
   const numbers = {} as Record<NumericSetting, number>;
-  for (const { key } of [...SETTING_FIELDS, ...IMPORT_FIELDS])
+  for (const { key } of [
+    ...SETTING_FIELDS,
+    ...IMPORT_FIELDS,
+    RUNS_PER_PASS_FIELD,
+  ])
     numbers[key] = Number(values.settings[key]);
   const source =
     values.trajectory_source === "otel" ? values.trace_source || null : null;
   return {
     ...numbers,
+    app_runs_cron: values.app_runs_cron.trim(),
     trace_source: source,
     project: source ? values.project.trim() : null,
     trace_filter:
       source && values.trace_filter.trim() ? values.trace_filter.trim() : null,
   };
+}
+
+function appRunsSince(local: string): { app_runs_since?: string } {
+  return local ? { app_runs_since: new Date(local).toISOString() } : {};
 }
 
 export function urlClearsKey(
@@ -175,6 +244,7 @@ export function createAgentBody(
     settings: settingsOf(values),
     mapping:
       values.trajectory_source === "otel" ? parseMapping(values.mapping) : null,
+    ...appRunsSince(values.app_runs_since),
   };
 }
 
@@ -193,5 +263,7 @@ export function editAgentBody(
     body.mapping = parseMapping(values.mapping);
   if (values.api_key.key) body.api_key = values.api_key.key;
   else if (values.api_key.clear) body.api_key = null;
+  if (values.app_runs_since !== agentFormFrom(current).app_runs_since)
+    Object.assign(body, appRunsSince(values.app_runs_since));
   return body;
 }

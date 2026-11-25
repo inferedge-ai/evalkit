@@ -26,7 +26,6 @@ from evalkit.store.base import AgentRunRecord, EvaluationRow
 
 TITLE_CHARS = 200
 SKIPPED_GAUGES = frozenset({"gauge_judge_cost_usd"})
-HARNESS_RUNS_PER_PASS = 100
 NO_RUN_LISTING = "the harness does not list its runs (provides.run_listing)"
 HARNESS_GIVE_UP_AFTER = timedelta(hours=24)
 HARNESS_FINAL = frozenset({"completed", "failed", "cancelled"})
@@ -279,7 +278,7 @@ async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
         for item in runs:
             assert item.created_at is not None
             if item.run_id not in known:
-                if stored == HARNESS_RUNS_PER_PASS:
+                if stored == agent.settings.app_runs_per_pass:
                     break
                 run = await build_harness_run(deps, agent, client, item)
                 if run is None and item.created_at > now - HARNESS_GIVE_UP_AFTER:

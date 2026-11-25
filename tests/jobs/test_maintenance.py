@@ -45,7 +45,7 @@ def test_the_job_app_keeps_finished_jobs_and_schedules_its_maintenance():
         name: task.cron for (name, _), task in app.periodic_registry.periodic_tasks.items()
     }
     assert scheduled == {
-        "app_runs:tick": "*/5 * * * *",
+        "app_runs:tick": "* * * * *",
         "maintenance:retry_stalled_jobs": "*/2 * * * *",
         "maintenance:remove_old_jobs": "0 4 * * *",
     }

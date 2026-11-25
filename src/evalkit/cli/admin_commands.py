@@ -1,6 +1,7 @@
 import json
 import os
 from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 
 import typer
@@ -83,6 +84,24 @@ IMPORT_SETTLE = typer.Option(
 IMPORT_WAIT = typer.Option(
     None, "--import-wait", help="Seconds to wait for an imported session to complete (120)."
 )
+APP_RUNS_CRON = typer.Option(
+    None,
+    "--app-runs-cron",
+    help="When the server stores this agent's new app runs: a cron expression of five "
+    'fields, in UTC ("*/5 * * * *").',
+)
+APP_RUNS_PER_PASS = typer.Option(
+    None,
+    "--app-runs-per-pass",
+    help="The most app runs one pass stores from the harness (100).",
+)
+APP_RUNS_SINCE = typer.Option(
+    None,
+    "--app-runs-since",
+    help="Store app runs from this time on: an ISO 8601 time, UTC when it names no zone, "
+    "e.g. 2026-11-20T00:00:00Z. Default on create: one day ago. On edit, an earlier time "
+    "makes the next pass go back to it.",
+)
 INPUT_SCHEMA = typer.Option(
     None,
     "--input-schema",
@@ -118,6 +137,21 @@ def _settings(
     return settings
 
 
+def _app_runs_since(text: str | None) -> dict:
+    if text is None:
+        return {}
+    # A time typed wrong is the user's to fix: typer prints it as a usage error.
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError as exc:
+        raise typer.BadParameter(
+            f"{text!r} is not an ISO 8601 time, such as 2026-11-20T00:00:00Z",
+            param_hint="--app-runs-since",
+        ) from exc
+    aware = moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+    return {"app_runs_since": aware.isoformat()}
+
+
 def _print_agent(agent: dict, server_url: str, mapping_note: str | None = None) -> None:
     typer.echo(f"{agent['ref']}  ({agent['workspace_type']}, driven by {agent['driver']})")
     typer.echo(f"  harness_url        {agent['harness_url'] or '-'}")
@@ -129,6 +163,8 @@ def _print_agent(agent: dict, server_url: str, mapping_note: str | None = None) 
         elif isinstance(value, dict) and key == "input_schema":
             value = json.dumps(value)
         typer.echo(f"  {key:<18} {'-' if value is None else value}")
+    if agent.get("app_runs_stored_until"):
+        typer.echo(f"  app runs stored until  {agent['app_runs_stored_until']}")
     if agent["workspace_type"] == "shared":
         typer.echo(f"  api key            {'set' if agent['has_api_key'] else 'not set'}")
     if agent["archived"]:
@@ -436,6 +472,9 @@ def register(
         trace_filter: str | None = TRACE_FILTER,
         import_settle: int | None = IMPORT_SETTLE,
         import_wait: int | None = IMPORT_WAIT,
+        app_runs_cron: str | None = APP_RUNS_CRON,
+        app_runs_per_pass: int | None = APP_RUNS_PER_PASS,
+        app_runs_since: str | None = APP_RUNS_SINCE,
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
         input_schema: Path | None = INPUT_SCHEMA,
         api_key_env: str | None = API_KEY_ENV,
@@ -465,6 +504,8 @@ def register(
                 "trace_filter": trace_filter,
                 "import_settle_seconds": import_settle,
                 "import_wait_seconds": import_wait,
+                "app_runs_cron": app_runs_cron,
+                "app_runs_per_pass": app_runs_per_pass,
             },
             provides,
             input_schema,
@@ -478,6 +519,7 @@ def register(
             "settings": settings,
             "mapping": load_mapping(mapping) if mapping else None,
             **key_change(api_key_env, False),
+            **_app_runs_since(app_runs_since),
         }
         client = client_factory()
         note = f"v1, active (from {Path(mapping).name})" if mapping else None
@@ -507,6 +549,9 @@ def register(
         trace_filter: str | None = TRACE_FILTER,
         import_settle: int | None = IMPORT_SETTLE,
         import_wait: int | None = IMPORT_WAIT,
+        app_runs_cron: str | None = APP_RUNS_CRON,
+        app_runs_per_pass: int | None = APP_RUNS_PER_PASS,
+        app_runs_since: str | None = APP_RUNS_SINCE,
         provides: list[str] = typer.Option([], "--provides", help="key=true|false, repeatable."),
         input_schema: Path | None = INPUT_SCHEMA,
         clear_input_schema: bool = typer.Option(
@@ -547,6 +592,8 @@ def register(
                 "trace_filter": trace_filter,
                 "import_settle_seconds": import_settle,
                 "import_wait_seconds": import_wait,
+                "app_runs_cron": app_runs_cron,
+                "app_runs_per_pass": app_runs_per_pass,
             },
             provides,
             input_schema,
@@ -569,6 +616,7 @@ def register(
         if mapping is not None:
             body["mapping"] = load_mapping(mapping)
         body.update(key_change(api_key_env, clear_api_key))
+        body.update(_app_runs_since(app_runs_since))
         _print_agent(client.patch(path, json=body).json(), client.server_url)
 
     @agents_app.command("show")

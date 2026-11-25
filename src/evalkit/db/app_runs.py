@@ -1,9 +1,11 @@
 from datetime import datetime
 
+from pydantic import BaseModel
 from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import RunKind, TrajectorySource
+from evalkit.contracts.settings import AgentSettings
 from evalkit.core.app_runs import AppSession, SavedRun
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE
 from evalkit.db import models
@@ -13,12 +15,18 @@ from evalkit.db.spans import is_failed_root
 from evalkit.store.base import AgentRunRecord, EvaluationRow
 
 
+class StoredAgent(BaseModel):
+    tenant_id: str
+    agent_id: int
+    cron: str
+
+
 async def agents_with_app_runs(
     session_factory: async_sessionmaker[AsyncSession],
-) -> list[tuple[str, int]]:
+) -> list[StoredAgent]:
     async with tenant_session(session_factory, ALL_TENANTS) as session:
         rows = await session.execute(
-            select(models.Workspace.tenant_id, models.Agent.id)
+            select(models.Workspace.tenant_id, models.Agent.id, models.Agent.config)
             .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
             .where(
                 or_(
@@ -33,7 +41,14 @@ async def agents_with_app_runs(
             )
             .order_by(models.Agent.id)
         )
-        return [(tenant_id, agent_id) for tenant_id, agent_id in rows.all()]
+        return [
+            StoredAgent(
+                tenant_id=tenant_id,
+                agent_id=agent_id,
+                cron=AgentSettings.model_validate(config or {}).app_runs_cron,
+            )
+            for tenant_id, agent_id, config in rows.all()
+        ]
 
 
 class PgAppRunStore:

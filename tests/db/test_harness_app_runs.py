@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from evalkit.contracts.enums import RunKind, RunStatus
 from evalkit.core import app_runs
 from evalkit.core.blob import trajectory_key
+from evalkit.db.agents import AgentStore
 from evalkit.db.app_runs import agents_with_app_runs
 from evalkit.db.runs import insert_agent_run
 from evalkit.store.base import AgentRunRecord
@@ -112,9 +113,14 @@ async def test_a_run_still_running_after_a_day_is_passed_over(app_run_world):
     assert await world.cursor(world.harness_agent.id) == world.harness.runs["r1"]["created_at"]
 
 
-async def test_a_pass_stores_at_most_its_limit_and_the_next_carries_on(app_run_world, monkeypatch):
+async def test_a_pass_stores_at_most_the_agents_limit_and_the_next_carries_on(
+    app_run_world, session_factory
+):
     world = app_run_world
-    monkeypatch.setattr(app_runs, "HARNESS_RUNS_PER_PASS", 2)
+    world.harness_agent = await AgentStore(session_factory, "default").edit(
+        world.harness_agent.ref,
+        settings=world.harness_agent.settings.model_copy(update={"app_runs_per_pass": 2}),
+    )
     for index, minutes in enumerate((30, 20, 10)):
         world.add_run(f"r{index}", minutes_ago=minutes)
     assert (await world.harness_pass()).stored == 2
@@ -125,9 +131,10 @@ async def test_a_pass_stores_at_most_its_limit_and_the_next_carries_on(app_run_w
 async def test_shared_harness_agents_have_app_runs_stored_and_personal_ones_do_not(
     app_run_world, session_factory
 ):
-    assert await agents_with_app_runs(session_factory) == [
-        ("default", app_run_world.agent.id),
-        ("default", app_run_world.harness_agent.id),
+    stored = await agents_with_app_runs(session_factory)
+    assert [(agent.agent_id, agent.cron) for agent in stored] == [
+        (app_run_world.agent.id, "*/5 * * * *"),
+        (app_run_world.harness_agent.id, "*/5 * * * *"),
     ]
 
 
