@@ -2,14 +2,22 @@
 
 ## Unreleased
 
+## 0.9.0
+
+_Released 2026-11-25._ Datasets carry a README and metadata, packages that
+extend evalkit can add their own evaluators and datasets, and LangChain tool
+calls traced through Langfuse now show up in trajectories.
+
 ### Before you upgrade
 
-- **Server:** Run `evalkit db upgrade` (migrations 0021, 0022 and 0023).
-- **Datasets:** `evalkit sync` now uploads a `README.md` at the root of the
-  dataset folder and shows it on the dataset. The file must be UTF-8, and if
-  it starts with a `---` block, that block must be YAML frontmatter that passes
-  `evalkit lint`, or the sync is refused. A sync of one folder or file leaves
-  the README alone.
+- **CLI:** Run `evalkit update --server <url>` once the server is on 0.9.0;
+  a 0.8 CLI refuses every other command against it.
+- **Server:** Run `evalkit db upgrade` before the server starts (migrations
+  0021, 0022 and 0023).
+- **Datasets:** `evalkit sync` of a whole dataset folder now uploads the
+  `README.md` at its root. The file must be UTF-8, and a leading `---` block
+  must be YAML frontmatter that passes `evalkit lint`, or the sync is refused.
+  Check existing `README.md` files before you sync.
 
 ### Features
 
@@ -17,43 +25,42 @@
   at the root of the dataset folder: its YAML frontmatter is the metadata
   (`description`, `license`, `attribution`, `links`, and any other key with a
   text value) and the rest is the README. `evalkit sync` of the whole dataset
-  mirrors the file, so deleting it clears both. The dataset page shows the
-  metadata and a README tab, `evalkit datasets list` shows the description and
-  `evalkit datasets show` prints both. A dataset filled by promotion takes
-  them from the dataset the case came from.
+  mirrors the file, so deleting it clears both; a sync of one folder or file
+  leaves it alone. The dataset page shows the metadata and a README tab,
+  `evalkit datasets list` shows the description and `evalkit datasets show`
+  prints both. A dataset filled by promotion takes them from the dataset the
+  case came from.
 - **Extending evalkit:** A package built on evalkit can register evaluators
   with `create_app(extension_evaluators=...)`. Cases name them under
-  `evaluators.custom`, and one that sets `uses_judge` is passed the
-  experiment's judge. The server scores them for every run: a local or SDK
-  run asks it to, and `evalkit evaluate` re-scores the same way. With a judge
-  you bring yourself (`--judge-base-url`), an experiment whose cases use a
-  judge-using one is refused before any agent runs. Such a package can also write a dataset
-  with `import_cases` and the sync source `extension`, with a README and
-  metadata of its own. Such a dataset is read-only for users: `evalkit sync` and
-  promotion into it are refused, and case review does not apply to it.
-  A nav item of such a package can set `section` to sit under Evaluate or
-  Observe in the sidebar.
+  `evaluators.custom`, and one that sets `uses_judge` gets the experiment's
+  judge. The server scores them for every run, local and SDK runs included,
+  and `evalkit evaluate` re-scores the same way. With a judge you bring
+  yourself (`--judge-base-url`), an experiment whose cases use a judge-using
+  one is refused before any agent runs. Such a package can also write
+  datasets with `import_cases` and the sync source `extension`, with their
+  own README and metadata. Users can't change those datasets: `evalkit sync`
+  and promotion into them are refused, and case review does not apply. A nav
+  item of such a package can set `section` to sit under Evaluate or Observe
+  in the sidebar.
 
 ### Improvements
 
 - **Lint:** The error `E-JARGON` is now the warning `W-JARGON`. Case text
   that looks like agent internals (an `mcp__` prefix, a `__dunder__` token, a
   `snake_case(` call) is still reported by `evalkit lint` and `evalkit sync`,
-  and no longer stops a sync. Questions about code or maths contain such
-  text.
+  but no longer stops a sync, since questions about code or maths contain
+  such text.
 - **Server:** Revoking an agent token (Settings › API keys, `evalkit tokens
-  revoke`, `DELETE /api/tokens/{id}`) and archiving an agent now keep the
-  token's row and set its new `revoked_at` and `revoked_by` columns (who
-  revoked the token or archived the agent), instead of deleting it.
-  The token is refused with 401 and drops off the list as before. Migration
-  0021 adds the columns; run `evalkit db upgrade` before the server starts.
-- **Tracing:** The `gen_ai` and `openai` message formats now read tool calls
-  in LangChain's shape (`{id, name, args}`) as well as OpenAI's, and the
-  `gen_ai` format reads `tool_calls`, `tool_call_id` and a `content` list of
-  text parts on messages without `parts`. Before, agents traced with
-  Langfuse's LangChain callback got trajectories with no tool calls, whether
-  their spans reached the collector or were imported from Langfuse with the
-  `langfuse` preset.
+  revoke`, `DELETE /api/tokens/{id}`) and archiving an agent keep the
+  token's row and record when and by whom it was revoked, instead of
+  deleting it. The token is refused with 401 and drops off the list as
+  before.
+- **Tracing:** The `gen_ai` and `openai` message formats read tool calls in
+  LangChain's shape (`{id, name, args}`) as well as OpenAI's, and `gen_ai`
+  reads `tool_calls`, `tool_call_id` and a `content` list of text parts on
+  messages without `parts`. Agents traced with Langfuse's LangChain callback
+  now get their tool calls in trajectories, whether their spans reach the
+  collector or are imported with the `langfuse` preset.
 
 ### Fixes
 
@@ -61,9 +68,11 @@
   when `EVALKIT_SERVER_URL` is set without `EVALKIT_TOKEN`. The CLI and the
   SDK now use your `evalkit login` when it is for the same server. For any
   other server, `run_experiment`, `evaluate_experiment` and CLI commands that
-  need a signed-in user stop before their first call with an error that names
-  `EVALKIT_TOKEN` and `evalkit login --url <url>`.
-- **Tracing:** Accept standard OpenTelemetry string enum names (`SPAN_KIND_*` and `STATUS_CODE_*`) in `/api/otel/v1/traces` when decoding OTLP/JSON payloads instead of rejecting the batch with a 400.
+  need a signed-in user stop before their first call with an error that
+  names `EVALKIT_TOKEN` and `evalkit login --url <url>`.
+- **Tracing:** Fixed `/api/otel/v1/traces` answering 400 to OTLP/JSON
+  batches that use the standard string enum names (`SPAN_KIND_*`,
+  `STATUS_CODE_*`).
 
 ## 0.8.0
 
