@@ -1,3 +1,4 @@
+import dataclasses
 from datetime import UTC, datetime
 
 from evalkit.contracts.enums import RunKind, RunStatus
@@ -7,6 +8,7 @@ from evalkit.db.agents import AgentStore
 from evalkit.db.app_runs import agents_with_app_runs
 from evalkit.db.runs import insert_agent_run
 from evalkit.store.base import AgentRunRecord
+from tests.db.test_app_runs import FlakyBlobStore
 
 
 def app_run_ids(runs) -> list[str]:
@@ -168,3 +170,20 @@ async def test_a_long_multi_line_title_is_stored_as_its_first_200_characters(app
     assert (await world.harness_pass()).stored == 1
     [run] = await world.runs()
     assert len(run.title) == 200 and run.title.startswith("Build a dashboard x")
+
+
+async def test_one_harness_run_that_cannot_be_stored_is_recorded_and_the_rest_are_stored(
+    app_run_world,
+):
+    world = app_run_world
+    blob = FlakyBlobStore()
+    blob.refuse = {"r2"}
+    world.deps = dataclasses.replace(world.deps, blob_store=blob)
+    for index, minutes in enumerate((30, 20, 10), start=1):
+        world.add_run(f"r{index}", minutes_ago=minutes)
+    result = await world.harness_pass()
+    assert (result.stored, result.failed, result.stopped) == (2, 1, None)
+    runs = {run.harness_run_id: run for run in await world.runs()}
+    assert runs["r2"].trajectory_status == "unavailable"
+    assert runs["r2"].trajectory_note.startswith("evalkit could not store this run: OSError")
+    assert await world.cursor(world.harness_agent.id) == world.harness.runs["r3"]["created_at"]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -15,6 +16,7 @@ from evalkit.core.agent_runs import build_agent_run, shorten_title
 from evalkit.core.agents import AgentDefinition
 from evalkit.core.blob import BlobStore
 from evalkit.core.capabilities import sdk_capabilities
+from evalkit.core.errors import error_text
 from evalkit.core.harness import HarnessClient
 from evalkit.core.pull import MAX_HARNESS_SCAN, list_harness_runs
 from evalkit.core.retry import Retry
@@ -24,8 +26,14 @@ from evalkit.core.traces.sessions import SessionReader, SessionTooLarge
 from evalkit.core.traces.settle import is_settled_since
 from evalkit.store.base import AgentRunRecord, EvaluationRow
 
+LOGGER = logging.getLogger(__name__)
+
 SKIPPED_GAUGES = frozenset({"gauge_judge_cost_usd"})
 NO_RUN_LISTING = "the harness does not list its runs (provides.run_listing)"
+MAX_FAILURES_IN_A_ROW = 3
+TOO_MANY_FAILURES = (
+    f"{MAX_FAILURES_IN_A_ROW} runs in a row could not be stored; the next pass tries them again"
+)
 HARNESS_GIVE_UP_AFTER = timedelta(hours=24)
 HARNESS_FINAL = frozenset({"completed", "failed", "cancelled"})
 HARNESS_RETRY = Retry(
@@ -85,7 +93,22 @@ class AppRunDeps:
 class PassResult(BaseModel):
     stored: int
     waiting: int
+    failed: int = 0
     stopped: str | None = None
+
+
+@dataclass
+class Failures:
+    total: int = 0
+    in_a_row: int = 0
+
+    def reset(self) -> None:
+        self.in_a_row = 0
+
+    def add(self) -> bool:
+        self.total += 1
+        self.in_a_row += 1
+        return self.in_a_row >= MAX_FAILURES_IN_A_ROW
 
 
 def _wall_ms(session: AppSession) -> int | None:
@@ -156,6 +179,35 @@ async def save_app_run(
     return saved.stored
 
 
+async def record_unstored_run(
+    deps: AppRunDeps,
+    agent: AgentDefinition,
+    exc: Exception,
+    *,
+    run_id: str,
+    status: RunStatus,
+    started_at: datetime,
+    title: str | None,
+    session_id: str | None = None,
+) -> None:
+    LOGGER.error("could not store app run %s of agent %s", run_id, agent.ref, exc_info=exc)
+    run = await build_agent_run(
+        deps.blob_store,
+        deps.cost_map,
+        agent.id,
+        harness_run_id=run_id,
+        status=status,
+        started_at=started_at,
+        ended_at=None,
+        trajectory=None,
+        trajectory_status=TrajectoryStatus.UNAVAILABLE,
+        trajectory_note=f"evalkit could not store this run: {error_text(exc)}",
+        title=shorten_title(title),
+        session_id=session_id,
+    )
+    await deps.store.save(agent.id, run, [])
+
+
 async def store_app_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassResult:
     if agent.is_otel:
         return await store_session_runs(deps, agent)
@@ -165,7 +217,7 @@ async def store_app_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassResult
 async def store_session_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassResult:
     now = deps.now()
     settle = deps.settle_seconds(agent)
-    cursor = await deps.store.cursor(agent.id)
+    start = cursor = await deps.store.cursor(agent.id)
     if agent.settings.trace_source is not None:
         await deps.import_traces(agent, cursor, now)
     sessions = sorted(
@@ -173,6 +225,8 @@ async def store_session_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
     )
     known = await deps.store.stored_run_ids(agent.id, [s.session_id for s in sessions])
     stored = waiting = 0
+    failures = Failures()
+    stopped: str | None = None
     # Spans of one export batch share a received_at, so the cursor moves once,
     # after every session up to it is handled; a pass that dies starts over and
     # skips what it already stored.
@@ -181,11 +235,29 @@ async def store_session_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
             waiting += 1
             continue
         if not session.from_sdk_run and session.session_id not in known:
-            run = await build_app_run(deps, agent, session)
-            stored += await save_app_run(deps, agent, run, sdk_capabilities(agent))
+            # One session that cannot be stored must not block the agent's
+            # others: it is recorded without a trajectory and the pass goes on,
+            # unless several fail in a row, which points at storage, not runs.
+            try:
+                run = await build_app_run(deps, agent, session)
+                stored += await save_app_run(deps, agent, run, sdk_capabilities(agent))
+                failures.reset()
+            except Exception as exc:
+                if failures.add():
+                    cursor, stopped = start, TOO_MANY_FAILURES
+                    break
+                await record_unstored_run(
+                    deps,
+                    agent,
+                    exc,
+                    run_id=session.session_id,
+                    status=RunStatus.FAILED if session.failed else RunStatus.COMPLETED,
+                    started_at=session.started_at,
+                    title=session.title,
+                )
         cursor = session.last_received_at
     await deps.store.move_cursor(agent.id, cursor)
-    return PassResult(stored=stored, waiting=waiting)
+    return PassResult(stored=stored, waiting=waiting, failed=failures.total, stopped=stopped)
 
 
 def is_missing(exc: httpx2.HTTPStatusError) -> bool:
@@ -256,8 +328,9 @@ async def build_harness_run(
 
 async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassResult:
     now = deps.now()
-    cursor = await deps.store.cursor(agent.id)
+    start = cursor = await deps.store.cursor(agent.id)
     stored = waiting = 0
+    failures = Failures()
     hold: datetime | None = None
     stopped: str | None = None
     client = await deps.harness(agent)
@@ -283,17 +356,38 @@ async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
             if item.run_id not in known:
                 if stored == agent.settings.app_runs_per_pass:
                     break
-                run = await build_harness_run(deps, agent, client, item)
-                if run is None and item.created_at > now - HARNESS_GIVE_UP_AFTER:
-                    waiting += 1
-                    hold = hold or item.created_at
-                    continue
-                if run is not None:
-                    stored += await save_app_run(deps, agent, run, caps)
+                # As for sessions: one run that cannot be stored is recorded
+                # and the pass goes on. A harness that keeps failing is not
+                # one bad run, so it still stops the pass.
+                try:
+                    run = await build_harness_run(deps, agent, client, item)
+                    if run is None and item.created_at > now - HARNESS_GIVE_UP_AFTER:
+                        waiting += 1
+                        hold = hold or item.created_at
+                        continue
+                    if run is not None:
+                        stored += await save_app_run(deps, agent, run, caps)
+                    failures.reset()
+                except httpx2.HTTPError:
+                    raise
+                except Exception as exc:
+                    if failures.add():
+                        cursor, hold, stopped = start, None, TOO_MANY_FAILURES
+                        break
+                    await record_unstored_run(
+                        deps,
+                        agent,
+                        exc,
+                        run_id=item.run_id,
+                        status=RunStatus.FAILED,
+                        started_at=item.created_at,
+                        title=item.title,
+                        session_id=item.session_id,
+                    )
             cursor = item.created_at
     except httpx2.HTTPError as exc:
         stopped = str(exc)
     finally:
         await client.aclose()
     await deps.store.move_cursor(agent.id, min(hold, cursor) if hold else cursor)
-    return PassResult(stored=stored, waiting=waiting, stopped=stopped)
+    return PassResult(stored=stored, waiting=waiting, failed=failures.total, stopped=stopped)

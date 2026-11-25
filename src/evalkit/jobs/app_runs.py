@@ -37,10 +37,12 @@ async def store(context: JobContext, tenant_id: str, agent_id: int) -> None:
     agent = await services.agent(tenant_id, agent_id)
     result = await store_app_runs(services.deps(tenant_id), agent)
     LOGGER.info(
-        "stored app runs of agent %s: %s stored, %s waiting to settle",
+        "stored app runs of agent %s: %s stored, %s not finished yet, %s failed%s",
         agent.ref,
         result.stored,
         result.waiting,
+        result.failed,
+        f"; stopped: {result.stopped}" if result.stopped else "",
     )
 
 

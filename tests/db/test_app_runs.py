@@ -1,7 +1,9 @@
+import dataclasses
 from datetime import UTC, datetime
 
 from evalkit.contracts.enums import RunKind, RunStatus, TraceProvider
 from evalkit.contracts.settings import AgentSettings
+from evalkit.core.app_runs import TOO_MANY_FAILURES
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE
 from evalkit.db.agents import AgentStore
 from evalkit.db.mappings import MappingStore, activate_document
@@ -10,6 +12,7 @@ from evalkit.db.trace_sources import TraceSourceStore
 from evalkit.store.base import AgentRunRecord
 from tests.app_run_world import session_spans
 from tests.fake_agents import reference_mapping
+from tests.fake_blob import DictBlobStore
 
 GAUGES = {
     "gauge_duration_seconds",
@@ -132,3 +135,64 @@ async def test_a_run_stored_without_a_trajectory_is_read_again_when_a_pass_lists
     assert (await world.gauges(repaired.id))["gauge_total_tool_calls"] == 4
     await world.deps.store.move_cursor(world.agent.id, since)
     assert (await world.run_pass(after_seconds=240)).stored == 0
+
+
+class FlakyBlobStore(DictBlobStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.refuse: set[str] = set()
+
+    async def put_object(self, key: str, data: bytes) -> None:
+        if any(run_id in key for run_id in self.refuse):
+            raise OSError(f"disk full writing {key}")
+        await super().put_object(key, data)
+
+
+async def test_one_session_that_cannot_be_stored_is_recorded_and_the_rest_are_stored(
+    app_run_world,
+):
+    world = app_run_world
+    blob = FlakyBlobStore()
+    blob.refuse = {"chat-2"}
+    world.deps = dataclasses.replace(world.deps, blob_store=blob)
+    for index, trace in enumerate("abc", start=1):
+        await world.spans.upsert(world.agent.id, session_spans(f"chat-{index}", trace))
+    since = await world.cursor(world.agent.id)
+    result = await world.run_pass(after_seconds=60)
+    assert (result.stored, result.failed, result.stopped) == (2, 1, None)
+    runs = {run.harness_run_id: run for run in await world.runs()}
+    assert [runs[f"chat-{n}"].trajectory_status for n in (1, 2, 3)] == [
+        "valid",
+        "unavailable",
+        "valid",
+    ]
+    assert runs["chat-2"].trajectory_note == (
+        "evalkit could not store this run: OSError: disk full writing "
+        f"trajectories/{world.agent.id}/chat-2.json"
+    )
+    assert await world.cursor(world.agent.id) > since
+    blob.refuse = set()
+    await world.deps.store.move_cursor(world.agent.id, since)
+    repaired = await world.run_pass(after_seconds=120)
+    assert (repaired.stored, repaired.failed) == (1, 0)
+    assert {run.trajectory_status for run in await world.runs()} == {"valid"}
+
+
+async def test_three_failures_in_a_row_stop_the_pass_and_the_next_pass_tries_again(
+    app_run_world,
+):
+    world = app_run_world
+    blob = FlakyBlobStore()
+    blob.refuse = {"chat-"}
+    world.deps = dataclasses.replace(world.deps, blob_store=blob)
+    for index, trace in enumerate("abcd", start=1):
+        await world.spans.upsert(world.agent.id, session_spans(f"chat-{index}", trace))
+    since = await world.cursor(world.agent.id)
+    result = await world.run_pass(after_seconds=60)
+    assert (result.stored, result.failed, result.stopped) == (0, 3, TOO_MANY_FAILURES)
+    assert await world.cursor(world.agent.id) == since
+    assert [run.trajectory_status for run in await world.runs()] == ["unavailable"] * 2
+    blob.refuse = set()
+    again = await world.run_pass(after_seconds=120)
+    assert (again.stored, again.failed, again.stopped) == (4, 0, None)
+    assert {run.trajectory_status for run in await world.runs()} == {"valid"}

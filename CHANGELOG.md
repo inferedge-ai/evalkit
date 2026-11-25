@@ -53,6 +53,11 @@
   since" to an earlier time and the next pass fills in the trajectories and
   gauges of those runs. Its note now names the mapping version and the
   `evalkit traces check` command to run.
+- **Server:** One app run that cannot be stored no longer stops the pass for
+  its agent. The server logs the error, stores the run without a trajectory
+  with the error as its note, and stores the others. After three such
+  failures in a row it stops the pass and leaves it to the next one, since
+  the cause is then likely storage and not the runs.
 - **Tracing:** For an agent with a trace source, the server imports the
   agent's new traces from Phoenix or Langfuse every 5 minutes, before it
   stores their sessions as app runs. The import shows on the agent's Import
