@@ -18,7 +18,7 @@ def tables(url: str) -> set[str]:
 def test_baseline_downgrades_to_only_the_job_queue_tables_and_back(fresh_db_url):
     run_migrations(fresh_db_url)
     created = tables(fresh_db_url)
-    assert head_revision() == "0024"
+    assert head_revision() == "0025"
     downgrade_migrations(fresh_db_url, "base")
     assert {t for t in tables(fresh_db_url) if not t.startswith(JOBS_TABLE_PREFIX)} == set()
     run_migrations(fresh_db_url)

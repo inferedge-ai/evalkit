@@ -566,11 +566,13 @@ class AgentRun(AuditMixin, Base):
             name="ck_agent_runs_trajectory_status",
         ),
         Index("ix_agent_runs_agent_started", "agent_id", "started_at"),
+        Index("ix_agent_runs_agent_session", "agent_id", "session_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"))
     harness_run_id: Mapped[str] = mapped_column(String(255))
+    session_id: Mapped[str | None] = mapped_column(String(255), default=None)
     kind: Mapped[str] = mapped_column(String(8))
     status: Mapped[str] = mapped_column(String(16))
     answer: Mapped[str | None] = mapped_column(Text, default=None)

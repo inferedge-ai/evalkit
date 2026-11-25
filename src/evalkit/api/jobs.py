@@ -5,12 +5,15 @@ import signal
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx2
 from starlette.datastructures import State
 
 from evalkit.api.access import build_tenant_stores
 from evalkit.core.agents import AgentDefinition
-from evalkit.core.app_runs import AppRunDeps
+from evalkit.core.app_runs import HARNESS_RETRY, AppRunDeps
 from evalkit.core.costmap import load_cost_map
+from evalkit.core.harness import HarnessClient
+from evalkit.core.retry import RetryTransport
 from evalkit.db.agents import AgentStore
 from evalkit.db.app_runs import PgAppRunStore
 from evalkit.jobs.app import build_job_app
@@ -24,12 +27,22 @@ SHUTDOWN_SECONDS = 30
 def app_run_services(state: State) -> AppRunServices:
     def deps(tenant_id: str) -> AppRunDeps:
         stores = build_tenant_stores(state, tenant_id)
+
+        async def harness(agent: AgentDefinition) -> HarnessClient:
+            transport = stores.deps.harness_transport or httpx2.AsyncHTTPTransport()
+            return HarnessClient(
+                agent,
+                await stores.keys.agent_key(agent),
+                transport=RetryTransport(transport, HARNESS_RETRY),
+            )
+
         return AppRunDeps(
             store=PgAppRunStore(state.session_factory, tenant_id),
             sessions=stores.sessions,
             blob_store=stores.blob,
             cost_map=load_cost_map(state.cfg.cost_map),
             settle_seconds=stores.sessions.settle_seconds,
+            harness=harness,
         )
 
     async def agent(tenant_id: str, agent_id: int) -> AgentDefinition:

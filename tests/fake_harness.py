@@ -39,6 +39,8 @@ class FakeHarness:
         self.api_key = api_key
         self.workspace_files = workspace_files or {}
         self.runs: dict[str, dict] = {}
+        self.down_with: int | None = None
+        self.down_requests = 0
         self.stop_calls: list[str] = []
         self.received_files: dict[str, list[tuple[str, bytes]]] = {}
         self.received_file_urls: dict[str, list[dict]] = {}
@@ -76,10 +78,13 @@ class FakeHarness:
 
         @app.middleware("http")
         async def check_auth(request: Request, call_next):
-            if request.headers.get("x-api-key") != self.api_key:
-                from starlette.responses import JSONResponse
+            from starlette.responses import JSONResponse
 
+            if request.headers.get("x-api-key") != self.api_key:
                 return JSONResponse({"detail": "unauthorized"}, status_code=401)
+            if self.down_with is not None:
+                self.down_requests += 1
+                return JSONResponse({"detail": "down"}, status_code=self.down_with)
             return await call_next(request)
 
         @app.get("/evalkit/v1/capabilities")
@@ -141,6 +146,7 @@ class FakeHarness:
                     and (until is None or run.get("created_at", RUN_CREATED_AT) < until)
                 )
             ]
+            items.sort(key=lambda item: item["created_at"], reverse=True)
             size = min(limit, self.page_cap or limit)
             return {"runs": items[offset : offset + size], "total": len(items)}
 
@@ -149,6 +155,8 @@ class FakeHarness:
             run = self._get(run_id)
             run["polls"] += 1
             model = run.get("model") or self.model
+            if "status" in run:
+                return {"status": run["status"], "model": model}
             if run["stopped"]:
                 run["polls_after_stop"] += 1
                 if run["polls_after_stop"] <= self.stop_settles_after_polls:
@@ -180,7 +188,8 @@ class FakeHarness:
 
         @app.get("/evalkit/v1/runs/{run_id}/trajectory")
         async def trajectory(run_id: str):
-            self._get(run_id)
+            if self._get(run_id).get("no_trajectory"):
+                raise HTTPException(status_code=404, detail="no trajectory")
             return self.trajectory_doc
 
         @app.get("/evalkit/v1/runs/{run_id}/files")

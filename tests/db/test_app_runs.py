@@ -2,12 +2,9 @@ from datetime import UTC, datetime
 
 from evalkit.contracts.enums import RunKind, RunStatus
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE
-from evalkit.db.agents import AgentStore
-from evalkit.db.app_runs import agents_with_app_runs
 from evalkit.db.runs import insert_agent_run
 from evalkit.store.base import AgentRunRecord
 from tests.app_run_world import session_spans
-from tests.identity import workspace_ref
 
 GAUGES = {
     "gauge_duration_seconds",
@@ -83,10 +80,3 @@ async def test_a_session_with_no_steps_is_stored_as_unavailable(app_run_world):
     [run] = await app_run_world.runs()
     assert result.stored == 1
     assert run.trajectory_status == "unavailable" and run.trajectory_note
-
-
-async def test_only_unarchived_otel_agents_have_app_runs_stored(app_run_world, session_factory):
-    await AgentStore(session_factory, "default").create(
-        await workspace_ref(session_factory, "akshat"), "harness-bot", harness_url="http://h"
-    )
-    assert await agents_with_app_runs(session_factory) == [("default", app_run_world.agent.id)]

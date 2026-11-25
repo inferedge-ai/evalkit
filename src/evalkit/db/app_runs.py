@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from evalkit.contracts.enums import RunKind, TrajectorySource
-from evalkit.core.app_runs import AppSession
+from evalkit.core.app_runs import AppSession, SavedRun
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE
 from evalkit.db import models
 from evalkit.db.runs import eval_run_ids, insert_agent_run, publish_agent_run_evaluations
@@ -21,7 +21,13 @@ async def agents_with_app_runs(
             select(models.Workspace.tenant_id, models.Agent.id)
             .join(models.Workspace, models.Workspace.id == models.Agent.workspace_id)
             .where(
-                models.Agent.trajectory_source == TrajectorySource.OTEL.value,
+                or_(
+                    models.Agent.trajectory_source == TrajectorySource.OTEL.value,
+                    and_(
+                        models.Agent.harness_url.is_not(None),
+                        models.Workspace.owner_user_id.is_(None),
+                    ),
+                ),
                 models.Agent.archived_at.is_(None),
                 models.Workspace.archived_at.is_(None),
             )
@@ -125,11 +131,47 @@ class PgAppRunStore:
             )
             return set(found.all())
 
-    async def save(self, agent_id: int, run: AgentRunRecord, rows: list[EvaluationRow]) -> bool:
+    async def eval_run_ids(self, agent_id: int, run_ids: list[str]) -> set[str]:
+        if not run_ids:
+            return set()
         async with self._session() as session:
+            found = await session.scalars(
+                eval_run_ids(agent_id).where(models.AgentRun.harness_run_id.in_(run_ids))
+            )
+            return set(found.all())
+
+    async def save(self, agent_id: int, run: AgentRunRecord, rows: list[EvaluationRow]) -> SavedRun:
+        async with self._session() as session:
+            earlier = await self._earlier_run_of_session(session, agent_id, run)
+            if earlier is not None:
+                replaced = earlier.trajectory_key
+                for column, value in run.model_dump().items():
+                    setattr(earlier, column, value)
+                await session.execute(
+                    delete(models.Evaluation).where(models.Evaluation.agent_run_id == earlier.id)
+                )
+                await publish_agent_run_evaluations(session, earlier.id, rows)
+                await session.commit()
+                return SavedRun(stored=True, replaced_trajectory_key=replaced)
             agent_run_id = await insert_agent_run(session, agent_id, run, RunKind.APP)
             if agent_run_id is None:
-                return False
+                return SavedRun(stored=False)
             await publish_agent_run_evaluations(session, agent_run_id, rows)
             await session.commit()
-            return True
+            return SavedRun(stored=True)
+
+    async def _earlier_run_of_session(
+        self, session: AsyncSession, agent_id: int, run: AgentRunRecord
+    ) -> models.AgentRun | None:
+        if run.session_id is None:
+            return None
+        return await session.scalar(
+            select(models.AgentRun)
+            .where(
+                models.AgentRun.agent_id == agent_id,
+                models.AgentRun.session_id == run.session_id,
+                models.AgentRun.kind == RunKind.APP.value,
+                models.AgentRun.harness_run_id != run.harness_run_id,
+            )
+            .with_for_update()
+        )

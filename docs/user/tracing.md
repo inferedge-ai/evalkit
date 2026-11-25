@@ -362,6 +362,8 @@ The server stores the [app runs](concepts.md#app-run) of every agent that sends 
 - A session that gets more spans after it was stored keeps the trajectory it was stored with.
 - A session that cannot be read as a trajectory is stored without one, with the reason.
 
+A shared agent that serves its own trajectories through the Harness API has its app runs stored too: see [Stored app runs of a harness agent](harness-api.md#stored-app-runs).
+
 ## Checking a session
 
 ```bash

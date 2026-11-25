@@ -47,6 +47,7 @@ async def build_agent_run(
     wall_ms: int | None = None,
     title: str | None = None,
     model: str | None = None,
+    session_id: str | None = None,
 ) -> AgentRunRecord:
     run_metrics = dict(metrics or {})
     key: str | None = None
@@ -71,4 +72,5 @@ async def build_agent_run(
         trajectory_note=trajectory_note,
         metrics=run_metrics,
         title=title,
+        session_id=session_id,
     )

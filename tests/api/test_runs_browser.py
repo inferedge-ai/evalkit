@@ -1,7 +1,7 @@
 import io
 import json
 import zipfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
@@ -694,3 +694,21 @@ async def test_a_stored_app_run_lists_as_stored_and_serves_its_gauges(api):
     assert gauges["gauge_turns"]["scored_on"] == "server"
     doc = (await client.get("/api/agents/sdk@admin/runs/s-1/trajectory")).json()
     assert doc["schema_version"] == "ATIF-v1.8"
+
+
+async def test_a_shared_harness_agents_app_run_is_stored_and_its_eval_run_is_left_alone(shared):
+    client, harness, _ = shared
+    for run in harness.runs.values():
+        run["created_at"] = datetime.now(UTC) - timedelta(minutes=5)
+    services = app_run_services(client.app.state)
+    listed = (await client.get("/api/agents")).json()
+    agent_id = next(a["id"] for a in listed if a["ref"] == "fake@canonical")
+    agent = await services.agent("default", agent_id)
+    result = await store_app_runs(services.deps("default"), agent)
+    assert (result.stored, result.stopped) == (1, None)
+    app = (await client.get("/api/agents/fake@canonical/runs", params={"source": "app"})).json()
+    assert [(r["run_id"], r["stored"]) for r in app["runs"]] == [("sess-extra", True)]
+    evals = (await client.get("/api/agents/fake@canonical/runs", params={"source": "eval"})).json()
+    assert [r["run_id"] for r in evals["runs"]] == ["sess-1"]
+    rows = (await client.get("/api/agents/fake@canonical/runs/sess-extra/evaluations")).json()
+    assert {row["kind"] for row in rows} == {"gauge"}

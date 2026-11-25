@@ -4,7 +4,7 @@
 
 ### Before you upgrade
 
-- **Server:** Run `evalkit db upgrade` (migrations 0021, 0022, 0023 and 0024).
+- **Server:** Run `evalkit db upgrade` (migrations 0021, 0022, 0023, 0024 and 0025).
   It now also creates the job queue's tables (`procrastinate_*`), which need
   Postgres 13 or later. Migration 0024 moves every evaluation from its
   experiment run to that run's agent run, and builds an index on
@@ -23,6 +23,19 @@
 
 ### Features
 
+- **Server:** evalkit stores the app runs of every shared agent that has a
+  harness URL and serves its own trajectories. Every 5 minutes the server
+  lists the harness's runs created since its last pass (`GET /runs`), reads
+  each one's status (`GET /runs/{id}`) and stores those with a final status:
+  the trajectory and the gauge readings, as for agents that send traces. A
+  harness that groups runs with `session_id` gets one stored app run per
+  session; when the session gets a newer run, that stored run is replaced. A
+  run that is still running is looked at again by the next pass, for up to 24
+  hours. A pass stores at most 100 runs, makes one request at a time and
+  retries a 429 or a 5xx; when the harness keeps failing, the pass stops and
+  the next one carries on. Runs of experiments are not stored again. A harness
+  with one run id per session and no `session_id` is stored once: later
+  messages do not update it.
 - **Tracing:** evalkit stores the app runs of every agent whose trajectories
   come from traces. Every 5 minutes the server looks at the sessions that
   received spans since its last pass, and stores each settled one that is not
