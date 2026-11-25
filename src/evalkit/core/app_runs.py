@@ -11,20 +11,19 @@ from pydantic import BaseModel
 from evalkit.contracts.atif import TrajectoryValidationError, validate_trajectory
 from evalkit.contracts.enums import RunStatus, ScoredOn, TrajectoryStatus
 from evalkit.contracts.harness import Capabilities, RunListItem
-from evalkit.core.agent_runs import build_agent_run
+from evalkit.core.agent_runs import build_agent_run, shorten_title
 from evalkit.core.agents import AgentDefinition
 from evalkit.core.blob import BlobStore
 from evalkit.core.capabilities import sdk_capabilities
 from evalkit.core.harness import HarnessClient
 from evalkit.core.pull import MAX_HARNESS_SCAN, list_harness_runs
 from evalkit.core.retry import Retry
-from evalkit.core.run_digest import Turn, clip, turns
+from evalkit.core.run_digest import Turn, turns
 from evalkit.core.scoring import build_context, run_gauges
 from evalkit.core.traces.sessions import SessionReader, SessionTooLarge
 from evalkit.core.traces.settle import is_settled_since
 from evalkit.store.base import AgentRunRecord, EvaluationRow
 
-TITLE_CHARS = 200
 SKIPPED_GAUGES = frozenset({"gauge_judge_cost_usd"})
 NO_RUN_LISTING = "the harness does not list its runs (provides.run_listing)"
 HARNESS_GIVE_UP_AFTER = timedelta(hours=24)
@@ -136,7 +135,7 @@ async def build_app_run(
         trajectory_note=note,
         answer=answer,
         wall_ms=_wall_ms(session),
-        title=clip(first_question(run_turns), TITLE_CHARS) or clip(session.title, TITLE_CHARS),
+        title=shorten_title(first_question(run_turns)) or shorten_title(session.title),
     )
 
 
@@ -216,7 +215,7 @@ async def build_harness_run(
             trajectory_status=TrajectoryStatus.UNAVAILABLE,
             trajectory_note=str(exc),
             error=str(exc),
-            title=clip(item.title, TITLE_CHARS),
+            title=shorten_title(item.title),
             session_id=item.session_id,
         )
     if status.status not in HARNESS_FINAL:
@@ -249,7 +248,7 @@ async def build_harness_run(
         output=status.output,
         error=status.error,
         wall_ms=int((ended - item.created_at).total_seconds() * 1000) if ended else None,
-        title=clip(item.title, TITLE_CHARS) or clip(first_question(run_turns), TITLE_CHARS),
+        title=shorten_title(item.title) or shorten_title(first_question(run_turns)),
         model=status.model,
         session_id=item.session_id,
     )

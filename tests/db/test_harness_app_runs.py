@@ -159,3 +159,12 @@ async def test_a_harness_run_stored_without_a_trajectory_is_read_again_when_list
     [run] = await world.runs()
     assert (run.id, run.trajectory_status, run.trajectory_note) == (unread.id, "valid", None)
     assert (await world.harness_pass()).stored == 0
+
+
+async def test_a_long_multi_line_title_is_stored_as_its_first_200_characters(app_run_world):
+    world = app_run_world
+    world.add_run("r1", minutes_ago=10)
+    world.harness.titles["r1"] = "Build a dashboard " + "x" * 400 + "\nsecond line"
+    assert (await world.harness_pass()).stored == 1
+    [run] = await world.runs()
+    assert len(run.title) == 200 and run.title.startswith("Build a dashboard x")

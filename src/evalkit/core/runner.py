@@ -45,7 +45,7 @@ from evalkit.contracts.harness import (
     input_errors,
 )
 from evalkit.contracts.settings import JudgeSettings
-from evalkit.core.agent_runs import build_agent_run, store_trajectory
+from evalkit.core.agent_runs import build_agent_run, shorten_title, store_trajectory
 from evalkit.core.agents import AgentDefinition, AgentLookup, explicit
 from evalkit.core.blob import (
     BlobStore,
@@ -286,9 +286,7 @@ class ScoringFailed(Exception):
 
 def case_title(case_input: object) -> str | None:
     question = case_input.get("question") if isinstance(case_input, dict) else None
-    if not isinstance(question, str) or not question.strip():
-        return None
-    return question.strip().splitlines()[0][:200]
+    return shorten_title(question) if isinstance(question, str) else None
 
 
 async def _persist_artifacts(

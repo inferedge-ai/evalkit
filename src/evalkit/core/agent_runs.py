@@ -10,6 +10,14 @@ from evalkit.core.blob import BlobStore, trajectory_key
 from evalkit.core.trajectory import TrajectoryView, backfill_step_costs, derive_metrics
 from evalkit.store.base import AgentRunRecord
 
+TITLE_CHARS = 200
+
+
+def shorten_title(text: str | None) -> str | None:
+    if text is None or not text.strip():
+        return None
+    return text.strip().splitlines()[0][:TITLE_CHARS]
+
 
 async def store_trajectory(
     blob_store: BlobStore,

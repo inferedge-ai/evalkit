@@ -40,6 +40,7 @@ class FakeHarness:
         self.workspace_files = workspace_files or {}
         self.runs: dict[str, dict] = {}
         self.down_with: int | None = None
+        self.titles: dict[str, str] = {}
         self.down_requests = 0
         self.stop_calls: list[str] = []
         self.received_files: dict[str, list[tuple[str, bytes]]] = {}
@@ -132,7 +133,7 @@ class FakeHarness:
             items = [
                 {
                     "run_id": run_id,
-                    "title": f"run {run_id}",
+                    "title": self.titles.get(run_id, f"run {run_id}"),
                     "user_id": "dummy",
                     "org_id": run.get("org_id", "dummy"),
                     "created_at": run.get("created_at", RUN_CREATED_AT).isoformat(),
