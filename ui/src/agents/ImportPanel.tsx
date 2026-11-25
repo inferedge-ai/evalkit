@@ -83,7 +83,7 @@ function ImportRow({
         </Badge>
         <span className="row-meta whitespace-normal">
           {item.source}/{item.project} · {fmtWhen(item.since)} <ToArrow />{" "}
-          {fmtWhen(item.until)} · by {item.created_by}
+          {fmtWhen(item.until)} · by {item.created_by ?? "schedule"}
         </span>
         <span className="flex items-center gap-2">
           <span

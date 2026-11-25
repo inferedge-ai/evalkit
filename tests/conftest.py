@@ -12,7 +12,7 @@ from evalkit.db import users
 
 os.environ.setdefault("TESTCONTAINERS_RYUK_DISABLED", "true")
 
-pytest_plugins = ["tests.pg"]
+pytest_plugins = ["tests.pg", "tests.app_run_world"]
 
 
 @pytest.fixture(scope="session", autouse=True)

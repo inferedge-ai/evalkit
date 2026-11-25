@@ -3,9 +3,9 @@ import { ArrowUpRight } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { trajectoryBounds } from "../lib/atif";
 import { useApi } from "../lib/query";
-import { TimeSpan } from "../evals/bits";
+import { GaugeReadings, TimeSpan } from "../evals/bits";
 import { experimentCaseLink, runTitle } from "../lib/runs";
-import type { AtifTrajectory, RunList } from "../lib/types";
+import type { AtifTrajectory, EvaluationRow, RunList } from "../lib/types";
 import { CopyText, Tabs } from "../lib/ui";
 import { RunTabs, type RunTab } from "./RunTabs";
 import { splitRef } from "../lib/workspace";
@@ -31,6 +31,9 @@ export function AgentRunPage() {
   const runs = useApi<RunList>(
     `/agents/${encodeURIComponent(agent)}/runs?query=${encodeURIComponent(runId)}&limit=20`,
   ).data?.runs;
+  const evaluations = useApi<EvaluationRow[]>(
+    `/agents/${encodeURIComponent(agent)}/runs/${encodeURIComponent(runId)}/evaluations`,
+  ).data;
   const title = runs ? runTitle(runs, runId) : null;
   const caseLink = runs ? experimentCaseLink(runs, runId) : null;
 
@@ -70,6 +73,7 @@ export function AgentRunPage() {
           )}
           {!title && !trajectory && !error && <Skeleton className="h-4 w-64" />}
         </div>
+        {evaluations && <GaugeReadings rows={evaluations} />}
         <Tabs<RunTab>
           tabs={[
             { id: "trajectory", label: "Trajectory" },

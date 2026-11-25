@@ -32,6 +32,7 @@ from evalkit.contracts.enums import (
     EvaluatorKind,
     ExperimentStatus,
     MappingStatus,
+    RunKind,
     RunStatus,
     ScoredOn,
     SyncSource,
@@ -202,6 +203,9 @@ class Agent(AuditMixin, Base):
     api_key_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
     created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    app_runs_stored_until: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now() - interval '1 day'")
+    )
 
 
 class RemoteEvaluator(AuditMixin, Base):
@@ -281,7 +285,7 @@ class TraceImport(AuditMixin, Base):
     error: Mapped[str | None] = mapped_column(Text, default=None)
     lease_holder: Mapped[str | None] = mapped_column(String(255), default=None)
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
-    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
 
 
@@ -291,6 +295,7 @@ class Span(Base):
         UniqueConstraint("agent_id", "trace_id", "span_id", name="uq_spans_agent_trace_span"),
         Index("ix_spans_agent_session", "agent_id", "session_id"),
         Index("ix_spans_agent_trace", "agent_id", "trace_id"),
+        Index("ix_spans_agent_received", "agent_id", "received_at"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
@@ -554,17 +559,21 @@ class AgentRun(AuditMixin, Base):
     __table_args__ = (
         UniqueConstraint("agent_id", "harness_run_id", name="uq_agent_runs_agent_harness_run"),
         check_in("status", RunStatus, "ck_agent_runs_status"),
+        check_in("kind", RunKind, "ck_agent_runs_kind"),
         CheckConstraint(
             "trajectory_status IS NULL OR trajectory_status IN "
             "('valid', 'partial', 'invalid', 'unavailable')",
             name="ck_agent_runs_trajectory_status",
         ),
         Index("ix_agent_runs_agent_started", "agent_id", "started_at"),
+        Index("ix_agent_runs_agent_session", "agent_id", "session_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     agent_id: Mapped[int] = mapped_column(ForeignKey("agents.id"))
     harness_run_id: Mapped[str] = mapped_column(String(255))
+    session_id: Mapped[str | None] = mapped_column(String(255), default=None)
+    kind: Mapped[str] = mapped_column(String(8))
     status: Mapped[str] = mapped_column(String(16))
     answer: Mapped[str | None] = mapped_column(Text, default=None)
     output: Mapped[dict | None] = mapped_column(JSONB, default=None)
@@ -602,7 +611,7 @@ class ExperimentRun(AuditMixin, Base):
 class Evaluation(AuditMixin, Base):
     __tablename__ = "evaluations"
     __table_args__ = (
-        UniqueConstraint("experiment_run_id", "name", name="uq_evaluations_run_name"),
+        UniqueConstraint("agent_run_id", "name", name="uq_evaluations_run_name"),
         check_in("kind", EvaluatorKind, "ck_evaluations_kind"),
         check_in("source", EvaluationSource, "ck_evaluations_source"),
         check_in("scored_on", ScoredOn, "ck_evaluations_scored_on"),
@@ -613,7 +622,7 @@ class Evaluation(AuditMixin, Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    experiment_run_id: Mapped[int] = mapped_column(ForeignKey("experiment_runs.id"), index=True)
+    agent_run_id: Mapped[int] = mapped_column(ForeignKey("agent_runs.id"), index=True)
     producer: Mapped[str] = mapped_column(String(150))
     name: Mapped[str] = mapped_column(String(150))
     kind: Mapped[str] = mapped_column(String(8))

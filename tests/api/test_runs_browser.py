@@ -1,7 +1,7 @@
 import io
 import json
 import zipfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
@@ -10,7 +10,9 @@ import pytest
 from fastapi import HTTPException
 
 from evalkit.api import runs
+from evalkit.api.jobs import app_run_services
 from evalkit.core import pull as pull_core
+from evalkit.core.app_runs import store_app_runs
 from evalkit.core.blob import artifact_key, tenant_prefix
 from evalkit.core.harness import HarnessClient
 from tests.api.native_api import CAPS, api_env
@@ -656,3 +658,57 @@ def test_artifact_keys_refuse_traversal():
         artifact_key(1, "r", "../../trajectories/2/x.json")
     with pytest.raises(ValueError):
         artifact_key(1, "..", "x")
+
+
+async def test_a_stored_app_run_lists_as_stored_and_serves_its_gauges(api):
+    client, _ = api
+    created = await client.post(
+        "/api/agents",
+        json={
+            "workspace": "admin",
+            "name": "sdk",
+            "trajectory_source": "otel",
+            "mapping": reference_mapping(),
+        },
+    )
+    assert created.status_code == 200, created.text
+    headers = {**PROTO, "X-Evalkit-Agent": "sdk"}
+    await client.post(
+        "/api/otel/v1/traces", content=otlp_payload(session_id="s-1"), headers=headers
+    )
+    before = (await client.get("/api/agents/sdk@admin/runs/s-1/evaluations")).json()
+    assert before == []
+    client.app.state.cfg.otel.settle_seconds = -60
+    services = app_run_services(client.app.state)
+    agent = await services.agent("default", created.json()["id"])
+    result = await store_app_runs(services.deps("default"), agent)
+    assert result.stored == 1
+    listed = (await client.get("/api/agents/sdk@admin/runs", params={"source": "app"})).json()
+    assert [(r["run_id"], r["stored"]) for r in listed["runs"]] == [("s-1", True)]
+    assert (await client.get("/api/agents/sdk@admin/runs", params={"source": "eval"})).json()[
+        "runs"
+    ] == []
+    rows = (await client.get("/api/agents/sdk@admin/runs/s-1/evaluations")).json()
+    gauges = {row["name"]: row for row in rows}
+    assert gauges["gauge_turns"]["kind"] == "gauge"
+    assert gauges["gauge_turns"]["scored_on"] == "server"
+    doc = (await client.get("/api/agents/sdk@admin/runs/s-1/trajectory")).json()
+    assert doc["schema_version"] == "ATIF-v1.8"
+
+
+async def test_a_shared_harness_agents_app_run_is_stored_and_its_eval_run_is_left_alone(shared):
+    client, harness, _ = shared
+    for run in harness.runs.values():
+        run["created_at"] = datetime.now(UTC) - timedelta(minutes=5)
+    services = app_run_services(client.app.state)
+    listed = (await client.get("/api/agents")).json()
+    agent_id = next(a["id"] for a in listed if a["ref"] == "fake@canonical")
+    agent = await services.agent("default", agent_id)
+    result = await store_app_runs(services.deps("default"), agent)
+    assert (result.stored, result.stopped) == (1, None)
+    app = (await client.get("/api/agents/fake@canonical/runs", params={"source": "app"})).json()
+    assert [(r["run_id"], r["stored"]) for r in app["runs"]] == [("sess-extra", True)]
+    evals = (await client.get("/api/agents/fake@canonical/runs", params={"source": "eval"})).json()
+    assert [r["run_id"] for r in evals["runs"]] == ["sess-1"]
+    rows = (await client.get("/api/agents/fake@canonical/runs/sess-extra/evaluations")).json()
+    assert {row["kind"] for row in rows} == {"gauge"}

@@ -38,10 +38,13 @@ function agent(name: string): AgentInfo {
       trace_filter: null,
       import_settle_seconds: 15,
       import_wait_seconds: 120,
+      app_runs_cron: "*/5 * * * *",
+      app_runs_per_pass: 100,
     },
     driver: "sdk",
     archived: false,
     has_api_key: false,
+    app_runs_stored_until: null,
   };
 }
 

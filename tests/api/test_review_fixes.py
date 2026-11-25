@@ -178,7 +178,7 @@ async def test_evaluate_reruns_partial_multi_score(tmp_path, satisfied_judges, s
     async with session_factory() as s:
         await s.execute(
             delete(Evaluation).where(
-                Evaluation.experiment_run_id == first.experiment_run_id,
+                Evaluation.agent_run_id == first.agent_run_id,
                 Evaluation.producer == "answer_rubrics",
                 Evaluation.name != "answer_rubric_score",
             )

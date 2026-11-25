@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -35,6 +35,9 @@ async def agent_id_for(session: AsyncSession, tenant_id: str, ref: str) -> int:
     return agent_id
 
 
+APP_RUNS_LOOK_BACK = timedelta(days=1)
+
+
 class AgentExists(ValueError):
     def __init__(self, ref: str):
         super().__init__(f"agent exists: {ref}")
@@ -56,6 +59,7 @@ def _definition(row: models.Agent, ws: models.Workspace) -> AgentDefinition:
         settings=AgentSettings.model_validate(row.config or {}),
         archived=row.archived_at is not None,
         has_api_key=row.api_key_encrypted is not None,
+        app_runs_stored_until=row.app_runs_stored_until,
     )
 
 
@@ -170,6 +174,7 @@ class AgentStore:
         created_by: int | None = None,
         mapping: dict | None = None,
         api_key_encrypted: bytes | None = None,
+        app_runs_since: datetime | None = None,
     ) -> AgentDefinition:
         if "@" in name or not name:
             raise InvalidAgent(f"invalid agent name: {name!r}")
@@ -196,6 +201,7 @@ class AgentStore:
                 config=(settings or AgentSettings()).model_dump(),
                 api_key_encrypted=api_key_encrypted,
                 created_by=created_by,
+                app_runs_stored_until=app_runs_since or datetime.now(UTC) - APP_RUNS_LOOK_BACK,
             )
             session.add(row)
             await session.flush()
@@ -216,11 +222,14 @@ class AgentStore:
         mapping: dict | None = None,
         edited_by: int | None = None,
         api_key_encrypted: bytes | None = None,
+        app_runs_since: datetime | None = None,
     ) -> AgentDefinition:
         if mapping is not None:
             MappingDocument.model_validate(mapping)
         async with self._session() as session:
             row, ws = await self._row(session, ref)
+            if app_runs_since is not None:
+                row.app_runs_stored_until = app_runs_since
             if (harness_url is not None or "harness_url" in clear) and (
                 harness_url != row.harness_url
             ):

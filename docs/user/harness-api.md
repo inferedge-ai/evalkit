@@ -53,6 +53,21 @@ The session evalkit polls is the `run_id` that `POST /runs` returns; there is no
 
 Moving to [SDK runs](sdk-runs.md) instead only makes sense to stop hosting the harness. A code-driven agent loses server-started runs and the Workspace tab, and `run_experiment` refuses an agent with a `harness_url`: keep one agent name and run it with `evalkit run`, rather than adding a second entry for `run_experiment`.
 
+## Stored app runs
+
+The server stores the [app runs](concepts.md#app-run) of a shared agent whose harness lists its runs (`provides.run_listing`).
+
+- On the agent's schedule, every 5 minutes by default, it calls `GET /runs` for 6 hours of runs at a time, with `since` set to where its last pass stopped and `until` 6 hours later, then `GET /runs/{id}` for each run it has not stored. A harness must apply `until`: when a 6-hour listing holds more than 10,000 runs the server halves the time range and asks again, down to one minute.
+- A run whose status is `completed`, `failed` or `cancelled` is stored: its trajectory as ATIF and its gauge readings. The run's page shows the readings under the header.
+- A run that is still `queued` or `running` is looked at again by the next pass, for up to 24 hours after it was created.
+- Runs that share a `session_id` are one stored app run. When the session gets a newer run, the stored one is replaced.
+- A harness that keeps one run id per session and sets no `session_id` is stored once: later messages do not update it.
+- Runs evalkit started for an experiment are not stored again.
+- A pass stores at most the agent's "Runs per pass" (100 by default, `--app-runs-per-pass`) and makes one request at a time. It retries a `429` or a `5xx`, waiting the time in `Retry-After` when the harness sends it. When the harness cannot be reached, or `GET /runs` keeps failing, the pass stops and the next one carries on from the same run.
+- When the harness keeps answering an error other than 404 for one run, the server stores the other runs and asks for that one again on each pass. Once the run is 24 hours old, it is stored without a trajectory, with the error as the reason. Three such runs in a row stop the pass, and the next one tries them again.
+- A list item needs a `created_at`; one without is not stored.
+- A run whose trajectory the harness answers 404 for is stored without one, and read again whenever a pass lists it.
+
 ## Checking
 
 ```bash

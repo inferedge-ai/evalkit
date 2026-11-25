@@ -227,6 +227,7 @@ class AgentRunRecord(BaseModel):
     trajectory_note: str | None = None
     metrics: dict[str, Any] = Field(default_factory=dict)
     title: str | None = None
+    session_id: str | None = None
 
 
 class RunRef(BaseModel):

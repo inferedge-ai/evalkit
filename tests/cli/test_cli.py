@@ -995,9 +995,7 @@ def test_local_evaluate_rescores(env, tmp_path, monkeypatch, harness_url, module
 
     async def wipe(session):
         await session.execute(
-            sa.delete(models.Evaluation).where(
-                models.Evaluation.experiment_run_id == run.experiment_run_id
-            )
+            sa.delete(models.Evaluation).where(models.Evaluation.agent_run_id == run.agent_run_id)
         )
 
     in_db(module_db_url, wipe)
@@ -1436,6 +1434,27 @@ def test_agents_commands(env, tmp_path):
     result = runner.invoke(cli_app, ["agents", "edit", "cliagent", "--trajectory-wait", "9"])
     assert result.exit_code == 0, result.output
     assert result.output.rstrip().endswith(agent_link)
+    scheduled = runner.invoke(
+        cli_app,
+        [
+            "agents",
+            "edit",
+            "cliagent",
+            "--app-runs-cron",
+            "*/2 * * * *",
+            "--app-runs-per-pass",
+            "20",
+            "--app-runs-since",
+            "2026-11-20T10:00:00Z",
+        ],
+    )
+    assert scheduled.exit_code == 0, scheduled.output
+    assert "*/2 * * * *" in scheduled.output and " 20" in scheduled.output
+    assert "app runs stored until  2026-11-20T10:00:00Z" in scheduled.output
+    bad_cron = runner.invoke(cli_app, ["agents", "edit", "cliagent", "--app-runs-cron", "hourly"])
+    assert bad_cron.exit_code == 1 and "app_runs_cron" in bad_cron.output
+    bad_time = runner.invoke(cli_app, ["agents", "edit", "cliagent", "--app-runs-since", "noon"])
+    assert bad_time.exit_code == 2 and "ISO 8601" in bad_time.output
     shown = runner.invoke(cli_app, ["agents", "show", "cliagent@admin"]).output
     assert shown.rstrip().endswith(agent_link)
     assert "max_concurrent_runs" in shown and " 2" in shown and "trajectory_wait_seconds" in shown
@@ -1511,7 +1530,13 @@ def test_run_judge_flags_start_from_the_server_default(
             text("SELECT min(id) FROM experiment_runs WHERE experiment_id = :e"),
             {"e": byok.id},
         ).scalar()
-        conn.execute(text("DELETE FROM evaluations WHERE experiment_run_id = :r"), {"r": run_id})
+        conn.execute(
+            text(
+                "DELETE FROM evaluations WHERE agent_run_id = "
+                "(SELECT agent_run_id FROM experiment_runs WHERE id = :r)"
+            ),
+            {"r": run_id},
+        )
         conn.execute(text("DELETE FROM experiment_runs WHERE id = :r"), {"r": run_id})
         conn.execute(text("UPDATE experiments SET status = 'failed' WHERE id = :e"), {"e": byok.id})
     engine.dispose()

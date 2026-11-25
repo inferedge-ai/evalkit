@@ -1,8 +1,10 @@
 import asyncio
 import logging
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
+from starlette.datastructures import State
 
 from evalkit.api.access import ActorDep, StoresDep, TenantStores
 from evalkit.api.deps import EndpointRuleDep, HolderDep
@@ -18,15 +20,22 @@ from evalkit.api.traces import (
 from evalkit.contracts.enums import TraceImportStatus
 from evalkit.contracts.esf import MappingDocument
 from evalkit.core.agents import AgentDefinition
+from evalkit.core.endpoints import EndpointRule
 from evalkit.core.errors import error_text
 from evalkit.core.traces.importer import IMPORT_STOPPED_ERROR, guarded_import
 from evalkit.core.traces.sources import import_retry
 from evalkit.db.mappings import MappingStore
-from evalkit.db.trace_imports import TraceImportStore, TraceImportView, tenant_of_import
+from evalkit.db.trace_imports import (
+    ImportRunning,
+    TraceImportStore,
+    TraceImportView,
+    tenant_of_import,
+)
 from evalkit.db.trace_sources import ResolvedTraceSource
 
 router = APIRouter(prefix="/api/agents", tags=["traces"])
 LOGGER = logging.getLogger(__name__)
+SCHEDULED_IMPORT_OVERLAP = timedelta(minutes=15)
 
 ImportTasks = dict[int, tuple[str, asyncio.Task]]
 NO_SESSION_MAPPING = (
@@ -83,6 +92,38 @@ def _launch(
     registry[import_id] = (holder, task)
     task.add_done_callback(lambda t: registry.pop(import_id, None))
     task.add_done_callback(_log_failure)
+
+
+async def import_new_traces(
+    state: State,
+    stores: TenantStores,
+    record: AgentDefinition,
+    cursor: datetime,
+    now: datetime,
+) -> None:
+    settings = record.settings
+    if settings.trace_source is None or settings.project is None:
+        return
+    active = await stores.mappings.active(record.id)
+    mapping = MappingDocument.model_validate(active.document) if active else None
+    if mapping is None or mapping.session_id is None:
+        return
+    rule = EndpointRule(state.cfg.allow_private_endpoints, tuple(state.cfg.trusted_endpoints))
+    source = await resolve_import_source(stores, settings.trace_source, rule=rule)
+    last = await stores.imports.scheduled_until(record.id)
+    since = last - SCHEDULED_IMPORT_OVERLAP if last is not None else cursor
+    holder = task_holder(state.holder)
+    # A pass starts no import while another is running for the agent.
+    try:
+        view = await stores.imports.create(
+            record.id, source.id, settings.project, settings.trace_filter, since, now, None, holder
+        )
+    except ImportRunning:
+        return
+    client = build_source_client(
+        source, state.cfg.otel.import_page_traces, retry=import_retry(source.provider)
+    )
+    await guarded_import(view.id, holder, client, stores.imports, stores.spans, mapping)
 
 
 async def interrupt_imports(session_factory, registry: ImportTasks) -> None:

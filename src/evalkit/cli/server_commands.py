@@ -6,6 +6,7 @@ module only when the server extra is present and points users at it otherwise.
 """
 
 import asyncio
+import logging
 
 import psycopg
 import sentry_sdk
@@ -18,6 +19,7 @@ from sqlalchemy.engine import make_url
 
 from evalkit import version
 from evalkit.api.app import create_app
+from evalkit.api.jobs import run_worker
 from evalkit.cli.client import ApiError
 from evalkit.config import Config
 from evalkit.contracts.settings import JudgeSettings
@@ -45,9 +47,18 @@ def init_sentry(config: Config) -> None:
     )
 
 
+WORKER_LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+
+
 def serve(config: Config, host: str, port: int) -> None:
     init_sentry(config)
     uvicorn.run(create_app(config), host=host, port=port)
+
+
+def worker(config: Config) -> None:
+    init_sentry(config)
+    logging.basicConfig(level=logging.INFO, format=WORKER_LOG_FORMAT, force=True)
+    asyncio.run(run_worker(create_app(config).state))
 
 
 def db_upgrade(config: Config, revision: str) -> None:

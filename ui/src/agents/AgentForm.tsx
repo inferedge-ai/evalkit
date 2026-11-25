@@ -5,10 +5,10 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FormDialogFooter } from "../lib/FormDialogFooter";
 import { apiJson } from "../lib/api";
 import {
   agentFormErrors,
@@ -17,7 +17,10 @@ import {
   editAgentBody,
   emptyAgentForm,
   IMPORT_FIELDS,
+  listsHarnessRuns,
+  RUNS_PER_PASS_FIELD,
   SETTING_FIELDS,
+  storesAppRuns,
   urlClearsKey,
 } from "../lib/agentForm";
 import { ApiKeyField } from "../lib/ApiKeyField";
@@ -59,7 +62,7 @@ export function AgentForm({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const errors = agentFormErrors(values, mode);
+  const errors = agentFormErrors(values, mode, shared);
   const sources = useApi<TraceSourceInfo[]>("/trace-sources").data ?? [];
   const chosen = sources.find((s) => s.name === values.trace_source);
 
@@ -279,6 +282,63 @@ export function AgentForm({
               onChange={(e) => set("repo_url", e.target.value)}
             />
           </Field>
+          {storesAppRuns(values, shared) && (
+            <>
+              <Field>
+                <FieldLabel htmlFor={`${formId}-app-runs-cron`}>
+                  App runs schedule
+                </FieldLabel>
+                <Input
+                  id={`${formId}-app-runs-cron`}
+                  className="font-mono"
+                  value={values.app_runs_cron}
+                  onChange={(e) => set("app_runs_cron", e.target.value)}
+                />
+                <FieldDescription>
+                  When the server stores this agent's new app runs: a cron
+                  expression of five fields, in UTC. <code>*/5 * * * *</code> is
+                  every 5 minutes.
+                </FieldDescription>
+              </Field>
+              <Field>
+                <FieldLabel htmlFor={`${formId}-app-runs-since`}>
+                  Store app runs since
+                </FieldLabel>
+                <Input
+                  id={`${formId}-app-runs-since`}
+                  type="datetime-local"
+                  value={values.app_runs_since}
+                  onChange={(e) => set("app_runs_since", e.target.value)}
+                />
+                <FieldDescription>
+                  {agent
+                    ? "App runs are stored up to this time. Set an earlier time to make the next pass go back to it; runs already stored are kept."
+                    : "The first pass stores app runs from this time on."}
+                </FieldDescription>
+              </Field>
+              {listsHarnessRuns(values, shared) && (
+                <Field>
+                  <FieldLabel htmlFor={`${formId}-${RUNS_PER_PASS_FIELD.key}`}>
+                    {RUNS_PER_PASS_FIELD.label}
+                  </FieldLabel>
+                  <Input
+                    id={`${formId}-${RUNS_PER_PASS_FIELD.key}`}
+                    inputMode="numeric"
+                    value={values.settings[RUNS_PER_PASS_FIELD.key]}
+                    onChange={(e) =>
+                      set("settings", {
+                        ...values.settings,
+                        [RUNS_PER_PASS_FIELD.key]: e.target.value,
+                      })
+                    }
+                  />
+                  <FieldDescription>
+                    The most app runs one pass reads from the harness.
+                  </FieldDescription>
+                </Field>
+              )}
+            </>
+          )}
           {SETTING_FIELDS.map(({ key, label }) => (
             <Field key={key}>
               <FieldLabel htmlFor={`${formId}-${key}`}>{label}</FieldLabel>
@@ -292,21 +352,15 @@ export function AgentForm({
               />
             </Field>
           ))}
-          {errors.map((message) => (
-            <div key={message} className="text-meta text-err-text">
-              {message}
-            </div>
-          ))}
-          {error && <div className="text-meta text-err-text">{error}</div>}
         </div>
-        <DialogFooter>
+        <FormDialogFooter errors={[...errors, error]}>
           <DialogClose render={<Button variant="outline" />}>
             Cancel
           </DialogClose>
           <Button disabled={busy || errors.length > 0} onClick={save}>
             {agent ? "Save" : "Create agent"}
           </Button>
-        </DialogFooter>
+        </FormDialogFooter>
       </DialogContent>
     </Dialog>
   );

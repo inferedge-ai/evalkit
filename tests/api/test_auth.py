@@ -11,7 +11,7 @@ from evalkit.api.auth import bootstrap_admin, router
 from evalkit.config import AuthConfig
 from evalkit.core.tenant import resolve_tenant
 from evalkit.db.models import AuthToken, TenantSettings, User
-from evalkit.db.session import ALL_TENANTS, head_revision, run_migrations, tenant_session
+from evalkit.db.session import ALL_TENANTS, head_revisions, run_migrations, tenant_session
 from evalkit.db.users import InvalidPassword, UserStore, hash_password
 from tests.identity import seed_identity
 
@@ -196,10 +196,10 @@ def test_run_migrations_postgres(fresh_db_url):
     engine = create_engine(fresh_db_url)
     with engine.connect() as conn:
         tables = set(inspect(conn).get_table_names())
-        version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+        versions = set(conn.execute(text("SELECT version_num FROM alembic_version")).scalars())
     engine.dispose()
     assert {"users", "auth_tokens", "spans", "span_mappings"} <= tables
-    assert version == head_revision()
+    assert versions == head_revisions()
 
 
 async def test_unknown_user_login_still_checks_a_password(client, monkeypatch):

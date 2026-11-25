@@ -50,6 +50,9 @@ class JudgeSettings(BaseModel):
         return data
 
 
+DEFAULT_APP_RUNS_CRON = "*/5 * * * *"
+
+
 class AgentSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -65,6 +68,8 @@ class AgentSettings(BaseModel):
     trace_filter: str | None = None
     import_settle_seconds: int = Field(default=15, ge=0)
     import_wait_seconds: int = Field(default=120, ge=0)
+    app_runs_cron: str = DEFAULT_APP_RUNS_CRON
+    app_runs_per_pass: int = Field(default=100, ge=1)
 
     @model_validator(mode="after")
     def _check_trace_source(self) -> "AgentSettings":

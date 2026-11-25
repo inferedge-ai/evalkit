@@ -2,6 +2,92 @@
 
 ## Unreleased
 
+### Before you upgrade
+
+- **Server:** Run `evalkit db upgrade` (migrations 0024, 0025 and 0026).
+  It now also creates the job queue's tables (`procrastinate_*`), which need
+  Postgres 13 or later. Migration 0024 moves every evaluation from its
+  experiment run to that run's agent run, and builds an index on
+  `spans (agent_id, received_at)` without blocking writes.
+- **Server:** `evalkit serve` runs a job worker in its own process and opens 5
+  more Postgres connections for it at the defaults (`worker.pool_max_size`,
+  never fewer than `worker.concurrency + 3`). Finished jobs stay in
+  `procrastinate_jobs` for 7 days (`worker.delete_jobs`,
+  `worker.job_retention_hours`).
+
+### Features
+
+- **Server:** evalkit stores the app runs of every shared agent that has a
+  harness URL and serves its own trajectories. Every 5 minutes the server
+  lists the harness's runs created since its last pass (`GET /runs`), reads
+  each one's status (`GET /runs/{id}`) and stores those with a final status:
+  the trajectory and the gauge readings, as for agents that send traces. A
+  harness that groups runs with `session_id` gets one stored app run per
+  session; when the session gets a newer run, that stored run is replaced. A
+  run that is still running is looked at again by the next pass, for up to 24
+  hours. A pass stores at most 100 runs, makes one request at a time and
+  retries a 429 or a 5xx; when the harness cannot be reached, the pass stops
+  and the next one carries on. When the harness keeps answering an error for
+  one run, the pass stores the others and asks for that run again for up to
+  24 hours, then stores it without a trajectory. The server lists 6 hours of
+  runs at a time with `since` and `until`, so a harness must apply `until`.
+  Runs of experiments are not stored again. A harness
+  with one run id per session and no `session_id` is stored once: later
+  messages do not update it.
+- **Server:** `evalkit worker --config config.yaml` runs the job worker as its
+  own process. Set `worker.embedded: false` so that `evalkit serve` runs none.
+  The worker needs the server's config and environment and no port; it stops
+  at start when the schema is behind, and on `SIGTERM` it lets running jobs
+  finish. Several may run at once.
+- **Server:** Each agent has its own schedule and start time for storing app
+  runs. The agent form has "App runs schedule" (a cron expression of five
+  fields, in UTC, `*/5 * * * *` by default), "Store app runs since" (one day
+  ago by default) and, for a shared harness agent, "Runs per pass" (100 by
+  default). The same are `--app-runs-cron`, `--app-runs-since` and
+  `--app-runs-per-pass` on `evalkit agents create` and `evalkit agents edit`,
+  and `settings.app_runs_cron`, `app_runs_since` and
+  `settings.app_runs_per_pass` on the agents API, which answers 400 to a
+  schedule that is not a cron expression. Every agent read carries
+  `app_runs_stored_until`; saving an earlier "Store app runs since" makes the
+  next pass go back to it.
+- **Server:** A stored app run that has no trajectory, because the agent's
+  mapping read no steps from its spans or the harness answered 404, is read
+  again when a pass lists it. After fixing a mapping, set "Store app runs
+  since" to an earlier time and the next pass fills in the trajectories and
+  gauges of those runs. Its note now names the mapping version and the
+  `evalkit traces check` command to run.
+- **Server:** One app run that cannot be stored no longer stops the pass for
+  its agent. The server logs the error, stores the run without a trajectory
+  with the error as its note, and stores the others. After three such
+  failures in a row it stops the pass and leaves it to the next one, since
+  the cause is then likely storage and not the runs.
+- **Tracing:** For an agent with a trace source, the server imports the
+  agent's new traces from Phoenix or Langfuse every 5 minutes, before it
+  stores their sessions as app runs. The import shows on the agent's Import
+  tab as "by schedule" (`created_by` is null on `GET
+  /api/agents/{agent}/imports`). It starts 15 minutes before the previous
+  scheduled import ended, and the first goes back one day. A pass starts no
+  import while another is running for the agent. The job checks the trace
+  source's URL against the server config (`allow_private_endpoints`,
+  `trusted_endpoints`), not against a per-request rule.
+- **Tracing:** evalkit stores the app runs of every agent whose trajectories
+  come from traces. Every 5 minutes the server looks at the sessions that
+  received spans since its last pass, and stores each settled one that is not
+  an eval run: its trajectory as ATIF and its gauge readings (tokens, cost,
+  duration, tool calls, errored tool calls, subagents, turns). The run page
+  shows the readings under the header, and
+  `GET /api/agents/{agent}/runs/{run_id}/evaluations` returns them. The first
+  pass for an agent goes back one day. A session that gets more spans after it
+  was stored keeps the trajectory it was stored with.
+
+### Improvements
+
+- **Web UI:** The agent, evaluator, LLM provider and workspace forms show
+  their errors above the Cancel and Save buttons, where they stay in view
+  while the fields scroll. They used to sit under the last field.
+- **Server:** A replaced attempt of a resumed experiment run stays an eval
+  run. The Runs page used to list it under app runs.
+
 ## 0.9.0
 
 _Released 2026-11-25._ Datasets carry a README and metadata, packages that

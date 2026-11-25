@@ -28,7 +28,7 @@ def neutral_skip(name: str, reason: str = "capability not provided") -> ScoreRow
 
 @dataclass
 class EvalContext:
-    case: CaseView
+    case: CaseView | None
     answer: str
     trajectory_view: TrajectoryView | None
     wall_ms: int
@@ -39,6 +39,11 @@ class EvalContext:
     judge_usage: JudgeUsage = field(default_factory=JudgeUsage)
     output: dict[str, Any] | None = None
     judge_api_key: str | None = None
+
+    def require_case(self) -> CaseView:
+        if self.case is None:
+            raise ValueError("this run has no case")
+        return self.case
 
     def require_judge(self) -> JudgeSettings:
         if self.judge_cfg is None:

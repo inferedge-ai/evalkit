@@ -1,8 +1,8 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 from alembic import command
 from alembic.config import Config as AlembicConfig
@@ -62,37 +62,63 @@ def make_session_factory(
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
-def run_migrations(db_url: str, revision: str = "head") -> None:
+ALEMBIC_ROOT = Path(__file__).parent / "alembic"
+EVALKIT_BRANCH = "evalkit"
+JOBS_VERSIONS = "procrastinate.contrib.alembic:versions"
+JOBS_TABLE_PREFIX = "procrastinate_"
+
+
+def include_name(name: str | None, type_: str, parent_names: Mapping[Any, str | None]) -> bool:
+    return not (type_ == "table" and name is not None and name.startswith(JOBS_TABLE_PREFIX))
+
+
+def alembic_config(db_url: str | None = None) -> AlembicConfig:
     cfg = AlembicConfig()
-    cfg.set_main_option("script_location", str(Path(__file__).parent / "alembic"))
-    cfg.set_main_option("sqlalchemy.url", db_url)
-    command.upgrade(cfg, revision)
+    cfg.set_main_option("script_location", str(ALEMBIC_ROOT))
+    cfg.set_main_option("path_separator", "newline")
+    cfg.set_main_option("version_locations", f"{ALEMBIC_ROOT / 'versions'}\n{JOBS_VERSIONS}")
+    if db_url is not None:
+        cfg.set_main_option("sqlalchemy.url", db_url)
+    return cfg
+
+
+def run_migrations(db_url: str, revision: str = "heads") -> None:
+    command.upgrade(alembic_config(db_url), "heads" if revision == "head" else revision)
 
 
 MIGRATION_LOCK_KEY = 7_302_015_486_123_001
+MIGRATION_LOCK_POLL_SECONDS = 0.5
 
 
 async def migrate_under_lock(db_url: str) -> None:
-    engine = create_async_engine(db_url, poolclass=NullPool)
+    # The job queue's migrations run CREATE INDEX CONCURRENTLY, which waits for
+    # every open transaction in the database. So the lock is held in AUTOCOMMIT
+    # and a waiting server polls for it: a blocking pg_advisory_lock is itself a
+    # transaction the index build would wait on forever.
+    engine = create_async_engine(db_url, poolclass=NullPool, isolation_level="AUTOCOMMIT")
     async with engine.connect() as conn:
-        await conn.execute(text("SELECT pg_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY})
+        while not await conn.scalar(
+            text("SELECT pg_try_advisory_lock(:key)"), {"key": MIGRATION_LOCK_KEY}
+        ):
+            await asyncio.sleep(MIGRATION_LOCK_POLL_SECONDS)
         await asyncio.to_thread(run_migrations, db_url)
         await conn.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": MIGRATION_LOCK_KEY})
     await engine.dispose()
 
 
 def downgrade_migrations(db_url: str, revision: str) -> None:
-    cfg = AlembicConfig()
-    cfg.set_main_option("script_location", str(Path(__file__).parent / "alembic"))
-    cfg.set_main_option("sqlalchemy.url", db_url)
-    command.downgrade(cfg, revision)
+    target = f"{EVALKIT_BRANCH}@base" if revision == "base" else revision
+    command.downgrade(alembic_config(db_url), target)
+
+
+def head_revisions() -> set[str]:
+    return set(ScriptDirectory.from_config(alembic_config()).get_heads())
 
 
 def head_revision() -> str:
-    script = ScriptDirectory(str(Path(__file__).parent / "alembic"))
-    head = script.get_current_head()
+    head = ScriptDirectory.from_config(alembic_config()).get_revision(f"{EVALKIT_BRANCH}@head")
     assert head is not None
-    return head
+    return head.revision
 
 
 async def verify_schema(db_url: str) -> None:
@@ -100,16 +126,16 @@ async def verify_schema(db_url: str) -> None:
     try:
         async with engine.connect() as conn:
             result = await conn.execute(text("SELECT version_num FROM alembic_version"))
-            current = result.scalar_one_or_none()
+            current = set(result.scalars().all())
     except Exception as exc:
         raise RuntimeError(
             "auth schema not initialized — run `evalkit db upgrade --config <config>`"
         ) from exc
     finally:
         await engine.dispose()
-    head = head_revision()
-    if current != head:
+    heads = head_revisions()
+    if current != heads:
         raise RuntimeError(
-            f"auth schema is at revision {current!r}, expected {head!r} — "
+            f"auth schema is at revision {sorted(current)!r}, expected {sorted(heads)!r} — "
             "run `evalkit db upgrade --config <config>`"
         )

@@ -1,7 +1,8 @@
 from typing import Annotated
 
-from fastapi import APIRouter
-from pydantic import AfterValidator, BaseModel
+from croniter import croniter
+from fastapi import APIRouter, HTTPException
+from pydantic import AfterValidator, AwareDatetime, BaseModel
 
 from evalkit.api.access import ActorDep, StoresDep, writable, writable_endpoint
 from evalkit.api.deps import ConfigDep, EndpointRuleDep
@@ -38,6 +39,7 @@ def agent_view(agent: AgentDefinition) -> dict:
         "driver": driver(agent),
         "archived": agent.archived,
         "has_api_key": agent.has_api_key,
+        "app_runs_stored_until": agent.app_runs_stored_until,
     }
 
 
@@ -58,6 +60,15 @@ async def get_agent(ref: str, stores: StoresDep) -> dict:
     return agent_view(await stores.agents.get(ref))
 
 
+def check_app_runs_cron(expression: str) -> None:
+    if len(expression.split()) != 5 or not croniter.is_valid(expression):
+        raise HTTPException(
+            status_code=400,
+            detail=f"app_runs_cron {expression!r} is not a cron expression of five fields, "
+            "such as */5 * * * *",
+        )
+
+
 class CreateAgent(BaseModel):
     workspace: str
     name: str
@@ -67,6 +78,7 @@ class CreateAgent(BaseModel):
     settings: AgentSettings = AgentSettings()
     mapping: dict | None = None
     api_key: str | None = None
+    app_runs_since: AwareDatetime | None = None
 
 
 @router.post("")
@@ -92,6 +104,7 @@ async def create_agent(
         rule=rule,
         page_traces=cfg.otel.import_page_traces,
     )
+    check_app_runs_cron(body.settings.app_runs_cron)
     created = await stores.agents.create(
         ws,
         body.name,
@@ -102,6 +115,7 @@ async def create_agent(
         created_by=actor.id,
         mapping=body.mapping,
         api_key_encrypted=stores.keys.seal(body.api_key),
+        app_runs_since=body.app_runs_since,
     )
     return agent_view(created)
 
@@ -113,6 +127,7 @@ class EditAgent(BaseModel):
     trajectory_source: TrajectorySource | None = None
     mapping: dict | None = None
     api_key: str | None = None
+    app_runs_since: AwareDatetime | None = None
 
 
 @router.patch("/{ref}")
@@ -149,6 +164,7 @@ async def edit_agent(
             rule=rule,
             page_traces=cfg.otel.import_page_traces,
         )
+    check_app_runs_cron(settings.app_runs_cron)
     clear = {k for k in ("harness_url", "repo_url", "api_key") if k in body.model_fields_set}
     edited = await stores.agents.edit(
         ref,
@@ -160,6 +176,7 @@ async def edit_agent(
         mapping=body.mapping,
         edited_by=actor.id,
         api_key_encrypted=stores.keys.seal(body.api_key),
+        app_runs_since=body.app_runs_since,
     )
     return agent_view(edited)
 

@@ -5,20 +5,27 @@ import { buttonVariants } from "@/components/ui/button";
 import { ArrowUpRight, CircleDashed, ListChecks } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { isExperimentId, isMissing } from "../lib/api";
-import { answerText, fmtGauge, outputText, questionText } from "../lib/format";
+import { answerText, outputText, questionText } from "../lib/format";
 import { useApi } from "../lib/query";
 import { trajectoryAvailable, trajectoryBadge } from "../lib/runs";
-import { gaugeRows, toEvalScores } from "../lib/scores";
+import { toEvalScores } from "../lib/scores";
 import type {
   AtifTrajectory,
   CaseView,
   ExperimentInfo,
   RunDetail,
 } from "../lib/types";
-import { CopyText, InfoTip, Tabs } from "../lib/ui";
+import { CopyText, Tabs } from "../lib/ui";
 import { NotFound } from "../shell/NotFound";
 import { agentTag } from "./experimentRow";
-import { EvaluatorScores, FixtureList, PreBlock, Tag, TimeSpan } from "./bits";
+import {
+  EvaluatorScores,
+  FixtureList,
+  GaugeReadings,
+  PreBlock,
+  Tag,
+  TimeSpan,
+} from "./bits";
 import { RunTabs, TRAJECTORY_TABS } from "../runs/RunTabs";
 import { Select } from "../lib/Select";
 import { useFollowWorkspace } from "../shell/workspace";
@@ -221,7 +228,6 @@ export function RunPage() {
 
   const record = run?.agent_run ?? null;
   const scores = run ? toEvalScores(run.evaluations) : {};
-  const gauges = run ? gaugeRows(run.evaluations) : [];
   const structured = outputText(record?.output);
   const hasAnswer = record?.answer != null;
   const agent = status?.agent;
@@ -309,23 +315,7 @@ export function RunPage() {
           <div className="pane-status error">run error: {record.error}</div>
         )}
 
-        {gauges.length > 0 && (
-          <div className="num mt-1 flex flex-wrap gap-3 text-micro text-ink-3">
-            {gauges
-              .filter((g) => g.value !== null)
-              .map((g) => (
-                <span
-                  key={g.name}
-                  className="inline-flex items-center gap-1"
-                  title={g.explanation ?? g.name}
-                >
-                  {g.name.replace(/^gauge_/, "").replaceAll("_", " ")}{" "}
-                  {fmtGauge(g.name, g.value)}
-                  <InfoTip term={g.name} />
-                </span>
-              ))}
-          </div>
-        )}
+        {run && <GaugeReadings rows={run.evaluations} />}
 
         <div className="mt-3">
           <Tabs<Tab>

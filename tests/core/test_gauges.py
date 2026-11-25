@@ -6,6 +6,7 @@ from evalkit.contracts.harness import Capabilities
 from evalkit.contracts.settings import JudgeSettings
 from evalkit.core.evaluators.base import BUILTIN_GAUGES, EvalContext, execute
 from evalkit.core.judge import JudgeUsage
+from evalkit.core.scoring import run_gauges
 from evalkit.core.trajectory import TrajectoryView, derive_metrics
 from evalkit.store.base import CaseView
 
@@ -79,3 +80,11 @@ async def test_gauges_no_reading_without_input():
         row = await run_gauge(name, ctx, FULL_CAPS)
         assert row.score is None
         assert row.explanation == "no reading"
+
+
+async def test_run_gauges_reads_a_run_that_has_no_case():
+    ctx = make_ctx()
+    ctx.case = None
+    rows = await run_gauges(ctx, FULL_CAPS, skip={"gauge_turns"})
+    assert {row.name for row in rows} == set(BUILTIN_GAUGES) - {"gauge_turns"}
+    assert {row.kind for row in rows} == {"gauge"}

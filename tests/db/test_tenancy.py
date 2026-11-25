@@ -65,6 +65,7 @@ async def test_the_default_test_factory_is_tenant_1(session_factory):
 
 EXPECTED_OPENERS = {
     ("evalkit.db.auth", "find_token"),
+    ("evalkit.db.app_runs", "agents_with_app_runs"),
     ("evalkit.db.experiments", "reap"),
     ("evalkit.db.experiments", "tenant_of_experiment"),
     ("evalkit.db.trace_imports", "reap_imports"),

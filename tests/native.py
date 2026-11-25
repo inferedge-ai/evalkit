@@ -18,6 +18,7 @@ from evalkit.config import (
     CostMapConfig,
     DbConfig,
     ServerConfig,
+    WorkerConfig,
 )
 from evalkit.contracts.cases import Case
 from evalkit.contracts.enums import DatasetKind, SyncSource
@@ -79,6 +80,7 @@ def make_cfg(tmp_path) -> Config:
         blob=BlobConfig(url=f"file://{tmp_path}/blob"),
         cost_map=CostMapConfig(source=str(cost_map_path)),
         auth=AuthConfig(),
+        worker=WorkerConfig(embedded=False),
         encryption_key=TEST_ENCRYPTION_KEY,
         allow_private_endpoints=True,
     )

@@ -10,7 +10,6 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -18,6 +17,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Empty } from "@/components/widgets/Empty";
 import { PageHeader } from "@/components/widgets/PageHeader";
+import { FormDialogFooter } from "../lib/FormDialogFooter";
 import { apiJson } from "../lib/api";
 import { FORM_DIALOG, FORM_DIALOG_BODY } from "../lib/formDialog";
 import { refreshQueries } from "../lib/query";
@@ -114,9 +114,8 @@ function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setName(e.target.value)}
               />
             </Field>
-            {error && <div className="text-meta text-err-text">{error}</div>}
           </div>
-          <DialogFooter>
+          <FormDialogFooter errors={[error]}>
             <DialogClose
               disabled={busy}
               render={<Button variant="outline" disabled={busy} />}
@@ -126,7 +125,7 @@ function NewWorkspaceDialog({ onClose }: { onClose: () => void }) {
             <Button type="submit" disabled={busy || !name.trim()}>
               Create workspace
             </Button>
-          </DialogFooter>
+          </FormDialogFooter>
         </form>
       </DialogContent>
     </Dialog>

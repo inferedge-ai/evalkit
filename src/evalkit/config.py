@@ -59,6 +59,14 @@ class ServerRunnerConfig(ConfigModel):
     evaluation_concurrency: int = Field(default=16, ge=1)
 
 
+class WorkerConfig(ConfigModel):
+    embedded: bool = True
+    concurrency: int = Field(default=2, ge=1)
+    pool_max_size: int = Field(default=2, ge=1)
+    delete_jobs: Literal["always", "successful", "never"] = "never"
+    job_retention_hours: int = Field(default=168, ge=1)
+
+
 class CostMapConfig(ConfigModel):
     source: str = "bundled"
 
@@ -214,6 +222,7 @@ class Config(RunnerConfig):
     otel: OtelConfig = OtelConfig()
     limits: LimitsConfig = LimitsConfig()
     runner: ServerRunnerConfig = ServerRunnerConfig()
+    worker: WorkerConfig = WorkerConfig()
     sentry: SentryConfig | None = None
     encryption_key: str | None = None
     allow_private_endpoints: bool = False

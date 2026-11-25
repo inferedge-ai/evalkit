@@ -45,6 +45,7 @@ from evalkit.api import (
 )
 from evalkit.api.auth import SIGNED_IN, bootstrap_admin
 from evalkit.api.auth import router as auth_router
+from evalkit.api.jobs import embedded_worker
 from evalkit.api.limits import BodyLimitMiddleware
 from evalkit.api.mcp.auth import MCP_PATH
 from evalkit.api.mcp.server import mcp_running, mount_mcp
@@ -272,7 +273,7 @@ def create_app(
             app.state.oidc_retry.add_done_callback(log_retry_failure)
         reaper = asyncio.create_task(reap_forever(app.state.session_factory))
         reaper.add_done_callback(stop_if_reaper_died)
-        async with mcp_running(mcp_app):
+        async with mcp_running(mcp_app), embedded_worker(app.state):
             yield
         reaper.cancel()
         await asyncio.gather(reaper, return_exceptions=True)

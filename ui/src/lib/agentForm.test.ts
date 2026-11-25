@@ -5,6 +5,8 @@ import {
   createAgentBody,
   editAgentBody,
   emptyAgentForm,
+  listsHarnessRuns,
+  storesAppRuns,
   urlClearsKey,
 } from "./agentForm";
 import type { AgentInfo } from "./types";
@@ -51,6 +53,8 @@ describe("agent form", () => {
       project: "ra",
       import_settle_seconds: 15,
       import_wait_seconds: 120,
+      app_runs_cron: "*/5 * * * *",
+      app_runs_per_pass: 100,
     });
     const atif = { ...ok, trajectory_source: "atif" as const, project: "" };
     expect(agentFormErrors(atif, "create")).toEqual([]);
@@ -152,5 +156,66 @@ describe("agent form", () => {
         current,
       ),
     ).toBe(false);
+  });
+});
+
+describe("app run settings", () => {
+  const stored = {
+    harness_url: "http://h",
+    trajectory_source: "atif",
+    has_api_key: true,
+    app_runs_stored_until: "2026-11-20T10:00:00Z",
+    settings: {
+      max_concurrent_runs: 4,
+      app_runs_cron: "*/10 * * * *",
+      app_runs_per_pass: 25,
+    },
+  } as unknown as AgentInfo;
+
+  it("creates an agent with its schedule, limit and start time", () => {
+    const values = {
+      ...emptyAgentForm("dev"),
+      name: "a",
+      harness_url: "http://h",
+      app_runs_cron: " 0 * * * * ",
+      app_runs_since: "2026-11-20T10:00",
+    };
+    values.settings.app_runs_per_pass = "20";
+    const body = createAgentBody(values);
+    expect(body.settings).toMatchObject({
+      app_runs_cron: "0 * * * *",
+      app_runs_per_pass: 20,
+    });
+    expect(body.app_runs_since).toBe(
+      new Date("2026-11-20T10:00").toISOString(),
+    );
+  });
+
+  it("sends a start time on edit only when the person changed it", () => {
+    const values = agentFormFrom(stored);
+    expect(values.app_runs_cron).toBe("*/10 * * * *");
+    expect(values.settings.app_runs_per_pass).toBe("25");
+    expect(editAgentBody(values, stored)).not.toHaveProperty("app_runs_since");
+    const earlier = { ...values, app_runs_since: "2026-11-19T10:00" };
+    expect(editAgentBody(earlier, stored).app_runs_since).toBe(
+      new Date("2026-11-19T10:00").toISOString(),
+    );
+  });
+
+  it("checks the schedule and the limit only for agents whose app runs are stored", () => {
+    const personal = { ...agentFormFrom(stored), app_runs_cron: "hourly" };
+    expect(storesAppRuns(personal, false)).toBe(false);
+    expect(agentFormErrors(personal, "edit", false)).toEqual([]);
+    expect(agentFormErrors(personal, "edit", true)).toEqual([
+      "The app runs schedule is a cron expression of five fields, such as */5 * * * *.",
+    ]);
+    const traced = { ...personal, trajectory_source: "otel" as const };
+    expect(storesAppRuns(traced, false)).toBe(true);
+    expect(listsHarnessRuns(traced, true)).toBe(false);
+    const bad = agentFormFrom(stored);
+    bad.settings.app_runs_per_pass = "0";
+    expect(agentFormErrors(bad, "edit", true)).toEqual([
+      "Runs per pass must be a whole number of at least 1.",
+    ]);
   });
 });

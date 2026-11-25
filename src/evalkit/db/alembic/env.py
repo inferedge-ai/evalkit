@@ -7,6 +7,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from evalkit.db.models import Base
+from evalkit.db.session import include_name
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -54,7 +55,9 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection, target_metadata=target_metadata, include_name=include_name
+    )
 
     with context.begin_transaction():
         context.run_migrations()

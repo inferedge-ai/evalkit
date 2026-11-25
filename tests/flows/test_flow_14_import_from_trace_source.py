@@ -1,4 +1,5 @@
 import asyncio
+from datetime import UTC, datetime, timedelta
 
 import httpx2
 import pytest
@@ -8,9 +9,11 @@ from sqlalchemy import func, select
 
 from evalkit.api.access import build_tenant_stores
 from evalkit.api.deps import get_allow_private_endpoints, get_config
+from evalkit.api.jobs import app_run_services
 from evalkit.api.session_pull import ServerSessionPuller
 from evalkit.cli.traces_commands import render_check
 from evalkit.contracts.settings import AgentSettings
+from evalkit.core.app_runs import PassResult, store_app_runs
 from evalkit.core.traces.session_import import SessionPullFailed
 from evalkit.db.crypto import SecretBox
 from evalkit.db.models import Span
@@ -448,3 +451,78 @@ async def test_flow_14_a_refused_key_names_the_fix(httpx2_mock, api):
         "trace source phx refused its API key (401); an admin sets a new one with "
         "evalkit trace-sources edit phx --api-key-env <VAR>"
     )
+
+
+async def scheduled_pass(api) -> PassResult:
+    services = app_run_services(api.app.state)
+    stores = build_tenant_stores(api.app.state, "default")
+    agent = await stores.agents.get(AGENT)
+    return await store_app_runs(services.deps("default"), agent)
+
+
+def recent_page(numbers: list[int]) -> dict:
+    now = datetime.now(UTC)
+    return {"data": [phoenix_trace(n, (now - timedelta(minutes=n)).isoformat()) for n in numbers]}
+
+
+async def test_flow_14_a_scheduled_pass_imports_new_traces_then_stores_their_sessions(
+    httpx2_mock, api
+):
+    serve_spans(httpx2_mock)
+    await link_source(api)
+    route = httpx2_mock.get(TRACES).mock(
+        side_effect=[
+            MockResponse(200, json=recent_page([1, 2])),
+            MockResponse(200, json=recent_page([1, 2, 3])),
+        ]
+    )
+    first = await scheduled_pass(api)
+    [imported] = (await api.get(f"/api/agents/{AGENT}/imports")).json()
+    assert (imported["status"], imported["created_by"], imported["traces"]) == ("done", None, 2)
+    assert (first.stored, first.waiting) == (0, 2)
+    api.app.state.cfg.otel.settle_seconds = -60
+    stores = build_tenant_stores(api.app.state, "default")
+    await stores.agents.edit(
+        AGENT,
+        settings=AgentSettings(
+            trace_source="phx", project="research-agent", import_settle_seconds=0
+        ),
+    )
+    second = await scheduled_pass(api)
+    assert second.stored == 2
+    newer, older = (await api.get(f"/api/agents/{AGENT}/imports")).json()
+    assert newer["traces"] == 3 and newer["created_by"] is None
+    overlap = datetime.fromisoformat(older["until"]) - datetime.fromisoformat(newer["since"])
+    assert overlap == timedelta(minutes=15)
+    assert route.call_count == 2
+    runs = (await api.get(f"/api/agents/{AGENT}/runs", params={"source": "app"})).json()["runs"]
+    assert {r["run_id"]: r["stored"] for r in runs} == {
+        "sess-1": True,
+        "sess-2": True,
+        "sess-3": False,
+    }
+
+
+async def test_flow_14_a_scheduled_pass_starts_no_import_while_one_is_running(httpx2_mock, api):
+    await link_source(api)
+    stores = build_tenant_stores(api.app.state, "default")
+    agent = await stores.agents.get(AGENT)
+    source = await stores.sources.resolve("phx")
+    now = datetime.now(UTC)
+    await stores.imports.create(
+        agent.id, source.id, "research-agent", None, now - timedelta(hours=1), now, None, "pod:a"
+    )
+    await scheduled_pass(api)
+    assert httpx2_mock.calls.call_count == 0
+    assert len((await api.get(f"/api/agents/{AGENT}/imports")).json()) == 1
+
+
+async def test_flow_14_a_trace_source_that_is_down_fails_the_pass_and_records_the_import(
+    httpx2_mock, api
+):
+    await link_source(api)
+    httpx2_mock.get(TRACES).mock(return_value=MockResponse(500, json={"detail": "down"}))
+    with pytest.raises(httpx2.HTTPError):
+        await scheduled_pass(api)
+    [failed] = (await api.get(f"/api/agents/{AGENT}/imports")).json()
+    assert failed["status"] == "failed" and failed["error"]

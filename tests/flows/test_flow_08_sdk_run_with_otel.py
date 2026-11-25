@@ -163,7 +163,7 @@ async def test_flow_08_dry_run_resume_and_re_evaluate(env):
 
     await srv.execute(
         sa.delete(models.Evaluation).where(
-            models.Evaluation.experiment_run_id.in_([r.experiment_run_id for r in runs]),
+            models.Evaluation.agent_run_id.in_([r.agent_run_id for r in runs]),
             models.Evaluation.name == "required_tool_calls",
         )
     )

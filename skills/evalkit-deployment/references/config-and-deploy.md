@@ -71,6 +71,48 @@ load.
 once the app is up). Use it for load-balancer / Kubernetes liveness and
 readiness probes rather than `/` (which returns the SPA `index.html`).
 
+## The job worker
+
+The server stores agents' app runs with a job worker that keeps its jobs in
+Postgres (the `procrastinate_*` tables). By default `evalkit serve` runs the
+worker inside its own process, so the one container above is a whole
+deployment.
+
+To keep jobs away from API requests, run the worker as its own process:
+
+1. Set `worker.embedded: false` in `config.yaml`. `evalkit serve` then runs no
+   worker.
+2. Start a second container from the same image, with the same config file and
+   environment, and this command. It serves no port.
+
+```yaml
+  worker:
+    image: ${EVALKIT_IMAGE}
+    command: ["evalkit", "worker", "--config", "/etc/evalkit/config.yaml"]
+    volumes:
+      - ./config.yaml:/etc/evalkit/config.yaml:ro
+      - blob-data:/data/evalkit
+    environment:
+      EVALKIT_DATABASE_URL: postgresql+psycopg://evalkit:${POSTGRES_PASSWORD}@postgres/evalkit
+      EVALKIT_ENCRYPTION_KEY: ${EVALKIT_ENCRYPTION_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+```
+
+- The worker never migrates. It stops at start when the schema is behind, with
+  the message to run `evalkit db upgrade`; start it after the server or the
+  migration job.
+- On `SIGTERM` it takes no new job and lets running ones finish, so give the
+  container a stop grace period of a minute or more.
+- Several workers may run at once: each job goes to one of them.
+- Each worker holds `worker.pool_max_size` Postgres connections, and never
+  fewer than `worker.concurrency + 3`, plus the server's own pool for the work
+  its jobs do. Count both against `max_connections`.
+- Finished jobs stay in `procrastinate_jobs` for `worker.job_retention_hours`
+  (7 days), so `select task_name, status, args from procrastinate_jobs` shows
+  what ran.
+
 ## Migrations on start
 
 `db.migrate_on_start: true` makes the server run `evalkit db upgrade` itself

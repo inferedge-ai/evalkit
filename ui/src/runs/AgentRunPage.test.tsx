@@ -212,3 +212,25 @@ test("a run whose workspace holds no files says so", async () => {
     await screen.findByText("No files in this run's workspace"),
   ).toBeInTheDocument();
 });
+
+test("a stored run shows its gauge readings under the header", async () => {
+  serveRun((url) =>
+    url.endsWith(`${RUN_URL}/evaluations`)
+      ? Response.json([
+          {
+            producer: "gauge_turns",
+            name: "gauge_turns",
+            kind: "gauge",
+            source: "builtin",
+            scored_on: "server",
+            value: 3,
+            label: "info",
+            explanation: null,
+            error: null,
+          },
+        ])
+      : undefined,
+  );
+  openRun();
+  expect(await screen.findByText(/turns 3/)).toBeInTheDocument();
+});
