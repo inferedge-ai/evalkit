@@ -59,7 +59,9 @@ and how case review works.
    configured on the server, the command opens your browser at your identity
    provider and stores its tokens, which refresh themselves; on a machine
    without a browser, `evalkit login --url <url> --no-browser` prints a URL
-   and a code to enter on any device. Without single sign-on (or with
+   and a code to enter on any device, if the identity provider lets the CLI
+   use the device authorization grant; if the command says it doesn't, use a
+   machine client of your own (item 3). Without single sign-on (or with
    `--username`) it asks for a password and stores an evalkit token that
    expires after the TTL the deployer configured (default 30 days). When a
    command says `your login has expired`, log in again. `evalkit whoami`

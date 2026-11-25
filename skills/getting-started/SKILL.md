@@ -81,8 +81,8 @@ After that, stop for the developer only at the points under "When to stop".
 - Mine a small first batch: pick the window so it holds 30 app runs or
   fewer, and narrow it if `evalkit runs list` shows more. On the trace source path,
   import only that window.
-- The cases stay in the developer's own workspace. Skip the review steps of
-  the mining loop.
+- The cases stay in the personal workspace of whoever is logged in. Skip the
+  review steps of the mining loop.
 - An agent that runs as a service: restart it after each fix, before the
   next run.
 
@@ -90,7 +90,19 @@ After that, stop for the developer only at the points under "When to stop".
 
 Stop and ask only for what you cannot do yourself:
 
-- The sign-in in the browser that `evalkit login` opens.
+- The sign-in in the browser that `evalkit login` opens. When you run where
+  the developer has no browser, such as a remote sandbox, run
+  `evalkit login --no-browser` and give them the URL and code it prints. If
+  it says the identity provider does not let the evalkit CLI use the device
+  authorization grant, you need a machine client an evalkit admin has set up
+  (`../evalkit-docs/login.md`, "Scripts and CI"): one of its own, not the one
+  CI uses. Ask the developer to put `EVALKIT_SERVER_URL`,
+  `EVALKIT_OIDC_CLIENT_ID` and `EVALKIT_OIDC_CLIENT_SECRET` in your
+  environment themselves, through the sandbox's secret settings. Never ask
+  for the secret, print it or write it to a file. If they have no such
+  client, say so and stop. With it, skip `evalkit login`. You act as that
+  machine user: the quickstart's dataset, agent and experiments go in its
+  personal workspace, which the developer can read but not change.
 - Trace source path: the trace store's URL, project name and API key (for
   Langfuse, the public and secret key joined with a colon in one variable). Ask for the
   name of the environment variable that holds the key; never ask for the key

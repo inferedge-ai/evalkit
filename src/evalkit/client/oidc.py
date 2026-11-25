@@ -25,6 +25,7 @@ REFRESH_WINDOW_SECONDS = 60
 LOOPBACK_TIMEOUT_SECONDS = 300.0
 LOOPBACK_PAGE = b"<!doctype html><title>evalkit</title><p>Logged in. You can close this tab."
 DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+DEVICE_GRANT_REFUSALS = ("unauthorized_client", "unsupported_grant_type")
 
 
 class LoginExpired(Exception):
@@ -231,8 +232,9 @@ class LoginTimedOut(Exception):
 class NoDeviceGrant(Exception):
     def __init__(self) -> None:
         super().__init__(
-            "this identity provider has no device authorization endpoint; "
-            "log in from a machine with a browser"
+            "the identity provider does not let the evalkit CLI use the device "
+            "authorization grant; log in from a machine with a browser, or set EVALKIT_SERVER_URL, "
+            "EVALKIT_OIDC_CLIENT_ID and EVALKIT_OIDC_CLIENT_SECRET for a machine client"
         )
 
 
@@ -336,6 +338,12 @@ def run_device_flow(
                 **providers_oidc["authorize_params"],
             },
         )
+        if (
+            started_resp.status_code in (400, 401)
+            and started_resp.headers.get("content-type", "").startswith("application/json")
+            and started_resp.json().get("error") in DEVICE_GRANT_REFUSALS
+        ):
+            raise NoDeviceGrant()
         started_resp.raise_for_status()
         started = started_resp.json()
         echo(f"open {started['verification_uri']} and enter {started['user_code']}")
