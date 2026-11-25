@@ -167,17 +167,15 @@ async def test_split_counts_include_overlay_tags(session_factory, world):
     assert counts == [("client-only", 1), ("core", 2), ("hard", 1)]
 
 
-def _under(case_id: str, *folders: str):
-    return incoming(case_id).model_copy(update={"path_tags": list(folders)})
+def _at(case_id: str, source: str, *tags: str):
+    return incoming(case_id, tags=tags).model_copy(update={"source": source})
 
 
 async def test_subfolder_sync_names_cases_missing_under_it(session_factory, world):
-    a1, a2, deep, b1 = (
-        _under("a-1", "a"),
-        _under("a-2", "a"),
-        _under("a-3", "a", "x"),
-        _under("b-1", "b"),
-    )
+    a1 = _at("a-1", "a/one.yaml")
+    a2 = _at("a-2", "a/two.yaml", "a")
+    deep = _at("a-3", "a/x/three.yaml")
+    b1 = _at("b-1", "ab/one.yaml")
     async with session_factory() as s:
         await sync(s, world.dev, world.admin_id, [a1, a2, deep, b1])
         folder = await sync(s, world.dev, world.admin_id, [a1], full=False, under=("a",))

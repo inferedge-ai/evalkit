@@ -156,6 +156,14 @@ async def missing_blobs(
     ]
 
 
+def _source(dataset: str, source_path: Path | None, root: Path | None) -> str:
+    if source_path is None:
+        return dataset
+    if root is None:
+        return source_path.name
+    return source_path.resolve().relative_to(root.resolve()).as_posix()
+
+
 def _path_tags(source_path: Path | None, root: Path | None) -> list[str]:
     if source_path is None or root is None:
         return []
@@ -232,7 +240,7 @@ async def import_cases(
         incoming=[
             incoming_case(
                 case,
-                source=dataset if source_path is None else source_path.name,
+                source=_source(dataset, source_path, root),
                 files=case_files(case, entries),
                 extra_tags=_path_tags(source_path, root),
             )

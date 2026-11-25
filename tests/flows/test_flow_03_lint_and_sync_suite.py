@@ -42,11 +42,16 @@ def test_flow_03_sync_targets_your_workspace_and_prunes_only_whole_datasets(cli)
         assert "removed 1 case(s) no longer on disk: f3-2" in out
         assert case_ids(alice, "fin3@alice") == ["f3-1", "f3-3"]
 
+        (root / "sub/tagged.yaml").write_text(
+            cases_yaml("f3-5").replace("    input:", "    tags: [sub]\n    input:")
+        )
+        cli.ok("sync", "fin3/sub")
+        (root / "sub/tagged.yaml").unlink()
         (root / "sub/b.yaml").write_text(cases_yaml("f3-4"))
         out = cli.ok("sync", "fin3/sub")
-        assert "1 case(s) under sub/ are no longer on disk: f3-3" in out
+        assert "2 case(s) under sub/ are no longer on disk: f3-3, f3-5" in out
         assert "evalkit sync fin3" in out
-        assert case_ids(alice, "fin3@alice") == ["f3-1", "f3-3", "f3-4"]
+        assert case_ids(alice, "fin3@alice") == ["f3-1", "f3-3", "f3-4", "f3-5"]
         out = cli.ok("sync", "fin3/sub/b.yaml")
         assert "no longer on disk" not in out
 

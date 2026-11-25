@@ -83,15 +83,22 @@ async def _not_target(
     raise HTTPException(status_code=409, detail=f"{slug} is fed by promotion; {what}")
 
 
-async def _load_case_review(
+async def _load_case(
     stores: TenantStores, session: SessionDep, ref: str, case_id: str
-) -> CaseReview:
-    _, cases = await _suite(stores, session, ref)
+) -> tuple[DatasetRow, CaseView, CaseReview]:
+    dataset, cases = await _suite(stores, session, ref)
     case = next((c for c in cases if c.case_id == case_id), None)
     if case is None:
         raise HTTPException(status_code=404, detail=f"unknown case: {case_id}")
     reviews = await stores.review.load(ref, [CaseVersion.of(case)])
-    return reviews[case_id]
+    return dataset, case, reviews[case_id]
+
+
+async def _load_case_review(
+    stores: TenantStores, session: SessionDep, ref: str, case_id: str
+) -> CaseReview:
+    _, _, review = await _load_case(stores, session, ref, case_id)
+    return review
 
 
 @router.post("/datasets/{slug}/review-requests")
@@ -142,9 +149,7 @@ async def decide(
     text = (body.comment or "").strip()
     if body.action == "request_changes" and not text:
         raise HTTPException(status_code=400, detail="request_changes needs a comment")
-    review = await _load_case_review(stores, session, slug, case_id)
-    dataset, cases = await _suite(stores, session, slug)
-    case = next(c for c in cases if c.case_id == case_id)
+    dataset, case, review = await _load_case(stores, session, slug, case_id)
     plan: PromotionPlan | None = None
     if body.action == "approve" and ws.promotes_to is not None:
         try:

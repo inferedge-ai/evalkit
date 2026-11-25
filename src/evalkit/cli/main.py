@@ -46,6 +46,7 @@ from evalkit.client.sync import (
     git_revision,
     resolve_path,
     sync_dataset,
+    sync_folder,
 )
 from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, load_config
 from evalkit.contracts.cases import REGISTRY_FILENAME, CaseEvaluators, is_case_yaml
@@ -537,7 +538,8 @@ def _sync_and_report(
         )
     if report.get("missing"):
         typer.echo(
-            f"{len(report['missing'])} case(s) under {subpath}/ are no longer on disk: "
+            f"{len(report['missing'])} case(s) under {sync_folder(dataset_dir, subpath)}/ "
+            "are no longer on disk: "
             + ", ".join(report["missing"])
             + f". Sync the whole dataset (evalkit sync {name}) to remove them."
         )

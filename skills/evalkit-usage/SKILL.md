@@ -513,8 +513,9 @@ it. Nothing else reaches the target:
   finance@prod: <case id>`, and the target's sync row records `removed` and
   `removal_reason` (`removed_from_source` or `changes_requested`). Approving a
   fixed version promotes it again.
-- Requesting changes on a newer version leaves the target untouched. The
-  target keeps the last approved version until a newer one is approved.
+- Requesting changes in the source on a version newer than the one the
+  target holds leaves the target untouched. The target keeps its approved
+  version until a newer one is approved in the source.
 - Approving the same content again changes nothing in the target except the
   overlays, which are refreshed.
 - The target dataset must exist first: `evalkit datasets create finance@prod`

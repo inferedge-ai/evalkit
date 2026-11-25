@@ -221,6 +221,7 @@ async def unpromote(
     target = await find_dataset_row(session, target_ws.tenant_id, target_ws.name, dataset)
     if target is None or target.kind != "suite" or target.written_by_extension:
         return None
+    await check_writer(session, target.id, target.ref, SyncSource.PROMOTION)
     rows = (
         await session.execute(
             select(
@@ -241,7 +242,6 @@ async def unpromote(
     }
     if not gone:
         return None
-    await check_writer(session, target.id, target.ref, SyncSource.PROMOTION)
     removed = sorted(gone.values())
     source = await find_dataset_row(session, source_ws.tenant_id, source_ws.name, dataset)
     assert source is not None

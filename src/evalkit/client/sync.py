@@ -196,6 +196,13 @@ def upload_fixtures(
     return uploaded
 
 
+def sync_folder(dataset_dir: Path, subpath: str | None) -> str | None:
+    if subpath is None or not (dataset_dir / subpath).is_dir():
+        return None
+    folder = (dataset_dir / subpath).resolve().relative_to(dataset_dir.resolve())
+    return folder.as_posix() if folder.parts else None
+
+
 def sync_dataset(
     client: SyncApi,
     dataset_dir: Path,
@@ -218,8 +225,9 @@ def sync_dataset(
     if actor is not None:
         params["actor"] = actor
     refuse_package_folder(dataset_dir)
-    if subpath is not None and (dataset_dir / subpath).is_dir():
-        params["under"] = Path(subpath).as_posix()
+    folder = sync_folder(dataset_dir, subpath)
+    if folder is not None:
+        params["under"] = folder
     files = sync_files(dataset_dir, subpath)
     if fixtures_dir is not None:
         refuse_package_folder(fixtures_dir)

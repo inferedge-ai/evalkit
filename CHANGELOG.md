@@ -47,7 +47,10 @@
   (`removed` in the `POST /api/sync` report and on the sync row). A sync of one
   folder names the cases under that folder that are no longer on disk
   (`missing`, new `under` query parameter) and asks for a whole-dataset sync
-  to remove them.
+  to remove them. The source column of a dataset's cases now shows the file's
+  path inside the dataset (`tax/case.yaml`), not just its name; cases synced
+  before show the old value, and the folder warning misses them, until the
+  next sync of the whole dataset.
 - **Lint:** The error `E-JARGON` is now the warning `W-JARGON`. Case text
   that looks like agent internals (an `mcp__` prefix, a `__dunder__` token, a
   `snake_case(` call) is still reported by `evalkit lint` and `evalkit sync`,

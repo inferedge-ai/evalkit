@@ -496,7 +496,9 @@ async def sync_dataset(
                     .where(
                         models.DatasetCase.dataset_id == dataset_id,
                         models.DatasetCase.removed_at.is_(None),
-                        models.DatasetCase.path_tags[1 : len(under)] == list(under),
+                        models.DatasetCase.source.startswith(
+                            "/".join(under) + "/", autoescape=True
+                        ),
                     )
                 )
             ).all()
