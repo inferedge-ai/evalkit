@@ -124,6 +124,7 @@ class FakeIdp:
         self.next_login: tuple[str, str, str | None] | None = None
         self.machine_clients: dict[str, tuple[str, str]] = {}
         self.device_pending = 0
+        self.device_clients: set[str] | None = None
         self.access_ttl = 3600
         self.codes: dict[str, dict] = {}
         self.refresh_tokens: dict[str, dict] = {}
@@ -252,6 +253,9 @@ class FakeIdp:
             )
             return 302, {"location": location}, b""
         if path == "/device":
+            if self.device_clients is not None and form.get("client_id") not in self.device_clients:
+                body = {"error": "unauthorized_client"}
+                return 400, {"content-type": "application/json"}, json.dumps(body).encode()
             device_code = secrets.token_urlsafe(8)
             self.devices[device_code] = {
                 **self._login(),

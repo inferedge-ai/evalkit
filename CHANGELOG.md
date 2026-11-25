@@ -54,12 +54,15 @@
   Langfuse's LangChain callback got trajectories with no tool calls, whether
   their spans reached the collector or were imported from Langfuse with the
   `langfuse` preset.
-- **Login:** When the identity provider has no device authorization grant,
-  `evalkit login --no-browser` now names the machine client variables
-  (`EVALKIT_SERVER_URL`, `EVALKIT_OIDC_CLIENT_ID`,
+- **Login:** When the identity provider doesn't let the CLI use the device
+  authorization grant, `evalkit login --no-browser` now says so and names the
+  machine client variables (`EVALKIT_SERVER_URL`, `EVALKIT_OIDC_CLIENT_ID`,
   `EVALKIT_OIDC_CLIENT_SECRET`) as the way in from a machine without a
-  browser. The getting-started skill tells a coding agent in a remote
-  sandbox to ask the developer for those variables when that happens.
+  browser. That covers a provider with no device endpoint and one that
+  answers `unauthorized_client` or `unsupported_grant_type`, which before
+  ended in a bare HTTP error. The getting-started skill tells a coding agent
+  in a remote sandbox to have the developer set those variables when that
+  happens.
 
 ### Fixes
 

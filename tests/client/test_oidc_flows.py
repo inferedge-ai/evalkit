@@ -176,6 +176,13 @@ def test_device_flow_without_endpoint_names_machine_client():
         run_device_flow(providers_for(idp, device=False), print, transport=idp.transport())
 
 
+def test_device_flow_refused_for_cli_names_machine_client():
+    idp = FakeIdp()
+    idp.device_clients = {"another-cli"}
+    with pytest.raises(NoDeviceGrant, match="EVALKIT_OIDC_CLIENT_SECRET for a machine client"):
+        run_device_flow(providers_for(idp), print, transport=idp.transport())
+
+
 def test_device_flow_refuses_any_other_error(monkeypatch):
     idp = FakeIdp()
     idp.next_login = ("sub-2", "bob@example.com", None)

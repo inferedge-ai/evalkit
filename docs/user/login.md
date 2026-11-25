@@ -20,10 +20,13 @@ on a local port, and the CLI stores the identity provider's tokens in
 
 On a machine without a browser, such as a remote sandbox a coding agent runs
 in, `evalkit login --url {{origin}} --no-browser` prints a URL and a code to
-enter on any device. That needs the device authorization grant at the
-identity provider; without it the command stops and says so. Use a machine
-client there instead, as under [Scripts and CI](#scripts-and-ci): commands
-then act as that machine user, not as you.
+enter on any device. That needs the identity provider to let the CLI's
+client use the device authorization grant; otherwise the command stops and
+says so. Use a machine client there instead, as under
+[Scripts and CI](#scripts-and-ci), one of its own rather than the one your
+CI uses. Set its variables through the machine's secret settings, not in a
+file. Commands then act as that machine user, in its personal workspace,
+not as you.
 
 Without single sign-on, or with `--username`, the command asks for a username
 and password and stores an evalkit token instead. With single sign-on
