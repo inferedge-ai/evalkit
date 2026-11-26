@@ -553,6 +553,8 @@ def _sync_and_report(
             f"approved before, back in {report['promoted_to']['target']}: "
             + ", ".join(report["promoted_to"]["cases"])
         )
+    for item in report.get("not_promoted") or []:
+        typer.echo(f"approved before, not back in the target: {item['case']} ({item['reason']})")
     review = report.get("review") or {}
     if review.get("now_unreviewed"):
         typer.echo(
@@ -1749,7 +1751,7 @@ def _post_decision(dataset: str, case_id: str, action: str, comment: str | None)
     result = _client().post(f"{_case_path(dataset, case_id)}/review", json=body).json()
     typer.echo(f"{case_id}: {result['state']}")
     if result.get("removed_from"):
-        _echo_removed_from(result["removed_from"], [case_id])
+        _echo_removed_from(result["removed_from"]["target"], result["removed_from"]["cases"])
     _echo_link(_case_url(dataset, case_id))
 
 

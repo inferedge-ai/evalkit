@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Before you upgrade
+
+- **Server:** `POST /api/datasets/{ref}/cases/{case_id}/review` now returns
+  `promoted_to` as `{"target": "finance@prod", "cases": ["case-1"]}` instead
+  of the target name, and the new `removed_from` in the same shape, matching
+  the `POST /api/sync` report. Update any client that reads `promoted_to`.
+
 ### Improvements
 
 - **Review:** A case removed from a promotion source by a whole-dataset sync is
@@ -9,12 +16,14 @@
   version gets changes requested in the source. Before, the target kept the
   approved copy until a newer version was approved. A case that comes back to
   the source, at a version whose latest review decision is an approval, is
-  promoted again on that sync, so reverting a deletion restores the target.
-  The target's sync row records `removed`, `removal_reason` and, for a review
-  decision, its `event_id`. `evalkit sync` and `evalkit review
-  request-changes` print `removed from <target>: <case ids>`; the sync report
-  carries `removed_from` and `promoted_to`, and the decision endpoint returns
-  `removed_from`. Approving a case that a sync removed at the same moment now
+  promoted again on that sync, under the reviewer who approved it, so
+  reverting a deletion restores the target. A case the target can't take, for
+  example because an overlay dataset is missing there, stays out and is listed
+  in `not_promoted`; the sync still succeeds. The target's sync row records
+  `removed`, `removal_reason` and, for a review decision, its `event_id`.
+  `evalkit sync` and `evalkit review request-changes` print `removed from
+  <target>: <case ids>`; the sync report carries `removed_from` and
+  `promoted_to`. Approving a case that a sync removed at the same moment now
   answers 409 instead of promoting it.
 - **CLI:** `evalkit sync` of a whole dataset names the cases it removed
   (`removed` in the `POST /api/sync` report and on the sync row). A sync of one

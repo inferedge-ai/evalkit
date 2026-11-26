@@ -1,11 +1,13 @@
 import httpx2
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
+from evalkit.api import review as review_api
 from evalkit.contracts.enums import WorkspaceRole
 from evalkit.core.dataset_readme import DatasetMetadata, DatasetReadme
 from evalkit.db.cases import find_dataset_row, set_dataset_readme
-from evalkit.db.models import DatasetSync
+from evalkit.db.models import CaseEvent, DatasetSync
+from evalkit.db.promotion import plan_promotion
 from evalkit.db.users import UserStore
 from evalkit.db.workspaces import WorkspaceStore
 from tests.fake_harness import FakeHarness
@@ -76,7 +78,8 @@ async def test_approve_promotes_and_rejection_does_not(env):
     ).status_code == 200
     resp = await _decide(clients["sme"], DEV, "case-1", "approve")
     assert resp.status_code == 200, resp.text
-    assert resp.json()["state"] == "approved" and resp.json()["promoted_to"] == PROD
+    assert resp.json()["state"] == "approved"
+    assert resp.json()["promoted_to"] == {"target": PROD, "cases": ["case-1"]}
 
     dev = await _cases(clients["sme"], DEV)
     prod = await _cases(clients["sme"], PROD)
@@ -256,14 +259,14 @@ async def test_changes_requested_on_the_promoted_version_removes_it_from_the_tar
     resp = await _decide(clients["sme"], DEV, "case-1", "request_changes", "wrong date")
 
     assert resp.status_code == 200, resp.text
-    assert resp.json()["removed_from"] == PROD
+    assert resp.json()["removed_from"] == {"target": PROD, "cases": ["case-1"]}
     assert "case-1" not in await _cases(clients["sme"], PROD)
     source, detail = await _latest_sync_detail(ctx, PROD)
     assert source == "promotion" and isinstance(detail.pop("event_id"), int)
     assert detail == {"from": DEV, "removed": ["case-1"], "removal_reason": "changes_requested"}
 
     resp = await _decide(clients["sme"], DEV, "case-1", "approve")
-    assert resp.json()["promoted_to"] == PROD
+    assert resp.json()["promoted_to"] == {"target": PROD, "cases": ["case-1"]}
     assert (await _cases(clients["sme"], PROD))["case-1"]["review"]["state"] == "approved"
 
 
@@ -305,3 +308,47 @@ async def test_a_case_sent_back_stays_out_of_the_target_when_it_comes_back(env):
 
     assert result.promoted_to is None
     assert "case-1" not in await _cases(clients["sme"], PROD)
+
+
+async def test_a_case_that_comes_back_keeps_its_approver_in_the_target(env):
+    clients, ctx = env
+    await clients["admin"].post("/api/datasets", json={"name": "finance", "workspace": "prod"})
+    assert (await _decide(clients["sme"], DEV, "case-1", "approve")).status_code == 200
+    both = [suite_case("case-1", "q1"), suite_case("case-2", "q2")]
+    await sync_cases(ctx, both[1:], workspace="dev", full=True, actor="alice")
+    await sync_cases(ctx, both, workspace="dev", full=True, actor="alice")
+
+    found = (await clients["sme"].get(f"/api/datasets/{PROD}/cases/case-1/events")).json()
+    approvals = [e for e in found["events"] if e["dataset"] == PROD and e["kind"] == "approved"]
+    assert [e["actor"] for e in approvals] == ["sme", "sme"]
+
+
+async def test_an_approval_racing_a_removal_answers_409_and_rolls_back(env, monkeypatch):
+    clients, ctx = env
+    await clients["admin"].post("/api/datasets", json={"name": "finance", "workspace": "prod"})
+
+    async def plan_then_remove(session, ws, dataset, case):
+        plan = await plan_promotion(session, ws, dataset, case)
+        await sync_cases(ctx, [suite_case("case-2", "q2")], workspace="dev", full=True)
+        return plan
+
+    monkeypatch.setattr(review_api, "plan_promotion", plan_then_remove)
+    resp = await _decide(clients["sme"], DEV, "case-1", "approve")
+
+    assert resp.status_code == 409 and "changed or was removed" in resp.json()["detail"]
+    assert "case-1" not in await _cases(clients["sme"], PROD)
+    async with ctx.session_factory() as session:
+        approvals = await session.scalar(
+            select(func.count()).select_from(CaseEvent).where(CaseEvent.kind == "approved")
+        )
+    assert approvals == 0
+
+
+async def test_sync_refuses_under_with_prune(env):
+    clients, _ = env
+    resp = await clients["admin"].post(
+        "/api/sync",
+        params={"dataset": "finance", "workspace": "dev", "prune": True, "under": "a"},
+        files=[("files", ("a/c.yaml", CASES_YAML))],
+    )
+    assert resp.status_code == 400 and "prune=false" in resp.json()["detail"]

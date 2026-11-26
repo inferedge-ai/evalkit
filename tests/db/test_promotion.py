@@ -8,6 +8,7 @@ from evalkit.db.models import CaseEvent, DatasetSync, Overlay
 from evalkit.db.promotion import (
     execute_promotion,
     plan_promotion,
+    promote_restored,
     remove_from_target,
     twin_status,
 )
@@ -173,7 +174,7 @@ async def test_promotion_refuses_a_case_the_source_removed_meanwhile(session_fac
         case = next(c for c in await current_cases(s, dataset) if c.case_id == "q-1")
         plan = await plan_promotion(s, world.dev, dataset, case)
         await sync(s, world.dev, world.admin_id, [incoming("q-2")])
-        with pytest.raises(SourceCaseChanged, match="q-1 changed in finance@dev"):
+        with pytest.raises(SourceCaseChanged, match="q-1 changed or was removed in finance@dev"):
             await execute_promotion(s, plan, actor_id=world.akshat_id, event_id=1)
 
 
@@ -210,3 +211,38 @@ async def test_removal_keeps_overlays_another_target_suite_still_uses(session_fa
 
     assert removed is not None and removed.cases == ["q-1"]
     assert tax.split_tags == ["client-only"]
+
+
+async def test_a_restored_case_the_target_cannot_take_is_listed_not_promoted(
+    session_factory, world
+):
+    async with session_factory() as s:
+        await sync(s, world.dev, world.admin_id, [incoming("q-1")])
+        await create_dataset(s, world.prod, "finance")
+        dataset, case = await _dev_case(s, world)
+        approval = CaseEvent(
+            dataset_id=dataset.id,
+            case_ref=case.case_ref,
+            content_hash=case.content_hash,
+            kind="approved",
+            actor_id=world.akshat_id,
+        )
+        s.add(approval)
+        await s.flush()
+        plan = await plan_promotion(s, world.dev, dataset, case)
+        await execute_promotion(s, plan, actor_id=world.akshat_id, event_id=approval.id)
+        await sync(
+            s,
+            world.dev,
+            world.admin_id,
+            [],
+            dataset="client-x",
+            overlays=(overlay("q-1", ["support-bot"]),),
+        )
+
+        restored = await promote_restored(s, world.dev, "finance", [case.case_ref], world.admin_id)
+
+    assert restored.promoted_to is None
+    assert [(n.case, n.reason) for n in restored.not_promoted] == [
+        ("q-1", "client-x@prod does not exist")
+    ]

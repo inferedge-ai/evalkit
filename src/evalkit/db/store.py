@@ -235,8 +235,10 @@ class PgStore:
                     removal_reason=RemovalReason.REMOVED_FROM_SOURCE,
                     actor_id=actor_id,
                 )
-                result.promoted_to = await promote_restored(
+                restored = await promote_restored(
                     s, workspace, dataset, result.restored_refs, actor_id
                 )
+                result.promoted_to = restored.promoted_to
+                result.not_promoted = restored.not_promoted
             await s.commit()
             return result

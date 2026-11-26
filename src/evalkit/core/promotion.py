@@ -19,7 +19,9 @@ __all__ = [
 
 class SourceCaseChanged(Exception):
     def __init__(self, ref: str, case_id: str):
-        super().__init__(f"{case_id} changed in {ref} while it was being approved; try again")
+        super().__init__(
+            f"{case_id} changed or was removed in {ref} while it was being approved; reload it"
+        )
 
 
 class MissingTargetDataset(Exception):

@@ -46,8 +46,8 @@ sequenceDiagram
     R->>C: evalkit review request-changes finance@dev c --comment "…"
     C->>S: POST …/cases/c/review {action: request_changes, comment}
   end
-  S-->>C: {state, requested_to, updated_at, promoted_to}
-  C-->>R: "c: approved" / "c: changes_requested"
+  S-->>C: {state, requested_to, updated_at, promoted_to, removed_from}
+  C-->>R: "c: approved" / "c: changes_requested"<br/>+ "removed from finance@prod: c"
 ```
 
 ### Fix and re-sync, then run
@@ -98,7 +98,8 @@ sequenceDiagram
   - Only reviewers of that workspace. A reviewer in `@dev` can't decide in `@prod` unless granted there too. The UI shows the buttons only to reviewers of the dataset's workspace (from `roles` in `/api/auth/me`).
   - "Request changes" needs a comment.
   - A comment given with a decision is also stored as a comment.
-  - If the workspace is a promotion source, approving also adds the case to the same-named dataset of the promotion target (`promoted_to`).
+  - If the workspace is a promotion source, approving also adds the case to the same-named dataset of the promotion target (`promoted_to: {target, cases}`).
+  - Requesting changes there on the version the target holds removes the case from the target (`removed_from: {target, cases}`), and records a `promotion` sync row on it with `removed`, `removal_reason: changes_requested` and the decision's `event_id`. Changes requested on a newer version leave the target alone.
 - **Comments:**
   - Replies nest one level.
   - The author of a comment, or any reviewer of the workspace, can resolve or unresolve it.
@@ -120,6 +121,8 @@ sequenceDiagram
 - `request_changes` with no comment: 400 "request_changes needs a comment".
 - Not a suite in a shared workspace: 409 "X is not a suite in a shared workspace; review does not apply".
 - Promotion target: 409 "X is fed by promotion; review c in Y" (or "request review in Y").
+- Approval while a sync removes or changes the case: 409 "c changed or was removed in X while it was being approved; reload it". Nothing is approved or promoted.
+- Target dataset missing: 409 "X does not exist; create it before approving".
 - Unknown dataset or case: 404 "unknown dataset: X" / "unknown case: c".
 - Bad reply: 400 "parent comment is not on this case", "replies nest one level only".
 - Empty comment: 400 "comment body is empty".

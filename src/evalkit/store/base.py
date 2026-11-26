@@ -149,6 +149,16 @@ class TargetCases(BaseModel):
     cases: list[str]
 
 
+class NotPromoted(BaseModel):
+    case: str
+    reason: str
+
+
+class Restored(BaseModel):
+    promoted_to: TargetCases | None = None
+    not_promoted: list[NotPromoted] = Field(default_factory=list)
+
+
 class SyncResult(BaseModel):
     sync_id: int
     dataset_id: int
@@ -165,6 +175,7 @@ class SyncResult(BaseModel):
     restored_refs: list[int] = Field(default_factory=list)
     removed_from: TargetCases | None = None
     promoted_to: TargetCases | None = None
+    not_promoted: list[NotPromoted] = Field(default_factory=list)
 
 
 class GitRevision(BaseModel):

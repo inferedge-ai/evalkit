@@ -199,8 +199,12 @@ async def decide(
     summary = review_summary(await _load_case_review(stores, session, slug, case_id))
     return {
         **summary,
-        "promoted_to": plan.target_ref if plan is not None else None,
-        "removed_from": removed[0].target if removed else None,
+        "promoted_to": (
+            TargetCases(target=plan.target_ref, cases=[case_id]).model_dump()
+            if plan is not None
+            else None
+        ),
+        "removed_from": removed[0].model_dump() if removed else None,
     }
 
 
