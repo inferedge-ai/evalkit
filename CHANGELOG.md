@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Server:** Fixed `POST /api/agents` answering 500 when an agent, evaluator,
+  trace source or LLM provider URL had no host (`https:/host`) or a port
+  above 65535. Saving such a URL now answers 400 in every workspace, and so
+  does a scheme other than http or https (`ftp://...` used to pass without
+  `allow_private_endpoints: true`). A trace source or LLM provider already
+  saved with such a URL makes agent edits and experiment starts answer 400,
+  naming the command an admin runs to fix it. Starting, resuming or checking
+  an experiment now also checks the shared remote evaluators it will call
+  against the private-address rule.
+
 ## 0.9.0
 
 _Released 2026-11-25._ Datasets carry a README and metadata, packages that
@@ -64,9 +74,6 @@ calls traced through Langfuse now show up in trajectories.
 
 ### Fixes
 
-- **Server:** Fixed a URL with no scheme or host, such as `https:/host`, being
-  saved on a server with `allow_private_endpoints: true`. Saving it now
-  answers 400.
 - **SDK:** Fixed `run_experiment` failing with a raw 401 from `/api/auth/me`
   when `EVALKIT_SERVER_URL` is set without `EVALKIT_TOKEN`. The CLI and the
   SDK now use your `evalkit login` when it is for the same server. For any

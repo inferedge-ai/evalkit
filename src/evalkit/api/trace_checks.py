@@ -13,7 +13,12 @@ async def resolve_import_source(
     stores: TenantStores, name: str, *, rule: EndpointRule
 ) -> ResolvedTraceSource:
     source = await stores.sources.resolve(name)
-    await check_endpoint(source.url, rule=rule)
+    await check_endpoint(
+        source.url,
+        rule=rule,
+        owner=f"trace source {source.name} (an admin fixes it with "
+        f"evalkit trace-sources edit {source.name} --url <url>)",
+    )
     return source
 
 

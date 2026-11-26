@@ -81,3 +81,9 @@ async def test_a_url_without_a_scheme_or_host_is_refused_even_when_private_addre
     for rule in (REFUSE, EndpointRule(allow_private=True)):
         with pytest.raises(BlockedEndpoint, match=reason):
             await check_endpoint(url, rule=rule)
+
+
+@pytest.mark.parametrize("url", ["http://127.0.0.1:99999", "http://127.0.0.1:0"])
+async def test_a_port_outside_1_to_65535_is_refused(url):
+    with pytest.raises(BlockedEndpoint, match="a port is 1 to 65535"):
+        await check_endpoint(url, rule=EndpointRule(allow_private=True))

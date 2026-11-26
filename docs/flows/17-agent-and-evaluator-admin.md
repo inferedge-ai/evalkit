@@ -204,6 +204,12 @@ sequenceDiagram
   personal ones.
 - **An API key for a personal agent or evaluator:** 400 `personal agents and
   evaluators read their key from evalkit.yaml`.
+- **A URL with no host, a scheme other than http or https, or a port outside
+  1 to 65535:** 400 `<url> has no host; a URL looks like https://host/path`
+  (or the scheme or port message), in every workspace. A trace source or LLM
+  provider whose stored URL fails it names itself and the edit command, e.g.
+  `trace source phx (an admin fixes it with evalkit trace-sources edit phx
+  --url <url>): https:/phx has no host; ...`.
 - **An endpoint on a private or unresolvable address:** 400 `<url> resolves to
   a private address; the operator can allow it with allow_private_endpoints:
   true or trusted_endpoints`.

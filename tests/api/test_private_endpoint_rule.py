@@ -59,7 +59,7 @@ async def test_a_host_refuses_private_addresses_the_server_allows(api):
 async def test_trusted_endpoints_pass_for_a_tenant_the_host_refuses(api):
     app = api._transport.app  # type: ignore[attr-defined]
     app.dependency_overrides[get_allow_private_endpoints] = allow_listed_tenants
-    app.state.cfg.trusted_endpoints = [FAKE_HARNESS_URL, JUDGE_URL]
+    app.state.cfg.trusted_endpoints = [FAKE_HARNESS_URL, JUDGE_URL, "http://custom.test"]
     started = await api.post("/api/experiments", json=RUN)
     assert started.status_code == 200, started.text
     assert (await wait_for(api, started.json()["id"]))["status"] == "completed"
