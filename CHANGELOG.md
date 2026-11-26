@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Fixes
+
+- **Tracing:** Fixed saving a Phoenix agent with a trace filter, and every
+  import for it, timing out on a large Phoenix project (502 `trace source ...
+  did not answer`). The check of the filter asked Phoenix to run it over the
+  whole project; it now asks for the last hour only.
+
 ## 0.9.0
 
 _Released 2026-11-25._ Datasets carry a README and metadata, packages that

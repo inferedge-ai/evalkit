@@ -232,6 +232,8 @@ async def test_a_trace_filter_is_probed_on_a_phoenix_that_reads_it(httpx2_mock, 
     probe = httpx2_mock.get(TRACES).mock(return_value=MockResponse(200, json={"data": []}))
     await client().check_filter("research-agent", "error_count > 0")
     assert probe.call_count == 1
+    asked_from = datetime.fromisoformat(probe.calls[0].request.url.params["start_time"])
+    assert timedelta(minutes=59) < datetime.now(UTC) - asked_from < timedelta(minutes=61)
 
 
 async def test_a_phoenix_429_is_rate_limited_and_a_failing_filter_probe_raises(httpx2_mock):
