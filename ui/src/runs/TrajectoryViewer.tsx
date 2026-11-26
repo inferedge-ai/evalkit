@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ListFilter } from "lucide-react";
 import { timingAnalysis } from "../lib/analysis";
 import { errorEntries, toModel } from "../lib/atif";
@@ -9,6 +9,7 @@ import type {
   TrajectoryModel,
 } from "../lib/atif";
 import { formatElapsed, formatTokens, formatUsd, toYaml } from "../lib/format";
+import type { RunSidebarItem, RunSidebarSection } from "../lib/extensions";
 import type { AtifTrajectory } from "../lib/types";
 import { Collapsible, Tabs } from "../lib/ui";
 import { Markdown } from "@/components/widgets/Markdown";
@@ -222,7 +223,15 @@ function Totals({ model }: { model: TrajectoryModel }) {
   );
 }
 
-export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
+const NO_SECTIONS: RunSidebarSection[] = [];
+
+export function TrajectoryViewer({
+  doc,
+  sections = NO_SECTIONS,
+}: {
+  doc: AtifTrajectory;
+  sections?: RunSidebarSection[];
+}) {
   const model = useMemo(() => toModel(doc), [doc]);
   const timing = useMemo(() => timingAnalysis(model), [model]);
   const [tab, setTab] = useState(model.tabs[0]?.id ?? "main");
@@ -235,6 +244,7 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [pendingJump, setPendingJump] = useState<number | null>(null);
   const active = model.tabs.find((t) => t.id === tab) ?? model.tabs[0];
   const inSubagent = active.id !== model.tabs[0].id;
 
@@ -294,6 +304,21 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
     setHighlight(stepId);
     highlightTimer.current = setTimeout(() => setHighlight(null), 1500);
   };
+  const jumpToItem = (item: RunSidebarItem) => {
+    if (item.stepId === undefined) return;
+    const target = item.tab ?? model.tabs[0].id;
+    if (target === active.id) return jumpTo(item.stepId);
+    if (!model.tabs.some((t) => t.id === target)) return;
+    openTab(target);
+    setPendingJump(item.stepId);
+  };
+  // The step of another tab exists only once that tab has rendered.
+  useEffect(() => {
+    if (pendingJump === null) return;
+    jumpTo(pendingJump);
+    setPendingJump(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingJump, active.id]);
   const jumpToError = (entry: ErrorEntry) => {
     toggleCall(callKey(entry.stepId, entry.callId), true);
     jumpTo(entry.stepId);
@@ -383,6 +408,32 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
           </div>
         </div>
         <nav className="w-64 shrink-0 overflow-auto border-l border-line bg-surface px-2 py-2">
+          {sections.map((section) => (
+            <div key={section.title} className="mb-3">
+              <div className="eyebrow">{section.title}</div>
+              {section.items.map((item) =>
+                item.stepId === undefined ? (
+                  <div
+                    key={item.key}
+                    className="px-1.5 py-1 text-meta text-ink-2"
+                  >
+                    <span className="line-clamp-3">{item.label}</span>
+                  </div>
+                ) : (
+                  <button
+                    key={item.key}
+                    className="flex w-full gap-2 rounded px-1.5 py-1 text-left text-meta text-ink-2 transition-colors hover:bg-fill"
+                    onClick={() => jumpToItem(item)}
+                  >
+                    <span className="num shrink-0 text-ink-4">
+                      #{item.stepId}
+                    </span>
+                    <span className="line-clamp-3">{item.label}</span>
+                  </button>
+                ),
+              )}
+            </div>
+          ))}
           <div className="eyebrow">Prompts</div>
           {prompts.map((step, i) => (
             <button

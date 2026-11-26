@@ -1,3 +1,4 @@
+import type { RunSidebarSection } from "../lib/extensions";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AtifTrajectory } from "../lib/types";
 import { CostView } from "./CostView";
@@ -57,12 +58,14 @@ export function RunTabs({
   error,
   agent,
   runId,
+  sections,
 }: {
   tab: string;
   trajectory: AtifTrajectory | null;
   error: string | null;
   agent: string | undefined;
   runId: string | null;
+  sections?: RunSidebarSection[];
 }) {
   if (tab === "workspace")
     return agent && runId ? <WorkspaceTab agent={agent} runId={runId} /> : null;
@@ -79,7 +82,7 @@ export function RunTabs({
       ) : tab === "timing" ? (
         <TimingView doc={trajectory} />
       ) : (
-        <TrajectoryViewer doc={trajectory} />
+        <TrajectoryViewer doc={trajectory} sections={sections} />
       )}
     </>
   );

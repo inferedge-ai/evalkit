@@ -300,7 +300,17 @@ in `evalkit.api.jobs` does. Run it beside an `evalkit serve` that has
   non-admins; the page and its endpoints must check admin themselves.
 - Every `nav` item and every Settings page the person can see is a page in
   ⌘K search.
+- `useRunSidebar`, optional, is a React hook the agent run page
+  (`/runs/:agent/:runId`) calls with `{agent, runId}`. The
+  `RunSidebarSection`s it returns (a title and items) are listed in the
+  trajectory viewer's sidebar, above Prompts. An item with a `stepId` jumps to
+  that step when clicked, in the trajectory its `tab` names (`"main"`, the
+  default, or a subagent's trajectory id); one without is plain text. A page
+  of the package can show a run the same way with `TrajectoryViewer` from
+  `@/runs/TrajectoryViewer` (`doc`, `sections`).
 - Keep the folder path, the `extensions` export, `UiExtensions`,
+  `useRunSidebar`, `RunSidebarSection`, `TrajectoryViewer`'s `doc` and
+  `sections`,
   `PageHeader`, `Empty`, `SignInLink`, `useOptionalMe`, `useTheme`,
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
   `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,

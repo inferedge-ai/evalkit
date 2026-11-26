@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
+import { extensions } from "../extensions";
 import { trajectoryBounds } from "../lib/atif";
+import type { RunSidebarSection } from "../lib/extensions";
 import { useApi } from "../lib/query";
 import { GaugeReadings, TimeSpan } from "../evals/bits";
 import { experimentCaseLink, runTitle } from "../lib/runs";
@@ -14,10 +16,14 @@ import { PageHeader } from "@/components/widgets/PageHeader";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const NO_SECTIONS: RunSidebarSection[] = [];
+const useRunSidebar = extensions.useRunSidebar ?? (() => NO_SECTIONS);
+
 export function AgentRunPage() {
   const { agent = "", runId = "" } = useParams();
   useFollowWorkspace(splitRef(agent).workspace);
   const [tab, setTab] = useState<RunTab>("trajectory");
+  const sections = useRunSidebar({ agent, runId });
   // Trajectories are the largest payloads; drop them when the page closes.
   const loaded = useApi<AtifTrajectory>(
     `/agents/${encodeURIComponent(agent)}/runs/${encodeURIComponent(runId)}/trajectory`,
@@ -91,6 +97,7 @@ export function AgentRunPage() {
             error={error}
             agent={agent}
             runId={runId}
+            sections={sections}
           />
         </div>
       </div>

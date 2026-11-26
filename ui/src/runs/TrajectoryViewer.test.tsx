@@ -45,3 +45,46 @@ test("clicking the open tab closes the tool calls opened in it", async () => {
   await user.click(screen.getByRole("tab", { name: "myagent (3)" }));
   expect(isOpen()).toBe(false);
 });
+
+test("an extra sidebar section lists its items above Prompts and jumps to a step of another tab", async () => {
+  const user = userEvent.setup();
+  Element.prototype.scrollIntoView = () => {};
+  const subagent = doc.subagent_trajectories![0];
+  const step = subagent.steps[0];
+  render(
+    <TrajectoryViewer
+      doc={doc}
+      sections={[
+        {
+          title: "Notes",
+          items: [
+            {
+              key: "a",
+              label: "Where the subagent starts",
+              tab: subagent.trajectory_id!,
+              stepId: step.step_id,
+            },
+            { key: "b", label: "About the whole run" },
+          ],
+        },
+      ]}
+    />,
+  );
+  const titles = screen
+    .getAllByText(/^(Notes|Prompts)$/)
+    .map((el) => el.textContent);
+  expect(titles).toEqual(["Notes", "Prompts"]);
+  expect(screen.getByText("About the whole run").closest("button")).toBeNull();
+
+  await user.click(
+    screen.getByRole("button", { name: /Where the subagent starts/ }),
+  );
+
+  const shown = document.querySelector(`[data-step-id="${step.step_id}"]`)!;
+  expect(shown.className).toContain("bg-info-bg");
+  expect(
+    screen
+      .getAllByRole("tab")
+      .find((tab) => tab.getAttribute("aria-selected") === "true")!.textContent,
+  ).toContain("subagent");
+});
