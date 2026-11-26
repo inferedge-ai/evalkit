@@ -1200,7 +1200,11 @@ to match your repo.</p>
 <li><code>--dataset</code> on lint lets the server check case ids and overlay targets
   against the other datasets. Without it, those checks only run at sync.</li>
 <li>If <code>dev</code> is linked to <code>prod</code> for promotion, sync only into <code>dev</code>. <code>prod</code>
-  refuses sync; approved cases reach it through promotion.</li>
+  refuses sync; approved cases reach it through promotion. A full sync of
+  <code>dev</code> that removes a case removes it from <code>prod</code> too, and a removed case
+  that comes back at an approved version goes back to <code>prod</code>. A sync that
+  removes cases by mistake, for example from an empty folder, empties <code>prod</code>
+  of them; reverting and syncing again restores them.</li>
 <li>Synced cases start Unreviewed. Reviewers of the workspace approve them; see
   <a href="../beyond-quickstart/">Beyond the quickstart</a>.</li>
 </ul>

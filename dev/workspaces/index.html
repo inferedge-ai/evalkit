@@ -1344,6 +1344,12 @@ evalkit<span class="w"> </span>datasets<span class="w"> </span>create<span class
 <p>Changing a case starts the loop again. The new version is Unreviewed in
 <code>@dev</code>, and <code>@prod</code> keeps the old approved version until the new one is
 approved.</p>
+<p>To take a case out of <code>@prod</code>, either request changes in <code>@dev</code> on the
+version <code>@prod</code> holds, or delete the case from the YAML and sync the whole
+dataset. Both remove it from <code>finance@prod</code> and print <code>removed from
+finance@prod: &lt;case id&gt;</code>. Approving a fixed version in <code>@dev</code> promotes it
+again. Restoring a deleted case that was approved, for example by reverting
+the commit that deleted it, puts it back in <code>@prod</code> on the next sync.</p>
 <p>A change to a case that is waiting for review, or was sent back with
 changes requested, goes back to the same reviewer on sync: you don't need
 to run <code>review request</code> again. If you do, cases already waiting on that
