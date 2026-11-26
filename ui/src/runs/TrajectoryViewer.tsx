@@ -372,10 +372,11 @@ export function TrajectoryViewer({
           </div>
           <div className="space-y-2">
             {visible.map((step) => (
+              // scroll-mt keeps a step that was jumped to below the sticky filter bar.
               <div
                 key={step.stepId}
                 data-step-id={step.stepId}
-                className={`flex gap-3 rounded-lg ring-2 transition-[background-color,box-shadow] duration-500 ${
+                className={`flex scroll-mt-12 gap-3 rounded-lg ring-2 transition-[background-color,box-shadow] duration-500 ${
                   highlight === step.stepId
                     ? "bg-info-bg ring-primary/70"
                     : "ring-transparent"
