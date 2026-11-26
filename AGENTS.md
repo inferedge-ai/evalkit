@@ -190,6 +190,25 @@ before any agent call. Built-ins and the run's own Python evaluators are not
 affected.
 `tests/api/test_extension_evaluators.py` shows one end to end.
 
+**MCP tools.** `create_app(..., mcp_extensions=[McpExtension(register, instructions)])`
+adds tools to the MCP server at `/mcp` (`McpExtension` is in `evalkit.api.mcp.server`).
+
+- `register(mcp, state)` is called once at startup, after evalkit's own tools, and
+  declares tools on the FastMCP server with `@mcp.tool`. `state` is the app's
+  state. A tool named like one already registered stops the server from starting.
+- `instructions` is appended to the server's instructions, after a blank line.
+  Use it to say what the tools are for, as evalkit's "Tools by category" does.
+- From `evalkit.api.mcp.tools`: `tenant_stores(state)` returns the stores of the
+  caller's tenant, read from their token; `READ_TOOL` holds the registration
+  arguments of a read-only tool (`@mcp.tool(description=..., **READ_TOOL)`);
+  `fail(code, detail)` builds the error a tool raises, which the caller reads as
+  `<code>: <detail>`; and `@expected_errors`, under `@mcp.tool`, turns an
+  `HTTPException` and evalkit's unknown-agent, unknown-experiment and
+  unknown-workspace errors into such errors.
+- Every caller of `/mcp` is signed in. A tool does its own access checks beyond
+  that, and reads only the caller's tenant through `tenant_stores`.
+- `tests/api/test_mcp_extensions.py` shows one end to end.
+
 **Datasets.** A route of the other package writes a dataset with `import_cases`
 (`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route
 does (`api/imports.py`). `import_cases` does no access checks, so the route does
@@ -316,6 +335,8 @@ in `evalkit.api.jobs` does. Run it beside an `evalkit serve` that has
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
   `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,
   `get_allow_private_endpoints`, `extension_evaluators`, `PythonEvaluator`,
+  `mcp_extensions`, `McpExtension`, `tenant_stores`, `READ_TOOL`, `fail`,
+  `expected_errors`,
   `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_dataset_readme`,
   `DatasetAbout` (`@/evals/DatasetAbout`), `SyncSource.EXTENSION`, `StoresDep`,
   `workspace_ref`, `require`, `ensure_active`, `load_actor`, `can_write`,

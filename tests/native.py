@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 import json
-from collections.abc import AsyncIterator, Iterable, Mapping
+from collections.abc import AsyncIterator, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette.responses import JSONResponse
 
 from evalkit.api.app import create_app
+from evalkit.api.mcp.server import McpExtension
 from evalkit.config import (
     AuthConfig,
     BlobConfig,
@@ -286,6 +287,7 @@ async def serve(
     *,
     user: str = "admin",
     extension_evaluators: Mapping[str, PythonEvaluator] | None = None,
+    mcp_extensions: Sequence[McpExtension] = (),
 ) -> AsyncIterator[httpx2.AsyncClient]:
     app = create_app(
         env.deps.cfg,  # type: ignore[arg-type]
@@ -295,6 +297,7 @@ async def serve(
         check_schema=False,
         holder=HOLDER,
         extension_evaluators=extension_evaluators,
+        mcp_extensions=mcp_extensions,
     )
     async with app.router.lifespan_context(app):
         transport = httpx2.ASGITransport(app=app)

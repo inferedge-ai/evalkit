@@ -80,6 +80,11 @@
   pass for an agent goes back one day. A session that gets more spans after it
   was stored keeps the trajectory it was stored with.
 
+- **Extending evalkit:** A package built on evalkit can add tools to the MCP
+  server at `/mcp` with `create_app(mcp_extensions=[McpExtension(...)])`: a
+  function that registers the tools, and text appended to the server's
+  instructions. A tool named like one of evalkit's stops the server from
+  starting.
 - **Extending evalkit:** A package's UI can add sections to the sidebar of the
   run page's trajectory viewer, above Prompts, through `useRunSidebar` in its
   `UiExtensions`. Each item can jump to a step, in the main trajectory or a

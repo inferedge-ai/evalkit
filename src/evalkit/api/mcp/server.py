@@ -2,8 +2,9 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 
 from fastapi import FastAPI
 from fastmcp import FastMCP
@@ -11,6 +12,7 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_access_token
 from fastmcp.server.middleware import Middleware, MiddlewareContext
 from starlette.applications import Starlette
+from starlette.datastructures import State
 from starlette.middleware import Middleware as AsgiMiddleware
 from starlette.responses import JSONResponse
 from starlette.routing import Route
@@ -49,16 +51,26 @@ class ToolErrors(Middleware):
             )
 
 
-def build_mcp(app: FastAPI) -> FastMCP:
+@dataclass(frozen=True)
+class McpExtension:
+    register: Callable[[FastMCP, State], None]
+    instructions: str = ""
+
+
+def build_mcp(app: FastAPI, extensions: Sequence[McpExtension] = ()) -> FastMCP:
+    added = [extension.instructions for extension in extensions if extension.instructions]
     mcp = FastMCP(
         "evalkit",
         version=version.current(),
-        instructions=INSTRUCTIONS,
+        instructions="\n\n".join([INSTRUCTIONS, *added]),
         auth=build_auth(app.state),
         middleware=[ToolErrors()],
         mask_error_details=True,
+        on_duplicate="error",
     )
     tools.register(mcp, app.state)
+    for extension in extensions:
+        extension.register(mcp, app.state)
     return mcp
 
 
@@ -77,8 +89,8 @@ class AnswerIdpOutage:
 
 # Only the MCP endpoint and its RFC 9728 metadata are routed to the MCP app,
 # so /api keeps its own auth and the SPA fallback never sees /mcp.
-def mount_mcp(app: FastAPI):
-    mcp_app = build_mcp(app).http_app(
+def mount_mcp(app: FastAPI, extensions: Sequence[McpExtension] = ()):
+    mcp_app = build_mcp(app, extensions).http_app(
         path=MCP_PATH,
         transport="streamable-http",
         stateless_http=True,
