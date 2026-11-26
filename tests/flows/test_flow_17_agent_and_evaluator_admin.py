@@ -158,7 +158,7 @@ def test_flow_17_remote_evaluators_and_the_experiment_snapshot(live):
                 "workspace": DEV,
                 "name": "compliance",
                 "kind": "score",
-                "settings": {"endpoint": "x"},
+                "settings": {"endpoint": "http://x"},
             },
         )
         .status_code
@@ -168,7 +168,12 @@ def test_flow_17_remote_evaluators_and_the_experiment_snapshot(live):
     assert (
         alice.post(
             "/api/evaluators",
-            json={"workspace": DEV, "name": "x", "kind": "score", "settings": {"endpoint": "x"}},
+            json={
+                "workspace": DEV,
+                "name": "x",
+                "kind": "score",
+                "settings": {"endpoint": "http://x"},
+            },
         ).status_code
         == 403
     )

@@ -81,7 +81,7 @@ def with_encryption(api) -> None:
 
 
 async def test_trace_sources_are_admin_rows_and_hide_keys(api):
-    body = {"name": "phx", "provider": "phoenix", "url": "u", "api_key": "secret"}
+    body = {"name": "phx", "provider": "phoenix", "url": "http://u", "api_key": "secret"}
     api.app.state.box = None
     refused = await api.post("/api/trace-sources", json=body)
     assert refused.status_code == 400 and "encryption_key" in refused.json()["detail"]
@@ -90,7 +90,9 @@ async def test_trace_sources_are_admin_rows_and_hide_keys(api):
     assert (await alice.post("/api/trace-sources", json=body)).status_code == 403
     assert (await api.post("/api/trace-sources", json=body)).status_code == 200
     listed = (await alice.get("/api/trace-sources")).json()
-    assert [(s["name"], s["provider"], s["url"]) for s in listed] == [("phx", "phoenix", "u")]
+    assert [(s["name"], s["provider"], s["url"]) for s in listed] == [
+        ("phx", "phoenix", "http://u")
+    ]
     assert "secret" not in json.dumps(listed)
     assert (await api.get("/api/meta")).json()["trace_sources"] == ["phx"]
     await alice.aclose()

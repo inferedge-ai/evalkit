@@ -59,7 +59,7 @@ async def test_a_host_refuses_private_addresses_the_server_allows(api):
 async def test_trusted_endpoints_pass_for_a_tenant_the_host_refuses(api):
     app = api._transport.app  # type: ignore[attr-defined]
     app.dependency_overrides[get_allow_private_endpoints] = allow_listed_tenants
-    app.state.cfg.trusted_endpoints = [FAKE_HARNESS_URL, JUDGE_URL]
+    app.state.cfg.trusted_endpoints = [FAKE_HARNESS_URL, JUDGE_URL, "http://custom.test"]
     started = await api.post("/api/experiments", json=RUN)
     assert started.status_code == 200, started.text
     assert (await wait_for(api, started.json()["id"]))["status"] == "completed"
@@ -77,3 +77,22 @@ def test_a_bad_trusted_endpoint_stops_a_wrapper_at_start(tmp_path):
     cfg = make_cfg(tmp_path).model_copy(update={"trusted_endpoints": ["http://gw:40OO"]})
     with pytest.raises(ValueError, match=r"trusted_endpoints\[0\]"):
         create_app(cfg)
+
+
+async def test_experiment_routes_refuse_a_shared_evaluator_its_cases_name(api):
+    app = api._transport.app  # type: ignore[attr-defined]
+    app.state.cfg.trusted_endpoints = [FAKE_HARNESS_URL, JUDGE_URL, "http://custom.test"]
+    exp_id = (await api.post("/api/experiments", json=RUN)).json()["id"]
+    await wait_for(api, exp_id)
+    app.dependency_overrides[get_allow_private_endpoints] = allow_listed_tenants
+    app.state.cfg.trusted_endpoints = [FAKE_HARNESS_URL, JUDGE_URL]
+    requests = [
+        ("/api/experiments", RUN),
+        (f"/api/experiments/{exp_id}/evaluate", None),
+        (f"/api/experiments/{exp_id}/resume", None),
+    ]
+    for path, body in requests:
+        refused = await api.post(path, json=body)
+        assert refused.status_code == 400, (path, refused.text)
+        assert refused.json()["detail"].startswith("evaluator "), (path, refused.text)
+    assert (await api.post("/api/agents/fake@canonical/check")).status_code == 200

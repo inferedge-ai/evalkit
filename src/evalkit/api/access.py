@@ -13,7 +13,7 @@ from evalkit.contracts.enums import WorkspaceRole
 from evalkit.contracts.notes import PERSONAL_KEY_NOTE
 from evalkit.core.access import Actor, WorkspaceRef, can_write
 from evalkit.core.blob import BlobStore, TenantBlobStore
-from evalkit.core.endpoints import EndpointRule, check_endpoint
+from evalkit.core.endpoints import EndpointRule, check_endpoint, parse_endpoint
 from evalkit.core.runner import RunnerDeps
 from evalkit.core.traces.session_import import TraceSourceSessionReader
 from evalkit.db.agents import AgentStore
@@ -183,6 +183,8 @@ async def writable_endpoint(
     ensure_active(ws)
     if api_key and not ws.is_shared:
         raise HTTPException(status_code=400, detail=PERSONAL_KEY_NOTE)
+    if url is not None:
+        parse_endpoint(url)
     if url is not None and ws.is_shared:
         await check_endpoint(url, rule=rule)
     return ws
