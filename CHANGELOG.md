@@ -8,6 +8,11 @@
   `promoted_to` as `{"target": "finance@prod", "cases": ["case-1"]}` instead
   of the target name, and the new `removed_from` in the same shape, matching
   the `POST /api/sync` report. Update any client that reads `promoted_to`.
+- **Extending evalkit:** With a `landingPage`, `/` shows it to everyone at
+  once, without checking the session, and the workspace list moves to
+  `/home`, where sign-in now lands. `useOptionalMe` is always `null` on the
+  landing page, so link signed-in people to `/home` from it rather than
+  drawing a header only for them.
 
 ### Improvements
 

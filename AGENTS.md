@@ -222,22 +222,25 @@ transaction (`check_writer` in `db/cases.py`), under a lock on the dataset row.
   draws its own header and landmarks (`header`, `main`, `footer`), inside a
   plain scroll container that fills the window, so a `sticky top-0` header
   stays put. `useOptionalMe` from
-  `@/shell/capabilities` returns `null` for a signed-out visitor, so a page
-  can draw its header only then; `useTheme` from `@/shell/theme` (`theme`,
+  `@/shell/capabilities` returns `null` for a signed-out visitor, so a
+  public route can draw its header only then. The landing page is not
+  behind the session check, so there it is always `null`; `useTheme` from `@/shell/theme` (`theme`,
   `toggle`) gives it a theme switch. `Lockup` from
   `@/components/widgets/Logo` is evalkit's logo; size it with `className`
   (default `h-6`). Its colours follow the `dark` class, so it renders the
   dark version inside any element with that class. The favicon is served at
   `/favicon.svg`.
-- `landingPage` is what a signed-out visitor sees at `/`; the evalkit link on
-  the sign-in card and the signed-out docs page then goes to `/`. Signing
-  out lands there. A signed-in person at `/` still gets the workspace
-  list, and a signed-out visitor opening any other page, such as
-  `/experiments/12`, still goes straight to sign-in and back. With
-  `landingPage: null`, `/` sends a signed-out visitor to sign in and
-  signing out lands on `/login`.
+- `landingPage` is what everyone sees at `/`, signed in or not. It shows at
+  once, without checking the session. The workspace list then lives at
+  `/home`, where sign-in lands by default, so the landing page links there
+  (`SignInLink` with no `next` does). The evalkit link on the sign-in card
+  and the signed-out docs page goes to `/`, and signing out lands there. A
+  signed-out visitor opening any other page, such as `/experiments/12`,
+  still goes straight to sign-in and back. With `landingPage: null`, the
+  workspace list is at `/` (`/home` leads there), `/` sends a signed-out
+  visitor to sign in, and signing out lands on `/login`.
 - Link to sign-in with `SignInLink` from `@/auth/SignInLink` (`next`,
-  default `/`; `prompt`; `className`). It opens `/login`, which starts
+  default `/home` with a landing page, else `/`; `prompt`; `className`). It opens `/login`, which starts
   sign-in at once even right after a sign-out in that browser; a plain link
   to `/login` then stops at "You're signed out". `/login?prompt=<value>`
   passes `prompt` to the identity provider's authorize request, so

@@ -182,6 +182,16 @@ test("without a landing page, a signed-in person at / gets the workspace list", 
   ).toBeInTheDocument();
 });
 
+test("without a landing page, /home leads to /", async () => {
+  wrapper.landingPage = null;
+  serve(writer);
+  openApp("/home");
+  expect(
+    await screen.findByRole("link", { name: /All datasets/ }),
+  ).toBeInTheDocument();
+  expect(where()).toBe("/");
+});
+
 test("a signed-out visit to /home goes to sign-in and back to /home", async () => {
   serve(null);
   openApp("/home");

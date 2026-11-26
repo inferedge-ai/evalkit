@@ -64,8 +64,10 @@ export function App() {
               <Route path="/" element={<HomeOrSignIn />} />
             )}
             <Route element={<RequireMe />}>
-              {extensions.landingPage && (
+              {extensions.landingPage ? (
                 <Route path="/home" element={<Home />} />
+              ) : (
+                <Route path="/home" element={<Navigate to="/" replace />} />
               )}
               <Route path="/datasets" element={<DatasetsPage />} />
               <Route
