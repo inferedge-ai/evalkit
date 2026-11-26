@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx2
@@ -16,6 +16,9 @@ from evalkit.core.traces.sources.base import (
 
 OPENINFERENCE_KIND = "openinference.span.kind"
 TRACE_FILTER_MIN_VERSION = (20, 12)
+# Without a start time Phoenix runs the filter over the whole project, which on a
+# large one takes minutes.
+FILTER_PROBE_WINDOW = timedelta(hours=1)
 
 
 def flatten_attributes(nested: dict[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -113,7 +116,12 @@ class PhoenixClient:
                     f"{running}, which ignores the filter"
                 )
             resp = await client.get(
-                f"/v1/projects/{project}/traces", params={"filter": trace_filter, "limit": "1"}
+                f"/v1/projects/{project}/traces",
+                params={
+                    "filter": trace_filter,
+                    "limit": "1",
+                    "start_time": (datetime.now(UTC) - FILTER_PROBE_WINDOW).isoformat(),
+                },
             )
         if resp.status_code in (400, 422):
             raise BadTraceFilter(f"Phoenix refused the trace filter: {resp.text}")
