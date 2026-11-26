@@ -1,12 +1,13 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from evalkit.contracts.enums import DatasetKind, ExperimentStatus, SyncSource
+from evalkit.contracts.enums import DatasetKind, ExperimentStatus, RemovalReason, SyncSource
 from evalkit.core.access import WorkspaceRef
 from evalkit.core.dataset_readme import DatasetReadme
 from evalkit.core.overlays import OverlayBlock
 from evalkit.db import cases, experiments, fixture_blobs, models, runs, scorecard
 from evalkit.db.cases import sync_dataset
+from evalkit.db.promotion import promote_restored, remove_from_target
 from evalkit.db.session import tenant_session
 from evalkit.db.workspaces import UnknownWorkspace
 from evalkit.store.base import (
@@ -206,6 +207,7 @@ class PgStore:
         source: SyncSource,
         detail: dict,
         readme: DatasetReadme | None = None,
+        under: tuple[str, ...] | None = None,
     ) -> SyncResult:
         if workspace.tenant_id != self._tenant_id:
             raise UnknownWorkspace(workspace.name)
@@ -222,6 +224,21 @@ class PgStore:
                 source=source,
                 detail=detail,
                 readme=readme,
+                under=under,
             )
+            if source is SyncSource.GIT and kind is DatasetKind.SUITE:
+                result.removed_from = await remove_from_target(
+                    s,
+                    workspace,
+                    dataset,
+                    dict.fromkeys(result.removed_refs),
+                    removal_reason=RemovalReason.REMOVED_FROM_SOURCE,
+                    actor_id=actor_id,
+                )
+                restored = await promote_restored(
+                    s, workspace, dataset, result.restored_refs, actor_id
+                )
+                result.promoted_to = restored.promoted_to
+                result.not_promoted = restored.not_promoted
             await s.commit()
             return result

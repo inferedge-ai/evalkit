@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from typing import Literal
 
 from sqlalchemy import delete, func, select, true, tuple_, update
@@ -339,6 +338,17 @@ async def _replace_overlays(
     return applied
 
 
+async def soft_remove(session: AsyncSession, dataset_id: int, case_refs: list[int]) -> None:
+    await session.execute(
+        update(models.DatasetCase)
+        .where(
+            models.DatasetCase.dataset_id == dataset_id,
+            models.DatasetCase.case_ref.in_(case_refs),
+        )
+        .values(removed_at=func.now(), updated_at=func.now())
+    )
+
+
 async def check_writer(
     session: AsyncSession, dataset_id: int, ref: str, source: SyncSource
 ) -> None:
@@ -375,6 +385,7 @@ async def sync_dataset(
     source: SyncSource,
     detail: dict,
     readme: DatasetReadme | None = None,
+    under: tuple[str, ...] | None = None,
 ) -> SyncResult:
     dataset_id = await ensure_dataset(session, workspace, dataset, kind)
     await check_writer(session, dataset_id, f"{dataset}@{workspace.name}", source)
@@ -420,6 +431,8 @@ async def sync_dataset(
             )
             if row is not None and row.content_hash != case.content_hash:
                 changed[case_ref] = (row.content_hash, case.content_hash)
+            if row is not None and row.removed_at is not None:
+                result.restored_refs.append(case_ref)
         if (
             same_version
             and row is not None
@@ -476,15 +489,27 @@ async def sync_dataset(
             )
         ).all()
         if stale:
-            await session.execute(
-                update(models.DatasetCase)
-                .where(
-                    models.DatasetCase.dataset_id == dataset_id,
-                    models.DatasetCase.case_ref.in_([ref for ref, _ in stale]),
-                )
-                .values(removed_at=datetime.now(UTC))
-            )
+            result.removed_refs = [ref for ref, _ in stale]
+            await soft_remove(session, dataset_id, result.removed_refs)
             result.removed = sorted(case_id for _, case_id in stale)
+    elif under is not None:
+        result.missing = sorted(
+            case_id
+            for case_ref, case_id in (
+                await session.execute(
+                    select(models.DatasetCase.case_ref, models.Case.case_id)
+                    .join(models.Case, models.Case.id == models.DatasetCase.case_ref)
+                    .where(
+                        models.DatasetCase.dataset_id == dataset_id,
+                        models.DatasetCase.removed_at.is_(None),
+                        models.DatasetCase.source.startswith(
+                            "/".join(under) + "/", autoescape=True
+                        ),
+                    )
+                )
+            ).all()
+            if case_ref not in incoming
+        )
     result.overlays = await _replace_overlays(session, workspace.tenant_id, dataset_id, overlays)
     names = await _usernames(session, {target for _, target in carried})
     result.carried = [CarriedReview(case_id=c, reviewer=names.get(t, "")) for c, t in carried]
@@ -494,6 +519,7 @@ async def sync_dataset(
     sync.detail = {
         **sync.detail,
         **({"readme_changed": True} if result.readme_changed else {}),
+        **({"removed": result.removed} if result.removed else {}),
         "counts": {
             "created": len(result.created),
             "patched": len(result.patched),

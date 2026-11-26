@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import posixpath
 import shutil
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from evalkit.client.api import SyncApi
 from evalkit.contracts.cases import REGISTRY_FILENAME, is_case_yaml, load_cases_from_yaml
@@ -196,6 +197,15 @@ def upload_fixtures(
     return uploaded
 
 
+def resolve_subfolder(dataset_dir: Path, subpath: str | None) -> str | None:
+    if subpath is None or not (dataset_dir / subpath).is_dir():
+        return None
+    folder = PurePosixPath(posixpath.normpath(Path(subpath).as_posix()))
+    if folder.is_absolute() or folder.parts[:1] == ("..",):
+        raise ValueError(f"{subpath} is outside {dataset_dir}")
+    return None if str(folder) == "." else str(folder)
+
+
 def sync_dataset(
     client: SyncApi,
     dataset_dir: Path,
@@ -218,6 +228,9 @@ def sync_dataset(
     if actor is not None:
         params["actor"] = actor
     refuse_package_folder(dataset_dir)
+    folder = resolve_subfolder(dataset_dir, subpath)
+    if folder is not None:
+        params["under"] = folder
     files = sync_files(dataset_dir, subpath)
     if fixtures_dir is not None:
         refuse_package_folder(fixtures_dir)

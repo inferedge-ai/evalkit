@@ -144,17 +144,38 @@ class CarriedReview(BaseModel):
     reviewer: str
 
 
+class TargetCases(BaseModel):
+    target: str
+    cases: list[str]
+
+
+class NotPromoted(BaseModel):
+    case: str
+    reason: str
+
+
+class Restored(BaseModel):
+    promoted_to: TargetCases | None = None
+    not_promoted: list[NotPromoted] = Field(default_factory=list)
+
+
 class SyncResult(BaseModel):
     sync_id: int
     dataset_id: int
     created: list[str] = Field(default_factory=list)
     patched: list[str] = Field(default_factory=list)
     removed: list[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
     unchanged: int = 0
     overlays: int = 0
     readme_changed: bool = False
     carried: list[CarriedReview] = Field(default_factory=list)
     now_unreviewed: list[str] = Field(default_factory=list)
+    removed_refs: list[int] = Field(default_factory=list)
+    restored_refs: list[int] = Field(default_factory=list)
+    removed_from: TargetCases | None = None
+    promoted_to: TargetCases | None = None
+    not_promoted: list[NotPromoted] = Field(default_factory=list)
 
 
 class GitRevision(BaseModel):

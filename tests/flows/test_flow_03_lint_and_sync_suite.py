@@ -39,17 +39,34 @@ def test_flow_03_sync_targets_your_workspace_and_prunes_only_whole_datasets(cli)
         out = cli.ok("sync", "fin3")
         counts = sync_counts(out)
         assert (counts["patched"], counts["deleted"]) == (1, 1)
+        assert "removed 1 case(s) no longer on disk: f3-2" in out
         assert case_ids(alice, "fin3@alice") == ["f3-1", "f3-3"]
+
+        (root / "sub/tagged.yaml").write_text(
+            cases_yaml("f3-5").replace("    input:", "    tags: [sub]\n    input:")
+        )
+        cli.ok("sync", "fin3/sub")
+        (root / "sub/tagged.yaml").unlink()
+        (root / "sub/b.yaml").write_text(cases_yaml("f3-4"))
+        out = cli.ok("sync", "fin3/sub")
+        assert "2 case(s) are no longer under sub/: f3-3, f3-5" in out
+        assert "(evalkit sync fin3) to remove or move them" in out
+        assert case_ids(alice, "fin3@alice") == ["f3-1", "f3-3", "f3-4", "f3-5"]
+        out = cli.ok("sync", "fin3/sub/b.yaml")
+        assert "no longer under" not in out
 
 
 def test_flow_03_who_may_sync_a_shared_workspace(cli):
-    cli.suite("shared3", {"a.yaml": cases_yaml("s3-1")})
+    root = cli.suite("shared3", {"a.yaml": cases_yaml("s3-1"), "sub/b.yaml": cases_yaml("s3-2")})
     cli.as_user("akshat")
     assert "you cannot sync to @dev" in cli.fails("sync", "shared3", "--workspace", "dev")
     cli.as_user("alice")
     assert "synced shared3@dev" in cli.ok("sync", "shared3", "--workspace", "dev")
     cli.as_user("admin")
     assert "synced shared3@dev" in cli.ok("sync", "shared3", "--workspace", "dev")
+    (root / "sub/b.yaml").write_text(cases_yaml("s3-3"))
+    out = cli.ok("sync", "shared3/sub", "--workspace", "dev")
+    assert "(evalkit sync shared3 --workspace dev)" in out
 
 
 def test_flow_03_sync_records_revision_and_actor(cli):
@@ -176,3 +193,26 @@ def test_flow_03_python_evaluator_case_syncs_with_a_warning(cli):
 def test_flow_03_cli_path_errors(cli):
     assert "is not on disk" in cli.fails("sync", "finance@dev")
     assert "no dataset directory 'ghost3'" in cli.fails("sync", "ghost3")
+
+
+def test_flow_03_syncing_a_promotion_source_changes_the_target(cli):
+    cli.as_user("admin")
+    root = cli.suite("prom3", {"a.yaml": cases_yaml("p3-1", "p3-2")})
+    for workspace in ("src3", "rel3"):
+        cli.ok("workspaces", "create", workspace)
+    cli.ok("workspaces", "members", "add", "src3", "admin", "--role", "reviewer")
+    cli.ok("workspaces", "promote-to", "src3", "rel3")
+    cli.ok("datasets", "create", "prom3@rel3")
+    cli.ok("sync", "prom3", "--workspace", "src3")
+    for case_id in ("p3-1", "p3-2"):
+        cli.ok("review", "approve", "prom3@src3", case_id)
+
+    (root / "a.yaml").write_text(cases_yaml("p3-2"))
+    assert "removed from prom3@rel3: p3-1" in cli.ok("sync", "prom3", "--workspace", "src3")
+
+    (root / "a.yaml").write_text(cases_yaml("p3-1", "p3-2"))
+    out = cli.ok("sync", "prom3", "--workspace", "src3")
+    assert "approved before, back in prom3@rel3: p3-1" in out
+
+    out = cli.ok("review", "request-changes", "prom3@src3", "p3-2", "--comment", "wrong date")
+    assert "removed from prom3@rel3: p3-2" in out

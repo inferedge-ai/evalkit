@@ -37,7 +37,9 @@ from evalkit.store.base import (
     CaseFile,
     IncomingCase,
     IncomingOverlay,
+    NotPromoted,
     SyncResult,
+    TargetCases,
 )
 
 
@@ -67,6 +69,7 @@ class CaseCatalog(Protocol):
         source: SyncSource,
         detail: dict,
         readme: DatasetReadme | None = None,
+        under: tuple[str, ...] | None = None,
     ) -> SyncResult: ...
 
 
@@ -79,6 +82,11 @@ class ImportReport(BaseModel):
     created: int = 0
     patched: int = 0
     deleted: int = 0
+    removed: list[str] = Field(default_factory=list)
+    missing: list[str] = Field(default_factory=list)
+    removed_from: TargetCases | None = None
+    promoted_to: TargetCases | None = None
+    not_promoted: list[NotPromoted] = Field(default_factory=list)
     readme_changed: bool = False
     overlays_applied: int = 0
     findings: list[Finding] = Field(default_factory=list)
@@ -151,6 +159,14 @@ async def missing_blobs(
     ]
 
 
+def _source(dataset: str, source_path: Path | None, root: Path | None) -> str:
+    if source_path is None:
+        return dataset
+    if root is None:
+        return source_path.name
+    return source_path.resolve().relative_to(root.resolve()).as_posix()
+
+
 def _path_tags(source_path: Path | None, root: Path | None) -> list[str]:
     if source_path is None or root is None:
         return []
@@ -190,6 +206,7 @@ async def import_cases(
     entries: dict[str, FixtureEntry] | None = None,
     root: Path | None = None,
     readme: DatasetReadme | None = None,
+    under: tuple[str, ...] | None = None,
 ) -> ImportReport:
     cases = [case for case, _ in sourced_cases]
     entries = entries or {}
@@ -226,7 +243,7 @@ async def import_cases(
         incoming=[
             incoming_case(
                 case,
-                source=dataset if source_path is None else source_path.name,
+                source=_source(dataset, source_path, root),
                 files=case_files(case, entries),
                 extra_tags=_path_tags(source_path, root),
             )
@@ -238,11 +255,17 @@ async def import_cases(
         source=source,
         detail=detail,
         readme=readme,
+        under=under,
     )
     return ImportReport(
         created=len(result.created),
         patched=len(result.patched),
         deleted=len(result.removed),
+        removed=result.removed,
+        missing=result.missing,
+        removed_from=result.removed_from,
+        promoted_to=result.promoted_to,
+        not_promoted=result.not_promoted,
         readme_changed=result.readme_changed,
         overlays_applied=result.overlays,
         findings=findings,
@@ -261,6 +284,7 @@ async def import_dataset(
     actor_id: int,
     detail: dict,
     root: Path | None = None,
+    under: tuple[str, ...] | None = None,
 ) -> ImportReport:
     sourced_cases, overlays, findings = load_files(files, root)
     entries, registry_findings = load_registries([p for p in files if p.name == REGISTRY_FILENAME])
@@ -282,4 +306,5 @@ async def import_dataset(
         entries=entries,
         root=root,
         readme=readme if full else None,
+        under=under,
     )
