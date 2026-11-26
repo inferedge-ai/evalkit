@@ -8,9 +8,9 @@
   does a scheme other than http or https (`ftp://...` used to pass without
   `allow_private_endpoints: true`). A trace source or LLM provider already
   saved with such a URL makes agent edits and experiment starts answer 400,
-  naming the command an admin runs to fix it. Starting, resuming or checking
-  an experiment now also checks the shared remote evaluators it will call
-  against the private-address rule.
+  naming the command an admin runs to fix it. Starting, resuming or
+  re-scoring an experiment now also checks the shared remote evaluators its
+  cases name against the private-address rule.
 
 ## 0.9.0
 

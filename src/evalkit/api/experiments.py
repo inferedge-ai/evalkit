@@ -52,6 +52,7 @@ from evalkit.core.runner import (
     build_context,
     custom_eval_case,
     harness_capabilities,
+    list_custom_evaluators,
     prepare_experiment,
     rescore_experiment,
     run_experiment,
@@ -285,9 +286,8 @@ async def create_experiment(
         can_use_agent(actor, agent_ws),
         f"only the owner of @{agent.workspace} can run {agent.ref}",
     )
-    dataset_ws = await workspace_ref(
-        stores, (await dataset_by_ref(session, stores.tenant_id, body.dataset)).workspace
-    )
+    dataset = await dataset_by_ref(session, stores.tenant_id, body.dataset)
+    dataset_ws = await workspace_ref(stores, dataset.workspace)
     ensure_active(agent_ws)
     ensure_active(dataset_ws)
     if dataset_ws.is_shared and agent_ws.is_shared:
@@ -326,7 +326,14 @@ async def create_experiment(
     run_deps = stores.deps
     if server_driven:
         provider = await require_provider_judge(providers, judge) if judge is not None else None
-        keys, warnings = await server_keys(stores, agent, provider, rule=rule)
+        selected = await stores.store.cases_for(dataset.ref, body.selection, agent=agent.ref)
+        keys, warnings = await server_keys(
+            stores,
+            agent,
+            provider,
+            rule=rule,
+            evaluators_called=list_custom_evaluators(selected),
+        )
         api_key = keys.key_for("agent", agent.ref)
         run_deps = _scoring(request, with_keys(stores.deps, keys), body.evaluation_concurrency)
     holder = task_holder(pod) if server_driven else str(body.holder)
@@ -625,7 +632,13 @@ async def evaluate(
         if exp.config.judge is not None
         else None
     )
-    keys, warnings = await server_keys(stores, agent, provider, rule=rule)
+    keys, warnings = await server_keys(
+        stores,
+        agent,
+        provider,
+        rule=rule,
+        evaluators_called=list_custom_evaluators(await stores.store.pinned_cases(exp_id)),
+    )
     holder = task_holder(pod)
     exp = await stores.store.transition(exp_id, ExperimentStatus.EVALUATING, holder)
     _track(
@@ -673,7 +686,13 @@ async def resume(
         if exp.config.judge is not None
         else None
     )
-    keys, warnings = await server_keys(stores, agent, provider, rule=rule)
+    keys, warnings = await server_keys(
+        stores,
+        agent,
+        provider,
+        rule=rule,
+        evaluators_called=list_custom_evaluators(await stores.store.pinned_cases(exp_id)),
+    )
     holder = task_holder(pod)
     exp = await stores.store.transition(exp_id, ExperimentStatus.RUNNING, holder)
     _track(

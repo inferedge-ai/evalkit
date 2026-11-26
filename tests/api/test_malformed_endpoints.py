@@ -1,8 +1,9 @@
 import pytest
 
-from evalkit.api.access import build_tenant_stores
+from evalkit.api.access import build_tenant_stores, workspace_ref
 from evalkit.api.server_keys import server_keys
-from evalkit.contracts.enums import TraceProvider
+from evalkit.contracts.enums import EvaluatorKind, TraceProvider
+from evalkit.contracts.settings import RemoteEvaluatorSettings
 from evalkit.core.endpoints import BlockedEndpoint, EndpointRule
 from tests.api.native_api import api_env, login_as
 from tests.fake_harness import FakeHarness
@@ -61,7 +62,18 @@ async def test_starting_a_run_checks_the_shared_evaluators_it_will_call(api):
     assert created.status_code == 200, created.text
     stores = build_tenant_stores(api.app.state, "default")
     agent = (await stores.agents.get("fake@canonical")).model_copy(update={"harness_url": None})
+    refuse = EndpointRule(allow_private=False)
     await server_keys(stores, agent, None, rule=EndpointRule(allow_private=True))
-    refuse = EndpointRule(allow_private=False, trusted=("http://custom.test",))
+    await server_keys(stores, agent, None, rule=refuse)
     with pytest.raises(BlockedEndpoint, match="evaluator remote@canonical: .* private address"):
-        await server_keys(stores, agent, None, rule=refuse)
+        await server_keys(stores, agent, None, rule=refuse, evaluators_called={"remote"})
+
+
+async def test_a_stale_evaluator_the_run_does_not_call_does_not_block_the_harness_check(api):
+    stores = build_tenant_stores(api.app.state, "default")
+    workspace = await workspace_ref(stores, "canonical")
+    await stores.evaluators.create(
+        workspace, "stale", EvaluatorKind.SCORE, RemoteEvaluatorSettings(endpoint="x")
+    )
+    checked = await api.post("/api/agents/fake@canonical/check")
+    assert checked.status_code == 200, checked.text

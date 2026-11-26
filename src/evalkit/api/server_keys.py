@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Set
 from dataclasses import replace
 
 from evalkit.api.access import TenantStores
@@ -16,6 +17,7 @@ async def server_keys(
     judge_provider: str | None,
     *,
     rule: EndpointRule,
+    evaluators_called: Set[str] = frozenset(),
 ) -> tuple[StoredKeys, list[str]]:
     keys = await stores.keys.load(agent, judge_provider)
     if agent.harness_url is not None:
@@ -29,6 +31,8 @@ async def server_keys(
         )
     evaluators = (await stores.evaluators.in_workspace(agent.workspace)).values()
     for evaluator in evaluators:
+        if evaluator.name not in evaluators_called:
+            continue
         await check_endpoint(
             evaluator.settings.endpoint, rule=rule, owner=f"evaluator {evaluator.ref}"
         )

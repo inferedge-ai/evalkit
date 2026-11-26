@@ -626,10 +626,14 @@ async def _agent_for(deps: RunnerDeps, exp: Experiment) -> AgentDefinition:
     return agent
 
 
+def list_custom_evaluators(cases: Iterable[CaseView]) -> set[str]:
+    return {name for case in cases for name in case.effective_evaluators.get("custom") or {}}
+
+
 async def missing_local_keys(
     deps: RunnerDeps, agent: AgentDefinition, cases: Iterable[CaseView]
 ) -> list[str]:
-    used = {name for case in cases for name in case.effective_evaluators.get("custom") or {}}
+    used = list_custom_evaluators(cases)
     lines = []
     if agent.harness_url is not None and deps.credentials.key_for("agent", agent.ref) is None:
         lines.append(
