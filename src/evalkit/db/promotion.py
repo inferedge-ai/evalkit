@@ -3,24 +3,25 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from evalkit.contracts.enums import SyncSource
+from evalkit.contracts.enums import RemovalReason, SyncSource
 from evalkit.core.access import WorkspaceRef
 from evalkit.core.promotion import (
     MissingTargetDataset,
     OverlayCopy,
     PromotionPlan,
+    SourceCaseChanged,
     twin_summary,
 )
 from evalkit.core.review import CaseEvent, CaseEventKind, CaseReview
 from evalkit.db import models
-from evalkit.db.cases import check_writer, find_dataset_row
+from evalkit.db.cases import check_writer, current_cases, find_dataset_row, soft_remove
 from evalkit.db.review_state import latest_events
 from evalkit.db.workspaces import load_ref
-from evalkit.store.base import CaseView, DatasetRow, Unpromoted, WrittenByExtension
+from evalkit.store.base import CaseView, DatasetRow, TargetCases, WrittenByExtension
 
 
 async def overlays_extending(
@@ -118,6 +119,16 @@ async def plan_promotion(
 async def execute_promotion(
     session: AsyncSession, plan: PromotionPlan, *, actor_id: int, event_id: int
 ) -> int:
+    await check_writer(session, plan.source_dataset_id, plan.source_ref, SyncSource.PROMOTION)
+    source_hash = await session.scalar(
+        select(models.DatasetCase.content_hash).where(
+            models.DatasetCase.dataset_id == plan.source_dataset_id,
+            models.DatasetCase.case_ref == plan.case_ref,
+            models.DatasetCase.removed_at.is_(None),
+        )
+    )
+    if source_hash != plan.content_hash:
+        raise SourceCaseChanged(plan.source_ref, plan.case_id)
     await check_writer(session, plan.target_dataset_id, plan.target_ref, SyncSource.PROMOTION)
     sync = models.DatasetSync(
         dataset_id=plan.target_dataset_id,
@@ -206,15 +217,16 @@ async def execute_promotion(
     return sync.id
 
 
-async def unpromote(
+async def remove_from_target(
     session: AsyncSession,
     source_ws: WorkspaceRef,
     dataset: str,
     hashes: dict[int, str | None],
     *,
-    removal_reason: str,
+    removal_reason: RemovalReason,
     actor_id: int,
-) -> Unpromoted | None:
+    event_id: int | None = None,
+) -> TargetCases | None:
     if source_ws.promotes_to is None or not hashes:
         return None
     target_ws = await _workspace(session, source_ws.promotes_to)
@@ -243,34 +255,66 @@ async def unpromote(
     if not gone:
         return None
     removed = sorted(gone.values())
-    source = await find_dataset_row(session, source_ws.tenant_id, source_ws.name, dataset)
-    assert source is not None
     session.add(
         models.DatasetSync(
             dataset_id=target.id,
             actor_id=actor_id,
             source=SyncSource.PROMOTION.value,
-            detail={"from": source.ref, "removed": removed, "removal_reason": removal_reason},
+            detail={
+                "from": f"{dataset}@{source_ws.name}",
+                "removed": removed,
+                "removal_reason": removal_reason.value,
+                **({"event_id": event_id} if event_id is not None else {}),
+            },
         )
     )
-    await session.execute(
-        update(models.DatasetCase)
-        .where(
-            models.DatasetCase.dataset_id == target.id,
-            models.DatasetCase.case_ref.in_(list(gone)),
-        )
-        .values(removed_at=func.now(), updated_at=func.now())
+    await soft_remove(session, target.id, list(gone))
+    still_held = select(models.DatasetCase.case_ref).where(
+        models.DatasetCase.removed_at.is_(None),
+        models.DatasetCase.dataset_id.in_(
+            select(models.Dataset.id).where(models.Dataset.workspace_id == target_ws.id)
+        ),
     )
     await session.execute(
         delete(models.Overlay).where(
             models.Overlay.target_case.in_(list(gone)),
+            models.Overlay.target_case.not_in(still_held),
             models.Overlay.source_dataset_id.in_(
                 select(models.Dataset.id).where(models.Dataset.workspace_id == target_ws.id)
             ),
         )
     )
     await session.flush()
-    return Unpromoted(target=target.ref, removed=removed)
+    return TargetCases(target=target.ref, cases=removed)
+
+
+async def promote_restored(
+    session: AsyncSession,
+    source_ws: WorkspaceRef,
+    dataset: str,
+    case_refs: list[int],
+    actor_id: int,
+) -> TargetCases | None:
+    if source_ws.promotes_to is None or not case_refs:
+        return None
+    target_ws = await _workspace(session, source_ws.promotes_to)
+    target = await find_dataset_row(session, target_ws.tenant_id, target_ws.name, dataset)
+    source = await find_dataset_row(session, source_ws.tenant_id, source_ws.name, dataset)
+    if target is None or source is None or source.kind != "suite":
+        return None
+    cases = {c.case_ref: c for c in await current_cases(session, source) if c.case_ref in case_refs}
+    events = await latest_events(
+        session, source.id, {ref: case.content_hash for ref, case in cases.items()}
+    )
+    promoted: list[str] = []
+    for ref, case in sorted(cases.items(), key=lambda item: item[1].case_id):
+        event = events.decisive.get(ref)
+        if event is None or event.kind != CaseEventKind.APPROVED.value:
+            continue
+        plan = await plan_promotion(session, source_ws, source, case)
+        await execute_promotion(session, plan, actor_id=actor_id, event_id=event.id)
+        promoted.append(case.case_id)
+    return TargetCases(target=target.ref, cases=promoted) if promoted else None
 
 
 async def _review_of(

@@ -1,10 +1,16 @@
 import pytest
 from sqlalchemy import select
 
-from evalkit.core.promotion import MissingTargetDataset
+from evalkit.contracts.enums import RemovalReason
+from evalkit.core.promotion import MissingTargetDataset, SourceCaseChanged
 from evalkit.db.cases import create_dataset, current_cases, get_dataset
 from evalkit.db.models import CaseEvent, DatasetSync, Overlay
-from evalkit.db.promotion import execute_promotion, plan_promotion, twin_status
+from evalkit.db.promotion import (
+    execute_promotion,
+    plan_promotion,
+    remove_from_target,
+    twin_status,
+)
 from evalkit.db.workspaces import WorkspaceStore
 from tests.seed import World, incoming, overlay, seed_world, sync
 
@@ -157,3 +163,50 @@ async def test_twin_status_both_sides(session_factory, world):
         assert back["q-1"]["state"] == "absent"
 
         assert await twin_status(s, world.canonical, dev, dev_cases) == {"q-1": None}
+
+
+async def test_promotion_refuses_a_case_the_source_removed_meanwhile(session_factory, world):
+    async with session_factory() as s:
+        await sync(s, world.dev, world.admin_id, [incoming("q-1"), incoming("q-2")])
+        await create_dataset(s, world.prod, "finance")
+        dataset = await get_dataset(s, "default", "dev", "finance")
+        case = next(c for c in await current_cases(s, dataset) if c.case_id == "q-1")
+        plan = await plan_promotion(s, world.dev, dataset, case)
+        await sync(s, world.dev, world.admin_id, [incoming("q-2")])
+        with pytest.raises(SourceCaseChanged, match="q-1 changed in finance@dev"):
+            await execute_promotion(s, plan, actor_id=world.akshat_id, event_id=1)
+
+
+async def test_removal_keeps_overlays_another_target_suite_still_uses(session_factory, world):
+    async with session_factory() as s:
+        for name in ("finance", "tax"):
+            await sync(s, world.dev, world.admin_id, [incoming("q-1")], dataset=name)
+            await create_dataset(s, world.prod, name)
+        await sync(
+            s,
+            world.dev,
+            world.admin_id,
+            [],
+            dataset="finance-overlays",
+            overlays=(overlay("q-1", ["support-bot"], tags=("client-only",)),),
+        )
+        await create_dataset(s, world.prod, "finance-overlays")
+        for name in ("finance", "tax"):
+            dataset = await get_dataset(s, "default", "dev", name)
+            [case] = await current_cases(s, dataset)
+            plan = await plan_promotion(s, world.dev, dataset, case)
+            await execute_promotion(s, plan, actor_id=world.akshat_id, event_id=1)
+
+        removed = await remove_from_target(
+            s,
+            world.dev,
+            "finance",
+            {case.case_ref: None},
+            removal_reason=RemovalReason.REMOVED_FROM_SOURCE,
+            actor_id=world.akshat_id,
+        )
+        await s.commit()
+        [tax] = await current_cases(s, await get_dataset(s, "default", "prod", "tax"))
+
+    assert removed is not None and removed.cases == ["q-1"]
+    assert tax.split_tags == ["client-only"]

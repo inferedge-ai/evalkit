@@ -104,7 +104,8 @@ To take a case out of `@prod`, either request changes in `@dev` on the
 version `@prod` holds, or delete the case from the YAML and sync the whole
 dataset. Both remove it from `finance@prod` and print `removed from
 finance@prod: <case id>`. Approving a fixed version in `@dev` promotes it
-again.
+again. Restoring a deleted case that was approved, for example by reverting
+the commit that deleted it, puts it back in `@prod` on the next sync.
 
 A change to a case that is waiting for review, or was sent back with
 changes requested, goes back to the same reviewer on sync: you don't need

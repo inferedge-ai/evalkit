@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from typing import Literal
 
 from sqlalchemy import delete, func, select, true, tuple_, update
@@ -339,6 +338,17 @@ async def _replace_overlays(
     return applied
 
 
+async def soft_remove(session: AsyncSession, dataset_id: int, case_refs: list[int]) -> None:
+    await session.execute(
+        update(models.DatasetCase)
+        .where(
+            models.DatasetCase.dataset_id == dataset_id,
+            models.DatasetCase.case_ref.in_(case_refs),
+        )
+        .values(removed_at=func.now(), updated_at=func.now())
+    )
+
+
 async def check_writer(
     session: AsyncSession, dataset_id: int, ref: str, source: SyncSource
 ) -> None:
@@ -421,6 +431,8 @@ async def sync_dataset(
             )
             if row is not None and row.content_hash != case.content_hash:
                 changed[case_ref] = (row.content_hash, case.content_hash)
+            if row is not None and row.removed_at is not None:
+                result.restored_refs.append(case_ref)
         if (
             same_version
             and row is not None
@@ -477,14 +489,8 @@ async def sync_dataset(
             )
         ).all()
         if stale:
-            await session.execute(
-                update(models.DatasetCase)
-                .where(
-                    models.DatasetCase.dataset_id == dataset_id,
-                    models.DatasetCase.case_ref.in_([ref for ref, _ in stale]),
-                )
-                .values(removed_at=datetime.now(UTC))
-            )
+            result.removed_refs = [ref for ref, _ in stale]
+            await soft_remove(session, dataset_id, result.removed_refs)
             result.removed = sorted(case_id for _, case_id in stale)
     elif under is not None:
         result.missing = sorted(

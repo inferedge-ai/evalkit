@@ -49,21 +49,24 @@ def test_flow_03_sync_targets_your_workspace_and_prunes_only_whole_datasets(cli)
         (root / "sub/tagged.yaml").unlink()
         (root / "sub/b.yaml").write_text(cases_yaml("f3-4"))
         out = cli.ok("sync", "fin3/sub")
-        assert "2 case(s) under sub/ are no longer on disk: f3-3, f3-5" in out
-        assert "evalkit sync fin3" in out
+        assert "2 case(s) are no longer under sub/: f3-3, f3-5" in out
+        assert "(evalkit sync fin3) to remove or move them" in out
         assert case_ids(alice, "fin3@alice") == ["f3-1", "f3-3", "f3-4", "f3-5"]
         out = cli.ok("sync", "fin3/sub/b.yaml")
-        assert "no longer on disk" not in out
+        assert "no longer under" not in out
 
 
 def test_flow_03_who_may_sync_a_shared_workspace(cli):
-    cli.suite("shared3", {"a.yaml": cases_yaml("s3-1")})
+    root = cli.suite("shared3", {"a.yaml": cases_yaml("s3-1"), "sub/b.yaml": cases_yaml("s3-2")})
     cli.as_user("akshat")
     assert "you cannot sync to @dev" in cli.fails("sync", "shared3", "--workspace", "dev")
     cli.as_user("alice")
     assert "synced shared3@dev" in cli.ok("sync", "shared3", "--workspace", "dev")
     cli.as_user("admin")
     assert "synced shared3@dev" in cli.ok("sync", "shared3", "--workspace", "dev")
+    (root / "sub/b.yaml").write_text(cases_yaml("s3-3"))
+    out = cli.ok("sync", "shared3/sub", "--workspace", "dev")
+    assert "(evalkit sync shared3 --workspace dev)" in out
 
 
 def test_flow_03_sync_records_revision_and_actor(cli):

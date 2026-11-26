@@ -45,8 +45,8 @@ from evalkit.client.sync import (
     always_from_disk,
     git_revision,
     resolve_path,
+    resolve_subfolder,
     sync_dataset,
-    sync_folder,
 )
 from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, load_config
 from evalkit.contracts.cases import REGISTRY_FILENAME, CaseEvaluators, is_case_yaml
@@ -494,7 +494,7 @@ def lint(
         raise typer.Exit(code=1)
 
 
-def _echo_unpromoted(target: str, removed: list[str]) -> None:
+def _echo_removed_from(target: str, removed: list[str]) -> None:
     typer.echo(f"removed from {target}: " + ", ".join(removed))
 
 
@@ -537,14 +537,22 @@ def _sync_and_report(
             + ", ".join(report["removed"])
         )
     if report.get("missing"):
-        typer.echo(
-            f"{len(report['missing'])} case(s) under {sync_folder(dataset_dir, subpath)}/ "
-            "are no longer on disk: "
-            + ", ".join(report["missing"])
-            + f". Sync the whole dataset (evalkit sync {name}) to remove them."
+        folder = resolve_subfolder(dataset_dir, subpath)
+        whole = f"evalkit sync {name}" + (
+            "" if workspace == _connection().username else f" --workspace {workspace}"
         )
-    if report.get("unpromoted"):
-        _echo_unpromoted(report["unpromoted"]["target"], report["unpromoted"]["removed"])
+        typer.echo(
+            f"{len(report['missing'])} case(s) are no longer under {folder}/: "
+            + ", ".join(report["missing"])
+            + f". Sync the whole dataset ({whole}) to remove or move them."
+        )
+    if report.get("removed_from"):
+        _echo_removed_from(report["removed_from"]["target"], report["removed_from"]["cases"])
+    if report.get("promoted_to"):
+        typer.echo(
+            f"approved before, back in {report['promoted_to']['target']}: "
+            + ", ".join(report["promoted_to"]["cases"])
+        )
     review = report.get("review") or {}
     if review.get("now_unreviewed"):
         typer.echo(
@@ -1741,7 +1749,7 @@ def _post_decision(dataset: str, case_id: str, action: str, comment: str | None)
     result = _client().post(f"{_case_path(dataset, case_id)}/review", json=body).json()
     typer.echo(f"{case_id}: {result['state']}")
     if result.get("removed_from"):
-        _echo_unpromoted(result["removed_from"], [case_id])
+        _echo_removed_from(result["removed_from"], [case_id])
     _echo_link(_case_url(dataset, case_id))
 
 

@@ -144,9 +144,9 @@ class CarriedReview(BaseModel):
     reviewer: str
 
 
-class Unpromoted(BaseModel):
+class TargetCases(BaseModel):
     target: str
-    removed: list[str]
+    cases: list[str]
 
 
 class SyncResult(BaseModel):
@@ -161,7 +161,10 @@ class SyncResult(BaseModel):
     readme_changed: bool = False
     carried: list[CarriedReview] = Field(default_factory=list)
     now_unreviewed: list[str] = Field(default_factory=list)
-    unpromoted: Unpromoted | None = None
+    removed_refs: list[int] = Field(default_factory=list)
+    restored_refs: list[int] = Field(default_factory=list)
+    removed_from: TargetCases | None = None
+    promoted_to: TargetCases | None = None
 
 
 class GitRevision(BaseModel):

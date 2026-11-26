@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### Improvements
+
+- **Review:** A case removed from a promotion source by a whole-dataset sync is
+  now removed from the promotion target too, and so is a case whose promoted
+  version gets changes requested in the source. Before, the target kept the
+  approved copy until a newer version was approved. A case that comes back to
+  the source, at a version whose latest review decision is an approval, is
+  promoted again on that sync, so reverting a deletion restores the target.
+  The target's sync row records `removed`, `removal_reason` and, for a review
+  decision, its `event_id`. `evalkit sync` and `evalkit review
+  request-changes` print `removed from <target>: <case ids>`; the sync report
+  carries `removed_from` and `promoted_to`, and the decision endpoint returns
+  `removed_from`. Approving a case that a sync removed at the same moment now
+  answers 409 instead of promoting it.
+- **CLI:** `evalkit sync` of a whole dataset names the cases it removed
+  (`removed` in the `POST /api/sync` report and on the sync row). A sync of one
+  folder names the cases that are no longer under that folder (`missing`, new
+  `under` query parameter) and gives the whole-dataset sync command that
+  removes or moves them. The source column of a dataset's cases now shows the
+  file's path inside the dataset (`tax/case.yaml`), not just its name. Cases
+  synced before keep the old value, and the folder message misses them, until
+  the next sync of the whole dataset; in a promotion target, until a new
+  version of the case is promoted.
+
 ## 0.9.0
 
 _Released 2026-11-25._ Datasets carry a README and metadata, packages that
@@ -45,21 +69,6 @@ calls traced through Langfuse now show up in trajectories.
 
 ### Improvements
 
-- **Review:** A case removed from a promotion source by a whole-dataset sync is
-  now removed from the promotion target too, and so is a case whose promoted
-  version gets changes requested in the source. Before, the target kept the
-  approved copy until a newer version was approved. The target's sync row
-  records `removed` and `removal_reason`; `evalkit sync` and `evalkit review
-  request-changes` print `removed from <target>: <case ids>`, and the decision
-  endpoint returns `removed_from`.
-- **CLI:** `evalkit sync` of a whole dataset names the cases it removed
-  (`removed` in the `POST /api/sync` report and on the sync row). A sync of one
-  folder names the cases under that folder that are no longer on disk
-  (`missing`, new `under` query parameter) and asks for a whole-dataset sync
-  to remove them. The source column of a dataset's cases now shows the file's
-  path inside the dataset (`tax/case.yaml`), not just its name; cases synced
-  before show the old value, and the folder warning misses them, until the
-  next sync of the whole dataset.
 - **Lint:** The error `E-JARGON` is now the warning `W-JARGON`. Case text
   that looks like agent internals (an `mcp__` prefix, a `__dunder__` token, a
   `snake_case(` call) is still reported by `evalkit lint` and `evalkit sync`,

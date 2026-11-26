@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from evalkit.api.access import ActorDep, StoresDep, TenantStores, require, workspace_ref
 from evalkit.api.auth import CurrentUser
 from evalkit.api.deps import SessionDep
-from evalkit.contracts.enums import WorkspaceRole
+from evalkit.contracts.enums import RemovalReason, WorkspaceRole
 from evalkit.core.access import WorkspaceRef, can_review
-from evalkit.core.promotion import MissingTargetDataset, PromotionPlan
+from evalkit.core.promotion import PromotionPlan
 from evalkit.core.review import (
     CaseReview,
     CaseState,
@@ -23,13 +23,12 @@ from evalkit.core.review import (
 )
 from evalkit.core.workspace import parse_slug
 from evalkit.db.cases import current_cases, dataset_by_ref, find_dataset_row, list_datasets
-from evalkit.db.promotion import execute_promotion, plan_promotion, unpromote
+from evalkit.db.promotion import execute_promotion, plan_promotion, remove_from_target
 from evalkit.store.base import (
     CaseView,
     DatasetRow,
     Selection,
-    Unpromoted,
-    WrittenByExtension,
+    TargetCases,
     select_cases,
 )
 
@@ -152,10 +151,7 @@ async def decide(
     dataset, case, review = await _load_case(stores, session, slug, case_id)
     plan: PromotionPlan | None = None
     if body.action == "approve" and ws.promotes_to is not None:
-        try:
-            plan = await plan_promotion(session, ws, dataset, case)
-        except (MissingTargetDataset, WrittenByExtension) as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        plan = await plan_promotion(session, ws, dataset, case)
     comment = (
         NewCaseComment(
             dataset=slug,
@@ -173,23 +169,24 @@ async def decide(
         else review.request_changes(user.username)
     )
     actor_id = user.id
-    unpromoted: list[Unpromoted] = []
+    removed: list[TargetCases] = []
 
     async def promote(db: AsyncSession, event_id: int) -> None:
         assert plan is not None
         await execute_promotion(db, plan, actor_id=actor_id, event_id=event_id)
 
     async def withdraw(db: AsyncSession, event_id: int) -> None:
-        found = await unpromote(
+        found = await remove_from_target(
             db,
             ws,
             dataset.name,
             {case.case_ref: review.content_hash},
-            removal_reason="changes_requested",
+            removal_reason=RemovalReason.CHANGES_REQUESTED,
             actor_id=actor_id,
+            event_id=event_id,
         )
         if found is not None:
-            unpromoted.append(found)
+            removed.append(found)
 
     after = (
         promote
@@ -203,7 +200,7 @@ async def decide(
     return {
         **summary,
         "promoted_to": plan.target_ref if plan is not None else None,
-        "removed_from": unpromoted[0].target if unpromoted else None,
+        "removed_from": removed[0].target if removed else None,
     }
 
 

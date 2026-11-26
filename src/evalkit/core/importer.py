@@ -38,7 +38,7 @@ from evalkit.store.base import (
     IncomingCase,
     IncomingOverlay,
     SyncResult,
-    Unpromoted,
+    TargetCases,
 )
 
 
@@ -83,7 +83,8 @@ class ImportReport(BaseModel):
     deleted: int = 0
     removed: list[str] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list)
-    unpromoted: Unpromoted | None = None
+    removed_from: TargetCases | None = None
+    promoted_to: TargetCases | None = None
     readme_changed: bool = False
     overlays_applied: int = 0
     findings: list[Finding] = Field(default_factory=list)
@@ -260,7 +261,8 @@ async def import_cases(
         deleted=len(result.removed),
         removed=result.removed,
         missing=result.missing,
-        unpromoted=result.unpromoted,
+        removed_from=result.removed_from,
+        promoted_to=result.promoted_to,
         readme_changed=result.readme_changed,
         overlays_applied=result.overlays,
         findings=findings,

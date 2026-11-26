@@ -230,8 +230,8 @@ async def test_removing_a_case_from_the_source_removes_it_from_the_target(env):
     result = await sync_cases(ctx, [suite_case("case-2", "q2")], workspace="dev", full=True)
 
     assert result.removed == ["case-1"]
-    assert result.unpromoted is not None
-    assert (result.unpromoted.target, result.unpromoted.removed) == (PROD, ["case-1"])
+    assert result.removed_from is not None
+    assert (result.removed_from.target, result.removed_from.cases) == (PROD, ["case-1"])
     assert "case-1" not in await _cases(clients["sme"], PROD)
     assert await _latest_sync_detail(ctx, PROD) == (
         "promotion",
@@ -245,7 +245,7 @@ async def test_removing_an_unpromoted_case_leaves_the_target_alone(env):
 
     result = await sync_cases(ctx, [suite_case("case-2", "q2")], workspace="dev", full=True)
 
-    assert result.removed == ["case-1"] and result.unpromoted is None
+    assert result.removed == ["case-1"] and result.removed_from is None
 
 
 async def test_changes_requested_on_the_promoted_version_removes_it_from_the_target(env):
@@ -258,10 +258,9 @@ async def test_changes_requested_on_the_promoted_version_removes_it_from_the_tar
     assert resp.status_code == 200, resp.text
     assert resp.json()["removed_from"] == PROD
     assert "case-1" not in await _cases(clients["sme"], PROD)
-    assert await _latest_sync_detail(ctx, PROD) == (
-        "promotion",
-        {"from": DEV, "removed": ["case-1"], "removal_reason": "changes_requested"},
-    )
+    source, detail = await _latest_sync_detail(ctx, PROD)
+    assert source == "promotion" and isinstance(detail.pop("event_id"), int)
+    assert detail == {"from": DEV, "removed": ["case-1"], "removal_reason": "changes_requested"}
 
     resp = await _decide(clients["sme"], DEV, "case-1", "approve")
     assert resp.json()["promoted_to"] == PROD
@@ -278,3 +277,31 @@ async def test_changes_requested_on_a_newer_version_leaves_the_target_alone(env)
 
     assert resp.json()["removed_from"] is None
     assert (await _cases(clients["sme"], PROD))["case-1"]["review"]["state"] == "approved"
+
+
+async def test_a_case_that_comes_back_approved_returns_to_the_target(env):
+    clients, ctx = env
+    await clients["admin"].post("/api/datasets", json={"name": "finance", "workspace": "prod"})
+    assert (await _decide(clients["sme"], DEV, "case-1", "approve")).status_code == 200
+    both = [suite_case("case-1", "q1"), suite_case("case-2", "q2")]
+    await sync_cases(ctx, both[1:], workspace="dev", full=True)
+
+    result = await sync_cases(ctx, both, workspace="dev", full=True)
+
+    assert result.promoted_to is not None
+    assert (result.promoted_to.target, result.promoted_to.cases) == (PROD, ["case-1"])
+    assert (await _cases(clients["sme"], PROD))["case-1"]["review"]["state"] == "approved"
+
+
+async def test_a_case_sent_back_stays_out_of_the_target_when_it_comes_back(env):
+    clients, ctx = env
+    await clients["admin"].post("/api/datasets", json={"name": "finance", "workspace": "prod"})
+    assert (await _decide(clients["sme"], DEV, "case-1", "approve")).status_code == 200
+    await _decide(clients["sme"], DEV, "case-1", "request_changes", "wrong date")
+    both = [suite_case("case-1", "q1"), suite_case("case-2", "q2")]
+    await sync_cases(ctx, both[1:], workspace="dev", full=True)
+
+    result = await sync_cases(ctx, both, workspace="dev", full=True)
+
+    assert result.promoted_to is None
+    assert "case-1" not in await _cases(clients["sme"], PROD)
