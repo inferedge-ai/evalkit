@@ -92,6 +92,9 @@
 
 ### Improvements
 
+- **Web UI:** Jumping to a step in a run's trajectory, from a prompt, an error
+  or a sidebar section, now outlines the whole step for a moment. The
+  highlight used to show only in the margin left of the step.
 - **Web UI:** The agent, evaluator, LLM provider and workspace forms show
   their errors above the Cancel and Save buttons, where they stay in view
   while the fields scroll. They used to sit under the last field.

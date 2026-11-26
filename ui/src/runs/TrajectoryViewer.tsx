@@ -375,8 +375,10 @@ export function TrajectoryViewer({
               <div
                 key={step.stepId}
                 data-step-id={step.stepId}
-                className={`flex gap-3 rounded-lg transition-colors duration-500 ${
-                  highlight === step.stepId ? "bg-info-bg" : ""
+                className={`flex gap-3 rounded-lg ring-2 transition-[background-color,box-shadow] duration-500 ${
+                  highlight === step.stepId
+                    ? "bg-info-bg ring-primary/70"
+                    : "ring-transparent"
                 }`}
               >
                 <StepGutter
