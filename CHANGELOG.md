@@ -83,7 +83,7 @@
 - **Extending evalkit:** A package's UI can add sections to the sidebar of the
   run page's trajectory viewer, above Prompts, through `useRunSidebar` in its
   `UiExtensions`. Each item can jump to a step, in the main trajectory or a
-  subagent's. `TrajectoryViewer` takes the same sections as `sections`.
+  subagent's, or link to a page. `TrajectoryViewer` takes the same sections as `sections`.
 - **Extending evalkit:** A package built on evalkit can keep tables of its own
   in the same database. It declares its alembic revisions in the entry point
   group `evalkit.migrations`; `evalkit db upgrade` then applies them with

@@ -305,7 +305,8 @@ in `evalkit.api.jobs` does. Run it beside an `evalkit serve` that has
   `RunSidebarSection`s it returns (a title and items) are listed in the
   trajectory viewer's sidebar, above Prompts. An item with a `stepId` jumps to
   that step when clicked, in the trajectory its `tab` names (`"main"`, the
-  default, or a subagent's trajectory id); one without is plain text. A page
+  default, or a subagent's trajectory id); one with `to` links to that page;
+  any other is plain text. A page
   of the package can show a run the same way with `TrajectoryViewer` from
   `@/runs/TrajectoryViewer` (`doc`, `sections`).
 - Keep the folder path, the `extensions` export, `UiExtensions`,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown, ListFilter } from "lucide-react";
+import { Link } from "react-router-dom";
 import { timingAnalysis } from "../lib/analysis";
 import { errorEntries, toModel } from "../lib/atif";
 import type {
@@ -412,7 +413,15 @@ export function TrajectoryViewer({
             <div key={section.title} className="mb-3">
               <div className="eyebrow">{section.title}</div>
               {section.items.map((item) =>
-                item.stepId === undefined ? (
+                item.to !== undefined ? (
+                  <Link
+                    key={item.key}
+                    to={item.to}
+                    className="block rounded px-1.5 py-1 text-meta text-ink-2 underline underline-offset-2 transition-colors hover:bg-fill"
+                  >
+                    <span className="line-clamp-3">{item.label}</span>
+                  </Link>
+                ) : item.stepId === undefined ? (
                   <div
                     key={item.key}
                     className="px-1.5 py-1 text-meta text-ink-2"

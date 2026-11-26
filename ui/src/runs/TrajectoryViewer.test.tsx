@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { expect, test } from "vitest";
 import fixture from "../lib/atif_full.fixture.json";
@@ -52,23 +53,30 @@ test("an extra sidebar section lists its items above Prompts and jumps to a step
   const subagent = doc.subagent_trajectories![0];
   const step = subagent.steps[0];
   render(
-    <TrajectoryViewer
-      doc={doc}
-      sections={[
-        {
-          title: "Notes",
-          items: [
-            {
-              key: "a",
-              label: "Where the subagent starts",
-              tab: subagent.trajectory_id!,
-              stepId: step.step_id,
-            },
-            { key: "b", label: "About the whole run" },
-          ],
-        },
-      ]}
-    />,
+    <MemoryRouter>
+      <TrajectoryViewer
+        doc={doc}
+        sections={[
+          {
+            title: "Notes",
+            items: [
+              {
+                key: "a",
+                label: "Where the subagent starts",
+                tab: subagent.trajectory_id!,
+                stepId: step.step_id,
+              },
+              { key: "b", label: "About the whole run" },
+              { key: "c", label: "Open the note", to: "/notes/7" },
+            ],
+          },
+        ]}
+      />
+    </MemoryRouter>,
+  );
+  expect(screen.getByRole("link", { name: "Open the note" })).toHaveAttribute(
+    "href",
+    "/notes/7",
   );
   const titles = screen
     .getAllByText(/^(Notes|Prompts)$/)

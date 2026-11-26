@@ -21,12 +21,13 @@ export type SettingsPage = {
 
 // An entry in the trajectory viewer's sidebar. One with a stepId jumps to that
 // step when clicked, in the trajectory `tab` names ("main", or a subagent's
-// trajectory id); one without is plain text.
+// trajectory id); one with `to` is a link to that page; any other is plain text.
 export type RunSidebarItem = {
   key: string;
   label: string;
   tab?: string;
   stepId?: number;
+  to?: string;
 };
 
 export type RunSidebarSection = { title: string; items: RunSidebarItem[] };
