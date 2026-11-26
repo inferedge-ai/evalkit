@@ -67,9 +67,12 @@ function Where() {
 const where = () => screen.getByLabelText("location").textContent;
 
 let redirects: unknown[];
+let requested: string[];
 
 function serve(me: Me | null) {
+  requested = [];
   stubServer(async (url) => {
+    requested.push(url);
     if (url.endsWith("/api/auth/me"))
       return me
         ? Response.json(me)
@@ -130,6 +133,7 @@ test("a signed-out visitor at / sees only the wrapper's landing page, with no ev
   expect(screen.queryByRole("button", { name: /^Switch to/ })).toBeNull();
   expect(where()).toBe("/");
   expect(redirects).toEqual([]);
+  expect(requested).toEqual([]);
 });
 
 test("without a landing page, / sends a signed-out visitor to sign in", async () => {
@@ -154,14 +158,38 @@ test("a signed-out deep link goes straight to sign-in and back, not to the landi
   );
 });
 
-test("a signed-in person at / gets the workspace list, not the landing page", async () => {
+test("a signed-in person at / gets the landing page too, and the workspace list at /home", async () => {
   serve(writer);
   openApp("/");
+  expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
+  expect(requested).toEqual([]);
+  closePage();
 
+  serve(writer);
+  openApp("/home");
   expect(
     await screen.findByRole("link", { name: /All datasets/ }),
   ).toBeInTheDocument();
   expect(screen.queryByText("Evals for your agents")).toBeNull();
+});
+
+test("without a landing page, a signed-in person at / gets the workspace list", async () => {
+  wrapper.landingPage = null;
+  serve(writer);
+  openApp("/");
+  expect(
+    await screen.findByRole("link", { name: /All datasets/ }),
+  ).toBeInTheDocument();
+});
+
+test("a signed-out visit to /home goes to sign-in and back to /home", async () => {
+  serve(null);
+  openApp("/home");
+
+  expect(await screen.findByText("Signing you in…")).toBeInTheDocument();
+  await vi.waitFor(() =>
+    expect(redirects).toEqual([{ state: "/home", redirectMethod: "replace" }]),
+  );
 });
 
 test("signed out, the docs page leads home, switches the theme and signs in from its own header", async () => {
@@ -252,7 +280,7 @@ test("Sign up on the landing page after a sign-out opens the provider's sign-up 
   expect(await screen.findByText("Signing you in…")).toBeInTheDocument();
   await vi.waitFor(() =>
     expect(redirects).toEqual([
-      { state: "/", prompt: "create", redirectMethod: "replace" },
+      { state: "/home", prompt: "create", redirectMethod: "replace" },
     ]),
   );
   expect(isSignedOut()).toBe(true);
@@ -272,6 +300,7 @@ test("signing out lands on the landing page, and Back stops at Sign in again", a
     expect(queryClient.getQueryCache().getAll()).toEqual([]),
   );
 
+  serve(null);
   await user.click(screen.getByRole("button", { name: "Back" }));
   expect(
     await screen.findByRole("button", { name: "Sign in again" }),
@@ -280,6 +309,7 @@ test("signing out lands on the landing page, and Back stops at Sign in again", a
 });
 
 test("evalkit's own pages win over a wrapper's public route at the same path", async () => {
+  wrapper.landingPage = null;
   wrapper.publicRoutes = [
     { path: "/", element: <p>Wrapper home</p> },
     { path: "/datasets", element: <p>Wrapper datasets</p> },

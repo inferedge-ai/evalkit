@@ -61,11 +61,12 @@ import {
   type NavSection,
   useSettingsSections,
 } from "./nav";
+import { appHome } from "../lib/home";
 import { useTheme } from "./theme";
 import { SWITCH_FLASH_MS, useSwitchWorkspace, useWorkspace } from "./workspace";
 
 export function BrandLink({
-  to = "/",
+  to = appHome(),
   onClick,
 }: {
   to?: string;
@@ -87,7 +88,7 @@ export function Shell() {
   const { pathname, search } = useLocation();
   const inSettings = useMatch({ path: "/settings", end: false }) !== null;
   const { workspace } = useWorkspace();
-  const [appPage, setAppPage] = useState({ path: "/", workspace: "" });
+  const [appPage, setAppPage] = useState({ path: appHome(), workspace: "" });
   useEffect(() => {
     if (!inSettings)
       setAppPage({ path: pathname + search, workspace: workspace.name });

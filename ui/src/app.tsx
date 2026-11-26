@@ -13,6 +13,8 @@ import {
   useOptionalMe,
 } from "./shell/capabilities";
 import { ShellOrBare, WorkspaceOrPublic } from "./shell/layout";
+import { PublicShell } from "./shell/PublicShell";
+import { appHome } from "./lib/home";
 import { CasePage } from "./evals/CasePage";
 import { NotFound } from "./shell/NotFound";
 import { ComparePage } from "./evals/ComparePage";
@@ -29,12 +31,10 @@ import {
   renderSettingsRoutes,
 } from "./settingsRoutes";
 
-function HomeOrLanding() {
+function HomeOrSignIn() {
   const location = useLocation();
   if (useOptionalMe()) return <Home />;
-  return (
-    extensions.landingPage ?? <Navigate to={loginPath(location)} replace />
-  );
+  return <Navigate to={loginPath(location)} replace />;
 }
 
 export function App() {
@@ -43,6 +43,11 @@ export function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/login/callback" element={<LoginCallbackPage />} />
       {renderMovedSettingsRoutes()}
+      {extensions.landingPage && (
+        <Route element={<PublicShell />}>
+          <Route path="/" element={extensions.landingPage} />
+        </Route>
+      )}
       <Route element={<AuthGate />}>
         <Route element={<WorkspaceOrPublic />}>
           <Route element={<ShellOrBare />}>
@@ -55,8 +60,13 @@ export function App() {
               path="/cli"
               element={<Navigate to="/docs/install" replace />}
             />
-            <Route path="/" element={<HomeOrLanding />} />
+            {!extensions.landingPage && (
+              <Route path="/" element={<HomeOrSignIn />} />
+            )}
             <Route element={<RequireMe />}>
+              {extensions.landingPage && (
+                <Route path="/home" element={<Home />} />
+              )}
               <Route path="/datasets" element={<DatasetsPage />} />
               <Route
                 path="/datasets/:ref"
@@ -97,7 +107,7 @@ export function App() {
               <Route
                 path="*"
                 element={
-                  <NotFound what="page" up={{ label: "Home", to: "/" }} />
+                  <NotFound what="page" up={{ label: "Home", to: appHome() }} />
                 }
               />
             </Route>

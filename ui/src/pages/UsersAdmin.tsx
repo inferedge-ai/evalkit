@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { appHome } from "@/lib/home";
 
 type UserAction = "archive" | "restore" | "promote" | "demote";
 
@@ -26,7 +27,7 @@ export function UsersAdminPage() {
       </div>
     );
   if (passwordLogin === "none")
-    return <NotFound what="page" up={{ label: "Home", to: "/" }} />;
+    return <NotFound what="page" up={{ label: "Home", to: appHome() }} />;
   return <UserList />;
 }
 

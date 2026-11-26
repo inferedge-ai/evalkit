@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { appHome } from "../lib/home";
 
 export type SignInState = { signIn: true };
 
 export function SignInLink({
-  next = "/",
+  next = appHome(),
   prompt,
   className,
   children,

@@ -75,6 +75,8 @@ export function AuthGate() {
     if (status === "unauthorized") queryClient.clear();
   }, [status]);
 
+  useEffect(() => () => queryClient.clear(), []);
+
   useEffect(() => {
     document.title = "Evalkit";
   }, []);
