@@ -54,6 +54,7 @@ from evalkit.core.agents import UnknownAgent
 from evalkit.core.blob import BlobStore
 from evalkit.core.endpoints import BlockedEndpoint
 from evalkit.core.evaluators.base import BUILTIN_EVALUATORS
+from evalkit.core.promotion import MissingTargetDataset, SourceCaseChanged
 from evalkit.core.python_eval import PythonEvaluator
 from evalkit.core.remote_evaluators import UnknownEvaluator
 from evalkit.core.runner import (
@@ -320,6 +321,8 @@ def create_app(
 
     @app.exception_handler(WrittenByExtension)
     @app.exception_handler(WrittenByUsers)
+    @app.exception_handler(SourceCaseChanged)
+    @app.exception_handler(MissingTargetDataset)
     async def other_writer(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 

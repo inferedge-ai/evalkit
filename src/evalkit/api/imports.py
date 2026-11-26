@@ -132,6 +132,7 @@ async def sync(
     files: list[UploadFile] = File(default_factory=list),
     workspace: str | None = None,
     prune: bool = False,
+    under: str | None = None,
     sha: str | None = None,
     branch: str | None = None,
     dirty: bool | None = None,
@@ -154,6 +155,9 @@ async def sync(
         )
     if actor is not None and not user.is_admin:
         raise HTTPException(status_code=403, detail="actor override is admin only")
+    folders = tuple(part for part in (under or "").split("/") if part)
+    if folders and prune:
+        raise HTTPException(status_code=400, detail="under names a subfolder; it needs prune=false")
     detail = {
         k: v
         for k, v in {"sha": sha, "branch": branch, "dirty": dirty, "actor": actor}.items()
@@ -173,5 +177,6 @@ async def sync(
             actor_id=user.id,
             detail=detail,
             root=root,
+            under=folders or None,
         )
     return report.model_dump()

@@ -63,6 +63,11 @@ class SyncSource(StrEnum):
     EXTENSION = "extension"
 
 
+class RemovalReason(StrEnum):
+    CHANGES_REQUESTED = "changes_requested"
+    REMOVED_FROM_SOURCE = "removed_from_source"
+
+
 class ExperimentStatus(StrEnum):
     RUNNING = "running"
     EVALUATING = "evaluating"

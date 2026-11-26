@@ -104,6 +104,10 @@ The same steps work in any CI: install, authenticate, lint or sync.
 - `--dataset` on lint lets the server check case ids and overlay targets
   against the other datasets. Without it, those checks only run at sync.
 - If `dev` is linked to `prod` for promotion, sync only into `dev`. `prod`
-  refuses sync; approved cases reach it through promotion.
+  refuses sync; approved cases reach it through promotion. A full sync of
+  `dev` that removes a case removes it from `prod` too, and a removed case
+  that comes back at an approved version goes back to `prod`. A sync that
+  removes cases by mistake, for example from an empty folder, empties `prod`
+  of them; reverting and syncing again restores them.
 - Synced cases start Unreviewed. Reviewers of the workspace approve them; see
   [Beyond the quickstart](beyond-quickstart.md).

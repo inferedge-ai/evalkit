@@ -46,7 +46,7 @@ sequenceDiagram
   Dev->>CLI: evalkit sync finance [--workspace dev] [--version sha] [--branch b] [--actor u]
   CLI->>CLI: resolve path: dataset dir, sub-folder or file, read git sha/branch/dirty
   CLI->>S: fixture checks and uploads (flow 04)
-  CLI->>S: POST /api/sync ?dataset&workspace&prune&sha&branch&dirty&actor (case YAML + fixtures.yaml)
+  CLI->>S: POST /api/sync ?dataset&workspace&prune&under&sha&branch&dirty&actor (case YAML + fixtures.yaml)
   S->>S: permission check, lint, fixture checks
   alt lint errors
     S-->>CLI: aborted + findings
@@ -85,8 +85,11 @@ sequenceDiagram
   - A shared workspace: admins and that workspace's `writer` members.
   - A personal workspace: its owner only. Admins cannot write it.
 - **What gets pruned:**
-  - Syncing a whole dataset directory removes cases no longer on disk (`deleted=N`). Removed cases are marked removed, not deleted, so old experiments keep their pinned case versions.
-  - Syncing a sub-folder or one file only adds and updates; it never removes.
+  - Syncing a whole dataset directory removes cases no longer on disk (`deleted=N`) and names them (`removed` in the report and on the sync row; the CLI prints `removed N case(s) no longer on disk: …`). Removed cases are marked removed, not deleted, so old experiments keep their pinned case versions.
+  - Syncing a sub-folder or one file only adds and updates; it never removes. A sub-folder sync sends the folder as `under` and gets back `missing`: the stored cases whose file was under that folder and is not in the upload, deleted or moved. The CLI prints them with the whole-dataset command that removes or moves them. `under` with `prune=true` answers 400.
+- **Promotion source:** a whole-dataset sync of a promotion source also changes its target.
+  - A case it removes is removed from the target's same-named dataset (`removed_from: {target, cases}`), recorded as a `promotion` sync row there with `removal_reason: removed_from_source`.
+  - A case that comes back, at a version whose latest review decision is an approval, is promoted again, keeping its approver (`promoted_to: {target, cases}`; the CLI prints `approved before, back in …`). One the target can't take, for example because an overlay dataset is missing there, stays out and is listed in `not_promoted` with the reason; the sync itself succeeds.
 - **Idempotent:** re-syncing unchanged YAML reports `created=0 patched=0 deleted=0`.
 - **Change detection:**
   - A case counts as `patched` only when its content hash changes. The hash covers input, fixture key/sha256/context, id, tags, expected and evaluators.

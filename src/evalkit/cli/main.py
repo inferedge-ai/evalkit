@@ -45,6 +45,7 @@ from evalkit.client.sync import (
     always_from_disk,
     git_revision,
     resolve_path,
+    resolve_subfolder,
     sync_dataset,
 )
 from evalkit.config import DEFAULT_PORT, Config, LocalConfig, MissingEnvError, load_config
@@ -493,6 +494,10 @@ def lint(
         raise typer.Exit(code=1)
 
 
+def _echo_removed_from(target: str, removed: list[str]) -> None:
+    typer.echo(f"removed from {target}: " + ", ".join(removed))
+
+
 def _sync_and_report(
     dataset_dir: Path,
     *,
@@ -526,6 +531,30 @@ def _sync_and_report(
         f"overlays_applied={report['overlays_applied']}"
         + (" readme=updated" if report.get("readme_changed") else "")
     )
+    if report.get("removed"):
+        typer.echo(
+            f"removed {len(report['removed'])} case(s) no longer on disk: "
+            + ", ".join(report["removed"])
+        )
+    if report.get("missing"):
+        folder = resolve_subfolder(dataset_dir, subpath)
+        whole = f"evalkit sync {name}" + (
+            "" if workspace == _connection().username else f" --workspace {workspace}"
+        )
+        typer.echo(
+            f"{len(report['missing'])} case(s) are no longer under {folder}/: "
+            + ", ".join(report["missing"])
+            + f". Sync the whole dataset ({whole}) to remove or move them."
+        )
+    if report.get("removed_from"):
+        _echo_removed_from(report["removed_from"]["target"], report["removed_from"]["cases"])
+    if report.get("promoted_to"):
+        typer.echo(
+            f"approved before, back in {report['promoted_to']['target']}: "
+            + ", ".join(report["promoted_to"]["cases"])
+        )
+    for item in report.get("not_promoted") or []:
+        typer.echo(f"approved before, not back in the target: {item['case']} ({item['reason']})")
     review = report.get("review") or {}
     if review.get("now_unreviewed"):
         typer.echo(
@@ -1721,6 +1750,8 @@ def _post_decision(dataset: str, case_id: str, action: str, comment: str | None)
     body = {"action": action, "comment": comment}
     result = _client().post(f"{_case_path(dataset, case_id)}/review", json=body).json()
     typer.echo(f"{case_id}: {result['state']}")
+    if result.get("removed_from"):
+        _echo_removed_from(result["removed_from"]["target"], result["removed_from"]["cases"])
     _echo_link(_case_url(dataset, case_id))
 
 

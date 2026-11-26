@@ -78,6 +78,7 @@ async def sync(
     overlays: tuple[IncomingOverlay, ...] = (),
     full: bool = True,
     detail: dict | None = None,
+    under: tuple[str, ...] | None = None,
 ) -> SyncResult:
     return await sync_dataset(
         session,
@@ -90,6 +91,7 @@ async def sync(
         actor_id=actor_id,
         source=SyncSource.GIT,
         detail=detail or {},
+        under=under,
     )
 
 

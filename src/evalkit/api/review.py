@@ -7,9 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from evalkit.api.access import ActorDep, StoresDep, TenantStores, require, workspace_ref
 from evalkit.api.auth import CurrentUser
 from evalkit.api.deps import SessionDep
-from evalkit.contracts.enums import WorkspaceRole
+from evalkit.contracts.enums import RemovalReason, WorkspaceRole
 from evalkit.core.access import WorkspaceRef, can_review
-from evalkit.core.promotion import MissingTargetDataset, PromotionPlan
+from evalkit.core.promotion import PromotionPlan
 from evalkit.core.review import (
     CaseReview,
     CaseState,
@@ -23,12 +23,12 @@ from evalkit.core.review import (
 )
 from evalkit.core.workspace import parse_slug
 from evalkit.db.cases import current_cases, dataset_by_ref, find_dataset_row, list_datasets
-from evalkit.db.promotion import execute_promotion, plan_promotion
+from evalkit.db.promotion import execute_promotion, plan_promotion, remove_from_target
 from evalkit.store.base import (
     CaseView,
     DatasetRow,
     Selection,
-    WrittenByExtension,
+    TargetCases,
     select_cases,
 )
 
@@ -82,15 +82,22 @@ async def _not_target(
     raise HTTPException(status_code=409, detail=f"{slug} is fed by promotion; {what}")
 
 
-async def _load_case_review(
+async def _load_case(
     stores: TenantStores, session: SessionDep, ref: str, case_id: str
-) -> CaseReview:
-    _, cases = await _suite(stores, session, ref)
+) -> tuple[DatasetRow, CaseView, CaseReview]:
+    dataset, cases = await _suite(stores, session, ref)
     case = next((c for c in cases if c.case_id == case_id), None)
     if case is None:
         raise HTTPException(status_code=404, detail=f"unknown case: {case_id}")
     reviews = await stores.review.load(ref, [CaseVersion.of(case)])
-    return reviews[case_id]
+    return dataset, case, reviews[case_id]
+
+
+async def _load_case_review(
+    stores: TenantStores, session: SessionDep, ref: str, case_id: str
+) -> CaseReview:
+    _, _, review = await _load_case(stores, session, ref, case_id)
+    return review
 
 
 @router.post("/datasets/{slug}/review-requests")
@@ -141,15 +148,10 @@ async def decide(
     text = (body.comment or "").strip()
     if body.action == "request_changes" and not text:
         raise HTTPException(status_code=400, detail="request_changes needs a comment")
-    review = await _load_case_review(stores, session, slug, case_id)
+    dataset, case, review = await _load_case(stores, session, slug, case_id)
     plan: PromotionPlan | None = None
     if body.action == "approve" and ws.promotes_to is not None:
-        dataset, cases = await _suite(stores, session, slug)
-        case = next(c for c in cases if c.case_id == case_id)
-        try:
-            plan = await plan_promotion(session, ws, dataset, case)
-        except (MissingTargetDataset, WrittenByExtension) as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        plan = await plan_promotion(session, ws, dataset, case)
     comment = (
         NewCaseComment(
             dataset=slug,
@@ -167,14 +169,43 @@ async def decide(
         else review.request_changes(user.username)
     )
     actor_id = user.id
+    removed: list[TargetCases] = []
 
     async def promote(db: AsyncSession, event_id: int) -> None:
         assert plan is not None
         await execute_promotion(db, plan, actor_id=actor_id, event_id=event_id)
 
-    await stores.review.decide(event, comment, promote if plan is not None else None)
+    async def withdraw(db: AsyncSession, event_id: int) -> None:
+        found = await remove_from_target(
+            db,
+            ws,
+            dataset.name,
+            {case.case_ref: review.content_hash},
+            removal_reason=RemovalReason.CHANGES_REQUESTED,
+            actor_id=actor_id,
+            event_id=event_id,
+        )
+        if found is not None:
+            removed.append(found)
+
+    after = (
+        promote
+        if plan is not None
+        else withdraw
+        if body.action == "request_changes" and ws.promotes_to is not None
+        else None
+    )
+    await stores.review.decide(event, comment, after)
     summary = review_summary(await _load_case_review(stores, session, slug, case_id))
-    return {**summary, "promoted_to": plan.target_ref if plan is not None else None}
+    return {
+        **summary,
+        "promoted_to": (
+            TargetCases(target=plan.target_ref, cases=[case_id]).model_dump()
+            if plan is not None
+            else None
+        ),
+        "removed_from": removed[0].model_dump() if removed else None,
+    }
 
 
 async def _source_dataset(stores: TenantStores, session: SessionDep, slug: str) -> str | None:
