@@ -81,6 +81,7 @@ async function refreshUser(s: OidcSession): Promise<SessionUser | null> {
 
 export async function bearer(): Promise<string | null> {
   if (token !== null) return token;
+  if (!hasStoredUser()) return null;
   const s = await session();
   if (s === null) return null;
   let user = await s.getUser();

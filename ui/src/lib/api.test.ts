@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
@@ -29,6 +30,11 @@ function fakeSession(
   renewed: { access_token: string; expires_in?: number } | null = null,
 ): OidcSession & { calls: string[] } {
   const calls: string[] = [];
+  if (user)
+    localStorage.setItem(
+      "oidc.user:https://id.example.com:evalkit-ui",
+      JSON.stringify(user),
+    );
   return {
     calls,
     getUser: async () => {
@@ -54,6 +60,7 @@ afterEach(() => {
   setToken(null);
   setSessionForTest(undefined);
   vi.unstubAllGlobals();
+  localStorage.clear();
 });
 
 describe("api errors", () => {

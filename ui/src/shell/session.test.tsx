@@ -84,16 +84,18 @@ test("a returning visitor goes to the login page while the identity provider is 
     token_endpoint: "https://id.example.com/token",
     device_authorization_endpoint: null,
   });
+  const requested: string[] = [];
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (url: string) =>
-      url.endsWith("/api/auth/providers")
+    vi.fn(async (url: string) => {
+      requested.push(url);
+      return url.endsWith("/api/auth/providers")
         ? Response.json(
             { detail: "identity provider unreachable", password: "admin" },
             { status: 503 },
           )
-        : Response.json({ detail: "not signed in" }, { status: 401 }),
-    ),
+        : Response.json({ detail: "not signed in" }, { status: 401 });
+    }),
   );
   render(
     <QueryClientProvider client={queryClient}>
@@ -110,4 +112,5 @@ test("a returning visitor goes to the login page while the identity provider is 
     </QueryClientProvider>,
   );
   expect(await screen.findByText("login page")).toBeTruthy();
+  expect(requested).toEqual(["/api/auth/providers"]);
 });
