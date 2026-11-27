@@ -66,7 +66,8 @@ sequenceDiagram
   U->>UI: open any page
   alt browser holds a sign-in (password token or stored SSO user)
     UI->>S: GET /api/auth/me
-    S-->>UI: the user, or 401 (stored sign-ins removed)
+    S-->>UI: the user, or 401
+    Note over UI: on 401, every stored sign-in is removed
   else nothing stored
     Note over UI: signed out, no request
   end

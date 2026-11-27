@@ -96,11 +96,9 @@ export async function bearer(): Promise<string | null> {
   return user?.access_token ?? null;
 }
 
-export async function signOutLocally(): Promise<void> {
+export function signOutLocally(): void {
   setToken(null);
   removeStoredUsers();
-  const s = await session();
-  if (s !== null) await s.removeUser();
 }
 
 export class ApiError extends Error {
@@ -161,19 +159,16 @@ export async function apiFetch(
   const resp = await fetch(`${API}/api${path}`, { ...init, headers });
   noteServerDate(resp.headers.get("Date"));
   if (resp.status === 401) {
-    try {
-      await signOutLocally();
-    } finally {
-      if (
-        !NO_REDIRECT.has(path) &&
-        typeof window !== "undefined" &&
-        !window.location.pathname.startsWith("/login")
-      ) {
-        const next = encodeURIComponent(
-          window.location.pathname + window.location.search,
-        );
-        window.location.assign(`/login?next=${next}`);
-      }
+    signOutLocally();
+    if (
+      !NO_REDIRECT.has(path) &&
+      typeof window !== "undefined" &&
+      !window.location.pathname.startsWith("/login")
+    ) {
+      const next = encodeURIComponent(
+        window.location.pathname + window.location.search,
+      );
+      window.location.assign(`/login?next=${next}`);
     }
   }
   return resp;
@@ -253,5 +248,5 @@ export async function logout(): Promise<void> {
   if (token !== null) {
     await apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
   }
-  await signOutLocally();
+  signOutLocally();
 }
