@@ -2,7 +2,7 @@
 // agents, trace sources). The AuthGate loads it before the app renders, so
 // every page can read it synchronously.
 
-import { api } from "./api";
+import { API, api } from "./api";
 import { httpUrl } from "./safeUrl";
 import type { Meta } from "./types";
 
@@ -19,9 +19,9 @@ export async function loadMeta(): Promise<void> {
 
 // /api/appearance needs no sign-in, so the login page shows the accent too.
 export async function loadAccent(): Promise<void> {
-  const { accent_color } = await api<{ accent_color: string | null }>(
-    "/appearance",
-  ).catch(() => ({ accent_color: null }));
+  const { accent_color } = await fetch(`${API}/api/appearance`)
+    .then((resp) => (resp.ok ? resp.json() : { accent_color: null }))
+    .catch(() => ({ accent_color: null }));
   applyAccent(accent_color);
 }
 
