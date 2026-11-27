@@ -64,3 +64,24 @@ def test_the_start_check_fails_until_the_package_branch_is_applied(
         run_migrations(fresh_db_url)
     with pytest.raises(RuntimeError, match="evalkit db upgrade"):
         asyncio.run(verify_schema(fresh_db_url))
+
+
+def test_the_start_check_names_a_revision_whose_package_is_gone(
+    fresh_db_url, sample_extension, monkeypatch
+):
+    run_migrations(fresh_db_url)
+    monkeypatch.setattr(session, "entry_points", lambda group: [])
+
+    with pytest.raises(RuntimeError, match=r"\['sample_0001'\], which no installed package"):
+        asyncio.run(verify_schema(fresh_db_url))
+
+
+def test_autogenerate_ignores_a_packages_tables_only_while_it_is_installed(
+    sample_extension, monkeypatch
+):
+    assert not session.include_name("sample_notes", "table", {})
+    assert not session.include_name("procrastinate_jobs", "table", {})
+    assert session.include_name("agent_runs", "table", {})
+    assert session.include_name("ix_sample", "index", {})
+    monkeypatch.setattr(session, "entry_points", lambda group: [])
+    assert session.include_name("sample_notes", "table", {})

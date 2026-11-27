@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import ORMExecuteState, Session, with_loader_criteria
 from sqlalchemy.pool import NullPool
 
-from evalkit.db.models import ROOT_MODELS
+from evalkit.db.models import ROOT_MODELS, Base
 
 ALL_TENANTS: Final = object()
 
@@ -70,13 +70,23 @@ JOBS_TABLE_PREFIX = "procrastinate_"
 EXTENSION_MIGRATIONS_GROUP = "evalkit.migrations"
 
 
+def extension_locations() -> list[str]:
+    return sorted(point.value for point in entry_points(group=EXTENSION_MIGRATIONS_GROUP))
+
+
+# Which tables of the database autogenerate compares with evalkit's models: not the
+# job queue's, and, when a package has added its branch, not a table evalkit has no
+# model for, which is that package's.
 def include_name(name: str | None, type_: str, parent_names: Mapping[Any, str | None]) -> bool:
-    return not (type_ == "table" and name is not None and name.startswith(JOBS_TABLE_PREFIX))
+    if type_ != "table" or name is None:
+        return True
+    if name.startswith(JOBS_TABLE_PREFIX):
+        return False
+    return name in Base.metadata.tables or not extension_locations()
 
 
 def version_locations() -> list[str]:
-    extensions = sorted(point.value for point in entry_points(group=EXTENSION_MIGRATIONS_GROUP))
-    return [str(ALEMBIC_ROOT / "versions"), JOBS_VERSIONS, *extensions]
+    return [str(ALEMBIC_ROOT / "versions"), JOBS_VERSIONS, *extension_locations()]
 
 
 def alembic_config(db_url: str | None = None) -> AlembicConfig:
@@ -122,6 +132,11 @@ def head_revisions() -> set[str]:
     return set(ScriptDirectory.from_config(alembic_config()).get_heads())
 
 
+def known_revisions() -> set[str]:
+    scripts = ScriptDirectory.from_config(alembic_config())
+    return {script.revision for script in scripts.walk_revisions()}
+
+
 def head_revision() -> str:
     head = ScriptDirectory.from_config(alembic_config()).get_revision(f"{EVALKIT_BRANCH}@head")
     assert head is not None
@@ -140,6 +155,13 @@ async def verify_schema(db_url: str) -> None:
         ) from exc
     finally:
         await engine.dispose()
+    unknown = current - known_revisions()
+    if unknown:
+        raise RuntimeError(
+            f"the database is at revision {sorted(unknown)!r}, which no installed package "
+            "provides — install the package that owns it again, or downgrade its branch "
+            "(`alembic downgrade <branch>@base`) before uninstalling it"
+        )
     heads = head_revisions()
     if current != heads:
         raise RuntimeError(
