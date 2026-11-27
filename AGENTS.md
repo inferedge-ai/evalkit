@@ -314,7 +314,9 @@ under `SERVICES` (`evalkit.jobs.app_runs`), as `run_worker` in
   trajectory viewer's sidebar, above Prompts. An item with a `stepId` jumps to
   that step when clicked, in the trajectory its `tab` names (`"main"`, the
   default, or a subagent's trajectory id); one with `to` links to that page;
-  any other is plain text. A page
+  any other is plain text, as is one whose step or trajectory the run does not
+  have. A jump turns the viewer's thinking, tool calls and system filters back
+  on when they hide the step. A page
   of the package can show a run the same way with `TrajectoryViewer` from
   `@/runs/TrajectoryViewer` (`doc`, `sections`).
 - Keep the folder path, the `extensions` export, `UiExtensions`,

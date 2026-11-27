@@ -96,3 +96,67 @@ test("an extra sidebar section lists its items above Prompts and jumps to a step
       .find((tab) => tab.getAttribute("aria-selected") === "true")!.textContent,
   ).toContain("subagent");
 });
+
+test("jumping to a step the filters hide turns the filters back on", async () => {
+  const user = userEvent.setup();
+  Element.prototype.scrollIntoView = () => {};
+  const steps = doc.steps.map((step) =>
+    step.step_id === 2 ? { ...step, message: "" } : step,
+  );
+  render(
+    <MemoryRouter>
+      <TrajectoryViewer
+        doc={{ ...doc, steps }}
+        sections={[
+          {
+            title: "Notes",
+            items: [{ key: "a", label: "The search", stepId: 2 }],
+          },
+        ]}
+      />
+    </MemoryRouter>,
+  );
+  await user.click(screen.getByRole("checkbox", { name: "thinking" }));
+  await user.click(screen.getByRole("checkbox", { name: "tool calls" }));
+  expect(document.querySelector('[data-step-id="2"]')).toBeNull();
+
+  await user.click(screen.getByRole("button", { name: /The search/ }));
+
+  expect(screen.getByRole("checkbox", { name: "tool calls" })).toBeChecked();
+  expect(document.querySelector('[data-step-id="2"]')!.className).toContain(
+    "bg-info-bg",
+  );
+});
+
+test("an item whose step or trajectory the run does not have is plain text", () => {
+  render(
+    <MemoryRouter>
+      <TrajectoryViewer
+        doc={doc}
+        sections={[
+          {
+            title: "Notes",
+            items: [
+              { key: "a", label: "A step that is not there", stepId: 99 },
+              {
+                key: "b",
+                label: "A trajectory that is not there",
+                tab: "nope",
+                stepId: 1,
+              },
+            ],
+          },
+          { title: "Notes", items: [{ key: "a", label: "Same title again" }] },
+        ]}
+      />
+    </MemoryRouter>,
+  );
+
+  expect(
+    screen.getByText("A step that is not there").closest("button"),
+  ).toBeNull();
+  expect(
+    screen.getByText("A trajectory that is not there").closest("button"),
+  ).toBeNull();
+  expect(screen.getByText("Same title again")).toBeTruthy();
+});
