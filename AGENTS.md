@@ -217,13 +217,21 @@ billing = "billing.migrations:versions"
   evalkit's own, and `evalkit serve` and `evalkit worker` refuse to start until
   it is applied. `alembic_version` holds one row per branch.
 - Prefix the package's tables and revision ids with its name. evalkit's
-  migrations never touch a table they did not create.
+  migrations never touch a table they did not create, and with a package's
+  branch installed `alembic revision --autogenerate` ignores every table
+  evalkit has no model for.
+- Before uninstalling the package, downgrade its branch
+  (`alembic downgrade billing@base`), which drops its tables and its row in
+  `alembic_version`. Otherwise `evalkit serve` and `evalkit worker` refuse to
+  start, naming the revision no installed package provides, and
+  `evalkit db upgrade` cannot fix it; installing the package again does.
 
 **Jobs.** A package adds tasks to the job queue by running the worker itself:
 build the app with `build_job_app` (`evalkit.jobs.app`), add a Procrastinate
-blueprint with `add_tasks_from`, and run it with evalkit's services in
-`additional_context` under `SERVICES` (`evalkit.jobs.app_runs`), as `run_worker`
-in `evalkit.api.jobs` does. Run it beside an `evalkit serve` that has
+blueprint with `add_tasks_from`, and run it with evalkit's services
+(`app_run_services(state)` from `evalkit.api.jobs`) in `additional_context`
+under `SERVICES` (`evalkit.jobs.app_runs`), as `run_worker` in
+`evalkit.api.jobs` does. Run it beside an `evalkit serve` that has
 `worker.embedded: false`.
 
 **UI pages.** The UI takes extra pages and nav items from
