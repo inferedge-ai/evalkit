@@ -11,6 +11,11 @@
 
 ### Improvements
 
+- **Web UI:** A visitor whose browser holds no sign-in sees the landing page,
+  the docs and public pages straight away, and a link to any other page goes
+  straight to sign-in. The web UI no longer shows "Checking session…" or calls
+  `/api/auth/providers` and `/api/auth/me` first; it still checks with the
+  server when the browser holds a sign-in.
 - **Review:** A case removed from a promotion source by a whole-dataset sync is
   now removed from the promotion target too, and so is a case whose promoted
   version gets changes requested in the source. Before, the target kept the

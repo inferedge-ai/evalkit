@@ -37,8 +37,8 @@ function exchangeOnce(): Promise<{ next: string }> {
       const s = await session();
       if (s === null) throw new Error("single sign-on is not configured");
       return completeSignIn({ session: s, register });
-    })().catch(async (err: unknown) => {
-      await signOutLocally();
+    })().catch((err: unknown) => {
+      signOutLocally();
       throw err;
     });
     exchange = run;

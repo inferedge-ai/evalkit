@@ -1,5 +1,11 @@
 import { ErrorResponse } from "oidc-client-ts";
-import { session, type OidcSession, type SessionUser } from "../auth/oidc";
+import {
+  hasStoredUser,
+  removeStoredUsers,
+  session,
+  type OidcSession,
+  type SessionUser,
+} from "../auth/oidc";
 import type { Me } from "./types";
 
 export const API = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -16,6 +22,10 @@ export function setToken(value: string | null): void {
   token = value;
   if (value === null) store?.removeItem(TOKEN_KEY);
   else store?.setItem(TOKEN_KEY, value);
+}
+
+export function hasStoredSession(): boolean {
+  return token !== null || hasStoredUser();
 }
 
 // Every tab shares this, so a tab whose session ends after a sign-out elsewhere
@@ -72,6 +82,7 @@ async function refreshUser(s: OidcSession): Promise<SessionUser | null> {
 
 export async function bearer(): Promise<string | null> {
   if (token !== null) return token;
+  if (!hasStoredUser()) return null;
   const s = await session();
   if (s === null) return null;
   let user = await s.getUser();
@@ -85,10 +96,9 @@ export async function bearer(): Promise<string | null> {
   return user?.access_token ?? null;
 }
 
-export async function signOutLocally(): Promise<void> {
+export function signOutLocally(): void {
   setToken(null);
-  const s = await session();
-  if (s !== null) await s.removeUser();
+  removeStoredUsers();
 }
 
 export class ApiError extends Error {
@@ -149,19 +159,16 @@ export async function apiFetch(
   const resp = await fetch(`${API}/api${path}`, { ...init, headers });
   noteServerDate(resp.headers.get("Date"));
   if (resp.status === 401) {
-    try {
-      await signOutLocally();
-    } finally {
-      if (
-        !NO_REDIRECT.has(path) &&
-        typeof window !== "undefined" &&
-        !window.location.pathname.startsWith("/login")
-      ) {
-        const next = encodeURIComponent(
-          window.location.pathname + window.location.search,
-        );
-        window.location.assign(`/login?next=${next}`);
-      }
+    signOutLocally();
+    if (
+      !NO_REDIRECT.has(path) &&
+      typeof window !== "undefined" &&
+      !window.location.pathname.startsWith("/login")
+    ) {
+      const next = encodeURIComponent(
+        window.location.pathname + window.location.search,
+      );
+      window.location.assign(`/login?next=${next}`);
     }
   }
   return resp;
@@ -241,5 +248,5 @@ export async function logout(): Promise<void> {
   if (token !== null) {
     await apiFetch("/auth/logout", { method: "POST" }).catch(() => {});
   }
-  await signOutLocally();
+  signOutLocally();
 }
