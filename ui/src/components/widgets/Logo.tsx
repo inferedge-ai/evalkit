@@ -30,3 +30,26 @@ export function Lockup({ className }: { className?: string }) {
     </svg>
   );
 }
+
+export function Mark({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 80 80"
+      role="img"
+      aria-label="evalkit"
+      className={cn("size-6", className)}
+    >
+      <rect
+        x="0.5"
+        y="0.5"
+        width="79"
+        height="79"
+        rx="17.5"
+        vectorEffect="non-scaling-stroke"
+        className="fill-[#111827] stroke-transparent dark:fill-[#1F2937] dark:stroke-[#374151]"
+      />
+      <path d={SLASH} fill="#6B9AE8" />
+      <path d={E} fill="#F9FAFB" />
+    </svg>
+  );
+}

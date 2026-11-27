@@ -11,6 +11,9 @@
 
 ### Improvements
 
+- **Web UI:** While it checks your session, the web UI shows a loader with
+  the evalkit logo and a short line in place of a blank page with
+  "Checking session…".
 - **Review:** A case removed from a promotion source by a whole-dataset sync is
   now removed from the promotion target too, and so is a case whose promoted
   version gets changes requested in the source. Before, the target kept the
