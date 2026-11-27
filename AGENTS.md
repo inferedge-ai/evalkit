@@ -197,7 +197,9 @@ adds tools to the MCP server at `/mcp` (`McpExtension` is in `evalkit.api.mcp.se
   declares tools on the FastMCP server with `@mcp.tool`. `state` is the app's
   state. A tool named like one already registered stops the server from starting.
 - `instructions` is appended to the server's instructions, after a blank line.
-  Use it to say what the tools are for, as evalkit's "Tools by category" does.
+  Use it to say what the tools are for, as evalkit's "Tools by category" does,
+  in a few lines: every extension's text is added, and some clients cut long
+  instructions short.
 - From `evalkit.api.mcp.tools`: `tenant_stores(state)` returns the stores of the
   caller's tenant, read from their token; `READ_TOOL` holds the registration
   arguments of a read-only tool (`@mcp.tool(description=..., **READ_TOOL)`);
@@ -205,8 +207,11 @@ adds tools to the MCP server at `/mcp` (`McpExtension` is in `evalkit.api.mcp.se
   `<code>: <detail>`; and `@expected_errors`, under `@mcp.tool`, turns an
   `HTTPException` and evalkit's unknown-agent, unknown-experiment and
   unknown-workspace errors into such errors.
-- Every caller of `/mcp` is signed in. A tool does its own access checks beyond
-  that, and reads only the caller's tenant through `tenant_stores`.
+- Every caller of `/mcp` is signed in, and a signed-in user may read everything
+  in their tenant (`can_read` in `core/access.py`), which is what evalkit's own
+  tools return. A tool reads only the caller's tenant through `tenant_stores`;
+  one that should show less than that checks it itself. `register` gets the
+  whole app state, as a route added with `include_router` does.
 - `tests/api/test_mcp_extensions.py` shows one end to end.
 
 **Datasets.** A route of the other package writes a dataset with `import_cases`
