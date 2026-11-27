@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
@@ -5,6 +6,7 @@ import {
   apiFetch,
   bearer,
   detailText,
+  hasStoredSession,
   isMissing,
   logout,
   noteServerDate,
@@ -29,6 +31,11 @@ function fakeSession(
   renewed: { access_token: string; expires_in?: number } | null = null,
 ): OidcSession & { calls: string[] } {
   const calls: string[] = [];
+  if (user)
+    localStorage.setItem(
+      "oidc.user:https://id.example.com:evalkit-ui",
+      JSON.stringify(user),
+    );
   return {
     calls,
     getUser: async () => {
@@ -54,6 +61,7 @@ afterEach(() => {
   setToken(null);
   setSessionForTest(undefined);
   vi.unstubAllGlobals();
+  localStorage.clear();
 });
 
 describe("api errors", () => {
@@ -156,7 +164,7 @@ describe("apiFetch", () => {
     expect(resp.status).toBe(401);
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer idp");
-    expect(s.calls).toContain("removeUser");
+    expect(hasStoredSession()).toBe(false);
   });
 });
 
@@ -209,7 +217,7 @@ describe("logout", () => {
     vi.stubGlobal("fetch", fetchMock);
     await logout();
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(s.calls).toContain("removeUser");
+    expect(hasStoredSession()).toBe(false);
   });
 });
 
@@ -286,13 +294,12 @@ describe("401 redirect", () => {
   it.each(["/auth/me", "/auth/oidc/register"])(
     "does not navigate on a 401 from %s but clears credentials",
     async (path) => {
-      const s = fakeSession(null);
-      setSessionForTest(s);
+      setSessionForTest(fakeSession({ access_token: "idp", expires_in: 3600 }));
       stub401();
       const assign = stubWindow("/login/callback");
       await apiFetch(path);
       expect(assign).not.toHaveBeenCalled();
-      expect(s.calls).toContain("removeUser");
+      expect(hasStoredSession()).toBe(false);
     },
   );
 

@@ -11,7 +11,12 @@
 
 ### Improvements
 
-- **Web UI:** While it checks your session, the web UI shows a loader with
+- **Web UI:** A visitor whose browser holds no sign-in sees the landing page,
+  the docs and public pages straight away, and a link to any other page goes
+  straight to sign-in. The web UI no longer shows "Checking session…" or calls
+  `/api/auth/providers` and `/api/auth/me` first; it still checks with the
+  server when the browser holds a sign-in.
+- **Web UI:** While it checks a stored sign-in, the web UI shows a loader with
   the evalkit logo and a short line in place of a blank page with
   "Checking session…". If the check fails, it says so under the logo, with
   the error and a Retry button, in place of the raw error at the top left.

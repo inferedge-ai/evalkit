@@ -64,9 +64,14 @@ sequenceDiagram
   participant UI as Web UI
   participant S as evalkit server
   U->>UI: open any page
-  UI->>S: GET /api/auth/me
-  S-->>UI: 401
-  UI-->>U: redirect to /login
+  alt browser holds a sign-in (password token or stored SSO user)
+    UI->>S: GET /api/auth/me
+    S-->>UI: the user, or 401
+    Note over UI: on 401, every stored sign-in is removed
+  else nothing stored
+    Note over UI: signed out, no request
+  end
+  UI-->>U: when signed out, the landing page, docs and public pages, or a redirect to /login
   U->>UI: username + password
   UI->>S: POST /api/auth/login
   S-->>UI: token (kept in browser storage)
@@ -78,6 +83,7 @@ sequenceDiagram
 ## Expected outcomes
 
 - `GET /api/cli` and `/api/cli/wheel` work without a token.
+- A browser holding no sign-in calls nothing under `/api/auth/` before it draws a page: `/`, the docs and public pages show at once, and any other page goes to `/login`. When the server refuses a stored sign-in, the web UI removes every stored SSO user, so the next visit skips the check.
 - `login` saves the login, replacing any earlier one (to the same server or another).
 - `whoami` prints the user, server and token expiry (or "token does not expire").
 - `/api/auth/me` returns `is_admin` (a stored user flag), the user's personal workspace, and `roles`: every shared workspace where the user is a `writer` or `reviewer`, with the roles held there.

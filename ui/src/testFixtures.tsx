@@ -1,9 +1,14 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, render } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { User, UserManager } from "oidc-client-ts";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { vi } from "vitest";
-import { setSessionForTest } from "./auth/oidc";
+import {
+  setSessionForTest,
+  userManagerSettings,
+  type OidcProviders,
+} from "./auth/oidc";
 import { queryClient } from "./lib/query";
 import { closeGridPopups } from "./testAgGrid";
 import type { ExperimentInfo, Me, Report, WorkspaceInfo } from "./lib/types";
@@ -129,6 +134,25 @@ export function stubPasswordLogin(
       );
     return route(url, init);
   });
+}
+
+export async function storeSsoUser(oidc: OidcProviders) {
+  const manager = new UserManager(
+    userManagerSettings(oidc, window.location.origin),
+  );
+  await manager.storeUser(
+    new User({
+      access_token: "access-token",
+      token_type: "Bearer",
+      profile: {
+        sub: "akshat",
+        iss: oidc.issuer,
+        aud: oidc.client_id,
+        exp: 0,
+        iat: 0,
+      },
+    }),
+  );
 }
 
 export function renderPage(me: Me, path: string, routes: ReactNode) {

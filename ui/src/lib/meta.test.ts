@@ -1,7 +1,36 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { agentCommitUrl, resetMetaForTests } from "./meta";
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { resetProvidersForTest, setSessionForTest } from "../auth/oidc";
+import { agentCommitUrl, loadAccent, resetMetaForTests } from "./meta";
 
-afterEach(() => resetMetaForTests(null));
+afterEach(() => {
+  resetMetaForTests(null);
+  vi.unstubAllGlobals();
+  resetProvidersForTest();
+  setSessionForTest(undefined);
+});
+
+describe("loadAccent", () => {
+  it("draws the deploy's accent from /api/appearance alone", async () => {
+    const requested: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        requested.push(url);
+        if (url.endsWith("/api/auth/providers"))
+          return Response.json({ password: "all", oidc: null });
+        return Response.json({ accent_color: "#7c3aed" });
+      }),
+    );
+
+    await loadAccent();
+
+    expect(requested).toEqual(["/api/appearance"]);
+    expect(
+      document.documentElement.style.getPropertyValue("--deploy-accent"),
+    ).toBe("#7c3aed");
+  });
+});
 
 describe("agentCommitUrl", () => {
   it("builds a commit url from the agent's repo and the sha", () => {
