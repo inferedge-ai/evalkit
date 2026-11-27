@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { Mark } from "@/components/widgets/Logo";
 
 export const LOADER_LINES = [
@@ -41,6 +42,26 @@ export function SessionLoader() {
       >
         {LOADER_LINES[line]}
       </p>
+    </div>
+  );
+}
+
+export function SessionError({ detail }: { detail: string }) {
+  return (
+    <div
+      role="alert"
+      className="flex h-dvh flex-col items-center justify-center gap-4 px-6 text-center"
+    >
+      <Mark className="size-14" />
+      <p className="mt-2 text-sm font-medium">
+        evalkit could not check your sign-in.
+      </p>
+      <p className="max-w-md text-xs break-words text-muted-foreground">
+        {detail}
+      </p>
+      <Button type="button" onClick={() => window.location.reload()}>
+        Retry
+      </Button>
     </div>
   );
 }
