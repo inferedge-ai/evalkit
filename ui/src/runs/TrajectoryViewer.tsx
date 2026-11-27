@@ -305,15 +305,28 @@ export function TrajectoryViewer({
     setHighlight(stepId);
     highlightTimer.current = setTimeout(() => setHighlight(null), 1500);
   };
-  const jumpToItem = (item: RunSidebarItem) => {
-    if (item.stepId === undefined) return;
-    const target = item.tab ?? model.tabs[0].id;
-    if (target === active.id) return jumpTo(item.stepId);
-    if (!model.tabs.some((t) => t.id === target)) return;
-    openTab(target);
-    setPendingJump(item.stepId);
+  const findItemStep = (item: RunSidebarItem) => {
+    const target = model.tabs.find(
+      (t) => t.id === (item.tab ?? model.tabs[0].id),
+    );
+    const step = target?.steps.find((s) => s.stepId === item.stepId);
+    const drawn =
+      step &&
+      (!!step.text.trim() || !!step.thinking || step.toolCalls.length > 0);
+    return target && step && drawn ? { target, step } : null;
   };
-  // The step of another tab exists only once that tab has rendered.
+  const jumpToItem = (item: RunSidebarItem) => {
+    const found = findItemStep(item);
+    if (!found) return;
+    if (!visible.includes(found.step)) {
+      setShowThinking(true);
+      setShowTools(true);
+      setShowSystem(true);
+    }
+    if (found.target.id !== active.id) openTab(found.target.id);
+    setPendingJump(found.step.stepId);
+  };
+  // The step exists only once its tab has rendered with the filters that show it.
   useEffect(() => {
     if (pendingJump === null) return;
     jumpTo(pendingJump);
@@ -372,7 +385,6 @@ export function TrajectoryViewer({
           </div>
           <div className="space-y-2">
             {visible.map((step) => (
-              // scroll-mt keeps a step that was jumped to below the sticky filter bar.
               <div
                 key={step.stepId}
                 data-step-id={step.stepId}
@@ -412,8 +424,8 @@ export function TrajectoryViewer({
           </div>
         </div>
         <nav className="w-64 shrink-0 overflow-auto border-l border-line bg-surface px-2 py-2">
-          {sections.map((section) => (
-            <div key={section.title} className="mb-3">
+          {sections.map((section, index) => (
+            <div key={index} className="mb-3">
               <div className="eyebrow">{section.title}</div>
               {section.items.map((item) =>
                 item.to !== undefined ? (
@@ -424,7 +436,7 @@ export function TrajectoryViewer({
                   >
                     <span className="line-clamp-3">{item.label}</span>
                   </Link>
-                ) : item.stepId === undefined ? (
+                ) : findItemStep(item) === null ? (
                   <div
                     key={item.key}
                     className="px-1.5 py-1 text-meta text-ink-2"

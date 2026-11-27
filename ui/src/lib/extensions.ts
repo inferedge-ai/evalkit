@@ -19,9 +19,6 @@ export type SettingsPage = {
   element: ReactElement;
 };
 
-// An entry in the trajectory viewer's sidebar. One with a stepId jumps to that
-// step when clicked, in the trajectory `tab` names ("main", or a subagent's
-// trajectory id); one with `to` is a link to that page; any other is plain text.
 export type RunSidebarItem = {
   key: string;
   label: string;
@@ -41,7 +38,5 @@ export type UiExtensions = {
   nav: NavItem[];
   accountSettings: SettingsPage[];
   organizationSettings: SettingsPage[];
-  // A React hook the agent run page calls: the sections it returns are listed
-  // in the trajectory viewer's sidebar, above Prompts.
   useRunSidebar?: (run: RunRef) => RunSidebarSection[];
 };
