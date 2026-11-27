@@ -3,13 +3,17 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, expect, test, vi } from "vitest";
+import { setToken } from "../lib/api";
 import { queryClient, useApi } from "../lib/query";
 import { resetProvidersForTest, setSessionForTest } from "../auth/oidc";
+import { storeSsoUser } from "../testFixtures";
 import { AuthGate, RequireMe } from "./capabilities";
 
 afterEach(() => {
   queryClient.clear();
   vi.unstubAllGlobals();
+  setToken(null);
+  localStorage.clear();
 });
 
 // Like the users page: rows and the error banner render side by side.
@@ -29,6 +33,7 @@ function UserList() {
 
 test("signing in never shows the previous user's cached pages", async () => {
   queryClient.setQueryData(["/users"], [{ username: "alice" }]);
+  setToken("bob-token");
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) => {
@@ -65,9 +70,20 @@ test("signing in never shows the previous user's cached pages", async () => {
   expect(screen.queryByText("alice")).toBeNull();
 });
 
-test("a signed-out visitor goes to the login page while the identity provider is unreachable", async () => {
+test("a returning visitor goes to the login page while the identity provider is unreachable", async () => {
   resetProvidersForTest();
   setSessionForTest(undefined);
+  await storeSsoUser({
+    name: "Okta",
+    issuer: "https://id.example.com",
+    client_id: "evalkit-ui",
+    scopes: ["openid"],
+    authorize_params: {},
+    ui_resources: [],
+    authorization_endpoint: "https://id.example.com/authorize",
+    token_endpoint: "https://id.example.com/token",
+    device_authorization_endpoint: null,
+  });
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string) =>

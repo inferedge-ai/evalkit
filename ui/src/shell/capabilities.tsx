@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { ProvidersUnavailable } from "../auth/oidc";
-import { api, ApiError } from "../lib/api";
+import { api, ApiError, hasStoredSession } from "../lib/api";
 import { loadMeta } from "../lib/meta";
 import { queryClient } from "../lib/query";
 import type { Me } from "../lib/types";
@@ -36,18 +36,20 @@ export function RequireMe() {
 
 // Route-level auth gate: probes /auth/me once and renders its routes with or
 // without a user; pages that need one sit under RequireMe. The login page lives
-// OUTSIDE the gate, so an unauthenticated probe can never loop.
+// OUTSIDE the gate, so an unauthenticated probe can never loop. The server
+// refuses every request without a token, so a browser holding none skips it.
 export function AuthGate() {
   const [me, setMe] = useState<Me | null>(null);
   const [status, setStatus] = useState<
     "loading" | "ok" | "unauthorized" | "error"
-  >("loading");
+  >(() => (hasStoredSession() ? "loading" : "unauthorized"));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // The gate mounts once per session (sign-in returns here), so nothing a
     // previous user loaded in this tab is shown to the next one.
     queryClient.clear();
+    if (status !== "loading") return;
     api<Me>("/auth/me")
       // Meta is auth-walled too, so it loads behind the same gate; pages then
       // read the agent list synchronously.

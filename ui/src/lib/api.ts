@@ -1,5 +1,10 @@
 import { ErrorResponse } from "oidc-client-ts";
-import { session, type OidcSession, type SessionUser } from "../auth/oidc";
+import {
+  hasStoredUser,
+  session,
+  type OidcSession,
+  type SessionUser,
+} from "../auth/oidc";
 import type { Me } from "./types";
 
 export const API = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -16,6 +21,10 @@ export function setToken(value: string | null): void {
   token = value;
   if (value === null) store?.removeItem(TOKEN_KEY);
   else store?.setItem(TOKEN_KEY, value);
+}
+
+export function hasStoredSession(): boolean {
+  return token !== null || hasStoredUser();
 }
 
 // Every tab shares this, so a tab whose session ends after a sign-out elsewhere

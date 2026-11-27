@@ -176,6 +176,14 @@ export function userManagerSettings(
   };
 }
 
+// oidc-client-ts keeps the signed-in user under "oidc.user:<issuer>:<client_id>".
+export function hasStoredUser(): boolean {
+  return (
+    typeof localStorage !== "undefined" &&
+    Object.keys(localStorage).some((key) => key.startsWith("oidc.user:"))
+  );
+}
+
 let manager: OidcSession | null | undefined;
 let override: OidcSession | null | undefined;
 
