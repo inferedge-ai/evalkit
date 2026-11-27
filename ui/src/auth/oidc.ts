@@ -176,12 +176,21 @@ export function userManagerSettings(
   };
 }
 
-// oidc-client-ts keeps the signed-in user under "oidc.user:<issuer>:<client_id>".
-export function hasStoredUser(): boolean {
-  return (
-    typeof localStorage !== "undefined" &&
-    Object.keys(localStorage).some((key) => key.startsWith("oidc.user:"))
+// oidc-client-ts keeps the signed-in user under "oidc.user:<issuer>:<client_id>";
+// an earlier issuer or client id leaves its own key behind.
+function listStoredUserKeys(): string[] {
+  if (typeof localStorage === "undefined") return [];
+  return Object.keys(localStorage).filter((key) =>
+    key.startsWith("oidc.user:"),
   );
+}
+
+export function hasStoredUser(): boolean {
+  return listStoredUserKeys().length > 0;
+}
+
+export function removeStoredUsers(): void {
+  for (const key of listStoredUserKeys()) localStorage.removeItem(key);
 }
 
 let manager: OidcSession | null | undefined;

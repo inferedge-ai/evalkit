@@ -125,7 +125,7 @@ afterEach(() => {
 });
 
 test("a signed-out visitor at / sees only the wrapper's landing page, with no evalkit bar", async () => {
-  serve(null);
+  await serve(null);
   openApp("/");
 
   expect(screen.getByText("Evals for your agents")).toBeInTheDocument();
@@ -139,7 +139,7 @@ test("a signed-out visitor at / sees only the wrapper's landing page, with no ev
 
 test("without a landing page, / sends a signed-out visitor to sign in", async () => {
   wrapper.landingPage = null;
-  serve(null);
+  await serve(null);
   openApp("/");
 
   expect(await screen.findByText("Signing you in…")).toBeInTheDocument();
@@ -147,7 +147,7 @@ test("without a landing page, / sends a signed-out visitor to sign in", async ()
 });
 
 test("a signed-out deep link goes straight to sign-in and back, not to the landing page", async () => {
-  serve(null);
+  await serve(null);
   openApp("/experiments/12");
 
   expect(await screen.findByText("Signing you in…")).toBeInTheDocument();
@@ -158,6 +158,21 @@ test("a signed-out deep link goes straight to sign-in and back, not to the landi
     ]),
   );
   expect(requested).not.toContain("/api/auth/me");
+});
+
+test("a stored sign-in the server refuses ends on the landing page, and the next visit skips the check", async () => {
+  await storeSsoUser({ ...okta, issuer: "https://old-id.example.com" });
+  await serve(null);
+  openApp("/");
+
+  expect(await screen.findByText("Evals for your agents")).toBeInTheDocument();
+  expect(requested).toContain("/api/auth/me");
+  closePage();
+
+  await serve(null);
+  openApp("/");
+  expect(screen.getByText("Evals for your agents")).toBeInTheDocument();
+  expect(requested).toEqual([]);
 });
 
 test("a signed-in person at / gets the workspace list, not the landing page", async () => {
@@ -171,7 +186,7 @@ test("a signed-in person at / gets the workspace list, not the landing page", as
 });
 
 test("signed out, the docs page leads home, switches the theme and signs in from its own header", async () => {
-  serve(null);
+  await serve(null);
   openApp("/docs/quickstart");
   const user = userEvent.setup();
 
@@ -190,7 +205,7 @@ test("signed out, the docs page leads home, switches the theme and signs in from
 
 test("without a landing page, the signed-out docs page's logo leads to the docs", async () => {
   wrapper.landingPage = null;
-  serve(null);
+  await serve(null);
   openApp("/docs/quickstart");
 
   expect(await screen.findByRole("link", { name: "evalkit" })).toHaveAttribute(
@@ -209,7 +224,7 @@ test("signed in, the docs page has the app shell and no docs header", async () =
 
 test("the sign-in card's wordmark leads back to the wrapper's landing page", async () => {
   await logout();
-  serve(null);
+  await serve(null);
   openApp("/login");
   const heading = await screen.findByRole("heading", { name: "evalkit" });
 
@@ -223,7 +238,7 @@ test("the sign-in card's wordmark leads back to the wrapper's landing page", asy
 
 test("without a landing page, the sign-in card's wordmark is not a link", async () => {
   wrapper.landingPage = null;
-  serve(null);
+  await serve(null);
   openApp("/login");
   const heading = await screen.findByRole("heading", { name: "evalkit" });
   expect(within(heading).queryByRole("link")).toBeNull();
@@ -231,7 +246,7 @@ test("without a landing page, the sign-in card's wordmark is not a link", async 
 
 test("a public page opens on its own when signed out and in the app shell when signed in", async () => {
   wrapper.publicRoutes = [{ path: "/terms", element: <h1>Terms of use</h1> }];
-  serve(null);
+  await serve(null);
   openApp("/terms");
 
   expect(await screen.findByText("Terms of use")).toBeInTheDocument();
@@ -248,7 +263,7 @@ test("a public page opens on its own when signed out and in the app shell when s
 
 test("Sign up on the landing page after a sign-out opens the provider's sign-up at once", async () => {
   await logout();
-  serve(null);
+  await serve(null);
   openApp("/");
 
   await userEvent

@@ -1,6 +1,7 @@
 import { ErrorResponse } from "oidc-client-ts";
 import {
   hasStoredUser,
+  removeStoredUsers,
   session,
   type OidcSession,
   type SessionUser,
@@ -97,6 +98,7 @@ export async function bearer(): Promise<string | null> {
 
 export async function signOutLocally(): Promise<void> {
   setToken(null);
+  removeStoredUsers();
   const s = await session();
   if (s !== null) await s.removeUser();
 }

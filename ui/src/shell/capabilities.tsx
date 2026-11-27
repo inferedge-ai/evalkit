@@ -40,16 +40,17 @@ export function RequireMe() {
 // refuses every request without a token, so a browser holding none skips it.
 export function AuthGate() {
   const [me, setMe] = useState<Me | null>(null);
+  const [checking] = useState(hasStoredSession);
   const [status, setStatus] = useState<
     "loading" | "ok" | "unauthorized" | "error"
-  >(() => (hasStoredSession() ? "loading" : "unauthorized"));
+  >(checking ? "loading" : "unauthorized");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // The gate mounts once per session (sign-in returns here), so nothing a
     // previous user loaded in this tab is shown to the next one.
     queryClient.clear();
-    if (status !== "loading") return;
+    if (!checking) return;
     api<Me>("/auth/me")
       // Meta is auth-walled too, so it loads behind the same gate; pages then
       // read the agent list synchronously.
@@ -69,7 +70,7 @@ export function AuthGate() {
           setStatus("error");
         }
       });
-  }, []);
+  }, [checking]);
 
   // Signing out sets this after the signed-in pages unmount, so clearing the
   // cache here can't make them refetch without a token.
