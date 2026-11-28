@@ -93,7 +93,7 @@ APP_RUNS_CRON = typer.Option(
 APP_RUNS_PER_PASS = typer.Option(
     None,
     "--app-runs-per-pass",
-    help="The most app runs one pass stores from the harness (100).",
+    help="The most app runs one pass stores from the harness (100; 1000 at most).",
 )
 APP_RUNS_SINCE = typer.Option(
     None,

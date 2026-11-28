@@ -32,7 +32,8 @@ SKIPPED_GAUGES = frozenset({"gauge_judge_cost_usd"})
 NO_RUN_LISTING = "the harness does not list its runs (provides.run_listing)"
 MAX_FAILURES_IN_A_ROW = 3
 TOO_MANY_FAILURES = (
-    f"{MAX_FAILURES_IN_A_ROW} runs in a row could not be stored; the next pass tries them again"
+    f"{MAX_FAILURES_IN_A_ROW} runs in a row could not be stored; "
+    "the next pass tries each of them once more"
 )
 HARNESS_GIVE_UP_AFTER = timedelta(hours=24)
 HARNESS_WINDOW = timedelta(hours=6)
@@ -41,6 +42,10 @@ HARNESS_CLOCK_MARGIN = timedelta(hours=1)
 TOO_MANY_RUNS = (
     f"the harness lists more than {MAX_HARNESS_SCAN} runs created within one minute; "
     "none of them was stored"
+)
+IGNORES_UNTIL = (
+    f"the harness ignores until: GET /runs returned more than {MAX_HARNESS_SCAN} runs, some "
+    "created at or after it; none of them was stored"
 )
 HARNESS_FINAL = frozenset({"completed", "failed", "cancelled"})
 HARNESS_RETRY = Retry(
@@ -65,6 +70,8 @@ class AppSession(BaseModel):
 class SavedRun(BaseModel):
     stored: bool
     replaced_trajectory_key: str | None = None
+    replaced_unread_run: bool = False
+    older_than_stored: bool = False
 
 
 class AppRunStore(Protocol):
@@ -77,6 +84,10 @@ class AppRunStore(Protocol):
     ) -> list[AppSession]: ...
 
     async def stored_run_ids(self, agent_id: int, run_ids: list[str]) -> set[str]: ...
+
+    async def stored_session_times(
+        self, agent_id: int, session_ids: list[str]
+    ) -> dict[str, datetime]: ...
 
     async def eval_run_ids(self, agent_id: int, run_ids: list[str]) -> set[str]: ...
 
@@ -183,6 +194,8 @@ async def save_app_run(
     saved = await deps.store.save(agent.id, run, await score_app_run(deps, agent, run, caps))
     if saved.replaced_trajectory_key and saved.replaced_trajectory_key != run.trajectory_key:
         await deps.blob_store.delete_object(saved.replaced_trajectory_key)
+    if saved.older_than_stored and run.trajectory_key:
+        await deps.blob_store.delete_object(run.trajectory_key)
     return saved.stored
 
 
@@ -212,7 +225,12 @@ async def record_unstored_run(
         title=shorten_title(title),
         session_id=session_id,
     )
-    await deps.store.save(agent.id, run, [])
+    saved = await deps.store.save(agent.id, run, [])
+    # A run that could not be stored in an earlier pass either is not read a
+    # third time, so runs that always fail cannot hold an agent's passes.
+    if saved.replaced_unread_run:
+        gave_up = run.model_copy(update={"trajectory_status": TrajectoryStatus.INVALID})
+        await deps.store.save(agent.id, gave_up, [])
 
 
 async def store_app_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassResult:
@@ -250,9 +268,6 @@ async def store_session_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
                 stored += await save_app_run(deps, agent, run, sdk_capabilities(agent))
                 failures.reset()
             except Exception as exc:
-                if failures.add():
-                    cursor, stopped = start, TOO_MANY_FAILURES
-                    break
                 await record_unstored_run(
                     deps,
                     agent,
@@ -262,6 +277,9 @@ async def store_session_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
                     started_at=session.started_at,
                     title=session.title,
                 )
+                if failures.add():
+                    cursor, stopped = start, TOO_MANY_FAILURES
+                    break
         cursor = session.last_received_at
     await deps.store.move_cursor(agent.id, cursor)
     return PassResult(stored=stored, waiting=waiting, failed=failures.total, stopped=stopped)
@@ -333,9 +351,14 @@ async def build_harness_run(
     )
 
 
+def is_older_than_stored(item: RunListItem, session_times: dict[str, datetime]) -> bool:
+    stored_at = session_times.get(item.session_id) if item.session_id else None
+    return stored_at is not None and item.created_at is not None and item.created_at < stored_at
+
+
 async def list_harness_window(
     deps: AppRunDeps, agent: AgentDefinition, client: HarnessClient, since: datetime, now: datetime
-) -> tuple[list[RunListItem], datetime] | None:
+) -> tuple[list[RunListItem], datetime] | str:
     async def eval_runs(run_ids: list[str]) -> set[str]:
         return await deps.store.eval_run_ids(agent.id, run_ids)
 
@@ -351,8 +374,10 @@ async def list_harness_window(
         if not listed.capped:
             dated = [item for item in listed.runs if item.created_at is not None]
             return sorted(dated, key=lambda item: item.created_at or now), until
+        if listed.ignored_until:
+            return IGNORES_UNTIL
         span /= 2
-    return None
+    return TOO_MANY_RUNS
 
 
 async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassResult:
@@ -374,14 +399,19 @@ async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
             return PassResult(stored=0, waiting=0, stopped=NO_RUN_LISTING)
         while since < now and not full and stopped is None:
             window = await list_harness_window(deps, agent, client, since, now)
-            if window is None:
-                stopped = TOO_MANY_RUNS
+            if isinstance(window, str):
+                stopped = window
                 break
             runs, until = window
             known = await deps.store.stored_run_ids(agent.id, [item.run_id for item in runs])
+            # The stored app run of a session is its newest run: an older run of
+            # the session that is listed again is already covered by it.
+            session_times = await deps.store.stored_session_times(
+                agent.id, sorted({item.session_id for item in runs if item.session_id})
+            )
             for item in runs:
                 assert item.created_at is not None
-                if item.run_id not in known:
+                if item.run_id not in known and not is_older_than_stored(item, session_times):
                     if stored == agent.settings.app_runs_per_pass:
                         full = True
                         break
@@ -408,14 +438,6 @@ async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
                     except Exception as exc:
                         error = exc
                     if error is not None:
-                        if failures.add():
-                            cursor, hold = start, None
-                            stopped = (
-                                str(error)
-                                if isinstance(error, httpx2.HTTPStatusError)
-                                else TOO_MANY_FAILURES
-                            )
-                            break
                         if asked_too_early:
                             LOGGER.warning(
                                 "the harness of agent %s could not serve app run %s, "
@@ -425,17 +447,27 @@ async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
                                 error,
                             )
                             hold = hold or item.created_at
+                        else:
+                            await record_unstored_run(
+                                deps,
+                                agent,
+                                error,
+                                run_id=item.run_id,
+                                status=RunStatus.FAILED,
+                                started_at=item.created_at,
+                                title=item.title,
+                                session_id=item.session_id,
+                            )
+                        if failures.add():
+                            cursor, hold = start, None
+                            stopped = (
+                                str(error)
+                                if isinstance(error, httpx2.HTTPStatusError)
+                                else TOO_MANY_FAILURES
+                            )
+                            break
+                        if asked_too_early:
                             continue
-                        await record_unstored_run(
-                            deps,
-                            agent,
-                            error,
-                            run_id=item.run_id,
-                            status=RunStatus.FAILED,
-                            started_at=item.created_at,
-                            title=item.title,
-                            session_id=item.session_id,
-                        )
                 cursor = item.created_at
             # A window the pass finished is behind the cursor for good, unless it
             # is recent enough that a harness whose clock runs behind could still
