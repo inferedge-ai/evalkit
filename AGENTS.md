@@ -213,6 +213,11 @@ billing = "billing.migrations:versions"
 - The first revision has `down_revision = None` and a branch label of the
   package's own (`branch_labels = ("billing",)`). A revision that needs one of
   evalkit's tables names the evalkit revision that creates it in `depends_on`.
+- Every command that reads the revisions (`evalkit db upgrade`,
+  `evalkit serve`, `evalkit worker`) fails with an error that names the entry
+  point when its folder does not exist or its first revision has no branch
+  label, and with an error that names the revision id when two revisions
+  share one.
 - With the package installed, `evalkit db upgrade` applies its branch with
   evalkit's own, and `evalkit serve` and `evalkit worker` refuse to start until
   it is applied. `alembic_version` holds one row per branch.
@@ -220,11 +225,14 @@ billing = "billing.migrations:versions"
   migrations never touch a table they did not create, and with a package's
   branch installed `alembic revision --autogenerate` ignores every table
   evalkit has no model for.
-- Before uninstalling the package, downgrade its branch
-  (`alembic downgrade billing@base`), which drops its tables and its row in
-  `alembic_version`. Otherwise `evalkit serve` and `evalkit worker` refuse to
-  start, naming the revision no installed package provides, and
-  `evalkit db upgrade` cannot fix it; installing the package again does.
+- Before uninstalling the package, downgrade its branch, which drops its
+  tables and its row in `alembic_version`. evalkit has no command for it: the
+  package calls `downgrade_migrations(db_url, "billing@base")`
+  (`evalkit.db.session`). Otherwise `evalkit serve` and `evalkit worker`
+  refuse to start, naming the revision this install does not have, and
+  `evalkit db upgrade` cannot fix it; installing the package again does. The
+  same error shows when an older evalkit starts on a database a newer one
+  migrated.
 
 **Jobs.** A package adds tasks to the job queue by running the worker itself:
 build the app with `build_job_app` (`evalkit.jobs.app`), add a Procrastinate
@@ -332,8 +340,9 @@ under `SERVICES` (`evalkit.jobs.app_runs`), as `run_worker` in
   `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_dataset_readme`,
   `DatasetAbout` (`@/evals/DatasetAbout`), `SyncSource.EXTENSION`, `StoresDep`,
   `workspace_ref`, `require`, `ensure_active`, `load_actor`, `can_write`,
-  the `evalkit.migrations` entry point group, `build_job_app`,
-  `app_run_services` and `SERVICES`
+  the `evalkit.migrations` entry point group, the ids of evalkit's own
+  revisions (packages name them in `depends_on`), `downgrade_migrations`,
+  `build_job_app`, `run_worker`, `app_run_services` and `SERVICES`
   stable: other packages build against them.
 
 **AG Grid Enterprise.** evalkit's tables are AG Grid Community grids

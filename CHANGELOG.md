@@ -93,7 +93,12 @@
   in the same database. It declares its alembic revisions in the entry point
   group `evalkit.migrations`; `evalkit db upgrade` then applies them with
   evalkit's own, and `evalkit serve` and `evalkit worker` refuse to start until
-  they are applied.
+  they are applied. These commands fail with an error that names the entry
+  point when its folder does not exist or its first revision has no branch
+  label, and with an error that names the revision id when two revisions share
+  one. When the database holds a revision this install does not have,
+  `evalkit serve` and `evalkit worker` say it was applied by a newer evalkit
+  or by a package not installed here.
 
 ### Improvements
 
