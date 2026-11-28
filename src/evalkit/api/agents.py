@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 from croniter import croniter
@@ -69,6 +70,15 @@ def check_app_runs_cron(expression: str) -> None:
         )
 
 
+def check_app_runs_since(since: datetime | None) -> None:
+    if since is not None and since > datetime.now(UTC):
+        raise HTTPException(
+            status_code=400,
+            detail=f"app_runs_since {since.isoformat()} is in the future; "
+            "give a time that has passed",
+        )
+
+
 class CreateAgent(BaseModel):
     workspace: str
     name: str
@@ -105,6 +115,7 @@ async def create_agent(
         page_traces=cfg.otel.import_page_traces,
     )
     check_app_runs_cron(body.settings.app_runs_cron)
+    check_app_runs_since(body.app_runs_since)
     created = await stores.agents.create(
         ws,
         body.name,
@@ -165,6 +176,7 @@ async def edit_agent(
             page_traces=cfg.otel.import_page_traces,
         )
     check_app_runs_cron(settings.app_runs_cron)
+    check_app_runs_since(body.app_runs_since)
     clear = {k for k in ("harness_url", "repo_url", "api_key") if k in body.model_fields_set}
     edited = await stores.agents.edit(
         ref,

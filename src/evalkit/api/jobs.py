@@ -14,6 +14,7 @@ from evalkit.api.trace_imports import import_new_traces
 from evalkit.core.agents import AgentDefinition
 from evalkit.core.app_runs import HARNESS_RETRY, AppRunDeps
 from evalkit.core.costmap import load_cost_map
+from evalkit.core.endpoints import EndpointRule, check_endpoint
 from evalkit.core.harness import HarnessClient
 from evalkit.core.retry import RetryTransport
 from evalkit.db.agents import AgentStore
@@ -32,6 +33,13 @@ def app_run_services(state: State) -> AppRunServices:
         stores = build_tenant_stores(state, tenant_id)
 
         async def harness(agent: AgentDefinition) -> HarnessClient:
+            assert agent.harness_url is not None
+            await check_endpoint(
+                agent.harness_url,
+                rule=EndpointRule(
+                    state.cfg.allow_private_endpoints, tuple(state.cfg.trusted_endpoints)
+                ),
+            )
             transport = stores.deps.harness_transport or httpx2.AsyncHTTPTransport()
             return HarnessClient(
                 agent,

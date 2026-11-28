@@ -4,33 +4,52 @@
 
 ### Before you upgrade
 
-- **Server:** Run `evalkit db upgrade` (migrations 0024, 0025 and 0026).
-  It now also creates the job queue's tables (`procrastinate_*`), which need
-  Postgres 13 or later. Migration 0024 moves every evaluation from its
-  experiment run to that run's agent run, and builds an index on
-  `spans (agent_id, received_at)` without blocking writes.
+- **Server:** Stop the server, then run `evalkit db upgrade` (migrations 0024,
+  0025 and 0026). It now also creates the job queue's tables
+  (`procrastinate_*`), which need Postgres 13 or later. Migration 0024 moves
+  every evaluation from its experiment run to that run's agent run. While it
+  does, it holds exclusive locks on `agents`, `agent_runs` and `evaluations`
+  for as long as rewriting and indexing every evaluation takes, so a server
+  left running cannot read or write them. It then builds an index on
+  `spans (agent_id, received_at)` without blocking writes. Let that build
+  finish: when it is interrupted, `evalkit db upgrade` cannot run 0024 again.
 - **Server:** `evalkit serve` runs a job worker in its own process and opens 5
   more Postgres connections for it at the defaults (`worker.pool_max_size`,
   never fewer than `worker.concurrency + 3`). Finished jobs stay in
   `procrastinate_jobs` for 7 days (`worker.delete_jobs`,
   `worker.job_retention_hours`).
+- **Packaging:** `evalkit-py[server]` installs Procrastinate 3.12 (`>=3.12,<3.13`).
+  Its version decides the job queue's tables, so a later minor comes with an
+  evalkit release that names the `evalkit db upgrade` to run.
+- **Server:** A harness of a shared agent that lists its runs
+  (`provides.run_listing`) must apply `until` on `GET /runs` and return only
+  runs created before it. The server stores no app runs of a harness that
+  ignores it once more than 10,000 runs wait to be stored.
 
 ### Features
 
+- **Server:** At the start of every pass over a shared harness agent, the
+  worker checks the agent's harness URL against the server config
+  (`allow_private_endpoints`, `trusted_endpoints`). When the URL is refused
+  the job fails and calls nothing.
 - **Server:** evalkit stores the app runs of every shared agent that has a
   harness URL and serves its own trajectories. Every 5 minutes the server
   lists the harness's runs created since its last pass (`GET /runs`), reads
   each one's status (`GET /runs/{id}`) and stores those with a final status:
   the trajectory and the gauge readings, as for agents that send traces. A
   harness that groups runs with `session_id` gets one stored app run per
-  session; when the session gets a newer run, that stored run is replaced. A
+  session; when the session gets a newer run, that stored run is replaced. An older
+  run of the session that a later pass lists again is skipped. A
   run that is still running is looked at again by the next pass, for up to 24
   hours. A pass stores at most 100 runs, makes one request at a time and
   retries a 429 or a 5xx; when the harness cannot be reached, the pass stops
   and the next one carries on. When the harness keeps answering an error for
   one run, the pass stores the others and asks for that run again for up to
   24 hours, then stores it without a trajectory. The server lists 6 hours of
-  runs at a time with `since` and `until`, so a harness must apply `until`.
+  runs at a time with `since` and `until`, so a harness must apply `until`:
+  when a listing of more than 10,000 runs holds one created at or after
+  `until`, the pass stops, stores nothing and the worker logs "the harness
+  ignores until".
   Runs of experiments are not stored again. A harness
   with one run id per session and no `session_id` is stored once: later
   messages do not update it.
@@ -43,7 +62,9 @@
   runs. The agent form has "App runs schedule" (a cron expression of five
   fields, in UTC, `*/5 * * * *` by default), "Store app runs since" (one day
   ago by default) and, for a shared harness agent, "Runs per pass" (100 by
-  default). The same are `--app-runs-cron`, `--app-runs-since` and
+  default, 1,000 at most). The agents API answers 422 to a larger
+  `settings.app_runs_per_pass` and 400 to an `app_runs_since` in the future,
+  and the form shows both as errors. The same are `--app-runs-cron`, `--app-runs-since` and
   `--app-runs-per-pass` on `evalkit agents create` and `evalkit agents edit`,
   and `settings.app_runs_cron`, `app_runs_since` and
   `settings.app_runs_per_pass` on the agents API, which answers 400 to a
@@ -60,7 +81,10 @@
   its agent. The server logs the error, stores the run without a trajectory
   with the error as its note, and stores the others. After three such
   failures in a row it stops the pass and leaves it to the next one, since
-  the cause is then likely storage and not the runs.
+  the cause is then likely storage and not the runs. The next pass tries
+  those runs once more; a run that fails again keeps its error note, gets
+  trajectory status `invalid` and is not read again, so runs that always
+  fail cannot hold the runs after them.
 - **Tracing:** For an agent with a trace source, the server imports the
   agent's new traces from Phoenix or Langfuse every 5 minutes, before it
   stores their sessions as app runs. The import shows on the agent's Import

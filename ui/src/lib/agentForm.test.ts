@@ -7,6 +7,7 @@ import {
   emptyAgentForm,
   listsHarnessRuns,
   storesAppRuns,
+  toLocalInput,
   urlClearsKey,
 } from "./agentForm";
 import type { AgentInfo } from "./types";
@@ -216,6 +217,17 @@ describe("app run settings", () => {
     bad.settings.app_runs_per_pass = "0";
     expect(agentFormErrors(bad, "edit", true)).toEqual([
       "Runs per pass must be a whole number of at least 1.",
+    ]);
+    bad.settings.app_runs_per_pass = "1001";
+    expect(agentFormErrors(bad, "edit", true)).toEqual([
+      "Runs per pass must be at most 1000.",
+    ]);
+    const late = {
+      ...agentFormFrom(stored),
+      app_runs_since: toLocalInput(new Date(Date.now() + 86400000)),
+    };
+    expect(agentFormErrors(late, "edit", true)).toEqual([
+      "Store app runs since is in the future.",
     ]);
   });
 });

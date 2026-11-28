@@ -1,4 +1,5 @@
 from datetime import datetime
+from itertools import batched
 
 from pydantic import BaseModel
 from sqlalchemy import ColumnElement, and_, delete, func, not_, or_, select, update
@@ -22,6 +23,10 @@ def is_unread_app_run() -> ColumnElement[bool]:
         models.AgentRun.kind == RunKind.APP.value,
         models.AgentRun.trajectory_status == TrajectoryStatus.UNAVAILABLE.value,
     )
+
+
+# Postgres takes at most 65,535 parameters in one statement.
+RUN_IDS_PER_QUERY = 10_000
 
 
 class StoredAgent(BaseModel):
@@ -115,7 +120,7 @@ class PgAppRunStore:
                     select(span.session_id, span.name, span.attributes, span.status_code)
                     .where(
                         span.agent_id == agent_id,
-                        span.session_id.in_([row.session_id for row in rows]),
+                        span.session_id.in_(touched),
                         span.parent_span_id.is_(None),
                     )
                     .order_by(span.start_time)
@@ -144,32 +149,62 @@ class PgAppRunStore:
         ]
 
     async def stored_run_ids(self, agent_id: int, run_ids: list[str]) -> set[str]:
-        if not run_ids:
-            return set()
+        stored: set[str] = set()
         async with self._session() as session:
-            found = await session.scalars(
-                select(models.AgentRun.harness_run_id).where(
-                    models.AgentRun.agent_id == agent_id,
-                    models.AgentRun.harness_run_id.in_(run_ids),
-                    not_(is_unread_app_run()),
+            for batch in batched(run_ids, RUN_IDS_PER_QUERY):
+                found = await session.scalars(
+                    select(models.AgentRun.harness_run_id).where(
+                        models.AgentRun.agent_id == agent_id,
+                        models.AgentRun.harness_run_id.in_(batch),
+                        not_(is_unread_app_run()),
+                    )
                 )
-            )
-            return set(found.all())
+                stored.update(found.all())
+        return stored
+
+    async def stored_session_times(
+        self, agent_id: int, session_ids: list[str]
+    ) -> dict[str, datetime]:
+        times: dict[str, datetime] = {}
+        async with self._session() as session:
+            for batch in batched(session_ids, RUN_IDS_PER_QUERY):
+                rows = await session.execute(
+                    select(models.AgentRun.session_id, func.max(models.AgentRun.started_at))
+                    .where(
+                        models.AgentRun.agent_id == agent_id,
+                        models.AgentRun.kind == RunKind.APP.value,
+                        models.AgentRun.session_id.in_(batch),
+                    )
+                    .group_by(models.AgentRun.session_id)
+                )
+                times.update((session_id, started) for session_id, started in rows.all())
+        return times
 
     async def eval_run_ids(self, agent_id: int, run_ids: list[str]) -> set[str]:
-        if not run_ids:
-            return set()
+        evals: set[str] = set()
         async with self._session() as session:
-            found = await session.scalars(
-                eval_run_ids(agent_id).where(models.AgentRun.harness_run_id.in_(run_ids))
-            )
-            return set(found.all())
+            for batch in batched(run_ids, RUN_IDS_PER_QUERY):
+                found = await session.scalars(
+                    eval_run_ids(agent_id).where(models.AgentRun.harness_run_id.in_(batch))
+                )
+                evals.update(found.all())
+        return evals
 
     async def save(self, agent_id: int, run: AgentRunRecord, rows: list[EvaluationRow]) -> SavedRun:
         async with self._session() as session:
             earlier = await self._run_to_replace(session, agent_id, run)
+            if (
+                earlier is not None
+                and earlier.harness_run_id != run.harness_run_id
+                and earlier.started_at > run.started_at
+            ):
+                return SavedRun(stored=False, older_than_stored=True)
             if earlier is not None:
                 replaced = earlier.trajectory_key
+                unread = (
+                    earlier.harness_run_id == run.harness_run_id
+                    and earlier.trajectory_status == TrajectoryStatus.UNAVAILABLE.value
+                )
                 for column, value in run.model_dump().items():
                     setattr(earlier, column, value)
                 await session.execute(
@@ -177,7 +212,9 @@ class PgAppRunStore:
                 )
                 await publish_agent_run_evaluations(session, earlier.id, rows)
                 await session.commit()
-                return SavedRun(stored=True, replaced_trajectory_key=replaced)
+                return SavedRun(
+                    stored=True, replaced_trajectory_key=replaced, replaced_unread_run=unread
+                )
             agent_run_id = await insert_agent_run(session, agent_id, run, RunKind.APP)
             if agent_run_id is None:
                 return SavedRun(stored=False)

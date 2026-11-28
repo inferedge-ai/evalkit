@@ -51,6 +51,7 @@ class JudgeSettings(BaseModel):
 
 
 DEFAULT_APP_RUNS_CRON = "*/5 * * * *"
+MAX_APP_RUNS_PER_PASS = 1000
 
 
 class AgentSettings(BaseModel):
@@ -69,7 +70,7 @@ class AgentSettings(BaseModel):
     import_settle_seconds: int = Field(default=15, ge=0)
     import_wait_seconds: int = Field(default=120, ge=0)
     app_runs_cron: str = DEFAULT_APP_RUNS_CRON
-    app_runs_per_pass: int = Field(default=100, ge=1)
+    app_runs_per_pass: int = Field(default=100, ge=1, le=MAX_APP_RUNS_PER_PASS)
 
     @model_validator(mode="after")
     def _check_trace_source(self) -> "AgentSettings":
