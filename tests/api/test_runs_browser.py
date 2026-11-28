@@ -14,6 +14,7 @@ from evalkit.api.jobs import app_run_services
 from evalkit.core import pull as pull_core
 from evalkit.core.app_runs import store_app_runs
 from evalkit.core.blob import artifact_key, tenant_prefix
+from evalkit.core.endpoints import BlockedEndpoint
 from evalkit.core.harness import HarnessClient
 from tests.api.native_api import CAPS, api_env
 from tests.api.test_otel import PROTO, otlp_payload
@@ -712,3 +713,17 @@ async def test_a_shared_harness_agents_app_run_is_stored_and_its_eval_run_is_lef
     assert [r["run_id"] for r in evals["runs"]] == ["sess-1"]
     rows = (await client.get("/api/agents/fake@canonical/runs/sess-extra/evaluations")).json()
     assert {row["kind"] for row in rows} == {"gauge"}
+
+
+async def test_a_pass_refuses_a_harness_url_the_server_config_does_not_allow(shared):
+    client, _, _ = shared
+    services = app_run_services(client.app.state)
+    listed = (await client.get("/api/agents")).json()
+    agent_id = next(a["id"] for a in listed if a["ref"] == "fake@canonical")
+    agent = await services.agent("default", agent_id)
+    client.app.state.cfg.allow_private_endpoints = False
+    with pytest.raises(BlockedEndpoint):
+        await store_app_runs(services.deps("default"), agent)
+    client.app.state.cfg.allow_private_endpoints = True
+    app = (await client.get("/api/agents/fake@canonical/runs", params={"source": "app"})).json()
+    assert [r["stored"] for r in app["runs"]] == [False]

@@ -4,11 +4,15 @@
 
 ### Before you upgrade
 
-- **Server:** Run `evalkit db upgrade` (migrations 0024, 0025 and 0026).
-  It now also creates the job queue's tables (`procrastinate_*`), which need
-  Postgres 13 or later. Migration 0024 moves every evaluation from its
-  experiment run to that run's agent run, and builds an index on
-  `spans (agent_id, received_at)` without blocking writes.
+- **Server:** Stop the server, then run `evalkit db upgrade` (migrations 0024,
+  0025 and 0026). It now also creates the job queue's tables
+  (`procrastinate_*`), which need Postgres 13 or later. Migration 0024 moves
+  every evaluation from its experiment run to that run's agent run. While it
+  does, it holds exclusive locks on `agents`, `agent_runs` and `evaluations`
+  for as long as rewriting and indexing every evaluation takes, so a server
+  left running cannot read or write them. It then builds an index on
+  `spans (agent_id, received_at)` without blocking writes. Let that build
+  finish: when it is interrupted, `evalkit db upgrade` cannot run 0024 again.
 - **Server:** `evalkit serve` runs a job worker in its own process and opens 5
   more Postgres connections for it at the defaults (`worker.pool_max_size`,
   never fewer than `worker.concurrency + 3`). Finished jobs stay in
@@ -17,6 +21,10 @@
 
 ### Features
 
+- **Server:** At the start of every pass over a shared harness agent, the
+  worker checks the agent's harness URL against the server config
+  (`allow_private_endpoints`, `trusted_endpoints`). When the URL is refused
+  the job fails and calls nothing.
 - **Server:** evalkit stores the app runs of every shared agent that has a
   harness URL and serves its own trajectories. Every 5 minutes the server
   lists the harness's runs created since its last pass (`GET /runs`), reads
