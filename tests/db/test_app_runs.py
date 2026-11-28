@@ -5,6 +5,7 @@ from evalkit.contracts.enums import RunKind, RunStatus, TraceProvider
 from evalkit.contracts.settings import AgentSettings
 from evalkit.core.app_runs import TOO_MANY_FAILURES
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE
+from evalkit.db import app_runs as db_app_runs
 from evalkit.db.agents import AgentStore
 from evalkit.db.mappings import MappingStore, activate_document
 from evalkit.db.runs import insert_agent_run
@@ -217,3 +218,20 @@ async def test_three_sessions_that_never_store_do_not_hold_the_sessions_after_th
     runs = {run.harness_run_id: run.trajectory_status for run in await world.runs()}
     assert runs["chat-4"] == "valid"
     assert await world.cursor(world.agent.id) > since
+
+
+async def test_a_pass_handles_more_sessions_than_one_statement_takes_parameters(
+    app_run_world, monkeypatch
+):
+    world = app_run_world
+    monkeypatch.setattr(db_app_runs, "RUN_IDS_PER_QUERY", 2)
+    for index, trace in enumerate("abcde", start=1):
+        await world.spans.upsert(world.agent.id, session_spans(f"chat-{index}", trace))
+    assert (await world.run_pass(after_seconds=60)).stored == 5
+    await world.deps.store.move_cursor(world.agent.id, datetime(2026, 1, 1, tzinfo=UTC))
+    assert (await world.run_pass(after_seconds=120)).stored == 0
+    many = [f"chat-{index}" for index in range(70_000)]
+    monkeypatch.setattr(db_app_runs, "RUN_IDS_PER_QUERY", 10_000)
+    stored = await world.deps.store.stored_run_ids(world.agent.id, many)
+    assert stored == {f"chat-{index}" for index in range(1, 6)}
+    assert await world.deps.store.eval_run_ids(world.agent.id, many) == set()

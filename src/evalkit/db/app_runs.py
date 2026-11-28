@@ -1,4 +1,5 @@
 from datetime import datetime
+from itertools import batched
 
 from pydantic import BaseModel
 from sqlalchemy import ColumnElement, and_, delete, func, not_, or_, select, update
@@ -22,6 +23,10 @@ def is_unread_app_run() -> ColumnElement[bool]:
         models.AgentRun.kind == RunKind.APP.value,
         models.AgentRun.trajectory_status == TrajectoryStatus.UNAVAILABLE.value,
     )
+
+
+# Postgres takes at most 65,535 parameters in one statement.
+RUN_IDS_PER_QUERY = 10_000
 
 
 class StoredAgent(BaseModel):
@@ -115,7 +120,7 @@ class PgAppRunStore:
                     select(span.session_id, span.name, span.attributes, span.status_code)
                     .where(
                         span.agent_id == agent_id,
-                        span.session_id.in_([row.session_id for row in rows]),
+                        span.session_id.in_(touched),
                         span.parent_span_id.is_(None),
                     )
                     .order_by(span.start_time)
@@ -144,26 +149,28 @@ class PgAppRunStore:
         ]
 
     async def stored_run_ids(self, agent_id: int, run_ids: list[str]) -> set[str]:
-        if not run_ids:
-            return set()
+        stored: set[str] = set()
         async with self._session() as session:
-            found = await session.scalars(
-                select(models.AgentRun.harness_run_id).where(
-                    models.AgentRun.agent_id == agent_id,
-                    models.AgentRun.harness_run_id.in_(run_ids),
-                    not_(is_unread_app_run()),
+            for batch in batched(run_ids, RUN_IDS_PER_QUERY):
+                found = await session.scalars(
+                    select(models.AgentRun.harness_run_id).where(
+                        models.AgentRun.agent_id == agent_id,
+                        models.AgentRun.harness_run_id.in_(batch),
+                        not_(is_unread_app_run()),
+                    )
                 )
-            )
-            return set(found.all())
+                stored.update(found.all())
+        return stored
 
     async def eval_run_ids(self, agent_id: int, run_ids: list[str]) -> set[str]:
-        if not run_ids:
-            return set()
+        evals: set[str] = set()
         async with self._session() as session:
-            found = await session.scalars(
-                eval_run_ids(agent_id).where(models.AgentRun.harness_run_id.in_(run_ids))
-            )
-            return set(found.all())
+            for batch in batched(run_ids, RUN_IDS_PER_QUERY):
+                found = await session.scalars(
+                    eval_run_ids(agent_id).where(models.AgentRun.harness_run_id.in_(batch))
+                )
+                evals.update(found.all())
+        return evals
 
     async def save(self, agent_id: int, run: AgentRunRecord, rows: list[EvaluationRow]) -> SavedRun:
         async with self._session() as session:
