@@ -30,7 +30,8 @@ export const RUNS_PER_PASS_FIELD: {
   key: keyof AgentFormValues["settings"];
   label: string;
   min: number;
-} = { key: "app_runs_per_pass", label: "Runs per pass", min: 1 };
+  max: number;
+} = { key: "app_runs_per_pass", label: "Runs per pass", min: 1, max: 1000 };
 
 export function toLocalInput(moment: Date): string {
   const local = new Date(moment.getTime() - moment.getTimezoneOffset() * 60000);
@@ -174,7 +175,14 @@ export function agentFormErrors(
   const numeric = traced
     ? [...SETTING_FIELDS, ...IMPORT_FIELDS]
     : [...SETTING_FIELDS];
-  if (listsHarnessRuns(values, shared)) numeric.push(RUNS_PER_PASS_FIELD);
+  if (listsHarnessRuns(values, shared)) {
+    numeric.push(RUNS_PER_PASS_FIELD);
+    const perPass = Number(values.settings[RUNS_PER_PASS_FIELD.key].trim());
+    if (perPass > RUNS_PER_PASS_FIELD.max)
+      errors.push(
+        `${RUNS_PER_PASS_FIELD.label} must be at most ${RUNS_PER_PASS_FIELD.max}.`,
+      );
+  }
   if (storesAppRuns(values, shared)) {
     if (values.app_runs_cron.trim().split(/\s+/).length !== 5)
       errors.push(
@@ -185,6 +193,11 @@ export function agentFormErrors(
       Number.isNaN(new Date(values.app_runs_since).getTime())
     )
       errors.push("Store app runs since is not a date and time.");
+    else if (
+      values.app_runs_since &&
+      new Date(values.app_runs_since).getTime() > Date.now()
+    )
+      errors.push("Store app runs since is in the future.");
   }
   for (const { key, label, min } of numeric) {
     const raw = values.settings[key].trim();

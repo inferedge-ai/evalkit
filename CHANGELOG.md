@@ -57,7 +57,9 @@
   runs. The agent form has "App runs schedule" (a cron expression of five
   fields, in UTC, `*/5 * * * *` by default), "Store app runs since" (one day
   ago by default) and, for a shared harness agent, "Runs per pass" (100 by
-  default). The same are `--app-runs-cron`, `--app-runs-since` and
+  default, 1,000 at most). The agents API answers 422 to a larger
+  `settings.app_runs_per_pass` and 400 to an `app_runs_since` in the future,
+  and the form shows both as errors. The same are `--app-runs-cron`, `--app-runs-since` and
   `--app-runs-per-pass` on `evalkit agents create` and `evalkit agents edit`,
   and `settings.app_runs_cron`, `app_runs_since` and
   `settings.app_runs_per_pass` on the agents API, which answers 400 to a

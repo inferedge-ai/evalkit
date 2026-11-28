@@ -63,7 +63,7 @@ The server stores the [app runs](concepts.md#app-run) of a shared agent whose ha
 - Runs that share a `session_id` are one stored app run. When the session gets a newer run, the stored one is replaced.
 - A harness that keeps one run id per session and sets no `session_id` is stored once: later messages do not update it.
 - Runs evalkit started for an experiment are not stored again.
-- A pass stores at most the agent's "Runs per pass" (100 by default, `--app-runs-per-pass`) and makes one request at a time. It retries a `429` or a `5xx`, waiting the time in `Retry-After` when the harness sends it. When the harness cannot be reached, or `GET /runs` keeps failing, the pass stops and the next one carries on from the same run.
+- A pass stores at most the agent's "Runs per pass" (100 by default, 1,000 at most, `--app-runs-per-pass`) and makes one request at a time. It retries a `429` or a `5xx`, waiting the time in `Retry-After` when the harness sends it. When the harness cannot be reached, or `GET /runs` keeps failing, the pass stops and the next one carries on from the same run.
 - When the harness keeps answering an error other than 404 for one run, the server stores the other runs and asks for that one again on each pass. Once the run is 24 hours old, it is stored without a trajectory, with the error as the reason. Three such runs in a row stop the pass, and the next one tries them again.
 - A list item needs a `created_at`; one without is not stored.
 - A run whose trajectory the harness answers 404 for is stored without one, and read again whenever a pass lists it.
