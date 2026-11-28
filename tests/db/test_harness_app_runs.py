@@ -281,14 +281,19 @@ async def test_more_runs_in_one_minute_than_a_listing_holds_stop_the_pass(
     assert await world.cursor(world.harness_agent.id) <= created
 
 
-async def test_a_harness_that_ignores_until_stops_the_pass_with_the_reason(app_run_world):
+async def test_a_harness_that_ignores_until_stops_a_capped_pass_with_the_reason(
+    app_run_world, monkeypatch
+):
     world = app_run_world
     world.harness.ignore_time_filter = True
+    monkeypatch.setattr(pull, "MAX_HARNESS_SCAN", 1)
+    monkeypatch.setattr(pull, "HARNESS_PAGE", 1)
     await world.deps.store.move_cursor(
         world.harness_agent.id, datetime.now(UTC) - timedelta(days=1)
     )
     world.add_run("r1", minutes_ago=23 * 60)
     world.add_run("r2", minutes_ago=10)
+    world.add_run("r3", minutes_ago=5)
     start = await world.cursor(world.harness_agent.id)
     result = await world.harness_pass()
     assert (result.stored, result.stopped) == (0, app_runs.IGNORES_UNTIL)

@@ -24,7 +24,7 @@
 - **Server:** A harness of a shared agent that lists its runs
   (`provides.run_listing`) must apply `until` on `GET /runs` and return only
   runs created before it. The server stores no app runs of a harness that
-  ignores it.
+  ignores it once more than 10,000 runs wait to be stored.
 
 ### Features
 
@@ -47,8 +47,9 @@
   one run, the pass stores the others and asks for that run again for up to
   24 hours, then stores it without a trajectory. The server lists 6 hours of
   runs at a time with `since` and `until`, so a harness must apply `until`:
-  when a listing holds a run created at or after `until`, the pass stops,
-  stores nothing and the worker logs "the harness ignores until".
+  when a listing of more than 10,000 runs holds one created at or after
+  `until`, the pass stops, stores nothing and the worker logs "the harness
+  ignores until".
   Runs of experiments are not stored again. A harness
   with one run id per session and no `session_id` is stored once: later
   messages do not update it.

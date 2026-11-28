@@ -44,8 +44,8 @@ TOO_MANY_RUNS = (
     "none of them was stored"
 )
 IGNORES_UNTIL = (
-    "the harness ignores until: GET /runs returned runs created at or after it; "
-    "none of them was stored"
+    f"the harness ignores until: GET /runs returned more than {MAX_HARNESS_SCAN} runs, some "
+    "created at or after it; none of them was stored"
 )
 HARNESS_FINAL = frozenset({"completed", "failed", "cancelled"})
 HARNESS_RETRY = Retry(
@@ -371,11 +371,11 @@ async def list_harness_window(
         listed = await list_harness_runs(
             client, wanted=MAX_HARNESS_SCAN + 1, since=since, until=until, exclude=eval_runs
         )
-        if listed.ignored_until:
-            return IGNORES_UNTIL
         if not listed.capped:
             dated = [item for item in listed.runs if item.created_at is not None]
             return sorted(dated, key=lambda item: item.created_at or now), until
+        if listed.ignored_until:
+            return IGNORES_UNTIL
         span /= 2
     return TOO_MANY_RUNS
 

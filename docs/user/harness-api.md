@@ -57,7 +57,7 @@ Moving to [SDK runs](sdk-runs.md) instead only makes sense to stop hosting the h
 
 The server stores the [app runs](concepts.md#app-run) of a shared agent whose harness lists its runs (`provides.run_listing`).
 
-- On the agent's schedule, every 5 minutes by default, it calls `GET /runs` for 6 hours of runs at a time, with `since` set to where its last pass stopped and `until` 6 hours later, then `GET /runs/{id}` for each run it has not stored. A harness must apply `until` and return only runs created before it: when a listing holds a run created at or after `until`, the pass stops, stores nothing and logs "the harness ignores until". When a 6-hour listing holds more than 10,000 runs the server halves the time range and asks again, down to one minute.
+- On the agent's schedule, every 5 minutes by default, it calls `GET /runs` for 6 hours of runs at a time, with `since` set to where its last pass stopped and `until` 6 hours later, then `GET /runs/{id}` for each run it has not stored. A harness must apply `until` and return only runs created before it: when a listing of more than 10,000 runs holds one created at or after `until`, the pass stops, stores nothing and logs "the harness ignores until". When a 6-hour listing holds more than 10,000 runs the server halves the time range and asks again, down to one minute.
 - A run whose status is `completed`, `failed` or `cancelled` is stored: its trajectory as ATIF and its gauge readings. The run's page shows the readings under the header.
 - A run that is still `queued` or `running` is looked at again by the next pass, for up to 24 hours after it was created.
 - Runs that share a `session_id` are one stored app run. When the session gets a newer run, the stored one is replaced.
