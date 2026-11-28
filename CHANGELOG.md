@@ -16,6 +16,10 @@
   straight to sign-in. The web UI no longer shows "Checking session…" or calls
   `/api/auth/providers` and `/api/auth/me` first; it still checks with the
   server when the browser holds a sign-in.
+- **Web UI:** While it checks a stored sign-in, the web UI shows a loader with
+  the evalkit logo and a short line in place of a blank page with
+  "Checking session…". If the check fails, it says so under the logo, with
+  the error and a Retry button, in place of the raw error at the top left.
 - **Review:** A case removed from a promotion source by a whole-dataset sync is
   now removed from the promotion target too, and so is a case whose promoted
   version gets changes requested in the source. Before, the target kept the

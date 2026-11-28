@@ -130,6 +130,28 @@
    * `animate-accordion-down`/`-up`). */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-breathe: breathe 1.8s ease-in-out infinite;
+  --animate-glow: glow 1.8s ease-in-out infinite;
+  @keyframes breathe {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.06);
+    }
+  }
+  @keyframes glow {
+    0%,
+    100% {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    50% {
+      opacity: 0.45;
+      transform: scale(1.25);
+    }
+  }
   @keyframes accordion-down {
     from {
       height: 0;

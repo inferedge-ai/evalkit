@@ -1,3 +1,4 @@
+import { SessionError, SessionLoader } from "./SessionLoader";
 import { createContext, useContext, useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { ProvidersUnavailable } from "../auth/oidc";
@@ -82,10 +83,8 @@ export function AuthGate() {
     document.title = "Evalkit";
   }, []);
 
-  if (status === "loading")
-    return <div className="pane-status">Checking session…</div>;
-  if (status === "error")
-    return <div className="pane-status error">{error}</div>;
+  if (status === "loading") return <SessionLoader />;
+  if (status === "error") return <SessionError detail={error ?? ""} />;
   return (
     <ClearMeContext.Provider
       value={() => {
