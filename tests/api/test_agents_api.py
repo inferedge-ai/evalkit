@@ -252,6 +252,19 @@ async def test_an_agent_keeps_its_app_runs_schedule_limit_and_start_time(api):
     assert moved.json()["app_runs_stored_until"] == "2026-11-19T10:00:00Z"
     kept = await client.patch("/api/agents/scheduled@admin", json={"repo_url": "https://r.test"})
     assert kept.json()["app_runs_stored_until"] == "2026-11-19T10:00:00Z"
+    tomorrow = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+    for refused in (
+        await client.post("/api/agents", json={**body, "name": "late", "app_runs_since": tomorrow}),
+        await client.patch("/api/agents/scheduled@admin", json={"app_runs_since": tomorrow}),
+    ):
+        assert refused.status_code == 400 and "in the future" in refused.json()["detail"]
+    too_many = await client.patch(
+        "/api/agents/scheduled@admin", json={"settings": {"app_runs_per_pass": 1001}}
+    )
+    assert too_many.status_code == 422
+    listed = (await client.get("/api/agents/scheduled@admin")).json()
+    assert listed["app_runs_stored_until"] == "2026-11-19T10:00:00Z"
+    assert listed["settings"]["app_runs_per_pass"] == 20
 
 
 async def test_an_agent_created_without_a_start_time_stores_app_runs_from_a_day_ago(api):

@@ -221,6 +221,26 @@ async def test_three_runs_in_a_row_the_harness_cannot_serve_stop_the_pass(app_ru
     assert await world.runs() == []
 
 
+async def test_three_old_runs_the_harness_never_serves_do_not_hold_the_runs_after_them(
+    app_run_world,
+):
+    world = app_run_world
+    day = 24 * 60
+    for index in (1, 2, 3):
+        world.add_run(f"r{index}", minutes_ago=3 * day - index, trajectory_error=True)
+    world.add_run("r4", minutes_ago=3 * day - 4)
+    start = datetime.now(UTC) - timedelta(days=4)
+    await world.deps.store.move_cursor(world.harness_agent.id, start)
+    for _ in range(2):
+        result = await world.harness_pass()
+        assert (result.stored, result.failed) == (0, 3) and "500" in result.stopped
+        assert await world.cursor(world.harness_agent.id) == start
+    third = await world.harness_pass()
+    assert (third.stored, third.failed, third.stopped) == (1, 0, None)
+    runs = {run.harness_run_id: run.trajectory_status for run in await world.runs()}
+    assert runs == {"r1": "invalid", "r2": "invalid", "r3": "invalid", "r4": "valid"}
+
+
 async def test_a_backlog_larger_than_one_listing_is_stored_oldest_first_with_none_lost(
     app_run_world, session_factory, monkeypatch
 ):
@@ -259,3 +279,50 @@ async def test_more_runs_in_one_minute_than_a_listing_holds_stop_the_pass(
     result = await world.harness_pass()
     assert (result.stored, result.stopped) == (0, app_runs.TOO_MANY_RUNS)
     assert await world.cursor(world.harness_agent.id) <= created
+
+
+async def test_a_harness_that_ignores_until_stops_a_capped_pass_with_the_reason(
+    app_run_world, monkeypatch
+):
+    world = app_run_world
+    world.harness.ignore_time_filter = True
+    monkeypatch.setattr(pull, "MAX_HARNESS_SCAN", 1)
+    monkeypatch.setattr(pull, "HARNESS_PAGE", 1)
+    await world.deps.store.move_cursor(
+        world.harness_agent.id, datetime.now(UTC) - timedelta(days=1)
+    )
+    world.add_run("r1", minutes_ago=23 * 60)
+    world.add_run("r2", minutes_ago=10)
+    world.add_run("r3", minutes_ago=5)
+    start = await world.cursor(world.harness_agent.id)
+    result = await world.harness_pass()
+    assert (result.stored, result.stopped) == (0, app_runs.IGNORES_UNTIL)
+    assert await world.cursor(world.harness_agent.id) == start
+    assert await world.runs() == []
+
+
+async def test_an_older_run_of_a_session_listed_again_leaves_the_newer_stored_run(app_run_world):
+    world = app_run_world
+    world.add_run("r0", minutes_ago=11 * 60, status="running")
+    world.add_run("m1", minutes_ago=10 * 60, session_id="chat-9")
+    world.add_run("m2", minutes_ago=5, session_id="chat-9")
+    assert (await world.harness_pass()).stored == 2
+    held = await world.cursor(world.harness_agent.id)
+    assert held == world.harness.runs["r0"]["created_at"]
+    polls = world.harness.runs["m1"]["polls"]
+    again = await world.harness_pass()
+    assert (again.stored, again.waiting) == (0, 1)
+    [stored] = await world.runs()
+    assert (stored.harness_run_id, stored.session_id) == ("m2", "chat-9")
+    assert stored.trajectory_key == trajectory_key(stored.agent_id, "m2")
+    assert await world.deps.blob_store.object_exists(stored.trajectory_key)
+    assert world.harness.runs["m1"]["polls"] == polls
+    older = AgentRunRecord(
+        harness_run_id="m1",
+        status=RunStatus.COMPLETED,
+        started_at=world.harness.runs["m1"]["created_at"],
+        session_id="chat-9",
+    )
+    saved = await world.deps.store.save(world.harness_agent.id, older, [])
+    assert (saved.stored, saved.older_than_stored) == (False, True)
+    assert [run.harness_run_id for run in await world.runs()] == ["m2"]

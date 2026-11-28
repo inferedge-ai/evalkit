@@ -5,6 +5,7 @@ from evalkit.contracts.enums import RunKind, RunStatus, TraceProvider
 from evalkit.contracts.settings import AgentSettings
 from evalkit.core.app_runs import TOO_MANY_FAILURES
 from evalkit.core.traces.mapping import SDK_ROOT_ATTRIBUTE
+from evalkit.db import app_runs as db_app_runs
 from evalkit.db.agents import AgentStore
 from evalkit.db.mappings import MappingStore, activate_document
 from evalkit.db.runs import insert_agent_run
@@ -191,8 +192,46 @@ async def test_three_failures_in_a_row_stop_the_pass_and_the_next_pass_tries_aga
     result = await world.run_pass(after_seconds=60)
     assert (result.stored, result.failed, result.stopped) == (0, 3, TOO_MANY_FAILURES)
     assert await world.cursor(world.agent.id) == since
-    assert [run.trajectory_status for run in await world.runs()] == ["unavailable"] * 2
+    assert [run.trajectory_status for run in await world.runs()] == ["unavailable"] * 3
     blob.refuse = set()
     again = await world.run_pass(after_seconds=120)
     assert (again.stored, again.failed, again.stopped) == (4, 0, None)
     assert {run.trajectory_status for run in await world.runs()} == {"valid"}
+
+
+async def test_three_sessions_that_never_store_do_not_hold_the_sessions_after_them(
+    app_run_world,
+):
+    world = app_run_world
+    blob = FlakyBlobStore()
+    blob.refuse = {"chat-1", "chat-2", "chat-3"}
+    world.deps = dataclasses.replace(world.deps, blob_store=blob)
+    for index, trace in enumerate("abcd", start=1):
+        await world.spans.upsert(world.agent.id, session_spans(f"chat-{index}", trace))
+    since = await world.cursor(world.agent.id)
+    for seconds in (60, 120):
+        result = await world.run_pass(after_seconds=seconds)
+        assert (result.stored, result.failed, result.stopped) == (0, 3, TOO_MANY_FAILURES)
+    assert [run.trajectory_status for run in await world.runs()] == ["invalid"] * 3
+    third = await world.run_pass(after_seconds=180)
+    assert (third.stored, third.failed, third.stopped) == (1, 0, None)
+    runs = {run.harness_run_id: run.trajectory_status for run in await world.runs()}
+    assert runs["chat-4"] == "valid"
+    assert await world.cursor(world.agent.id) > since
+
+
+async def test_a_pass_handles_more_sessions_than_one_statement_takes_parameters(
+    app_run_world, monkeypatch
+):
+    world = app_run_world
+    monkeypatch.setattr(db_app_runs, "RUN_IDS_PER_QUERY", 2)
+    for index, trace in enumerate("abcde", start=1):
+        await world.spans.upsert(world.agent.id, session_spans(f"chat-{index}", trace))
+    assert (await world.run_pass(after_seconds=60)).stored == 5
+    await world.deps.store.move_cursor(world.agent.id, datetime(2026, 1, 1, tzinfo=UTC))
+    assert (await world.run_pass(after_seconds=120)).stored == 0
+    many = [f"chat-{index}" for index in range(70_000)]
+    monkeypatch.setattr(db_app_runs, "RUN_IDS_PER_QUERY", 10_000)
+    stored = await world.deps.store.stored_run_ids(world.agent.id, many)
+    assert stored == {f"chat-{index}" for index in range(1, 6)}
+    assert await world.deps.store.eval_run_ids(world.agent.id, many) == set()
