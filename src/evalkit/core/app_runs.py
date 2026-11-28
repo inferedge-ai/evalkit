@@ -32,7 +32,8 @@ SKIPPED_GAUGES = frozenset({"gauge_judge_cost_usd"})
 NO_RUN_LISTING = "the harness does not list its runs (provides.run_listing)"
 MAX_FAILURES_IN_A_ROW = 3
 TOO_MANY_FAILURES = (
-    f"{MAX_FAILURES_IN_A_ROW} runs in a row could not be stored; the next pass tries them again"
+    f"{MAX_FAILURES_IN_A_ROW} runs in a row could not be stored; "
+    "the next pass tries each of them once more"
 )
 HARNESS_GIVE_UP_AFTER = timedelta(hours=24)
 HARNESS_WINDOW = timedelta(hours=6)
@@ -65,6 +66,7 @@ class AppSession(BaseModel):
 class SavedRun(BaseModel):
     stored: bool
     replaced_trajectory_key: str | None = None
+    replaced_unread_run: bool = False
 
 
 class AppRunStore(Protocol):
@@ -212,7 +214,12 @@ async def record_unstored_run(
         title=shorten_title(title),
         session_id=session_id,
     )
-    await deps.store.save(agent.id, run, [])
+    saved = await deps.store.save(agent.id, run, [])
+    # A run that could not be stored in an earlier pass either is not read a
+    # third time, so runs that always fail cannot hold an agent's passes.
+    if saved.replaced_unread_run:
+        gave_up = run.model_copy(update={"trajectory_status": TrajectoryStatus.INVALID})
+        await deps.store.save(agent.id, gave_up, [])
 
 
 async def store_app_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassResult:
@@ -250,9 +257,6 @@ async def store_session_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
                 stored += await save_app_run(deps, agent, run, sdk_capabilities(agent))
                 failures.reset()
             except Exception as exc:
-                if failures.add():
-                    cursor, stopped = start, TOO_MANY_FAILURES
-                    break
                 await record_unstored_run(
                     deps,
                     agent,
@@ -262,6 +266,9 @@ async def store_session_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
                     started_at=session.started_at,
                     title=session.title,
                 )
+                if failures.add():
+                    cursor, stopped = start, TOO_MANY_FAILURES
+                    break
         cursor = session.last_received_at
     await deps.store.move_cursor(agent.id, cursor)
     return PassResult(stored=stored, waiting=waiting, failed=failures.total, stopped=stopped)
@@ -408,14 +415,6 @@ async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
                     except Exception as exc:
                         error = exc
                     if error is not None:
-                        if failures.add():
-                            cursor, hold = start, None
-                            stopped = (
-                                str(error)
-                                if isinstance(error, httpx2.HTTPStatusError)
-                                else TOO_MANY_FAILURES
-                            )
-                            break
                         if asked_too_early:
                             LOGGER.warning(
                                 "the harness of agent %s could not serve app run %s, "
@@ -425,17 +424,27 @@ async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
                                 error,
                             )
                             hold = hold or item.created_at
+                        else:
+                            await record_unstored_run(
+                                deps,
+                                agent,
+                                error,
+                                run_id=item.run_id,
+                                status=RunStatus.FAILED,
+                                started_at=item.created_at,
+                                title=item.title,
+                                session_id=item.session_id,
+                            )
+                        if failures.add():
+                            cursor, hold = start, None
+                            stopped = (
+                                str(error)
+                                if isinstance(error, httpx2.HTTPStatusError)
+                                else TOO_MANY_FAILURES
+                            )
+                            break
+                        if asked_too_early:
                             continue
-                        await record_unstored_run(
-                            deps,
-                            agent,
-                            error,
-                            run_id=item.run_id,
-                            status=RunStatus.FAILED,
-                            started_at=item.created_at,
-                            title=item.title,
-                            session_id=item.session_id,
-                        )
                 cursor = item.created_at
             # A window the pass finished is behind the cursor for good, unless it
             # is recent enough that a harness whose clock runs behind could still

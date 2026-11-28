@@ -191,8 +191,29 @@ async def test_three_failures_in_a_row_stop_the_pass_and_the_next_pass_tries_aga
     result = await world.run_pass(after_seconds=60)
     assert (result.stored, result.failed, result.stopped) == (0, 3, TOO_MANY_FAILURES)
     assert await world.cursor(world.agent.id) == since
-    assert [run.trajectory_status for run in await world.runs()] == ["unavailable"] * 2
+    assert [run.trajectory_status for run in await world.runs()] == ["unavailable"] * 3
     blob.refuse = set()
     again = await world.run_pass(after_seconds=120)
     assert (again.stored, again.failed, again.stopped) == (4, 0, None)
     assert {run.trajectory_status for run in await world.runs()} == {"valid"}
+
+
+async def test_three_sessions_that_never_store_do_not_hold_the_sessions_after_them(
+    app_run_world,
+):
+    world = app_run_world
+    blob = FlakyBlobStore()
+    blob.refuse = {"chat-1", "chat-2", "chat-3"}
+    world.deps = dataclasses.replace(world.deps, blob_store=blob)
+    for index, trace in enumerate("abcd", start=1):
+        await world.spans.upsert(world.agent.id, session_spans(f"chat-{index}", trace))
+    since = await world.cursor(world.agent.id)
+    for seconds in (60, 120):
+        result = await world.run_pass(after_seconds=seconds)
+        assert (result.stored, result.failed, result.stopped) == (0, 3, TOO_MANY_FAILURES)
+    assert [run.trajectory_status for run in await world.runs()] == ["invalid"] * 3
+    third = await world.run_pass(after_seconds=180)
+    assert (third.stored, third.failed, third.stopped) == (1, 0, None)
+    runs = {run.harness_run_id: run.trajectory_status for run in await world.runs()}
+    assert runs["chat-4"] == "valid"
+    assert await world.cursor(world.agent.id) > since

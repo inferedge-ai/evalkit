@@ -221,6 +221,26 @@ async def test_three_runs_in_a_row_the_harness_cannot_serve_stop_the_pass(app_ru
     assert await world.runs() == []
 
 
+async def test_three_old_runs_the_harness_never_serves_do_not_hold_the_runs_after_them(
+    app_run_world,
+):
+    world = app_run_world
+    day = 24 * 60
+    for index in (1, 2, 3):
+        world.add_run(f"r{index}", minutes_ago=3 * day - index, trajectory_error=True)
+    world.add_run("r4", minutes_ago=3 * day - 4)
+    start = datetime.now(UTC) - timedelta(days=4)
+    await world.deps.store.move_cursor(world.harness_agent.id, start)
+    for _ in range(2):
+        result = await world.harness_pass()
+        assert (result.stored, result.failed) == (0, 3) and "500" in result.stopped
+        assert await world.cursor(world.harness_agent.id) == start
+    third = await world.harness_pass()
+    assert (third.stored, third.failed, third.stopped) == (1, 0, None)
+    runs = {run.harness_run_id: run.trajectory_status for run in await world.runs()}
+    assert runs == {"r1": "invalid", "r2": "invalid", "r3": "invalid", "r4": "valid"}
+
+
 async def test_a_backlog_larger_than_one_listing_is_stored_oldest_first_with_none_lost(
     app_run_world, session_factory, monkeypatch
 ):

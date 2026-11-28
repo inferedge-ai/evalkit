@@ -170,6 +170,10 @@ class PgAppRunStore:
             earlier = await self._run_to_replace(session, agent_id, run)
             if earlier is not None:
                 replaced = earlier.trajectory_key
+                unread = (
+                    earlier.harness_run_id == run.harness_run_id
+                    and earlier.trajectory_status == TrajectoryStatus.UNAVAILABLE.value
+                )
                 for column, value in run.model_dump().items():
                     setattr(earlier, column, value)
                 await session.execute(
@@ -177,7 +181,9 @@ class PgAppRunStore:
                 )
                 await publish_agent_run_evaluations(session, earlier.id, rows)
                 await session.commit()
-                return SavedRun(stored=True, replaced_trajectory_key=replaced)
+                return SavedRun(
+                    stored=True, replaced_trajectory_key=replaced, replaced_unread_run=unread
+                )
             agent_run_id = await insert_agent_run(session, agent_id, run, RunKind.APP)
             if agent_run_id is None:
                 return SavedRun(stored=False)

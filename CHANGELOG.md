@@ -68,7 +68,10 @@
   its agent. The server logs the error, stores the run without a trajectory
   with the error as its note, and stores the others. After three such
   failures in a row it stops the pass and leaves it to the next one, since
-  the cause is then likely storage and not the runs.
+  the cause is then likely storage and not the runs. The next pass tries
+  those runs once more; a run that fails again keeps its error note, gets
+  trajectory status `invalid` and is not read again, so runs that always
+  fail cannot hold the runs after them.
 - **Tracing:** For an agent with a trace source, the server imports the
   agent's new traces from Phoenix or Langfuse every 5 minutes, before it
   stores their sessions as app runs. The import shows on the agent's Import
