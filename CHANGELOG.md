@@ -18,6 +18,9 @@
   never fewer than `worker.concurrency + 3`). Finished jobs stay in
   `procrastinate_jobs` for 7 days (`worker.delete_jobs`,
   `worker.job_retention_hours`).
+- **Packaging:** `evalkit-py[server]` installs Procrastinate 3.12 (`>=3.12,<3.13`).
+  Its version decides the job queue's tables, so a later minor comes with an
+  evalkit release that names the `evalkit db upgrade` to run.
 - **Server:** A harness of a shared agent that lists its runs
   (`provides.run_listing`) must apply `until` on `GET /runs` and return only
   runs created before it. The server stores no app runs of a harness that
