@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { ArrowDown, ListFilter } from "lucide-react";
 import { Link } from "react-router-dom";
 import { timingAnalysis } from "../lib/analysis";
@@ -226,6 +227,23 @@ function Totals({ model }: { model: TrajectoryModel }) {
 
 const NO_SECTIONS: RunSidebarSection[] = [];
 
+type StepFilters = { thinking: boolean; tools: boolean; system: boolean };
+
+const ALL_FILTERS_ON: StepFilters = {
+  thinking: true,
+  tools: true,
+  system: true,
+};
+
+function isStepDrawn(step: StepRow, filters: StepFilters): boolean {
+  return (
+    (filters.system || step.source !== "system") &&
+    (!!step.text.trim() ||
+      (filters.thinking && !!step.thinking) ||
+      (filters.tools && step.toolCalls.length > 0))
+  );
+}
+
 export function TrajectoryViewer({
   doc,
   sections = NO_SECTIONS,
@@ -245,7 +263,6 @@ export function TrajectoryViewer({
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [pendingJump, setPendingJump] = useState<number | null>(null);
   const active = model.tabs.find((t) => t.id === tab) ?? model.tabs[0];
   const inSubagent = active.id !== model.tabs[0].id;
 
@@ -258,14 +275,12 @@ export function TrajectoryViewer({
     return map;
   }, [timing]);
 
-  const hasBody = (step: StepRow) =>
-    !!step.text.trim() ||
-    (showThinking && !!step.thinking) ||
-    (showTools && step.toolCalls.length > 0);
-
-  const visible = active.steps.filter(
-    (step) => (showSystem || step.source !== "system") && hasBody(step),
-  );
+  const filters: StepFilters = {
+    thinking: showThinking,
+    tools: showTools,
+    system: showSystem,
+  };
+  const visible = active.steps.filter((step) => isStepDrawn(step, filters));
   const hasSystem = active.steps.some((step) => step.source === "system");
   const prompts = active.steps.filter(
     (step) => step.source === "user" && step.text.trim(),
@@ -310,29 +325,26 @@ export function TrajectoryViewer({
       (t) => t.id === (item.tab ?? model.tabs[0].id),
     );
     const step = target?.steps.find((s) => s.stepId === item.stepId);
-    const drawn =
-      step &&
-      (!!step.text.trim() || !!step.thinking || step.toolCalls.length > 0);
-    return target && step && drawn ? { target, step } : null;
+    return target && step && isStepDrawn(step, ALL_FILTERS_ON)
+      ? { target, step }
+      : null;
   };
   const jumpToItem = (item: RunSidebarItem) => {
     const found = findItemStep(item);
     if (!found) return;
-    if (!visible.includes(found.step)) {
-      setShowThinking(true);
-      setShowTools(true);
-      setShowSystem(true);
-    }
-    if (found.target.id !== active.id) openTab(found.target.id);
-    setPendingJump(found.step.stepId);
+    const { target, step } = found;
+    flushSync(() => {
+      if (!isStepDrawn(step, filters)) {
+        if (step.source === "system") setShowSystem(true);
+        if (!isStepDrawn(step, { ...filters, system: true })) {
+          if (step.thinking) setShowThinking(true);
+          if (step.toolCalls.length > 0) setShowTools(true);
+        }
+      }
+      if (target.id !== active.id) openTab(target.id);
+    });
+    jumpTo(step.stepId);
   };
-  // The step exists only once its tab has rendered with the filters that show it.
-  useEffect(() => {
-    if (pendingJump === null) return;
-    jumpTo(pendingJump);
-    setPendingJump(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingJump, active.id]);
   const jumpToError = (entry: ErrorEntry) => {
     toggleCall(callKey(entry.stepId, entry.callId), true);
     jumpTo(entry.stepId);

@@ -88,16 +88,22 @@
 - **Extending evalkit:** A package's UI can add sections to the sidebar of the
   run page's trajectory viewer, above Prompts, through `useRunSidebar` in its
   `UiExtensions`. Each item can jump to a step, in the main trajectory or a
-  subagent's, or link to a page. A jump turns the thinking, tool calls and
-  system filters back on when they hide the step, and an item whose step the
-  run does not have is plain text. `TrajectoryViewer` takes the same sections
-  as `sections`.
+  subagent's, or link to a page, never both: `tsc -b` refuses an item with
+  `stepId` and `to`. When the thinking, tool calls or system filter hides the
+  step, the jump turns that filter back on and leaves the others as they are.
+  An item whose step the run does not have is plain text. `TrajectoryViewer`
+  takes the same sections as `sections`.
 
 - **Extending evalkit:** A package built on evalkit can keep tables of its own
   in the same database. It declares its alembic revisions in the entry point
   group `evalkit.migrations`; `evalkit db upgrade` then applies them with
   evalkit's own, and `evalkit serve` and `evalkit worker` refuse to start until
-  they are applied.
+  they are applied. These commands fail with an error that names the entry
+  point when its folder does not exist or its first revision has no branch
+  label, and with an error that names the revision id when two revisions share
+  one. When the database holds a revision this install does not have,
+  `evalkit serve` and `evalkit worker` say it was applied by a newer evalkit
+  or by a package not installed here.
 
 ### Improvements
 
