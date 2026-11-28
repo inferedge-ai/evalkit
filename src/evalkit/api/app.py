@@ -5,7 +5,7 @@ import os
 import signal
 import socket
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -48,7 +48,7 @@ from evalkit.api.auth import router as auth_router
 from evalkit.api.jobs import embedded_worker
 from evalkit.api.limits import BodyLimitMiddleware
 from evalkit.api.mcp.auth import MCP_PATH
-from evalkit.api.mcp.server import mcp_running, mount_mcp
+from evalkit.api.mcp.server import McpExtension, mcp_running, mount_mcp
 from evalkit.api.oidc import OidcState
 from evalkit.config import Config, check_trusted_endpoints
 from evalkit.core.agents import UnknownAgent
@@ -214,6 +214,7 @@ def create_app(
     oidc_transport: httpx2.AsyncBaseTransport | None = None,
     resolve_tenant: TenantResolver = default_resolve_tenant,
     extension_evaluators: Mapping[str, PythonEvaluator] | None = None,
+    mcp_extensions: Sequence[McpExtension] = (),
 ) -> FastAPI:
     check_trusted_endpoints(cfg.trusted_endpoints)
     resolved_blob_store = blob_store if blob_store is not None else Obstore(cfg.blob.url)
@@ -419,7 +420,7 @@ def create_app(
     app.include_router(traces.router, dependencies=SIGNED_IN)
     app.include_router(trace_imports.router, dependencies=SIGNED_IN)
     app.include_router(otel.router)
-    mcp_app = mount_mcp(app)
+    mcp_app = mount_mcp(app, mcp_extensions)
 
     if ui_dist is None and ui_root().is_dir():
         ui_dist = ui_root()

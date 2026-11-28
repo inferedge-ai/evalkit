@@ -190,6 +190,34 @@ before any agent call. Built-ins and the run's own Python evaluators are not
 affected.
 `tests/api/test_extension_evaluators.py` shows one end to end.
 
+**MCP tools.** `create_app(..., mcp_extensions=[McpExtension(register, instructions)])`
+adds tools to the MCP server at `/mcp` (`McpExtension` is in `evalkit.api.mcp.server`).
+
+- `register(mcp, state)` is called once at startup, after evalkit's own tools, and
+  declares tools on the FastMCP server with `@mcp.tool`. `state` is the app's
+  state. A tool named like one already registered stops the server from starting.
+- `instructions` is appended to the server's instructions, after a blank line.
+  Use it to say what the tools are for, as evalkit's "Tools by category" does,
+  in a few lines: every extension's text is added, and some clients cut long
+  instructions short.
+- From `evalkit.api.mcp.tools`: `tenant_stores(state)` returns the stores of the
+  caller's tenant, read from their token; `READ_TOOL` holds the registration
+  arguments of a read-only tool (`@mcp.tool(description=..., **READ_TOOL)`);
+  `fail(code, detail)` builds the error a tool raises, which the caller reads as
+  `<code>: <detail>`; and `@expected_errors`, under `@mcp.tool`, turns an
+  `HTTPException` and evalkit's unknown-agent, unknown-experiment and
+  unknown-workspace errors into such errors.
+- `READ_TOOL` also marks the tool as always loaded (`anthropic/alwaysLoad`), so
+  a client that honours it puts the tool's name, description and schema in the
+  context of every session connected to `/mcp`. Add few tools and keep their
+  descriptions short.
+- Every caller of `/mcp` is signed in, and a signed-in user may read everything
+  in their tenant (`can_read` in `core/access.py`), which is what evalkit's own
+  tools return. A tool reads only the caller's tenant through `tenant_stores`;
+  one that should show less than that checks it itself. `register` gets the
+  whole app state, as a route added with `include_router` does.
+- `tests/api/test_mcp_extensions.py` shows one end to end.
+
 **Datasets.** A route of the other package writes a dataset with `import_cases`
 (`core/importer.py`) and `source=SyncSource.EXTENSION`, as evalkit's sync route
 does (`api/imports.py`). `import_cases` does no access checks, so the route does
@@ -337,6 +365,8 @@ under `SERVICES` (`evalkit.jobs.app_runs`), as `run_worker` in
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
   `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,
   `get_allow_private_endpoints`, `extension_evaluators`, `PythonEvaluator`,
+  `mcp_extensions`, `McpExtension`, `tenant_stores`, `READ_TOOL`, `fail`,
+  `expected_errors`,
   `EvaluatorJudge.ask`, `import_cases`, `DatasetReadme`, `parse_dataset_readme`,
   `DatasetAbout` (`@/evals/DatasetAbout`), `SyncSource.EXTENSION`, `StoresDep`,
   `workspace_ref`, `require`, `ensure_active`, `load_actor`, `can_write`,

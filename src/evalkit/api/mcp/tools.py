@@ -302,7 +302,7 @@ def clipped_step(step: Step, max_chars: int) -> dict:
 Digested = tuple[RunDigest, list[Turn]]
 
 
-def _stores(state: State) -> TenantStores:
+def tenant_stores(state: State) -> TenantStores:
     token = get_access_token()
     assert token is not None
     return build_tenant_stores(state, str(token.claims["tenant_id"]))
@@ -314,13 +314,13 @@ class Runs:
         self.gate = asyncio.Semaphore(FETCH_CONCURRENCY_TOTAL)
 
     async def agent(self, ref: str) -> AgentDefinition:
-        return await runs_api.agent_or_404(_stores(self.state).agents, check_agent_id(ref))
+        return await runs_api.agent_or_404(tenant_stores(self.state).agents, check_agent_id(ref))
 
     async def cost_map(self) -> dict:
         return await asyncio.to_thread(load_cost_map, self.state.cfg.cost_map)
 
     async def trajectory(self, record: AgentDefinition, run_id: str) -> tuple[Trajectory, set]:
-        stores = _stores(self.state)
+        stores = tenant_stores(self.state)
         async with stores.session() as session:
             trajectory = await runs_api.fetch_trajectory(
                 record, run_id, stores.deps, stores.sessions, session
@@ -335,7 +335,7 @@ class Runs:
         # One stored-run lookup and one cost map per call, and no DB connection
         # held across harness calls; whatever is not read within the budget
         # comes back as a per-run failure rather than outliving the request.
-        stores = _stores(self.state)
+        stores = tenant_stores(self.state)
         async with stores.session() as session:
             keys = await trajectory_keys(session, record.id, run_ids)
         cost_map = await self.cost_map()
@@ -373,7 +373,7 @@ class Runs:
     async def page(
         self, record: AgentDefinition, *, limit: int, offset: int, budget: float, **filters: Any
     ) -> runs_api.RunPage:
-        stores = _stores(self.state)
+        stores = tenant_stores(self.state)
         try:
             async with asyncio.timeout_at(budget), stores.session() as session:
                 return await runs_api.resolve_runs(
@@ -468,7 +468,7 @@ def register(mcp: FastMCP, state: State) -> None:
     async def find_agents(
         workspace: str | None = None, include_archived: bool = False
     ) -> FindAgentsResponse:
-        found = await _stores(state).agents.list_agents(
+        found = await tenant_stores(state).agents.list_agents(
             workspace=workspace, include_archived=include_archived
         )
         rows = []
@@ -719,7 +719,7 @@ def register(mcp: FastMCP, state: State) -> None:
     @expected_errors
     async def get_run_files(agent: str, run_id: str) -> GetRunFilesResponse:
         check_run_ids([run_id])
-        listing = await runs_api.list_files(check_agent_id(agent), run_id, _stores(state))
+        listing = await runs_api.list_files(check_agent_id(agent), run_id, tenant_stores(state))
         rows = [FileRow(**f) for f in listing["files"]]
         return GetRunFilesResponse(data=rows, meta=PlainMeta(count=len(rows)))
 
@@ -733,7 +733,9 @@ def register(mcp: FastMCP, state: State) -> None:
         if offset < 0:
             raise fail("invalid_offset", f"offset must be 0 or greater; got {offset}")
         check_run_ids([run_id])
-        response = await runs_api.get_file(check_agent_id(agent), run_id, path, _stores(state))
+        response = await runs_api.get_file(
+            check_agent_id(agent), run_id, path, tenant_stores(state)
+        )
         body = b"".join(
             [c.encode() if isinstance(c, str) else bytes(c) async for c in response.body_iterator]
         )
@@ -765,7 +767,7 @@ def register(mcp: FastMCP, state: State) -> None:
         check_page(limit, offset, EXPERIMENTS_MAX)
         if status is not None:
             check_choice("invalid_status", status, tuple(ExperimentStatus))
-        stores = _stores(state)
+        stores = tenant_stores(state)
         async with stores.session() as session:
             found = await experiments_api.list_experiments(
                 stores,
@@ -788,7 +790,7 @@ def register(mcp: FastMCP, state: State) -> None:
         check_ids(experiment_ids, GET_EXPERIMENTS_MAX)
         wanted = check_include(include or [], EXPERIMENT_INCLUDES)
         rows = []
-        stores = _stores(state)
+        stores = tenant_stores(state)
         async with stores.session() as session:
             for experiment_id in experiment_ids:
                 try:
@@ -814,7 +816,7 @@ def register(mcp: FastMCP, state: State) -> None:
         experiment_id: int, failed_only: bool = False, limit: int = 50, offset: int = 0
     ) -> GetExperimentRunsResponse:
         check_page(limit, offset, FIND_RUNS_MAX)
-        stores = _stores(state)
+        stores = tenant_stores(state)
         exp = await stores.store.get_experiment(experiment_id)
         rows = []
         for run in await stores.store.run_details(experiment_id):
