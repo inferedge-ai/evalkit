@@ -43,6 +43,10 @@ TOO_MANY_RUNS = (
     f"the harness lists more than {MAX_HARNESS_SCAN} runs created within one minute; "
     "none of them was stored"
 )
+IGNORES_UNTIL = (
+    "the harness ignores until: GET /runs returned runs created at or after it; "
+    "none of them was stored"
+)
 HARNESS_FINAL = frozenset({"completed", "failed", "cancelled"})
 HARNESS_RETRY = Retry(
     total=2,
@@ -342,7 +346,7 @@ async def build_harness_run(
 
 async def list_harness_window(
     deps: AppRunDeps, agent: AgentDefinition, client: HarnessClient, since: datetime, now: datetime
-) -> tuple[list[RunListItem], datetime] | None:
+) -> tuple[list[RunListItem], datetime] | str:
     async def eval_runs(run_ids: list[str]) -> set[str]:
         return await deps.store.eval_run_ids(agent.id, run_ids)
 
@@ -355,11 +359,13 @@ async def list_harness_window(
         listed = await list_harness_runs(
             client, wanted=MAX_HARNESS_SCAN + 1, since=since, until=until, exclude=eval_runs
         )
+        if listed.ignored_until:
+            return IGNORES_UNTIL
         if not listed.capped:
             dated = [item for item in listed.runs if item.created_at is not None]
             return sorted(dated, key=lambda item: item.created_at or now), until
         span /= 2
-    return None
+    return TOO_MANY_RUNS
 
 
 async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassResult:
@@ -381,8 +387,8 @@ async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
             return PassResult(stored=0, waiting=0, stopped=NO_RUN_LISTING)
         while since < now and not full and stopped is None:
             window = await list_harness_window(deps, agent, client, since, now)
-            if window is None:
-                stopped = TOO_MANY_RUNS
+            if isinstance(window, str):
+                stopped = window
                 break
             runs, until = window
             known = await deps.store.stored_run_ids(agent.id, [item.run_id for item in runs])

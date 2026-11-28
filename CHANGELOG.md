@@ -18,6 +18,10 @@
   never fewer than `worker.concurrency + 3`). Finished jobs stay in
   `procrastinate_jobs` for 7 days (`worker.delete_jobs`,
   `worker.job_retention_hours`).
+- **Server:** A harness of a shared agent that lists its runs
+  (`provides.run_listing`) must apply `until` on `GET /runs` and return only
+  runs created before it. The server stores no app runs of a harness that
+  ignores it.
 
 ### Features
 
@@ -38,7 +42,9 @@
   and the next one carries on. When the harness keeps answering an error for
   one run, the pass stores the others and asks for that run again for up to
   24 hours, then stores it without a trajectory. The server lists 6 hours of
-  runs at a time with `since` and `until`, so a harness must apply `until`.
+  runs at a time with `since` and `until`, so a harness must apply `until`:
+  when a listing holds a run created at or after `until`, the pass stops,
+  stores nothing and the worker logs "the harness ignores until".
   Runs of experiments are not stored again. A harness
   with one run id per session and no `session_id` is stored once: later
   messages do not update it.

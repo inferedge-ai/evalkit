@@ -279,3 +279,18 @@ async def test_more_runs_in_one_minute_than_a_listing_holds_stop_the_pass(
     result = await world.harness_pass()
     assert (result.stored, result.stopped) == (0, app_runs.TOO_MANY_RUNS)
     assert await world.cursor(world.harness_agent.id) <= created
+
+
+async def test_a_harness_that_ignores_until_stops_the_pass_with_the_reason(app_run_world):
+    world = app_run_world
+    world.harness.ignore_time_filter = True
+    await world.deps.store.move_cursor(
+        world.harness_agent.id, datetime.now(UTC) - timedelta(days=1)
+    )
+    world.add_run("r1", minutes_ago=23 * 60)
+    world.add_run("r2", minutes_ago=10)
+    start = await world.cursor(world.harness_agent.id)
+    result = await world.harness_pass()
+    assert (result.stored, result.stopped) == (0, app_runs.IGNORES_UNTIL)
+    assert await world.cursor(world.harness_agent.id) == start
+    assert await world.runs() == []

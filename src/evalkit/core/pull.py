@@ -25,6 +25,7 @@ class HarnessRuns(BaseModel):
     runs: list[RunListItem]
     total: int
     capped: bool = False
+    ignored_until: bool = False
 
 
 SCAN_NOTE = (
@@ -65,6 +66,7 @@ async def list_harness_runs(
     sessions: set[str] = set()
     dropped = offset = 0
     size = HARNESS_PAGE
+    ignored_until = False
 
     def new_session(run: RunListItem) -> bool:
         if run.session_id is None:
@@ -87,6 +89,10 @@ async def list_harness_runs(
             )
         )
         window = [run for run in page.runs if in_window(run, since, until)]
+        ignored_until = ignored_until or (
+            until is not None
+            and any(run.created_at is not None and run.created_at >= until for run in page.runs)
+        )
         excluded = await exclude([run.run_id for run in window]) if exclude and window else set()
         fresh = [run for run in window if run.run_id not in excluded and new_session(run)]
         kept += fresh
@@ -101,11 +107,20 @@ async def list_harness_runs(
             or offset >= page.total
             or (since is not None and oldest is not None and oldest < since)
         ):
-            return HarnessRuns(runs=kept, total=len(kept))
+            return HarnessRuns(runs=kept, total=len(kept), ignored_until=ignored_until)
         if len(kept) >= wanted:
-            return HarnessRuns(runs=kept, total=max(page.total - dropped, len(kept)))
+            return HarnessRuns(
+                runs=kept,
+                total=max(page.total - dropped, len(kept)),
+                ignored_until=ignored_until,
+            )
         if offset >= MAX_HARNESS_SCAN:
-            return HarnessRuns(runs=kept, total=max(page.total - dropped, len(kept)), capped=True)
+            return HarnessRuns(
+                runs=kept,
+                total=max(page.total - dropped, len(kept)),
+                capped=True,
+                ignored_until=ignored_until,
+            )
 
 
 def safe_dir(run_id: str) -> str:
