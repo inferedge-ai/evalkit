@@ -207,6 +207,10 @@ adds tools to the MCP server at `/mcp` (`McpExtension` is in `evalkit.api.mcp.se
   `<code>: <detail>`; and `@expected_errors`, under `@mcp.tool`, turns an
   `HTTPException` and evalkit's unknown-agent, unknown-experiment and
   unknown-workspace errors into such errors.
+- `READ_TOOL` also marks the tool as always loaded (`anthropic/alwaysLoad`), so
+  a client that honours it puts the tool's name, description and schema in the
+  context of every session connected to `/mcp`. Add few tools and keep their
+  descriptions short.
 - Every caller of `/mcp` is signed in, and a signed-in user may read everything
   in their tenant (`can_read` in `core/access.py`), which is what evalkit's own
   tools return. A tool reads only the caller's tenant through `tenant_stores`;
