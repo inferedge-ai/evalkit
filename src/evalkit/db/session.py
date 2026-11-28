@@ -1,12 +1,15 @@
 import asyncio
+import warnings
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
+from importlib.metadata import EntryPoint, entry_points
 from pathlib import Path
 from typing import Any, Final
 
 from alembic import command
 from alembic.config import Config as AlembicConfig
-from alembic.script import ScriptDirectory
+from alembic.script import Script, ScriptDirectory
+from alembic.util import coerce_resource_to_filename
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -16,7 +19,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import ORMExecuteState, Session, with_loader_criteria
 from sqlalchemy.pool import NullPool
 
-from evalkit.db.models import ROOT_MODELS
+from evalkit.db.models import ROOT_MODELS, Base
 
 ALL_TENANTS: Final = object()
 
@@ -66,23 +69,89 @@ ALEMBIC_ROOT = Path(__file__).parent / "alembic"
 EVALKIT_BRANCH = "evalkit"
 JOBS_VERSIONS = "procrastinate.contrib.alembic:versions"
 JOBS_TABLE_PREFIX = "procrastinate_"
+EXTENSION_MIGRATIONS_GROUP = "evalkit.migrations"
 
 
+def list_extension_points() -> list[EntryPoint]:
+    return sorted(entry_points(group=EXTENSION_MIGRATIONS_GROUP), key=lambda point: point.name)
+
+
+def resolve_extension_folder(point: EntryPoint) -> Path:
+    folder = coerce_resource_to_filename(point.value).resolve()
+    if not folder.is_dir():
+        raise RuntimeError(
+            f"entry point {point.name!r} in group {EXTENSION_MIGRATIONS_GROUP!r} names "
+            f"{point.value!r}, but {folder} is not a folder — fix the entry point, or ship "
+            "the folder of revisions in the package"
+        )
+    return folder
+
+
+def extension_locations() -> list[str]:
+    return [str(resolve_extension_folder(point)) for point in list_extension_points()]
+
+
+# Which tables of the database autogenerate compares with evalkit's models: not the
+# job queue's, and, when a package has added its branch, not a table evalkit has no
+# model for, which is that package's.
 def include_name(name: str | None, type_: str, parent_names: Mapping[Any, str | None]) -> bool:
-    return not (type_ == "table" and name is not None and name.startswith(JOBS_TABLE_PREFIX))
+    if type_ != "table" or name is None:
+        return True
+    if name.startswith(JOBS_TABLE_PREFIX):
+        return False
+    return name in Base.metadata.tables or not list_extension_points()
+
+
+def version_locations() -> list[str]:
+    return [str(ALEMBIC_ROOT / "versions"), JOBS_VERSIONS, *extension_locations()]
 
 
 def alembic_config(db_url: str | None = None) -> AlembicConfig:
     cfg = AlembicConfig()
     cfg.set_main_option("script_location", str(ALEMBIC_ROOT))
     cfg.set_main_option("path_separator", "newline")
-    cfg.set_main_option("version_locations", f"{ALEMBIC_ROOT / 'versions'}\n{JOBS_VERSIONS}")
+    cfg.set_main_option("version_locations", "\n".join(version_locations()))
     if db_url is not None:
         cfg.set_main_option("sqlalchemy.url", db_url)
     return cfg
 
 
+DUPLICATE_REVISION_WARNING = "is present more than once"
+
+
+def check_extension_branch(point: EntryPoint, revisions: list[Script]) -> None:
+    folder = resolve_extension_folder(point)
+    for script in revisions:
+        if Path(script.path).parent != folder or script.down_revision is not None:
+            continue
+        if not script.branch_labels:
+            raise RuntimeError(
+                f"revision {script.revision!r} of entry point {point.name!r} in group "
+                f"{EXTENSION_MIGRATIONS_GROUP!r} has no `branch_labels`: the first revision "
+                "of a package's branch carries a branch label of the package's own"
+            )
+
+
+def load_scripts() -> ScriptDirectory:
+    scripts = ScriptDirectory.from_config(alembic_config())
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        scripts.get_heads()
+    for warning in caught:
+        if DUPLICATE_REVISION_WARNING in str(warning.message):
+            raise RuntimeError(
+                f"{warning.message}: every revision id must be unique across evalkit and "
+                "the packages installed with it — rename the package's revision"
+            )
+        warnings.warn_explicit(warning.message, warning.category, warning.filename, warning.lineno)
+    revisions = list(scripts.walk_revisions())
+    for point in list_extension_points():
+        check_extension_branch(point, revisions)
+    return scripts
+
+
 def run_migrations(db_url: str, revision: str = "heads") -> None:
+    load_scripts()
     command.upgrade(alembic_config(db_url), "heads" if revision == "head" else revision)
 
 
@@ -108,15 +177,20 @@ async def migrate_under_lock(db_url: str) -> None:
 
 def downgrade_migrations(db_url: str, revision: str) -> None:
     target = f"{EVALKIT_BRANCH}@base" if revision == "base" else revision
+    load_scripts()
     command.downgrade(alembic_config(db_url), target)
 
 
 def head_revisions() -> set[str]:
-    return set(ScriptDirectory.from_config(alembic_config()).get_heads())
+    return set(load_scripts().get_heads())
+
+
+def known_revisions() -> set[str]:
+    return {script.revision for script in load_scripts().walk_revisions()}
 
 
 def head_revision() -> str:
-    head = ScriptDirectory.from_config(alembic_config()).get_revision(f"{EVALKIT_BRANCH}@head")
+    head = load_scripts().get_revision(f"{EVALKIT_BRANCH}@head")
     assert head is not None
     return head.revision
 
@@ -133,6 +207,13 @@ async def verify_schema(db_url: str) -> None:
         ) from exc
     finally:
         await engine.dispose()
+    unknown = current - known_revisions()
+    if unknown:
+        raise RuntimeError(
+            f"the database is at revision {sorted(unknown)!r}, which this install does not "
+            "have: it was applied by a newer evalkit or by a package not installed here — "
+            "install that evalkit version or that package again"
+        )
     heads = head_revisions()
     if current != heads:
         raise RuntimeError(
