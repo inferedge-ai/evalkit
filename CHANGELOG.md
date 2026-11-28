@@ -104,6 +104,15 @@
   pass for an agent goes back one day. A session that gets more spans after it
   was stored keeps the trajectory it was stored with.
 
+- **Extending evalkit:** A package's UI can add sections to the sidebar of the
+  run page's trajectory viewer, above Prompts, through `useRunSidebar` in its
+  `UiExtensions`. Each item can jump to a step, in the main trajectory or a
+  subagent's, or link to a page, never both: `tsc -b` refuses an item with
+  `stepId` and `to`. When the thinking, tool calls or system filter hides the
+  step, the jump turns that filter back on and leaves the others as they are.
+  An item whose step the run does not have is plain text. `TrajectoryViewer`
+  takes the same sections as `sections`.
+
 - **Extending evalkit:** A package built on evalkit can keep tables of its own
   in the same database. It declares its alembic revisions in the entry point
   group `evalkit.migrations`; `evalkit db upgrade` then applies them with
@@ -117,6 +126,10 @@
 
 ### Improvements
 
+- **Web UI:** Jumping to a step in a run's trajectory, from a prompt, an error
+  or a sidebar section, now outlines the whole step for a moment and
+  stops with the step's header in view. The highlight used to show only in the
+  margin left of the step, and the filter bar covered the header.
 - **Web UI:** The agent, evaluator, LLM provider and workspace forms show
   their errors above the Cancel and Save buttons, where they stay in view
   while the fields scroll. They used to sit under the last field.

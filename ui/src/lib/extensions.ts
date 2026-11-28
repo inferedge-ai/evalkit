@@ -19,6 +19,15 @@ export type SettingsPage = {
   element: ReactElement;
 };
 
+export type RunSidebarItem = { key: string; label: string } & (
+  | { stepId?: number; tab?: string; to?: never }
+  | { to: string; stepId?: never; tab?: never }
+);
+
+export type RunSidebarSection = { title: string; items: RunSidebarItem[] };
+
+export type RunRef = { agent: string; runId: string };
+
 export type UiExtensions = {
   routes: ExtensionRoute[];
   publicRoutes: ExtensionRoute[];
@@ -26,4 +35,5 @@ export type UiExtensions = {
   nav: NavItem[];
   accountSettings: SettingsPage[];
   organizationSettings: SettingsPage[];
+  useRunSidebar?: (run: RunRef) => RunSidebarSection[];
 };

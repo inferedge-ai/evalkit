@@ -316,7 +316,23 @@ under `SERVICES` (`evalkit.jobs.app_runs`), as `run_worker` in
   non-admins; the page and its endpoints must check admin themselves.
 - Every `nav` item and every Settings page the person can see is a page in
   ⌘K search.
+- `useRunSidebar`, optional, is a React hook the agent run page
+  (`/runs/:agent/:runId`) calls with `{agent, runId}`. The
+  `RunSidebarSection`s it returns (a title and items) are listed in the
+  trajectory viewer's sidebar, above Prompts. An item with a `stepId` jumps to
+  that step when clicked, in the trajectory its `tab` names (`"main"`, the
+  default, or a subagent's trajectory id); one with `to` links to that page;
+  any other is plain text, as is one whose step or trajectory the run does not
+  have. An item is a `RunSidebarItem`, which takes `stepId` or `to`, never
+  both. When the viewer's thinking, tool calls or system filter hides the
+  step, the jump turns that filter back on and leaves the others as they are.
+  The hook's argument is a `RunRef`. A page
+  of the package can show a run the same way with `TrajectoryViewer` from
+  `@/runs/TrajectoryViewer` (`doc`, an `AtifTrajectory` from `@/lib/types`,
+  and `sections`).
 - Keep the folder path, the `extensions` export, `UiExtensions`,
+  `useRunSidebar`, `RunRef`, `RunSidebarSection`, `RunSidebarItem`,
+  `TrajectoryViewer`'s `doc` and `sections`, `AtifTrajectory`,
   `PageHeader`, `Empty`, `SignInLink`, `useOptionalMe`, `useTheme`,
   `Lockup`, `/favicon.svg`, `/login`'s `next` and `prompt`, `getApiToken`,
   `auth.oidc.ui_resources`, `SIGNED_IN`, `get_config`,

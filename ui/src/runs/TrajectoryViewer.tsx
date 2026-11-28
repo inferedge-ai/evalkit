@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { ArrowDown, ListFilter } from "lucide-react";
+import { Link } from "react-router-dom";
 import { timingAnalysis } from "../lib/analysis";
 import { errorEntries, toModel } from "../lib/atif";
 import type {
@@ -9,6 +11,7 @@ import type {
   TrajectoryModel,
 } from "../lib/atif";
 import { formatElapsed, formatTokens, formatUsd, toYaml } from "../lib/format";
+import type { RunSidebarItem, RunSidebarSection } from "../lib/extensions";
 import type { AtifTrajectory } from "../lib/types";
 import { Collapsible, Tabs } from "../lib/ui";
 import { Markdown } from "@/components/widgets/Markdown";
@@ -222,7 +225,32 @@ function Totals({ model }: { model: TrajectoryModel }) {
   );
 }
 
-export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
+const NO_SECTIONS: RunSidebarSection[] = [];
+
+type StepFilters = { thinking: boolean; tools: boolean; system: boolean };
+
+const ALL_FILTERS_ON: StepFilters = {
+  thinking: true,
+  tools: true,
+  system: true,
+};
+
+function isStepDrawn(step: StepRow, filters: StepFilters): boolean {
+  return (
+    (filters.system || step.source !== "system") &&
+    (!!step.text.trim() ||
+      (filters.thinking && !!step.thinking) ||
+      (filters.tools && step.toolCalls.length > 0))
+  );
+}
+
+export function TrajectoryViewer({
+  doc,
+  sections = NO_SECTIONS,
+}: {
+  doc: AtifTrajectory;
+  sections?: RunSidebarSection[];
+}) {
   const model = useMemo(() => toModel(doc), [doc]);
   const timing = useMemo(() => timingAnalysis(model), [model]);
   const [tab, setTab] = useState(model.tabs[0]?.id ?? "main");
@@ -247,14 +275,12 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
     return map;
   }, [timing]);
 
-  const hasBody = (step: StepRow) =>
-    !!step.text.trim() ||
-    (showThinking && !!step.thinking) ||
-    (showTools && step.toolCalls.length > 0);
-
-  const visible = active.steps.filter(
-    (step) => (showSystem || step.source !== "system") && hasBody(step),
-  );
+  const filters: StepFilters = {
+    thinking: showThinking,
+    tools: showTools,
+    system: showSystem,
+  };
+  const visible = active.steps.filter((step) => isStepDrawn(step, filters));
   const hasSystem = active.steps.some((step) => step.source === "system");
   const prompts = active.steps.filter(
     (step) => step.source === "user" && step.text.trim(),
@@ -293,6 +319,31 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
     if (highlightTimer.current) clearTimeout(highlightTimer.current);
     setHighlight(stepId);
     highlightTimer.current = setTimeout(() => setHighlight(null), 1500);
+  };
+  const findItemStep = (item: RunSidebarItem) => {
+    const target = model.tabs.find(
+      (t) => t.id === (item.tab ?? model.tabs[0].id),
+    );
+    const step = target?.steps.find((s) => s.stepId === item.stepId);
+    return target && step && isStepDrawn(step, ALL_FILTERS_ON)
+      ? { target, step }
+      : null;
+  };
+  const jumpToItem = (item: RunSidebarItem) => {
+    const found = findItemStep(item);
+    if (!found) return;
+    const { target, step } = found;
+    flushSync(() => {
+      if (!isStepDrawn(step, filters)) {
+        if (step.source === "system") setShowSystem(true);
+        if (!isStepDrawn(step, { ...filters, system: true })) {
+          if (step.thinking) setShowThinking(true);
+          if (step.toolCalls.length > 0) setShowTools(true);
+        }
+      }
+      if (target.id !== active.id) openTab(target.id);
+    });
+    jumpTo(step.stepId);
   };
   const jumpToError = (entry: ErrorEntry) => {
     toggleCall(callKey(entry.stepId, entry.callId), true);
@@ -349,8 +400,10 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
               <div
                 key={step.stepId}
                 data-step-id={step.stepId}
-                className={`flex gap-3 rounded-lg transition-colors duration-500 ${
-                  highlight === step.stepId ? "bg-info-bg" : ""
+                className={`flex scroll-mt-12 gap-3 rounded-lg ring-2 transition-[background-color,box-shadow] duration-500 ${
+                  highlight === step.stepId
+                    ? "bg-info-bg ring-primary/70"
+                    : "ring-transparent"
                 }`}
               >
                 <StepGutter
@@ -383,6 +436,40 @@ export function TrajectoryViewer({ doc }: { doc: AtifTrajectory }) {
           </div>
         </div>
         <nav className="w-64 shrink-0 overflow-auto border-l border-line bg-surface px-2 py-2">
+          {sections.map((section, index) => (
+            <div key={index} className="mb-3">
+              <div className="eyebrow">{section.title}</div>
+              {section.items.map((item) =>
+                item.to !== undefined ? (
+                  <Link
+                    key={item.key}
+                    to={item.to}
+                    className="block rounded px-1.5 py-1 text-meta text-ink-2 underline underline-offset-2 transition-colors hover:bg-fill"
+                  >
+                    <span className="line-clamp-3">{item.label}</span>
+                  </Link>
+                ) : findItemStep(item) === null ? (
+                  <div
+                    key={item.key}
+                    className="px-1.5 py-1 text-meta text-ink-2"
+                  >
+                    <span className="line-clamp-3">{item.label}</span>
+                  </div>
+                ) : (
+                  <button
+                    key={item.key}
+                    className="flex w-full gap-2 rounded px-1.5 py-1 text-left text-meta text-ink-2 transition-colors hover:bg-fill"
+                    onClick={() => jumpToItem(item)}
+                  >
+                    <span className="num shrink-0 text-ink-4">
+                      #{item.stepId}
+                    </span>
+                    <span className="line-clamp-3">{item.label}</span>
+                  </button>
+                ),
+              )}
+            </div>
+          ))}
           <div className="eyebrow">Prompts</div>
           {prompts.map((step, i) => (
             <button
