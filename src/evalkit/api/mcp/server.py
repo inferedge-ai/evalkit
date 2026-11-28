@@ -57,7 +57,7 @@ class McpExtension:
     instructions: str = ""
 
 
-def build_mcp(app: FastAPI, extensions: Sequence[McpExtension] = ()) -> FastMCP:
+def build_mcp(app: FastAPI, extensions: Sequence[McpExtension]) -> FastMCP:
     added = [extension.instructions for extension in extensions if extension.instructions]
     mcp = FastMCP(
         "evalkit",
@@ -89,7 +89,7 @@ class AnswerIdpOutage:
 
 # Only the MCP endpoint and its RFC 9728 metadata are routed to the MCP app,
 # so /api keeps its own auth and the SPA fallback never sees /mcp.
-def mount_mcp(app: FastAPI, extensions: Sequence[McpExtension] = ()):
+def mount_mcp(app: FastAPI, extensions: Sequence[McpExtension]):
     mcp_app = build_mcp(app, extensions).http_app(
         path=MCP_PATH,
         transport="streamable-http",
