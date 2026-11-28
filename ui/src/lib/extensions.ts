@@ -19,13 +19,10 @@ export type SettingsPage = {
   element: ReactElement;
 };
 
-export type RunSidebarItem = {
-  key: string;
-  label: string;
-  tab?: string;
-  stepId?: number;
-  to?: string;
-};
+export type RunSidebarItem = { key: string; label: string } & (
+  | { stepId?: number; tab?: string; to?: never }
+  | { to: string; stepId?: never; tab?: never }
+);
 
 export type RunSidebarSection = { title: string; items: RunSidebarItem[] };
 
