@@ -71,6 +71,7 @@ class SavedRun(BaseModel):
     stored: bool
     replaced_trajectory_key: str | None = None
     replaced_unread_run: bool = False
+    older_than_stored: bool = False
 
 
 class AppRunStore(Protocol):
@@ -83,6 +84,10 @@ class AppRunStore(Protocol):
     ) -> list[AppSession]: ...
 
     async def stored_run_ids(self, agent_id: int, run_ids: list[str]) -> set[str]: ...
+
+    async def stored_session_times(
+        self, agent_id: int, session_ids: list[str]
+    ) -> dict[str, datetime]: ...
 
     async def eval_run_ids(self, agent_id: int, run_ids: list[str]) -> set[str]: ...
 
@@ -189,6 +194,8 @@ async def save_app_run(
     saved = await deps.store.save(agent.id, run, await score_app_run(deps, agent, run, caps))
     if saved.replaced_trajectory_key and saved.replaced_trajectory_key != run.trajectory_key:
         await deps.blob_store.delete_object(saved.replaced_trajectory_key)
+    if saved.older_than_stored and run.trajectory_key:
+        await deps.blob_store.delete_object(run.trajectory_key)
     return saved.stored
 
 
@@ -344,6 +351,11 @@ async def build_harness_run(
     )
 
 
+def is_older_than_stored(item: RunListItem, session_times: dict[str, datetime]) -> bool:
+    stored_at = session_times.get(item.session_id) if item.session_id else None
+    return stored_at is not None and item.created_at is not None and item.created_at < stored_at
+
+
 async def list_harness_window(
     deps: AppRunDeps, agent: AgentDefinition, client: HarnessClient, since: datetime, now: datetime
 ) -> tuple[list[RunListItem], datetime] | str:
@@ -392,9 +404,14 @@ async def store_harness_runs(deps: AppRunDeps, agent: AgentDefinition) -> PassRe
                 break
             runs, until = window
             known = await deps.store.stored_run_ids(agent.id, [item.run_id for item in runs])
+            # The stored app run of a session is its newest run: an older run of
+            # the session that is listed again is already covered by it.
+            session_times = await deps.store.stored_session_times(
+                agent.id, sorted({item.session_id for item in runs if item.session_id})
+            )
             for item in runs:
                 assert item.created_at is not None
-                if item.run_id not in known:
+                if item.run_id not in known and not is_older_than_stored(item, session_times):
                     if stored == agent.settings.app_runs_per_pass:
                         full = True
                         break

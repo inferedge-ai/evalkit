@@ -35,7 +35,8 @@
   each one's status (`GET /runs/{id}`) and stores those with a final status:
   the trajectory and the gauge readings, as for agents that send traces. A
   harness that groups runs with `session_id` gets one stored app run per
-  session; when the session gets a newer run, that stored run is replaced. A
+  session; when the session gets a newer run, that stored run is replaced. An older
+  run of the session that a later pass lists again is skipped. A
   run that is still running is looked at again by the next pass, for up to 24
   hours. A pass stores at most 100 runs, makes one request at a time and
   retries a 429 or a 5xx; when the harness cannot be reached, the pass stops

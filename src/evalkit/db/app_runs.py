@@ -162,6 +162,24 @@ class PgAppRunStore:
                 stored.update(found.all())
         return stored
 
+    async def stored_session_times(
+        self, agent_id: int, session_ids: list[str]
+    ) -> dict[str, datetime]:
+        times: dict[str, datetime] = {}
+        async with self._session() as session:
+            for batch in batched(session_ids, RUN_IDS_PER_QUERY):
+                rows = await session.execute(
+                    select(models.AgentRun.session_id, func.max(models.AgentRun.started_at))
+                    .where(
+                        models.AgentRun.agent_id == agent_id,
+                        models.AgentRun.kind == RunKind.APP.value,
+                        models.AgentRun.session_id.in_(batch),
+                    )
+                    .group_by(models.AgentRun.session_id)
+                )
+                times.update((session_id, started) for session_id, started in rows.all())
+        return times
+
     async def eval_run_ids(self, agent_id: int, run_ids: list[str]) -> set[str]:
         evals: set[str] = set()
         async with self._session() as session:
@@ -175,6 +193,12 @@ class PgAppRunStore:
     async def save(self, agent_id: int, run: AgentRunRecord, rows: list[EvaluationRow]) -> SavedRun:
         async with self._session() as session:
             earlier = await self._run_to_replace(session, agent_id, run)
+            if (
+                earlier is not None
+                and earlier.harness_run_id != run.harness_run_id
+                and earlier.started_at > run.started_at
+            ):
+                return SavedRun(stored=False, older_than_stored=True)
             if earlier is not None:
                 replaced = earlier.trajectory_key
                 unread = (

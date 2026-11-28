@@ -294,3 +294,30 @@ async def test_a_harness_that_ignores_until_stops_the_pass_with_the_reason(app_r
     assert (result.stored, result.stopped) == (0, app_runs.IGNORES_UNTIL)
     assert await world.cursor(world.harness_agent.id) == start
     assert await world.runs() == []
+
+
+async def test_an_older_run_of_a_session_listed_again_leaves_the_newer_stored_run(app_run_world):
+    world = app_run_world
+    world.add_run("r0", minutes_ago=11 * 60, status="running")
+    world.add_run("m1", minutes_ago=10 * 60, session_id="chat-9")
+    world.add_run("m2", minutes_ago=5, session_id="chat-9")
+    assert (await world.harness_pass()).stored == 2
+    held = await world.cursor(world.harness_agent.id)
+    assert held == world.harness.runs["r0"]["created_at"]
+    polls = world.harness.runs["m1"]["polls"]
+    again = await world.harness_pass()
+    assert (again.stored, again.waiting) == (0, 1)
+    [stored] = await world.runs()
+    assert (stored.harness_run_id, stored.session_id) == ("m2", "chat-9")
+    assert stored.trajectory_key == trajectory_key(stored.agent_id, "m2")
+    assert await world.deps.blob_store.object_exists(stored.trajectory_key)
+    assert world.harness.runs["m1"]["polls"] == polls
+    older = AgentRunRecord(
+        harness_run_id="m1",
+        status=RunStatus.COMPLETED,
+        started_at=world.harness.runs["m1"]["created_at"],
+        session_id="chat-9",
+    )
+    saved = await world.deps.store.save(world.harness_agent.id, older, [])
+    assert (saved.stored, saved.older_than_stored) == (False, True)
+    assert [run.harness_run_id for run in await world.runs()] == ["m2"]
